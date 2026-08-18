@@ -1,0 +1,43 @@
+{
+  "manifestSchemaVersion": 1,
+  "id": "non-planar-cladding",
+  "version": "0.1.0",
+  "name": "Non-planar cladding",
+  "summary": "A coordinated XYZ surface skin over a known, already-built footprint: single-slope, dome, or saddle heightfields.",
+  "category": ["additive", "3d"],
+  "capabilityRequirements": ["coordinated-xyz-motion", "extrusion-on-off"],
+  "maturity": "experimental",
+  "evidence": {
+    "label": "EXPERIMENTAL",
+    "scope": "Deterministic generator validated by schema, geometry-bounds, and golden-output tests. Not yet evidenced on physical hardware under this exact manifest and generator revision."
+  },
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "surface": { "type": "string", "enum": ["single_slope", "dome", "saddle"], "default": "single_slope" },
+      "width": { "type": "number", "exclusiveMinimum": 0 },
+      "depth": { "type": "number", "exclusiveMinimum": 0 },
+      "rise": { "type": "number", "description": "Peak height above baseZ. Takes priority over `angle` if both are given." },
+      "angle": { "type": "number", "description": "Slope angle in degrees, converted to `rise` over `depth` when `rise` is not given directly." },
+      "baseZ": { "type": "number", "minimum": 0, "description": "Z height the supporting footprint already reaches. This operation does not generate that support; see `dependencies`." }
+    }
+  },
+  "outputs": {
+    "partShapes": ["surface"],
+    "pathFamilies": ["single slope cladding", "dome cladding", "saddle cladding"]
+  },
+  "dependencies": ["layer-filling"],
+  "dependencyNotes": "Not a hard runtime dependency of the generator itself, which only needs `baseZ` and a footprint. Documents the intended composition: a plan typically invokes layer-filling first (wide `settings.spacing`, `wallCount: 1`) to build a sparse support scaffold, then this operation to clad it, with this invocation's process-plan `dependencies` pointing at that scaffold's invocationId.",
+  "generator": {
+    "module": "./generator.mjs",
+    "export": "generate",
+    "deterministic": true
+  },
+  "validation": [
+    { "rule": "bounds-within-part-envelope", "description": "Every emitted point's x/y stays within the declared footprint; z stays within [baseZ, baseZ + rise]." },
+    { "rule": "z-varies-within-pass", "description": "At least one path in the output has more than one distinct z value, confirming genuinely spatial (not per-layer) motion." },
+    { "rule": "continuous-raster", "description": "Consecutive passes alternate Y direction so the surface is covered by one connected back-and-forth sweep." }
+  ],
+  "examples": ["examples/single-slope-coupon.json", "examples/dome-coupon.json"],
+  "license": "Apache-2.0"
+}

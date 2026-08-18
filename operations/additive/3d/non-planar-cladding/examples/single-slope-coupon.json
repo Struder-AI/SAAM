@@ -1,0 +1,892 @@
+{
+  "input": {
+    "parameters": {
+      "surface": "single_slope",
+      "width": 40,
+      "depth": 40,
+      "angle": 20,
+      "baseZ": 2.1
+    },
+    "settings": {
+      "spacing": 0.78
+    }
+  },
+  "expected": {
+    "part": {
+      "shape": "surface",
+      "width": 40,
+      "depth": 40,
+      "height": 16.6588,
+      "surface": "single_slope"
+    },
+    "paths": [
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -19.61,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -19.61,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -18.83,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -18.83,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -18.05,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -18.05,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -17.27,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -17.27,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -16.49,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -16.49,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -15.71,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -15.71,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -14.93,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -14.93,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -14.15,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -14.15,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.37,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -13.37,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -12.59,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -12.59,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -11.81,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -11.81,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -11.03,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -11.03,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -10.25,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -10.25,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -9.47,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -9.47,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -8.69,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -8.69,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -7.91,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -7.91,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -7.13,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -7.13,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -6.35,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -6.35,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -5.57,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -5.57,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -4.79,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -4.79,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -4.01,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -4.01,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -3.23,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -3.23,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -2.45,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -2.45,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -1.67,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -1.67,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -0.89,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": -0.89,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": -0.11,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": -0.11,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 0.67,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 0.67,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 1.45,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 1.45,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 2.23,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 2.23,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 3.01,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 3.01,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 3.79,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 3.79,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 4.57,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 4.57,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 5.35,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 5.35,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 6.13,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 6.13,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 6.91,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 6.91,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 7.69,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 7.69,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 8.47,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 8.47,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 9.25,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 9.25,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 10.03,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 10.03,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 10.81,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 10.81,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 11.59,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 11.59,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 12.37,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 12.37,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.15,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 13.15,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.93,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 13.93,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 14.71,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 14.71,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 15.49,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 15.49,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 16.27,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 16.27,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 17.05,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 17.05,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 17.83,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 17.83,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 18.61,
+            "y": 20,
+            "z": 16.6588
+          },
+          {
+            "x": 18.61,
+            "y": -20,
+            "z": 2.1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "single slope cladding",
+        "layer": 0,
+        "points": [
+          {
+            "x": 19.39,
+            "y": -20,
+            "z": 2.1
+          },
+          {
+            "x": 19.39,
+            "y": 20,
+            "z": 16.6588
+          }
+        ],
+        "intent": "print"
+      }
+    ]
+  }
+}
