@@ -50,10 +50,15 @@ authority governs *direction*, not *technical inclusion*: a third-party
 operation, machine definition, or interface that meets the same
 published compatibility, security, documentation, validation, and
 evidence requirements as a Struder-authored one is treated the same way
-by the generated conformance registry. Authorship is not a ranking
-factor. If SAAM later adds a featured or recommended view, its criteria
-will be public, technically grounded, and available to any component
-that meets them — not a preference for Struder's own work.
+by the generated conformance registry — `registry/registry.json`,
+regenerated from the manifests actually present on disk by
+`registry/generate.mjs` (`npm run generate-registry`), not
+hand-curated, and checked for drift by
+`tests/golden/registry-generate.test.mjs` on every test run. Authorship
+is not a field it records, let alone a ranking factor. If SAAM later
+adds a featured or recommended view, its criteria will be public,
+technically grounded, and available to any component that meets them —
+not a preference for Struder's own work.
 
 Mission drift is prevented by keeping this charter, its stated
 non-goals, and documented maintainer authority in force — not by giving

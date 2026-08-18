@@ -6,7 +6,8 @@
   "description": "Struder Agentic Additive Manufacturing — see PROJECT_CHARTER.md and README.md.",
   "workspaces": ["adapters/*", "interfaces/*"],
   "scripts": {
-    "test": "node --test tests/golden/*.test.mjs tests/integration/*.test.mjs"
+    "test": "node --test tests/golden/*.test.mjs tests/integration/*.test.mjs",
+    "generate-registry": "node registry/generate.mjs"
   },
   "license": "Apache-2.0"
 }

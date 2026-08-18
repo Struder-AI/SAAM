@@ -1,0 +1,69 @@
+{
+  "registrySchemaVersion": 1,
+  "operations": [
+    {
+      "id": "layer-filling",
+      "name": "Planar layer filling",
+      "version": "0.1.0",
+      "category": [
+        "additive",
+        "planar"
+      ],
+      "capabilityRequirements": [
+        "planar-motion",
+        "extrusion-on-off"
+      ],
+      "maturity": "experimental",
+      "evidenceLabel": "EXPERIMENTAL",
+      "path": "operations/additive/planar/layer-filling"
+    },
+    {
+      "id": "non-planar-cladding",
+      "name": "Non-planar cladding",
+      "version": "0.1.0",
+      "category": [
+        "additive",
+        "3d"
+      ],
+      "capabilityRequirements": [
+        "coordinated-xyz-motion",
+        "extrusion-on-off"
+      ],
+      "maturity": "experimental",
+      "evidenceLabel": "EXPERIMENTAL",
+      "path": "operations/additive/3d/non-planar-cladding"
+    }
+  ],
+  "machines": [
+    {
+      "id": "reference-dobot-mg400-struderbot",
+      "name": "Dobot MG400 · StruderBot reference installation",
+      "capabilities": [
+        {
+          "id": "planar-motion",
+          "evidenceLabel": "ROBOT-CONFIRMED"
+        },
+        {
+          "id": "extrusion-on-off",
+          "evidenceLabel": "ROBOT-CONFIRMED"
+        },
+        {
+          "id": "coordinated-xyz-motion",
+          "evidenceLabel": "EXPERIMENTAL"
+        }
+      ],
+      "postProcessor": "dobot-lua-postprocessor",
+      "path": "machines/reference-dobot-mg400-struderbot"
+    }
+  ],
+  "postProcessors": [
+    {
+      "id": "dobot-lua-postprocessor",
+      "name": "Dobot Lua post-processor",
+      "machineId": "reference-dobot-mg400-struderbot",
+      "maturity": "experimental",
+      "evidenceLabel": "EXPERIMENTAL",
+      "path": "machines/reference-dobot-mg400-struderbot/postprocessor"
+    }
+  ]
+}
