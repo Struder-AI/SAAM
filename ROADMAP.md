@@ -17,11 +17,32 @@ Per `docs/authoring/operations.md`, none of these need to land in this
 exact category grouping — `category` is reorganizable metadata, `id` is
 the only thing that has to stay stable once something ships.
 
+A follow-up pass cross-checked this list against what PrusaSlicer, Cura,
+and OrcaSlicer/Bambu Studio actually ship, plus the Arachne
+perimeter-generation paper (Kuipers et al., 2020) those slicers adopted.
+Most categories already matched with nothing to add; the new bullets
+below (and the new "Not operations" section closing out this catalog)
+came out of that pass.
+
 ### Wall / perimeter generation
 - Fixed-count offset perimeters — **available**, inside `layer-filling`.
 - Variable-width (Arachne-style) adaptive walls, for thin features a
   fixed bead width can't resolve cleanly.
-- Seam placement strategy (aligned, random, sharpest-corner, hidden).
+- Seam placement strategy (nearest, rear/back, aligned-to-previous-layer,
+  random, or manually painted).
+- Gap fill — filling sub-extrusion-width gaps a wall still can't close.
+  Mostly subsumed once Arachne-style variable-width walls exist, but
+  classic fixed-width offsetting needs it named explicitly.
+- Wall print order (inner→outer, outer→inner, or inner→outer→inner) — a
+  real, documented tradeoff between overhang quality and dimensional
+  accuracy on holes and bosses, not a cosmetic toggle.
+- Vase / spiral-wall mode — a single continuous spiraling wall, no seam,
+  no infill, no top layers. The source project's most-developed pattern
+  family; this is its category now that it's actually been checked
+  against mainstream slicers rather than left unplaced.
+- Elephant-foot compensation — a small inward perimeter offset on the
+  first few layers only, correcting first-layer bed-squash expansion.
+  A real geometry operation, not a print-speed setting.
 
 ### Infill strategies
 - Rectilinear (line) — **available**, inside `layer-filling`.
@@ -47,6 +68,9 @@ the only thing that has to stay stable once something ships.
 ### Support generation
 - Grid/line supports
 - Tree / organic supports
+- Hybrid tree + grid supports — tree trunks below, a grid-style cap near
+  the part; tree's easy removal with grid's reliability on critical flat
+  undersides.
 - Support interfaces (denser layer between support and part)
 - Support blockers / enforcers (include/exclude zones)
 
@@ -94,23 +118,59 @@ points backward across a layer range instead of within one layer.
 
 ### Bridging
 - Unsupported-span detection and bridging fill strategy
+- **Arc overhangs** — concentric self-supporting arcs that print true
+  horizontal overhangs off a vertical wall with zero support material, a
+  genuinely different algorithm family from filling a span between two
+  already-supported edges. Worth an EXPERIMENTAL label rather than
+  treating it as a "catch up to slicers" item: even in the mainstream
+  slicer world this exists only as third-party scripts and forks, not as
+  a natively-shipped feature anywhere yet. Source:
+  [stmcculloch/arc-overhang](https://github.com/stmcculloch/arc-overhang).
 
 ### Travel and seam optimization
 - Combing (keep travel moves inside perimeters)
 - Retraction / wipe strategy
 - Z-hop
+- Coasting — stop extrusion just before a line's end so residual nozzle
+  pressure finishes it, preventing end-of-line blobbing without a full
+  retraction.
 
 ### Multi-material / multi-tool
 - Tool change sequencing
-- Purge tower / prime blob
+- Purge tower / prime blob ("prime tower," "wipe tower," and "purge
+  tower" are used near-interchangeably across slicers for the same
+  structure — it stabilizes nozzle pressure after a tool change, not
+  just flushes color)
 
 ### Z strategy
 - Adaptive layer height (varies with local slope)
 
-Not yet placed in a category, worth deciding on: vase/spiral-wall
-strategies (the private source project's most-developed pattern family)
-belong somewhere in this catalog too, likely as their own category rather
-than folded into infill.
+### Not operations (deliberately excluded)
+
+The same slicer-feature survey pass also surfaced a lot of real,
+heavily-documented slicer functionality that still doesn't belong in
+this catalog: calibration numbers tuned per machine and material, layered
+on top of whichever operation runs, rather than a strategy for how a
+path itself is laid out. SAAM's schema already separates these from an
+operation's own strategy — `settings` for process parameters shared
+across operations, machine `capabilities` for what a platform can
+physically do — so listing them here would just be scope creep dressed
+up as thoroughness:
+
+- Nozzle / bed temperature — material calibration.
+- Fan speed profiles, including per-feature overrides for bridges and
+  overhangs — applied atop whichever operation runs, not a strategy of
+  its own.
+- Retraction distance and speed — the numeric tuning; combing, Z-hop,
+  and coasting above are the genuine geometric strategies.
+- Pressure advance / input shaping and jerk / junction deviation —
+  firmware and motion-controller tuning, below the toolpath layer
+  entirely.
+- Flow rate / extrusion multiplier — material calibration against a
+  specific filament batch.
+- Multi-part build sequencing ("print one at a time" object ordering
+  across a full bed) — a build-orchestration problem, not a single
+  part's toolpath strategy.
 
 ## Machine and post-processor roadmap
 
