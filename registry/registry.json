@@ -32,6 +32,22 @@
       "maturity": "experimental",
       "evidenceLabel": "EXPERIMENTAL",
       "path": "operations/additive/3d/non-planar-cladding"
+    },
+    {
+      "id": "vase-wall",
+      "name": "Vase / spiral wall",
+      "version": "0.1.0",
+      "category": [
+        "additive",
+        "planar"
+      ],
+      "capabilityRequirements": [
+        "planar-motion",
+        "extrusion-on-off"
+      ],
+      "maturity": "experimental",
+      "evidenceLabel": "EXPERIMENTAL",
+      "path": "operations/additive/planar/vase-wall"
     }
   ],
   "machines": [

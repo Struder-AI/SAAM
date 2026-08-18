@@ -31,7 +31,8 @@
         "shape": { "type": "string" },
         "width": { "type": "number" },
         "depth": { "type": "number" },
-        "outerDiameter": { "type": "number" },
+        "outerDiameter": { "type": "number", "description": "For a tapered round part (baseOuterDiameter given), this is the diameter at the top." },
+        "baseOuterDiameter": { "type": "number", "description": "Diameter at the bottom, only when it differs from outerDiameter — a straight (non-tapered) round part omits this." },
         "innerDiameter": { "type": "number" },
         "height": { "type": "number" }
       },
@@ -62,7 +63,8 @@
 
     "operations": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
+      "description": "Zero operations is valid and expected for a target-only preview — compiled before any toolpath strategy has been chosen, so the human can confirm the target itself first. See docs/authoring/process-plan-workflow.md.",
       "items": {
         "type": "object",
         "additionalProperties": false,

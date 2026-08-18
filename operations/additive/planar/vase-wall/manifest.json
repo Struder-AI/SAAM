@@ -1,0 +1,43 @@
+{
+  "manifestSchemaVersion": 1,
+  "id": "vase-wall",
+  "version": "0.1.0",
+  "name": "Vase / spiral wall",
+  "summary": "A single continuous helical wall from a base diameter to a top diameter — vase/spiral-vase mode, with an optional linear taper.",
+  "category": ["additive", "planar"],
+  "capabilityRequirements": ["planar-motion", "extrusion-on-off"],
+  "maturity": "experimental",
+  "evidence": {
+    "label": "EXPERIMENTAL",
+    "scope": "Deterministic generator validated by schema, geometry-bounds, and golden-output tests. Not yet evidenced on physical hardware under this exact manifest and generator revision. The capability it depends on (planar-motion) is itself ROBOT-CONFIRMED on the reference machine from extensive prior print history — this operation's own EXPERIMENTAL label is about this specific generator revision, not about whether the underlying motion is achievable at all."
+  },
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "baseOuterDiameter": { "type": "number", "exclusiveMinimum": 0, "description": "Diameter at the wall's own bottom (z = zStart)." },
+      "topOuterDiameter": { "type": "number", "exclusiveMinimum": 0, "description": "Diameter at the wall's own top (z = zStart + height). Equal to baseOuterDiameter for a straight (non-tapered) vase wall." },
+      "height": { "type": "number", "exclusiveMinimum": 0, "description": "Total rise of just this wall, not including whatever it's built on top of." },
+      "zStart": { "type": "number", "default": 0, "description": "Z height this wall begins at — typically the top of a solid base built by a preceding layer-filling invocation." }
+    },
+    "required": ["baseOuterDiameter", "height"]
+  },
+  "outputs": {
+    "partShapes": ["cylinder", "cone"],
+    "pathFamilies": ["Spiral wall"]
+  },
+  "dependencies": ["layer-filling"],
+  "dependencyNotes": "Not a hard runtime dependency of the generator itself, which only needs zStart. Documents the intended composition: a plan typically invokes layer-filling first to build a solid or perimeter-only base, then this operation continues upward from that base's own top Z as one continuous single wall — no separate inner perimeter, no infill, by definition of vase/spiral mode.",
+  "generator": {
+    "module": "./generator.mjs",
+    "export": "generate",
+    "deterministic": true
+  },
+  "validation": [
+    { "rule": "bounds-within-part-envelope", "description": "Every emitted point's radius stays within [min(baseOuterDiameter, topOuterDiameter), max(...)] / 2; z stays within [zStart, zStart + height]." },
+    { "rule": "z-rises-continuously", "description": "Z rises continuously point-to-point within each revolution rather than stepping between flat layers — an ordinary planar (XY) ring motion that simply never resets Z to a constant, not a heightfield surface like non-planar-cladding." },
+    { "rule": "single-continuous-wall", "description": "Exactly one path family (Spiral wall); no separate perimeter or infill paths, by definition of vase/spiral mode." },
+    { "rule": "steep-taper-warning", "description": "Emits a `warnings` entry when the requested taper implies a per-revolution radial shift steeper than the general ~45deg unsupported-overhang guideline used across FDM printing generally — a general guideline, not evidence from this project's own hardware. See README.md." }
+  ],
+  "examples": ["examples/straight-tube.json", "examples/tapered-shot-glass-wall.json"],
+  "license": "Apache-2.0"
+}

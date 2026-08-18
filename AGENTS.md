@@ -17,33 +17,46 @@ manufacturing. Here's the actual sequence, every time:
    previous turn. They read real manifests off disk; the catalog
    changes as this repo grows. Use an operation's `id` field (not its
    display `name`) everywhere below.
-2. **`compile_plan`** — pass the `machineId`, a `target` describing the
-   part the human is actually trying to build (a simple envelope:
-   `shape`, `width`/`depth` or `outerDiameter`/`innerDiameter`,
-   `height`), and an ordered list of `{operationId, parameters}`
-   invocations. This runs the real generators (no invented geometry) and
-   opens the SAAM Reference Workbench in the human's browser
-   automatically the first time you call it — nothing to open manually,
-   no file to hand them. The workbench's "Finished Part" view renders
-   `target` directly and only that — never derive it from toolpath data
-   or from whatever an individual operation happens to output.
-3. **Composing more than one operation toward the same target?** Call
-   `compile_plan` again with the *full* updated operation list, not just
-   the new addition — it replaces the whole plan, it doesn't append. You
-   can omit `target` on this call to keep the one already declared; only
-   pass it again if the target itself changed. The already-open
-   workbench tab updates in place.
-4. **Tell the human to review and approve in that browser tab.** This
+2. **Show the target before choosing how to build it.** If the part has
+   real dimensions to get right (a commercial product, a functional
+   part), look them up rather than guessing. Then call `compile_plan`
+   with `machineId`, that `target` (a simple envelope: `shape`,
+   `width`/`depth` or `outerDiameter`/`innerDiameter` — plus
+   `baseOuterDiameter` for a tapered round part — and `height`), and an
+   **empty** `operations` array. This publishes a target-only preview to
+   the workbench — nothing to build yet, just the shape and dimensions
+   you're proposing — and opens it in the human's browser automatically
+   the first time you call it. Get their confirmation on the target
+   itself before moving on to step 3. Don't skip straight to composing
+   operations just because you're able to.
+3. **Once the target's confirmed, compose operations toward it.** Call
+   `compile_plan` again with the *full* operation list (not just one new
+   addition — it replaces the whole plan, it doesn't append) and the
+   `target` omitted, which keeps the one already declared. The
+   workbench's "Finished Part" view renders that `target` directly and
+   only that — never derive it from toolpath data or from whatever an
+   individual operation happens to output; that's exactly what made
+   "Finished Part" show the wrong shape before this was fixed. The
+   already-open workbench tab updates in place. If an operation you need
+   doesn't exist yet, see the section below before improvising with the
+   wrong one.
+4. **Read `warnings` in the response, if present, and relay them.**
+   Some generators report their own advisory concerns — e.g.
+   `vase-wall`'s steep-taper check, which flags a taper steeper than the
+   general FDM unsupported-overhang guideline. These aren't errors and
+   don't block compiling; they're real information the human should see
+   before approving, not something to silently act on or silently drop.
+5. **Tell the human to review and approve in that browser tab.** This
    is not optional and you cannot do it yourself — see "Rules that
    never bend" below. Say something concrete: what you built, why, and
    that you're waiting on their approval before export.
-5. Once they say it's approved (or you want to confirm before assuming
+6. Once they say it's approved (or you want to confirm before assuming
    so), call **`get_approval_status`** with the plan and the scope you
    need — `geometry`, `executable-export`, or `machine-control`. Scopes
    never imply each other: an approval for `geometry` does not also
    authorize `executable-export`, and you should ask for whichever scope
    actually matches what you're about to do next.
-6. Call **`post_process`** with the approved plan to get real,
+7. Call **`post_process`** with the approved plan to get real,
    machine-native output (e.g. DobotStudio Pro Lua for the reference
    Dobot machine). It refuses cleanly if the approval is missing, stale,
    or scoped too narrowly — that refusal is correct behavior, not a bug

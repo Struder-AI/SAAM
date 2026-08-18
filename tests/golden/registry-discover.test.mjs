@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { discoverOperations, discoverMachines, discoverPostProcessors, loadGeneratorById } from "../../registry/discover.mjs";
 
-test("discoverOperations finds both reference operations, uniquely", async () => {
+test("discoverOperations finds all three reference operations, uniquely", async () => {
   const found = await discoverOperations();
   const ids = found.map((o) => o.manifest?.id).sort();
-  assert.deepEqual(ids, ["layer-filling", "non-planar-cladding"]);
+  assert.deepEqual(ids, ["layer-filling", "non-planar-cladding", "vase-wall"]);
 });
 
 test("discoverMachines finds the reference machine and not its nested post-processor", async () => {

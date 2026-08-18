@@ -63,11 +63,11 @@ test("list_machines returns the reference Dobot machine", async () => {
   });
 });
 
-test("list_operations returns both reference operations", async () => {
+test("list_operations returns all three reference operations", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({ name: "list_operations", arguments: {} });
     const ids = JSON.parse(result.content[0].text).map((o) => o.id).sort();
-    assert.deepEqual(ids, ["layer-filling", "non-planar-cladding"]);
+    assert.deepEqual(ids, ["layer-filling", "non-planar-cladding", "vase-wall"]);
   });
 });
 
@@ -86,6 +86,60 @@ test("compile_plan runs the real generator and writes a plan file", async () => 
     assert.equal(plan.approval, null);
     assert.ok(plan.operations[0].paths.length > 0);
     assert.ok(writtenTo.endsWith(".json"));
+  });
+});
+
+test("compile_plan accepts an empty operations array for a target-only preview", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        target: { shape: "cone", baseOuterDiameter: 32, outerDiameter: 44, height: 57 },
+        operations: [],
+      },
+    });
+    assert.notEqual(result.isError, true);
+    const { plan } = JSON.parse(result.content[0].text);
+    assert.deepEqual(plan.part, { shape: "cone", baseOuterDiameter: 32, outerDiameter: 44, height: 57 });
+    assert.deepEqual(plan.operations, []);
+    assert.equal(plan.status, "preview-only");
+  });
+});
+
+test("compile_plan refuses an empty operations array with no target to fall back on", async () => {
+  // .saam/session.json is a file on disk, shared by every test in this
+  // file regardless of which subprocess wrote it — without clearing it
+  // first, an earlier test's leftover session (same machine) would supply
+  // a target here via the "held from the session being continued"
+  // fallback, masking the very case this test exists to check.
+  await rm(new URL(".saam", `file://${repoRoot}`), { recursive: true, force: true });
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "compile_plan",
+      arguments: { machineId: "reference-dobot-mg400-struderbot", operations: [] },
+    });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /No target to build toward/);
+  });
+});
+
+test("compile_plan surfaces a generator's own warnings in its response, not in the persisted plan", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        // Deliberately steep: 20mm radial change over ~4 revolutions.
+        operations: [{ operationId: "vase-wall", parameters: { baseOuterDiameter: 10, topOuterDiameter: 50, height: 2.8 } }],
+      },
+    });
+    assert.notEqual(result.isError, true);
+    const { plan, warnings } = JSON.parse(result.content[0].text);
+    assert.ok(Array.isArray(warnings) && warnings.length === 1);
+    assert.equal(warnings[0].code, "steep-taper");
+    assert.equal(warnings[0].operationId, "vase-wall");
+    assert.equal(plan.warnings, undefined);
   });
 });
 

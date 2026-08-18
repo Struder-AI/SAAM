@@ -139,21 +139,22 @@ server.registerTool(
   {
     title: "Compile a process plan",
     description:
-      "Runs the real, deterministic generators for the given operation invocations against the given machine, producing a machine-resolved process plan at status 'preview-only' with no approval, and publishes it as the live session the SAAM Reference Workbench is watching — opening it in the operator's browser the first time this is called. Call this again with the full updated operation list (not just the new one) to add or change operations; the workbench updates to show the new revision, and any prior approval is left behind on the now-superseded revision it was actually granted for. This tool never creates an approval and never redesigns geometry; it only runs what the named operations themselves define. Pass `target` to declare (or update) what the whole plan is building toward — the workbench's \"Finished Part\" view renders this directly, independent of and unaffected by however many operations get composed toward it. Omit it to keep composing toward whatever target the session already has.",
+      "Runs the real, deterministic generators for the given operation invocations against the given machine, producing a machine-resolved process plan at status 'preview-only' with no approval, and publishes it as the live session the SAAM Reference Workbench is watching — opening it in the operator's browser the first time this is called. Call this again with the full updated operation list (not just the new one) to add or change operations; the workbench updates to show the new revision, and any prior approval is left behind on the now-superseded revision it was actually granted for. This tool never creates an approval and never redesigns geometry; it only runs what the named operations themselves define. Pass `target` to declare (or update) what the whole plan is building toward — the workbench's \"Finished Part\" view renders this directly, independent of and unaffected by however many operations get composed toward it. Omit it to keep composing toward whatever target the session already has. `operations` may be an empty array to publish a target-only preview with no toolpaths yet — the normal first step: show the human the shape and dimensions you're proposing before choosing how to build it, and only add operations once they've confirmed the target itself.",
     inputSchema: {
       machineId: z.string().describe('Machine id from list_machines, e.g. "reference-dobot-mg400-struderbot".'),
       target: z
         .object({
-          shape: z.string().describe('e.g. "box", "cylinder", "ring" — freeform, matches how you\'d describe the part.'),
+          shape: z.string().describe('e.g. "box", "cylinder", "cone", "ring" — freeform, matches how you\'d describe the part.'),
           width: z.number().optional(),
           depth: z.number().optional(),
-          outerDiameter: z.number().optional(),
+          outerDiameter: z.number().optional().describe("For a tapered round part (baseOuterDiameter given), the diameter at the top."),
+          baseOuterDiameter: z.number().optional().describe("Diameter at the bottom, only when it differs from outerDiameter — omit for a straight, non-tapered round part."),
           innerDiameter: z.number().optional(),
           height: z.number(),
         })
         .optional()
         .describe(
-          "The part the human is actually trying to build, as a simple idealized envelope — not a toolpath, not any one operation's own output. Held steady across calls: omit it on later compile_plan calls for the same session to keep composing toward the target you already declared. If never provided in this session, falls back to the first operation's own declared shape as a starting default."
+          "The part the human is actually trying to build, as a simple idealized envelope — not a toolpath, not any one operation's own output. Held steady across calls: omit it on later compile_plan calls for the same session to keep composing toward the target you already declared. If never provided in this session, falls back to the first operation's own declared shape as a starting default. Required (with an empty operations array) for a target-only preview, since there's no operation yet to fall back to."
         ),
       settings: z
         .object({
@@ -171,8 +172,7 @@ server.registerTool(
             parameters: z.record(z.string(), z.unknown()).optional(),
           })
         )
-        .min(1)
-        .describe("Ordered list of operation invocations to compose into this plan."),
+        .describe("Ordered list of operation invocations to compose into this plan. Empty for a target-only preview."),
     },
   },
   async ({ machineId, target, settings, operations }) => {
@@ -184,6 +184,7 @@ server.registerTool(
 
     const resolvedSettings = { layerHeight: 0.7, beadWidth: 0.83, spacing: 0.78, ...settings };
     const builtOperations = [];
+    const warnings = [];
     let firstOperationPart = null;
 
     for (const [index, invocation] of operations.entries()) {
@@ -200,6 +201,12 @@ server.registerTool(
       }
       const result = generate({ parameters: { strategy: invocation.strategy, ...invocation.parameters }, settings: resolvedSettings });
       if (index === 0) firstOperationPart = result.part;
+      // A generator's own warnings (e.g. vase-wall's steep-taper check)
+      // are advisory output from this specific compile, not plan content
+      // — reported here, not written into the persisted plan document.
+      if (Array.isArray(result.warnings)) {
+        warnings.push(...result.warnings.map((w) => ({ ...w, operationId: opEntry.manifest.id })));
+      }
       builtOperations.push({
         invocationId: `op-${index + 1}`,
         operationId: opEntry.manifest.id,
@@ -231,6 +238,11 @@ server.registerTool(
     // the wrong part entirely) the moment a plan had more than one
     // operation composed toward it.
     const part = target ?? (continuingSameMachine ? existingSession.part : null) ?? firstOperationPart;
+    if (!part) {
+      return errorResult(
+        "No target to build toward. Pass `target` — this is expected for the first compile_plan call in a new session, especially a target-only preview with an empty `operations` array: show the human the shape and dimensions before choosing how to build it."
+      );
+    }
 
     const plan = {
       schemaVersion: 1,
@@ -253,6 +265,7 @@ server.registerTool(
     return json({
       plan,
       writtenTo: path,
+      ...(warnings.length > 0 ? { warnings } : {}),
       nextStep: justOpened
         ? `Opened ${bridge.url} in the operator's browser with this plan loaded. Ask them to review the synchronized 3D previews and approve it there — this adapter cannot approve on your behalf.`
         : "Published revision to the already-open SAAM Reference Workbench tab, which updates automatically. Ask the operator to review and approve the new revision there.",

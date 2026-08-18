@@ -35,8 +35,8 @@ export function validatePlanShape(candidate) {
   if (candidate.schemaVersion !== 1) {
     errors.push(`Unsupported schemaVersion "${candidate.schemaVersion}" (expected 1).`);
   }
-  if (!Array.isArray(candidate.operations) || candidate.operations.length === 0) {
-    errors.push('"operations" must be a non-empty array.');
+  if (!Array.isArray(candidate.operations)) {
+    errors.push('"operations" must be an array (empty is valid — a target-only preview with no toolpaths yet).');
   } else {
     candidate.operations.forEach((op, index) => {
       if (!op.invocationId) errors.push(`operations[${index}] is missing "invocationId".`);

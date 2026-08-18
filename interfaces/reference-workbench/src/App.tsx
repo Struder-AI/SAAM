@@ -25,6 +25,7 @@ type PartSpec = {
   width?: number;
   depth?: number;
   outerDiameter?: number;
+  baseOuterDiameter?: number;
   innerDiameter?: number;
   height: number;
 };
@@ -219,7 +220,11 @@ function drawTargetPart(
   const isRound = part.shape === "cylinder" || part.shape === "ring" || part.outerDiameter != null;
 
   if (isRound) {
-    const outerR = (part.outerDiameter ?? Math.max(part.width ?? 40, part.depth ?? 40)) / 2;
+    // baseOuterDiameter only appears when a part genuinely tapers (see
+    // process-plan.schema.json's `part` field) — absent, the base is
+    // just the same radius as the top, a straight cylinder as before.
+    const topR = (part.outerDiameter ?? Math.max(part.width ?? 40, part.depth ?? 40)) / 2;
+    const baseR = part.baseOuterDiameter != null ? part.baseOuterDiameter / 2 : topR;
     const innerR = part.innerDiameter ? part.innerDiameter / 2 : 0;
     const SEGMENTS = 40;
     const ring = (r: number, z: number): Point[] =>
@@ -227,8 +232,8 @@ function drawTargetPart(
         const a = (i / SEGMENTS) * Math.PI * 2;
         return { x: Math.cos(a) * r, y: Math.sin(a) * r, z };
       });
-    const bottomOuter = ring(outerR, 0);
-    const topOuter = ring(outerR, height);
+    const bottomOuter = ring(baseR, 0);
+    const topOuter = ring(topR, height);
     for (let i = 0; i < SEGMENTS; i += 1) {
       fillQuad(bottomOuter[i], bottomOuter[i + 1], topOuter[i + 1], topOuter[i], i % 2 === 0 ? SKIN : SKIN_SHADE);
     }
@@ -274,7 +279,7 @@ function drawTargetPart(
 
 function partSpan(part?: PartSpec): number {
   if (!part) return 60;
-  const flat = Math.max(part.width ?? 0, part.depth ?? 0, part.outerDiameter ?? 0, 40);
+  const flat = Math.max(part.width ?? 0, part.depth ?? 0, part.outerDiameter ?? 0, part.baseOuterDiameter ?? 0, 40);
   return Math.max(40, flat, part.height) * 1.3;
 }
 

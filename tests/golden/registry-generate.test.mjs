@@ -16,11 +16,11 @@ test("registry.json matches what generate.mjs produces from the current manifest
   assert.equal(fresh, committed);
 });
 
-test("buildRegistry finds both reference operations, the reference machine, and its post-processor with no manifest errors", async () => {
+test("buildRegistry finds all three reference operations, the reference machine, and its post-processor with no manifest errors", async () => {
   const registry = await buildRegistry();
   assert.deepEqual(
     registry.operations.map((o) => o.id),
-    ["layer-filling", "non-planar-cladding"]
+    ["layer-filling", "non-planar-cladding", "vase-wall"]
   );
   assert.deepEqual(
     registry.machines.map((m) => m.id),
