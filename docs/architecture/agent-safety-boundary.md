@@ -8,11 +8,11 @@ whether it's safe to point their own agent at it.
 - Discovery (`list_machines`, `list_operations`): reads manifests from
   the local filesystem.
 - Generation (`compile_plan`): runs the same deterministic generator
-  functions `tests/golden` exercises, writes the result to a local file,
-  and returns it.
-- Review requests (`request_review`): writes a plan to the same local
-  location and returns instructions for a human to open it in the
-  reference workbench.
+  functions `tests/golden` exercises, publishes the result as the
+  reference workbench's live session (opening it in the operator's
+  browser the first time), and also writes it to a local file.
+- Review requests (`request_review`): publishes an existing plan as the
+  live session the same way, for cases outside `compile_plan`.
 - Validation (`validate_plan`) and approval-status reads
   (`get_approval_status`): pure functions over a plan you hand it.
 - Post-processing (`post_process`): translates an **already-approved**
@@ -39,13 +39,29 @@ whether it's safe to point their own agent at it.
   the named operations' own generators produce; `post_process` restates
   exactly what an approved plan's paths already are. Neither invents or
   adjusts a coordinate.
-- **It has no network surface.** This adapter runs over stdio only — the
-  same mechanism Claude Code and other MCP clients use to launch local
-  tools as a subprocess. There is no HTTP port, no loopback service to
-  misconfigure, nothing to expose beyond what the parent process's
-  stdin/stdout already carries. (This differs from the private
-  prototype this project grew out of, which used a loopback-bound HTTP
-  service — stdio removes that whole surface rather than hardening it.)
+- **Tool calls happen over stdio only** — the same mechanism Claude Code
+  and other MCP clients use to launch local tools as a subprocess.
+  Nothing about the *tool protocol* is exposed over a network.
+- **The one exception, deliberately scoped:** `compile_plan` and
+  `request_review` also start a small loopback-only HTTP bridge
+  (`src/http-bridge.mjs`) so the reference workbench can watch and
+  approve the live session without manual file export/import. It binds
+  to `127.0.0.1` only, never `0.0.0.0`; serves nothing but the
+  workbench's own built static files (read-only, path-normalized so a
+  crafted request can't escape that directory) plus two endpoints —
+  `GET /api/session` (read the current plan) and
+  `POST /api/session/approve` (build an approval record through
+  `plan-lib.mjs`'s `buildApprovalRecord`, the exact function and rules a
+  human clicking the workbench's own button goes through). That POST
+  endpoint cannot inject arbitrary plan content — it only approves
+  whatever session is already held server-side, and still cannot itself
+  authorize `post_process`'s approval check by a different path than a
+  human would. This is closer to the private prototype this project
+  grew out of (which used a similar loopback HTTP service) than pure
+  stdio is, and it's a real, deliberate trade: the alternative was no
+  live-updating viewer at all, which turned out to matter more than
+  minimizing surface area to zero. Nothing here accepts connections from
+  anywhere but the same machine.
 - **It does not start hardware or transmit machine commands.** The
   furthest this adapter reaches is generating text files
   (`global.lua`, `src0.lua`, `src1.lua`) for a human to paste into
@@ -54,11 +70,13 @@ whether it's safe to point their own agent at it.
 
 ## Filesystem reach
 
-`compile_plan` and `request_review` write to `.saam/plans/` under the
-repository this adapter is running from (gitignored). That's the only
-filesystem write this adapter performs. It does not read or write
-anywhere else, and does not accept a path from tool arguments to write
-to — the destination is fixed, not attacker- or model-controllable.
+`compile_plan` and `request_review` write to `.saam/plans/` (one file
+per compiled plan) and `.saam/session.json` (the current live session,
+overwritten each time) under the repository this adapter is running
+from — both gitignored. That's the only filesystem writing this adapter
+performs. It does not read or write anywhere else, and does not accept
+a path from tool arguments to write to — the destination is always
+fixed, never attacker- or model-controllable.
 
 ## Trust model
 

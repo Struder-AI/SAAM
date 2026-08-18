@@ -5,10 +5,15 @@
 // workflow this fits into, and docs/architecture/agent-safety-boundary.md
 // for what this adapter deliberately does not do.
 //
-// It never calls a model, never holds a provider API key, and never
-// creates an approval record — approval is exclusively a human action in
-// the reference workbench (interfaces/reference-workbench/). This
-// adapter runs entirely over stdio: no network port, no HTTP surface.
+// It never calls a model and never holds a provider API key. Approval is
+// exclusively a human action in the reference workbench
+// (interfaces/reference-workbench/) — this adapter can serve that
+// workbench locally and read back an approval it produced, but cannot
+// create one itself. Tool calls go over stdio, per the MCP standard; a
+// small loopback-only HTTP bridge (http-bridge.mjs) additionally serves
+// the workbench's built static files and a same-origin session API — see
+// docs/architecture/agent-safety-boundary.md for exactly what that
+// bridge does and does not expose.
 //
 // Currently requires being run from within a SAAM repository checkout —
 // operations, machines, and schemas are discovered by real filesystem
@@ -28,8 +33,36 @@ import {
 } from "../../../registry/discover.mjs";
 import { validatePlanShape, hasCurrentApproval } from "../../../schemas/process-plan/plan-lib.mjs";
 import { translate as translateForDobot } from "../../../machines/reference-dobot-mg400-struderbot/postprocessor/generator.mjs";
+import { startHttpBridge } from "./http-bridge.mjs";
+import { openBrowser } from "./open-browser.mjs";
+import { getSession, setSession } from "./session.mjs";
 
 const PLANS_DIR = join(REPO_ROOT, ".saam", "plans");
+const BRIDGE_PORT = Number(process.env.SAAM_BRIDGE_PORT) || 4700;
+const bridge = await startHttpBridge({ port: BRIDGE_PORT });
+// unref() so the HTTP bridge alone can't keep the process alive — the
+// stdio MCP transport is the real reason this process should stay up.
+// Without this, the process (and the child-process teardown timeout of
+// whatever spawned it) hangs for seconds after the agent disconnects,
+// because Node won't exit while a listening server handle is still ref'd.
+bridge.server.unref();
+let hasOpenedBrowser = false;
+
+/** Makes `plan` the workbench's live session and, the first time this is
+ * called in this process's lifetime, opens the workbench to show it —
+ * the "ask your agent, a browser tab shows the result" step described in
+ * README.md. Later calls just update what the already-open tab is
+ * watching; they don't reopen a new tab each time. Returns whether this
+ * call was the one that triggered the open. */
+async function publishToWorkbench(plan) {
+  await setSession(plan);
+  const justOpened = !hasOpenedBrowser;
+  if (justOpened) {
+    hasOpenedBrowser = true;
+    openBrowser(bridge.url);
+  }
+  return justOpened;
+}
 
 function json(value) {
   return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }] };
@@ -106,7 +139,7 @@ server.registerTool(
   {
     title: "Compile a process plan",
     description:
-      "Runs the real, deterministic generators for the given operation invocations against the given machine, producing a machine-resolved process plan at status 'preview-only' with no approval. Writes the plan to a local file and returns its path — open that file in the SAAM Reference Workbench ('Open plan…') to inspect and approve it. This tool never creates an approval and never redesigns geometry; it only runs what the named operations themselves define.",
+      "Runs the real, deterministic generators for the given operation invocations against the given machine, producing a machine-resolved process plan at status 'preview-only' with no approval, and publishes it as the live session the SAAM Reference Workbench is watching — opening it in the operator's browser the first time this is called. Call this again with the full updated operation list (not just the new one) to add or change operations; the workbench updates to show the new revision, and any prior approval is left behind on the now-superseded revision it was actually granted for. This tool never creates an approval and never redesigns geometry; it only runs what the named operations themselves define.",
     inputSchema: {
       machineId: z.string().describe('Machine id from list_machines, e.g. "reference-dobot-mg400-struderbot".'),
       settings: z
@@ -170,9 +203,16 @@ server.registerTool(
       });
     }
 
+    // Continuing the same live session (same machine) advances its
+    // revision rather than resetting to 1 — a stale approval granted for
+    // an earlier revision must not look valid against new content just
+    // because both happened to be numbered the same.
+    const existingSession = await getSession();
+    const revision = existingSession && existingSession.machine?.id === machineId ? existingSession.revision + 1 : 1;
+
     const plan = {
       schemaVersion: 1,
-      revision: 1,
+      revision,
       part,
       machine: { id: machineId, profileRevision: "1" },
       settings: resolvedSettings,
@@ -187,10 +227,13 @@ server.registerTool(
     }
 
     const path = await writePlanFile(plan);
+    const justOpened = await publishToWorkbench(plan);
     return json({
       plan,
       writtenTo: path,
-      nextStep: `Open ${path} in the SAAM Reference Workbench ('Open plan…') to inspect the synchronized 3D previews and approve it. This adapter cannot approve on your behalf.`,
+      nextStep: justOpened
+        ? `Opened ${bridge.url} in the operator's browser with this plan loaded. Ask them to review the synchronized 3D previews and approve it there — this adapter cannot approve on your behalf.`
+        : "Published revision to the already-open SAAM Reference Workbench tab, which updates automatically. Ask the operator to review and approve the new revision there.",
     });
   }
 );
@@ -200,16 +243,19 @@ server.registerTool(
   {
     title: "Request human review",
     description:
-      "Writes a plan to the local review location and returns instructions for a human to open and approve it in the SAAM Reference Workbench. Does not create an approval — approval is exclusively a human action.",
+      "Publishes an existing plan (e.g. one edited outside compile_plan) as the SAAM Reference Workbench's live session, opening the workbench if it isn't already open. Does not create an approval — approval is exclusively a human action.",
     inputSchema: { plan: z.record(z.string(), z.unknown()).describe("A full process plan, e.g. as returned by compile_plan.") },
   },
   async ({ plan }) => {
     const { valid, errors } = validatePlanShape(plan);
     if (!valid) return errorResult(`Not a valid plan: ${errors.join(" ")}`);
     const path = await writePlanFile(plan);
+    const justOpened = await publishToWorkbench(plan);
     return json({
       writtenTo: path,
-      nextStep: `Ask the operator to open ${path} in the SAAM Reference Workbench ('Open plan…'), review the synchronized previews, and approve it there.`,
+      nextStep: justOpened
+        ? `Opened ${bridge.url} in the operator's browser with this plan loaded. Ask them to review it there.`
+        : "Published to the already-open SAAM Reference Workbench tab, which updates automatically. Ask the operator to review it there.",
     });
   }
 );

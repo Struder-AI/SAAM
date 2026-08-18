@@ -46,14 +46,10 @@ type ProcessPlan = {
   approval: ApprovalRecord | null;
 };
 
-// A message from whichever agent (any MCP-capable one) produced this
-// plan. The workbench never talks to a model directly — see
-// README.md "Why a transcript, not a live chat" — it only displays
-// whatever conversation the producing agent chose to include.
-type Message = { who: string; text: string };
-type WorkbenchFile =
-  | ProcessPlan
-  | { format: "saam-workbench-file"; schemaVersion: 1; plan: ProcessPlan; conversation?: { transcript: Message[] } };
+// A saved file is either a bare plan, or wrapped with a format tag — kept
+// for compatibility with files saved by earlier builds and by other
+// tools; this workbench only ever reads and writes the `plan` field.
+type WorkbenchFile = ProcessPlan | { format: "saam-workbench-file"; schemaVersion: 1; plan: ProcessPlan };
 
 type ViewMode = "part" | "collective" | "current";
 type Viewport = { zoom: number; panX: number; panY: number };
@@ -347,9 +343,18 @@ function isWrapped(file: WorkbenchFile): file is Extract<WorkbenchFile, { format
 
 export default function App() {
   const [plan, setPlan] = useState<ProcessPlan | null>(null);
-  const [transcript, setTranscript] = useState<Message[]>([]);
+  // Whether /api/session answered at all — i.e. whether this page is
+  // being served by the MCP adapter's local bridge (see
+  // adapters/mcp/src/http-bridge.mjs) rather than opened standalone
+  // (`npm run dev`, or a static export). Standalone mode still works —
+  // Open plan… and local-only approval — but only a live session polls
+  // for updates and can write an approval back to it.
+  const [liveConnected, setLiveConnected] = useState(false);
+  // Sticky once true, so the status line can say "connection lost"
+  // rather than reusing the "never connected" message once the bridge
+  // has actually been reachable at some point in this page's lifetime.
+  const [everConnected, setEverConnected] = useState(false);
   const [selectedMachineId, setSelectedMachineId] = useState(MACHINES[0].id);
-  const [prompt, setPrompt] = useState("");
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [active, setActive] = useState(0);
   const [layer, setLayer] = useState(1);
@@ -366,33 +371,83 @@ export default function App() {
   const [exportError, setExportError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Poll the adapter's local session bridge. Polling (rather than a
+  // WebSocket) is deliberate: an agent composes operations no faster
+  // than a couple of seconds apart, so a ~1.5s poll is indistinguishable
+  // from "live" here while staying far simpler to get right. A failed
+  // first attempt means this page isn't being served by the bridge —
+  // fall back to standalone mode (Open plan…, local-only approval) and
+  // stop polling.
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as WorkbenchFile;
-        if (isWrapped(parsed)) {
-          setPlan(parsed.plan);
-          setTranscript(parsed.conversation?.transcript ?? []);
-        } else {
-          setPlan(parsed);
+    let cancelled = false;
+    let sawFirstResponse = false;
+    let consecutiveFailures = 0;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/session");
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const { session } = (await res.json()) as { session: ProcessPlan | null };
+        if (cancelled) return;
+        consecutiveFailures = 0;
+        if (!sawFirstResponse) {
+          sawFirstResponse = true;
         }
+        setLiveConnected(true); // (re)confirms the connection on every successful poll, not just the first
+        setEverConnected(true);
+        setPlan((current) => {
+          if (!session) return current;
+          if (current && current.revision === session.revision && current.machine.id === session.machine.id && JSON.stringify(current.approval) === JSON.stringify(session.approval)) {
+            return current; // no real change — skip a state update and the resulting re-render/redraw
+          }
+          setActive(0);
+          setLayer(1);
+          return session;
+        });
+        if (session && MACHINES.some((m) => m.id === session.machine.id)) setSelectedMachineId(session.machine.id);
+      } catch {
+        if (cancelled) return;
+        if (!sawFirstResponse) {
+          // Not served by the bridge — try a standalone local save instead, once.
+          try {
+            const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (saved) {
+              const parsed = JSON.parse(saved) as WorkbenchFile;
+              setPlan(isWrapped(parsed) ? parsed.plan : parsed);
+            }
+          } catch {
+            // Starting empty is fine.
+          }
+          return;
+        }
+        // Was connected, now failing repeatedly (server restarted, network
+        // blip, etc.) — say so rather than silently keep showing what
+        // might now be stale data under a "Live session" badge.
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= 3) setLiveConnected(false);
       }
-    } catch {
-      // A corrupt or absent local save just means starting empty — not an error to surface.
-    }
+    };
+    void poll();
+    const interval = setInterval(poll, 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
+  // Standalone-mode persistence only — a live session is already durable
+  // server-side (adapters/mcp writes .saam/session.json), so mirroring it
+  // to localStorage too would just be a second, potentially stale copy.
   useEffect(() => {
+    if (liveConnected) return;
     try {
       if (plan) {
-        const file: WorkbenchFile = { format: "saam-workbench-file", schemaVersion: 1, plan, conversation: { transcript } };
+        const file: WorkbenchFile = { format: "saam-workbench-file", schemaVersion: 1, plan };
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(file));
       }
     } catch {
       // Local persistence is a convenience, not a guarantee.
     }
-  }, [plan, transcript]);
+  }, [plan, liveConnected]);
 
   const activeOp = plan?.operations[active] ?? null;
   const activeOpLayers = activeOp ? operationLayerCount(activeOp) : 1;
@@ -405,6 +460,9 @@ export default function App() {
     setViewports({ part: { ...DEFAULT_VIEWPORT }, collective: { ...DEFAULT_VIEWPORT }, current: { ...DEFAULT_VIEWPORT } });
   };
 
+  // Loading a file is for the cases outside a live session: inspecting a
+  // plan a teammate sent you, or reopening an archived revision. A live
+  // session's own plan arrives via polling, not this.
   const loadPlanFile = async (file: File) => {
     setExportResult(null);
     setExportError("");
@@ -419,11 +477,9 @@ export default function App() {
       }
       setLoadErrors([]);
       setPlan(candidatePlan as ProcessPlan);
-      setTranscript(isWrapped(parsed) ? parsed.conversation?.transcript ?? [] : []);
       if (MACHINES.some((m) => m.id === (candidatePlan as ProcessPlan).machine.id)) {
         setSelectedMachineId((candidatePlan as ProcessPlan).machine.id);
       }
-      setPrompt("");
       setActive(0);
       setLayer(1);
       resetViews();
@@ -436,8 +492,6 @@ export default function App() {
 
   const clearPlan = () => {
     setPlan(null);
-    setTranscript([]);
-    setPrompt("");
     setExportResult(null);
     setExportError("");
     setApprovalMessage("");
@@ -448,14 +502,13 @@ export default function App() {
     }
   };
 
-  // Writes the current plan (with its conversation) back to a .json file
-  // a human can hand back to whichever agent is calling the MCP adapter —
-  // adapters/mcp/README.md's "end-to-end loop" step 4. Saving after
-  // approval is what actually closes that loop; saving before is fine
-  // too, just not the interesting case.
+  // A durable, portable copy of what was approved — this project's
+  // evidence culture treats that as worth keeping, independent of
+  // whatever the live session does next. Not part of the main loop
+  // anymore now that approval writes back to the session directly.
   const savePlanFile = async () => {
     if (!plan) return;
-    const file: WorkbenchFile = { format: "saam-workbench-file", schemaVersion: 1, plan, conversation: { transcript } };
+    const file: WorkbenchFile = { format: "saam-workbench-file", schemaVersion: 1, plan };
     const suggestedName = `saam-plan-revision-${plan.revision}${plan.approval ? "-approved" : ""}.json`;
     const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
     try {
@@ -487,6 +540,12 @@ export default function App() {
     }
   };
 
+  // Live session: the approval is written back to the adapter's session
+  // over the local bridge, so post_process can read it immediately — no
+  // manual file hand-off. Standalone (no bridge, e.g. plain `npm run
+  // dev` or a plan opened from a file): falls back to computing the
+  // approval locally, same as before — still real, just not shared with
+  // anything outside this browser tab.
   const approve = async (scope: "geometry" | "executable-export") => {
     if (!plan) return;
     if (!approverName.trim()) {
@@ -494,8 +553,19 @@ export default function App() {
       return;
     }
     try {
-      const record = await buildApprovalRecord(plan, { scope, approvedBy: approverName });
-      setPlan(applyApproval(plan, record));
+      if (liveConnected) {
+        const res = await fetch("/api/session/approve", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ scope, approvedBy: approverName }),
+        });
+        const body = (await res.json()) as { session?: ProcessPlan; error?: string };
+        if (!res.ok || !body.session) throw new Error(body.error ?? "Approval failed.");
+        setPlan(body.session);
+      } else {
+        const record = await buildApprovalRecord(plan, { scope, approvedBy: approverName });
+        setPlan(applyApproval(plan, record));
+      }
       setApprovalMessage(`Approved revision ${plan.revision} for ${scope} by ${approverName.trim()}.`);
       setExportResult(null);
     } catch (error) {
@@ -524,20 +594,10 @@ export default function App() {
     }
   };
 
-  // Not a live model call: this hands the request off by writing it into
-  // the plan's own conversation transcript. An MCP-connected agent (once
-  // the adapter in ROADMAP.md task 16 exists) reads and acts on it the
-  // same way any MCP tool consumer would — the workbench itself never
-  // holds a provider API key or calls an LLM directly.
-  const submitPrompt = () => {
-    const text = prompt.trim();
-    if (!text) return;
-    setTranscript((current) => [...current, { who: "You", text }]);
-    setPrompt("");
-  };
-
   const rotateHandler = (dx: number, dy: number) =>
     setRotation((r) => ({ yaw: r.yaw + dx * 0.009, pitch: Math.max(-1.25, Math.min(1.25, r.pitch + dy * 0.009)) }));
+
+  const currentMachine = MACHINES.find((m) => m.id === (plan?.machine.id ?? selectedMachineId));
 
   return (
     <main className="app-shell">
@@ -556,9 +616,17 @@ export default function App() {
           <b>SAAM</b>
           <span>Reference Workbench</span>
         </div>
-        <button type="button" className="open-plan-action" onClick={() => fileInputRef.current?.click()}>
-          Open plan…
-        </button>
+        <div className="file-actions">
+          <button type="button" onClick={() => fileInputRef.current?.click()}>
+            Open plan…
+          </button>
+          <button type="button" onClick={() => void savePlanFile()} disabled={!plan}>
+            Save plan…
+          </button>
+          <button type="button" onClick={clearPlan} disabled={!plan}>
+            Clear
+          </button>
+        </div>
         <div className="render-toggle">
           <button type="button" aria-pressed={!filled} onClick={() => setFilled(false)} className={!filled ? "selected" : ""}>
             Toolpath lines
@@ -567,16 +635,10 @@ export default function App() {
             Filled beads
           </button>
         </div>
-        <label className="machine-select">
+        <div className="machine-readout">
           <span>Machine</span>
-          <select value={selectedMachineId} onChange={(e) => setSelectedMachineId(e.target.value)}>
-            {MACHINES.map((m) => (
-              <option key={m.id} value={m.id} disabled={!m.available}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </label>
+          <b>{currentMachine?.name ?? selectedMachineId}</b>
+        </div>
       </header>
 
       <section className="status-strip">
@@ -586,16 +648,17 @@ export default function App() {
             <b>Revision {plan.revision}</b>
             <span>{plan.status}</span>
             {plan.approval && <span>· approved ({plan.approval.scope}) by {plan.approval.approvedBy}</span>}
-            {plan.machine.id !== selectedMachineId && (
-              <span className="machine-mismatch">· loaded plan targets {plan.machine.id}, not the selected machine</span>
-            )}
           </>
         ) : (
-          <span>Selected machine constrains what a new request can compose against</span>
+          <span>Waiting for a compiled plan</span>
         )}
-        <i className="agent-connection">
+        <i className={`session-connection${liveConnected ? " connected" : everConnected ? " lost" : ""}`}>
           <span />
-          Agent: not connected — install the SAAM MCP server in your agent of choice to send live requests
+          {liveConnected
+            ? "Live session — updates automatically"
+            : everConnected
+              ? "Connection lost — retrying…"
+              : "Standalone — not served by the SAAM adapter"}
         </i>
       </section>
 
@@ -611,31 +674,6 @@ export default function App() {
       )}
 
       <section className="workspace">
-        <aside className="agent-panel">
-          <div className="agent-heading">
-            <div>
-              <span>CONVERSATION</span>
-              <h2>Producing agent's transcript</h2>
-            </div>
-            <i>{transcript.length > 0 ? `${transcript.length} messages` : "None included"}</i>
-          </div>
-          <div className="chat-history">
-            {transcript.length > 0 ? (
-              transcript.map((m, i) => (
-                <article key={i} className={m.who === "You" || m.who === "Operator" ? "user" : "agent"}>
-                  <b>{m.who}</b>
-                  <p>{m.text}</p>
-                </article>
-              ))
-            ) : (
-              <p className="chat-empty">
-                This workbench doesn't run its own agent — it displays whatever conversation the agent that produced
-                this plan chose to include. Open a plan with a <code>conversation.transcript</code> to see it here.
-              </p>
-            )}
-          </div>
-        </aside>
-
         <div className="part-view">
           <ViewerCard title="Finished part">
             <ToolCanvas mode="part" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.part} onViewportChange={(v) => setViewports((c) => ({ ...c, part: v }))} onRotate={rotateHandler} />
@@ -713,48 +751,6 @@ export default function App() {
             <div className="empty-history">EMPTY</div>
           )}
         </aside>
-
-        <section className="prompt-panel">
-          <div className="prompt-context">
-            <span>REQUESTING MACHINE</span>
-            <b>{MACHINES.find((m) => m.id === selectedMachineId)?.name}</b>
-            <p>Describe the part or change you want. Your request is added to this plan's conversation for whichever agent has the SAAM MCP server connected to pick up.</p>
-            <div className="prompt-file-actions">
-              <button type="button" onClick={() => fileInputRef.current?.click()}>
-                Open plan…
-              </button>
-              <button type="button" onClick={() => void savePlanFile()} disabled={!plan}>
-                Save plan…
-              </button>
-              <button type="button" onClick={clearPlan} disabled={!plan}>
-                Clear
-              </button>
-            </div>
-          </div>
-          <form
-            className="prompt-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submitPrompt();
-            }}
-          >
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  submitPrompt();
-                }
-              }}
-              placeholder="Describe a part, revise an operation, or ask about the plan… (Enter to send, Shift+Enter for a new line)"
-              aria-label="Request to send to a connected agent"
-            />
-            <button type="submit" className="submit" disabled={!prompt.trim()}>
-              Send ↗
-            </button>
-          </form>
-        </section>
 
         <section className={`export-panel${plan ? "" : " empty"}`}>
           <header>

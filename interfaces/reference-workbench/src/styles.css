@@ -77,32 +77,51 @@ button {
   font-style: italic;
   font-weight: 650;
 }
-.machine-select {
+/* The machine is dictated by whatever the connected agent compiled —
+   there's no "choose a machine, then compose a request" step in this
+   UI anymore, so this is a plain readout, not a control. */
+.machine-readout {
   margin-left: auto;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
 }
-.machine-select span {
+.machine-readout span {
   color: var(--muted);
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.machine-select select {
-  min-width: 230px;
-  border: 1px solid #aeb7b2;
-  border-radius: 9px;
+.machine-readout b {
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.file-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.file-actions button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: white;
-  padding: 9px 30px 9px 12px;
-  font-weight: 760;
-  font-size: 0.78rem;
+  padding: 7px 11px;
+  font-size: 0.71rem;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--muted);
 }
-.machine-mismatch {
-  color: var(--orange-dark);
+.file-actions button:hover:not(:disabled) {
+  border-color: var(--teal);
+  color: var(--teal);
 }
-.agent-connection {
+.file-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.session-connection {
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -112,12 +131,32 @@ button {
   font-weight: 700;
   color: #8c5145;
 }
-.agent-connection span {
+.session-connection span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: #bf604d;
   flex: 0 0 auto;
+}
+.session-connection.connected {
+  color: #287653;
+}
+.session-connection.connected span {
+  background: #45a77a;
+  box-shadow: 0 0 0 3px #d4eadf;
+}
+.session-connection.lost {
+  color: var(--orange-dark);
+}
+.session-connection.lost span {
+  background: var(--orange);
+  box-shadow: 0 0 0 3px rgba(230, 109, 63, 0.18);
+  animation: connection-lost-pulse 1s infinite;
+}
+@keyframes connection-lost-pulse {
+  50% {
+    opacity: 0.3;
+  }
 }
 .render-toggle {
   display: grid;
@@ -145,20 +184,6 @@ button {
   color: white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
 }
-.open-plan-action {
-  border: 1px solid #b7c9c4;
-  border-radius: 9px;
-  background: #edf4f1;
-  color: var(--teal);
-  padding: 8px 14px;
-  font-weight: 800;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-.open-plan-action:hover {
-  border-color: var(--teal);
-}
-
 .status-strip {
   min-height: 38px;
   padding: 6px clamp(18px, 3vw, 44px);
@@ -192,12 +217,11 @@ button {
 .workspace {
   padding: 12px;
   display: grid;
-  grid-template-columns: minmax(230px, 0.76fr) minmax(240px, 0.9fr) minmax(330px, 1.2fr) 92px;
-  grid-template-rows: minmax(160px, 1fr) minmax(160px, 1fr) 210px;
+  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1.3fr) 100px minmax(280px, 0.85fr);
+  grid-template-rows: minmax(220px, 1fr) minmax(220px, 1fr);
   grid-template-areas:
-    "agent part current rail"
-    "agent collective current rail"
-    "prompt prompt export export";
+    "part current rail export"
+    "collective current rail export";
   gap: 11px;
   max-width: 1800px;
   height: calc(100vh - 112px);
@@ -256,84 +280,6 @@ button {
 .current-view {
   grid-area: current;
   min-height: 0;
-}
-
-.agent-panel {
-  grid-area: agent;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #bfd3ce;
-  border-radius: 14px;
-  background: #f8fbf9;
-  overflow: hidden;
-  box-shadow: var(--shadow);
-}
-.agent-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 15px;
-  border-bottom: 1px solid #d9e5e1;
-}
-.agent-heading span {
-  font-size: 0.61rem;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  color: var(--orange-dark);
-  text-transform: uppercase;
-}
-.agent-heading h2 {
-  margin: 3px 0 0;
-  font-size: 0.9rem;
-}
-.agent-heading i {
-  font-style: normal;
-  font-size: 0.64rem;
-  color: var(--teal);
-  border: 1px solid #b7d5cd;
-  border-radius: 999px;
-  padding: 4px 8px;
-  background: white;
-}
-.chat-history {
-  padding: 12px 13px;
-  overflow: auto;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 10px;
-}
-.chat-history article {
-  max-width: 92%;
-  padding: 10px 11px;
-  border-radius: 11px;
-  font-size: 0.73rem;
-  line-height: 1.45;
-}
-.chat-history article b {
-  font-size: 0.62rem;
-  letter-spacing: 0.05em;
-}
-.chat-history article p {
-  margin: 3px 0 0;
-}
-.chat-history .user {
-  align-self: flex-end;
-  background: #293b39;
-  color: white;
-  border-bottom-right-radius: 3px;
-}
-.chat-history .agent {
-  background: var(--teal-soft);
-  border-bottom-left-radius: 3px;
-}
-.chat-empty {
-  margin: auto;
-  padding: 20px;
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.72rem;
 }
 
 .operation-rail {
@@ -502,93 +448,6 @@ button {
   pointer-events: none;
 }
 
-.prompt-panel {
-  grid-area: prompt;
-  display: grid;
-  grid-template-columns: minmax(210px, 0.34fr) minmax(300px, 1fr);
-  gap: 14px;
-  padding: 14px 15px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
-  min-width: 0;
-}
-.prompt-context {
-  padding-right: 14px;
-  border-right: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-}
-.prompt-context > span {
-  font-size: 0.61rem;
-  font-weight: 900;
-  letter-spacing: 0.14em;
-  color: var(--orange-dark);
-  text-transform: uppercase;
-}
-.prompt-context b {
-  display: block;
-  margin-top: 5px;
-  font-size: 0.89rem;
-}
-.prompt-context p {
-  margin: 7px 0 0;
-  color: var(--muted);
-  font-size: 0.68rem;
-  line-height: 1.42;
-}
-.prompt-file-actions {
-  margin-top: auto;
-  display: flex;
-  gap: 6px;
-}
-.prompt-file-actions button {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: white;
-  padding: 7px 10px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-.prompt-form {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.prompt-form textarea {
-  width: 100%;
-  flex: 1;
-  min-height: 60px;
-  resize: none;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 10px;
-  font-size: 0.75rem;
-  outline: none;
-  background: white;
-}
-.prompt-form textarea:focus {
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px rgba(28, 105, 100, 0.1);
-}
-.prompt-form .submit {
-  align-self: flex-end;
-  margin-top: 7px;
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 14px;
-  background: var(--orange);
-  color: white;
-  font-size: 0.72rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-.prompt-form .submit:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 .export-panel {
   grid-area: export;
@@ -772,7 +631,7 @@ button {
   font-size: 0.63rem;
   line-height: 1.4;
   overflow: auto;
-  max-height: 130px;
+  max-height: 220px;
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
 }
 
@@ -800,10 +659,7 @@ button {
 
 @media (max-width: 1180px) {
   .workspace {
-    grid-template-columns: minmax(210px, 0.72fr) minmax(220px, 0.86fr) minmax(280px, 1.12fr) 82px;
-  }
-  .prompt-panel {
-    grid-template-columns: 190px 1fr;
+    grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.2fr) 82px minmax(240px, 0.8fr);
   }
 }
 @media (max-width: 900px) {
@@ -818,38 +674,22 @@ button {
     height: auto;
     min-height: 0;
     grid-template-columns: 1fr 1fr 76px;
-    grid-template-rows: 380px 300px 300px 220px 220px;
+    grid-template-rows: 320px 320px 320px;
     grid-template-areas:
-      "agent agent rail"
       "part current rail"
       "collective current rail"
-      "prompt prompt prompt"
       "export export export";
   }
   .operation-rail {
     min-height: 0;
-  }
-  .prompt-panel {
-    grid-template-columns: 1fr;
-  }
-  .prompt-context {
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    padding: 0 0 10px;
-    margin-bottom: 10px;
   }
 }
 @media (max-width: 620px) {
   .topbar {
     padding: 10px 14px;
   }
-  .machine-select {
-    margin-left: 0;
-    width: 100%;
-  }
-  .machine-select select {
-    min-width: 0;
-    flex: 1;
+  .machine-readout {
+    align-items: flex-start;
   }
   .workspace {
     display: flex;
@@ -857,15 +697,15 @@ button {
     padding: 9px;
     height: auto;
   }
-  .agent-panel {
-    height: 380px;
-  }
   .part-view,
   .collective-view {
     height: 280px;
   }
   .current-view {
     height: 380px;
+  }
+  .export-panel {
+    min-height: 300px;
   }
   .operation-rail {
     height: 112px;

@@ -20,8 +20,18 @@ import { buildApprovalRecord, applyApproval } from "../../schemas/process-plan/p
 const serverPath = fileURLToPath(new URL("../../adapters/mcp/src/server.mjs", import.meta.url));
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 
+// Each test spawns its own server (its own HTTP bridge too — see
+// http-bridge.mjs). Reusing the adapter's default port across tests run
+// back-to-back hits TIME_WAIT on the just-closed socket and makes every
+// later test wait out that delay; a distinct port per test avoids it.
+let nextPort = 4800;
+
 async function withClient(fn) {
-  const transport = new StdioClientTransport({ command: process.execPath, args: [serverPath] });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [serverPath],
+    env: { ...process.env, SAAM_NO_AUTO_OPEN: "1", SAAM_BRIDGE_PORT: String(nextPort++) },
+  });
   const client = new Client({ name: "saam-integration-test", version: "0.1.0" });
   await client.connect(transport);
   try {

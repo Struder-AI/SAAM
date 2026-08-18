@@ -1,80 +1,104 @@
 # SAAM Reference Workbench
 
-A local 3D inspection and approval interface for SAAM process plans. It
-loads the same process-plan data used for post-processing
-(`schemas/process-plan/process-plan.schema.json`), renders synchronized
-previews, is where a request gets handed to a connected agent, and is the
-one place in this reference toolchain where a human can actually create
-an approval record.
+A control panel for inspecting and approving SAAM process plans:
+synchronized 3D previews, build-history navigation, and the one place in
+this toolchain where a human can actually create an approval record. It
+does not run a conversation — that happens in whichever agent you're
+using, in that agent's own interface. This workbench is what that
+agent's work looks like once it's real.
 
 ## What changed from the private prototype this was adapted from
 
-The prototype this was built from embedded a chat panel wired to one
-specific local Codex-backed HTTP service. That specific coupling is
-gone, but the interaction it enabled is not — see "Sending a request"
-below. Also dropped: the unused Cloudflare D1/`chatgpt-auth.ts` starter
-boilerplate the prototype carried but never used, and the draggable
-workspace splitters (nice-to-have UI complexity, cut to keep this port
-reviewable). Everything else — the machine selector, the three
-synchronized rotating Canvas previews, the build-history rail, the
-conversation panel, the bottom request/export strip — matches the
-original layout; this needed to look like the interface already
-designed, not a reinterpretation of it.
+The prototype this was built from embedded its own chat panel, wired to
+one specific local Codex-backed service — describing a part and
+approving it both happened inside the same window. That model doesn't
+fit an MCP-first design: the conversation belongs in whatever agent has
+the SAAM MCP server connected (Claude Code, Claude Desktop, anything
+else), not duplicated into a second chat box here. Two real iterations
+happened before landing on this:
 
-## Sending a request
+1. First pass: ported the layout faithfully, including the chat panel,
+   but wired its input to nothing.
+2. Second pass (this one): recognized that was backwards — the chat
+   panel doesn't belong here at all once an agent can talk to SAAM
+   directly through `adapters/mcp/`. Removed it, along with the "select
+   a machine before composing a request" workflow that assumed a
+   request gets built in this UI — it doesn't anymore. What's left is a
+   **live-connected viewer**: `adapters/mcp/`'s `compile_plan` publishes
+   directly to this workbench's session, no exported file, no manual
+   "Open plan…", the browser tab updates automatically as an agent
+   composes operations.
 
-The prompt box at the bottom left is real, not a passive notes field.
-Submitting a message appends it to the open plan's conversation
-transcript — the same `conversation.transcript` a `.json` file can be
-loaded with (see `src/lib/plan.mjs`'s `WorkbenchFile` shape in
-`App.tsx`). This workbench does not call a model itself and holds no
-provider API key: it hands the request off by writing it where an
-MCP-connected agent can read it. Until the MCP adapter (a separate,
-not-yet-built piece of this project) actually exists to relay that,
-the status strip shows an honest "Agent: not connected" indicator
-rather than faking a response — the box is built ready for that
-connection, not simulating one that doesn't exist yet.
+Also dropped from the original prototype: unused Cloudflare
+D1/`chatgpt-auth.ts` starter boilerplate, and draggable workspace
+splitters (nice-to-have UI complexity, cut to keep this port
+reviewable). Kept: the three synchronized rotating Canvas previews, the
+build-history rail, and the SAAM brand's visual language.
 
-## Machine selection
+## Two ways a plan gets here
 
-The dropdown in the top right is a real constraint, not a label: it's
-what a new request would be composed against, and it's checked against
-whatever machine a loaded plan actually resolved for (a mismatch shows
-in the status strip rather than being silently ignored). Only
-`reference-dobot-mg400-struderbot` has a real manifest today; the four
-other machines listed are ROADMAP.md's named placeholders, shown and
-disabled rather than hidden, so the roadmap is visible in the same
-place a funder would look for it.
+**Live** (the normal case): `adapters/mcp/`'s HTTP bridge serves this
+workbench's own built files and polls-updates it over `/api/session`.
+Nothing to click — the tab shows whatever the connected agent last
+compiled, and it keeps updating as more operations are composed. The
+status strip's "Live session" indicator (green, pulsing orange if the
+connection drops) reflects this, not whether an agent happens to be
+typing right now — this page can't see that; it only knows whether the
+local bridge is reachable.
+
+**Standalone**: open this app on its own (`npm run dev`, or a plain
+static host) and there's no bridge to poll. "Open plan…" loads any
+`.json` plan file for inspection — a teammate's file, an archived
+revision — and approval is computed locally rather than written back to
+a session. Still fully real (same hashing, same approval-record shape),
+just not shared with anything outside the tab. "Save plan…" produces a
+durable, portable copy of what was approved, for either mode — this
+project's evidence culture treats an approval record as worth keeping
+independent of whatever the live session does next.
+
+## Machine display
+
+The machine name in the top right is a readout, not a selector — the
+machine is whatever the live session (or loaded file) actually targets;
+there's no "choose a machine, then compose a request" step in this UI
+to constrain. `ROADMAP.md`'s four other named machines still appear
+disabled in the underlying list, so the roadmap stays visible even
+though there's nothing to pick.
 
 ## Approval and export
 
-Approving a revision computes a SHA-256 content hash (Web Crypto, no
-dependency) over the plan's manufacturing content and attaches an
-approval record scoped to `geometry` or `executable-export`. Editing or
-reloading the plan changes its revision, which silently invalidates
-that approval — the export panel checks this on every render, not just
-at approval time. Export calls the real `dobot-lua-postprocessor`
-generator directly — the identical module `tests/golden` exercises,
-imported from
-`machines/reference-dobot-mg400-struderbot/postprocessor/generator.mjs`,
-not a reimplementation. It only runs once a plan carries a matching
-`executable-export` approval; the post-processor's own safety gate
-would refuse it anyway even if the UI check were somehow bypassed.
+Live mode: clicking "Approve for export" `POST`s to the adapter's
+`/api/session/approve`, which builds the approval record through the
+exact same `schemas/process-plan/plan-lib.mjs` function a standalone
+approval uses, attaches it to the session, and the response becomes
+this tab's new state — no export/import step. Standalone mode: the same
+function runs locally instead. Either way: a SHA-256 content hash (Web
+Crypto, no dependency) over the plan's manufacturing content, scoped to
+`geometry` or `executable-export`; any later edit changes the revision
+and silently invalidates that approval, checked on every render, not
+just at approval time.
+
+Export calls the real `dobot-lua-postprocessor` generator directly —
+the identical module `tests/golden` exercises — and only runs once the
+plan carries a matching `executable-export` approval; the
+post-processor's own safety gate would refuse it anyway even if this
+check were bypassed.
 
 ## Running it
 
 ```bash
 npm install
-npm run dev
+npm run build   # adapters/mcp's bridge serves this build, not the dev server
+npm run dev      # for standalone development instead
 ```
 
-Verified: `npm install`, `npm run build`, and a live browser pass
-(load a plan with a transcript, approve it, generate real Lua) all
-completed cleanly with zero console errors as of the commit that added
-this line. Two real bugs were found and fixed only by that live
-testing — a CSS sizing loop that made the canvases grow without bound,
-and a React 19 quirk that silently broke scroll-to-zoom — neither was
-visible from reading the code alone.
+Verified live in a browser, both modes: bridge-served with a real
+compiled session (load, approve, export, zero console errors) and
+standalone (`Open plan…`, local approval). Three real bugs were found
+and fixed only by that live testing, none visible from reading the code
+alone: a CSS sizing loop that made the canvases grow without bound, a
+React 19 quirk that silently broke scroll-to-zoom, and polling that
+silently went quiet after a connection drop instead of saying so.
 
 ## Known gaps
 
@@ -82,8 +106,6 @@ visible from reading the code alone.
   private prototype are not ported yet — they'd need real data from
   `registry/`, which doesn't exist until that's built.
 - Only one machine (`reference-dobot-mg400-struderbot`) has a registered
-  post-processor in this interface. Loading a plan resolved against a
-  different machine shows an honest "no post-processor registered" state
-  rather than pretending to export it.
-- Sent requests are appended to the transcript locally; nothing consumes
-  them yet. The MCP adapter is what turns that from "ready" into "live."
+  post-processor in this interface.
+- One live session at a time — see `adapters/mcp/README.md`'s known
+  limitations for the same constraint from the adapter's side.
