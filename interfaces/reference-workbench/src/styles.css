@@ -77,23 +77,47 @@ button {
   font-style: italic;
   font-weight: 650;
 }
-.machine-readout {
+.machine-select {
   margin-left: auto;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
+  align-items: center;
+  gap: 10px;
 }
-.machine-readout span {
+.machine-select span {
   color: var(--muted);
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.machine-readout b {
-  font-size: 0.8rem;
-  font-weight: 750;
+.machine-select select {
+  min-width: 230px;
+  border: 1px solid #aeb7b2;
+  border-radius: 9px;
+  background: white;
+  padding: 9px 30px 9px 12px;
+  font-weight: 760;
+  font-size: 0.78rem;
+}
+.machine-mismatch {
+  color: var(--orange-dark);
+}
+.agent-connection {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-style: normal;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #8c5145;
+}
+.agent-connection span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #bf604d;
+  flex: 0 0 auto;
 }
 .render-toggle {
   display: grid;
@@ -528,20 +552,12 @@ button {
   font-weight: 800;
   cursor: pointer;
 }
-.notes-field {
+.prompt-form {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
-.notes-field > span {
-  font-size: 0.61rem;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-.notes-field textarea {
+.prompt-form textarea {
   width: 100%;
   flex: 1;
   min-height: 60px;
@@ -553,9 +569,25 @@ button {
   outline: none;
   background: white;
 }
-.notes-field textarea:focus {
+.prompt-form textarea:focus {
   border-color: var(--teal);
   box-shadow: 0 0 0 3px rgba(28, 105, 100, 0.1);
+}
+.prompt-form .submit {
+  align-self: flex-end;
+  margin-top: 7px;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  background: var(--orange);
+  color: white;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.prompt-form .submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .export-panel {
@@ -811,8 +843,13 @@ button {
   .topbar {
     padding: 10px 14px;
   }
-  .machine-readout {
-    align-items: flex-start;
+  .machine-select {
+    margin-left: 0;
+    width: 100%;
+  }
+  .machine-select select {
+    min-width: 0;
+    flex: 1;
   }
   .workspace {
     display: flex;

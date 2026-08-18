@@ -64,6 +64,19 @@ const DEFAULT_VIEWPORT: Viewport = { zoom: 1, panX: 0, panY: 0 };
 const LOCAL_STORAGE_KEY = "saam-reference-workbench-file";
 const KNOWN_MACHINE_ID = "reference-dobot-mg400-struderbot";
 
+// Selecting a machine constrains which capabilities are available before
+// anything is composed — see machines/*/manifest.json `capabilities` and
+// docs/authoring/machine-definitions.md. Only the reference Dobot install
+// has a real manifest today; the rest are the roadmap's named placeholders
+// (see ROADMAP.md) and are shown, not hidden, but can't be selected yet.
+const MACHINES: { id: string; name: string; available: boolean }[] = [
+  { id: "reference-dobot-mg400-struderbot", name: "Dobot MG400 · StruderBot", available: true },
+  { id: "tormach-pcnc-pathpilot", name: "Tormach PCNC · PathPilot (planned)", available: false },
+  { id: "avid-cnc-mach3", name: "Avid CNC · Mach3 (planned)", available: false },
+  { id: "ultimaker-s5", name: "Ultimaker S5 (planned)", available: false },
+  { id: "bambulab-h2d", name: "BambuLab H2D (planned)", available: false },
+];
+
 function operationColor(index: number): string {
   return PALETTE[index % PALETTE.length];
 }
@@ -335,7 +348,8 @@ function isWrapped(file: WorkbenchFile): file is Extract<WorkbenchFile, { format
 export default function App() {
   const [plan, setPlan] = useState<ProcessPlan | null>(null);
   const [transcript, setTranscript] = useState<Message[]>([]);
-  const [notes, setNotes] = useState("");
+  const [selectedMachineId, setSelectedMachineId] = useState(MACHINES[0].id);
+  const [prompt, setPrompt] = useState("");
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [active, setActive] = useState(0);
   const [layer, setLayer] = useState(1);
@@ -406,7 +420,10 @@ export default function App() {
       setLoadErrors([]);
       setPlan(candidatePlan as ProcessPlan);
       setTranscript(isWrapped(parsed) ? parsed.conversation?.transcript ?? [] : []);
-      setNotes("");
+      if (MACHINES.some((m) => m.id === (candidatePlan as ProcessPlan).machine.id)) {
+        setSelectedMachineId((candidatePlan as ProcessPlan).machine.id);
+      }
+      setPrompt("");
       setActive(0);
       setLayer(1);
       resetViews();
@@ -420,7 +437,7 @@ export default function App() {
   const clearPlan = () => {
     setPlan(null);
     setTranscript([]);
-    setNotes("");
+    setPrompt("");
     setExportResult(null);
     setExportError("");
     setApprovalMessage("");
@@ -468,6 +485,18 @@ export default function App() {
     }
   };
 
+  // Not a live model call: this hands the request off by writing it into
+  // the plan's own conversation transcript. An MCP-connected agent (once
+  // the adapter in ROADMAP.md task 16 exists) reads and acts on it the
+  // same way any MCP tool consumer would — the workbench itself never
+  // holds a provider API key or calls an LLM directly.
+  const submitPrompt = () => {
+    const text = prompt.trim();
+    if (!text) return;
+    setTranscript((current) => [...current, { who: "You", text }]);
+    setPrompt("");
+  };
+
   const rotateHandler = (dx: number, dy: number) =>
     setRotation((r) => ({ yaw: r.yaw + dx * 0.009, pitch: Math.max(-1.25, Math.min(1.25, r.pitch + dy * 0.009)) }));
 
@@ -499,10 +528,16 @@ export default function App() {
             Filled beads
           </button>
         </div>
-        <div className="machine-readout">
+        <label className="machine-select">
           <span>Machine</span>
-          <b>{plan ? plan.machine.id : "No plan loaded"}</b>
-        </div>
+          <select value={selectedMachineId} onChange={(e) => setSelectedMachineId(e.target.value)}>
+            {MACHINES.map((m) => (
+              <option key={m.id} value={m.id} disabled={!m.available}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
 
       <section className="status-strip">
@@ -512,10 +547,17 @@ export default function App() {
             <b>Revision {plan.revision}</b>
             <span>{plan.status}</span>
             {plan.approval && <span>· approved ({plan.approval.scope}) by {plan.approval.approvedBy}</span>}
+            {plan.machine.id !== selectedMachineId && (
+              <span className="machine-mismatch">· loaded plan targets {plan.machine.id}, not the selected machine</span>
+            )}
           </>
         ) : (
-          <span>Open a process plan to begin</span>
+          <span>Selected machine constrains what a new request can compose against</span>
         )}
+        <i className="agent-connection">
+          <span />
+          Agent: not connected — install the SAAM MCP server in your agent of choice to send live requests
+        </i>
       </section>
 
       {loadErrors.length > 0 && (
@@ -635,13 +677,9 @@ export default function App() {
 
         <section className="prompt-panel">
           <div className="prompt-context">
-            <span>PROJECT</span>
-            <b>{plan ? `Revision ${plan.revision}` : "No plan open"}</b>
-            <p>
-              {plan
-                ? "Reviewer notes are kept locally in this browser and are not sent anywhere."
-                : "Open a process plan file to inspect it here."}
-            </p>
+            <span>REQUESTING MACHINE</span>
+            <b>{MACHINES.find((m) => m.id === selectedMachineId)?.name}</b>
+            <p>Describe the part or change you want. Your request is added to this plan's conversation for whichever agent has the SAAM MCP server connected to pick up.</p>
             <div className="prompt-file-actions">
               <button type="button" onClick={() => fileInputRef.current?.click()}>
                 Open plan…
@@ -651,15 +689,29 @@ export default function App() {
               </button>
             </div>
           </div>
-          <label className="notes-field">
-            <span>Reviewer notes (local only)</span>
+          <form
+            className="prompt-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitPrompt();
+            }}
+          >
             <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Notes you take while reviewing this plan stay in your browser only — they're never sent to an agent or server."
-              disabled={!plan}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  submitPrompt();
+                }
+              }}
+              placeholder="Describe a part, revise an operation, or ask about the plan… (Enter to send, Shift+Enter for a new line)"
+              aria-label="Request to send to a connected agent"
             />
-          </label>
+            <button type="submit" className="submit" disabled={!prompt.trim()}>
+              Send ↗
+            </button>
+          </form>
         </section>
 
         <section className={`export-panel${plan ? "" : " empty"}`}>
