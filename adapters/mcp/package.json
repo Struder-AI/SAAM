@@ -1,0 +1,20 @@
+{
+  "name": "saam-mcp-adapter",
+  "version": "0.1.0",
+  "private": false,
+  "description": "MCP server for SAAM: discovery, deterministic generation, validation, and post-processing for any MCP-capable agent. Never holds an approval; never calls a model itself.",
+  "type": "module",
+  "bin": {
+    "saam-mcp": "./src/server.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "license": "Apache-2.0"
+}

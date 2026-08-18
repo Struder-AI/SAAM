@@ -17,3 +17,6 @@ Thumbs.db
 # env
 .env
 .env.local
+
+# local runtime artifacts (compiled plans awaiting review, etc.)
+.saam/

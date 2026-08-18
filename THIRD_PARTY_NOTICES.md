@@ -11,7 +11,8 @@ adapter's `package.json`) carry their own upstream licenses, which are not
 duplicated here; consult each dependency's published license directly.
 
 When a future contribution imports third-party material under its own
-license, it is recorded here with:
+license — vendored source, copied text, embedded media — it is recorded
+here with:
 
 - the component name and version,
 - its license,
@@ -19,3 +20,15 @@ license, it is recorded here with:
 - a link to its source.
 
 No such entries exist yet.
+
+## npm dependencies in use
+
+`adapters/mcp/` and `interfaces/reference-workbench/` declare direct npm
+dependencies in their own `package.json` files in the normal way —
+`@modelcontextprotocol/sdk` and `zod` for the adapter, `react` and a
+Vite-based toolchain for the workbench. These are used as published,
+unmodified, over their own public registry channel; nothing from any of
+them is copied into this repository's own source. Their full transitive
+dependency trees are recorded in the root `package-lock.json`, not
+duplicated here — consult each package's own license on npm for its
+terms.

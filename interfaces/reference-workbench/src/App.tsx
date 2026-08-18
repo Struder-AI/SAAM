@@ -448,6 +448,45 @@ export default function App() {
     }
   };
 
+  // Writes the current plan (with its conversation) back to a .json file
+  // a human can hand back to whichever agent is calling the MCP adapter —
+  // adapters/mcp/README.md's "end-to-end loop" step 4. Saving after
+  // approval is what actually closes that loop; saving before is fine
+  // too, just not the interesting case.
+  const savePlanFile = async () => {
+    if (!plan) return;
+    const file: WorkbenchFile = { format: "saam-workbench-file", schemaVersion: 1, plan, conversation: { transcript } };
+    const suggestedName = `saam-plan-revision-${plan.revision}${plan.approval ? "-approved" : ""}.json`;
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+    try {
+      const picker = (
+        window as Window & {
+          showSaveFilePicker?: (options: {
+            suggestedName: string;
+            types: { description: string; accept: Record<string, string[]> }[];
+          }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>;
+        }
+      ).showSaveFilePicker;
+      if (picker) {
+        const handle = await picker({ suggestedName, types: [{ description: "SAAM plan", accept: { "application/json": [".json"] } }] });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = suggestedName;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setApprovalMessage("The plan file could not be saved. Please try again.");
+      }
+    }
+  };
+
   const approve = async (scope: "geometry" | "executable-export") => {
     if (!plan) return;
     if (!approverName.trim()) {
@@ -683,6 +722,9 @@ export default function App() {
             <div className="prompt-file-actions">
               <button type="button" onClick={() => fileInputRef.current?.click()}>
                 Open plan…
+              </button>
+              <button type="button" onClick={() => void savePlanFile()} disabled={!plan}>
+                Save plan…
               </button>
               <button type="button" onClick={clearPlan} disabled={!plan}>
                 Clear
