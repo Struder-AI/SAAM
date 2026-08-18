@@ -26,7 +26,7 @@ commands to physical hardware. Treat as in scope:
 Physical machine safety is a separate, non-software concern: no test,
 preview, or validation pass in this repository proves that a specific
 machine, tool, or material configuration is safe to run. See
-`docs/safety/` for how the project labels evidence.
+`docs/authoring/evidence-labels.md` for how the project labels evidence.
 
 ## Response
 
