@@ -1,16 +1,18 @@
 # SAAM — Struder Agentic Additive Manufacturing
 
-SAAM lets a conversational AI agent — running on its own account, using
-its own reasoning, not SAAM's — turn manufacturing intent into an
-inspectable process plan, hand it to a human for approval, and only then
-translate it into machine-native output. No slicer GUI, no proprietary
-plugin, no service to sign up for. See `PROJECT_CHARTER.md` for what
-SAAM is and, just as deliberately, what it isn't.
+SAAM lets a conversational AI agent directly program you 3D printer.
+(It is also good for turning other programable motion systems into 3D printers - like robot arms and CNC machines)
 
-This is a narrow, working vertical slice, not a finished catalog: one
-planar operation, one genuinely spatial operation, one reference
-machine, one reference post-processor, one reference workbench, one
-adapter. See `ROADMAP.md` for what's designated but not yet built.
+Chat with your agent to conversationally set your manufacturing intent and dictate how you want your toolpaths to work.
+See a preview of what you have developed in our workbench and send it to your device for printing.  No CAD or CAM
+
+SAAM runs in YOUR agentic AI account — It turns conversational manufacturing intent into an
+inspectable process plan, hands it back to you for approval, then it translates that plan into machine-native output. 
+
+No slicer GUI, no proprietary plugin, no service to sign up for. 
+
+See `PROJECT_CHARTER.md` for what
+SAAM is and, just as deliberately, what it isn't.
 
 ## Try it
 
