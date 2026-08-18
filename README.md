@@ -60,6 +60,7 @@ approval record; nothing here can approve its own output.
 
 | Path | What's there |
 |---|---|
+| `AGENTS.md` | What a connected agent should actually do here — the tool-call sequence, the rules that never bend, where to read more. `CLAUDE.md` just points here. |
 | `PROJECT_CHARTER.md` | Mission, scope, non-goals, governance, licensing |
 | `ROADMAP.md` | Planar-operation catalog brainstorm, designated future machines |
 | `schemas/` | Process-plan and manifest JSON Schemas, plus the shared plan-hashing/approval library |
