@@ -58,19 +58,45 @@ function raster(width, depth, z, spacing, layer) {
   return lines;
 }
 
-// One ring per spacing step from the innermost fillable radius outward,
-// consolidating what would otherwise be many disconnected concentric
-// contours into a predictable, evenly-spaced set.
-function circularFill(innerRadius, outerRadius, z, spacing) {
-  const paths = [];
+// Linear infill clipped to a circular (or annular) boundary instead of a
+// rectangular one — the circular-geometry counterpart to raster() above,
+// alternating direction by layer for the same reason: identical fill
+// stacked layer after layer has no strength perpendicular to its own
+// lines, no matter how the outer perimeter is shaped. A concentric ring
+// pattern doesn't get a pass on that just because it's circular — every
+// layer using the exact same rings is exactly the "stack, don't cross"
+// failure mode raster() already exists to avoid. Each raster line's
+// endpoints are the chord where that line crosses the outer circle;
+// where it also crosses the inner circle (an annulus), the line splits
+// into two segments around the hole instead of running through it.
+function circularRaster(outerRadius, innerRadius, z, spacing, layer) {
+  const horizontal = layer % 2 === 0;
+  const lines = [];
+  let line = 0;
   for (
-    let radius = Math.max(spacing / 2, innerRadius + spacing / 2);
-    radius <= outerRadius - spacing / 2 + 1e-6;
-    radius += spacing
+    let coordinate = -outerRadius + spacing / 2;
+    coordinate <= outerRadius - spacing / 2;
+    coordinate += spacing, line += 1
   ) {
-    paths.push(ring(radius, z));
+    const outerHalf = Math.sqrt(Math.max(0, outerRadius * outerRadius - coordinate * coordinate));
+    if (outerHalf < spacing / 4) continue; // sliver too thin near the edge to bother printing
+    // Alternating start/end side by line, same as raster() above, turns
+    // what would otherwise be disconnected segments into one connected
+    // sweep back and forth across the region.
+    const flip = line % 2 === 0;
+    const seg = (from, to) => {
+      const [a, b] = flip ? [from, to] : [to, from];
+      return horizontal ? [point(a, coordinate, z), point(b, coordinate, z)] : [point(coordinate, a, z), point(coordinate, b, z)];
+    };
+    if (innerRadius <= 0 || Math.abs(coordinate) >= innerRadius) {
+      lines.push(seg(-outerHalf, outerHalf));
+    } else {
+      const innerHalf = Math.sqrt(Math.max(0, innerRadius * innerRadius - coordinate * coordinate));
+      lines.push(seg(-outerHalf, -innerHalf));
+      lines.push(seg(innerHalf, outerHalf));
+    }
   }
-  return paths;
+  return lines;
 }
 
 function pathEntry(family, layer, points, intent = "print") {
@@ -115,8 +141,8 @@ export function generate({ parameters = {}, settings = {} }) {
       if (innerDiameter > 0) {
         paths.push(pathEntry("Inner perimeter", layer, ring(innerDiameter / 2 + beadWidth / 2, z)));
       }
-      circularFill(innerDiameter / 2, outerDiameter / 2, z, spacing).forEach((points) =>
-        paths.push(pathEntry("Concentric fill", layer, points))
+      circularRaster(outerDiameter / 2, innerDiameter / 2, z, spacing, layer).forEach((points) =>
+        paths.push(pathEntry("Region-first raster", layer, points))
       );
     }
     return {

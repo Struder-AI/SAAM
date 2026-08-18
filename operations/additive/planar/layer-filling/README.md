@@ -1,40 +1,50 @@
 # Planar Layer Filling
 
 The most basic additive operation: cover a flat cross-section with printable
-paths, one layer at a time. Two coverage strategies, chosen automatically
-from the requested geometry (see `manifest.json` &rarr; `inputs`).
+paths, one layer at a time. Two boundary shapes, chosen automatically from
+the requested geometry (see `manifest.json` &rarr; `inputs`) — a rectangle
+or a circle/annulus — but the same fill strategy either way: raster lines
+that alternate direction by layer, clipped to whichever boundary was
+requested.
 
-## Rectilinear
+**Why fill always alternates by layer, boundary shape aside.** Identical
+fill stacked layer after layer — even a "circular" pattern like evenly
+spaced concentric rings — has no strength perpendicular to whatever
+direction it repeats in, no matter how the outer perimeter is shaped. This
+operation had that gap for a while: the rectangular case always alternated
+raster direction by layer, but the circular case used to fall back to
+concentric rings that were identical on every layer, with no crosshatch at
+all — a real inconsistency between the two branches, not a deliberate
+design choice. Fixed by giving circular/annular geometry the same
+alternating raster fill the rectangular case already had, clipped to the
+circular boundary instead of a rectangular one.
 
-For a rectangular cross-section: `wallCount` concentric offset perimeters
-(`Prioritized perimeter`), then a raster fill (`Region-first raster`) sized
-to stay inside them.
+## Perimeters
 
-- **Perimeter offset.** Each perimeter sits at `beadWidth / 2 + wall *
-  spacing` from the nominal edge — the first perimeter's centerline lands a
-  half bead-width inside the boundary, and each perimeter after it steps
-  inward by one full bead spacing, so adjacent beads overlap by a
-  controlled, consistent amount rather than leaving a gap or over-fusing.
-- **Region-first raster.** The raster direction alternates by layer
-  (horizontal lines on even layers, vertical on odd) so successive layers
-  cross rather than stack, which is what gives a solid infill region its
-  strength perpendicular to any single layer's fill direction. Within one
-  layer, each line's start and end alternate sides, turning what would
-  otherwise be many disconnected segments into one connected sweep across
-  the region — this is what "region-first" means: finish traversing a
-  connected area before leaving it, rather than jumping between distant
-  segments.
+- **Rectangular:** `wallCount` concentric offset perimeters
+  (`Prioritized perimeter`). Each sits at `beadWidth / 2 + wall * spacing`
+  from the nominal edge — the first perimeter's centerline lands a half
+  bead-width inside the boundary, and each perimeter after it steps inward
+  by one full bead spacing, so adjacent beads overlap by a controlled,
+  consistent amount rather than leaving a gap or over-fusing.
+- **Circular/annular:** an `Outer perimeter`, and an `Inner perimeter` when
+  `innerDiameter` is set.
 
-## Concentric
+## Fill (`Region-first raster`)
 
-For a circular or annular cross-section: an `Outer perimeter`, an optional
-`Inner perimeter` when `innerDiameter` is set, and evenly-spaced
-`Concentric fill` rings between them.
+Raster direction alternates by layer — horizontal lines on even layers,
+vertical on odd — so successive layers cross rather than stack, which is
+what gives a solid infill region its strength perpendicular to any single
+layer's fill direction. Within one layer, each line's start and end
+alternate sides, turning what would otherwise be many disconnected
+segments into one connected sweep across the region — this is what
+"region-first" means: finish traversing a connected area before leaving
+it, rather than jumping between distant segments.
 
-- Ring spacing starts at the innermost radius that still fits a full bead
-  (`max(spacing / 2, innerRadius + spacing / 2)`) and steps outward by
-  `spacing` until the outer boundary is reached, so coverage is complete
-  without an oversized or undersized final gap at either edge.
+For a circular or annular boundary, each raster line's endpoints are the
+chord where that line crosses the outer circle; where a line also crosses
+the inner circle (an annulus), it splits into two segments routed around
+the hole instead of running through it.
 
 ## Inputs, outputs, and evidence
 

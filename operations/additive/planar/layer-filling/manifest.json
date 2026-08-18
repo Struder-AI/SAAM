@@ -3,7 +3,7 @@
   "id": "layer-filling",
   "version": "0.1.0",
   "name": "Planar layer filling",
-  "summary": "Rectilinear and concentric planar coverage: perimeters, connected fill regions, alternating raster, and concentric rings.",
+  "summary": "Rectangular and circular/annular planar coverage: perimeters, plus alternating-direction raster fill clipped to whichever boundary shape was requested.",
   "category": ["additive", "planar"],
   "capabilityRequirements": ["planar-motion", "extrusion-on-off"],
   "maturity": "experimental",
@@ -23,14 +23,13 @@
       "wallCount": { "type": "integer", "minimum": 1 },
       "zStart": { "type": "number" }
     },
-    "description": "A request with a finite `outerDiameter`/`diameter`, or `geometry` set to \"circle\"/\"annulus\", resolves to concentric coverage. Otherwise it resolves to rectilinear coverage using `width`/`depth`."
+    "description": "A request with a finite `outerDiameter`/`diameter`, or `geometry` set to \"circle\"/\"annulus\", resolves to a circular/annular perimeter with raster fill clipped to that boundary. Otherwise it resolves to a rectangular perimeter with raster fill clipped to `width`/`depth`. Either way the raster alternates direction by layer — see README.md."
   },
   "outputs": {
     "partShapes": ["box", "cylinder", "ring"],
     "pathFamilies": [
       "Outer perimeter",
       "Inner perimeter",
-      "Concentric fill",
       "Prioritized perimeter",
       "Region-first raster"
     ]

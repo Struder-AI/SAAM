@@ -40,18 +40,59 @@ test("layer-filling: every point stays within the declared part envelope", () =>
   }
 });
 
-test("layer-filling: perimeter and ring path families are closed contours", () => {
+test("layer-filling: perimeter path families are closed contours", () => {
   const { paths } = generate({
     parameters: { outerDiameter: 40, innerDiameter: 28, layers: 1 },
     settings: {},
   });
-  const closedFamilies = new Set(["Outer perimeter", "Inner perimeter", "Concentric fill"]);
+  const closedFamilies = new Set(["Outer perimeter", "Inner perimeter"]);
   for (const entry of paths) {
     if (!closedFamilies.has(entry.family)) continue;
     const first = entry.points[0];
     const last = entry.points.at(-1);
     assert.equal(first.x, last.x, `${entry.family} is not closed (x)`);
     assert.equal(first.y, last.y, `${entry.family} is not closed (y)`);
+  }
+});
+
+test("layer-filling: circular/annular fill alternates raster direction by layer, same as the rectangular case", () => {
+  const { paths } = generate({
+    parameters: { outerDiameter: 30, innerDiameter: 12, layers: 3 },
+    settings: {},
+  });
+  const isHorizontal = (points) => Math.abs(points[0].y - points[1].y) < 1e-6;
+  for (let layer = 0; layer < 3; layer += 1) {
+    const fillLines = paths.filter((p) => p.family === "Region-first raster" && p.layer === layer);
+    assert.ok(fillLines.length > 0, `layer ${layer} has no fill`);
+    const expectedHorizontal = layer % 2 === 0;
+    for (const line of fillLines) {
+      assert.equal(
+        isHorizontal(line.points),
+        expectedHorizontal,
+        `layer ${layer} should be ${expectedHorizontal ? "horizontal" : "vertical"}`
+      );
+    }
+  }
+  // Confirms this isn't accidentally the old identical-every-layer
+  // concentric fill: layer 0 and layer 1 must actually differ.
+  const layer0 = paths.filter((p) => p.family === "Region-first raster" && p.layer === 0);
+  const layer1 = paths.filter((p) => p.family === "Region-first raster" && p.layer === 1);
+  assert.notDeepEqual(layer0, layer1);
+});
+
+test("layer-filling: circular fill stays clipped to the outer boundary and routes around the inner hole", () => {
+  const { paths } = generate({
+    parameters: { outerDiameter: 30, innerDiameter: 12, layers: 1 },
+    settings: {},
+  });
+  const outerR = 15 + 1e-3;
+  const innerR = 6 - 1e-3;
+  for (const entry of paths.filter((p) => p.family === "Region-first raster")) {
+    for (const p of entry.points) {
+      const r = Math.hypot(p.x, p.y);
+      assert.ok(r <= outerR, `point radius ${r} exceeds outer boundary`);
+      assert.ok(r >= innerR, `point radius ${r} falls inside the inner hole`);
+    }
   }
 });
 
