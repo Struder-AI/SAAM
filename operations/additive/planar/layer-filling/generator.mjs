@@ -69,6 +69,15 @@ function raster(width, depth, z, spacing, layer) {
 // endpoints are the chord where that line crosses the outer circle;
 // where it also crosses the inner circle (an annulus), the line splits
 // into two segments around the hole instead of running through it.
+// Perimeter-to-raster travel is a known, real gap this doesn't solve —
+// see the "Known limitation" note in README.md. A center-outward sweep
+// was tried here and measured worse (it turns one large gap into many:
+// alternating +offset/-offset every line means consecutive *visited*
+// lines are no longer adjacent, breaking the small-gap continuity
+// between sweep lines to chase a single better transition into the
+// sweep). A monotonic sweep — worse at the perimeter handoff, much
+// better internally — measured fewer total large gaps; keep it until a
+// real travel-order optimization replaces both.
 function circularRaster(outerRadius, innerRadius, z, spacing, layer) {
   const horizontal = layer % 2 === 0;
   const lines = [];

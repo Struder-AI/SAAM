@@ -57,10 +57,16 @@ function flattenPrintPoints(plan) {
 
       const first = pathEntry.points[0];
       if (previous && distance(previous, first) > EPSILON_MM) {
+        const gapMm = distance(previous, first);
         warnings.push({
           code: "disjoint-transition",
+          // A real number a caller can bucket/sort by, not just prose to
+          // parse — the reference workbench groups on this to tell a
+          // handful of large, likely-defect gaps from many small,
+          // expected ones instead of dumping every warning identically.
+          gapMm: Number(gapMm.toFixed(2)),
           message:
-            `A ${distance(previous, first).toFixed(2)} mm gap separates "${points.at(-1)?.family}" ` +
+            `A ${gapMm.toFixed(2)} mm gap separates "${points.at(-1)?.family}" ` +
             `(layer ${points.at(-1)?.layer}) from "${pathEntry.family}" (layer ${pathEntry.layer}). ` +
             "This post-processor travels it linearly with extrusion left on, per the project's " +
             "one-continuous-extrusion-window convention, rather than cycling PenOff/PenOn — but a gap " +

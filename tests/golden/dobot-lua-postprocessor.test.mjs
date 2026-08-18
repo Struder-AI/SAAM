@@ -86,6 +86,20 @@ test("dobot-lua-postprocessor: flags a real gap between disjoint paths as a warn
   assert.ok(warnings.some((w) => w.code === "disjoint-transition"));
 });
 
+test("dobot-lua-postprocessor: each warning's gapMm is a real number matching its own message, not just prose", () => {
+  const plan = samplePlan();
+  plan.operations[0].paths = [
+    { family: "A", layer: 0, intent: "print", points: [{ x: 0, y: 0, z: 1 }, { x: 5, y: 0, z: 1 }] },
+    // Exactly 50mm from (5,0,1) to (55,0,1) — a real, checkable distance.
+    { family: "B", layer: 0, intent: "print", points: [{ x: 55, y: 0, z: 1 }, { x: 60, y: 0, z: 1 }] },
+  ];
+  const { warnings } = translate({ plan });
+  const gap = warnings.find((w) => w.code === "disjoint-transition");
+  assert.equal(typeof gap.gapMm, "number");
+  assert.equal(gap.gapMm, 50);
+  assert.match(gap.message, /50\.00 mm gap/);
+});
+
 test("dobot-lua-postprocessor: is deterministic across repeated calls", () => {
   const plan = samplePlan();
   assert.deepEqual(translate({ plan }), translate({ plan }));

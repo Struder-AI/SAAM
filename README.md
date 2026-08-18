@@ -38,8 +38,10 @@ generic client config.) In your agent's own chat, not this repo, ask it
 to call `list_operations` and `list_machines`, then `compile_plan` for a
 part. The first `compile_plan` call opens the reference workbench in
 your browser automatically, already showing what was built — review the
-synchronized 3D previews, click "Approve for export," and ask your agent
-to call `post_process` for real DobotStudio Pro Lua. Composing more
+synchronized 3D previews, name and click "Export" (this is the human
+approval step — it's the one thing in this whole loop nothing but a
+person clicking a real button in their own browser can do), and ask your
+agent to call `post_process` for real DobotStudio Pro Lua. Composing more
 operations works the same way: call `compile_plan` again with the
 updated operation list, and the already-open tab updates in place.
 

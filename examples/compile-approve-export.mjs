@@ -4,7 +4,7 @@
 // actual adapter over real stdio MCP protocol, the same way any
 // MCP-capable agent would (see adapters/mcp/README.md), and stands in for
 // the one manual step a human normally does in the workbench's own UI
-// (clicking "Approve for export") by calling the exact same approval
+// (naming a file and clicking "Export") by calling the exact same approval
 // function the workbench calls, from schemas/process-plan/plan-lib.mjs —
 // not a shortcut around the approval gate, just this script playing the
 // human's part so it can run unattended.

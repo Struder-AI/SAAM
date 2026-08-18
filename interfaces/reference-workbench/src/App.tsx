@@ -54,7 +54,15 @@ type WorkbenchFile = ProcessPlan | { format: "saam-workbench-file"; schemaVersio
 
 type ViewMode = "part" | "collective" | "current";
 type Viewport = { zoom: number; panX: number; panY: number };
-type ExportResult = { files: Record<string, string>; warnings: { code: string; message: string }[] };
+type ExportWarning = { code: string; message: string; gapMm?: number };
+type ExportResult = { files: Record<string, string>; warnings: ExportWarning[] };
+type Page = "workbench" | "output";
+// A gap at or above this is a real, likely-visible defect (a dragged
+// line across the part) worth the human's attention before printing;
+// below it, this is the ordinary small transition between adjacent fill
+// passes — see layer-filling/README.md's "Known limitation" note for
+// why these exist at all and aren't just noise to hide.
+const LARGE_GAP_MM = 5;
 
 const PALETTE = ["#e66d3f", "#f3c46e", "#1c6964", "#a94321", "#69a9d1", "#c68af2"];
 const DEFAULT_VIEWPORT: Viewport = { zoom: 1, panX: 0, panY: 0 };
@@ -454,10 +462,6 @@ export default function App() {
   // Open plan… and local-only approval — but only a live session polls
   // for updates and can write an approval back to it.
   const [liveConnected, setLiveConnected] = useState(false);
-  // Sticky once true, so the status line can say "connection lost"
-  // rather than reusing the "never connected" message once the bridge
-  // has actually been reachable at some point in this page's lifetime.
-  const [everConnected, setEverConnected] = useState(false);
   const [selectedMachineId, setSelectedMachineId] = useState(MACHINES[0].id);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   // One slider spans the whole build (every operation's layers, back to
@@ -471,10 +475,11 @@ export default function App() {
     collective: { ...DEFAULT_VIEWPORT },
     current: { ...DEFAULT_VIEWPORT },
   });
-  const [approverName, setApproverName] = useState("");
-  const [approvalMessage, setApprovalMessage] = useState("");
+  const [activePage, setActivePage] = useState<Page>("workbench");
+  const [exportFileName, setExportFileName] = useState("");
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [exportError, setExportError] = useState("");
+  const [showAllWarnings, setShowAllWarnings] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Poll the adapter's local session bridge. Polling (rather than a
@@ -499,7 +504,6 @@ export default function App() {
           sawFirstResponse = true;
         }
         setLiveConnected(true); // (re)confirms the connection on every successful poll, not just the first
-        setEverConnected(true);
         setPlan((current) => {
           if (!session) return current;
           if (current && current.revision === session.revision && current.machine.id === session.machine.id && JSON.stringify(current.approval) === JSON.stringify(session.approval)) {
@@ -560,7 +564,6 @@ export default function App() {
   const activeOpLayers = activeOp ? operationLayerCount(activeOp) : 1;
   const fraction = Math.max(1, layer) / activeOpLayers;
 
-  const canExport = plan?.machine.id === KNOWN_MACHINE_ID && plan ? hasCurrentApproval(plan, "executable-export") : false;
 
   const resetViews = () => {
     setRotation({ yaw: -0.72, pitch: 0.55 });
@@ -573,7 +576,8 @@ export default function App() {
   const loadPlanFile = async (file: File) => {
     setExportResult(null);
     setExportError("");
-    setApprovalMessage("");
+    setActivePage("workbench");
+    setShowAllWarnings(false);
     try {
       const parsed = JSON.parse(await file.text()) as WorkbenchFile;
       const candidatePlan = isWrapped(parsed) ? parsed.plan : parsed;
@@ -604,7 +608,8 @@ export default function App() {
     setPlan(null);
     setExportResult(null);
     setExportError("");
-    setApprovalMessage("");
+    setActivePage("workbench");
+    setShowAllWarnings(false);
     try {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch {
@@ -653,50 +658,50 @@ export default function App() {
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) {
-        setApprovalMessage("The plan file could not be saved. Please try again.");
+        setExportError("The plan file could not be saved. Please try again.");
       }
     }
   };
 
-  // Live session: the approval is written back to the adapter's session
-  // over the local bridge, so post_process can read it immediately — no
-  // manual file hand-off. Standalone (no bridge, e.g. plain `npm run
-  // dev` or a plan opened from a file): falls back to computing the
-  // approval locally, same as before — still real, just not shared with
-  // anything outside this browser tab.
-  const approve = async (scope: "geometry" | "executable-export") => {
-    if (!plan) return;
-    if (!approverName.trim()) {
-      setApprovalMessage("Enter who is approving this revision before approving it.");
-      return;
-    }
-    try {
-      if (liveConnected) {
-        const res = await fetch("/api/session/approve", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ scope, approvedBy: approverName }),
-        });
-        const body = (await res.json()) as { session?: ProcessPlan; error?: string };
-        if (!res.ok || !body.session) throw new Error(body.error ?? "Approval failed.");
-        setPlan(body.session);
-      } else {
-        const record = await buildApprovalRecord(plan, { scope, approvedBy: approverName });
-        setPlan(applyApproval(plan, record));
-      }
-      setApprovalMessage(`Approved revision ${plan.revision} for ${scope} by ${approverName.trim()}.`);
-      setExportResult(null);
-    } catch (error) {
-      setApprovalMessage(error instanceof Error ? error.message : "Approval failed.");
-    }
-  };
-
-  const runExport = () => {
+  // Approving and exporting used to be presented as separate deliberate
+  // steps — a named approver, a choice of approval scope, then a second
+  // button to actually export. In practice this workbench only ever
+  // does one thing with an approval: use it immediately to export. That
+  // split added ceremony (a name field, a scope no one here chose
+  // between) without adding a real second decision point, so this one
+  // action now does both: get (or reuse) an executable-export approval
+  // for the current revision, then translate it. The click itself is
+  // still the one real gate — a human, here, in this UI — the same
+  // guarantee the old two-step flow had, just without asking them to
+  // type their name to get it. Live session: the approval writes back to
+  // the adapter over the local bridge so post_process can read it
+  // immediately. Standalone: computed locally, same as before.
+  const exportPlan = async () => {
     if (!plan) return;
     setExportError("");
     try {
-      const result = translateForDobot({ plan }) as ExportResult;
+      let current = plan;
+      if (!hasCurrentApproval(current, "executable-export")) {
+        if (liveConnected) {
+          const res = await fetch("/api/session/approve", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ scope: "executable-export", approvedBy: "workbench" }),
+          });
+          const body = (await res.json()) as { session?: ProcessPlan; error?: string };
+          if (!res.ok || !body.session) throw new Error(body.error ?? "Approval failed.");
+          current = body.session;
+          setPlan(current);
+        } else {
+          const record = await buildApprovalRecord(current, { scope: "executable-export", approvedBy: "workbench" });
+          current = applyApproval(current, record);
+          setPlan(current);
+        }
+      }
+      const result = translateForDobot({ plan: current }) as ExportResult;
       setExportResult(result);
+      setShowAllWarnings(false);
+      setActivePage("output");
     } catch (error) {
       setExportResult(null);
       setExportError(error instanceof Error ? error.message : "Export failed.");
@@ -709,6 +714,45 @@ export default function App() {
       await navigator.clipboard.writeText(exportResult.files[name]);
     } catch {
       // Clipboard access can be denied by the browser; the text is still visible to copy manually.
+    }
+  };
+
+  // Same File System Access API / download-link fallback pattern as
+  // savePlanFile — a real save to the human's own disk, not a copy
+  // living only in this tab. `name` keeps the extension the
+  // post-processor actually emitted (global.lua, src0.lua, src1.lua);
+  // the human's own project name, if given, becomes a readable prefix
+  // rather than replacing that name outright.
+  const saveOutputFile = async (name: string, content: string) => {
+    const prefix = exportFileName.trim();
+    const suggestedName = prefix ? `${prefix}-${name}` : name;
+    const blob = new Blob([content], { type: "text/plain" });
+    try {
+      const picker = (
+        window as Window & {
+          showSaveFilePicker?: (options: {
+            suggestedName: string;
+            types: { description: string; accept: Record<string, string[]> }[];
+          }) => Promise<{ createWritable: () => Promise<{ write: (data: Blob) => Promise<void>; close: () => Promise<void> }> }>;
+        }
+      ).showSaveFilePicker;
+      if (picker) {
+        const handle = await picker({ suggestedName, types: [{ description: "Lua script", accept: { "text/plain": [".lua"] } }] });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+      } else {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = suggestedName;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setExportError(`"${name}" could not be saved. Please try again.`);
+      }
     }
   };
 
@@ -759,26 +803,19 @@ export default function App() {
         </div>
       </header>
 
-      <section className="status-strip">
-        <span className={`status-dot${plan ? "" : " idle"}`} />
-        {plan ? (
-          <>
-            <b>Revision {plan.revision}</b>
-            <span>{plan.status}</span>
-            {plan.approval && <span>· approved ({plan.approval.scope}) by {plan.approval.approvedBy}</span>}
-          </>
-        ) : (
-          <span>Waiting for a compiled plan</span>
-        )}
-        <i className={`session-connection${liveConnected ? " connected" : everConnected ? " lost" : ""}`}>
-          <span />
-          {liveConnected
-            ? "Live session — updates automatically"
-            : everConnected
-              ? "Connection lost — retrying…"
-              : "Standalone — not served by the SAAM adapter"}
-        </i>
-      </section>
+      <nav className="page-tabs">
+        <button type="button" className={activePage === "workbench" ? "selected" : ""} onClick={() => setActivePage("workbench")}>
+          Workbench
+        </button>
+        <button
+          type="button"
+          className={activePage === "output" ? "selected" : ""}
+          disabled={!exportResult}
+          onClick={() => exportResult && setActivePage("output")}
+        >
+          Output
+        </button>
+      </nav>
 
       {loadErrors.length > 0 && (
         <div className="load-errors" role="alert">
@@ -791,130 +828,142 @@ export default function App() {
         </div>
       )}
 
-      <section className="workspace">
-        <div className="current-view">
-          <ViewerCard title="Current operation">
-            <ToolCanvas mode="current" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.current} onViewportChange={(v) => setViewports((c) => ({ ...c, current: v }))} onRotate={rotateHandler} />
-            {activeOp ? (
-              <div className="active-operation-summary">
-                <span>
-                  OPERATION {active + 1} OF {plan?.operations.length}
-                </span>
-                <b>{operationDisplayName(activeOp)}</b>
-                <small>{activeOp.evidence ?? "EXPERIMENTAL"} · {activeOpLayers === 1 ? "Spatial pass" : `Layer ${layer} of ${activeOpLayers}`}</small>
+      {activePage === "workbench" && (
+        <section className="workspace">
+          <div className="current-view">
+            <ViewerCard title="Current operation">
+              <ToolCanvas mode="current" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.current} onViewportChange={(v) => setViewports((c) => ({ ...c, current: v }))} onRotate={rotateHandler} />
+              {activeOp ? (
+                <div className="active-operation-summary">
+                  <span>
+                    OPERATION {active + 1} OF {plan?.operations.length}
+                  </span>
+                  <b>{operationDisplayName(activeOp)}</b>
+                  <small>{activeOp.evidence ?? "EXPERIMENTAL"} · {activeOpLayers === 1 ? "Spatial pass" : `Layer ${layer} of ${activeOpLayers}`}</small>
+                </div>
+              ) : (
+                <div className="empty-preview">Open a process plan to begin</div>
+              )}
+            </ViewerCard>
+          </div>
+          <div className="part-view">
+            <ViewerCard title="Finished part">
+              <ToolCanvas mode="part" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.part} onViewportChange={(v) => setViewports((c) => ({ ...c, part: v }))} onRotate={rotateHandler} />
+              {!plan && <div className="empty-preview">Open a process plan to begin</div>}
+            </ViewerCard>
+          </div>
+          <div className="collective-view">
+            <ViewerCard title="Collective toolpath">
+              <ToolCanvas mode="collective" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.collective} onViewportChange={(v) => setViewports((c) => ({ ...c, collective: v }))} onRotate={rotateHandler} />
+              {!plan && <div className="empty-preview">No toolpaths yet</div>}
+            </ViewerCard>
+          </div>
+
+          <aside className="operation-rail">
+            <header>
+              <span>BUILD PROGRESS</span>
+            </header>
+            {plan ? (
+              <div className="rail-layer">
+                <input
+                  aria-label="Build progress"
+                  type="range"
+                  min={1}
+                  max={totalSteps}
+                  value={Math.min(globalStep, totalSteps)}
+                  onChange={(e) => setGlobalStep(Number(e.target.value))}
+                />
+                <b>
+                  {Math.min(globalStep, totalSteps)}/{totalSteps}
+                </b>
               </div>
             ) : (
-              <div className="empty-preview">Open a process plan to begin</div>
+              <div className="empty-history">EMPTY</div>
             )}
-          </ViewerCard>
-        </div>
-        <div className="part-view">
-          <ViewerCard title="Finished part">
-            <ToolCanvas mode="part" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.part} onViewportChange={(v) => setViewports((c) => ({ ...c, part: v }))} onRotate={rotateHandler} />
-            {!plan && <div className="empty-preview">Open a process plan to begin</div>}
-          </ViewerCard>
-        </div>
-        <div className="collective-view">
-          <ViewerCard title="Collective toolpath">
-            <ToolCanvas mode="collective" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.collective} onViewportChange={(v) => setViewports((c) => ({ ...c, collective: v }))} onRotate={rotateHandler} />
-            {!plan && <div className="empty-preview">No toolpaths yet</div>}
-          </ViewerCard>
-        </div>
+          </aside>
 
-        <aside className="operation-rail">
-          <header>
-            <span>BUILD PROGRESS</span>
-          </header>
-          {plan ? (
-            <div className="rail-layer">
-              <input
-                aria-label="Build progress"
-                type="range"
-                min={1}
-                max={totalSteps}
-                value={Math.min(globalStep, totalSteps)}
-                onChange={(e) => setGlobalStep(Number(e.target.value))}
-              />
-              <b>
-                {Math.min(globalStep, totalSteps)}/{totalSteps}
-              </b>
-            </div>
-          ) : (
-            <div className="empty-history">EMPTY</div>
-          )}
-        </aside>
+          <section className={`export-panel${plan ? "" : " empty"}`}>
+            <header>
+              <span>EXPORT</span>
+            </header>
+            {!plan ? (
+              <p className="export-empty">No program.</p>
+            ) : plan.machine.id !== KNOWN_MACHINE_ID ? (
+              <p className="export-empty">No post-processor registered in this interface for machine "{plan.machine.id}" yet.</p>
+            ) : (
+              <>
+                <label className="export-name">
+                  <span>File name</span>
+                  <input value={exportFileName} onChange={(e) => setExportFileName(e.target.value)} placeholder="e.g. shot-glass" />
+                </label>
+                <button type="button" className="export-action" onClick={() => void exportPlan()}>
+                  Export
+                </button>
+                {exportError && <p className="export-error">{exportError}</p>}
+              </>
+            )}
+          </section>
+        </section>
+      )}
 
-        <section className={`export-panel${plan ? "" : " empty"}`}>
-          <header>
-            <div>
-              <span>HUMAN APPROVAL &amp; EXPORT</span>
-              <h2>Review, approve, export</h2>
-            </div>
-            <i>
-              <span />
-              {plan ? plan.status : "No plan"}
-            </i>
-          </header>
-
-          <div className="approval-row">
-            <label>
-              <span>Approved by</span>
-              <input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="Your name" disabled={!plan} />
-            </label>
-            <button type="button" disabled={!plan} onClick={() => void approve("geometry")}>
-              Approve geometry
-            </button>
-            <button type="button" disabled={!plan} onClick={() => void approve("executable-export")}>
-              Approve for export
-            </button>
-          </div>
-          {approvalMessage && <p className="approval-message">{approvalMessage}</p>}
-
-          <hr className="export-divider" />
-
-          {!plan ? (
-            <p className="export-empty">No program.</p>
-          ) : plan.machine.id !== KNOWN_MACHINE_ID ? (
-            <p className="export-empty">No post-processor registered in this interface for machine "{plan.machine.id}" yet.</p>
-          ) : !canExport ? (
-            <p className="export-empty">Preview only — approve this revision for executable-export first.</p>
-          ) : (
-            <>
-              <button type="button" className="export-action" onClick={runExport}>
-                Generate Dobot Lua
-              </button>
-              {exportError && <p className="export-error">{exportError}</p>}
-              {exportResult && (
-                <div className="export-result">
-                  {exportResult.warnings.length > 0 && (
-                    <div className="export-warnings">
+      {activePage === "output" && exportResult && (
+        <section className="output-page">
+          {exportResult.warnings.length > 0 &&
+            (() => {
+              const large = exportResult.warnings.filter((w) => (w.gapMm ?? Infinity) >= LARGE_GAP_MM);
+              const small = exportResult.warnings.filter((w) => (w.gapMm ?? Infinity) < LARGE_GAP_MM);
+              return (
+                <div className="output-warnings">
+                  {large.length > 0 && (
+                    <div className="warning-group large">
                       <b>
-                        {exportResult.warnings.length} warning{exportResult.warnings.length === 1 ? "" : "s"}
+                        {large.length} large gap{large.length === 1 ? "" : "s"} (&ge;{LARGE_GAP_MM}mm)
                       </b>
-                      <ul>
-                        {exportResult.warnings.map((w, i) => (
-                          <li key={i}>{w.message}</li>
-                        ))}
-                      </ul>
+                      <p>
+                        The nozzle would travel this far with extrusion still on — a real, likely-visible
+                        defect, not a cosmetic warning. Worth reviewing before printing.
+                      </p>
                     </div>
                   )}
-                  {Object.entries(exportResult.files).map(([name, content]) => (
-                    <div className="export-file" key={name}>
-                      <div className="export-file-head">
-                        <b>{name}</b>
-                        <button type="button" onClick={() => void copyFile(name)}>
-                          Copy
-                        </button>
-                      </div>
-                      <pre>{content}</pre>
+                  {small.length > 0 && (
+                    <div className="warning-group small">
+                      <b>
+                        {small.length} small transition{small.length === 1 ? "" : "s"} (&lt;{LARGE_GAP_MM}mm)
+                      </b>
+                      <p>Expected gaps between adjacent fill passes — not evidence of a routing error.</p>
                     </div>
-                  ))}
+                  )}
+                  <button type="button" className="warnings-toggle" onClick={() => setShowAllWarnings((v) => !v)}>
+                    {showAllWarnings ? "Hide" : "Show"} all {exportResult.warnings.length} warnings
+                  </button>
+                  {showAllWarnings && (
+                    <ul className="warnings-detail">
+                      {exportResult.warnings.map((w, i) => (
+                        <li key={i}>{w.message}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-              )}
-            </>
-          )}
+              );
+            })()}
+          {Object.entries(exportResult.files).map(([name, content]) => (
+            <div className="output-file" key={name}>
+              <div className="output-file-head">
+                <b>{name}</b>
+                <div className="output-file-actions">
+                  <button type="button" onClick={() => void copyFile(name)}>
+                    Copy
+                  </button>
+                  <button type="button" onClick={() => void saveOutputFile(name, content)}>
+                    Save
+                  </button>
+                </div>
+              </div>
+              <pre>{content}</pre>
+            </div>
+          ))}
         </section>
-      </section>
+      )}
     </main>
   );
 }

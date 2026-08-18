@@ -46,6 +46,21 @@ chord where that line crosses the outer circle; where a line also crosses
 the inner circle (an annulus), it splits into two segments routed around
 the hole instead of running through it.
 
+## Known limitation: perimeter-to-fill travel
+
+For a circular/annular layer, the outer perimeter always starts and ends
+at angle 0 (its rightmost point); the raster sweep starts at its own
+extreme, up to a full diameter away. The post-processor's own
+`disjoint-transition` warning correctly flags this as real
+travel-with-extrusion-on, not noise — for a small part this can be a
+double-digit-millimeter drag across the print. A center-outward sweep
+order was tried and measured worse overall (it fixes that one handoff by
+breaking the much smaller gaps *between* sweep lines, which matter more
+in aggregate), so the simple monotonic sweep stays for now. Solving this
+properly needs real travel-order optimization across the whole path, not
+a local reordering — worth a dedicated pass, not a quick fix bundled into
+something else.
+
 ## Inputs, outputs, and evidence
 
 See `manifest.json`. This operation's generator (`generator.mjs`) has no

@@ -150,6 +150,7 @@
     "warnings": [
       {
         "code": "disjoint-transition",
+        "gapMm": 7.9,
         "message": "A 7.90 mm gap separates \"Prioritized perimeter\" (layer 0) from \"Region-first raster\" (layer 0). This post-processor travels it linearly with extrusion left on, per the project's one-continuous-extrusion-window convention, rather than cycling PenOff/PenOn — but a gap this size was not designed as a deliberate printed transition by the operation that produced it.",
         "from": {
           "x": -7.585,
@@ -164,6 +165,7 @@
       },
       {
         "code": "disjoint-transition",
+        "gapMm": 4,
         "message": "A 4.00 mm gap separates \"Region-first raster\" (layer 0) from \"Region-first raster\" (layer 0). This post-processor travels it linearly with extrusion left on, per the project's one-continuous-extrusion-window convention, rather than cycling PenOff/PenOn — but a gap this size was not designed as a deliberate printed transition by the operation that produced it.",
         "from": {
           "x": 2,

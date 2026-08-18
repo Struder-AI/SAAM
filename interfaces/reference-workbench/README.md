@@ -67,22 +67,44 @@ though there's nothing to pick.
 
 ## Approval and export
 
-Live mode: clicking "Approve for export" `POST`s to the adapter's
-`/api/session/approve`, which builds the approval record through the
-exact same `schemas/process-plan/plan-lib.mjs` function a standalone
-approval uses, attaches it to the session, and the response becomes
-this tab's new state — no export/import step. Standalone mode: the same
-function runs locally instead. Either way: a SHA-256 content hash (Web
-Crypto, no dependency) over the plan's manufacturing content, scoped to
-`geometry` or `executable-export`; any later edit changes the revision
-and silently invalidates that approval, checked on every render, not
-just at approval time.
+One button: type a file name, click "Export." Approving and exporting
+used to be two separate steps — a named approver, a choice between two
+approval scopes, then a second click to actually export — but this
+workbench only ever does one thing with an approval (use it immediately
+to export), so that split was ceremony without a real second decision.
+The click itself is still the one real gate a human has to clear:
+`exportPlan()` gets (or reuses, if the current revision is already
+approved) an `executable-export` approval before translating anything,
+through the exact same `schemas/process-plan/plan-lib.mjs` function a
+human clicking used to trigger directly — live mode `POST`s it to the
+adapter's `/api/session/approve`; standalone mode computes it locally.
+Either way: a SHA-256 content hash (Web Crypto, no dependency) over the
+plan's manufacturing content; any later edit changes the revision and
+silently invalidates that approval, checked on every render, not just at
+approval time. `machine-control` and a separate `geometry`-only scope
+both still exist in the schema and are checked by `hasCurrentApproval`
+exactly like before — this UI just never asks a human to choose between
+scopes, since export is the only thing it does with one.
 
-Export calls the real `dobot-lua-postprocessor` generator directly —
-the identical module `tests/golden` exercises — and only runs once the
-plan carries a matching `executable-export` approval; the
-post-processor's own safety gate would refuse it anyway even if this
-check were bypassed.
+Export calls the real `dobot-lua-postprocessor` generator directly — the
+identical module `tests/golden` exercises. Its `warnings` (real defects
+like a large travel-with-extrusion-on gap, not just cosmetic notices —
+see `machines/reference-dobot-mg400-struderbot/postprocessor/README.md`)
+land in the **Output** tab, grouped into large (&ge;5mm, called out
+prominently) and small (expected fill-pass transitions) rather than
+dumped as one undifferentiated list — the full raw list is still there,
+behind a "Show all" toggle, not deleted.
+
+## Workbench / Output tabs
+
+Two pages, not one long scrolling panel. **Workbench** is the live 3D
+previews and the Export control. **Output** — disabled until something's
+actually been exported — holds the real generated files at full size,
+each with Copy (for pasting into DobotStudio Pro directly) and Save (to
+the human's own disk, named from the Export tab's file name field) next
+to it. A successful export switches to this tab automatically; nothing
+about the generated Lua is ever squeezed into a small scrolling box the
+way it once was.
 
 ## Running it
 
