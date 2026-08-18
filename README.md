@@ -1,7 +1,7 @@
 # SAAM — Struder Agentic Additive Manufacturing
 
-SAAM lets a conversational AI agent directly program you 3D printer.
-(It is also good for turning other programable motion systems into 3D printers - like robot arms and CNC machines)
+SAAM lets a conversational AI agent directly program your 3D printer.
+(It is also good for turning other programmable motion systems into 3D printers - like robot arms and CNC machines)
 
 Chat with your agent to conversationally set your manufacturing intent and dictate how you want your toolpaths to work.
 See a preview of what you have developed in our workbench and send it to your device for printing.  No CAD or CAM
