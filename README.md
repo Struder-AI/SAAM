@@ -48,6 +48,11 @@ connecting one? `node examples/compile-approve-export.mjs` runs the same
 loop — including the approval step — end to end and prints the result,
 no browser or agent required. See `examples/README.md`.
 
+Using this checkout to build your own part never involves committing or
+pushing anything back to this repository — the deliverable is the
+exported machine file on your own disk. Nothing about the loop above
+touches this checkout's git history, and your agent shouldn't either.
+
 ## What runs where
 
 The reasoning happens in your agent, on your account. SAAM never calls

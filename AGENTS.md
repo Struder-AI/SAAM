@@ -128,8 +128,28 @@ something to fake at plan-compile time.
 - **SAAM never calls a model or holds a credential, and you shouldn't
   either on its behalf.** The reasoning is yours, on your own account —
   see `docs/architecture/agent-safety-boundary.md`.
+- **Using SAAM to build someone's part is not the same thing as
+  developing SAAM, and the default is the former.** Almost everyone who
+  clones this repo is doing it to make their own part on their own
+  machine — the deliverable is the exported Lua/G-code file, not a
+  change to this repository. Don't run `git add`, `git commit`,
+  `git push`, or any other git write command against this checkout
+  while doing that, and don't suggest it to the human either — there is
+  nothing here to save into SAAM's own history just because you compiled
+  a plan or exported a file. This isn't a technical restriction (nothing
+  stops a connected agent's own shell access from running git — this
+  adapter has no sandbox and can't enforce anything about what you do
+  outside its own tools); it's a rule about what's actually correct to
+  do. The one exception is the section right below: a human explicitly
+  asking you to change SAAM's own source — add an operation, fix a bug,
+  touch a schema — is a different, opt-in mode, not something to slide
+  into because you happen to have git access in this checkout.
 
 ## If you're modifying this repository itself
+
+This section only applies when a human has explicitly asked you to
+change SAAM's own source — write a new operation, fix a bug, edit a
+schema or doc. It is not the default mode; see the rule above.
 
 - Run `npm test` from the repo root before and after changes — golden
   fixtures plus real subprocess MCP integration tests, currently 54
