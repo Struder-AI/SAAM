@@ -217,11 +217,19 @@ button {
 .workspace {
   padding: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px minmax(240px, 0.85fr);
-  grid-template-rows: 1.15fr 1fr;
+  /* The rail (progress slider) sits beside the previews; approval &
+     export always sits below the full width of that block, never
+     beside the rail — a side-by-side arrangement only "worked" on a
+     genuinely wide desktop window and broke down to something
+     unreadable in the width an agent app's own sidebar/browser panel
+     actually gives this page. Stacking is the one layout that holds up
+     at every width, not just the ones we happened to test at. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) clamp(64px, 8vw, 90px);
+  grid-template-rows: 1fr 0.85fr 0.8fr;
   grid-template-areas:
-    "current current rail export"
-    "part collective rail export";
+    "current current rail"
+    "part collective rail"
+    "export export export";
   gap: 11px;
   max-width: 1800px;
   /* No row ever gets a height floor above what actually fits — a
@@ -614,34 +622,23 @@ button {
   padding-left: 1.1em;
 }
 
-@media (max-width: 1180px) {
-  .workspace {
-    grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.2fr) 82px minmax(240px, 0.8fr);
+/* The base .workspace grid already stacks approval/export below the
+   rail at any width — this tier just tightens spacing for a narrower
+   desktop or sidebar width, without giving up the no-scroll fit. */
+@media (max-width: 900px) {
+  .topbar {
+    flex-wrap: wrap;
   }
 }
-@media (max-width: 900px) {
+@media (max-width: 620px) {
+  /* Genuinely phone-narrow is the one case where scrolling beats a
+     fixed-height fit — there isn't enough vertical room left over once
+     five panels are stacked in a single column this narrow. Wider
+     "sidebar" widths stay on the fixed, no-scroll grid above. */
   .app-shell {
     height: auto;
     overflow: visible;
   }
-  .topbar {
-    flex-wrap: wrap;
-  }
-  .workspace {
-    height: auto;
-    min-height: 0;
-    grid-template-columns: 1fr 1fr 76px;
-    grid-template-rows: 340px 300px 320px;
-    grid-template-areas:
-      "current current rail"
-      "part collective rail"
-      "export export export";
-  }
-  .operation-rail {
-    min-height: 0;
-  }
-}
-@media (max-width: 620px) {
   .topbar {
     padding: 10px 14px;
   }
