@@ -42,13 +42,22 @@ button {
 /* #root/.app-shell need a real, definite height or the percentage-height
    chain down to each <canvas> silently fails (resolves as `auto`), and a
    canvas whose bitmap size is set from its own unconstrained box height
-   feeds a ResizeObserver loop that grows without bound. */
+   feeds a ResizeObserver loop that grows without bound. A flex column
+   with the workspace as the only flexible child (flex: 1, below) is
+   what keeps the header and export footer always on screen at any
+   width: whatever height the header actually renders at — one line or
+   wrapped to two on a narrow sidebar — the workspace exactly fills
+   what's left, instead of assuming a fixed header height that a narrow
+   width can silently invalidate. */
 .app-shell {
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
+  flex: 0 0 auto;
   min-height: 74px;
   padding: 12px clamp(18px, 3vw, 44px);
   display: flex;
@@ -56,8 +65,6 @@ button {
   gap: 24px;
   border-bottom: 1px solid var(--line);
   background: rgba(250, 249, 245, 0.96);
-  position: sticky;
-  top: 0;
   z-index: 10;
   backdrop-filter: blur(16px);
 }
@@ -185,6 +192,7 @@ button {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
 }
 .status-strip {
+  flex: 0 0 auto;
   min-height: 38px;
   padding: 6px clamp(18px, 3vw, 44px);
   display: flex;
@@ -232,16 +240,25 @@ button {
     "export export export";
   gap: 11px;
   max-width: 1800px;
-  /* No row ever gets a height floor above what actually fits — a
-     floor (e.g. minmax(220px, 1fr)) can force this grid taller than
-     the viewport on a short screen, which pushes it into its own
-     scrollbar and hides the topbar/export actions above and below the
-     fold. Every panel that can legitimately overflow (export's Lua
-     output, in particular) manages that scroll internally instead. */
-  height: calc(100vh - 112px);
+  /* flex: 1 on a flex-column .app-shell (not a height calc'd from the
+     header's assumed size) is what keeps this grid's own rows fr-based
+     rather than pixel- or viewport-based: whatever space the header
+     left behind, these rows share it in the same proportions at any
+     width, instead of any panel needing to reflow into a different
+     arrangement or hand the page a scrollbar. Every panel that can
+     legitimately overflow its shrunk allotment (export's Lua output,
+     in particular) manages that scroll internally instead. */
+  flex: 1;
   min-height: 0;
   overflow: hidden;
-  margin: 0 auto;
+  /* width: 100% + align-self (not the old margin: 0 auto) is what
+     centers this under the 1800px cap on an ultra-wide monitor —
+     margin: auto on a flex item competes with cross-axis stretch and
+     shrinks it to content width instead, reopening a wide empty gutter
+     on anything narrower than 1800px, which is most of the widths this
+     is meant to work at. */
+  width: 100%;
+  align-self: center;
 }
 
 .viewer-card {
@@ -622,23 +639,19 @@ button {
   padding-left: 1.1em;
 }
 
-/* The base .workspace grid already stacks approval/export below the
-   rail at any width — this tier just tightens spacing for a narrower
-   desktop or sidebar width, without giving up the no-scroll fit. */
+/* The grid keeps the same orientation — current on top, part and
+   collective beside each other below it, rail on the right, export
+   spanning the bottom — at every width. Nothing below reflows that
+   arrangement; it only trims spacing and lets the fr-based rows/columns
+   above do the actual shrinking, which is what keeps the header and
+   export footer on screen without a page scrollbar even on a narrow
+   sidebar. */
 @media (max-width: 900px) {
   .topbar {
     flex-wrap: wrap;
   }
 }
 @media (max-width: 620px) {
-  /* Genuinely phone-narrow is the one case where scrolling beats a
-     fixed-height fit — there isn't enough vertical room left over once
-     five panels are stacked in a single column this narrow. Wider
-     "sidebar" widths stay on the fixed, no-scroll grid above. */
-  .app-shell {
-    height: auto;
-    overflow: visible;
-  }
   .topbar {
     padding: 10px 14px;
   }
@@ -646,40 +659,10 @@ button {
     align-items: flex-start;
   }
   .workspace {
-    display: flex;
-    flex-direction: column;
-    padding: 9px;
-    height: auto;
+    padding: 8px;
+    gap: 7px;
   }
-  .part-view,
-  .collective-view {
-    height: 280px;
-  }
-  .current-view {
-    height: 380px;
-  }
-  .export-panel {
-    min-height: 300px;
-  }
-  .operation-rail {
-    height: 96px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-  }
-  .operation-rail header {
-    height: auto;
-    width: auto;
-    flex: 0 0 auto;
-  }
-  .rail-layer {
-    flex-direction: row;
-  }
-  .rail-layer input {
-    height: auto;
-    width: 100%;
-    writing-mode: horizontal-tb;
-    direction: ltr;
+  .approval-row {
+    grid-template-columns: 1fr;
   }
 }
