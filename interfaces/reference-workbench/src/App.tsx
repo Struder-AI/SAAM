@@ -86,21 +86,101 @@ function operationLayerCount(op: OperationInvocation): number {
   return Math.max(1, maxLayer + 1);
 }
 
-function ring(radius: number, z: number, count = 90): Point[] {
-  return Array.from({ length: count + 1 }, (_, i) => {
-    const a = ((Math.PI * 2) * i) / count;
-    return { x: Math.cos(a) * radius, y: Math.sin(a) * radius, z };
-  });
+/** Total build steps across every operation combined — this is what the
+ * single progress slider scrubs, rather than a separate "which
+ * operation" control plus a separate "which layer within it" control. */
+function totalBuildSteps(plan: ProcessPlan | null): number {
+  if (!plan || plan.operations.length === 0) return 1;
+  return plan.operations.reduce((sum, op) => sum + operationLayerCount(op), 0);
 }
 
-function rectanglePreview(width: number, depth: number, z: number): Point[] {
-  return [
-    { x: -width / 2, y: -depth / 2, z },
-    { x: width / 2, y: -depth / 2, z },
-    { x: width / 2, y: depth / 2, z },
-    { x: -width / 2, y: depth / 2, z },
-    { x: -width / 2, y: -depth / 2, z },
-  ];
+/** Maps one global step (1-indexed, spanning the whole build) back to
+ * which operation it falls in and which local layer within that
+ * operation — the shape ToolCanvas's `activeIndex`/`fraction` props
+ * already expect, so the canvas rendering logic doesn't need to change,
+ * only what feeds it. */
+function resolveBuildStep(plan: ProcessPlan | null, globalStep: number): { activeIndex: number; layer: number } {
+  if (!plan || plan.operations.length === 0) return { activeIndex: 0, layer: 1 };
+  let remaining = Math.max(1, globalStep);
+  for (let i = 0; i < plan.operations.length; i += 1) {
+    const count = operationLayerCount(plan.operations[i]);
+    if (remaining <= count || i === plan.operations.length - 1) {
+      return { activeIndex: i, layer: Math.min(remaining, count) };
+    }
+    remaining -= count;
+  }
+  return { activeIndex: plan.operations.length - 1, layer: 1 };
+}
+
+function boundingRadius2D(points: Point[]): number {
+  return points.reduce((max, p) => Math.max(max, Math.hypot(p.x, p.y)), 0);
+}
+
+// Evenly-spaced points by arc length along a polyline. Profiles pulled
+// from real toolpaths (a perimeter, a cladding pass) rarely share a
+// point count or spacing with their neighbor, so lofting between them
+// index-for-index would connect unrelated points — resampling both to
+// the same N first is what makes that correspondence meaningful.
+function resamplePolyline(points: Point[], n: number): Point[] {
+  if (points.length < 2) return points;
+  const segmentLengths: number[] = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const d = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y, points[i].z - points[i - 1].z);
+    segmentLengths.push(d);
+    total += d;
+  }
+  if (total === 0) return Array.from({ length: n }, () => points[0]);
+  const result: Point[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const target = (total * i) / (n - 1);
+    let travelled = 0;
+    let segment = 0;
+    while (segment < segmentLengths.length - 1 && travelled + segmentLengths[segment] < target) {
+      travelled += segmentLengths[segment];
+      segment += 1;
+    }
+    const segLength = segmentLengths[segment] || 1;
+    const t = Math.max(0, Math.min(1, (target - travelled) / segLength));
+    const a = points[segment];
+    const b = points[segment + 1] ?? a;
+    result.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
+  }
+  return result;
+}
+
+// The "Finished part" view's solid look is built from the same points
+// every other view already has — not a second, idealized geometry
+// model. Per operation: paths whose family reads as infill ("raster",
+// "fill") are excluded — they're interior texture, not the outer skin.
+// What's left either varies by `layer` (a walled operation: pick the
+// widest boundary per layer as that layer's silhouette) or doesn't (a
+// single spatial pass like cladding: every remaining pass already *is*
+// a cross-section of the surface, in the order it's deposited).
+function extractSolidProfiles(plan: ProcessPlan): Point[][] {
+  const profiles: Point[][] = [];
+  for (const op of plan.operations) {
+    const qualifying = op.paths.filter((p) => p.intent === "print" && !/raster|fill/i.test(p.family) && p.points.length > 1);
+    if (qualifying.length === 0) continue;
+    const distinctLayers = new Set(qualifying.map((p) => p.layer)).size;
+    if (distinctLayers > 1) {
+      const byLayer = new Map<number, PathEntry[]>();
+      qualifying.forEach((p) => {
+        if (!byLayer.has(p.layer)) byLayer.set(p.layer, []);
+        byLayer.get(p.layer)!.push(p);
+      });
+      [...byLayer.keys()]
+        .sort((a, b) => a - b)
+        .forEach((l) => {
+          const candidates = byLayer.get(l)!;
+          const outer = candidates.reduce((best, c) => (boundingRadius2D(c.points) > boundingRadius2D(best.points) ? c : best));
+          profiles.push(outer.points);
+        });
+    } else {
+      qualifying.forEach((p) => profiles.push(p.points));
+    }
+  }
+  return profiles;
 }
 
 function projected(p: Point, width: number, height: number, yaw: number, pitch: number, centerY: number, span: number) {
@@ -155,6 +235,81 @@ function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number) {
     ctx.lineTo(w, y);
     ctx.stroke();
   }
+}
+
+// Renders profiles (already resampled to a common point count, in
+// build order) as a shaded solid: a filled quad between every pair of
+// corresponding points on consecutive profiles, plus a filled cap on
+// the very last one. Canvas 2D has no real depth buffer, so this relies
+// on painting in build order (bottom/earliest to top/latest) reading
+// correctly for a roughly-upright part under the shared isometric
+// rotation — true for the vast majority of what these operations
+// produce, not a general-purpose renderer for arbitrary overhangs.
+function drawSolidLoft(
+  ctx: CanvasRenderingContext2D,
+  profiles: Point[][],
+  w: number,
+  h: number,
+  yaw: number,
+  pitch: number,
+  centerY: number,
+  span: number
+) {
+  const project = (p: Point) => projected(p, w, h, yaw, pitch, centerY, span);
+  const SKIN = "#8acbc3";
+  const SKIN_SHADE = "#5fa89e";
+
+  for (let i = 0; i < profiles.length - 1; i += 1) {
+    const lower = profiles[i];
+    const upper = profiles[i + 1];
+    const n = Math.min(lower.length, upper.length);
+    for (let j = 0; j < n - 1; j += 1) {
+      const a = project(lower[j]);
+      const b = project(lower[j + 1]);
+      const c = project(upper[j + 1]);
+      const d = project(upper[j]);
+      // A cheap two-tone "shading": alternate faces read as slightly
+      // different faces of a faceted solid rather than one flat sheet.
+      // Opaque fill matters here, not just aesthetically: with dozens of
+      // thin bands (a many-pass operation like cladding), any alpha < 1
+      // lets adjacent quads' anti-aliased shared edges show through as a
+      // dense hairline hatch instead of reading as one solid.
+      ctx.fillStyle = j % 2 === 0 ? SKIN : SKIN_SHADE;
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.lineTo(c.x, c.y);
+      ctx.lineTo(d.x, d.y);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  const cap = profiles.at(-1);
+  if (cap && cap.length > 2) {
+    ctx.beginPath();
+    cap.forEach((p, i) => {
+      const pt = project(p);
+      i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y);
+    });
+    ctx.closePath();
+    ctx.fillStyle = SKIN;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // A crisp outline on the base and cap keeps the solid reading as a
+  // defined object rather than a translucent haze. Stroking every
+  // intermediate profile too (rather than just these two) is what
+  // turned a many-pass operation like cladding into a dense hatch of
+  // thin lines instead of a solid — the fill already carries those.
+  const first = profiles[0];
+  const last = profiles.at(-1);
+  if (first) drawLine(ctx, first, w, h, "#3f7f76", yaw, pitch, centerY, span, 1.1, 0.6);
+  if (last && last !== first) drawLine(ctx, last, w, h, "#3f7f76", yaw, pitch, centerY, span, 1.1, 0.6);
 }
 
 function partSpan(part?: PartSpec): number {
@@ -215,25 +370,16 @@ function ToolCanvas({
       ctx.translate(-projectionCenter.current.x, -centerY);
 
       if (mode === "part") {
-        const { part } = plan;
-        const h = part.height;
-        if (part.shape === "box" || part.shape === "surface") {
-          const w = part.width ?? 40;
-          const d = part.depth ?? 40;
-          [rectanglePreview(w, d, 0), rectanglePreview(w, d, h)].forEach((pts) =>
-            drawLine(ctx, pts, rect.width, rect.height, "#8acbc3", rotation.yaw, rotation.pitch, centerY, span, filled ? 2 : 1, 0.85)
-          );
-        } else {
-          const outer = (part.outerDiameter ?? 40) / 2;
-          const inner = (part.innerDiameter ?? 0) / 2;
-          [ring(outer, 0), ring(outer, h)].forEach((pts) =>
-            drawLine(ctx, pts, rect.width, rect.height, "#8acbc3", rotation.yaw, rotation.pitch, centerY, span, filled ? 2 : 1, 0.9)
-          );
-          if (inner > 0) {
-            [ring(inner, 0), ring(inner, h)].forEach((pts) =>
-              drawLine(ctx, pts, rect.width, rect.height, "#739d99", rotation.yaw, rotation.pitch, centerY, span, 1, 0.75)
-            );
-          }
+        // Always the complete, final geometry — every operation, every
+        // layer — regardless of the build-progress slider. "Finished
+        // part" is the fixed target; "Current operation" is what's
+        // scrubbable. Built from the plan's own points, not a generic
+        // box/cylinder drawn from its declared dimensions.
+        const rawProfiles = extractSolidProfiles(plan);
+        if (rawProfiles.length > 0) {
+          const RESAMPLE_POINTS = 48;
+          const profiles = rawProfiles.map((p) => resamplePolyline(p, RESAMPLE_POINTS));
+          drawSolidLoft(ctx, profiles, rect.width, rect.height, rotation.yaw, rotation.pitch, centerY, span);
         }
       } else if (mode === "current") {
         const op = plan.operations[activeIndex];
@@ -356,8 +502,10 @@ export default function App() {
   const [everConnected, setEverConnected] = useState(false);
   const [selectedMachineId, setSelectedMachineId] = useState(MACHINES[0].id);
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
-  const [active, setActive] = useState(0);
-  const [layer, setLayer] = useState(1);
+  // One slider spans the whole build (every operation's layers, back to
+  // back) instead of a separate "which operation" control plus a
+  // separate "which layer" control — see resolveBuildStep().
+  const [globalStep, setGlobalStep] = useState(1);
   const [filled, setFilled] = useState(true);
   const [rotation, setRotation] = useState({ yaw: -0.72, pitch: 0.55 });
   const [viewports, setViewports] = useState<Record<ViewMode, Viewport>>({
@@ -399,8 +547,7 @@ export default function App() {
           if (current && current.revision === session.revision && current.machine.id === session.machine.id && JSON.stringify(current.approval) === JSON.stringify(session.approval)) {
             return current; // no real change — skip a state update and the resulting re-render/redraw
           }
-          setActive(0);
-          setLayer(1);
+          setGlobalStep(totalBuildSteps(session)); // show the build as fully composed so far, by default
           return session;
         });
         if (session && MACHINES.some((m) => m.id === session.machine.id)) setSelectedMachineId(session.machine.id);
@@ -449,6 +596,8 @@ export default function App() {
     }
   }, [plan, liveConnected]);
 
+  const totalSteps = totalBuildSteps(plan);
+  const { activeIndex: active, layer } = resolveBuildStep(plan, globalStep);
   const activeOp = plan?.operations[active] ?? null;
   const activeOpLayers = activeOp ? operationLayerCount(activeOp) : 1;
   const fraction = Math.max(1, layer) / activeOpLayers;
@@ -480,8 +629,7 @@ export default function App() {
       if (MACHINES.some((m) => m.id === (candidatePlan as ProcessPlan).machine.id)) {
         setSelectedMachineId((candidatePlan as ProcessPlan).machine.id);
       }
-      setActive(0);
-      setLayer(1);
+      setGlobalStep(totalBuildSteps(candidatePlan as ProcessPlan));
       resetViews();
     } catch (error) {
       setLoadErrors([error instanceof Error ? error.message : "The file is not valid JSON."]);
@@ -674,18 +822,6 @@ export default function App() {
       )}
 
       <section className="workspace">
-        <div className="part-view">
-          <ViewerCard title="Finished part">
-            <ToolCanvas mode="part" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.part} onViewportChange={(v) => setViewports((c) => ({ ...c, part: v }))} onRotate={rotateHandler} />
-            {!plan && <div className="empty-preview">Open a process plan to begin</div>}
-          </ViewerCard>
-        </div>
-        <div className="collective-view">
-          <ViewerCard title="Collective toolpath">
-            <ToolCanvas mode="collective" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.collective} onViewportChange={(v) => setViewports((c) => ({ ...c, collective: v }))} onRotate={rotateHandler} />
-            {!plan && <div className="empty-preview">No toolpaths yet</div>}
-          </ViewerCard>
-        </div>
         <div className="current-view">
           <ViewerCard title="Current operation">
             <ToolCanvas mode="current" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.current} onViewportChange={(v) => setViewports((c) => ({ ...c, current: v }))} onRotate={rotateHandler} />
@@ -702,51 +838,37 @@ export default function App() {
             )}
           </ViewerCard>
         </div>
+        <div className="part-view">
+          <ViewerCard title="Finished part">
+            <ToolCanvas mode="part" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.part} onViewportChange={(v) => setViewports((c) => ({ ...c, part: v }))} onRotate={rotateHandler} />
+            {!plan && <div className="empty-preview">Open a process plan to begin</div>}
+          </ViewerCard>
+        </div>
+        <div className="collective-view">
+          <ViewerCard title="Collective toolpath">
+            <ToolCanvas mode="collective" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.collective} onViewportChange={(v) => setViewports((c) => ({ ...c, collective: v }))} onRotate={rotateHandler} />
+            {!plan && <div className="empty-preview">No toolpaths yet</div>}
+          </ViewerCard>
+        </div>
 
         <aside className="operation-rail">
           <header>
-            <span>BUILD HISTORY</span>
-            <b>{plan ? `${active + 1}/${plan.operations.length}` : "0/0"}</b>
+            <span>BUILD PROGRESS</span>
           </header>
           {plan ? (
-            <>
-              <div className="rail-track">
-                {plan.operations.map((op, i) => (
-                  <button
-                    key={op.invocationId}
-                    onClick={() => {
-                      setActive(i);
-                      setLayer(operationLayerCount(op));
-                    }}
-                    className={i === active ? "active" : i < active ? "done" : ""}
-                    aria-label={`Show ${operationDisplayName(op)}`}
-                  >
-                    <i style={{ background: operationColor(i) }} />
-                    <span>{i + 1}</span>
-                  </button>
-                ))}
-              </div>
+            <div className="rail-layer">
               <input
-                className="operation-range"
-                aria-label="Operation history"
+                aria-label="Build progress"
                 type="range"
-                min={0}
-                max={Math.max(0, plan.operations.length - 1)}
-                value={active}
-                onChange={(e) => {
-                  const i = Number(e.target.value);
-                  setActive(i);
-                  setLayer(operationLayerCount(plan.operations[i]));
-                }}
+                min={1}
+                max={totalSteps}
+                value={Math.min(globalStep, totalSteps)}
+                onChange={(e) => setGlobalStep(Number(e.target.value))}
               />
-              <div className="rail-layer">
-                <span>{activeOpLayers === 1 ? "PROGRESS" : "LAYER"}</span>
-                <input aria-label="Active layer" type="range" min={1} max={activeOpLayers} value={Math.min(layer, activeOpLayers)} onChange={(e) => setLayer(Number(e.target.value))} />
-                <b>
-                  {Math.min(layer, activeOpLayers)}/{activeOpLayers}
-                </b>
-              </div>
-            </>
+              <b>
+                {Math.min(globalStep, totalSteps)}/{totalSteps}
+              </b>
+            </div>
           ) : (
             <div className="empty-history">EMPTY</div>
           )}

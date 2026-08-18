@@ -217,16 +217,22 @@ button {
 .workspace {
   padding: 12px;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(360px, 1.3fr) 100px minmax(280px, 0.85fr);
-  grid-template-rows: minmax(220px, 1fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px minmax(240px, 0.85fr);
+  grid-template-rows: 1.15fr 1fr;
   grid-template-areas:
-    "part current rail export"
-    "collective current rail export";
+    "current current rail export"
+    "part collective rail export";
   gap: 11px;
   max-width: 1800px;
+  /* No row ever gets a height floor above what actually fits — a
+     floor (e.g. minmax(220px, 1fr)) can force this grid taller than
+     the viewport on a short screen, which pushes it into its own
+     scrollbar and hides the topbar/export actions above and below the
+     fold. Every panel that can legitimately overflow (export's Lua
+     output, in particular) manages that scroll internally instead. */
   height: calc(100vh - 112px);
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   margin: 0 auto;
 }
 
@@ -317,80 +323,31 @@ button {
 .operation-rail header b {
   font-size: 0.64rem;
 }
-.rail-track {
-  flex: 1;
-  display: flex;
-  flex-direction: column-reverse;
-  justify-content: space-around;
-  align-items: center;
-  padding: 10px 0;
-  z-index: 2;
-  gap: 6px;
-}
-.rail-track button {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  border: 2px solid #c5cbc7;
-  border-radius: 50%;
-  background: #f7f7f3;
-  cursor: pointer;
-  position: relative;
-}
-.rail-track button i {
-  position: absolute;
-  inset: 4px;
-  border-radius: 50%;
-  opacity: 0.25;
-}
-.rail-track button span {
-  position: relative;
-  font-size: 0.59rem;
-  font-weight: 900;
-}
-.rail-track button.done,
-.rail-track button.active {
-  border-color: #657673;
-}
-.rail-track button.done i,
-.rail-track button.active i {
-  opacity: 1;
-}
-.rail-track button.active {
-  width: 34px;
-  height: 34px;
-  box-shadow: 0 0 0 5px rgba(230, 109, 63, 0.12);
-  border-color: var(--orange);
-}
-.operation-range {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
+/* Just the one slider now — it fills the rail's remaining height rather
+   than sitting in a fixed-size box sized for the circles that used to
+   be above it. */
 .rail-layer {
-  height: 98px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-}
-.rail-layer span {
-  font-size: 0.51rem;
-  letter-spacing: 0.12em;
-  font-weight: 900;
-  color: var(--muted);
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 0;
 }
 .rail-layer input {
-  height: 62px;
+  flex: 1;
+  min-height: 0;
   width: 18px;
   writing-mode: vertical-lr;
   direction: rtl;
   accent-color: var(--orange);
 }
 .rail-layer b {
-  font-size: 0.58rem;
+  font-size: 0.6rem;
+  font-weight: 800;
 }
 .empty-history {
   flex: 1;
@@ -674,10 +631,10 @@ button {
     height: auto;
     min-height: 0;
     grid-template-columns: 1fr 1fr 76px;
-    grid-template-rows: 320px 320px 320px;
+    grid-template-rows: 340px 300px 320px;
     grid-template-areas:
-      "part current rail"
-      "collective current rail"
+      "current current rail"
+      "part collective rail"
       "export export export";
   }
   .operation-rail {
@@ -708,25 +665,23 @@ button {
     min-height: 300px;
   }
   .operation-rail {
-    height: 112px;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-rows: 1fr;
-    gap: 8px;
+    height: 96px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
   }
   .operation-rail header {
     height: auto;
-  }
-  .rail-track {
-    flex-direction: row;
-    padding: 0;
+    width: auto;
+    flex: 0 0 auto;
   }
   .rail-layer {
-    height: auto;
+    flex-direction: row;
   }
   .rail-layer input {
     height: auto;
-    width: 70px;
+    width: 100%;
     writing-mode: horizontal-tb;
     direction: ltr;
   }
