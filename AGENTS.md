@@ -17,15 +17,22 @@ manufacturing. Here's the actual sequence, every time:
    previous turn. They read real manifests off disk; the catalog
    changes as this repo grows. Use an operation's `id` field (not its
    display `name`) everywhere below.
-2. **`compile_plan`** — pass the `machineId` and an ordered list of
-   `{operationId, parameters}` invocations. This runs the real
-   generators (no invented geometry) and opens the SAAM Reference
-   Workbench in the human's browser automatically the first time you
-   call it — nothing to open manually, no file to hand them.
-3. **Composing more than one operation, or changing an existing plan?**
-   Call `compile_plan` again with the *full* updated operation list, not
-   just the new addition — it replaces the whole plan, it doesn't
-   append. The already-open workbench tab updates in place.
+2. **`compile_plan`** — pass the `machineId`, a `target` describing the
+   part the human is actually trying to build (a simple envelope:
+   `shape`, `width`/`depth` or `outerDiameter`/`innerDiameter`,
+   `height`), and an ordered list of `{operationId, parameters}`
+   invocations. This runs the real generators (no invented geometry) and
+   opens the SAAM Reference Workbench in the human's browser
+   automatically the first time you call it — nothing to open manually,
+   no file to hand them. The workbench's "Finished Part" view renders
+   `target` directly and only that — never derive it from toolpath data
+   or from whatever an individual operation happens to output.
+3. **Composing more than one operation toward the same target?** Call
+   `compile_plan` again with the *full* updated operation list, not just
+   the new addition — it replaces the whole plan, it doesn't append. You
+   can omit `target` on this call to keep the one already declared; only
+   pass it again if the target itself changed. The already-open
+   workbench tab updates in place.
 4. **Tell the human to review and approve in that browser tab.** This
    is not optional and you cannot do it yourself — see "Rules that
    never bend" below. Say something concrete: what you built, why, and
@@ -50,6 +57,30 @@ hand-edited plan's shape; publishing a plan you built outside
 yourself first?** `node examples/compile-approve-export.mjs` runs the
 same sequence end to end from the command line and prints real output —
 see `examples/README.md`.
+
+## Starting a new target, or replacing an existing one
+
+A freshly opened workbench with no session yet is just empty — don't ask
+anything, just start composing once the human describes what they want.
+
+But if there's already a plan in progress and the human asks you to
+build or load something new, ask first: do they want this **added to
+the current build plate** alongside what's already there, or is this a
+**new project** replacing it? If they want a new project, prompt them to
+`Save plan…` for the one in progress before you clear it out from under
+them — don't silently discard work.
+
+Be honest about a real current limitation while you ask: this schema
+doesn't yet support multiple independent parts sharing one build plate
+with their own targets and operations — today a plan holds exactly one
+`target` and one `operations` list. "Add to the plate" right now
+practically means composing more operations toward the *same* target,
+not placing a second independent part next to the first. Machine build
+volume isn't in a machine manifest yet either (see
+`machines/*/manifest.json`'s `modelConstraints` — no bed-size field
+exists today), so nothing currently checks that a target actually fits.
+Don't pretend either of these works today; say what's actually possible
+and treat true multi-part support as a real gap, not solved.
 
 ## If an operation you need doesn't exist yet
 

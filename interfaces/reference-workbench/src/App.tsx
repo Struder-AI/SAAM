@@ -112,77 +112,6 @@ function resolveBuildStep(plan: ProcessPlan | null, globalStep: number): { activ
   return { activeIndex: plan.operations.length - 1, layer: 1 };
 }
 
-function boundingRadius2D(points: Point[]): number {
-  return points.reduce((max, p) => Math.max(max, Math.hypot(p.x, p.y)), 0);
-}
-
-// Evenly-spaced points by arc length along a polyline. Profiles pulled
-// from real toolpaths (a perimeter, a cladding pass) rarely share a
-// point count or spacing with their neighbor, so lofting between them
-// index-for-index would connect unrelated points — resampling both to
-// the same N first is what makes that correspondence meaningful.
-function resamplePolyline(points: Point[], n: number): Point[] {
-  if (points.length < 2) return points;
-  const segmentLengths: number[] = [];
-  let total = 0;
-  for (let i = 1; i < points.length; i += 1) {
-    const d = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y, points[i].z - points[i - 1].z);
-    segmentLengths.push(d);
-    total += d;
-  }
-  if (total === 0) return Array.from({ length: n }, () => points[0]);
-  const result: Point[] = [];
-  for (let i = 0; i < n; i += 1) {
-    const target = (total * i) / (n - 1);
-    let travelled = 0;
-    let segment = 0;
-    while (segment < segmentLengths.length - 1 && travelled + segmentLengths[segment] < target) {
-      travelled += segmentLengths[segment];
-      segment += 1;
-    }
-    const segLength = segmentLengths[segment] || 1;
-    const t = Math.max(0, Math.min(1, (target - travelled) / segLength));
-    const a = points[segment];
-    const b = points[segment + 1] ?? a;
-    result.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
-  }
-  return result;
-}
-
-// The "Finished part" view's solid look is built from the same points
-// every other view already has — not a second, idealized geometry
-// model. Per operation: paths whose family reads as infill ("raster",
-// "fill") are excluded — they're interior texture, not the outer skin.
-// What's left either varies by `layer` (a walled operation: pick the
-// widest boundary per layer as that layer's silhouette) or doesn't (a
-// single spatial pass like cladding: every remaining pass already *is*
-// a cross-section of the surface, in the order it's deposited).
-function extractSolidProfiles(plan: ProcessPlan): Point[][] {
-  const profiles: Point[][] = [];
-  for (const op of plan.operations) {
-    const qualifying = op.paths.filter((p) => p.intent === "print" && !/raster|fill/i.test(p.family) && p.points.length > 1);
-    if (qualifying.length === 0) continue;
-    const distinctLayers = new Set(qualifying.map((p) => p.layer)).size;
-    if (distinctLayers > 1) {
-      const byLayer = new Map<number, PathEntry[]>();
-      qualifying.forEach((p) => {
-        if (!byLayer.has(p.layer)) byLayer.set(p.layer, []);
-        byLayer.get(p.layer)!.push(p);
-      });
-      [...byLayer.keys()]
-        .sort((a, b) => a - b)
-        .forEach((l) => {
-          const candidates = byLayer.get(l)!;
-          const outer = candidates.reduce((best, c) => (boundingRadius2D(c.points) > boundingRadius2D(best.points) ? c : best));
-          profiles.push(outer.points);
-        });
-    } else {
-      qualifying.forEach((p) => profiles.push(p.points));
-    }
-  }
-  return profiles;
-}
-
 function projected(p: Point, width: number, height: number, yaw: number, pitch: number, centerY: number, span: number) {
   const x1 = p.x * Math.cos(yaw) - p.y * Math.sin(yaw);
   const y1 = p.x * Math.sin(yaw) + p.y * Math.cos(yaw);
@@ -237,17 +166,17 @@ function drawGrid(ctx: CanvasRenderingContext2D, w: number, h: number) {
   }
 }
 
-// Renders profiles (already resampled to a common point count, in
-// build order) as a shaded solid: a filled quad between every pair of
-// corresponding points on consecutive profiles, plus a filled cap on
-// the very last one. Canvas 2D has no real depth buffer, so this relies
-// on painting in build order (bottom/earliest to top/latest) reading
-// correctly for a roughly-upright part under the shared isometric
-// rotation — true for the vast majority of what these operations
-// produce, not a general-purpose renderer for arbitrary overhangs.
-function drawSolidLoft(
+// "Finished Part" is the target we're building toward, not a replay of
+// however many toolpaths happen to exist yet — so this draws a clean
+// idealized solid straight from the plan's own declared `part` envelope
+// (shape/width/depth/outerDiameter/innerDiameter/height), never from
+// operation path data. A round part (outerDiameter given, or shape is
+// "cylinder"/"ring") gets a faceted cylinder/tube; anything else gets a
+// box from width × depth × height, centered at the origin the same way
+// every operation's own points already are.
+function drawTargetPart(
   ctx: CanvasRenderingContext2D,
-  profiles: Point[][],
+  part: PartSpec,
   w: number,
   h: number,
   yaw: number,
@@ -258,58 +187,89 @@ function drawSolidLoft(
   const project = (p: Point) => projected(p, w, h, yaw, pitch, centerY, span);
   const SKIN = "#8acbc3";
   const SKIN_SHADE = "#5fa89e";
+  const OUTLINE = "#3f7f76";
+  const height = Math.max(part.height, 0.01);
 
-  for (let i = 0; i < profiles.length - 1; i += 1) {
-    const lower = profiles[i];
-    const upper = profiles[i + 1];
-    const n = Math.min(lower.length, upper.length);
-    for (let j = 0; j < n - 1; j += 1) {
-      const a = project(lower[j]);
-      const b = project(lower[j + 1]);
-      const c = project(upper[j + 1]);
-      const d = project(upper[j]);
-      // A cheap two-tone "shading": alternate faces read as slightly
-      // different faces of a faceted solid rather than one flat sheet.
-      // Opaque fill matters here, not just aesthetically: with dozens of
-      // thin bands (a many-pass operation like cladding), any alpha < 1
-      // lets adjacent quads' anti-aliased shared edges show through as a
-      // dense hairline hatch instead of reading as one solid.
-      ctx.fillStyle = j % 2 === 0 ? SKIN : SKIN_SHADE;
-      ctx.globalAlpha = 1;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      ctx.lineTo(c.x, c.y);
-      ctx.lineTo(d.x, d.y);
-      ctx.closePath();
-      ctx.fill();
-    }
-  }
-  ctx.globalAlpha = 1;
-
-  const cap = profiles.at(-1);
-  if (cap && cap.length > 2) {
+  const fillQuad = (a: Point, b: Point, c: Point, d: Point, color: string) => {
+    const pa = project(a);
+    const pb = project(b);
+    const pc = project(c);
+    const pd = project(d);
+    ctx.fillStyle = color;
     ctx.beginPath();
-    cap.forEach((p, i) => {
+    ctx.moveTo(pa.x, pa.y);
+    ctx.lineTo(pb.x, pb.y);
+    ctx.lineTo(pc.x, pc.y);
+    ctx.lineTo(pd.x, pd.y);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const fillCap = (ring: Point[], color: string) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ring.forEach((p, i) => {
       const pt = project(p);
       i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y);
     });
     ctx.closePath();
-    ctx.fillStyle = SKIN;
-    ctx.globalAlpha = 0.85;
     ctx.fill();
-    ctx.globalAlpha = 1;
+  };
+
+  const isRound = part.shape === "cylinder" || part.shape === "ring" || part.outerDiameter != null;
+
+  if (isRound) {
+    const outerR = (part.outerDiameter ?? Math.max(part.width ?? 40, part.depth ?? 40)) / 2;
+    const innerR = part.innerDiameter ? part.innerDiameter / 2 : 0;
+    const SEGMENTS = 40;
+    const ring = (r: number, z: number): Point[] =>
+      Array.from({ length: SEGMENTS + 1 }, (_, i) => {
+        const a = (i / SEGMENTS) * Math.PI * 2;
+        return { x: Math.cos(a) * r, y: Math.sin(a) * r, z };
+      });
+    const bottomOuter = ring(outerR, 0);
+    const topOuter = ring(outerR, height);
+    for (let i = 0; i < SEGMENTS; i += 1) {
+      fillQuad(bottomOuter[i], bottomOuter[i + 1], topOuter[i + 1], topOuter[i], i % 2 === 0 ? SKIN : SKIN_SHADE);
+    }
+    if (innerR > 0) {
+      const bottomInner = ring(innerR, 0);
+      const topInner = ring(innerR, height);
+      for (let i = 0; i < SEGMENTS; i += 1) {
+        fillQuad(topInner[i], topInner[i + 1], bottomInner[i + 1], bottomInner[i], i % 2 === 0 ? SKIN_SHADE : SKIN);
+      }
+      // Top cap is the annulus between outer and inner — approximated as
+      // a fan of quads rather than a single path with a hole, since
+      // canvas fill-rule handles that unreliably at this segment count.
+      for (let i = 0; i < SEGMENTS; i += 1) {
+        fillQuad(topOuter[i], topOuter[i + 1], topInner[i + 1], topInner[i], SKIN);
+      }
+      drawLine(ctx, topInner, w, h, OUTLINE, yaw, pitch, centerY, span, 1.1, 0.6);
+    } else {
+      fillCap(topOuter, SKIN);
+    }
+    drawLine(ctx, topOuter, w, h, OUTLINE, yaw, pitch, centerY, span, 1.2, 0.8);
+    drawLine(ctx, bottomOuter, w, h, OUTLINE, yaw, pitch, centerY, span, 1.1, 0.5);
+    return;
   }
 
-  // A crisp outline on the base and cap keeps the solid reading as a
-  // defined object rather than a translucent haze. Stroking every
-  // intermediate profile too (rather than just these two) is what
-  // turned a many-pass operation like cladding into a dense hatch of
-  // thin lines instead of a solid — the fill already carries those.
-  const first = profiles[0];
-  const last = profiles.at(-1);
-  if (first) drawLine(ctx, first, w, h, "#3f7f76", yaw, pitch, centerY, span, 1.1, 0.6);
-  if (last && last !== first) drawLine(ctx, last, w, h, "#3f7f76", yaw, pitch, centerY, span, 1.1, 0.6);
+  const hw = (part.width ?? 40) / 2;
+  const hd = (part.depth ?? 40) / 2;
+  const corners = (z: number): Point[] => [
+    { x: -hw, y: -hd, z },
+    { x: hw, y: -hd, z },
+    { x: hw, y: hd, z },
+    { x: -hw, y: hd, z },
+    { x: -hw, y: -hd, z },
+  ];
+  const bottom = corners(0);
+  const top = corners(height);
+  for (let i = 0; i < 4; i += 1) {
+    fillQuad(bottom[i], bottom[i + 1], top[i + 1], top[i], i % 2 === 0 ? SKIN : SKIN_SHADE);
+  }
+  fillCap(top, SKIN);
+  drawLine(ctx, top, w, h, OUTLINE, yaw, pitch, centerY, span, 1.2, 0.8);
+  drawLine(ctx, bottom, w, h, OUTLINE, yaw, pitch, centerY, span, 1.1, 0.5);
 }
 
 function partSpan(part?: PartSpec): number {
@@ -370,17 +330,10 @@ function ToolCanvas({
       ctx.translate(-projectionCenter.current.x, -centerY);
 
       if (mode === "part") {
-        // Always the complete, final geometry — every operation, every
-        // layer — regardless of the build-progress slider. "Finished
-        // part" is the fixed target; "Current operation" is what's
-        // scrubbable. Built from the plan's own points, not a generic
-        // box/cylinder drawn from its declared dimensions.
-        const rawProfiles = extractSolidProfiles(plan);
-        if (rawProfiles.length > 0) {
-          const RESAMPLE_POINTS = 48;
-          const profiles = rawProfiles.map((p) => resamplePolyline(p, RESAMPLE_POINTS));
-          drawSolidLoft(ctx, profiles, rect.width, rect.height, rotation.yaw, rotation.pitch, centerY, span);
-        }
+        // The target being built toward, not a replay of the toolpaths —
+        // fixed regardless of the build-progress slider and unaffected by
+        // however many operations have been composed so far.
+        drawTargetPart(ctx, plan.part, rect.width, rect.height, rotation.yaw, rotation.pitch, centerY, span);
       } else if (mode === "current") {
         const op = plan.operations[activeIndex];
         if (op) {

@@ -139,9 +139,22 @@ server.registerTool(
   {
     title: "Compile a process plan",
     description:
-      "Runs the real, deterministic generators for the given operation invocations against the given machine, producing a machine-resolved process plan at status 'preview-only' with no approval, and publishes it as the live session the SAAM Reference Workbench is watching — opening it in the operator's browser the first time this is called. Call this again with the full updated operation list (not just the new one) to add or change operations; the workbench updates to show the new revision, and any prior approval is left behind on the now-superseded revision it was actually granted for. This tool never creates an approval and never redesigns geometry; it only runs what the named operations themselves define.",
+      "Runs the real, deterministic generators for the given operation invocations against the given machine, producing a machine-resolved process plan at status 'preview-only' with no approval, and publishes it as the live session the SAAM Reference Workbench is watching — opening it in the operator's browser the first time this is called. Call this again with the full updated operation list (not just the new one) to add or change operations; the workbench updates to show the new revision, and any prior approval is left behind on the now-superseded revision it was actually granted for. This tool never creates an approval and never redesigns geometry; it only runs what the named operations themselves define. Pass `target` to declare (or update) what the whole plan is building toward — the workbench's \"Finished Part\" view renders this directly, independent of and unaffected by however many operations get composed toward it. Omit it to keep composing toward whatever target the session already has.",
     inputSchema: {
       machineId: z.string().describe('Machine id from list_machines, e.g. "reference-dobot-mg400-struderbot".'),
+      target: z
+        .object({
+          shape: z.string().describe('e.g. "box", "cylinder", "ring" — freeform, matches how you\'d describe the part.'),
+          width: z.number().optional(),
+          depth: z.number().optional(),
+          outerDiameter: z.number().optional(),
+          innerDiameter: z.number().optional(),
+          height: z.number(),
+        })
+        .optional()
+        .describe(
+          "The part the human is actually trying to build, as a simple idealized envelope — not a toolpath, not any one operation's own output. Held steady across calls: omit it on later compile_plan calls for the same session to keep composing toward the target you already declared. If never provided in this session, falls back to the first operation's own declared shape as a starting default."
+        ),
       settings: z
         .object({
           layerHeight: z.number().optional(),
@@ -162,7 +175,7 @@ server.registerTool(
         .describe("Ordered list of operation invocations to compose into this plan."),
     },
   },
-  async ({ machineId, settings, operations }) => {
+  async ({ machineId, target, settings, operations }) => {
     const machines = await discoverMachines();
     const machine = machines.find((m) => m.manifest?.id === machineId);
     if (!machine) {
@@ -171,7 +184,7 @@ server.registerTool(
 
     const resolvedSettings = { layerHeight: 0.7, beadWidth: 0.83, spacing: 0.78, ...settings };
     const builtOperations = [];
-    let part = null;
+    let firstOperationPart = null;
 
     for (const [index, invocation] of operations.entries()) {
       const catalog = await discoverOperations();
@@ -186,7 +199,7 @@ server.registerTool(
         return errorResult(error instanceof Error ? error.message : String(error));
       }
       const result = generate({ parameters: { strategy: invocation.strategy, ...invocation.parameters }, settings: resolvedSettings });
-      part = result.part;
+      if (index === 0) firstOperationPart = result.part;
       builtOperations.push({
         invocationId: `op-${index + 1}`,
         operationId: opEntry.manifest.id,
@@ -208,7 +221,16 @@ server.registerTool(
     // an earlier revision must not look valid against new content just
     // because both happened to be numbered the same.
     const existingSession = await getSession();
-    const revision = existingSession && existingSession.machine?.id === machineId ? existingSession.revision + 1 : 1;
+    const continuingSameMachine = existingSession && existingSession.machine?.id === machineId;
+    const revision = continuingSameMachine ? existingSession.revision + 1 : 1;
+
+    // The target is explicit > held from the session being continued >
+    // the first operation's own declared shape as a starting default —
+    // never silently overwritten by whichever operation happens to run
+    // last, which is what made "Finished Part" show the wrong shape (or
+    // the wrong part entirely) the moment a plan had more than one
+    // operation composed toward it.
+    const part = target ?? (continuingSameMachine ? existingSession.part : null) ?? firstOperationPart;
 
     const plan = {
       schemaVersion: 1,

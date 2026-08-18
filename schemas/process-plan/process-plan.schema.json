@@ -35,7 +35,7 @@
         "innerDiameter": { "type": "number" },
         "height": { "type": "number" }
       },
-      "description": "Extensible part-level envelope. Additional shape-specific fields are permitted; `shape` names which fields apply."
+      "description": "The whole plan's target envelope — what the human is actually trying to build, held steady across however many operations get composed toward it. Not a per-operation field and not derived from toolpath data; an operation's own generator output happens to have the same shape (see e.g. layer-filling's generator.mjs) as a reasonable default when nothing else has been declared, but composing a second or third operation must never silently overwrite an already-declared target with that operation's own shape. Additional shape-specific fields are permitted; `shape` names which fields apply."
     },
 
     "machine": {

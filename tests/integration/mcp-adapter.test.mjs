@@ -89,6 +89,74 @@ test("compile_plan runs the real generator and writes a plan file", async () => 
   });
 });
 
+test("compile_plan uses an explicit target as plan.part, not whichever operation ran last", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        target: { shape: "cylinder", outerDiameter: 26, height: 10 },
+        operations: [
+          { operationId: "layer-filling", parameters: { geometry: "circle", outerDiameter: 26, layers: 3, wallCount: 2 } },
+          { operationId: "non-planar-cladding", parameters: { surface: "dome", width: 26, depth: 26, rise: 4, baseZ: 2.1 } },
+        ],
+      },
+    });
+    assert.notEqual(result.isError, true);
+    const { plan } = JSON.parse(result.content[0].text);
+    // Without an explicit target, this would be non-planar-cladding's own
+    // { shape: "surface", ... } — the bug this test guards against.
+    assert.deepEqual(plan.part, { shape: "cylinder", outerDiameter: 26, height: 10 });
+  });
+});
+
+test("compile_plan keeps an existing session's target when a later call omits it", async () => {
+  await withClient(async (client) => {
+    const first = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        target: { shape: "box", width: 30, depth: 30, height: 12 },
+        operations: [{ operationId: "layer-filling", parameters: { width: 30, depth: 30, layers: 2, wallCount: 1 } }],
+      },
+    });
+    assert.notEqual(first.isError, true);
+
+    const second = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        operations: [
+          { operationId: "layer-filling", parameters: { width: 30, depth: 30, layers: 2, wallCount: 1 } },
+          { operationId: "non-planar-cladding", parameters: { surface: "dome", width: 30, depth: 30, rise: 4, baseZ: 1.4 } },
+        ],
+      },
+    });
+    assert.notEqual(second.isError, true);
+    const { plan } = JSON.parse(second.content[0].text);
+    assert.deepEqual(plan.part, { shape: "box", width: 30, depth: 30, height: 12 });
+  });
+});
+
+test("compile_plan falls back to the first operation's own shape when no target is ever given", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        operations: [
+          { operationId: "layer-filling", parameters: { width: 15, depth: 15, layers: 1, wallCount: 1 } },
+          { operationId: "non-planar-cladding", parameters: { surface: "dome", width: 15, depth: 15, rise: 3, baseZ: 0.7 } },
+        ],
+      },
+    });
+    assert.notEqual(result.isError, true);
+    const { plan } = JSON.parse(result.content[0].text);
+    // The first operation's own shape ("box"), not the second's ("surface").
+    assert.equal(plan.part.shape, "box");
+  });
+});
+
 test("compile_plan rejects an unknown machine id", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
