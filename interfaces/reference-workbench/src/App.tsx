@@ -638,6 +638,10 @@ export default function App() {
     }
   };
 
+  // Clearing the local view isn't enough in live mode: the adapter keeps
+  // serving the same plan from .saam/session.json, and the next poll tick
+  // (every 1.5s) would silently bring it right back. Telling the bridge
+  // to clear its session too is what actually makes Clear stick.
   const clearPlan = () => {
     setPlan(null);
     setExportResult(null);
@@ -647,6 +651,14 @@ export default function App() {
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     } catch {
       // Best-effort only.
+    }
+    if (liveConnected) {
+      void fetch("/api/session/clear", { method: "POST" }).catch(() => {
+        // If this fails (server restarted, network blip), the local view
+        // is still cleared; the next successful poll may bring the old
+        // plan back, which is the honest behavior for a session we
+        // couldn't actually reach — not silently pretending it worked.
+      });
     }
   };
 

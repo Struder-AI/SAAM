@@ -8,12 +8,14 @@
 // - binds to 127.0.0.1 only, never 0.0.0.0;
 // - serves only interfaces/reference-workbench/dist (read-only) plus
 //   the session endpoints below — no arbitrary filesystem access;
-// - POST /api/session/approve is the only write path, and it can only
+// - Two write paths, both narrow. POST /api/session/approve can only
 //   ever produce a scoped, hashed approval record via plan-lib.mjs's
 //   buildApprovalRecord — the exact same code path and the exact same
 //   rules (non-empty approver, non-implying scopes) as a human clicking
 //   the button would go through. It cannot be used to inject arbitrary
 //   plan content — it only approves the session already held server-side.
+//   POST /api/session/clear does exactly one thing: sets the session to
+//   null. Neither endpoint accepts plan content from the request body.
 
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -79,6 +81,17 @@ export function startHttpBridge({ port = 4700 } = {}) {
     if (req.method === "GET" && req.url === "/api/session") {
       const session = await getSession();
       sendJson(res, 200, { session });
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/session/clear") {
+      // The workbench's own "Clear" button needs this — without it, the
+      // button only cleared the tab's local view while the adapter kept
+      // serving the same plan from .saam/session.json, and the next poll
+      // (every 1.5s) silently brought it right back. Clearing here is
+      // exactly what setSession(null) already does for a fresh session:
+      // getSession() reads a literal `null` back and returns it as-is.
+      await setSession(null);
+      sendJson(res, 200, { session: null });
       return;
     }
     if (req.method === "POST" && req.url === "/api/session/approve") {

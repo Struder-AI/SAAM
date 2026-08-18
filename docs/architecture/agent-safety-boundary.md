@@ -48,15 +48,18 @@ whether it's safe to point their own agent at it.
   approve the live session without manual file export/import. It binds
   to `127.0.0.1` only, never `0.0.0.0`; serves nothing but the
   workbench's own built static files (read-only, path-normalized so a
-  crafted request can't escape that directory) plus two endpoints —
-  `GET /api/session` (read the current plan) and
-  `POST /api/session/approve` (build an approval record through
-  `plan-lib.mjs`'s `buildApprovalRecord`, the exact function and rules a
-  human clicking the workbench's own button goes through). That POST
-  endpoint cannot inject arbitrary plan content — it only approves
-  whatever session is already held server-side, and still cannot itself
-  authorize `post_process`'s approval check by a different path than a
-  human would. This is closer to the private prototype this project
+  crafted request can't escape that directory) plus three endpoints —
+  `GET /api/session` (read the current plan), `POST /api/session/approve`
+  (build an approval record through `plan-lib.mjs`'s
+  `buildApprovalRecord`, the exact function and rules a human clicking
+  the workbench's own button goes through), and `POST /api/session/clear`
+  (set the session to null — what the workbench's own "Clear" button
+  calls so a cleared plan doesn't silently reappear on the next poll).
+  Neither POST endpoint accepts plan content from the request body: approve
+  only approves whatever session is already held server-side, and still
+  cannot itself authorize `post_process`'s approval check by a different
+  path than a human would; clear only ever sets that same session to
+  nothing. This is closer to the private prototype this project
   grew out of (which used a similar loopback HTTP service) than pure
   stdio is, and it's a real, deliberate trade: the alternative was no
   live-updating viewer at all, which turned out to matter more than
