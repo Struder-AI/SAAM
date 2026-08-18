@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://saam.dev/schemas/manifests/operation-manifest.schema.json",
+  "title": "SAAM Operation Manifest",
+  "description": "Describes one machine-neutral additive-manufacturing operation (skill). This schema validates each operation's manifest.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestSchemaVersion",
+    "id",
+    "name",
+    "summary",
+    "capabilityRequirements",
+    "maturity",
+    "evidence",
+    "inputs",
+    "outputs",
+    "generator",
+    "license"
+  ],
+  "properties": {
+    "manifestSchemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Version of this manifest schema itself, not the operation's own version."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "The operation's permanent identity. Referenced by process plans, dependency lists, and the registry. Never changes, even if the operation is renamed, redisplayed, or moved to a different directory."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "default": "0.1.0",
+      "description": "Semantic version of this operation's own behavior, independent of manifestSchemaVersion."
+    },
+    "name": {
+      "type": "string",
+      "description": "Human-readable display name. Free to change without affecting `id` references."
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "category": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Freely reorganizable classification tags (for example, [\"additive\", \"planar\"]). Category is metadata for browsing and the registry, never an operation's identity or a dependency reference target — use `id` for that. Recategorizing an operation is a metadata edit, not a breaking change.",
+      "examples": [["additive", "planar"], ["additive", "3d"], ["experimental", "non-motion"]]
+    },
+    "capabilityRequirements": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Machine capabilities this operation needs to be resolved, as data rather than as a naming prefix (e.g. do not encode capability into `id`). A machine definition is compatible with this operation only if it declares every listed capability.",
+      "examples": [["planar-motion", "extrusion-on-off"], ["coordinated-xyz-motion", "extrusion-on-off"]]
+    },
+    "maturity": {
+      "type": "string",
+      "enum": ["concept", "experimental", "validated"],
+      "description": "concept: proposed or partially implemented, not yet demonstrated end-to-end. experimental: runs deterministically and passes its own tests, not yet evidenced on physical hardware. validated: has at least one ROBOT-CONFIRMED evidence record. This is independent of the `evidence` field below, which records the specific supporting claim(s)."
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label"],
+      "properties": {
+        "label": {
+          "type": "string",
+          "enum": ["ROBOT-CONFIRMED", "DOC-CONFIRMED", "EXPERIMENTAL", "KNOWN FAILURE", "NEEDS RETEST"]
+        },
+        "scope": {
+          "type": "string",
+          "description": "The exact machine, tool, material, and configuration the label applies to. Required whenever label is ROBOT-CONFIRMED or KNOWN FAILURE."
+        },
+        "reference": {
+          "type": "string",
+          "description": "Path or URL to the supporting record."
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "description": "A JSON Schema object describing this operation's own parameters (its `parameters` shape inside a process-plan operation invocation)."
+    },
+    "outputs": {
+      "type": "object",
+      "description": "Describes what this operation produces: part-spec fields it can set, and the toolpath path `family` names it emits."
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Operation `id`s this operation is designed to compose after (for example, a cladding operation depending on a support-scaffold operation). Not a version constraint — just a composition relationship."
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["module", "export", "deterministic"],
+      "properties": {
+        "module": { "type": "string", "description": "Path to the generator module, relative to the operation's own directory." },
+        "export": { "type": "string", "description": "Exported function name." },
+        "deterministic": {
+          "type": "boolean",
+          "const": true,
+          "description": "SAAM operations must be deterministic: identical inputs (including process settings and machine profile) always produce identical output."
+        }
+      }
+    },
+    "validation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule"],
+        "properties": {
+          "rule": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "description": "Rules this operation's output is checked against before it can be included in a process plan (e.g. bounds, continuity, tool-state transitions)."
+    },
+    "examples": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths to example invocations and their expected output fixtures, used by tests/golden."
+    },
+    "license": {
+      "type": "string",
+      "default": "Apache-2.0"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "part": {
+    "shape": "box",
+    "width": 40,
+    "depth": 40,
+    "height": 8
+  },
+  "machine": {
+    "id": "reference-dobot-mg400-struderbot",
+    "profileRevision": "1"
+  },
+  "settings": {
+    "layerHeight": 0.7,
+    "beadWidth": 0.83,
+    "spacing": 0.78
+  },
+  "operations": [
+    {
+      "invocationId": "op-1",
+      "operationId": "layer-filling",
+      "operationVersion": "0.1.0",
+      "strategy": "rectilinear",
+      "parameters": { "width": 40, "depth": 40, "layers": 12 },
+      "dependencies": [],
+      "toolState": "on",
+      "paths": [
+        {
+          "family": "Outer perimeter",
+          "layer": 0,
+          "intent": "print",
+          "points": [
+            { "x": -20, "y": -20, "z": 0.7 },
+            { "x": 20, "y": -20, "z": 0.7 },
+            { "x": 20, "y": 20, "z": 0.7 },
+            { "x": -20, "y": 20, "z": 0.7 },
+            { "x": -20, "y": -20, "z": 0.7 }
+          ]
+        }
+      ],
+      "evidence": "EXPERIMENTAL",
+      "provenance": {
+        "generatedBy": "layer-filling@0.1.0",
+        "generatedAt": "2026-08-17T00:00:00Z",
+        "inputHash": "sha256:example-not-a-real-hash"
+      }
+    }
+  ],
+  "validation": {
+    "checkedAt": "2026-08-17T00:00:00Z",
+    "passed": true,
+    "results": [
+      { "rule": "bounds-within-part-envelope", "passed": true, "message": "" }
+    ]
+  },
+  "status": "preview-only",
+  "approval": null
+}

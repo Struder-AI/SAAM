@@ -1,0 +1,19 @@
+{
+  "_invalidBecause": "Each operation invocation is missing `provenance`, and `machine` is missing entirely. Used by tests/schema to confirm the validator rejects a plan that can't be traced back to the generator and machine that produced it.",
+
+  "schemaVersion": 1,
+  "revision": 1,
+  "part": { "shape": "box", "width": 40, "depth": 40, "height": 8 },
+  "settings": { "layerHeight": 0.7, "beadWidth": 0.83 },
+  "operations": [
+    {
+      "invocationId": "op-1",
+      "operationId": "layer-filling",
+      "operationVersion": "0.1.0",
+      "parameters": { "width": 40, "depth": 40, "layers": 12 },
+      "paths": []
+    }
+  ],
+  "status": "preview-only",
+  "approval": null
+}
