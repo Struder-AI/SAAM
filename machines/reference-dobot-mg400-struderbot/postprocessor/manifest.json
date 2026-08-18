@@ -1,0 +1,32 @@
+{
+  "manifestSchemaVersion": 1,
+  "id": "dobot-lua-postprocessor",
+  "version": "0.1.0",
+  "name": "Dobot Lua post-processor",
+  "summary": "Translates an approved process plan into DobotStudio Pro Lua for the reference Dobot MG400 StruderBot installation.",
+  "machineId": "reference-dobot-mg400-struderbot",
+  "maturity": "experimental",
+  "evidence": {
+    "label": "EXPERIMENTAL",
+    "scope": "Deterministic translation validated by tests. The Lua conventions it emits (P()/CalibratedXY, MovL-based J()/L() helpers, single PenOn/PenOff window) match the source project's ROBOT-CONFIRMED conventions, but no program emitted by this exact generator revision has itself been run on physical hardware yet."
+  },
+  "translates": ["schemas/process-plan/process-plan.schema.json"],
+  "emits": ["global.lua", "src0.lua", "src1.lua"],
+  "generator": {
+    "module": "./generator.mjs",
+    "export": "translate",
+    "deterministic": true
+  },
+  "guarantees": [
+    "Refuses to translate a plan without an approval record matching the plan's current revision and authorizing at least executable-export scope.",
+    "Emits exactly one PenOn() and one final PenOff() per program, never intermediate extrusion cycling.",
+    "Never invents or adjusts geometry; only restates the plan's own points as Lua motion calls.",
+    "Reports every untraveled gap between consecutive printed paths as a warning rather than silently choosing how to bridge it."
+  ],
+  "knownLimitations": [
+    "Emits only linear (MovL) motion. The operations in this repository currently output sampled point polylines, not native arc/center data, so this post-processor cannot yet emit true Arc3 curves even though the source project's Dobot programming conventions prefer them for production curves. Upgrading this requires the upstream operations to carry arc-native path data, not just a post-processor change.",
+    "instanceProfile calibration defaults to an identity/placeholder transform when omitted — see instance-profile.example.json. Never trust default output as calibrated for a real unit."
+  ],
+  "examples": ["examples/approved-box-plan.json"],
+  "license": "Apache-2.0"
+}
