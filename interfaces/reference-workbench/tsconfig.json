@@ -16,5 +16,9 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "../../machines/reference-dobot-mg400-struderbot/postprocessor/generator.mjs"]
+  "include": [
+    "src",
+    "../../machines/reference-dobot-mg400-struderbot/postprocessor/generator.mjs",
+    "../../schemas/process-plan/plan-lib.mjs"
+  ]
 }

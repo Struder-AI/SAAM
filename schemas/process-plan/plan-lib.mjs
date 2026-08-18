@@ -1,10 +1,12 @@
-// Plan loading, validation, hashing, and approval logic for the reference
-// workbench. No dependencies beyond the Web Crypto API (`crypto.subtle`),
-// which is available identically in modern Node and in every browser
-// this interface targets — kept dependency-free on purpose so it can be
-// tested with plain `node:test`, not just exercised inside a browser
-// build. React code should call into this module rather than reimplement
-// any of it inline.
+// Plan loading, validation, hashing, and approval logic for
+// schemas/process-plan/process-plan.schema.json. No dependencies beyond
+// the Web Crypto API (`crypto.subtle`), which is available identically
+// in modern Node and in every browser — kept dependency-free on purpose
+// so it can be tested with plain `node:test` and imported by anything
+// that needs to reason about a process plan: the reference workbench
+// (interfaces/reference-workbench/), the MCP adapter (adapters/mcp/),
+// and the post-processor's own safety gate all consume this one
+// implementation rather than each reimplementing it.
 
 const REQUIRED_TOP_LEVEL = [
   "schemaVersion",
@@ -17,10 +19,10 @@ const REQUIRED_TOP_LEVEL = [
 ];
 
 /**
- * A lightweight structural check, not full JSON Schema validation —
- * good enough to protect the UI from an obviously malformed file. The
- * authoritative check is `schemas/process-plan/process-plan.schema.json`;
- * `tests/schema` validates real fixtures against it directly.
+ * A lightweight structural check, not full JSON Schema validation — good
+ * enough to protect a caller from an obviously malformed plan. The
+ * authoritative check is process-plan.schema.json itself;
+ * tests/schema validates real fixtures against it directly.
  */
 export function validatePlanShape(candidate) {
   const errors = [];

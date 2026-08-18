@@ -6,7 +6,7 @@ import {
   buildApprovalRecord,
   applyApproval,
   hasCurrentApproval,
-} from "../../interfaces/reference-workbench/src/lib/plan.mjs";
+} from "../../schemas/process-plan/plan-lib.mjs";
 
 function samplePlan(overrides = {}) {
   return {

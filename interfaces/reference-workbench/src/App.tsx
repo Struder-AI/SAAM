@@ -4,7 +4,7 @@ import {
   buildApprovalRecord,
   applyApproval,
   hasCurrentApproval,
-} from "./lib/plan.mjs";
+} from "../../../schemas/process-plan/plan-lib.mjs";
 // Same deterministic code the CLI and tests/golden use — not a copy. See
 // vite.config.ts for why the dev server needs `server.fs.allow` to reach
 // outside this package's own directory for it.
