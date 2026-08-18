@@ -1,0 +1,67 @@
+{
+  "manifestSchemaVersion": 1,
+  "id": "reference-dobot-mg400-struderbot",
+  "name": "Dobot MG400 · StruderBot reference installation",
+  "summary": "A Dobot MG400 desktop robotic arm fitted with a fixed-nozzle filament-extrusion end effector, programmed through tab-based DobotStudio Pro Lua.",
+
+  "modelConstraints": {
+    "manufacturer": "Dobot",
+    "model": "MG400",
+    "axisCount": 4,
+    "motionPrimitives": ["MovJ (joint move)", "MovL (linear move)", "Arc3 (three-point arc)", "Circle3 (experimental)"],
+    "reachMm": null,
+    "ratedPayloadG": null,
+    "sourceNote": "Axis count and motion primitives are confirmed by hands-on use of DobotStudio Pro's Lua API against this unit. Reach and rated payload are left null pending confirmation against Dobot's published MG400 datasheet — do not treat this manifest as a substitute for the manufacturer's own specification."
+  },
+
+  "capabilities": [
+    {
+      "id": "planar-motion",
+      "evidence": { "label": "ROBOT-CONFIRMED", "scope": "Extensive planar print history on this installation across many milestone programs." }
+    },
+    {
+      "id": "extrusion-on-off",
+      "evidence": { "label": "ROBOT-CONFIRMED", "scope": "Relay-controlled extrusion tool switched via a digital output; used throughout this installation's print history." }
+    },
+    {
+      "id": "coordinated-xyz-motion",
+      "evidence": {
+        "label": "EXPERIMENTAL",
+        "scope": "A shallow-slope (20°) non-planar cladding coupon printed successfully with clean surface quality. Steeper slopes are untested. Long, continuous coordinated-XYZ runs are a KNOWN limitation: layer-boundary transitions produced pauses and blobs that were not fully resolved as of the source project's last iteration.",
+        "reference": "Migrated from the source project's non-planar cladding iteration notes; see docs/authoring/evidence-labels.md for what EXPERIMENTAL does and doesn't claim."
+      }
+    }
+  ],
+
+  "installedTooling": [
+    {
+      "name": "Fixed-nozzle filament extrusion end effector",
+      "description": "Replaces the arm's default end effector. Adds mass and changes the fourth axis's tuned load, which is safety-relevant — see safetyNotes."
+    },
+    {
+      "name": "Remote-I/O button panel (reference pattern)",
+      "description": "Two illuminated pushbuttons wired to digital inputs, with matching digital-output indicator lights, used for physical program selection instead of relying on the DobotStudio Pro script runner. See instanceConfiguration — which physical DI/DO channels this maps to is unit-specific wiring, not a universal fact about the MG400."
+    }
+  ],
+
+  "safetyNotes": [
+    "A light desktop arm's axis servos are tuned for an expected end-effector mass. Swapping to a materially heavier or lighter tool than that tuning assumes can produce vibration or unstable motion — verify empirically at reduced speed before running unattended, and treat load/tuning changes as a safety-relevant event, not a cosmetic one.",
+    "Prefer the controller's remote-I/O / physical-button execution path over its interactive script runner for repeated or unattended runs; script-runner behavior was observed to be less consistent during calibration on this installation.",
+    "A frame (tool frame / user frame) edit may not take effect reliably until the controller connection is cycled. After any frame edit: save, reconnect or power-cycle, run a small axis-marker move, and only then attempt a full program.",
+    "Treat the physical motion and print result as ground truth over any live IDE coordinate readout or software preview."
+  ],
+
+  "instanceConfiguration": {
+    "fields": [
+      "XY calibration coefficients (scale/offset terms used before P(x, y, z, r))",
+      "bed Z height",
+      "active tool-frame and user-frame IDs",
+      "digital I/O channel assignments for the extrusion relay and any button panel",
+      "InitialPose / ready-position joint or Cartesian coordinates"
+    ],
+    "example": "instance-profile.example.json"
+  },
+
+  "postProcessor": "dobot-lua-postprocessor",
+  "license": "Apache-2.0"
+}

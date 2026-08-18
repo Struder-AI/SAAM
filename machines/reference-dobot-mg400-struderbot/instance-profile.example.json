@@ -1,0 +1,34 @@
+{
+  "_note": "SYNTHETIC EXAMPLE — format reference only. Every value here is a placeholder, not a measured calibration. Replace all of these with your own unit's measured values before resolving a real process plan, and think carefully before committing your own facility's real instance profile to a public fork — see docs/authoring/machine-definitions.md.",
+
+  "machineId": "reference-dobot-mg400-struderbot",
+  "profileRevision": "example-0",
+
+  "xyCalibration": {
+    "enabled": true,
+    "scaleX": 1.0,
+    "scaleYAtX0": 1.0,
+    "notes": "Placeholder identity calibration. A real unit typically needs measured non-unity scale terms; see the post-processor's calibration procedure."
+  },
+
+  "bedZ": 0.0,
+
+  "frames": {
+    "activeTool": 1,
+    "activeUser": 1
+  },
+
+  "io": {
+    "extrusionRelayOutput": "DO_EXAMPLE",
+    "buttonPanel": {
+      "selectProgram1Input": "DI_EXAMPLE_1",
+      "selectProgram2Input": "DI_EXAMPLE_2",
+      "indicatorOutput1": "DO_EXAMPLE_1",
+      "indicatorOutput2": "DO_EXAMPLE_2"
+    }
+  },
+
+  "readyPose": {
+    "notes": "Project-specific. Do not assume any single 'universal safe pose' — define explicit ready coordinates for your own installation and work envelope."
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://saam.dev/schemas/manifests/machine-manifest.schema.json",
+  "title": "SAAM Machine Manifest",
+  "description": "Describes one machine: model-level planning constraints, installed capabilities, its post-processor, and where instance-specific configuration lives. This schema validates each machine's manifest.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifestSchemaVersion", "id", "name", "modelConstraints", "capabilities", "postProcessor", "license"],
+  "properties": {
+    "manifestSchemaVersion": { "type": "integer", "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "Permanent identity, referenced by process plans' `machine.id`."
+    },
+    "name": { "type": "string" },
+    "summary": { "type": "string", "maxLength": 240 },
+
+    "modelConstraints": {
+      "type": "object",
+      "description": "Facts true of the machine model in general, independent of any one physical unit. Safe to publish; cite a source rather than asserting an unverified number.",
+      "properties": {
+        "manufacturer": { "type": "string" },
+        "model": { "type": "string" },
+        "axisCount": { "type": "integer" },
+        "motionPrimitives": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Native motion commands the controller exposes (e.g. joint move, linear move, arc)."
+        },
+        "reachMm": { "type": ["number", "null"], "description": "null when not yet confirmed against manufacturer documentation." },
+        "ratedPayloadG": { "type": ["number", "null"] },
+        "sourceNote": { "type": "string", "description": "Where these facts come from (manufacturer datasheet, DOC-CONFIRMED docs, etc.) and their confidence." }
+      }
+    },
+
+    "capabilities": {
+      "type": "array",
+      "description": "Which operation `capabilityRequirements` this machine (as configured) satisfies, each with its own evidence — a capability being listed does not mean every requesting operation has been tested on it.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "evidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "evidence": {
+            "type": "object",
+            "required": ["label"],
+            "properties": {
+              "label": { "type": "string", "enum": ["ROBOT-CONFIRMED", "DOC-CONFIRMED", "EXPERIMENTAL", "KNOWN FAILURE", "NEEDS RETEST"] },
+              "scope": { "type": "string" },
+              "reference": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "installedTooling": {
+      "type": "array",
+      "description": "Optional, installation-specific equipment mounted on this machine class (e.g. a fixed-nozzle extrusion end effector). Describes what a reference installation looks like; not a claim that every unit has it.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+
+    "safetyNotes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Generalized safety lessons. Never a substitute for hands-on caution; never instance-specific enough to double as calibration data."
+    },
+
+    "instanceConfiguration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields", "example"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Names of values that vary per physical unit (calibration coefficients, bed height, frame IDs, I/O channel assignments) and must never be committed as real facility data to a public fork."
+        },
+        "example": {
+          "type": "string",
+          "description": "Path to a synthetic example instance profile, for format reference only."
+        }
+      }
+    },
+
+    "postProcessor": {
+      "type": "string",
+      "description": "id of the post-processor that emits this machine's native output."
+    },
+
+    "license": { "type": "string", "default": "Apache-2.0" }
+  }
+}
