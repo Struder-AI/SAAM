@@ -1,0 +1,10 @@
+SAAM (Struder Agentic Additive Manufacturing)
+Copyright 2026 Struder AI
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file for the full license text.
+
+SAAM builds on knowledge and working code developed for a private
+robotic-additive-manufacturing project. Original content brought into this
+repository is rewritten for public, machine-neutral use as part of that
+migration; see THIRD_PARTY_NOTICES.md for anything not originated here.
