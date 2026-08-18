@@ -4,7 +4,7 @@ import {
   buildApprovalRecord,
   applyApproval,
   hasCurrentApproval,
-} from "./lib/plan";
+} from "./lib/plan.mjs";
 // Same deterministic code the CLI and tests/golden use — not a copy. See
 // vite.config.ts for why the dev server needs `server.fs.allow` to reach
 // outside this package's own directory for it.
@@ -46,13 +46,22 @@ type ProcessPlan = {
   approval: ApprovalRecord | null;
 };
 
+// A message from whichever agent (any MCP-capable one) produced this
+// plan. The workbench never talks to a model directly — see
+// README.md "Why a transcript, not a live chat" — it only displays
+// whatever conversation the producing agent chose to include.
+type Message = { who: string; text: string };
+type WorkbenchFile =
+  | ProcessPlan
+  | { format: "saam-workbench-file"; schemaVersion: 1; plan: ProcessPlan; conversation?: { transcript: Message[] } };
+
 type ViewMode = "part" | "collective" | "current";
 type Viewport = { zoom: number; panX: number; panY: number };
 type ExportResult = { files: Record<string, string>; warnings: { code: string; message: string }[] };
 
 const PALETTE = ["#e66d3f", "#f3c46e", "#1c6964", "#a94321", "#69a9d1", "#c68af2"];
 const DEFAULT_VIEWPORT: Viewport = { zoom: 1, panX: 0, panY: 0 };
-const LOCAL_STORAGE_KEY = "saam-reference-workbench-plan";
+const LOCAL_STORAGE_KEY = "saam-reference-workbench-file";
 const KNOWN_MACHINE_ID = "reference-dobot-mg400-struderbot";
 
 function operationColor(index: number): string {
@@ -248,27 +257,43 @@ function ToolCanvas({
     return () => observer.disconnect();
   }, [mode, plan, activeIndex, fraction, rotation, filled, viewport]);
 
+  // React binds JSX `onWheel` passively by default (a React 17+ change for
+  // scroll performance), so `event.preventDefault()` inside it silently
+  // fails and logs "Unable to preventDefault inside passive event listener
+  // invocation." A manually-attached listener with `{ passive: false }` is
+  // the documented way around that. `latest` sidesteps re-attaching the
+  // listener on every viewport change while still reading current values.
+  const latest = useRef({ viewport, onViewportChange });
+  latest.current = { viewport, onViewportChange };
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const { viewport, onViewportChange } = latest.current;
+      const rect = canvas.getBoundingClientRect();
+      const oldZoom = viewport.zoom;
+      const newZoom = Math.max(0.35, Math.min(5, oldZoom * Math.exp(-e.deltaY * 0.0015)));
+      if (newZoom === oldZoom) return;
+      const ratio = newZoom / oldZoom;
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      const cx = projectionCenter.current.x;
+      const cy = projectionCenter.current.y;
+      onViewportChange({
+        zoom: newZoom,
+        panX: px - cx - (px - cx - viewport.panX) * ratio,
+        panY: py - cy - (py - cy - viewport.panY) * ratio,
+      });
+    };
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, []);
+
   return (
     <canvas
       ref={ref}
       aria-label="Interactive 3D preview. Drag to rotate; scroll or pinch to zoom."
-      onWheel={(e) => {
-        e.preventDefault();
-        const rect = e.currentTarget.getBoundingClientRect();
-        const oldZoom = viewport.zoom;
-        const newZoom = Math.max(0.35, Math.min(5, oldZoom * Math.exp(-e.deltaY * 0.0015)));
-        if (newZoom === oldZoom) return;
-        const ratio = newZoom / oldZoom;
-        const px = e.clientX - rect.left;
-        const py = e.clientY - rect.top;
-        const cx = projectionCenter.current.x;
-        const cy = projectionCenter.current.y;
-        onViewportChange({
-          zoom: newZoom,
-          panX: px - cx - (px - cx - viewport.panX) * ratio,
-          panY: py - cy - (py - cy - viewport.panY) * ratio,
-        });
-      }}
       onDoubleClick={() => onViewportChange(DEFAULT_VIEWPORT)}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -303,8 +328,14 @@ function ViewerCard({ title, children }: { title: string; children: ReactNode })
   );
 }
 
+function isWrapped(file: WorkbenchFile): file is Extract<WorkbenchFile, { format: string }> {
+  return typeof file === "object" && file !== null && "format" in file && (file as { format?: unknown }).format === "saam-workbench-file";
+}
+
 export default function App() {
   const [plan, setPlan] = useState<ProcessPlan | null>(null);
+  const [transcript, setTranscript] = useState<Message[]>([]);
+  const [notes, setNotes] = useState("");
   const [loadErrors, setLoadErrors] = useState<string[]>([]);
   const [active, setActive] = useState(0);
   const [layer, setLayer] = useState(1);
@@ -324,7 +355,15 @@ export default function App() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) setPlan(JSON.parse(saved));
+      if (saved) {
+        const parsed = JSON.parse(saved) as WorkbenchFile;
+        if (isWrapped(parsed)) {
+          setPlan(parsed.plan);
+          setTranscript(parsed.conversation?.transcript ?? []);
+        } else {
+          setPlan(parsed);
+        }
+      }
     } catch {
       // A corrupt or absent local save just means starting empty — not an error to surface.
     }
@@ -332,11 +371,14 @@ export default function App() {
 
   useEffect(() => {
     try {
-      if (plan) localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(plan));
+      if (plan) {
+        const file: WorkbenchFile = { format: "saam-workbench-file", schemaVersion: 1, plan, conversation: { transcript } };
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(file));
+      }
     } catch {
       // Local persistence is a convenience, not a guarantee.
     }
-  }, [plan]);
+  }, [plan, transcript]);
 
   const activeOp = plan?.operations[active] ?? null;
   const activeOpLayers = activeOp ? operationLayerCount(activeOp) : 1;
@@ -354,14 +396,17 @@ export default function App() {
     setExportError("");
     setApprovalMessage("");
     try {
-      const parsed = JSON.parse(await file.text());
-      const { valid, errors } = validatePlanShape(parsed);
+      const parsed = JSON.parse(await file.text()) as WorkbenchFile;
+      const candidatePlan = isWrapped(parsed) ? parsed.plan : parsed;
+      const { valid, errors } = validatePlanShape(candidatePlan);
       if (!valid) {
         setLoadErrors(errors);
         return;
       }
       setLoadErrors([]);
-      setPlan(parsed as ProcessPlan);
+      setPlan(candidatePlan as ProcessPlan);
+      setTranscript(isWrapped(parsed) ? parsed.conversation?.transcript ?? [] : []);
+      setNotes("");
       setActive(0);
       setLayer(1);
       resetViews();
@@ -369,6 +414,20 @@ export default function App() {
       setLoadErrors([error instanceof Error ? error.message : "The file is not valid JSON."]);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const clearPlan = () => {
+    setPlan(null);
+    setTranscript([]);
+    setNotes("");
+    setExportResult(null);
+    setExportError("");
+    setApprovalMessage("");
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {
+      // Best-effort only.
     }
   };
 
@@ -409,6 +468,9 @@ export default function App() {
     }
   };
 
+  const rotateHandler = (dx: number, dy: number) =>
+    setRotation((r) => ({ yaw: r.yaw + dx * 0.009, pitch: Math.max(-1.25, Math.min(1.25, r.pitch + dy * 0.009)) }));
+
   return (
     <main className="app-shell">
       <input
@@ -423,35 +485,38 @@ export default function App() {
       />
       <header className="topbar">
         <div className="brand">
-          <span>SAAM Reference Workbench</span>
+          <b>SAAM</b>
+          <span>Reference Workbench</span>
         </div>
-        <div className="plan-status">
-          {plan ? (
-            <>
-              <b>{plan.machine.id}</b>
-              <span>
-                Revision {plan.revision} · {plan.status}
-                {plan.approval && ` · approved (${plan.approval.scope}) by ${plan.approval.approvedBy}`}
-              </span>
-            </>
-          ) : (
-            <span>No plan loaded</span>
-          )}
-        </div>
-        <nav>
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            Open plan…
+        <button type="button" className="open-plan-action" onClick={() => fileInputRef.current?.click()}>
+          Open plan…
+        </button>
+        <div className="render-toggle">
+          <button type="button" aria-pressed={!filled} onClick={() => setFilled(false)} className={!filled ? "selected" : ""}>
+            Toolpath lines
           </button>
-          <div className="render-toggle">
-            <button type="button" aria-pressed={!filled} onClick={() => setFilled(false)} className={!filled ? "selected" : ""}>
-              Toolpath lines
-            </button>
-            <button type="button" aria-pressed={filled} onClick={() => setFilled(true)} className={filled ? "selected" : ""}>
-              Filled beads
-            </button>
-          </div>
-        </nav>
+          <button type="button" aria-pressed={filled} onClick={() => setFilled(true)} className={filled ? "selected" : ""}>
+            Filled beads
+          </button>
+        </div>
+        <div className="machine-readout">
+          <span>Machine</span>
+          <b>{plan ? plan.machine.id : "No plan loaded"}</b>
+        </div>
       </header>
+
+      <section className="status-strip">
+        <span className={`status-dot${plan ? "" : " idle"}`} />
+        {plan ? (
+          <>
+            <b>Revision {plan.revision}</b>
+            <span>{plan.status}</span>
+            {plan.approval && <span>· approved ({plan.approval.scope}) by {plan.approval.approvedBy}</span>}
+          </>
+        ) : (
+          <span>Open a process plan to begin</span>
+        )}
+      </section>
 
       {loadErrors.length > 0 && (
         <div className="load-errors" role="alert">
@@ -465,21 +530,46 @@ export default function App() {
       )}
 
       <section className="workspace">
+        <aside className="agent-panel">
+          <div className="agent-heading">
+            <div>
+              <span>CONVERSATION</span>
+              <h2>Producing agent's transcript</h2>
+            </div>
+            <i>{transcript.length > 0 ? `${transcript.length} messages` : "None included"}</i>
+          </div>
+          <div className="chat-history">
+            {transcript.length > 0 ? (
+              transcript.map((m, i) => (
+                <article key={i} className={m.who === "You" || m.who === "Operator" ? "user" : "agent"}>
+                  <b>{m.who}</b>
+                  <p>{m.text}</p>
+                </article>
+              ))
+            ) : (
+              <p className="chat-empty">
+                This workbench doesn't run its own agent — it displays whatever conversation the agent that produced
+                this plan chose to include. Open a plan with a <code>conversation.transcript</code> to see it here.
+              </p>
+            )}
+          </div>
+        </aside>
+
         <div className="part-view">
           <ViewerCard title="Finished part">
-            <ToolCanvas mode="part" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.part} onViewportChange={(v) => setViewports((c) => ({ ...c, part: v }))} onRotate={(dx, dy) => setRotation((r) => ({ yaw: r.yaw + dx * 0.009, pitch: Math.max(-1.25, Math.min(1.25, r.pitch + dy * 0.009)) }))} />
+            <ToolCanvas mode="part" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.part} onViewportChange={(v) => setViewports((c) => ({ ...c, part: v }))} onRotate={rotateHandler} />
             {!plan && <div className="empty-preview">Open a process plan to begin</div>}
           </ViewerCard>
         </div>
         <div className="collective-view">
           <ViewerCard title="Collective toolpath">
-            <ToolCanvas mode="collective" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.collective} onViewportChange={(v) => setViewports((c) => ({ ...c, collective: v }))} onRotate={(dx, dy) => setRotation((r) => ({ yaw: r.yaw + dx * 0.009, pitch: Math.max(-1.25, Math.min(1.25, r.pitch + dy * 0.009)) }))} />
+            <ToolCanvas mode="collective" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.collective} onViewportChange={(v) => setViewports((c) => ({ ...c, collective: v }))} onRotate={rotateHandler} />
             {!plan && <div className="empty-preview">No toolpaths yet</div>}
           </ViewerCard>
         </div>
         <div className="current-view">
           <ViewerCard title="Current operation">
-            <ToolCanvas mode="current" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.current} onViewportChange={(v) => setViewports((c) => ({ ...c, current: v }))} onRotate={(dx, dy) => setRotation((r) => ({ yaw: r.yaw + dx * 0.009, pitch: Math.max(-1.25, Math.min(1.25, r.pitch + dy * 0.009)) }))} />
+            <ToolCanvas mode="current" plan={plan} activeIndex={active} fraction={fraction} rotation={rotation} filled={filled} viewport={viewports.current} onViewportChange={(v) => setViewports((c) => ({ ...c, current: v }))} onRotate={rotateHandler} />
             {activeOp ? (
               <div className="active-operation-summary">
                 <span>
@@ -543,20 +633,52 @@ export default function App() {
           )}
         </aside>
 
-        <section className="approval-panel">
-          <header>
-            <span>HUMAN APPROVAL</span>
-            <h2>Review &amp; approve</h2>
-          </header>
-          <p className="approval-note">
-            Only an action here creates an approval record. Editing or reloading a plan invalidates its prior approval —
-            see <code>docs/authoring/process-plan-workflow.md</code>.
-          </p>
-          <label className="approver-field">
-            <span>Approved by</span>
-            <input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="Your name" disabled={!plan} />
+        <section className="prompt-panel">
+          <div className="prompt-context">
+            <span>PROJECT</span>
+            <b>{plan ? `Revision ${plan.revision}` : "No plan open"}</b>
+            <p>
+              {plan
+                ? "Reviewer notes are kept locally in this browser and are not sent anywhere."
+                : "Open a process plan file to inspect it here."}
+            </p>
+            <div className="prompt-file-actions">
+              <button type="button" onClick={() => fileInputRef.current?.click()}>
+                Open plan…
+              </button>
+              <button type="button" onClick={clearPlan} disabled={!plan}>
+                Clear
+              </button>
+            </div>
+          </div>
+          <label className="notes-field">
+            <span>Reviewer notes (local only)</span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notes you take while reviewing this plan stay in your browser only — they're never sent to an agent or server."
+              disabled={!plan}
+            />
           </label>
-          <div className="approval-actions">
+        </section>
+
+        <section className={`export-panel${plan ? "" : " empty"}`}>
+          <header>
+            <div>
+              <span>HUMAN APPROVAL &amp; EXPORT</span>
+              <h2>Review, approve, export</h2>
+            </div>
+            <i>
+              <span />
+              {plan ? plan.status : "No plan"}
+            </i>
+          </header>
+
+          <div className="approval-row">
+            <label>
+              <span>Approved by</span>
+              <input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="Your name" disabled={!plan} />
+            </label>
             <button type="button" disabled={!plan} onClick={() => void approve("geometry")}>
               Approve geometry
             </button>
@@ -565,13 +687,9 @@ export default function App() {
             </button>
           </div>
           {approvalMessage && <p className="approval-message">{approvalMessage}</p>}
-        </section>
 
-        <section className="export-panel">
-          <header>
-            <span>PROGRAM OUTPUT</span>
-            <h2>Export</h2>
-          </header>
+          <hr className="export-divider" />
+
           {!plan ? (
             <p className="export-empty">No program.</p>
           ) : plan.machine.id !== KNOWN_MACHINE_ID ? (
@@ -588,7 +706,9 @@ export default function App() {
                 <div className="export-result">
                   {exportResult.warnings.length > 0 && (
                     <div className="export-warnings">
-                      <b>{exportResult.warnings.length} warning{exportResult.warnings.length === 1 ? "" : "s"}</b>
+                      <b>
+                        {exportResult.warnings.length} warning{exportResult.warnings.length === 1 ? "" : "s"}
+                      </b>
                       <ul>
                         {exportResult.warnings.map((w, i) => (
                           <li key={i}>{w.message}</li>
