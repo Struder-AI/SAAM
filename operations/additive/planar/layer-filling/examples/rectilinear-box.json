@@ -1,0 +1,1088 @@
+{
+  "input": {
+    "parameters": {
+      "width": 30,
+      "depth": 20,
+      "layers": 2,
+      "wallCount": 2
+    },
+    "settings": {
+      "layerHeight": 1,
+      "beadWidth": 0.83,
+      "spacing": 0.78
+    }
+  },
+  "expected": {
+    "part": {
+      "shape": "box",
+      "width": 30,
+      "depth": 20,
+      "height": 2
+    },
+    "paths": [
+      {
+        "family": "Prioritized perimeter",
+        "layer": 0,
+        "points": [
+          {
+            "x": -14.585,
+            "y": -9.585,
+            "z": 1
+          },
+          {
+            "x": 14.585,
+            "y": -9.585,
+            "z": 1
+          },
+          {
+            "x": 14.585,
+            "y": 9.585,
+            "z": 1
+          },
+          {
+            "x": -14.585,
+            "y": 9.585,
+            "z": 1
+          },
+          {
+            "x": -14.585,
+            "y": -9.585,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Prioritized perimeter",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.805,
+            "y": -8.805,
+            "z": 1
+          },
+          {
+            "x": 13.805,
+            "y": -8.805,
+            "z": 1
+          },
+          {
+            "x": 13.805,
+            "y": 8.805,
+            "z": 1
+          },
+          {
+            "x": -13.805,
+            "y": 8.805,
+            "z": 1
+          },
+          {
+            "x": -13.805,
+            "y": -8.805,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": -8.05,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": -8.05,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": -7.27,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": -7.27,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": -6.49,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": -6.49,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": -5.71,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": -5.71,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": -4.93,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": -4.93,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": -4.15,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": -4.15,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": -3.37,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": -3.37,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": -2.59,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": -2.59,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": -1.81,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": -1.81,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": -1.03,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": -1.03,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": -0.25,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": -0.25,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": 0.53,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": 0.53,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": 1.31,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": 1.31,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": 2.09,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": 2.09,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": 2.87,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": 2.87,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": 3.65,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": 3.65,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": 4.43,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": 4.43,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": 5.21,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": 5.21,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": 5.99,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": 5.99,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": 13.05,
+            "y": 6.77,
+            "z": 1
+          },
+          {
+            "x": -13.05,
+            "y": 6.77,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 0,
+        "points": [
+          {
+            "x": -13.05,
+            "y": 7.55,
+            "z": 1
+          },
+          {
+            "x": 13.05,
+            "y": 7.55,
+            "z": 1
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Prioritized perimeter",
+        "layer": 1,
+        "points": [
+          {
+            "x": -14.585,
+            "y": -9.585,
+            "z": 2
+          },
+          {
+            "x": 14.585,
+            "y": -9.585,
+            "z": 2
+          },
+          {
+            "x": 14.585,
+            "y": 9.585,
+            "z": 2
+          },
+          {
+            "x": -14.585,
+            "y": 9.585,
+            "z": 2
+          },
+          {
+            "x": -14.585,
+            "y": -9.585,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Prioritized perimeter",
+        "layer": 1,
+        "points": [
+          {
+            "x": -13.805,
+            "y": -8.805,
+            "z": 2
+          },
+          {
+            "x": 13.805,
+            "y": -8.805,
+            "z": 2
+          },
+          {
+            "x": 13.805,
+            "y": 8.805,
+            "z": 2
+          },
+          {
+            "x": -13.805,
+            "y": 8.805,
+            "z": 2
+          },
+          {
+            "x": -13.805,
+            "y": -8.805,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -13.05,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -13.05,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -12.27,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -12.27,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -11.49,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -11.49,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -10.71,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -10.71,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -9.93,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -9.93,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -9.15,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -9.15,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -8.37,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -8.37,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -7.59,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -7.59,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -6.81,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -6.81,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -6.03,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -6.03,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -5.25,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -5.25,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -4.47,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -4.47,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -3.69,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -3.69,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -2.91,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -2.91,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -2.13,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -2.13,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -1.35,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": -1.35,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": -0.57,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": -0.57,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 0.21,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 0.21,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 0.99,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 0.99,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 1.77,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 1.77,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 2.55,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 2.55,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 3.33,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 3.33,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 4.11,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 4.11,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 4.89,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 4.89,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 5.67,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 5.67,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 6.45,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 6.45,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 7.23,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 7.23,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 8.01,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 8.01,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 8.79,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 8.79,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 9.57,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 9.57,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 10.35,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 10.35,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 11.13,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 11.13,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 11.91,
+            "y": -8.05,
+            "z": 2
+          },
+          {
+            "x": 11.91,
+            "y": 8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Region-first raster",
+        "layer": 1,
+        "points": [
+          {
+            "x": 12.69,
+            "y": 8.05,
+            "z": 2
+          },
+          {
+            "x": 12.69,
+            "y": -8.05,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "manifestSchemaVersion": 1,
+  "id": "layer-filling",
+  "version": "0.1.0",
+  "name": "Planar layer filling",
+  "summary": "Rectilinear and concentric planar coverage: perimeters, connected fill regions, alternating raster, and concentric rings.",
+  "category": ["additive", "planar"],
+  "capabilityRequirements": ["planar-motion", "extrusion-on-off"],
+  "maturity": "experimental",
+  "evidence": {
+    "label": "EXPERIMENTAL",
+    "scope": "Deterministic generator validated by schema, geometry-bounds, and golden-output tests. Not yet evidenced on physical hardware under this exact manifest and generator revision."
+  },
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "geometry": { "type": "string", "enum": ["rectangle", "circle", "annulus"] },
+      "width": { "type": "number", "exclusiveMinimum": 0 },
+      "depth": { "type": "number", "exclusiveMinimum": 0 },
+      "outerDiameter": { "type": "number", "exclusiveMinimum": 0 },
+      "innerDiameter": { "type": "number", "minimum": 0 },
+      "layers": { "type": "integer", "minimum": 1 },
+      "wallCount": { "type": "integer", "minimum": 1 },
+      "zStart": { "type": "number" }
+    },
+    "description": "A request with a finite `outerDiameter`/`diameter`, or `geometry` set to \"circle\"/\"annulus\", resolves to concentric coverage. Otherwise it resolves to rectilinear coverage using `width`/`depth`."
+  },
+  "outputs": {
+    "partShapes": ["box", "cylinder", "ring"],
+    "pathFamilies": [
+      "Outer perimeter",
+      "Inner perimeter",
+      "Concentric fill",
+      "Prioritized perimeter",
+      "Region-first raster"
+    ]
+  },
+  "dependencies": [],
+  "generator": {
+    "module": "./generator.mjs",
+    "export": "generate",
+    "deterministic": true
+  },
+  "validation": [
+    { "rule": "bounds-within-part-envelope", "description": "Every emitted point stays within the declared part envelope." },
+    { "rule": "layer-count-matches-request", "description": "The number of distinct layer indices equals the requested layer count." },
+    { "rule": "closed-contours", "description": "Every perimeter/ring/fill-ring path's first and last point coincide." }
+  ],
+  "examples": ["examples/rectilinear-box.json", "examples/concentric-ring.json"],
+  "license": "Apache-2.0"
+}
