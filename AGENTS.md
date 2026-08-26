@@ -128,6 +128,14 @@ something to fake at plan-compile time.
 - **SAAM never calls a model or holds a credential, and you shouldn't
   either on its behalf.** The reasoning is yours, on your own account —
   see `docs/architecture/agent-safety-boundary.md`.
+- **You never push to this repository's `main`, and never merge your own
+  pull request.** This holds even when the human you're working with is
+  SAAM's own maintainer. The default, always, is to open a PR and let a
+  human merge it as its own separate, considered action — not to fold
+  "yes, build it" into "yes, and also land it." A direct push to `main`
+  happens only on that human's explicit, in-the-moment instruction to do
+  exactly that, not as a shortcut you reach for because the checkout
+  happens to have the credentials for it.
 - **Using SAAM to build someone's part is not the same thing as
   developing SAAM, and the default is the former.** Almost everyone who
   clones this repo is doing it to make their own part on their own
@@ -149,15 +157,22 @@ something to fake at plan-compile time.
 
 This section only applies when a human has explicitly asked you to
 change SAAM's own source — write a new operation, fix a bug, edit a
-schema or doc. It is not the default mode; see the rule above.
+schema or doc. It is not the default mode; see the rule above. And once
+asked, that's one "yes," not two: it authorizes real, tested local
+work, not committing or publishing it — those are separate questions,
+covered below.
 
+### Local development (what "yes" actually authorizes)
+
+- Write and test the change for real, in the existing checkout — no
+  approximating, no faking a capability at plan-compile time.
 - Run `npm test` from the repo root before and after changes — golden
-  fixtures plus real subprocess MCP integration tests, currently 54
-  passing. A change that doesn't pass isn't done.
+  fixtures plus real subprocess MCP integration tests. A change that
+  doesn't pass isn't done.
 - Added, removed, or edited a `manifest.json` under `operations/` or
-  `machines/`? Run `npm run generate-registry` and commit the resulting
-  `registry/registry.json` — `tests/golden/registry-generate.test.mjs`
-  fails on drift between that file and what's actually on disk.
+  `machines/`? Run `npm run generate-registry` — `registry/registry.json`
+  needs to match, or `tests/golden/registry-generate.test.mjs` fails on
+  the drift.
 - Read `docs/authoring/operations.md` before adding an operation,
   `docs/authoring/machine-definitions.md` before adding a machine, and
   `docs/architecture/operations-vs-postprocessors.md` before touching
@@ -169,6 +184,42 @@ schema or doc. It is not the default mode; see the rule above.
   assumptions, or a chat/prompt surface inside the reference workbench —
   see that interface's own README for why those were deliberately
   removed.
+- **Stays local.** No `git add`/`commit`/`push` here either, unless the
+  human separately asks for that — a tested, working change sitting in
+  their own checkout already *is* the deliverable for "fix my bug" or
+  "build the post-processor I need." Committing and publishing it is a
+  distinct decision, not implied by this one.
+
+### Contributing it upstream (a separate, explicit decision)
+
+Once something real and tested exists, it's fair to *ask* — once —
+whether the human wants to contribute it back: *"this doesn't exist in
+SAAM yet — want me to open it as a PR?"* Never assume yes, and never
+raise it before the local work actually passes its own tests. If they
+say yes:
+
+1. **Check upstream before proposing anything.** The local checkout may
+   be stale — `git fetch` the canonical `Struder-AI/SAAM` remote and
+   check whether an operation or machine with this same `id` already
+   exists on its default branch, and whether an open PR already proposes
+   the same thing (`gh pr list --repo Struder-AI/SAAM --search "..."`).
+   Don't propose a duplicate of something that already landed or is
+   already in flight.
+2. **Fork, don't push directly.** Check whether the human already has a
+   fork (`gh repo view <their-username>/SAAM`); create one if not
+   (`gh repo fork Struder-AI/SAAM`). Push the branch there — never to
+   `Struder-AI/SAAM` itself; you have no write access to it and
+   shouldn't act as though you might.
+3. **Open the PR** (`gh pr create --repo Struder-AI/SAAM`) describing
+   what it adds, its evidence label and why that label is honest (not
+   upgraded because the PR "feels" more confirmed than it is), and
+   confirming `npm test` passes and the registry was regenerated. See
+   `CONTRIBUTING.md` for exactly what a mergeable contribution needs —
+   read it yourself before drafting the PR description, don't guess at
+   the checklist.
+4. **Stop there.** See "Rules that never bend" above: review and merge
+   are the maintainer's own action, even when the human you're working
+   with *is* the maintainer.
 
 ## Map of what to read next
 
@@ -176,6 +227,7 @@ schema or doc. It is not the default mode; see the rule above.
 |---|---|
 | What is SAAM, and what isn't it? | `PROJECT_CHARTER.md` |
 | What's built vs. designated-but-not-yet? | `ROADMAP.md` |
+| How do I contribute something back upstream? | `CONTRIBUTING.md` |
 | How do I author a new operation? | `docs/authoring/operations.md` |
 | How do I author a new machine? | `docs/authoring/machine-definitions.md` |
 | What's the evidence-label system? | `docs/authoring/evidence-labels.md` |

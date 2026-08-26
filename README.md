@@ -54,6 +54,11 @@ Using this checkout to build your own part never involves committing or
 pushing anything back to this repository — the deliverable is the
 exported machine file on your own disk. Nothing about the loop above
 touches this checkout's git history, and your agent shouldn't either.
+If you hit a real gap along the way — a post-processor that doesn't
+exist yet, an operation that needs a fix — building it is a separate,
+explicit ask (see `AGENTS.md`'s "If you're modifying this repository
+itself"), and contributing it back is a separate ask again, via a normal
+fork and pull request — see `CONTRIBUTING.md`.
 
 ## What runs where
 
@@ -70,6 +75,7 @@ approval record; nothing here can approve its own output.
 | Path | What's there |
 |---|---|
 | `AGENTS.md` | What a connected agent should actually do here — the tool-call sequence, the rules that never bend, where to read more. `CLAUDE.md` just points here. |
+| `CONTRIBUTING.md` | How to propose a change to this repository itself — fork, branch, PR, what a mergeable contribution needs |
 | `PROJECT_CHARTER.md` | Mission, scope, non-goals, governance, licensing |
 | `ROADMAP.md` | Planar-operation catalog brainstorm, designated future machines |
 | `schemas/` | Process-plan and manifest JSON Schemas, plus the shared plan-hashing/approval library |
