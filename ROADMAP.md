@@ -178,6 +178,11 @@ up as thoroughness:
 
 - `reference-dobot-mg400-struderbot` — Dobot MG400 desktop robotic arm,
   DobotStudio Pro Lua. See `machines/reference-dobot-mg400-struderbot/`.
+- `ultimaker-s5` — Ultimaker S5 desktop FDM printer, Griffin-flavor
+  G-code. See `machines/ultimaker-s5/`. Its post-processor's structural
+  conventions are grounded in a real accepted Cura/S5 export (DOC-CONFIRMED),
+  not yet a real print (not ROBOT-CONFIRMED) — see its own README for
+  exactly what that sample did and didn't settle.
 
 **Designated, in development — no post-processor implementation yet:**
 
@@ -185,7 +190,6 @@ up as thoroughness:
 |---|---|---|
 | Tormach PCNC | PathPilot | CNC mill (subtractive) |
 | Avid CNC | Mach3 | CNC router/mill (subtractive) |
-| Ultimaker S5 | Marlin-family G-code | FDM printer (additive) |
 | BambuLab H2D | Bambu firmware | Multi-tool additive printer (understood to combine FDM with at least one non-extrusion tool head — worth confirming exact tool-head capabilities before scoping its operation support) |
 
 **Scope clarification:** the intent for Tormach/PathPilot and Avid

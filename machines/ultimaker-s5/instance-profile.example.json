@@ -1,0 +1,25 @@
+{
+  "_note": "SYNTHETIC EXAMPLE — format reference only. Replace these with your own unit's real values before trusting output as calibrated for a real print. See docs/authoring/machine-definitions.md.",
+
+  "machineId": "ultimaker-s5",
+  "profileRevision": "example-0",
+
+  "printCore": {
+    "slot": 1,
+    "nozzleDiameterMm": 0.4,
+    "notes": "Which of the two swappable print cores this plan targets, and its installed nozzle size. settings.beadWidth in the process plan should not be set narrower than this nozzle can realistically extrude."
+  },
+
+  "filamentDiameterMm": 2.85,
+
+  "material": {
+    "printTemperatureC": 210,
+    "buildPlateTemperatureC": 60,
+    "notes": "PLA-range placeholder values, observed in one real accepted Cura/S5 export used to ground this post-processor — not this project's material calibration, and not necessarily right for your own filament. See ROADMAP.md's 'Not operations' section: temperature is deliberately excluded from operation-level concerns, so this is where it belongs instead."
+  },
+
+  "buildPlate": {
+    "zOffsetMm": 0.0,
+    "notes": "Manually-tuned first-layer Z-offset for this specific unit's bed, if any. Placeholder 0.0 here; a real unit's true offset is instance-specific data, not something to publish as a project default."
+  }
+}

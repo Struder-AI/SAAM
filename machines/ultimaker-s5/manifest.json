@@ -1,0 +1,67 @@
+{
+  "manifestSchemaVersion": 1,
+  "id": "ultimaker-s5",
+  "name": "Ultimaker S5",
+  "summary": "A purpose-built desktop FDM printer: cartesian XY gantry with a Z-lifting bed, dual swappable print cores, and a Marlin-derived controller driven by standard G-code.",
+
+  "modelConstraints": {
+    "manufacturer": "Ultimaker (now UltiMaker)",
+    "model": "S5",
+    "axisCount": 4,
+    "motionPrimitives": ["G0 (rapid/travel move)", "G1 (linear move, coordinated X/Y/Z/E)", "G28 (home)"],
+    "reachMm": null,
+    "ratedPayloadG": null,
+    "sourceNote": "Build volume 330 x 240 x 300 mm and 2.85 mm filament diameter are confirmed against Ultimaker's own published S5 specification sheet (https://ultimaker.com/3d-printers/s-series/ultimaker-s5/ and the linked PDF datasheet). axisCount/motionPrimitives are DOC-CONFIRMED against Marlin's G-code reference (https://marlinfw.org/meta/gcode/), since Ultimaker's firmware is a Marlin fork — not yet cross-checked against a real exported file from this specific unit's firmware build. reachMm/ratedPayloadG don't apply to this machine class the way they do to an arm and are left null."
+  },
+
+  "capabilities": [
+    {
+      "id": "planar-motion",
+      "evidence": {
+        "label": "DOC-CONFIRMED",
+        "scope": "Layer-by-layer XY motion at a fixed Z is the foundational primitive of any Marlin-family FDM controller; not specific to this unit.",
+        "reference": "https://marlinfw.org/docs/gcode/G000-G001.html"
+      }
+    },
+    {
+      "id": "extrusion-on-off",
+      "evidence": {
+        "label": "DOC-CONFIRMED",
+        "scope": "Standard G1 E-axis moves plus M82/M83 extruder mode selection; universal across Marlin-family firmware.",
+        "reference": "https://marlinfw.org/docs/gcode/M082.html"
+      }
+    },
+    {
+      "id": "coordinated-xyz-motion",
+      "evidence": {
+        "label": "DOC-CONFIRMED",
+        "scope": "A single G1 command natively carries simultaneous X/Y/Z/E targets on any Marlin-family controller — unlike the Dobot reference machine, this isn't a repurposed use of a motion primitive designed for something else, it's what FDM G-code always does. This label covers the motion primitive existing and being well-documented, not that a specific non-planar surface has been print-tested on this unit; treat any specific slope/print-quality claim as a separate, unconfirmed question until a real print says otherwise.",
+        "reference": "https://marlinfw.org/docs/gcode/G000-G001.html"
+      }
+    }
+  ],
+
+  "installedTooling": [
+    {
+      "name": "Dual swappable print cores",
+      "description": "The S5 ships with two independently-heated print cores (tool changer, not a mixing head). SAAM's post-processor for this machine currently targets single-extrusion output only (print core 1) — see postprocessor/README.md's known limitations. Dual-material/tool-change sequencing is deliberately out of scope for now, matching ROADMAP.md's Multi-material/multi-tool category, which isn't built yet."
+    }
+  ],
+
+  "safetyNotes": [
+    "This is a fully enclosed, purpose-built desktop FDM printer, not a repurposed motion platform — most of the physical-safety caution that applies to the Dobot reference install (tool-load tuning, frame drift) doesn't apply here. The safety-relevant risk for this machine is in the G-code itself: a wrong extrusion-mode assumption (relative vs absolute E) or a wrong filament-diameter constant silently produces under- or over-extrusion rather than a visible fault.",
+    "Treat any exported file as unverified until confirmed against this unit's own accepted G-code conventions — see the post-processor's README for exactly what's been checked against a real exported/printed file versus what's still DOC-CONFIRMED only."
+  ],
+
+  "instanceConfiguration": {
+    "fields": [
+      "Active print core / nozzle size in use (0.25 / 0.4 / 0.6 / 0.8 mm — affects whether settings.beadWidth in the process plan is physically achievable)",
+      "Build plate surface in use (affects only material-calibration settings this project deliberately excludes — see ROADMAP.md's 'Not operations' section — but still worth recording per unit)",
+      "Any manually-set Z-offset / bed-leveling correction specific to this physical unit"
+    ],
+    "example": "instance-profile.example.json"
+  },
+
+  "postProcessor": "ultimaker-s5-gcode-postprocessor",
+  "license": "Apache-2.0"
+}

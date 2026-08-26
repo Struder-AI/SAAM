@@ -29,10 +29,10 @@ import {
   REPO_ROOT,
   discoverOperations,
   discoverMachines,
+  discoverPostProcessors,
   loadGenerator,
 } from "../../../registry/discover.mjs";
 import { validatePlanShape, hasCurrentApproval } from "../../../schemas/process-plan/plan-lib.mjs";
-import { translate as translateForDobot } from "../../../machines/reference-dobot-mg400-struderbot/postprocessor/generator.mjs";
 import { startHttpBridge } from "./http-bridge.mjs";
 import { openBrowser } from "./open-browser.mjs";
 import { getSession, setSession } from "./session.mjs";
@@ -72,6 +72,21 @@ function errorResult(message) {
 }
 function slugify(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "plan";
+}
+
+// Same dynamic-load pattern compile_plan already uses for operations
+// (loadGenerator against discoverOperations) — a machine's declared
+// postProcessor id is resolved against discoverPostProcessors() and its
+// generator's `translate` export is loaded on demand, rather than this
+// adapter statically importing one specific machine's post-processor.
+async function loadPostProcessorForMachine(machineId) {
+  const machines = await discoverMachines();
+  const machineEntry = machines.find((m) => m.manifest?.id === machineId);
+  if (!machineEntry?.manifest?.postProcessor) return null;
+  const postProcessors = await discoverPostProcessors();
+  const ppEntry = postProcessors.find((p) => p.manifest?.id === machineEntry.manifest.postProcessor);
+  if (!ppEntry) return null;
+  return loadGenerator(ppEntry);
 }
 
 async function writePlanFile(plan) {
@@ -151,6 +166,8 @@ server.registerTool(
           baseOuterDiameter: z.number().optional().describe("Diameter at the bottom, only when it differs from outerDiameter — omit for a straight, non-tapered round part."),
           innerDiameter: z.number().optional(),
           height: z.number(),
+          boreDiameter: z.number().optional().describe("A centered cylindrical bore into the top face, if any — its diameter. Distinct from innerDiameter (a full-through annulus/ring shape); a bore may be partial-depth. Requires boreDepth."),
+          boreDepth: z.number().optional().describe("Depth of boreDiameter's bore, measured down from the top face. Equal to height for a through-hole; less than height for a blind hole."),
         })
         .optional()
         .describe(
@@ -330,15 +347,29 @@ server.registerTool(
   {
     title: "Post-process an approved plan",
     description:
-      "Translates an approved plan into native machine output. Refuses (with a clear reason) if the plan lacks a current executable-export approval — this enforces the same gate as the reference post-processor's own code, not a separate check that could drift from it.",
-    inputSchema: { plan: z.record(z.string(), z.unknown()) },
+      "Translates an approved plan into native machine output, using whichever post-processor the plan's machine.id declares (see list_machines). Refuses (with a clear reason) if the plan lacks a current executable-export approval — this enforces the same gate as the reference post-processor's own code, not a separate check that could drift from it.",
+    inputSchema: {
+      plan: z.record(z.string(), z.unknown()),
+      instanceProfile: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe(
+          "This physical unit's calibration/material configuration (see e.g. machines/*/instance-profile.example.json). Omit to get safe placeholder defaults — never trust default output as calibrated for a real unit."
+        ),
+    },
   },
-  async ({ plan }) => {
-    if (plan.machine?.id !== "reference-dobot-mg400-struderbot") {
+  async ({ plan, instanceProfile }) => {
+    let translate;
+    try {
+      translate = await loadPostProcessorForMachine(plan.machine?.id);
+    } catch (error) {
+      return errorResult(error instanceof Error ? error.message : String(error));
+    }
+    if (!translate) {
       return errorResult(`No post-processor registered in this adapter for machine "${plan.machine?.id}" yet.`);
     }
     try {
-      const result = translateForDobot({ plan });
+      const result = translate({ plan, instanceProfile });
       return json(result);
     } catch (error) {
       return errorResult(error instanceof Error ? error.message : String(error));

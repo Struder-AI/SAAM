@@ -70,6 +70,26 @@
       ],
       "postProcessor": "dobot-lua-postprocessor",
       "path": "machines/reference-dobot-mg400-struderbot"
+    },
+    {
+      "id": "ultimaker-s5",
+      "name": "Ultimaker S5",
+      "capabilities": [
+        {
+          "id": "planar-motion",
+          "evidenceLabel": "DOC-CONFIRMED"
+        },
+        {
+          "id": "extrusion-on-off",
+          "evidenceLabel": "DOC-CONFIRMED"
+        },
+        {
+          "id": "coordinated-xyz-motion",
+          "evidenceLabel": "DOC-CONFIRMED"
+        }
+      ],
+      "postProcessor": "ultimaker-s5-gcode-postprocessor",
+      "path": "machines/ultimaker-s5"
     }
   ],
   "postProcessors": [
@@ -80,6 +100,14 @@
       "maturity": "experimental",
       "evidenceLabel": "EXPERIMENTAL",
       "path": "machines/reference-dobot-mg400-struderbot/postprocessor"
+    },
+    {
+      "id": "ultimaker-s5-gcode-postprocessor",
+      "name": "Ultimaker S5 G-code post-processor",
+      "machineId": "ultimaker-s5",
+      "maturity": "experimental",
+      "evidenceLabel": "DOC-CONFIRMED",
+      "path": "machines/ultimaker-s5/postprocessor"
     }
   ]
 }

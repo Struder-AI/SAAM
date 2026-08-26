@@ -301,6 +301,38 @@ test("the full loop: compile, approve (workbench's own code path), then post_pro
   });
 });
 
+test("the full loop, second machine: compile against ultimaker-s5, approve, then post_process picks the right post-processor by machine.id", async () => {
+  // Proves post_process is a real dynamic lookup (discoverMachines -> its
+  // declared postProcessor -> discoverPostProcessors -> loadGenerator),
+  // not hardcoded to the one machine that happened to be built first.
+  await withClient(async (client) => {
+    const compiled = await client.callTool({
+      name: "compile_plan",
+      arguments: { machineId: "ultimaker-s5", operations: [{ operationId: "layer-filling", parameters: { width: 20, depth: 20, layers: 2, wallCount: 1 } }] },
+    });
+    assert.notEqual(compiled.isError, true);
+    const { plan } = JSON.parse(compiled.content[0].text);
+    assert.equal(plan.machine.id, "ultimaker-s5");
+
+    const record = await buildApprovalRecord(plan, { scope: "executable-export", approvedBy: "Integration Test" });
+    const approved = applyApproval(plan, record);
+
+    const result = await client.callTool({ name: "post_process", arguments: { plan: approved } });
+    assert.notEqual(result.isError, true);
+    const { files } = JSON.parse(result.content[0].text);
+    assert.deepEqual(Object.keys(files), ["output.gcode"]);
+    assert.match(files["output.gcode"], /;FLAVOR:Griffin/);
+  });
+});
+
+test("list_machines includes ultimaker-s5 alongside the reference Dobot machine", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({ name: "list_machines", arguments: {} });
+    const ids = JSON.parse(result.content[0].text).map((m) => m.id).sort();
+    assert.deepEqual(ids, ["reference-dobot-mg400-struderbot", "ultimaker-s5"]);
+  });
+});
+
 test("request_review writes a plan file and never attaches an approval", async () => {
   await withClient(async (client) => {
     const compiled = await client.callTool({
