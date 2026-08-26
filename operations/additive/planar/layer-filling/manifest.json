@@ -21,9 +21,14 @@
       "innerDiameter": { "type": "number", "minimum": 0 },
       "layers": { "type": "integer", "minimum": 1 },
       "wallCount": { "type": "integer", "minimum": 1 },
-      "zStart": { "type": "number" }
+      "zStart": { "type": "number" },
+      "infillDensity": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "Rectangular geometry only. Approximate single-layer fill coverage fraction (bead width / line spacing) — a rough rectilinear-infill density model, not evidence specific to this project. Omit to keep the previous behavior of filling at settings.spacing directly." },
+      "solidBottomLayers": { "type": "integer", "minimum": 0, "description": "Rectangular geometry only. This many layers from the bottom are filled at full density (spacing == beadWidth) regardless of infillDensity." },
+      "solidTopLayers": { "type": "integer", "minimum": 0, "description": "Rectangular geometry only. This many layers from the top are filled at full density regardless of infillDensity." },
+      "boreDiameter": { "type": "number", "exclusiveMinimum": 0, "description": "Rectangular geometry only. A centered cylindrical bore into the top face — distinct from innerDiameter's full-through annulus, which only applies to circular/annular geometry. Requires boreDepth." },
+      "boreDepth": { "type": "number", "exclusiveMinimum": 0, "description": "Depth of boreDiameter's bore, measured down from the top face. Cuts through walls, the bore's own inner-perimeter walls, and fill alike on every affected layer, regardless of that layer's solid/sparse classification — a bore open at the top face has to stay open through any solid top layers too. For a blind hole (boreDepth less than the part's full height), the solidTopLayers count of layers immediately below the floor is automatically forced solid too, since the floor is a top-facing surface exactly like the part's own outer top." }
     },
-    "description": "A request with a finite `outerDiameter`/`diameter`, or `geometry` set to \"circle\"/\"annulus\", resolves to a circular/annular perimeter with raster fill clipped to that boundary. Otherwise it resolves to a rectangular perimeter with raster fill clipped to `width`/`depth`. Either way the raster alternates direction by layer — see README.md."
+    "description": "A request with a finite `outerDiameter`/`diameter`, or `geometry` set to \"circle\"/\"annulus\", resolves to a circular/annular perimeter with raster fill clipped to that boundary. Otherwise it resolves to a rectangular perimeter with raster fill clipped to `width`/`depth`, optionally with a centered bore and/or solid top/bottom layers. Either way the raster alternates direction by layer — see README.md."
   },
   "outputs": {
     "partShapes": ["box", "cylinder", "ring"],

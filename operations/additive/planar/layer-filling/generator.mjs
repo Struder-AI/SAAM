@@ -108,6 +108,42 @@ function circularRaster(outerRadius, innerRadius, z, spacing, layer) {
   return lines;
 }
 
+// Rectangular raster fill, optionally excluding a centered circular hole
+// (e.g. a bore into the top face) — used instead of raster() whenever a
+// layer's fill region isn't a plain rectangle. Same alternating-direction
+// and connected-sweep convention as raster() and circularRaster() above;
+// holeR <= 0 behaves identically to raster().
+function boxRaster(width, depth, holeR, z, spacing, layer) {
+  const horizontal = layer % 2 === 0;
+  const primary = horizontal ? depth : width;
+  const secondary = horizontal ? width : depth;
+  const lines = [];
+  let line = 0;
+  for (
+    let coordinate = -primary / 2 + spacing / 2;
+    coordinate <= primary / 2 - spacing / 2;
+    coordinate += spacing, line += 1
+  ) {
+    const a = -secondary / 2 + spacing / 2;
+    const b = secondary / 2 - spacing / 2;
+    const flip = line % 2 === 0;
+    const seg = (from, to) => {
+      const [x1, x2] = flip ? [from, to] : [to, from];
+      return horizontal
+        ? [point(x1, coordinate, z), point(x2, coordinate, z)]
+        : [point(coordinate, x1, z), point(coordinate, x2, z)];
+    };
+    if (holeR <= 0 || Math.abs(coordinate) >= holeR) {
+      lines.push(seg(a, b));
+      continue;
+    }
+    const half = Math.sqrt(Math.max(0, holeR * holeR - coordinate * coordinate));
+    if (half - a > spacing / 4) lines.push(seg(a, -half));
+    if (b - half > spacing / 4) lines.push(seg(half, b));
+  }
+  return lines;
+}
+
 function pathEntry(family, layer, points, intent = "print") {
   return { family, layer, points, intent };
 }
@@ -167,19 +203,71 @@ export function generate({ parameters = {}, settings = {} }) {
 
   const width = finite(parameters.width, 40, 2, 2000);
   const depth = finite(parameters.depth ?? parameters.length, width, 2, 2000);
+
+  // infillDensity is optional and only changes behavior when given — omit
+  // it and every layer keeps using settings.spacing exactly as before, so
+  // existing plans/fixtures that don't know about this parameter are
+  // unaffected. When given, it's a rough single-layer coverage-fraction
+  // model (bead width / line spacing) for a single-direction rectilinear
+  // pattern — general infill-density math, not evidence specific to this
+  // project. solidBottomLayers/solidTopLayers override it to full density
+  // (spacing === beadWidth, lines packed edge to edge) for that many
+  // layers at each end, regardless of infillDensity.
+  const infillDensity = parameters.infillDensity != null ? finite(parameters.infillDensity, 1, 0.02, 1) : null;
+  const solidBottomLayers = integer(parameters.solidBottomLayers, 0, 0, layers);
+  const solidTopLayers = integer(parameters.solidTopLayers, 0, 0, layers);
+
+  // A centered cylindrical bore into the top face — distinct from
+  // innerDiameter's full-through annulus (round parts only). Always cut
+  // through, regardless of a layer's solid/sparse infill classification:
+  // a bore that starts at the top face has to stay open through any solid
+  // top layers too, or it never actually reaches the surface.
+  const boreDiameter = finite(parameters.boreDiameter, 0, 0, Math.min(width, depth));
+  const boreDepth = boreDiameter > 0 ? finite(parameters.boreDepth, 0, 0, layers * layerHeight) : 0;
+  const boreR = boreDiameter / 2;
+  const partTopZ = zStart + layers * layerHeight;
+
+  // A blind bore's floor is a top-facing surface exactly like the part's
+  // own outer top — solid material below, open void (the bore) above —
+  // so it gets the same solidTopLayers treatment, counting downward from
+  // the floor instead of from the part's top. Without this, the layer(s)
+  // forming the floor were just ordinary sparse-infill middle layers,
+  // leaving a gapped, unsupported-looking bottom to the cavity instead of
+  // an actual solid floor.
+  const boreFloorLayerIndex = boreR > 0 && boreDepth < layers * layerHeight - 1e-9
+    ? Math.round((partTopZ - boreDepth - zStart) / layerHeight) - 1
+    : -1;
+
   for (let layer = 0; layer < layers; layer += 1) {
     const z = zStart + (layer + 1) * layerHeight;
+    const isFloorCap = boreFloorLayerIndex >= 0 && layer <= boreFloorLayerIndex && layer > boreFloorLayerIndex - solidTopLayers;
+    const isSolid = layer < solidBottomLayers || layer >= layers - solidTopLayers || isFloorCap;
+    const layerSpacing = isSolid ? beadWidth : infillDensity != null ? beadWidth / infillDensity : spacing;
+    const hasBore = boreR > 0 && z > partTopZ - boreDepth + 1e-9;
+
     for (let wall = 0; wall < wallCount; wall += 1) {
       paths.push(
         pathEntry("Prioritized perimeter", layer, rectangle(width, depth, z, beadWidth / 2 + wall * spacing))
       );
     }
-    raster(width - 2 * wallCount * spacing, depth - 2 * wallCount * spacing, z, spacing, layer).forEach(
+    if (hasBore) {
+      for (let wall = 0; wall < wallCount; wall += 1) {
+        paths.push(pathEntry("Inner perimeter", layer, ring(boreR + beadWidth / 2 + wall * spacing, z)));
+      }
+    }
+    const fillHoleR = hasBore ? boreR + wallCount * spacing : 0;
+    boxRaster(width - 2 * wallCount * spacing, depth - 2 * wallCount * spacing, fillHoleR, z, layerSpacing, layer).forEach(
       (points) => paths.push(pathEntry("Region-first raster", layer, points))
     );
   }
   return {
-    part: { shape: "box", width, depth, height: round4(zStart + layers * layerHeight) },
+    part: {
+      shape: "box",
+      width,
+      depth,
+      height: round4(zStart + layers * layerHeight),
+      ...(boreR > 0 ? { boreDiameter, boreDepth } : {}),
+    },
     paths,
   };
 }

@@ -46,6 +46,40 @@ chord where that line crosses the outer circle; where a line also crosses
 the inner circle (an annulus), it splits into two segments routed around
 the hole instead of running through it.
 
+## Solid top/bottom layers, infill density, and a centered bore
+
+Rectangular geometry only. `solidBottomLayers`/`solidTopLayers` force that
+many layers at each end to full density (`spacing === beadWidth`)
+regardless of `infillDensity` elsewhere — the usual "solid caps over
+sparse infill" pattern. `infillDensity` is a rough single-layer coverage
+model (`beadWidth / spacing`) for this rectilinear pattern specifically —
+general infill-density math, not evidence specific to this project or
+measured against a real print's actual strength or dimensional accuracy.
+
+`boreDiameter`/`boreDepth` cut a centered cylindrical bore into the top
+face — distinct from `innerDiameter`'s full-through annulus, which only
+applies to circular/annular geometry and can't express a partial-depth
+hole. The bore gets its own `wallCount` inner-perimeter walls and clips
+the raster fill around it, on every affected layer regardless of that
+layer's solid/sparse classification: a hole open at the top face has to
+stay open through solid top layers too, not get bridged over.
+
+A blind bore's floor — where the cavity ends and solid material resumes
+below it — is a top-facing surface in exactly the same sense the part's
+own outer top is (open void above, solid material below), so it gets the
+same `solidTopLayers` count of full-density layers, counting downward
+from the floor instead of from the part's top. A through-hole
+(`boreDepth` equal to the part's full height) has no floor and gets no
+extra cap.
+
+**Known limitation, not yet built:** this floor-cap treatment is wired
+specifically to `boreDiameter`/`boreDepth`, not a general "detect every
+internal top/bottom-facing surface" system — the kind of thing
+`ROADMAP.md`'s "sparse-to-solid interface layers" entry describes as not
+yet built. A future second internal void from a different operation
+wouldn't get this automatically; this fix covers the bore case this
+operation itself creates, not the general problem.
+
 ## Known limitation: perimeter-to-fill travel
 
 For a circular/annular layer, the outer perimeter always starts and ends

@@ -34,7 +34,9 @@
         "outerDiameter": { "type": "number", "description": "For a tapered round part (baseOuterDiameter given), this is the diameter at the top." },
         "baseOuterDiameter": { "type": "number", "description": "Diameter at the bottom, only when it differs from outerDiameter — a straight (non-tapered) round part omits this." },
         "innerDiameter": { "type": "number" },
-        "height": { "type": "number" }
+        "height": { "type": "number" },
+        "boreDiameter": { "type": "number", "description": "A centered cylindrical bore into the top face, if any — its diameter. Distinct from innerDiameter, which describes a full-through annulus (a ring/tube shape); a bore may be partial-depth. Requires boreDepth." },
+        "boreDepth": { "type": "number", "description": "Depth of `boreDiameter`'s bore, measured down from the top face. Equal to height for a through-hole; less than height for a blind hole." }
       },
       "description": "The whole plan's target envelope — what the human is actually trying to build, held steady across however many operations get composed toward it. Not a per-operation field and not derived from toolpath data; an operation's own generator output happens to have the same shape (see e.g. layer-filling's generator.mjs) as a reasonable default when nothing else has been declared, but composing a second or third operation must never silently overwrite an already-declared target with that operation's own shape. Additional shape-specific fields are permitted; `shape` names which fields apply."
     },
