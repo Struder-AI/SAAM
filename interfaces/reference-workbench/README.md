@@ -58,12 +58,17 @@ independent of whatever the live session does next.
 
 ## Machine display
 
-The machine name in the top right is a readout, not a selector — the
-machine is whatever the live session (or loaded file) actually targets;
-there's no "choose a machine, then compose a request" step in this UI
-to constrain. `ROADMAP.md`'s four other named machines still appear
-disabled in the underlying list, so the roadmap stays visible even
-though there's nothing to pick.
+The machine name in the top right is a real `<select>`, but it only
+takes input while no plan is loaded — a compiled plan's paths are
+already resolved for one specific machine, and this UI doesn't retarget
+them to another (see `docs/architecture/operations-vs-postprocessors.md`
+for why that's not this UI's job). Once a live session or an opened file
+resolves a plan, the dropdown shows that plan's own `machine.id` and is
+disabled — it reflects the plan, it doesn't drive it. Before that, it's
+a genuine way to browse SAAM's known machines. `ROADMAP.md`'s
+not-yet-built machines still appear as disabled options in the list, so
+the roadmap stays visible even though there's nothing to pick for them
+yet.
 
 ## Approval and export
 
@@ -127,7 +132,8 @@ silently went quiet after a connection drop instead of saying so.
 - The "Building Skills" / "Machine Definitions" library views from the
   private prototype are not ported yet — they'd need real data from
   `registry/`, which doesn't exist until that's built.
-- Only one machine (`reference-dobot-mg400-struderbot`) has a registered
-  post-processor in this interface.
+- Two machines (`reference-dobot-mg400-struderbot`, `ultimaker-s5`) have
+  a registered post-processor in this interface, looked up by
+  `plan.machine.id` — see `POST_PROCESSORS` in `src/App.tsx`.
 - One live session at a time — see `adapters/mcp/README.md`'s known
   limitations for the same constraint from the adapter's side.

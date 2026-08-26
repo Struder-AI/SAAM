@@ -72,10 +72,10 @@ button {
   display: flex;
   flex-direction: column;
 }
-.brand b {
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+.brand-logo {
+  height: 26px;
+  width: auto;
+  display: block;
 }
 .brand span {
   margin-top: -1px;
@@ -84,9 +84,12 @@ button {
   font-style: italic;
   font-weight: 650;
 }
-/* The machine is dictated by whatever the connected agent compiled —
-   there's no "choose a machine, then compose a request" step in this
-   UI anymore, so this is a plain readout, not a control. */
+/* A real selector, but only while no plan is loaded — once a live session
+   or an opened file resolves a plan, its own machine.id always wins (a
+   compiled plan's paths are already resolved for one specific machine;
+   this UI can't retarget them to another without redesigning geometry,
+   which isn't its job — see docs/architecture/operations-vs-postprocessors.md).
+   Before that, it's a real way to browse SAAM's known machines. */
 .machine-readout {
   margin-left: auto;
   display: flex;
@@ -101,9 +104,23 @@ button {
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.machine-readout b {
+.machine-readout select {
   font-size: 0.8rem;
   font-weight: 750;
+  font-family: inherit;
+  color: inherit;
+  border: none;
+  background: transparent;
+  text-align: right;
+  text-align-last: right;
+  padding: 0;
+  cursor: pointer;
+}
+.machine-readout select:disabled {
+  cursor: default;
+  opacity: 1; /* still the resolved machine, not a disabled-looking control */
+  -webkit-appearance: none;
+  appearance: none;
 }
 .file-actions {
   display: flex;

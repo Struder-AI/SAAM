@@ -9,6 +9,7 @@ import {
 // vite.config.ts for why the dev server needs `server.fs.allow` to reach
 // outside this package's own directory for it.
 import { translate as translateForDobot } from "../../../machines/reference-dobot-mg400-struderbot/postprocessor/generator.mjs";
+import { translate as translateForUltimakerS5 } from "../../../machines/ultimaker-s5/postprocessor/generator.mjs";
 
 type Point = { x: number; y: number; z: number };
 type PathEntry = { family: string; layer: number; points: Point[]; intent: "print" | "travel" };
@@ -28,6 +29,8 @@ type PartSpec = {
   baseOuterDiameter?: number;
   innerDiameter?: number;
   height: number;
+  boreDiameter?: number;
+  boreDepth?: number;
 };
 type ApprovalRecord = {
   revision: number;
@@ -67,7 +70,6 @@ const LARGE_GAP_MM = 5;
 const PALETTE = ["#e66d3f", "#f3c46e", "#1c6964", "#a94321", "#69a9d1", "#c68af2"];
 const DEFAULT_VIEWPORT: Viewport = { zoom: 1, panX: 0, panY: 0 };
 const LOCAL_STORAGE_KEY = "saam-reference-workbench-file";
-const KNOWN_MACHINE_ID = "reference-dobot-mg400-struderbot";
 
 // Selecting a machine constrains which capabilities are available before
 // anything is composed — see machines/*/manifest.json `capabilities` and
@@ -78,9 +80,18 @@ const MACHINES: { id: string; name: string; available: boolean }[] = [
   { id: "reference-dobot-mg400-struderbot", name: "Dobot MG400 · StruderBot", available: true },
   { id: "tormach-pcnc-pathpilot", name: "Tormach PCNC · PathPilot (planned)", available: false },
   { id: "avid-cnc-mach3", name: "Avid CNC · Mach3 (planned)", available: false },
-  { id: "ultimaker-s5", name: "Ultimaker S5 (planned)", available: false },
+  { id: "ultimaker-s5", name: "Ultimaker S5", available: true },
   { id: "bambulab-h2d", name: "BambuLab H2D (planned)", available: false },
 ];
+
+// Keyed by machine.id so exportPlan() calls the right post-processor —
+// the same dynamic-by-id intent as adapters/mcp's loadPostProcessorForMachine,
+// just resolved against a static map here since this is a bundled browser
+// app, not a filesystem-discovery context.
+const POST_PROCESSORS: Record<string, (args: { plan: ProcessPlan }) => ExportResult> = {
+  "reference-dobot-mg400-struderbot": translateForDobot,
+  "ultimaker-s5": translateForUltimakerS5,
+};
 
 function operationColor(index: number): string {
   return PALETTE[index % PALETTE.length];
@@ -226,6 +237,12 @@ function drawTargetPart(
   };
 
   const isRound = part.shape === "cylinder" || part.shape === "ring" || part.outerDiameter != null;
+  const SEGMENTS = 40;
+  const ring = (r: number, z: number): Point[] =>
+    Array.from({ length: SEGMENTS + 1 }, (_, i) => {
+      const a = (i / SEGMENTS) * Math.PI * 2;
+      return { x: Math.cos(a) * r, y: Math.sin(a) * r, z };
+    });
 
   if (isRound) {
     // baseOuterDiameter only appears when a part genuinely tapers (see
@@ -234,12 +251,6 @@ function drawTargetPart(
     const topR = (part.outerDiameter ?? Math.max(part.width ?? 40, part.depth ?? 40)) / 2;
     const baseR = part.baseOuterDiameter != null ? part.baseOuterDiameter / 2 : topR;
     const innerR = part.innerDiameter ? part.innerDiameter / 2 : 0;
-    const SEGMENTS = 40;
-    const ring = (r: number, z: number): Point[] =>
-      Array.from({ length: SEGMENTS + 1 }, (_, i) => {
-        const a = (i / SEGMENTS) * Math.PI * 2;
-        return { x: Math.cos(a) * r, y: Math.sin(a) * r, z };
-      });
     const bottomOuter = ring(baseR, 0);
     const topOuter = ring(topR, height);
     for (let i = 0; i < SEGMENTS; i += 1) {
@@ -280,7 +291,48 @@ function drawTargetPart(
   for (let i = 0; i < 4; i += 1) {
     fillQuad(bottom[i], bottom[i + 1], top[i + 1], top[i], i % 2 === 0 ? SKIN : SKIN_SHADE);
   }
-  fillCap(top, SKIN);
+
+  const boreR = part.boreDiameter ? part.boreDiameter / 2 : 0;
+  const boreDepth = boreR > 0 ? Math.min(Math.max(part.boreDepth ?? 0, 0), height) : 0;
+
+  if (boreR > 0 && boreDepth > 0) {
+    // Painter's order matters here: draw what's furthest into the hole
+    // first (floor, then walls), then the top face last — its hole is
+    // punched at exactly the same projected circle as the walls' rim, so
+    // it reveals what's underneath without leaving a gap or overdrawing it.
+    const boreTop = ring(boreR, height);
+    const boreBottom = ring(boreR, height - boreDepth);
+    const isThrough = boreDepth >= height - 1e-6;
+
+    if (!isThrough) fillCap(boreBottom, SKIN_SHADE);
+    for (let i = 0; i < SEGMENTS; i += 1) {
+      fillQuad(boreTop[i], boreTop[i + 1], boreBottom[i + 1], boreBottom[i], i % 2 === 0 ? SKIN_SHADE : SKIN);
+    }
+
+    // The top face is a square with a circular hole — two closed
+    // sub-paths filled with the evenodd rule, rather than a single
+    // outline, since that's what actually punches a hole instead of
+    // stacking a second opaque shape over the walls/floor drawn above.
+    ctx.fillStyle = SKIN;
+    ctx.beginPath();
+    top.forEach((p, i) => {
+      const pt = project(p);
+      i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y);
+    });
+    ctx.closePath();
+    boreTop.forEach((p, i) => {
+      const pt = project(p);
+      i ? ctx.lineTo(pt.x, pt.y) : ctx.moveTo(pt.x, pt.y);
+    });
+    ctx.closePath();
+    ctx.fill("evenodd");
+
+    drawLine(ctx, boreTop, w, h, OUTLINE, yaw, pitch, centerY, span, 1.1, 0.6);
+    if (!isThrough) drawLine(ctx, boreBottom, w, h, OUTLINE, yaw, pitch, centerY, span, 1, 0.5);
+  } else {
+    fillCap(top, SKIN);
+  }
+
   drawLine(ctx, top, w, h, OUTLINE, yaw, pitch, centerY, span, 1.2, 0.8);
   drawLine(ctx, bottom, w, h, OUTLINE, yaw, pitch, centerY, span, 1.1, 0.5);
 }
@@ -348,11 +400,14 @@ function ToolCanvas({
         // however many operations have been composed so far.
         drawTargetPart(ctx, plan.part, rect.width, rect.height, rotation.yaw, rotation.pitch, centerY, span);
       } else if (mode === "current") {
+        // Just the one layer the build-progress slider is currently on —
+        // not an accumulation. That's what "collective toolpath" (below)
+        // is for; this view is for inspecting a single layer in isolation.
         const op = plan.operations[activeIndex];
         if (op) {
-          const visibleLayers = Math.max(1, Math.ceil(operationLayerCount(op) * fraction));
+          const activeLayerIndex = Math.max(1, Math.ceil(operationLayerCount(op) * fraction)) - 1;
           op.paths
-            .filter((p) => p.layer < visibleLayers)
+            .filter((p) => p.layer === activeLayerIndex)
             .forEach((p) =>
               drawLine(ctx, p.points, rect.width, rect.height, operationColor(activeIndex), rotation.yaw, rotation.pitch, centerY, span, filled ? 3.5 : 1.05, 0.95)
             );
@@ -698,7 +753,11 @@ export default function App() {
           setPlan(current);
         }
       }
-      const result = translateForDobot({ plan: current }) as ExportResult;
+      const translateForMachine = POST_PROCESSORS[current.machine.id];
+      if (!translateForMachine) {
+        throw new Error(`No post-processor registered in this workbench for machine "${current.machine.id}" yet.`);
+      }
+      const result = translateForMachine({ plan: current });
       setExportResult(result);
       setShowAllWarnings(false);
       setActivePage("output");
@@ -775,8 +834,8 @@ export default function App() {
       />
       <header className="topbar">
         <div className="brand">
-          <b>SAAM</b>
-          <span>Reference Workbench</span>
+          <img src="/struder-logo.png" alt="Struder" className="brand-logo" />
+          <span>SAAM Workbench</span>
         </div>
         <div className="file-actions">
           <button type="button" onClick={() => fileInputRef.current?.click()}>
@@ -799,7 +858,22 @@ export default function App() {
         </div>
         <div className="machine-readout">
           <span>Machine</span>
-          <b>{currentMachine?.name ?? selectedMachineId}</b>
+          <select
+            value={currentMachine?.id ?? selectedMachineId}
+            onChange={(e) => setSelectedMachineId(e.target.value)}
+            disabled={!!plan}
+            title={
+              plan
+                ? "Set by the plan's own machine.id — this workbench doesn't retarget an already-compiled plan to a different machine. Clear the plan to browse machines."
+                : "Browse SAAM's known machines. Has no effect once a plan is loaded or a live session starts — that plan's own machine.id always wins."
+            }
+          >
+            {MACHINES.map((m) => (
+              <option key={m.id} value={m.id} disabled={!m.available}>
+                {m.name}
+              </option>
+            ))}
+          </select>
         </div>
       </header>
 
@@ -888,7 +962,7 @@ export default function App() {
             </header>
             {!plan ? (
               <p className="export-empty">No program.</p>
-            ) : plan.machine.id !== KNOWN_MACHINE_ID ? (
+            ) : !POST_PROCESSORS[plan.machine.id] ? (
               <p className="export-empty">No post-processor registered in this interface for machine "{plan.machine.id}" yet.</p>
             ) : (
               <>
