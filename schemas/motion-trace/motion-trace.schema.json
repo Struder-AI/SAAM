@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://struder.ai/schemas/motion-trace/motion-trace.schema.json",
+  "title": "Motion trace",
+  "description": "What a machine was actually told to do, read back out of an exported program. A trace is machine-neutral: a Lua reader and a G-code reader produce the same shape, so one previewer serves both. Segments are ordered by execution, never by height — nothing here assumes planar layers, and index order is deposition order.",
+  "type": "object",
+  "required": ["traceSchemaVersion", "source", "units", "segments", "totals"],
+  "additionalProperties": false,
+  "properties": {
+    "traceSchemaVersion": { "type": "integer", "const": 1 },
+    "source": {
+      "type": "object",
+      "description": "Where this trace came from. A trace is evidence about one export of one program, not about a plan in the abstract.",
+      "required": ["machineId", "readerId", "readerVersion"],
+      "properties": {
+        "machineId": { "type": "string" },
+        "readerId": { "type": "string" },
+        "readerVersion": { "type": "string" },
+        "files": { "type": "array", "items": { "type": "string" } },
+        "entry": { "type": "string" },
+        "extrusionOutput": { "type": ["string", "null"] },
+        "extrusionOutputDeterminedBy": { "enum": ["declared", "inferred", "unknown"] }
+      }
+    },
+    "units": {
+      "type": "object",
+      "description": "Stated rather than assumed, so a reader for a machine that works in inches cannot be silently misread.",
+      "required": ["length", "time", "speed"],
+      "properties": {
+        "length": { "const": "mm" },
+        "time": { "const": "s" },
+        "speed": { "const": "mm/s" },
+        "acceleration": { "const": "mm/s^2" }
+      }
+    },
+    "kinematics": {
+      "type": "object",
+      "description": "The machine limits used to turn commanded speeds into durations. `assumed` is true when these were declared by the reader rather than read from a machine manifest; when it is true, every duration in the trace is indicative only.",
+      "properties": {
+        "maxLinearSpeedMmS": { "type": "number", "exclusiveMinimum": 0 },
+        "maxLinearAccelMmS2": { "type": "number", "exclusiveMinimum": 0 },
+        "maxJointSpeedMmS": { "type": "number", "exclusiveMinimum": 0 },
+        "maxJointAccelMmS2": { "type": "number", "exclusiveMinimum": 0 },
+        "sourceNote": { "type": "string" },
+        "assumed": { "type": "boolean" }
+      }
+    },
+    "bounds": {
+      "type": ["object", "null"],
+      "properties": {
+        "min": { "$ref": "#/$defs/point" },
+        "max": { "$ref": "#/$defs/point" }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "properties": {
+        "segments": { "type": "integer", "minimum": 0 },
+        "durationS": { "type": "number", "minimum": 0 },
+        "extrudingLengthMm": { "type": "number", "minimum": 0 },
+        "travelLengthMm": { "type": "number", "minimum": 0 },
+        "extrudingSegments": { "type": "integer", "minimum": 0 },
+        "travelSegments": { "type": "integer", "minimum": 0 },
+        "dwellS": { "type": "number", "minimum": 0 },
+        "extrudingDwellS": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Time spent stationary with material flowing. Non-zero means material is piling up in one spot."
+        },
+        "approximateSegments": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "description": "In execution order. A viewer animates this list; a diff compares two of them.",
+      "items": { "$ref": "#/$defs/segment" }
+    },
+    "events": {
+      "type": "array",
+      "description": "Things that happened between segments: outputs switching, extrusion starting and stopping.",
+      "items": { "$ref": "#/$defs/event" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "count": { "type": "integer" },
+          "candidates": { "type": "array", "items": { "type": "string" } },
+          "source": { "$ref": "#/$defs/sourceRef" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "point": {
+      "type": "object",
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" },
+        "r": { "type": ["number", "null"] }
+      }
+    },
+    "sourceRef": {
+      "type": ["object", "null"],
+      "properties": {
+        "file": { "type": ["string", "null"] },
+        "line": { "type": ["integer", "null"] },
+        "call": { "type": ["string", "null"] }
+      }
+    },
+    "segment": {
+      "type": "object",
+      "required": ["index", "kind", "from", "to", "lengthMm", "durationS", "tStartS", "tEndS", "extruding", "pathFidelity"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "kind": {
+          "enum": ["linear", "joint", "arc", "dwell"],
+          "description": "How the controller interpolates. `joint` means each axis moves independently, so the real tool path is not the straight line between the endpoints."
+        },
+        "from": { "$ref": "#/$defs/point" },
+        "to": { "$ref": "#/$defs/point" },
+        "via": { "oneOf": [{ "$ref": "#/$defs/point" }, { "type": "null" }] },
+        "lengthMm": { "type": "number", "minimum": 0 },
+        "speedPercent": { "type": ["number", "null"], "description": "As written in the program, when the machine commands speed as a percentage of its maximum." },
+        "accelPercent": { "type": ["number", "null"] },
+        "speedMmS": { "type": "number", "minimum": 0, "description": "Commanded speed, resolved against the machine's limits." },
+        "accelMmS2": { "type": "number", "minimum": 0 },
+        "peakSpeedMmS": {
+          "type": "number",
+          "minimum": 0,
+          "description": "The speed actually reached. On a short segment this is below the commanded speed, because the move ends before acceleration finishes."
+        },
+        "durationS": { "type": "number", "minimum": 0 },
+        "tStartS": { "type": "number", "minimum": 0 },
+        "tEndS": { "type": "number", "minimum": 0 },
+        "extruding": { "type": "boolean" },
+        "blend": {
+          "type": ["number", "null"],
+          "description": "Continuous-path blending. Null means the controller comes to a full stop at this segment's endpoint."
+        },
+        "pathFidelity": {
+          "enum": ["exact", "approximate"],
+          "description": "Whether the drawn path is the real one. A previewer must show approximate segments differently; claiming precision it does not have is the failure mode this field exists to prevent."
+        },
+        "note": { "type": ["string", "null"] },
+        "source": { "$ref": "#/$defs/sourceRef" },
+        "emittedBy": {
+          "oneOf": [{ "$ref": "#/$defs/sourceRef" }, { "type": "null" }],
+          "description": "The primitive that produced this segment, when it sits inside a helper. `source` is the call in the plan body; this is where it bottomed out."
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "required": ["tS", "kind", "segmentIndex"],
+      "properties": {
+        "tS": { "type": "number", "minimum": 0 },
+        "kind": { "enum": ["digital-output", "extrusion-on", "extrusion-off"] },
+        "port": { "type": ["string", "null"] },
+        "value": { "type": "number" },
+        "segmentIndex": { "type": "integer", "minimum": 0, "description": "The event takes effect before this segment runs." },
+        "source": { "$ref": "#/$defs/sourceRef" }
+      }
+    }
+  }
+}

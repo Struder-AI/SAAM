@@ -3,11 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Struder Agentic Additive Manufacturing — see PROJECT_CHARTER.md and README.md.",
-  "workspaces": ["adapters/*", "interfaces/*"],
+  "description": "Struder Agentic Additive Manufacturing \u2014 see PROJECT_CHARTER.md and README.md.",
+  "workspaces": [
+    "adapters/*",
+    "interfaces/*"
+  ],
   "scripts": {
     "test": "node --test tests/golden/*.test.mjs tests/integration/*.test.mjs",
-    "generate-registry": "node registry/generate.mjs"
+    "generate-registry": "node registry/generate.mjs",
+    "build-preview": "node interfaces/trace-player/build-standalone.mjs"
   },
   "license": "Apache-2.0"
 }
