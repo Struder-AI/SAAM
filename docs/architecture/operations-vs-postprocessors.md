@@ -5,7 +5,7 @@ motion." Getting this split right is what lets one operation serve many
 machines, and it's the part most worth double-checking whenever a new
 operation or machine is added.
 
-## The three layers
+## The layers
 
 **Operation** — a machine-neutral generator. Given a part plan and
 process settings, it produces toolpath geometry: point sequences grouped
@@ -28,13 +28,28 @@ geometry. If a post-processor finds itself computing new path points
 rather than restating existing ones in a different syntax, that logic
 belongs in an operation instead.
 
+**Trace reader** (`machines/*/trace/`) — the inverse of a post-processor,
+and the only other machine-aware code. It reads that machine's native
+output back into a machine-neutral **motion trace**
+(`schemas/motion-trace/`): the ordered moves the program commands, each
+with its speed, acceleration, extrusion state, duration, and a line
+number into the source. It may **read or reject** — refusing a construct
+it cannot account for — but must not **repair**. The trace is
+machine-neutral, so one previewer (`interfaces/trace-player/`) and one
+set of checks (`schemas/motion-trace/trace-lib.mjs`) serve every
+machine.
+
 ## Two illustrative post-processors
 
 **DobotStudio Lua** (`machines/reference-dobot-mg400-struderbot/`) —
 emits the tab-based Lua program a Dobot MG400 controller runs: `global.lua`
 for shared helpers, `src0.lua` for I/O selection, `src1.lua`+ for the
-program itself. Prefers native `Arc3` motion for curves; treats `Circle3`
-as experimental; keeps one continuous extrusion window per program.
+program itself. Keeps one continuous extrusion window per program.
+
+**Known limitation:** it emits only `MovL`, with no `Arc3`, `Circle3`, or
+`CP` parameter. Native arc motion for curves is intended but not
+implemented; it needs arc-native data in `paths`, which is a schema
+change. The trace reader already handles `Arc3`.
 
 **Generic G-code** (template, not yet a full reference implementation) —
 would emit standard `G0`/`G1`/`G2`/`G3` motion with `M82`/`M83`
