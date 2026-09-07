@@ -114,29 +114,15 @@ test("dobot-lua-trace: an ambiguous extrusion port is reported rather than guess
 // forgotten. Each will fail the moment the generator is fixed; when that
 // happens, invert the assertion — do not delete the test.
 
-test("DEFECT dobot-lua-postprocessor: printing moves are emitted through the travel helper", () => {
-  // generator.mjs picks between J() and L() with
-  //     previous && distance(previous, point) > EPSILON_MM
-  // where EPSILON_MM (0.01) is a same-point epsilon being used as a
-  // disjoint-gap threshold. Every real move exceeds it, so every printing
-  // move after the first is emitted as J() — travel speed — while the relay
-  // is still on. Only the first point takes L(), because `previous` is null
-  // there and && short-circuits.
+test("dobot-lua-postprocessor: print strokes use L and planned travel uses J", () => {
   const trace = read();
-  const findings = checkExtrusionSpeedConsistency(trace);
-
-  assert.equal(findings.length, 1, "the whole print sits in one extrusion window");
-  const [finding] = findings;
-  assert.equal(finding.code, "inconsistent-extrusion-speed");
-  assert.equal(finding.ratio, 100, "1% print speed against 100% jump speed");
-
-  const printing = trace.segments.filter((s) => s.extruding && s.lengthMm > 1e-6);
-  const viaL = printing.filter((s) => s.source.call === "L");
-  const viaJ = printing.filter((s) => s.source.call === "J");
-  assert.equal(viaL.length, 1, "exactly one printing move uses the print helper");
-  assert.equal(viaJ.length, 8, "every other printing move uses the travel helper");
-
-  // Geometry alone cannot see this: the points and their order are correct.
+  const print = trace.segments.filter(s => s.intent === "print");
+  const travel = trace.segments.filter(s => s.intent === "travel" && s.kind === "linear");
+  assert.ok(print.length > 0 && travel.length > 0);
+  assert.ok(print.every(s => s.source.call === "L" && s.speedPercent === 1 && s.extruding));
+  assert.ok(travel.every(s => s.source.call === "J" && s.speedPercent === 100));
+  // The reference machine deliberately still extrudes during internal travel.
+  assert.ok(travel.some(s => s.extruding));
   assert.deepEqual(comparePlanToTrace(fixture.input.plan, trace), []);
 });
 
@@ -169,7 +155,7 @@ test("DEFECT dobot-lua-postprocessor: no move is blended, so the tool stops at e
 
   const warning = trace.warnings.find((w) => w.code === "unblended-extruding-moves");
   assert.ok(warning, "the reader reports this rather than leaving it to be inferred");
-  assert.equal(warning.count, 9);
+  assert.equal(warning.count, trace.segments.filter(s => s.extruding && s.kind !== "dwell" && s.lengthMm > 1e-6).length);
 
   // And it is visible in the motion, not only in the metadata: speed reaches
   // zero at each waypoint while material is still flowing.

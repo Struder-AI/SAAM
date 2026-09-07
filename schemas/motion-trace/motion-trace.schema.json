@@ -119,6 +119,7 @@
       "required": ["index", "kind", "from", "to", "lengthMm", "durationS", "tStartS", "tEndS", "extruding", "pathFidelity"],
       "properties": {
         "index": { "type": "integer", "minimum": 0 },
+        "intent": { "enum": ["print", "travel"], "description": "Optional intent explicitly annotated in source. Independent of actual extruding state and speed; absent for unannotated legacy Lua." },
         "kind": {
           "enum": ["linear", "joint", "arc", "dwell"],
           "description": "How the controller interpolates. `joint` means each axis moves independently, so the real tool path is not the straight line between the endpoints."

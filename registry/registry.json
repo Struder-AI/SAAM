@@ -2,6 +2,22 @@
   "registrySchemaVersion": 1,
   "operations": [
     {
+      "id": "gusset-fin",
+      "name": "Gusset fin",
+      "version": "0.1.0",
+      "category": [
+        "additive",
+        "3d"
+      ],
+      "capabilityRequirements": [
+        "coordinated-xyz-motion",
+        "extrusion-on-off"
+      ],
+      "maturity": "experimental",
+      "evidenceLabel": "EXPERIMENTAL",
+      "path": "operations/additive/3d/gusset-fin"
+    },
+    {
       "id": "layer-filling",
       "name": "Planar layer filling",
       "version": "0.1.0",
@@ -52,6 +68,26 @@
   ],
   "machines": [
     {
+      "id": "dobot-stop",
+      "name": "dobot_stop",
+      "capabilities": [
+        {
+          "id": "planar-motion",
+          "evidenceLabel": "EXPERIMENTAL"
+        },
+        {
+          "id": "extrusion-on-off",
+          "evidenceLabel": "EXPERIMENTAL"
+        },
+        {
+          "id": "coordinated-xyz-motion",
+          "evidenceLabel": "EXPERIMENTAL"
+        }
+      ],
+      "postProcessor": "dobot-stop-lua-postprocessor",
+      "path": "machines/dobot-stop"
+    },
+    {
       "id": "reference-dobot-mg400-struderbot",
       "name": "Dobot MG400 · StruderBot reference installation",
       "capabilities": [
@@ -100,6 +136,14 @@
       "maturity": "experimental",
       "evidenceLabel": "EXPERIMENTAL",
       "path": "machines/reference-dobot-mg400-struderbot/postprocessor"
+    },
+    {
+      "id": "dobot-stop-lua-postprocessor",
+      "name": "Dobot stop/start Lua post-processor",
+      "machineId": "dobot-stop",
+      "maturity": "experimental",
+      "evidenceLabel": "EXPERIMENTAL",
+      "path": "machines/dobot-stop/postprocessor"
     },
     {
       "id": "ultimaker-s5-gcode-postprocessor",

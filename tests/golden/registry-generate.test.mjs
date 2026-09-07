@@ -16,19 +16,19 @@ test("registry.json matches what generate.mjs produces from the current manifest
   assert.equal(fresh, committed);
 });
 
-test("buildRegistry finds all three reference operations, both reference machines, and both post-processors with no manifest errors", async () => {
+test("buildRegistry finds every reference operation, both reference machines, and both post-processors with no manifest errors", async () => {
   const registry = await buildRegistry();
   assert.deepEqual(
     registry.operations.map((o) => o.id),
-    ["layer-filling", "non-planar-cladding", "vase-wall"]
+    ["gusset-fin", "layer-filling", "non-planar-cladding", "vase-wall"]
   );
   assert.deepEqual(
     registry.machines.map((m) => m.id).sort(),
-    ["reference-dobot-mg400-struderbot", "ultimaker-s5"]
+    ["dobot-stop", "reference-dobot-mg400-struderbot", "ultimaker-s5"]
   );
   assert.deepEqual(
     registry.postProcessors.map((p) => p.id).sort(),
-    ["dobot-lua-postprocessor", "ultimaker-s5-gcode-postprocessor"]
+    ["dobot-lua-postprocessor", "dobot-stop-lua-postprocessor", "ultimaker-s5-gcode-postprocessor"]
   );
   const allEntries = [...registry.operations, ...registry.machines, ...registry.postProcessors];
   assert.ok(allEntries.every((e) => !e.error));

@@ -29,11 +29,13 @@ present in the input plan.
   travels it — linearly, extrusion left on, matching the source
   project's convention — but adds a `disjoint-transition` warning
   instead of pretending the transition was deliberately designed. The
-  two reference operations in this repository don't yet design
-  continuously-connected traversal themselves (see their own
-  `knownLimitations` /maturity), so real output today will carry these
-  warnings. That's an honest signal to review before treating output as
-  more than a preview render, not a bug in the post-processor.
+  operations can supply explicit travel using `settings.travelHopHeight`.
+  Those paths, including hop coordinates, are followed without gap
+  warnings. This machine still extrudes through internal travel; use the
+  separate experimental `dobot-stop` machine for stop/start extrusion.
+- **Intent controls the helper.** Print strokes use `L`, travel uses `J`.
+  Distance is never used to classify a stroke as travel. Exported source
+  annotations carry intent to the viewer independently of relay state.
 
 ## Instance calibration
 

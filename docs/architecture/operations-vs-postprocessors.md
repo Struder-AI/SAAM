@@ -44,7 +44,12 @@ machine.
 **DobotStudio Lua** (`machines/reference-dobot-mg400-struderbot/`) —
 emits the tab-based Lua program a Dobot MG400 controller runs: `global.lua`
 for shared helpers, `src0.lua` for I/O selection, `src1.lua`+ for the
-program itself. Keeps one continuous extrusion window per program.
+program itself. Keeps one continuous extrusion window per program. Print strokes use L and
+travel uses J based on intent, including explicit hop coordinates.
+
+**Dobot stop/start** (`machines/dobot-stop/`) uses the same translation
+with a separate machine id, switching extrusion off for travel. Stop/start
+response is experimental; it does not change the original machine policy.
 
 **Known limitation:** it emits only `MovL`, with no `Arc3`, `Circle3`, or
 `CP` parameter. Native arc motion for curves is intended but not

@@ -1,3 +1,4 @@
+import { withTravel } from "../../../travel.mjs";
 // Deterministic planar layer-filling generator: rectilinear and concentric
 // coverage. No dependencies; a pure function of (parameters, settings).
 //
@@ -5,6 +6,7 @@
 // this module is registered against (operations/additive/planar/layer-filling/manifest.json).
 
 const TAU = Math.PI * 2;
+import { orderLayer } from "./ordering.mjs";
 
 function finite(value, fallback, min = -Infinity, max = Infinity) {
   const n = Number(value);
@@ -25,6 +27,50 @@ function ring(radius, z, samples = 96) {
     const a = (TAU * i) / samples;
     return point(radius * Math.cos(a), radius * Math.sin(a), z);
   });
+}
+// An off-center ring, for a hole's own perimeter. ring() above is the
+// concentric case and keeps its fixed 96 samples so existing output is
+// byte-identical; a bolt hole is typically an order of magnitude smaller
+// than the part, where 96 segments is far finer than the bead can
+// resolve, so this one picks a sample count from the arc length instead
+// and floors it at 24 to stay round at small diameters.
+function ringAt(cx, cy, radius, z) {
+  const samples = Math.min(96, Math.max(24, Math.ceil((TAU * radius) / 0.6)));
+  return Array.from({ length: samples + 1 }, (_, i) => {
+    const a = (TAU * i) / samples;
+    return point(cx + radius * Math.cos(a), cy + radius * Math.sin(a), z);
+  });
+}
+
+// Subtracts blocked spans from one base span, returning whatever survives,
+// left to right. This is what lets a raster line cross a region containing
+// any number of holes: each hole contributes the chord it blocks on that
+// line, and the line becomes however many segments are left over.
+function subtractIntervals([lo, hi], blocked) {
+  let segments = [[lo, hi]];
+  for (const [bLo, bHi] of blocked) {
+    const next = [];
+    for (const [sLo, sHi] of segments) {
+      if (bHi <= sLo || bLo >= sHi) {
+        next.push([sLo, sHi]);
+        continue;
+      }
+      if (bLo > sLo) next.push([sLo, bLo]);
+      if (bHi < sHi) next.push([bHi, sHi]);
+    }
+    segments = next;
+  }
+  return segments;
+}
+
+// The chord a circular hole blocks on a scan line, or null if the line
+// misses it. `across` is the scan line's fixed coordinate; a hole's own
+// center is split into the same fixed/varying axes by the caller.
+function blockedChord(coordinate, holeAcross, holeAlong, holeR) {
+  const d = coordinate - holeAcross;
+  if (Math.abs(d) >= holeR) return null;
+  const half = Math.sqrt(holeR * holeR - d * d);
+  return [holeAlong - half, holeAlong + half];
 }
 function rectangle(width, depth, z, offset = 0) {
   const x = Math.max(0, width / 2 - offset);
@@ -58,27 +104,9 @@ function raster(width, depth, z, spacing, layer) {
   return lines;
 }
 
-// Linear infill clipped to a circular (or annular) boundary instead of a
-// rectangular one — the circular-geometry counterpart to raster() above,
-// alternating direction by layer for the same reason: identical fill
-// stacked layer after layer has no strength perpendicular to its own
-// lines, no matter how the outer perimeter is shaped. A concentric ring
-// pattern doesn't get a pass on that just because it's circular — every
-// layer using the exact same rings is exactly the "stack, don't cross"
-// failure mode raster() already exists to avoid. Each raster line's
-// endpoints are the chord where that line crosses the outer circle;
-// where it also crosses the inner circle (an annulus), the line splits
-// into two segments around the hole instead of running through it.
-// Perimeter-to-raster travel is a known, real gap this doesn't solve —
-// see the "Known limitation" note in README.md. A center-outward sweep
-// was tried here and measured worse (it turns one large gap into many:
-// alternating +offset/-offset every line means consecutive *visited*
-// lines are no longer adjacent, breaking the small-gap continuity
-// between sweep lines to chase a single better transition into the
-// sweep). A monotonic sweep — worse at the perimeter handoff, much
-// better internally — measured fewer total large gaps; keep it until a
-// real travel-order optimization replaces both.
-function circularRaster(outerRadius, innerRadius, z, spacing, layer) {
+// Clip scan rows to the usable circular boundary and subtract expanded
+// bore/hole intervals. Ordering into complete regions happens in ordering.mjs.
+function circularRaster(outerRadius, innerRadius, holes, z, spacing, layer) {
   const horizontal = layer % 2 === 0;
   const lines = [];
   let line = 0;
@@ -97,12 +125,28 @@ function circularRaster(outerRadius, innerRadius, z, spacing, layer) {
       const [a, b] = flip ? [from, to] : [to, from];
       return horizontal ? [point(a, coordinate, z), point(b, coordinate, z)] : [point(coordinate, a, z), point(coordinate, b, z)];
     };
-    if (innerRadius <= 0 || Math.abs(coordinate) >= innerRadius) {
-      lines.push(seg(-outerHalf, outerHalf));
-    } else {
+
+    const blocked = [];
+    if (innerRadius > 0 && Math.abs(coordinate) < innerRadius) {
       const innerHalf = Math.sqrt(Math.max(0, innerRadius * innerRadius - coordinate * coordinate));
-      lines.push(seg(-outerHalf, -innerHalf));
-      lines.push(seg(innerHalf, outerHalf));
+      blocked.push([-innerHalf, innerHalf]);
+    }
+    for (const hole of holes) {
+      const chord = blockedChord(
+        coordinate,
+        horizontal ? hole.y : hole.x,
+        horizontal ? hole.x : hole.y,
+        hole.r
+      );
+      if (chord) blocked.push(chord);
+    }
+
+    // Only genuinely degenerate segments are dropped. A sub-bead sliver
+    // beside a hole is kept, exactly as this function has always kept the
+    // equivalent sliver beside the inner perimeter — filtering one but not
+    // the other would change existing annulus output for no real gain.
+    for (const [from, to] of subtractIntervals([-outerHalf, outerHalf], blocked)) {
+      if (to - from > 1e-9) lines.push(seg(from, to));
     }
   }
   return lines;
@@ -117,6 +161,7 @@ function boxRaster(width, depth, holeR, z, spacing, layer) {
   const horizontal = layer % 2 === 0;
   const primary = horizontal ? depth : width;
   const secondary = horizontal ? width : depth;
+  if (primary < spacing || secondary < spacing) return [];
   const lines = [];
   let line = 0;
   for (
@@ -138,10 +183,54 @@ function boxRaster(width, depth, holeR, z, spacing, layer) {
       continue;
     }
     const half = Math.sqrt(Math.max(0, holeR * holeR - coordinate * coordinate));
-    if (half - a > spacing / 4) lines.push(seg(a, -half));
-    if (b - half > spacing / 4) lines.push(seg(half, b));
+    for (const [from, to] of subtractIntervals([a, b], [[-half, half]])) {
+      if (to - from > 1e-9) lines.push(seg(from, to));
+    }
   }
   return lines;
+}
+
+// Normalizes the `holes` input and rejects any that don't fit the material
+// they'd be cut into: a hole has to clear the outer edge, and on an annulus
+// the bore too, by at least a bead each side — otherwise there's no wall
+// left to print around it and the "hole" is just a bite out of the rim. A
+// rejected hole is dropped and reported, never silently clamped into a
+// position nobody asked for.
+function parseHoles(raw, outerDiameter, innerDiameter, beadWidth, warnings) {
+  if (!Array.isArray(raw)) return [];
+  const outerR = outerDiameter / 2;
+  const innerR = innerDiameter / 2;
+  const holes = [];
+  raw.forEach((entry, index) => {
+    const x = Number(entry?.x);
+    const y = Number(entry?.y);
+    const diameter = Number(entry?.diameter);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(diameter) || diameter <= 0) {
+      warnings.push({
+        code: "hole-ignored",
+        message: `holes[${index}] needs a finite x, y and a positive diameter; it was ignored.`,
+      });
+      return;
+    }
+    const r = diameter / 2;
+    const distance = Math.hypot(x, y);
+    if (distance + r > outerR - beadWidth) {
+      warnings.push({
+        code: "hole-outside-part",
+        message: `holes[${index}] (dia ${diameter} at ${x}, ${y}) reaches past the outer edge; it was ignored.`,
+      });
+      return;
+    }
+    if (innerR > 0 && distance - r < innerR + beadWidth) {
+      warnings.push({
+        code: "hole-breaks-bore",
+        message: `holes[${index}] (dia ${diameter} at ${x}, ${y}) overlaps the bore wall; it was ignored.`,
+      });
+      return;
+    }
+    holes.push({ x: round4(x), y: round4(y), r });
+  });
+  return holes;
 }
 
 function pathEntry(family, layer, points, intent = "print") {
@@ -151,13 +240,37 @@ function round4(value) {
   return Number(value.toFixed(4));
 }
 
+function connectorClearsHoles(a, b, holes) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const length2 = dx * dx + dy * dy;
+  return holes.every(h => {
+    const t = length2 ? Math.max(0, Math.min(1, ((h.x-a.x)*dx + (h.y-a.y)*dy)/length2)) : 0;
+    return Math.hypot(a.x+t*dx-h.x, a.y+t*dy-h.y) >= h.r - 1e-4;
+  });
+}
+
+// Region membership, never a distance threshold, determines continuity.
+// If a sparse scan skipped enough of a void to invalidate a straight
+// connector, that is a geometric region break and remains a travel.
+function appendRaster(paths, ordered, layer, holes) {
+  let previous = null;
+  for (const item of ordered) {
+    const from = previous?.points.at(-1), to = item.points[0];
+    if (previous?.region === item.region && connectorClearsHoles(from, to, holes)) {
+      paths.push(pathEntry("Raster connection", layer, [from, to]));
+    }
+    paths.push(pathEntry("Region-first raster", layer, item.points));
+    previous = item;
+  }
+}
+
 /**
  * @param {object} args
  * @param {object} args.parameters - operation-specific inputs (see manifest.json `inputs`)
  * @param {object} args.settings - process settings: layerHeight, beadWidth, spacing
  * @returns {{ part: object, paths: Array }}
  */
-export function generate({ parameters = {}, settings = {} }) {
+function generateGeometry({ parameters = {}, settings = {} }) {
   const layerHeight = finite(settings.layerHeight, 0.7, 0.05, 5);
   const spacing = finite(settings.spacing, 0.78, 0.1, 5);
   const beadWidth = finite(settings.beadWidth, 0.83, 0.1, 5);
@@ -171,6 +284,9 @@ export function generate({ parameters = {}, settings = {} }) {
     Number.isFinite(Number(parameters.outerDiameter ?? parameters.diameter));
 
   const paths = [];
+  // Advisory output from this compile, not plan content — same contract
+  // vase-wall's steep-taper check uses; the adapter surfaces these.
+  const warnings = [];
 
   if (circular) {
     const outerDiameter = finite(parameters.outerDiameter ?? parameters.diameter, 40, 2, 2000);
@@ -180,15 +296,47 @@ export function generate({ parameters = {}, settings = {} }) {
       0,
       Math.max(0, outerDiameter - 2 * beadWidth)
     );
+    // Through-holes at arbitrary positions in the face — bolt holes in a
+    // flange, say. Distinct from innerDiameter (one concentric annulus)
+    // and from the rectangular branch's boreDiameter (one centered bore):
+    // these are a set, each with its own center, and they run the full
+    // height of this invocation. Each is walled and then excluded from
+    // fill, the same order the bore case uses.
+    const holes = parseHoles(parameters.holes, outerDiameter, innerDiameter, beadWidth, warnings);
+
     for (let layer = 0; layer < layers; layer += 1) {
+      const pathStart = paths.length;
       const z = zStart + (layer + 1) * layerHeight;
-      paths.push(pathEntry("Outer perimeter", layer, ring(outerDiameter / 2 - beadWidth / 2, z)));
-      if (innerDiameter > 0) {
-        paths.push(pathEntry("Inner perimeter", layer, ring(innerDiameter / 2 + beadWidth / 2, z)));
+      for (let wall = 0; wall < wallCount; wall += 1) {
+        const radius = outerDiameter / 2 - beadWidth / 2 - wall * spacing;
+        if (radius <= 0) throw new Error("Requested boundary loops do not fit inside the outer diameter.");
+        paths.push(pathEntry("Outer perimeter", layer, ring(radius, z)));
       }
-      circularRaster(outerDiameter / 2, innerDiameter / 2, z, spacing, layer).forEach((points) =>
-        paths.push(pathEntry("Region-first raster", layer, points))
-      );
+      if (innerDiameter > 0) {
+        for (let wall = 0; wall < wallCount; wall += 1) {
+          paths.push(pathEntry("Inner perimeter", layer, ring(innerDiameter / 2 + beadWidth / 2 + wall * spacing, z)));
+        }
+      }
+      for (const hole of holes) {
+        for (let wall = 0; wall < wallCount; wall += 1) {
+          paths.push(
+            pathEntry("Hole perimeter", layer, ringAt(hole.x, hole.y, hole.r + beadWidth / 2 + wall * spacing, z))
+          );
+        }
+      }
+      // Fill clears each hole's own walls, not just the nominal hole —
+      // same allowance the bore case applies via fillHoleR below.
+      // Place the fill centerline one spacing beyond the innermost wall
+      // centerline, for every boundary (including off-center holes).
+      const allowance = beadWidth / 2 + wallCount * spacing;
+      const fillHoles = holes.map((h) => ({ ...h, r: h.r + allowance }));
+      const fillOuter = outerDiameter / 2 - allowance;
+      const fillInner = innerDiameter > 0 ? innerDiameter / 2 + allowance : 0;
+      const lines = fillOuter > fillInner ? circularRaster(fillOuter, fillInner, fillHoles, z, spacing, layer) : [];
+      const wallLimit = beadWidth / 2 + (wallCount - 1) * spacing;
+      const protectedHoles = holes.map(h => ({ ...h, r: h.r + wallLimit }));
+      if (innerDiameter > 0) protectedHoles.push({ x: 0, y: 0, r: innerDiameter / 2 + wallLimit });
+      appendRaster(paths, orderLayer(paths, pathStart, lines, layer), layer, protectedHoles);
     }
     return {
       part: {
@@ -196,8 +344,12 @@ export function generate({ parameters = {}, settings = {} }) {
         outerDiameter,
         innerDiameter,
         height: round4(zStart + layers * layerHeight),
+        ...(holes.length > 0
+          ? { holes: holes.map((h) => ({ x: h.x, y: h.y, diameter: round4(h.r * 2) })) }
+          : {}),
       },
       paths,
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   }
 
@@ -239,6 +391,7 @@ export function generate({ parameters = {}, settings = {} }) {
     : -1;
 
   for (let layer = 0; layer < layers; layer += 1) {
+    const pathStart = paths.length;
     const z = zStart + (layer + 1) * layerHeight;
     const isFloorCap = boreFloorLayerIndex >= 0 && layer <= boreFloorLayerIndex && layer > boreFloorLayerIndex - solidTopLayers;
     const isSolid = layer < solidBottomLayers || layer >= layers - solidTopLayers || isFloorCap;
@@ -255,10 +408,9 @@ export function generate({ parameters = {}, settings = {} }) {
         paths.push(pathEntry("Inner perimeter", layer, ring(boreR + beadWidth / 2 + wall * spacing, z)));
       }
     }
-    const fillHoleR = hasBore ? boreR + wallCount * spacing : 0;
-    boxRaster(width - 2 * wallCount * spacing, depth - 2 * wallCount * spacing, fillHoleR, z, layerSpacing, layer).forEach(
-      (points) => paths.push(pathEntry("Region-first raster", layer, points))
-    );
+    const fillHoleR = hasBore ? boreR + beadWidth / 2 + wallCount * spacing : 0;
+    appendRaster(paths, orderLayer(paths, pathStart, boxRaster(width - 2 * wallCount * spacing, depth - 2 * wallCount * spacing, fillHoleR, z, layerSpacing, layer), layer), layer,
+      hasBore ? [{ x: 0, y: 0, r: boreR + beadWidth / 2 + (wallCount - 1) * spacing }] : []);
   }
   return {
     part: {
@@ -270,4 +422,10 @@ export function generate({ parameters = {}, settings = {} }) {
     },
     paths,
   };
+}
+
+// Explicit travel and hops are opt-in through the shared process setting.
+export function generate(args = {}) {
+  const result = generateGeometry(args);
+  return { ...result, paths: withTravel(result.paths, args.settings?.travelHopHeight) };
 }

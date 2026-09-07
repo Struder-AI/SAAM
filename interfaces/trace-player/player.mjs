@@ -6,14 +6,22 @@
 // on the part are all cheap to see here and expensive to discover on the
 // machine.
 //
-// Two rules shape the whole renderer.
+// Three rules shape the whole renderer.
 //
 // Time is the only ordering. There is no layer slider and no grouping by
 // height, because a SAAM toolpath is not necessarily built from planar
 // layers — it may spiral, clad a slope, or double back. What it always has
-// is a coherent order of deposition, so that is what the scrub bar runs on
-// and what the drawing order follows: material appears when it was
-// extruded.
+// is a coherent order of deposition, so that is what the scrub bar runs
+// on: material appears when it was extruded.
+//
+// Depth decides what is in front of what. Deposition order used to stand
+// in for that, which only ever works from one viewing angle; every line
+// drawn as material is now sorted back to front on its own projected
+// depth and hazed with distance, so rotating the view genuinely changes
+// what occludes what and a non-planar path reads as the three-dimensional
+// thing it is instead of a flat tangle. The projection stays axonometric
+// — no perspective, because a preview is for judging position and order,
+// and foreshortening makes distances harder to read, not easier.
 //
 // The preview never claims precision it does not have. Segments the reader
 // marked `approximate` — a joint-interpolated move, whose real tool path
@@ -41,14 +49,56 @@ const COLORS = {
   bed: "#cfc9be",
   bedLine: "#bdb6aa",
   ghostPrint: "#c2bbb0",
-  ghostTravel: "#d5cfc6",
-  travel: "#9a9387",
+  ghostTravel: "#c6b4ec",
+  travel: "#793cdb",
   toolFill: "#1c6964",
   toolRing: "#ffffff",
   blob: "#a94321",
+  // What distance fades a line toward: the card the canvas sits on.
+  page: "#fffefb",
   // Slow (as commanded for printing) through to far too fast.
   speedRamp: ["#1c6964", "#3f8f74", "#f3c46e", "#e66d3f", "#a94321"],
 };
+
+// Colours are carried as [r, g, b] rather than as strings because every
+// line is mixed toward the page before it is stroked — see paint().
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function mix(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function css(rgb) {
+  return `rgb(${Math.round(rgb[0])}, ${Math.round(rgb[1])}, ${Math.round(rgb[2])})`;
+}
+
+const PAGE_RGB = hexToRgb(COLORS.page);
+const NO_DASH = [];
+
+// Intent is independent of relay state; legacy Lua falls back to relay state.
+export function isTravelMove(segment) {
+  return segment.intent === "travel" || !segment.extruding;
+}
+
+// Drawn bead width, in millimetres of model space — deliberately narrower
+// than any bead a machine actually lays down. Adjacent passes sit well
+// under a millimetre apart, and drawing them at true width fuses them into
+// one sheet, which is exactly the structure someone opens a preview to
+// read. At this width neighbouring passes keep a visible gap and can be
+// counted. It scales with zoom like a real object rather than staying a
+// fixed number of pixels, and it is not a claim about how much material
+// lands: a trace carries no volumetric rate.
+const BEAD_DRAW_MM = 0.4;
+const MIN_BEAD_PX = 0.7;
+const MAX_BEAD_PX = 7;
+
+// How far the furthest line is mixed toward the page. A line drawing has
+// no shading of its own, and without this cue a helix and a flat spiral
+// project to nearly the same picture.
+const MAX_HAZE = 0.5;
 
 const DEFAULTS = {
   yaw: -0.62,
@@ -141,20 +191,8 @@ export function createTracePlayer(canvas, options = {}) {
     const ramp = COLORS.speedRamp;
     const f = Math.max(0, Math.min(1, fraction)) * (ramp.length - 1);
     const i = Math.floor(f);
-    if (i >= ramp.length - 1) return ramp[ramp.length - 1];
-    return mixHex(ramp[i], ramp[i + 1], f - i);
-  }
-
-  function mixHex(a, b, t) {
-    const pa = hexToRgb(a);
-    const pb = hexToRgb(b);
-    const c = (k) => Math.round(pa[k] + (pb[k] - pa[k]) * t);
-    return `rgb(${c(0)}, ${c(1)}, ${c(2)})`;
-  }
-
-  function hexToRgb(hex) {
-    const n = parseInt(hex.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    if (i >= ramp.length - 1) return hexToRgb(ramp[ramp.length - 1]);
+    return mix(hexToRgb(ramp[i]), hexToRgb(ramp[i + 1]), f - i);
   }
 
   /**
@@ -168,7 +206,7 @@ export function createTracePlayer(canvas, options = {}) {
    * that is what the warm end of the ramp is showing.
    */
   function beadColor(segment) {
-    if (state.colorBy !== "speed" || !state.reference) return COLORS.speedRamp[0];
+    if (state.colorBy !== "speed" || !state.reference) return hexToRgb(COLORS.speedRamp[0]);
     const ratio = segment.speedMmS / state.reference;
     // log scale: a 2x overspeed should be visible, a 100x unmissable.
     return rampColor(Math.log10(Math.max(1, ratio)) / 2);
@@ -176,13 +214,16 @@ export function createTracePlayer(canvas, options = {}) {
 
   function computeReference(trace) {
     const printing = (trace.segments ?? []).filter(
-      (s) => s.extruding && s.lengthMm > 1e-6 && s.kind !== "dwell" && s.speedMmS > 0
+      (s) => !isTravelMove(s) && s.lengthMm > 1e-6 && s.kind !== "dwell" && s.speedMmS > 0
     );
     return printing.length ? Math.min(...printing.map((s) => s.speedMmS)) : null;
   }
 
   // ------------------------------------------------------------- drawing
 
+  // Strokes a polyline straight through, ignoring depth. Only the build
+  // plane and its grid use this: nothing in a trace sits below them, so
+  // they are a backdrop rather than part of the sorted scene.
   function strokePolyline(points, { color, width, dash = null, alpha = 1 }) {
     if (points.length < 2) return;
     const ctx = state.ctx;
@@ -249,50 +290,129 @@ export function createTracePlayer(canvas, options = {}) {
     }
   }
 
-  /** The whole program, faint, so you can see where it is going. */
-  function drawGhost() {
-    if (!state.showGhost) return;
-    for (const segment of state.trace.segments) {
-      if (segment.kind === "dwell") continue;
-      if (!segment.extruding && !state.showTravel) continue;
-      strokePolyline(polylineOf(segment), {
-        color: segment.extruding ? COLORS.ghostPrint : COLORS.ghostTravel,
-        width: segment.extruding ? 2 : 1,
-        alpha: 0.55,
-        dash: segment.pathFidelity === "approximate" ? [4, 4] : null,
+  // --------------------------------------------------- depth-sorted paint
+  //
+  // A toolpath is a tangle of lines in space, and which of them is in
+  // front is most of what a viewer has to answer. So a polyline is not
+  // stroked as one path: it is broken into its individual straight pieces,
+  // each piece keeps the depth `project()` computes for its midpoint, and
+  // the whole set is painted back to front. Rotate the view and what
+  // occludes what changes with it.
+  //
+  // A single depth describes a straight piece exactly, except where two
+  // pieces cross on screen while also overlapping in depth — the mutual-
+  // overlap case no painter's algorithm resolves without splitting, and
+  // one that costs a bead's width of wrongness where it happens. Sorting
+  // is per frame over the trace's own segments; a program long enough for
+  // that to cost anything is one nothing else here would keep up with
+  // either.
+
+  function collect(into, points, style) {
+    if (points.length < 2) return;
+    let previous = project(points[0]);
+    for (let i = 1; i < points.length; i += 1) {
+      const next = project(points[i]);
+      into.push({
+        ax: previous.x,
+        ay: previous.y,
+        bx: next.x,
+        by: next.y,
+        depth: (previous.depth + next.depth) / 2,
+        style,
       });
+      previous = next;
     }
   }
 
+  function paint(pieces) {
+    if (!pieces.length) return;
+    pieces.sort((a, b) => a.depth - b.depth);
+    const furthest = pieces[0].depth;
+    const span = Math.max(1e-6, pieces[pieces.length - 1].depth - furthest);
+
+    const ctx = state.ctx;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const piece of pieces) {
+      const style = piece.style;
+      const nearness = (piece.depth - furthest) / span;
+      ctx.strokeStyle = css(mix(style.rgb, PAGE_RGB, (1 - nearness) * MAX_HAZE * style.haze));
+      ctx.lineWidth = style.width;
+      ctx.globalAlpha = style.alpha;
+      ctx.setLineDash(style.dash ?? NO_DASH);
+      ctx.beginPath();
+      ctx.moveTo(piece.ax, piece.ay);
+      ctx.lineTo(piece.bx, piece.by);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** The drawn bead in pixels: a width in model space, following the zoom. */
+  function beadPx() {
+    return Math.max(MIN_BEAD_PX, Math.min(MAX_BEAD_PX, BEAD_DRAW_MM * view.scale));
+  }
+
+  /** The whole program, faint, so you can see where it is going. */
+  function drawGhost() {
+    if (!state.showGhost) return;
+    const printWidth = Math.max(0.6, beadPx() * 0.6);
+    const pieces = [];
+    for (const segment of state.trace.segments) {
+      if (segment.kind === "dwell") continue;
+      const travel = isTravelMove(segment);
+      if (travel && !state.showTravel) continue;
+      collect(pieces, polylineOf(segment), {
+        rgb: hexToRgb(travel ? COLORS.ghostTravel : COLORS.ghostPrint),
+        width: travel ? 1 : printWidth,
+        alpha: 0.55,
+        // Less haze than real material gets: the ghost colour is already
+        // pale, and fading it as hard again would erase it outright.
+        haze: 0.35,
+        dash: travel || segment.pathFidelity === "approximate" ? [4, 4] : null,
+      });
+    }
+    paint(pieces);
+  }
+
   /**
-   * Everything laid down so far, in the order it was laid down.
+   * Everything laid down so far.
    *
-   * Drawing in deposition order is what makes this additively coherent: a
-   * later pass covers an earlier one, which is what the material does. It
-   * is a painter's approximation with no depth buffer, so a far segment
-   * drawn late can paint over a near one; the depth shading below keeps
-   * that readable without pretending to be a solid renderer.
+   * The ghost above is painted as its own layer underneath this one, not
+   * merged into the same sort. It is a hint about where the tool is going
+   * rather than material, and letting a faint line that happens to be
+   * nearer veil a real deposit would trade a useful view for a pedantic
+   * one. Within each of the two layers, depth alone decides the order.
    */
   function drawDeposited(cursor) {
     const laid = depositedAt(state.trace, cursor, { includeTravel: state.showTravel });
-    for (const { segment, fraction } of laid) {
-      const points = polylineOf(segment, fraction);
-      if (segment.extruding) {
-        strokePolyline(points, {
-          color: beadColor(segment),
-          width: 4,
-          alpha: 0.95,
-          dash: segment.pathFidelity === "approximate" ? [5, 4] : null,
+    const width = beadPx();
+    const travelRgb = hexToRgb(COLORS.travel);
+    const pieces = [];
+    for (const { segment, polyline } of laid) {
+      const travel = isTravelMove(segment);
+      if (travel && !state.showTravel) continue;
+      if (!travel) {
+        collect(pieces, polyline, {
+          rgb: beadColor(segment),
+          width,
+          alpha: 1,
+          haze: 1,
+          // Dashes scale with the bead too, or a thin line's gaps close up.
+          dash: segment.pathFidelity === "approximate" ? [width * 3, width * 2.5] : null,
         });
       } else {
-        strokePolyline(points, {
-          color: COLORS.travel,
-          width: 1.25,
-          alpha: 0.65,
+        collect(pieces, polyline, {
+          rgb: travelRgb,
+          width: 1,
+          alpha: 0.5,
+          haze: 0.5,
           dash: segment.pathFidelity === "approximate" ? [3, 3] : [5, 4],
         });
       }
     }
+    paint(pieces);
   }
 
   /**

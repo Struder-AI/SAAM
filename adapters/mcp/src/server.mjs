@@ -35,10 +35,11 @@ import {
 import { validatePlanShape, hasCurrentApproval } from "../../../schemas/process-plan/plan-lib.mjs";
 import { startHttpBridge } from "./http-bridge.mjs";
 import { openBrowser } from "./open-browser.mjs";
-import { getSession, setSession } from "./session.mjs";
+import { getSession, setSession, STATE_DIR } from "./session.mjs";
+import { withTravel } from "../../../operations/travel.mjs";
 
-const PLANS_DIR = join(REPO_ROOT, ".saam", "plans");
-const BRIDGE_PORT = Number(process.env.SAAM_BRIDGE_PORT) || 4700;
+const PLANS_DIR = join(STATE_DIR, "plans");
+const BRIDGE_PORT = Number(process.env.SAAM_BRIDGE_PORT ?? 4700);
 const bridge = await startHttpBridge({ port: BRIDGE_PORT });
 // unref() so the HTTP bridge alone can't keep the process alive — the
 // stdio MCP transport is the real reason this process should stay up.
@@ -87,6 +88,39 @@ async function loadPostProcessorForMachine(machineId) {
   const ppEntry = postProcessors.find((p) => p.manifest?.id === machineEntry.manifest.postProcessor);
   if (!ppEntry) return null;
   return loadGenerator(ppEntry);
+}
+
+// Places an operation's own output within the part: rotate about Z, then
+// translate. Generators produce shapes about their own origin and have no
+// placement inputs at all — deliberately, so an operation stays a shape
+// strategy rather than a positioned instance of one. Composing those
+// shapes into a part is this layer's job, which is why the transform lives
+// here and not inside any generator.
+//
+// This is a rigid-body transform in XY only. It cannot scale, shear, or
+// otherwise alter a shape's dimensions, and it leaves Z alone entirely —
+// placement is not allowed to disturb layer registration. So `compile_plan`
+// still restates exactly what the named generators produced; it only says
+// where each result sits.
+function placePaths(paths, at) {
+  if (!at) return paths;
+  const { x = 0, y = 0, rotation = 0 } = at;
+  if (x === 0 && y === 0 && rotation === 0) return paths;
+  const radians = (rotation * Math.PI) / 180;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  // Matches the generators' own 4-decimal rounding, including their
+  // normalization of a rounded -0 (JSON has no signed zero, so letting one
+  // through would make a fixture fail equality against itself).
+  const round4 = (value) => Number(value.toFixed(4)) + 0;
+  return paths.map((path) => ({
+    ...path,
+    points: path.points.map((point) => ({
+      ...point,
+      x: round4(point.x * cos - point.y * sin + x),
+      y: round4(point.x * sin + point.y * cos + y),
+    })),
+  }));
 }
 
 async function writePlanFile(plan) {
@@ -178,6 +212,7 @@ server.registerTool(
           layerHeight: z.number().optional(),
           beadWidth: z.number().optional(),
           spacing: z.number().optional(),
+          travelHopHeight: z.number().min(0).optional().describe("Travel clearance in mm above the highest preceding print point. 0 emits explicit travel without lifting; omitted keeps legacy unplanned gaps. Shared by all operations."),
         })
         .optional()
         .describe("Process settings shared across operations. Reasonable defaults are used for anything omitted."),
@@ -187,6 +222,16 @@ server.registerTool(
             operationId: z.string().describe("Operation id from list_operations, e.g. \"layer-filling\"."),
             strategy: z.string().optional(),
             parameters: z.record(z.string(), z.unknown()).optional(),
+            at: z
+              .object({
+                x: z.number().optional(),
+                y: z.number().optional(),
+                rotation: z.number().optional().describe("Degrees counter-clockwise about Z, applied before the x/y translation."),
+              })
+              .optional()
+              .describe(
+                "Where this invocation's output sits within the part. Operations generate their shape about their own origin and take no placement inputs; this is how the same operation becomes several differently-placed features of one part — five identical fins around a flange differ only by their `at`. Rigid-body in XY only (rotate about Z, then translate): it cannot change a shape's dimensions, and never touches Z. Omit it for anything genuinely centered."
+              ),
           })
         )
         .describe("Ordered list of operation invocations to compose into this plan. Empty for a target-only preview."),
@@ -216,7 +261,9 @@ server.registerTool(
       } catch (error) {
         return errorResult(error instanceof Error ? error.message : String(error));
       }
-      const result = generate({ parameters: { strategy: invocation.strategy, ...invocation.parameters }, settings: resolvedSettings });
+      // Compose shared travel once, after placement, so hops also clear
+      // geometry from preceding operations in this plan.
+      const result = generate({ parameters: { strategy: invocation.strategy, ...invocation.parameters }, settings: { ...resolvedSettings, travelHopHeight: undefined } });
       if (index === 0) firstOperationPart = result.part;
       // A generator's own warnings (e.g. vase-wall's steep-taper check)
       // are advisory output from this specific compile, not plan content
@@ -230,8 +277,12 @@ server.registerTool(
         operationVersion: opEntry.manifest.version ?? "0.1.0",
         strategy: invocation.strategy,
         parameters: invocation.parameters ?? {},
+        ...(invocation.at ? { at: invocation.at } : {}),
         dependencies: index > 0 ? [`op-${index}`] : [],
-        paths: result.paths,
+        paths: withTravel(placePaths(result.paths, invocation.at), resolvedSettings.travelHopHeight, {
+          previous: builtOperations.at(-1)?.paths.at(-1)?.points.at(-1) ?? null,
+          printedTop: builtOperations.reduce((top, op) => op.paths.reduce((z, path) => path.intent === "print" ? path.points.reduce((max, p) => Math.max(max, p.z), z) : z, top), -Infinity),
+        }),
         evidence: opEntry.manifest.evidence?.label ?? "EXPERIMENTAL",
         provenance: {
           generatedBy: `${opEntry.manifest.id}@${opEntry.manifest.version ?? "0.1.0"}`,

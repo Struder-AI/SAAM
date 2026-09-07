@@ -1,3 +1,6 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__</title>
 <style>
   :root {
@@ -73,7 +76,7 @@
   .legend { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink-soft); }
   .legend .row { display: flex; align-items: center; gap: 7px; }
   .swatch { width: 22px; height: 4px; border-radius: 2px; flex: none; }
-  .swatch.dash { background: repeating-linear-gradient(90deg, var(--ink-faint) 0 4px, transparent 4px 8px); height: 2px; }
+  .swatch.dash { background: repeating-linear-gradient(90deg, #793cdb 0 4px, transparent 4px 8px); height: 2px; }
   .ramp { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1c6964, #3f8f74, #f3c46e, #e66d3f, #a94321); }
   .ramp-labels { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--ink-faint); margin-top: 3px; }
 
@@ -147,7 +150,7 @@
         <div class="ramp-labels"><span id="rampLow">print speed</span><span>100x faster</span></div>
         <div class="legend" style="margin-top: 10px">
           <div class="row"><span class="swatch" style="background:#1c6964"></span> extruding</div>
-          <div class="row"><span class="swatch dash"></span> travel, or an approximate path</div>
+          <div class="row"><span class="swatch dash"></span> purple dashed: travel (may still extrude)</div>
           <div class="row"><span class="swatch" style="background:#a94321;height:8px;width:8px;border-radius:50%"></span> stationary with the relay open</div>
         </div>
       </div>
@@ -286,7 +289,8 @@ function renderTotals(entry) {
   rows(document.getElementById("totals"), [
     ["moves", t.totals.segments],
     ["extruding", fmt(t.totals.extrudingLengthMm, 1) + " mm"],
-    ["travel", fmt(t.totals.travelLengthMm, 1) + " mm"],
+    ["relay-off travel", fmt(t.totals.travelLengthMm, 1) + " mm"],
+    ["planned travel, relay on", fmt(t.segments.filter(s => s.intent === "travel" && s.extruding).reduce((mm, s) => mm + s.lengthMm, 0), 1) + " mm"],
     ["still, relay open", fmt(t.totals.extrudingDwellS) + " s"],
     ["run time", fmt(t.totals.durationS) + " s" + (k.assumed ? "*" : "")],
     ["approximate paths", t.totals.approximateSegments],
@@ -299,7 +303,7 @@ function renderTotals(entry) {
 function renderFindings(entry) {
   const host = document.getElementById("findings");
   if (!entry.findings.length) {
-    host.innerHTML = '<p class="ok">Nothing flagged. Geometry matches the plan and the extrusion window runs at one speed.</p>';
+    host.innerHTML = '<p class="ok">No findings from the checks supplied with this trace. Review the path and relay state in playback.</p>';
     return;
   }
   host.innerHTML = entry.findings
@@ -349,7 +353,8 @@ player.on("frame", ({ progress, sample, timebase }) => {
   const s = sample.segment;
   const where = s.source ? `<code>${s.source.file}:${s.source.line}</code> ${s.source.call ?? ""}()` : "—";
   rows(document.getElementById("now"), [
-    ["state", sample.extruding ? "<b>extruding</b>" : "travel"],
+    ["intent", s.intent ?? (sample.extruding ? "unannotated" : "travel")],
+    ["relay", sample.extruding ? "<b>ON · extruding</b>" : "OFF"],
     ["speed", fmt(sample.speedMmS, 1) + " mm/s"],
     ["commanded", s.speedPercent === null ? "—" : s.speedPercent + "% (" + fmt(s.speedMmS, 0) + " mm/s)"],
     ["move", s.kind + (s.pathFidelity === "approximate" ? " (approx)" : "")],

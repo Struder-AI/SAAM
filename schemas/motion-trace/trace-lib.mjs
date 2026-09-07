@@ -479,6 +479,30 @@ export function extrusionWindows(trace) {
  * own. Pair it with checkExtrusionSpeedConsistency.
  */
 export function comparePlanToTrace(plan, trace, { toleranceMm = 1e-3 } = {}) {
+  // Annotated exports distinguish a path's positioning move from its
+  // deposition strokes. Compare both ends of every stroke, not a flattened
+  // endpoint list which would require extrusion during positioning.
+  if (trace.segments.some((s) => s.intent !== undefined)) {
+    const length = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+    const expected = [];
+    for (const op of plan.operations ?? []) {
+      for (const path of op.paths ?? []) {
+        if (path.intent !== "print") continue;
+        for (let i = 1; i < path.points.length; i++) {
+          const from = path.points[i - 1], to = path.points[i];
+          if (length(from, to) > toleranceMm) expected.push({ from, to });
+        }
+      }
+    }
+    const actual = trace.segments.filter((s) => s.intent === "print" && s.extruding && s.kind !== "dwell" && s.lengthMm > toleranceMm);
+    if (expected.length !== actual.length) return [{ code: "print-point-count-mismatch", message: `The plan has ${expected.length} print strokes; the trace has ${actual.length} extruding print strokes.` }];
+    const findings = [];
+    expected.forEach((stroke, i) => {
+      const drift = Math.max(length(stroke.from, actual[i].from), length(stroke.to, actual[i].to));
+      if (drift > toleranceMm) findings.push({ code: "print-point-moved", at: i, driftMm: drift, source: actual[i].source, message: `Print stroke ${i} differs from its planned endpoints by ${drift.toFixed(4)} mm.` });
+    });
+    return findings;
+  }
   const findings = [];
   const planPoints = [];
   for (const operation of plan.operations ?? []) {

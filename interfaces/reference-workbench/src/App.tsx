@@ -9,6 +9,7 @@ import {
 // vite.config.ts for why the dev server needs `server.fs.allow` to reach
 // outside this package's own directory for it.
 import { translate as translateForDobot } from "../../../machines/reference-dobot-mg400-struderbot/postprocessor/generator.mjs";
+import { translate as translateForDobotStop } from "../../../machines/dobot-stop/postprocessor/generator.mjs";
 import { translate as translateForUltimakerS5 } from "../../../machines/ultimaker-s5/postprocessor/generator.mjs";
 
 type Point = { x: number; y: number; z: number };
@@ -78,6 +79,7 @@ const LOCAL_STORAGE_KEY = "saam-reference-workbench-file";
 // (see ROADMAP.md) and are shown, not hidden, but can't be selected yet.
 const MACHINES: { id: string; name: string; available: boolean }[] = [
   { id: "reference-dobot-mg400-struderbot", name: "Dobot MG400 · StruderBot", available: true },
+  { id: "dobot-stop", name: "dobot_stop", available: true },
   { id: "tormach-pcnc-pathpilot", name: "Tormach PCNC · PathPilot (planned)", available: false },
   { id: "avid-cnc-mach3", name: "Avid CNC · Mach3 (planned)", available: false },
   { id: "ultimaker-s5", name: "Ultimaker S5", available: true },
@@ -90,6 +92,7 @@ const MACHINES: { id: string; name: string; available: boolean }[] = [
 // app, not a filesystem-discovery context.
 const POST_PROCESSORS: Record<string, (args: { plan: ProcessPlan }) => ExportResult> = {
   "reference-dobot-mg400-struderbot": translateForDobot,
+  "dobot-stop": translateForDobotStop,
   "ultimaker-s5": translateForUltimakerS5,
 };
 

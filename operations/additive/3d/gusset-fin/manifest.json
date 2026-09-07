@@ -1,0 +1,94 @@
+{
+  "manifestSchemaVersion": 1,
+  "id": "gusset-fin",
+  "version": "0.1.0",
+  "name": "Gusset fin",
+  "summary": "A triangular reinforcing rib in the corner between a vertical wall and the face it stands on, built in layers stacked perpendicular to its hypotenuse.",
+  "category": [
+    "additive",
+    "3d"
+  ],
+  "capabilityRequirements": [
+    "coordinated-xyz-motion",
+    "extrusion-on-off"
+  ],
+  "maturity": "experimental",
+  "evidence": {
+    "label": "EXPERIMENTAL",
+    "scope": "Deterministic generator validated by schema, geometry-bounds, and golden-output tests, including that the final layer reproduces the hypotenuse exactly. Not yet evidenced on physical hardware. Note that the coordinated-xyz-motion capability this requires is itself only EXPERIMENTAL on the reference Dobot machine, whose manifest records a KNOWN limitation around layer-boundary transitions on long continuous runs — that concern applies directly to this operation and is not resolved by it."
+  },
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "length": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "The leg running out along the base face, from the corner outward (+X in the operation's own frame)."
+      },
+      "height": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "The leg running up the wall from the corner (+Z in the operation's own frame)."
+      },
+      "thickness": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "description": "Fin thickness, across Y and centered on it. Rounded to a whole number of beads at settings.beadWidth; one bead is the default and the usual case for a gusset."
+      },
+      "baseZ": {
+        "type": "number",
+        "description": "Z the base face already reaches — the height of whatever this fin stands on. This operation does not generate that support; see `dependencies`."
+      }
+    },
+    "required": [
+      "length",
+      "height"
+    ],
+    "description": "A right triangle with legs `length` and `height` meeting at the corner, which is the operation's own origin. Layers stack along the perpendicular from that corner to the hypotenuse, so the first layer is a short segment in the corner and the last is the hypotenuse itself, laid in one pass."
+  },
+  "outputs": {
+    "partShapes": [
+      "gusset"
+    ],
+    "pathFamilies": [
+      "Fin layer",
+      "Fin connection",
+      "Travel"
+    ]
+  },
+  "dependencies": [
+    "layer-filling"
+  ],
+  "dependencyNotes": "Not a hard runtime dependency of the generator, which only needs baseZ. Documents the intended composition: a plan builds the base face and the wall the fin braces (typically with layer-filling) and then places one invocation of this operation per fin, using the process plan's `at` field to rotate each around the wall. The fin's inner edge is a straight chord, so against a *curved* wall such as a pipe boss the plan should seat it on the best-fit chord rather than the nominal radius — see README.md.",
+  "generator": {
+    "module": "./generator.mjs",
+    "export": "generate",
+    "deterministic": true
+  },
+  "validation": [
+    {
+      "rule": "bounds-within-part-envelope",
+      "description": "Every emitted point stays inside the declared triangle: x in [0, length], z in [baseZ, baseZ + height], y within half the thickness."
+    },
+    {
+      "rule": "final-layer-is-the-hypotenuse",
+      "description": "The last layer's pass runs corner to corner, from (0, baseZ + height) to (length, baseZ) — the hypotenuse in a single straight stroke."
+    },
+    {
+      "rule": "layers-grow-monotonically",
+      "description": "Each layer's pass is longer than the one before it, so the triangle genuinely stands on its tip."
+    },
+    {
+      "rule": "z-varies-within-pass",
+      "description": "Every Fin layer stroke changes Z along its own length. Fin connection paths join adjacent strokes along the base or wall face."
+    },
+    {
+      "rule": "steep-lean-warning",
+      "description": "Emits a `warnings` entry when height exceeds length, tipping the build direction past the ~45 degree unsupported-overhang guideline used across FDM printing generally."
+    }
+  ],
+  "examples": [
+    "examples/flange-gusset.json"
+  ],
+  "license": "Apache-2.0"
+}

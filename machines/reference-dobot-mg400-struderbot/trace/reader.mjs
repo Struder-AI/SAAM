@@ -124,8 +124,17 @@ export function readDobotLua({
     warnings: state.warnings,
   });
   applyExtrusionState(state, extrusion.port);
-
-  return finalize(state, { files: loaded, entry, extrusion });
+  // An explicit source annotation records planned intent, never actual
+  // extrusion. Execute the program above to establish relay state/speed.
+  const sourceLines = Object.fromEntries(Object.entries(files).map(([name, text]) => [name, text.split(/\r?\n/)]));
+  for (const segment of state.segments) {
+    if (segment.kind === "dwell") continue;
+    const line = sourceLines[segment.source?.file]?.[segment.source?.line - 1] ?? "";
+    const intent = /-- SAAM intent=(print|travel)\s*$/.exec(line)?.[1];
+    if (intent) segment.intent = intent;
+  }
+  const machineId = /^-- SAAM machine=(dobot-stop|reference-dobot-mg400-struderbot)\r?$/m.exec(files["src1.lua"] ?? "")?.[1] ?? "reference-dobot-mg400-struderbot";
+  return finalize(state, { files: loaded, entry, extrusion, machineId });
 }
 
 /**
@@ -575,7 +584,7 @@ function roundPoint(point) {
 
 // ---------------------------------------------------------------- output
 
-function finalize(state, { files, entry, extrusion }) {
+function finalize(state, { files, entry, extrusion, machineId }) {
   const extruding = state.segments.filter((s) => s.extruding && s.lengthMm > EPSILON_MM);
   const travel = state.segments.filter((s) => !s.extruding && s.lengthMm > EPSILON_MM);
   const dwells = state.segments.filter((s) => s.kind === "dwell");
@@ -604,7 +613,7 @@ function finalize(state, { files, entry, extrusion }) {
   return {
     traceSchemaVersion: TRACE_SCHEMA_VERSION,
     source: {
-      machineId: "reference-dobot-mg400-struderbot",
+      machineId,
       readerId: READER_ID,
       readerVersion: READER_VERSION,
       files,

@@ -120,6 +120,9 @@ export function startHttpBridge({ port = 4700 } = {}) {
 
   return new Promise((resolve, reject) => {
     server.on("error", reject);
-    server.listen(port, "127.0.0.1", () => resolve({ server, port, url: `http://127.0.0.1:${port}/` }));
+    server.listen(port, "127.0.0.1", () => {
+      const actualPort = server.address().port;
+      resolve({ server, port: actualPort, url: `http://127.0.0.1:${actualPort}/` });
+    });
   });
 }
