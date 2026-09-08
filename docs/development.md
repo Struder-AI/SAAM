@@ -97,6 +97,9 @@ Hand-authored relationships and runtime plans remain labelled as such.
 
 The old implementation is outside the active tree. Its source remains in commit
 `54093cadbe87020836916d53dd29a45a06bf5528`. In this working checkout, the old
-folders are also hash-verified in ignored `.local/legacy-reference/54093cadbe870/`.
+folders are also hash-verified in the sibling archive
+`../SAAM-legacy-20260908/legacy-reference/54093cadbe870/`. Old dependencies and
+the earlier fill-review workspace are preserved beside that reference,
+outside SAAM. Only the new architecture map remains under `.local/`.
 No old runtime component is adopted by this refresh. Inspect or import individual
 components only when separately requested and approved.

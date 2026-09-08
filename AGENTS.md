@@ -40,7 +40,7 @@ Use [GLOSSARY.md](GLOSSARY.md) for shared terms; proposed terms are marked there
 The manufacturing restart currently has documentation foundations only. The
 local architecture map is a development aid, not a manufacturing runtime. No legacy component
 has been approved for adoption, and no new manufacturing runtime is implemented.
-The old source is preserved in Git history and an ignored local archive,
+The old source is preserved in Git history and a separate local archive,
 outside the active tree. Rhino/3DM is selected for geometry; integration is deferred.
 
 The current entry documents are this file, `CLAUDE.md`, `README.md`,

@@ -16,12 +16,14 @@ and push a new `refresh` branch directly to `Struder-AI/SAAM`.
 | Preserve legacy working files locally; remove them from the active tree | Rhino/3DM direction and print-bundle contents | Studio's geometry/program viewers and a real print |
 
 Legacy reference: commit `54093cadbe87020836916d53dd29a45a06bf5528`.
-Working-folder archive destination: `.local/legacy-reference/54093cadbe870/`.
+Working-folder archive destination: `../SAAM-legacy-20260908/legacy-reference/54093cadbe870/`.
 Archive scope: old adapters, interfaces, machines, operations, registry, schemas,
 tests, examples, docs/architecture, docs/authoring, ROADMAP.md, package.json and
 package-lock.json. Preserve all contents by moving those named paths; do not
-touch personal `Prints/`, `.saam/`, or `.local/fill-review/`. Keep licenses/notices
-and update developer entry documents. No legacy runtime is adopted.
+touch personal `Prints/` or `.saam/`. Following remettub's clean-folder
+clarification, the archive, old `node_modules/` and earlier `.local/fill-review/`
+work are preserved outside SAAM in the sibling archive directory. Keep
+licenses/notices and update developer entry documents. No legacy runtime is adopted.
 
 ## BR-001 — Local architecture map
 
