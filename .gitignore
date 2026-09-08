@@ -20,3 +20,7 @@ Thumbs.db
 
 # local runtime artifacts (compiled plans awaiting review, etc.)
 .saam/
+
+# personal print bundles and architecture viewer
+/Prints/
+/.local/

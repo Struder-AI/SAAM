@@ -1,117 +1,35 @@
 # SAAM — Struder Agentic Additive Manufacturing
 
-SAAM lets a conversational AI agent directly program your 3D printer.
-(It is also good for turning other programmable motion systems into 3D printers - like robot arms and CNC machines)
+SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes,
+approve it, and get a file your machine can run.
 
-Chat with your agent to conversationally set your manufacturing intent and dictate how you want your toolpaths to work.
-See a preview of what you have developed in our workbench and send it to your device for printing.  No CAD or CAM
+The aim is a seamless, reliable path into 3D printing for non-technical people,
+with guidance suited to their experience. SAAM is an ecosystem of slicer
+components, including planned support for angled and curved deposition layers.
 
-SAAM runs in YOUR agentic AI account — It turns conversational manufacturing intent into an
-inspectable process plan, hands it back to you for approval, then it translates that plan into machine-native output. 
+**Refresh foundation:** agent guidance, decisions, a glossary, development
+requests, and repository checks are ready. The manufacturing runtime is not
+implemented. Rhino/3DM is selected for geometry, SAAMpath names the internal
+toolpath representation, and the user interface is named **SAAM Studio**.
 
-No slicer GUI, no proprietary plugin, no service to sign up for. 
+- Agents: start at [AGENTS.md](AGENTS.md).
+- Product direction: [PROJECT_CHARTER.md](PROJECT_CHARTER.md).
+- Contributor decisions: [DECISIONS.md](DECISIONS.md).
+- Shared terms: [GLOSSARY.md](GLOSSARY.md).
+- Completed scope and deferred work: [build_request.md](build_request.md).
+- Setup, organization, and design proposals: [Development foundation](docs/development.md).
 
-See `PROJECT_CHARTER.md` for what
-SAAM is and, just as deliberately, what it isn't.
+Run `npm test` with Node.js 22+ and Git. These are repository checks, not
+manufacturing tests. No npm dependencies are required.
 
-## Try it
+Local print bundles belong in ignored `Prints/`; curated examples belong in
+`examples/prints/`. A personal architecture map may live in ignored
+`.local/architecture-map/`; it is optional and is not shipped in the repository.
 
-This requires a local checkout — the adapter discovers operations and
-machines by real filesystem paths, and there's no published standalone
-package yet (see `adapters/mcp/README.md`'s known limitations).
+The previous runtime was removed from the active tree and remains recoverable
+from Git history. No legacy component has been adopted.
+See [legacy reference](docs/development.md#legacy-reference).
 
-```bash
-git clone https://github.com/Struder-AI/SAAM.git
-cd SAAM
-npm install
-cd interfaces/reference-workbench && npm run build && cd ../..
-```
-
-Then connect the MCP adapter to your own agent. For Claude Code:
-
-```bash
-claude mcp add saam -- node adapters/mcp/src/server.mjs
-```
-
-(Any MCP-capable agent works — see `adapters/mcp/README.md` for the
-generic client config.) In your agent's own chat, not this repo, ask it
-to call `list_operations` and `list_machines`, then `compile_plan` for a
-part. The first `compile_plan` call opens the reference workbench in
-your browser automatically, already showing what was built — review the
-synchronized 3D previews, name and click "Export" (this is the human
-approval step — it's the one thing in this whole loop nothing but a
-person clicking a real button in their own browser can do), and ask your
-agent to call `post_process` for real DobotStudio Pro Lua. Composing more
-operations works the same way: call `compile_plan` again with the
-updated operation list, and the already-open tab updates in place.
-
-To check what the exported program actually commands — speeds, extrusion
-state, run time — run `node examples/verify-export.mjs <plan.json>`. To
-watch it, open `interfaces/trace-player/preview.html` in any browser; you
-can drop your own `.lua` onto it.
-
-Don't have an agent handy, or just want to see real output without
-connecting one? `node examples/compile-approve-export.mjs` runs the same
-loop — including the approval step — end to end and prints the result,
-no browser or agent required. See `examples/README.md`.
-
-Using this checkout to build your own part never involves committing or
-pushing anything back to this repository — the deliverable is the
-exported machine file on your own disk. Nothing about the loop above
-touches this checkout's git history, and your agent shouldn't either.
-If you hit a real gap along the way — a post-processor that doesn't
-exist yet, an operation that needs a fix — building it is a separate,
-explicit ask (see `AGENTS.md`'s "If you're modifying this repository
-itself"), and contributing it back is a separate ask again, via a normal
-fork and pull request — see `CONTRIBUTING.md`.
-
-## What runs where
-
-The reasoning happens in your agent, on your account. SAAM never calls
-a model and never holds a credential — see
-`docs/architecture/agent-safety-boundary.md` for exactly what the
-adapter does and does not do, including the one deliberate, narrowly
-loopback-only exception that lets the workbench watch a live session.
-Only a human, acting through the workbench's own UI, can create an
-approval record; nothing here can approve its own output.
-
-## Layout
-
-| Path | What's there |
-|---|---|
-| `AGENTS.md` | What a connected agent should actually do here — the tool-call sequence, the rules that never bend, where to read more. `CLAUDE.md` just points here. |
-| `CONTRIBUTING.md` | How to propose a change to this repository itself — fork, branch, PR, what a mergeable contribution needs |
-| `PROJECT_CHARTER.md` | Mission, scope, non-goals, governance, licensing |
-| `ROADMAP.md` | Planar-operation catalog brainstorm, designated future machines |
-| `schemas/` | Process-plan, motion-trace, and manifest JSON Schemas, plus the shared plan-hashing/approval and trace libraries |
-| `operations/` | Machine-independent operation generators (`layer-filling`, `non-planar-cladding`, `vase-wall`) |
-| `machines/` | Machine definitions, their post-processors, and trace readers for reading that output back (`reference-dobot-mg400-struderbot`, `ultimaker-s5`) |
-| `adapters/mcp/` | The MCP adapter — seven tools, no model calls, no held credentials |
-| `interfaces/reference-workbench/` | The live-connected 3D preview and approval UI |
-| `interfaces/trace-player/` | Animated previewer for an exported program, plus `preview.html` — one self-contained file, no toolchain |
-| `registry/` | Filesystem-based discovery of operations, machines, and post-processors, plus the generated `registry.json` conformance snapshot (`npm run generate-registry`) that `PROJECT_CHARTER.md`'s governance section refers to |
-| `examples/` | `compile-approve-export.mjs` — the full loop, runnable with no agent; `verify-export.mjs` — checks an exported program against its plan |
-| `docs/` | Architecture and authoring documentation |
-| `tests/` | Golden-fixture and real-subprocess-MCP-protocol tests |
-
-## Evidence and safety posture
-
-SAAM distinguishes what's been observed on physical hardware from
-what's been documented, simulated, or merely proposed —
-`docs/authoring/evidence-labels.md` defines the label set every
-operation and machine definition uses. A passing software validation or
-a clean preview confirms intent and coordinates; it is never treated
-here as proof that a specific physical setup is safe to run.
-
-## Development
-
-```bash
-npm test   # from the repository root — golden fixtures + real subprocess MCP integration tests
-```
-
-## License
-
-[Apache License, Version 2.0](LICENSE) — see `PROJECT_CHARTER.md` for
-what that does and doesn't mean for your own generated parts, toolpaths,
-and workflow records. Imported third-party material is tracked in
-`THIRD_PARTY_NOTICES.md`.
+The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).
+Licensing remains in [LICENSE](LICENSE); imported material is recorded in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -1,34 +1,12 @@
-# Third-Party Notices
+# Third-party notices
 
-SAAM does not redistribute third-party source code, vendor documentation,
-datasets, firmware, or media as of this revision.
+This refresh does not bundle third-party source code, vendor documentation,
+datasets, firmware, or media, and declares no npm dependencies.
 
-Every package added to this repository goes through a provenance check
-before inclusion: confirmed redistribution rights, correct attribution, and
-a license compatible with Apache License 2.0 for original SAAM content.
-Runtime dependencies declared in a package's manifest (for example, an
-adapter's `package.json`) carry their own upstream licenses, which are not
-duplicated here; consult each dependency's published license directly.
+Rhino is selected as the geometry platform; no Rhino library or runtime is
+bundled in this revision. Integration and its licensing requirements remain
+development work.
 
-When a future contribution imports third-party material under its own
-license — vendored source, copied text, embedded media — it is recorded
-here with:
-
-- the component name and version,
-- its license,
-- the exact scope of what was imported, and
-- a link to its source.
-
-No such entries exist yet.
-
-## npm dependencies in use
-
-`adapters/mcp/` and `interfaces/reference-workbench/` declare direct npm
-dependencies in their own `package.json` files in the normal way —
-`@modelcontextprotocol/sdk` and `zod` for the adapter, `react` and a
-Vite-based toolchain for the workbench. These are used as published,
-unmodified, over their own public registry channel; nothing from any of
-them is copied into this repository's own source. Their full transitive
-dependency trees are recorded in the root `package-lock.json`, not
-duplicated here — consult each package's own license on npm for its
-terms.
+For future imported material, record its name/version, license, source, and
+the exact files included here. Preserve required attribution and redistribution
+terms. Dependencies used as published retain their upstream licenses.
