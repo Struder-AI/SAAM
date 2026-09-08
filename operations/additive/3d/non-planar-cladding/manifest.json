@@ -24,7 +24,7 @@
   },
   "outputs": {
     "partShapes": ["surface"],
-    "pathFamilies": ["single slope cladding", "dome cladding", "saddle cladding"]
+    "pathFamilies": ["single slope cladding", "dome cladding", "saddle cladding", "Travel"]
   },
   "dependencies": ["layer-filling"],
   "dependencyNotes": "Not a hard runtime dependency of the generator itself, which only needs `baseZ` and a footprint. Documents the intended composition: a plan typically invokes layer-filling first (wide `settings.spacing`, `wallCount: 1`) to build a sparse support scaffold, then this operation to clad it, with this invocation's process-plan `dependencies` pointing at that scaffold's invocationId.",
@@ -34,7 +34,7 @@
     "deterministic": true
   },
   "validation": [
-    { "rule": "bounds-within-part-envelope", "description": "Every emitted point's x/y stays within the declared footprint; z stays within [baseZ, baseZ + rise]." },
+    { "rule": "bounds-within-part-envelope", "description": "Every print-intent point's x/y stays within the declared footprint; z stays within [baseZ, baseZ + rise]." },
     { "rule": "z-varies-within-pass", "description": "At least one path in the output has more than one distinct z value, confirming genuinely spatial (not per-layer) motion." },
     { "rule": "continuous-raster", "description": "Consecutive passes alternate Y direction so the surface is covered by one connected back-and-forth sweep." }
   ],

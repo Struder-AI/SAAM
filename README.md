@@ -45,6 +45,11 @@ agent to call `post_process` for real DobotStudio Pro Lua. Composing more
 operations works the same way: call `compile_plan` again with the
 updated operation list, and the already-open tab updates in place.
 
+To check what the exported program actually commands — speeds, extrusion
+state, run time — run `node examples/verify-export.mjs <plan.json>`. To
+watch it, open `interfaces/trace-player/preview.html` in any browser; you
+can drop your own `.lua` onto it.
+
 Don't have an agent handy, or just want to see real output without
 connecting one? `node examples/compile-approve-export.mjs` runs the same
 loop — including the approval step — end to end and prints the result,
@@ -78,13 +83,14 @@ approval record; nothing here can approve its own output.
 | `CONTRIBUTING.md` | How to propose a change to this repository itself — fork, branch, PR, what a mergeable contribution needs |
 | `PROJECT_CHARTER.md` | Mission, scope, non-goals, governance, licensing |
 | `ROADMAP.md` | Planar-operation catalog brainstorm, designated future machines |
-| `schemas/` | Process-plan and manifest JSON Schemas, plus the shared plan-hashing/approval library |
-| `operations/` | Machine-independent operation generators (`layer-filling`, `non-planar-cladding`) |
-| `machines/` | Machine definitions and their post-processors (`reference-dobot-mg400-struderbot`) |
+| `schemas/` | Process-plan, motion-trace, and manifest JSON Schemas, plus the shared plan-hashing/approval and trace libraries |
+| `operations/` | Machine-independent operation generators (`layer-filling`, `non-planar-cladding`, `vase-wall`) |
+| `machines/` | Machine definitions, their post-processors, and trace readers for reading that output back (`reference-dobot-mg400-struderbot`, `ultimaker-s5`) |
 | `adapters/mcp/` | The MCP adapter — seven tools, no model calls, no held credentials |
 | `interfaces/reference-workbench/` | The live-connected 3D preview and approval UI |
+| `interfaces/trace-player/` | Animated previewer for an exported program, plus `preview.html` — one self-contained file, no toolchain |
 | `registry/` | Filesystem-based discovery of operations, machines, and post-processors, plus the generated `registry.json` conformance snapshot (`npm run generate-registry`) that `PROJECT_CHARTER.md`'s governance section refers to |
-| `examples/` | `compile-approve-export.mjs` — the full compile-approve-export loop, runnable with no agent |
+| `examples/` | `compile-approve-export.mjs` — the full loop, runnable with no agent; `verify-export.mjs` — checks an exported program against its plan |
 | `docs/` | Architecture and authoring documentation |
 | `tests/` | Golden-fixture and real-subprocess-MCP-protocol tests |
 

@@ -1,3 +1,4 @@
+import { withTravel } from "../../../travel.mjs";
 // Deterministic non-planar cladding generator: a coordinated XYZ surface
 // skin over a known, already-built footprint. No dependencies; a pure
 // function of (parameters, settings).
@@ -43,7 +44,7 @@ function surfaceHeight(surface, x, y, width, depth, baseZ, rise) {
  * @param {object} args.settings - process settings: spacing
  * @returns {{ part: object, paths: Array }}
  */
-export function generate({ parameters = {}, settings = {} }) {
+function generateGeometry({ parameters = {}, settings = {} }) {
   const requestedSurface = String(parameters.surface || "single_slope");
   const surface = SURFACES.has(requestedSurface) ? requestedSurface : "single_slope";
   const width = finite(parameters.width ?? parameters.size, 40, 5, 500);
@@ -83,4 +84,10 @@ export function generate({ parameters = {}, settings = {} }) {
     part: { shape: "surface", width, depth, height: Number((baseZ + rise).toFixed(4)), surface },
     paths,
   };
+}
+
+// Explicit travel and hops are opt-in through the shared process setting.
+export function generate(args = {}) {
+  const result = generateGeometry(args);
+  return { ...result, paths: withTravel(result.paths, args.settings?.travelHopHeight) };
 }

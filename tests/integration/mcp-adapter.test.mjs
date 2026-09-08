@@ -12,25 +12,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { rm } from "node:fs/promises";
+import { rm, mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve, sep } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { buildApprovalRecord, applyApproval } from "../../schemas/process-plan/plan-lib.mjs";
+import { readDobotLua } from "../../machines/reference-dobot-mg400-struderbot/trace/reader.mjs";
+import { comparePlanToTrace } from "../../schemas/motion-trace/trace-lib.mjs";
 
 const serverPath = fileURLToPath(new URL("../../adapters/mcp/src/server.mjs", import.meta.url));
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 
-// Each test spawns its own server (its own HTTP bridge too — see
-// http-bridge.mjs). Reusing the adapter's default port across tests run
-// back-to-back hits TIME_WAIT on the just-closed socket and makes every
-// later test wait out that delay; a distinct port per test avoids it.
-let nextPort = 4800;
+// Each test spawns its own server on an OS-assigned port. Its state lives
+// in a suite-specific temporary directory, never the user's live session.
+const stateDir = await mkdtemp(join(tmpdir(), "saam-mcp-test-"));
+async function clearTestState() {
+  // Never let integration cleanup remove the user's live .saam session.
+  assert.ok(resolve(stateDir).startsWith(resolve(tmpdir()) + sep + "saam-mcp-test-"));
+  await rm(stateDir, { recursive: true, force: true });
+}
 
 async function withClient(fn) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [serverPath],
-    env: { ...process.env, SAAM_NO_AUTO_OPEN: "1", SAAM_BRIDGE_PORT: String(nextPort++) },
+    env: { ...process.env, SAAM_NO_AUTO_OPEN: "1", SAAM_BRIDGE_PORT: "0", SAAM_STATE_DIR: stateDir },
   });
   const client = new Client({ name: "saam-integration-test", version: "0.1.0" });
   await client.connect(transport);
@@ -42,7 +49,7 @@ async function withClient(fn) {
 }
 
 test.after(async () => {
-  await rm(new URL(".saam", `file://${repoRoot}`), { recursive: true, force: true });
+  await clearTestState();
 });
 
 test("lists all seven tools", async () => {
@@ -63,11 +70,11 @@ test("list_machines returns the reference Dobot machine", async () => {
   });
 });
 
-test("list_operations returns all three reference operations", async () => {
+test("list_operations returns every reference operation", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({ name: "list_operations", arguments: {} });
     const ids = JSON.parse(result.content[0].text).map((o) => o.id).sort();
-    assert.deepEqual(ids, ["layer-filling", "non-planar-cladding", "vase-wall"]);
+    assert.deepEqual(ids, ["gusset-fin", "layer-filling", "non-planar-cladding", "vase-wall"]);
   });
 });
 
@@ -113,7 +120,7 @@ test("compile_plan refuses an empty operations array with no target to fall back
   // first, an earlier test's leftover session (same machine) would supply
   // a target here via the "held from the session being continued"
   // fallback, masking the very case this test exists to check.
-  await rm(new URL(".saam", `file://${repoRoot}`), { recursive: true, force: true });
+  await clearTestState();
   await withClient(async (client) => {
     const result = await client.callTool({
       name: "compile_plan",
@@ -282,11 +289,12 @@ test("get_approval_status correctly reports no approval, then a real one after a
   });
 });
 
-test("the full loop: compile, approve (workbench's own code path), then post_process succeeds with real Lua", async () => {
+for (const machineId of ["reference-dobot-mg400-struderbot", "dobot-stop"]) {
+test(`the isolated integration loop preserves travel geometry and relay policy for ${machineId}`, async () => {
   await withClient(async (client) => {
     const compiled = await client.callTool({
       name: "compile_plan",
-      arguments: { machineId: "reference-dobot-mg400-struderbot", operations: [{ operationId: "layer-filling", parameters: { width: 20, depth: 20, layers: 2, wallCount: 1 } }] },
+      arguments: { machineId, settings: { travelHopHeight: 1.5 }, operations: [{ operationId: "layer-filling", parameters: { outerDiameter: 20, innerDiameter: 6, layers: 2, wallCount: 1 } }] },
     });
     const { plan } = JSON.parse(compiled.content[0].text);
 
@@ -298,8 +306,22 @@ test("the full loop: compile, approve (workbench's own code path), then post_pro
     const { files } = JSON.parse(result.content[0].text);
     assert.deepEqual(Object.keys(files).sort(), ["global.lua", "src0.lua", "src1.lua"]);
     assert.ok(files["src1.lua"].includes("PenOn()"));
+    const trace = readDobotLua({ files });
+    assert.equal(trace.source.machineId, machineId);
+    assert.deepEqual(comparePlanToTrace(plan, trace), []);
+    const plannedTravel = plan.operations.flatMap(op => op.paths).filter(p => p.intent === "travel");
+    assert.ok(plannedTravel.length > 0);
+    const travel = trace.segments.filter(s => s.intent === "travel");
+    for (const path of plannedTravel) for (const p of path.points.slice(1)) {
+      assert.ok(travel.some(s => Math.hypot(s.to.x-p.x,s.to.y-p.y,s.to.z-p.z) < 1e-4));
+    }
+    if (machineId === "dobot-stop") {
+      assert.ok(travel.every(s => !s.extruding), "travel must switch extrusion off");
+      assert.equal(trace.totals.extrudingDwellS, 0);
+    } else assert.ok(travel.some(s => s.extruding), "reference machine retains continuous extrusion");
   });
 });
+}
 
 test("the full loop, second machine: compile against ultimaker-s5, approve, then post_process picks the right post-processor by machine.id", async () => {
   // Proves post_process is a real dynamic lookup (discoverMachines -> its
@@ -329,7 +351,7 @@ test("list_machines includes ultimaker-s5 alongside the reference Dobot machine"
   await withClient(async (client) => {
     const result = await client.callTool({ name: "list_machines", arguments: {} });
     const ids = JSON.parse(result.content[0].text).map((m) => m.id).sort();
-    assert.deepEqual(ids, ["reference-dobot-mg400-struderbot", "ultimaker-s5"]);
+    assert.deepEqual(ids, ["dobot-stop", "reference-dobot-mg400-struderbot", "ultimaker-s5"]);
   });
 });
 
@@ -345,5 +367,87 @@ test("request_review writes a plan file and never attaches an approval", async (
     const parsed = JSON.parse(result.content[0].text);
     assert.ok(parsed.writtenTo.endsWith(".json"));
     assert.ok(parsed.nextStep.includes("Reference Workbench"));
+  });
+});
+
+test("compile_plan places an invocation with `at`, without changing the shape the generator produced", async () => {
+  await withClient(async (client) => {
+    const parameters = { width: 30, depth: 4, layers: 1, wallCount: 1 };
+    const result = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        target: { shape: "box", width: 30, depth: 30, height: 0.7 },
+        operations: [
+          { operationId: "layer-filling", parameters },
+          { operationId: "layer-filling", parameters, at: { x: 10, y: -5, rotation: 90 } },
+        ],
+      },
+    });
+    assert.notEqual(result.isError, true);
+    const { plan } = JSON.parse(result.content[0].text);
+    const [origin, placed] = plan.operations;
+
+    // The placement is recorded on the invocation that carries it, and
+    // absent from the one that doesn't.
+    assert.deepEqual(placed.at, { x: 10, y: -5, rotation: 90 });
+    assert.ok(!("at" in origin), "an unplaced invocation should carry no `at`");
+
+    // Same path structure — placement moves an operation's output, it
+    // does not regenerate or reshape it.
+    assert.equal(placed.paths.length, origin.paths.length);
+
+    // Every point is the origin point rotated 90 deg CCW then translated:
+    // (x, y) -> (-y + 10, x - 5). Z is untouched.
+    for (const [i, path] of placed.paths.entries()) {
+      const source = origin.paths[i];
+      assert.equal(path.family, source.family);
+      assert.equal(path.points.length, source.points.length);
+      for (const [j, point] of path.points.entries()) {
+        const from = source.points[j];
+        assert.ok(Math.abs(point.x - (-from.y + 10)) < 1e-3, `x mismatch at ${i}/${j}`);
+        assert.ok(Math.abs(point.y - (from.x - 5)) < 1e-3, `y mismatch at ${i}/${j}`);
+        assert.equal(point.z, from.z, "placement must never touch Z");
+      }
+    }
+
+    // A rigid-body transform preserves lengths: the placed bar is still
+    // 30 x 4, just lying the other way.
+    const spanOf = (op, axis) => {
+      const all = op.paths.flatMap((p) => p.points.map((pt) => pt[axis]));
+      return Math.max(...all) - Math.min(...all);
+    };
+    assert.ok(Math.abs(spanOf(origin, "x") - spanOf(placed, "y")) < 1e-3);
+    assert.ok(Math.abs(spanOf(origin, "y") - spanOf(placed, "x")) < 1e-3);
+  });
+});
+
+test("compile_plan surfaces a generator's hole warnings instead of silently dropping them", async () => {
+  await withClient(async (client) => {
+    const result = await client.callTool({
+      name: "compile_plan",
+      arguments: {
+        machineId: "reference-dobot-mg400-struderbot",
+        target: { shape: "ring", outerDiameter: 120, innerDiameter: 51, height: 0.7 },
+        operations: [
+          {
+            operationId: "layer-filling",
+            parameters: {
+              geometry: "annulus",
+              outerDiameter: 120,
+              innerDiameter: 51,
+              layers: 1,
+              holes: [{ x: 45, y: 0, diameter: 8 }, { x: 59, y: 0, diameter: 8 }],
+            },
+          },
+        ],
+      },
+    });
+    assert.notEqual(result.isError, true);
+    const { plan, warnings } = JSON.parse(result.content[0].text);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].code, "hole-outside-part");
+    assert.equal(warnings[0].operationId, "layer-filling");
+    assert.ok(plan.operations[0].paths.some((p) => p.family === "Hole perimeter"));
   });
 });

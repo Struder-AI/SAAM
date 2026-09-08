@@ -58,7 +58,8 @@
       "properties": {
         "layerHeight": { "type": "number", "exclusiveMinimum": 0 },
         "beadWidth": { "type": "number", "exclusiveMinimum": 0 },
-        "spacing": { "type": "number", "exclusiveMinimum": 0 }
+        "spacing": { "type": "number", "exclusiveMinimum": 0 },
+        "travelHopHeight": { "type": "number", "minimum": 0, "description": "Explicit travel lift in mm above previously printed geometry; 0 for in-plane travel. Omit for legacy output. Hops are stored in paths before approval." }
       },
       "additionalProperties": true
     },
@@ -88,6 +89,16 @@
           "parameters": {
             "type": "object",
             "description": "Must validate against the referenced operation's manifest `inputs` schema."
+          },
+          "at": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "x": { "type": "number", "default": 0 },
+              "y": { "type": "number", "default": 0 },
+              "rotation": { "type": "number", "default": 0, "description": "Degrees counter-clockwise about Z, applied about the operation's own origin before the x/y translation." }
+            },
+            "description": "Where this invocation's output sits within the part. An operation generates its shape about its own origin and knows nothing about placement — that separation is the same one described in docs/architecture/operations-vs-postprocessors.md, one level up: an operation defines shape strategy, composing those shapes into a part is the plan's job. Omit for a feature that genuinely is centered (a bore, a hub, the part's own body); five identical fins differ only by their `at`, and each still carries the honest provenance of the operation that generated it. The transform is rigid-body in XY only — rotation about Z then translation — so it can never change a shape's dimensions, only where it sits. Z is untouched: layer registration is not something placement is allowed to disturb."
           },
           "dependencies": {
             "type": "array",

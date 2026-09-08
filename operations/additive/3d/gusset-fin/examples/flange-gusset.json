@@ -1,0 +1,483 @@
+{
+  "input": {
+    "parameters": {
+      "length": 12,
+      "height": 8,
+      "thickness": 1.6,
+      "baseZ": 2
+    },
+    "settings": {
+      "layerHeight": 1,
+      "beadWidth": 0.8
+    }
+  },
+  "expected": {
+    "part": {
+      "shape": "gusset",
+      "length": 12,
+      "height": 10,
+      "thickness": 1.6
+    },
+    "paths": [
+      {
+        "family": "Fin layer",
+        "layer": 0,
+        "points": [
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 3.1429
+          },
+          {
+            "x": 1.7143,
+            "y": -0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 0,
+        "points": [
+          {
+            "x": 1.7143,
+            "y": -0.4,
+            "z": 2
+          },
+          {
+            "x": 1.7143,
+            "y": 0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 0,
+        "points": [
+          {
+            "x": 1.7143,
+            "y": 0.4,
+            "z": 2
+          },
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 3.1429
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 3.1429
+          },
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 4.2857
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 1,
+        "points": [
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 4.2857
+          },
+          {
+            "x": 3.4286,
+            "y": 0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 1,
+        "points": [
+          {
+            "x": 3.4286,
+            "y": 0.4,
+            "z": 2
+          },
+          {
+            "x": 3.4286,
+            "y": -0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 1,
+        "points": [
+          {
+            "x": 3.4286,
+            "y": -0.4,
+            "z": 2
+          },
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 4.2857
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 2,
+        "points": [
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 4.2857
+          },
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 5.4286
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 2,
+        "points": [
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 5.4286
+          },
+          {
+            "x": 5.1429,
+            "y": -0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 2,
+        "points": [
+          {
+            "x": 5.1429,
+            "y": -0.4,
+            "z": 2
+          },
+          {
+            "x": 5.1429,
+            "y": 0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 2,
+        "points": [
+          {
+            "x": 5.1429,
+            "y": 0.4,
+            "z": 2
+          },
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 5.4286
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 3,
+        "points": [
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 5.4286
+          },
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 6.5714
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 3,
+        "points": [
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 6.5714
+          },
+          {
+            "x": 6.8571,
+            "y": 0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 3,
+        "points": [
+          {
+            "x": 6.8571,
+            "y": 0.4,
+            "z": 2
+          },
+          {
+            "x": 6.8571,
+            "y": -0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 3,
+        "points": [
+          {
+            "x": 6.8571,
+            "y": -0.4,
+            "z": 2
+          },
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 6.5714
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 4,
+        "points": [
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 6.5714
+          },
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 7.7143
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 4,
+        "points": [
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 7.7143
+          },
+          {
+            "x": 8.5714,
+            "y": -0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 4,
+        "points": [
+          {
+            "x": 8.5714,
+            "y": -0.4,
+            "z": 2
+          },
+          {
+            "x": 8.5714,
+            "y": 0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 4,
+        "points": [
+          {
+            "x": 8.5714,
+            "y": 0.4,
+            "z": 2
+          },
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 7.7143
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 5,
+        "points": [
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 7.7143
+          },
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 8.8571
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 5,
+        "points": [
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 8.8571
+          },
+          {
+            "x": 10.2857,
+            "y": 0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 5,
+        "points": [
+          {
+            "x": 10.2857,
+            "y": 0.4,
+            "z": 2
+          },
+          {
+            "x": 10.2857,
+            "y": -0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 5,
+        "points": [
+          {
+            "x": 10.2857,
+            "y": -0.4,
+            "z": 2
+          },
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 8.8571
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 6,
+        "points": [
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 8.8571
+          },
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 10
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 6,
+        "points": [
+          {
+            "x": 0,
+            "y": -0.4,
+            "z": 10
+          },
+          {
+            "x": 12,
+            "y": -0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin connection",
+        "layer": 6,
+        "points": [
+          {
+            "x": 12,
+            "y": -0.4,
+            "z": 2
+          },
+          {
+            "x": 12,
+            "y": 0.4,
+            "z": 2
+          }
+        ],
+        "intent": "print"
+      },
+      {
+        "family": "Fin layer",
+        "layer": 6,
+        "points": [
+          {
+            "x": 12,
+            "y": 0.4,
+            "z": 2
+          },
+          {
+            "x": 0,
+            "y": 0.4,
+            "z": 10
+          }
+        ],
+        "intent": "print"
+      }
+    ]
+  }
+}

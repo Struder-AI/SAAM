@@ -1,8 +1,8 @@
 # SAAM Project Charter
 
-**SAAM** — Struder Agentic Additive Manufacturing — is an open-source
-framework for turning human manufacturing intent into inspectable,
-machine-aware additive-manufacturing workflows.
+**SAAM** — Struder Agentic Additive Manufacturing —  is an open-source framework for turning human manufacturing intent into inspectable, machine-aware additive-manufacturing workflows.
+
+SAAM lets you describe a part to an AI agent you, inspect the toolpath it proposes, approve it, and get a file your machine can run.
 
 ## What SAAM is
 

@@ -61,6 +61,27 @@ manufacturing. Here's the actual sequence, every time:
    Dobot machine). It refuses cleanly if the approval is missing, stale,
    or scoped too narrowly — that refusal is correct behavior, not a bug
    to route around.
+8. **Check the exported program.** The plan preview the human approved
+   in step 5 does not cover `post_process` output. Read it back:
+
+   ```bash
+   node examples/verify-export.mjs <approved-plan.json> [instance-profile.json]
+   ```
+
+   It reports what the machine will do — speeds, extrusion state, time
+   held still with the relay open, run time — and exits non-zero when
+   anything is flagged. Each finding names the generated line it came
+   from. Relay findings the way you relay `warnings`.
+
+   Don't edit the generated program to make a finding go away; report
+   it. An edited export is a file no plan corresponds to.
+
+   For a human to watch the toolpath instead, point them at
+   `interfaces/trace-player/preview.html` — one self-contained file they
+   open directly and can drop their own `.lua` onto.
+
+   There's no `preview_trace` MCP tool yet; step 8 is the script above
+   or `schemas/motion-trace/trace-lib.mjs` directly.
 
 `validate_plan` and `request_review` exist for edge cases (checking a
 hand-edited plan's shape; publishing a plan you built outside
@@ -173,12 +194,18 @@ covered below.
   `machines/`? Run `npm run generate-registry` — `registry/registry.json`
   needs to match, or `tests/golden/registry-generate.test.mjs` fails on
   the drift.
+- Touched `player.mjs`, `shell.html`, `trace-lib.mjs`, or a Dobot trace
+  module? Run `npm run build-preview -- interfaces/trace-player/preview.html`
+  — the committed preview inlines them and is checked byte-for-byte by
+  `tests/golden/trace-player-standalone.test.mjs`.
 - Read `docs/authoring/operations.md` before adding an operation,
   `docs/authoring/machine-definitions.md` before adding a machine, and
   `docs/architecture/operations-vs-postprocessors.md` before touching
   the boundary between the two — an operation defines shape strategy
   machine-independently; a post-processor translates or refuses
   approved geometry for one specific controller, and never redesigns it.
+  A trace reader (`machines/*/trace/`) inverts a post-processor: it
+  reads or rejects, and never repairs.
 - This is a clean-room, from-scratch codebase, not a port. Don't
   reintroduce single-agent-specific naming, hardcoded machine
   assumptions, or a chat/prompt surface inside the reference workbench —
@@ -236,3 +263,5 @@ say yes:
 | What does the adapter deliberately *not* do? | `docs/architecture/agent-safety-boundary.md` |
 | How does approval actually get created and checked? | `docs/authoring/process-plan-workflow.md` |
 | What does the reference workbench do, live vs. standalone? | `interfaces/reference-workbench/README.md` |
+| How do I check what an exported program actually commands? | `machines/*/trace/README.md`, `schemas/motion-trace/` |
+| How do I let a human watch a toolpath before it runs? | `interfaces/trace-player/README.md` |

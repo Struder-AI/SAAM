@@ -68,9 +68,9 @@ function collectPrintSegments(plan) {
   const segments = [];
   for (const operation of plan.operations) {
     for (const pathEntry of operation.paths) {
-      if (pathEntry.intent !== "print") continue; // matches the Dobot post-processor's existing scope: travel-intent paths aren't translated yet.
       if (!pathEntry.points.length) continue;
-      segments.push({ family: pathEntry.family, layer: pathEntry.layer, points: pathEntry.points });
+      if (!["print", "travel"].includes(pathEntry.intent)) throw new Error("Unknown path intent.");
+      segments.push({ family: pathEntry.family, layer: pathEntry.layer, points: pathEntry.points, intent: pathEntry.intent });
     }
   }
   return segments;
@@ -132,7 +132,7 @@ export function translate({ plan, instanceProfile } = {}) {
   assertExportable(plan);
 
   const segments = collectPrintSegments(plan);
-  if (!segments.length) {
+  if (!segments.some((s) => s.intent === "print")) {
     throw new Error("Refusing to translate: the plan has no print-intent points to emit.");
   }
 
@@ -212,6 +212,14 @@ export function translate({ plan, instanceProfile } = {}) {
   let hasPrintedAnything = false;
 
   for (const segment of segments) {
+    if (segment.intent === "travel") {
+      if (!retracted) { emitRetract(); retracted = true; }
+      for (const p of segment.points) {
+        const gap = distance3(currentPos, p);
+        if (gap > 1e-6) emitTravel(p, gap);
+      }
+      continue;
+    }
     if (segment.layer !== currentLayer) {
       currentLayer = segment.layer;
       lines.push(`;LAYER:${currentLayer}`);
@@ -250,6 +258,7 @@ export function translate({ plan, instanceProfile } = {}) {
       currentPos = first;
     }
 
+    if (retracted) { emitPrime(); retracted = false; }
     for (let i = 1; i < segment.points.length; i++) {
       emitPrint(segment.points[i]);
       hasPrintedAnything = true;

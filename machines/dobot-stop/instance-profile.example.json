@@ -1,0 +1,16 @@
+{
+  "_note": "SYNTHETIC EXAMPLE. Zero dwell assumes immediate stop/start; this is not hardware evidence.",
+  "machineId": "dobot-stop",
+  "profileRevision": "example-0",
+  "frames": {
+    "activeTool": 1,
+    "activeUser": 1
+  },
+  "io": {
+    "extrusionRelayOutput": "DO_EXAMPLE"
+  },
+  "extrusionTiming": {
+    "onDwellMs": 0,
+    "offDwellMs": 0
+  }
+}

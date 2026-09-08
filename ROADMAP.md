@@ -184,6 +184,11 @@ up as thoroughness:
   not yet a real print (not ROBOT-CONFIRMED) — see its own README for
   exactly what that sample did and didn't settle.
 
+`reference-dobot-mg400-struderbot` also has a trace reader
+(`machines/*/trace/`) for reading its emitted Lua back into a motion
+trace. `ultimaker-s5` has none yet; a G-code reader would produce the
+same trace shape and reuse the same checks and previewer.
+
 **Designated, in development — no post-processor implementation yet:**
 
 | Machine | Controller | Class |

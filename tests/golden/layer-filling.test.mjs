@@ -238,3 +238,102 @@ test("layer-filling: a through-hole (boreDepth === height) gets no floor cap, si
     assert.equal(innerWalls.length, 1, `layer ${layer} of a through-hole should have exactly 1 bore wall (wallCount:1)`);
   }
 });
+
+test("layer-filling: bolt-circle output matches its golden fixture", () => {
+  const { input, expected } = loadFixture("bolt-circle-flange.json");
+  assert.deepEqual(generate(input), expected);
+});
+
+test("layer-filling: holes are walled and cleared of fill, and never cut by another path", () => {
+  const holes = Array.from({ length: 5 }, (_, i) => {
+    const a = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+    return { x: Number((Math.cos(a) * 45).toFixed(4)) + 0, y: Number((Math.sin(a) * 45).toFixed(4)) + 0, diameter: 8 };
+  });
+  const wallCount = 2;
+  const spacing = 0.78;
+  const { part, paths } = generate({
+    parameters: { geometry: "annulus", outerDiameter: 120, innerDiameter: 51, layers: 2, wallCount, holes },
+    settings: { layerHeight: 0.7, beadWidth: 0.83, spacing },
+  });
+
+  // Every requested hole survived and is reported on the part envelope.
+  assert.equal(part.holes.length, 5);
+
+  // One perimeter set per hole, per wall, per layer.
+  const holePerimeters = paths.filter((p) => p.family === "Hole perimeter");
+  assert.equal(holePerimeters.length, holes.length * wallCount * 2);
+
+  // Nothing at all may pass through the bore of a hole, and fill in
+  // particular has to clear the hole's own walls.
+  for (const entry of paths) {
+    for (const p of entry.points) {
+      for (const hole of holes) {
+        const distance = Math.hypot(p.x - hole.x, p.y - hole.y);
+        assert.ok(distance >= 4 - 1e-6, `${entry.family} point falls inside a hole (d=${distance})`);
+        if (entry.family === "Region-first raster") {
+          // Tolerance is a hair over the generator's own 4-decimal point
+          // rounding, which can pull a point exactly on the allowance
+          // boundary a fraction inside it.
+          assert.ok(
+            distance >= 4 + wallCount * spacing - 1e-3,
+            `raster encroaches on a hole's wall allowance (d=${distance})`
+          );
+        }
+      }
+    }
+  }
+});
+
+test("layer-filling: hole perimeters are closed contours centered on their hole", () => {
+  const holes = [{ x: 12, y: -7, diameter: 5 }];
+  const { paths } = generate({
+    parameters: { geometry: "annulus", outerDiameter: 60, innerDiameter: 20, layers: 1, wallCount: 1, holes },
+    settings: {},
+  });
+  const perimeters = paths.filter((p) => p.family === "Hole perimeter");
+  assert.equal(perimeters.length, 1);
+  for (const entry of perimeters) {
+    assert.deepEqual(entry.points[0], entry.points.at(-1), "hole perimeter is not closed");
+    const n = entry.points.length - 1; // last point repeats the first
+    const cx = entry.points.slice(0, n).reduce((a, p) => a + p.x, 0) / n;
+    const cy = entry.points.slice(0, n).reduce((a, p) => a + p.y, 0) / n;
+    assert.ok(Math.abs(cx - 12) < 1e-6 && Math.abs(cy + 7) < 1e-6, `centroid ${cx},${cy} is off its hole`);
+  }
+});
+
+test("layer-filling: a hole that doesn't fit the material is reported and dropped, not clamped", () => {
+  const { part, warnings } = generate({
+    parameters: {
+      geometry: "annulus",
+      outerDiameter: 120,
+      innerDiameter: 51,
+      layers: 1,
+      holes: [
+        { x: 59, y: 0, diameter: 8 },   // over the outer edge
+        { x: 28, y: 0, diameter: 8 },   // into the bore wall
+        { x: 0, y: 0 },                 // no diameter
+        { x: 45, y: 0, diameter: 8 },   // the one good hole
+      ],
+    },
+    settings: { layerHeight: 0.7, beadWidth: 0.83, spacing: 0.78 },
+  });
+  assert.equal(part.holes.length, 1, "only the valid hole should survive");
+  assert.deepEqual(part.holes[0], { x: 45, y: 0, diameter: 8 });
+  assert.deepEqual(
+    warnings.map((w) => w.code),
+    ["hole-outside-part", "hole-breaks-bore", "hole-ignored"]
+  );
+});
+
+test("layer-filling: omitting holes leaves circular output byte-identical to before the feature existed", () => {
+  const input = {
+    parameters: { geometry: "annulus", outerDiameter: 40, innerDiameter: 28, layers: 2 },
+    settings: { layerHeight: 1, beadWidth: 0.8, spacing: 0.78 },
+  };
+  const withoutKey = generate(input);
+  const withEmpty = generate({ ...input, parameters: { ...input.parameters, holes: [] } });
+  assert.deepEqual(withEmpty, withoutKey);
+  assert.ok(!("warnings" in withoutKey), "a clean compile should carry no warnings key at all");
+  const { expected } = loadFixture("concentric-ring.json");
+  assert.deepEqual(withoutKey, expected);
+});

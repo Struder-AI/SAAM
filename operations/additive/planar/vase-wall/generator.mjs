@@ -1,3 +1,4 @@
+import { withTravel } from "../../../travel.mjs";
 // Deterministic single-wall spiral ("vase mode") generator: one
 // continuous helical wall rising from a base diameter to a top diameter,
 // radius and Z both varying linearly together. No dependencies; a pure
@@ -39,7 +40,7 @@ const MAX_SAFE_SHIFT_RATIO = 1;
  * @param {object} args.settings - process settings: layerHeight
  * @returns {{ part: object, paths: Array, warnings?: Array<{code: string, message: string}> }}
  */
-export function generate({ parameters = {}, settings = {} }) {
+function generateGeometry({ parameters = {}, settings = {} }) {
   const layerHeight = finite(settings.layerHeight, 0.7, 0.05, 5);
   const baseOuterDiameter = finite(parameters.baseOuterDiameter, 30, 2, 2000);
   const topOuterDiameter = finite(parameters.topOuterDiameter ?? parameters.baseOuterDiameter, baseOuterDiameter, 2, 2000);
@@ -97,4 +98,10 @@ export function generate({ parameters = {}, settings = {} }) {
   }
 
   return result;
+}
+
+// Explicit travel and hops are opt-in through the shared process setting.
+export function generate(args = {}) {
+  const result = generateGeometry(args);
+  return { ...result, paths: withTravel(result.paths, args.settings?.travelHopHeight) };
 }

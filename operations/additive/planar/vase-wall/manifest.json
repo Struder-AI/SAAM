@@ -23,7 +23,7 @@
   },
   "outputs": {
     "partShapes": ["cylinder", "cone"],
-    "pathFamilies": ["Spiral wall"]
+    "pathFamilies": ["Spiral wall", "Travel"]
   },
   "dependencies": ["layer-filling"],
   "dependencyNotes": "Not a hard runtime dependency of the generator itself, which only needs zStart. Documents the intended composition: a plan typically invokes layer-filling first to build a solid or perimeter-only base, then this operation continues upward from that base's own top Z as one continuous single wall — no separate inner perimeter, no infill, by definition of vase/spiral mode.",
@@ -33,9 +33,9 @@
     "deterministic": true
   },
   "validation": [
-    { "rule": "bounds-within-part-envelope", "description": "Every emitted point's radius stays within [min(baseOuterDiameter, topOuterDiameter), max(...)] / 2; z stays within [zStart, zStart + height]." },
+    { "rule": "bounds-within-part-envelope", "description": "Every print-intent point's radius stays within [min(baseOuterDiameter, topOuterDiameter), max(...)] / 2; z stays within [zStart, zStart + height]." },
     { "rule": "z-rises-continuously", "description": "Z rises continuously point-to-point within each revolution rather than stepping between flat layers — an ordinary planar (XY) ring motion that simply never resets Z to a constant, not a heightfield surface like non-planar-cladding." },
-    { "rule": "single-continuous-wall", "description": "Exactly one path family (Spiral wall); no separate perimeter or infill paths, by definition of vase/spiral mode." },
+    { "rule": "single-continuous-wall", "description": "Exactly one print path family (Spiral wall); no separate perimeter or infill paths, by definition of vase/spiral mode." },
     { "rule": "steep-taper-warning", "description": "Emits a `warnings` entry when the requested taper implies a per-revolution radial shift steeper than the general ~45deg unsupported-overhang guideline used across FDM printing generally — a general guideline, not evidence from this project's own hardware. See README.md." }
   ],
   "examples": ["examples/straight-tube.json", "examples/tapered-shot-glass-wall.json"],

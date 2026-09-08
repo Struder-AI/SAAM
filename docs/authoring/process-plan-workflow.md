@@ -28,7 +28,12 @@ behalf.
    matched machine's post-processor translates the plan into native
    output. It never runs without an approval record at the matching
    revision.
-7. **Test and record.** Physical results — successes, failures, and
+7. **Verify the export.** Read the emitted program back into a motion
+   trace (`schemas/motion-trace/`) and check it against the plan:
+   `node examples/verify-export.mjs <plan.json>`. Readers live beside
+   the post-processor they invert (`machines/*/trace/`);
+   `interfaces/trace-player/` animates the same trace for a human.
+8. **Test and record.** Physical results — successes, failures, and
    anything needing retest — are written back as evidence
    (`docs/authoring/evidence-labels.md`) against the exact operation and
    machine involved.

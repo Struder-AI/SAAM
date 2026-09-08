@@ -9,7 +9,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { REPO_ROOT } from "../../../registry/discover.mjs";
 
-const SESSION_PATH = join(REPO_ROOT, ".saam", "session.json");
+export const STATE_DIR = process.env.SAAM_STATE_DIR ?? join(REPO_ROOT, ".saam");
+const SESSION_PATH = join(STATE_DIR, "session.json");
 
 let cached = null;
 

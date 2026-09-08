@@ -2,22 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { discoverOperations, discoverMachines, discoverPostProcessors, loadGeneratorById } from "../../registry/discover.mjs";
 
-test("discoverOperations finds all three reference operations, uniquely", async () => {
+test("discoverOperations finds every reference operation, uniquely", async () => {
   const found = await discoverOperations();
   const ids = found.map((o) => o.manifest?.id).sort();
-  assert.deepEqual(ids, ["layer-filling", "non-planar-cladding", "vase-wall"]);
+  assert.deepEqual(ids, ["gusset-fin", "layer-filling", "non-planar-cladding", "vase-wall"]);
 });
 
 test("discoverMachines finds both reference machines and not their nested post-processors", async () => {
   const found = await discoverMachines();
   const ids = found.map((m) => m.manifest?.id).sort();
-  assert.deepEqual(ids, ["reference-dobot-mg400-struderbot", "ultimaker-s5"]);
+  assert.deepEqual(ids, ["dobot-stop", "reference-dobot-mg400-struderbot", "ultimaker-s5"]);
 });
 
 test("discoverPostProcessors finds both post-processors and not their owning machines' own manifests", async () => {
   const found = await discoverPostProcessors();
   const ids = found.map((p) => p.manifest?.id).sort();
-  assert.deepEqual(ids, ["dobot-lua-postprocessor", "ultimaker-s5-gcode-postprocessor"]);
+  assert.deepEqual(ids, ["dobot-lua-postprocessor", "dobot-stop-lua-postprocessor", "ultimaker-s5-gcode-postprocessor"]);
 });
 
 test("loadGeneratorById dynamically loads and runs the real layer-filling generator", async () => {
