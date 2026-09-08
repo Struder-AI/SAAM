@@ -8,7 +8,7 @@ const excluded = new Set(['.git', '.local', '.saam', 'Prints', 'node_modules', '
 const documents = [];
 async function walk(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
-    if (excluded.has(entry.name)) continue;
+    if (excluded.has(entry.name) || (dir === root && entry.name.toLowerCase() === 'prints')) continue;
     const path = resolve(dir, entry.name);
     if (entry.isDirectory()) await walk(path);
     else if (entry.isFile() && entry.name.endsWith('.md')) documents.push(path);
@@ -51,9 +51,9 @@ for (const entry of entries) {
   }
 }
 const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding:'utf8' }).split('\0').filter(Boolean);
-const privateFiles = tracked.filter(path => /^(Prints|\.local|\.saam)\//.test(path));
+const privateFiles = tracked.filter(path => /^(Prints|\.local|\.saam)\//i.test(path));
 if (privateFiles.length) errors.push('Personal files tracked: '+privateFiles.join(', '));
-for (const example of ['Prints/check/plan.json', '.local/architecture-map/index.html', '.saam/session.json']) {
+for (const example of ['Prints/check/plan.json', 'prints/check/plan.json', '.local/architecture-map/index.html', '.saam/session.json']) {
   try { execFileSync('git', ['check-ignore', '--no-index', '-q', example], { cwd:root }); }
   catch { errors.push('Missing ignore rule for '+example); }
 }

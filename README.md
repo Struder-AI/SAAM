@@ -31,5 +31,4 @@ from Git history. No legacy component has been adopted.
 See [legacy reference](docs/development.md#legacy-reference).
 
 The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).
-Licensing remains in [LICENSE](LICENSE); imported material is recorded in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Licensing remains in [LICENSE](LICENSE).
