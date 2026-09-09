@@ -24,7 +24,15 @@ From the repository root, install with `npm ci` (Node.js 22+).
 - `node skills/wedge-demo/scripts/cli.mjs deliver Prints/<name>` copies the approved export byte-for-byte into `delivery/wedge.gcode`.
 - `node skills/wedge-demo/scripts/cli.mjs adjust Prints/<name> <patch.json>` applies a chat-requested geometry, process or setup adjustment.
 - `node skills/wedge-demo/scripts/cli.mjs remember-setup Prints/<name>` saves setup for subsequent prints.
-- `node skills/wedge-demo/scripts/cli.mjs upgrade Prints/<name>` upgrades a 0.1 demo to the current generator, retaining geometry approval and invalidating settings/toolpath approval.
+- `node skills/wedge-demo/scripts/cli.mjs upgrade Prints/<name>` upgrades a 0.1.0, 0.2.0 or 0.2.1 demo to the current generator, retaining geometry approval and invalidating settings/toolpath approval.
+
+For a maker's first geometry review, do not wait for all process details. Once
+their request reasonably identifies this supported wedge, run `init` for a new
+local `Prints/<name>` bundle and open it with Studio. A request for a wedge on
+an S5 is sufficient to preview the default wedge; clearly identify the default
+geometry and setup as proposed, then invite chat revisions. Ask before creating
+the bundle only when the requested feature cannot be represented by the bounded
+wedge or is ambiguous in a way its defaults cannot resolve.
 
 Make parameter changes through chat only: write a JSON patch and run `adjust`.
 For example, `{"process":{"skinLayers":3}}` requests three sloped layers;
@@ -37,9 +45,15 @@ initialize a new print. The tool does not import arbitrary edited Rhino files.
 
 The default recipe is a 30 × 20 mm wedge with a 2 mm low end and 15° slope.
 It uses right nozzle #2 (`T1`), AA 0.4, 2.85 mm PLA at 215°C, a proposed 60°C
-bed, 0.2 mm first and subsequent horizontal layers, and two 0.2 mm
+bed, 28°C build-volume setting, Generic PLA material profile, 0.2 mm first and subsequent horizontal layers, and two 0.2 mm
 skins measured normal to the slope. Reuse the user's confirmed setup; do not
 describe defaults such as bed temperature as separately human-approved.
+
+S5 export includes `BUILD_VOLUME.TEMPERATURE` and the active tool's material
+GUID. Use Generic PLA's identifier when the person has specified PLA without a
+specific profile; a known material profile can replace it through chat. The
+build-volume value matches the supplied Cura S5 reference and is adjustable as
+`setup.buildVolumeC`. It is separate from nozzle and bed temperatures.
 
 `skinLayers` is the adjustable sloped-layer count. Sloped strokes always
 alternate uphill/downhill, and flat-layer traversal reverses every layer.
@@ -56,7 +70,8 @@ through chat as described in [MAKERS.md](../../MAKERS.md#printer-setup-and-assum
 
 ## Human workflow
 
-1. Show the geometry in Studio; revise through chat and show it again until the
+1. Initialize and open the first reasonable geometry in Studio as soon as the
+   maker's request supports it; revise through chat and show it again until the
    person confirms that geometry version.
 2. Show the complete proposed settings; revise through chat and show them again
    until the person confirms the locked plan. Firmware version is not required.
@@ -88,9 +103,9 @@ never test approval actions on the person's real print.
   changing slicing, bead dimensions, or transition behavior. No physical print
   or surface-quality outcome has been established.
 - The standard Griffin startup is a declared assumption; installed firmware
-  and verification metadata are optional. G280 S1 is a firmware priming operation, not a
-  generic homing command. Studio displays this operation as an event; it does
-  not emulate the firmware's hidden preflight/prime motions or heating time.
+  and verification metadata are optional. This export does not run a bed-leveling
+  routine for each job. Studio does not emulate the firmware's hidden startup
+  motions or heating time.
   Read [S5 export notes](references/s5-export.md) before changing that contract.
 - Bounds, axis feeds, flow, temperature state, unsupported commands, artifact
   integrity and SAAMpath/export agreement are checked. Software checks do not

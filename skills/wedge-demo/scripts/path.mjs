@@ -3,12 +3,17 @@ import { VERSION, distance, requireThat, validatePlan, wedgeMesh } from './model
 export function generatePath(plan, machine) {
   validatePlan(plan, machine);
   const {geometry:g, placement:o, process:p, setup:s} = plan;
+  // zAfterPrimeMm was recorded in pre-0.2.3 bundle snapshots.  It remains a
+  // compatible read only; the current machine contract no longer primes or
+  // levels as part of every job.
+  const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
+  requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   const angle = g.angleDeg*Math.PI/180, slope=Math.tan(angle), cosine=Math.cos(angle);
   const skinZ=p.skinNormalMm/cosine, coreBase=g.baseMm-p.skinLayers*skinZ, w=p.lineWidthMm;
   const partMaxZ=wedgeMesh(g).vertices.reduce((z,v)=>Math.max(z,v[2]),0);
   const clearanceZ=partMaxZ+p.liftMm;
   const actions=[];
-  let position=[...machine.tools[s.tool].startupXY, machine.startup.zAfterPrimeMm], high=0, retracted=false;
+  let position=[...machine.tools[s.tool].startupXY, startupZ], high=0, retracted=false;
   const start=[...position];
   const world=q=>[o.xMm+q[0],o.yMm+q[1],q[2]];
   let phase='prime', layer=0, layerSeconds=0;

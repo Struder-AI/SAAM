@@ -7,7 +7,7 @@ import { defaults, hash, distance, validatePlan, clone } from '../scripts/model.
 import { createGeometry, rhino, verifyGeometry } from '../scripts/geometry.mjs';
 import { generatePath } from '../scripts/path.mjs';
 import { exportGcode, interpretGcode } from '../scripts/gcode.mjs';
-import { initBundle, generateBundle, loadBundle, updatePlan, approve, deliver, root, adjustBundle, rememberSetup, bundleFingerprint } from '../scripts/bundle.mjs';
+import { initBundle, generateBundle, loadBundle, updatePlan, approve, deliver, root, adjustBundle, rememberSetup, bundleFingerprint, upgradeBundle } from '../scripts/bundle.mjs';
 import { advancePlayback, frameAtTime } from '../../../studio/playback.mjs';
 import { createStudio } from '../../../studio/server.mjs';
 
@@ -63,9 +63,11 @@ test('every horizontal travel uses the complete part height plus the locked clea
     pos=a.to;
   }
 });
-test('deterministic Griffin export uses T1, filament-length E, 215 C and complete modal interpretation',()=>{
+test('deterministic Griffin export uses T1, explicit filament advance, 215 C and complete modal interpretation',()=>{
   assert.equal(exportGcode(generatePath(plan,machine),plan,machine),code);
   assert.match(code,/\nT1\n/);assert.doesNotMatch(code,/\nT0\n/);assert.match(code,/M109 T1 S215/);
+  assert.match(code,/;GENERATOR.NAME:SAAM/);assert.match(code,/;GENERATOR.VERSION:4\.4\.0/);assert.match(code,/;SAAM\.GENERATOR\.VERSION:0\.2\.2/);
+  assert.doesNotMatch(code,/^G280\b/m,'Routine leveling must not be requested by each job.');
   const program=interpretGcode(code,plan,machine),native=path.actions.filter(a=>a.kind==='move');
   assert.equal(program.moves.length,native.length);
   native.forEach((a,i)=>{
@@ -74,21 +76,70 @@ test('deterministic Griffin export uses T1, filament-length E, 215 C and complet
   });
   const area=Math.PI*(2.85/2)**2;
   assert.ok(Math.abs(program.summary.filamentMm-program.summary.volumeMm3/area)<1e-9);
-  assert.ok(program.events.some(e=>e.kind==='firmware-prime'));
+  // Assert the serialized program itself carries a positive E delta for every
+  // deposited SAAMpath move, rather than relying only on the interpreter's
+  // reconstructed volume.
+  let e=0,serializedDepositions=0;
+  for(const line of code.split('\n')) {
+    const reset=/^G92 E(-?[\d.]+)$/.exec(line);if(reset){e=Number(reset[1]);continue;}
+    const move=/^G1 (?=.*\bE(-?[\d.]+))(?=.*\bX)(?=.*\bY)(?=.*\bZ)/.exec(line);
+    if(move){const next=Number(move[1]);if(next>e+1e-8)serializedDepositions++;e=next;continue;}
+    const eOnly=/^G1 E(-?[\d.]+)\b/.exec(line);if(eOnly)e=Number(eOnly[1]);
+  }
+  assert.equal(serializedDepositions,path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0).length);
 });
 test('bad commands, unsupported state, temperatures and machine excursions are rejected',()=>{
   for(const [bad,pattern]of [
     [code.replace('G21','G20'),/Unsupported command/],
     [code.replace('G21','G21 X1'),/Unsupported arguments/],
     [code.replace('M82','M82 E1'),/Unsupported arguments/],
-    [code.replace('M109 T1 S215','M104 T1 S215'),/priming state/],
+    [code.replace('M109 T1 S215','M104 T1 S215'),/initial motion state/],
     [code.replace('T1\nG21','T0\nG21'),/tool change/],
     [code.replace('G0 Z20 F300','G0 Z301 F300'),/Out-of-bounds/],
     [code.replace('M190 S60','M190 S150'),/Bed temperature/],
     [code.replace('G0 Z20 F300','G0 Z21 F300000'),/Axis speed/],
     [code.replace('G21','G21 @'),/Malformed/],
-    [code.replace('G92 E0','G92 E0\nG1 E50 F300'),/stationary extrusion/]
+    [code.replace('G92 E0','G92 E0\nG1 E50 F300'),/stationary extrusion/],
+    [code.replace('G92 E0','G280 S1\nG92 E0'),/Unsupported command G280/]
   ]) assert.throws(()=>interpretGcode(bad,plan,machine),pattern);
+});
+test('Griffin selection metadata is required even when motion is valid',()=>{
+  const header=interpretGcode(code,plan,machine).header;
+  assert.match(header['GENERATOR.BUILD_DATE'],/^\d{4}-\d{2}-\d{2}$/);
+  for(const key of ['GENERATOR.NAME','GENERATOR.VERSION','GENERATOR.BUILD_DATE','PRINT.TIME']) {
+    const omitted=code.split('\n').filter(line=>!line.startsWith(';'+key+':')).join('\n');
+    const empty=code.split('\n').map(line=>line.startsWith(';'+key+':')?';'+key+':':line).join('\n');
+    for(const malformed of [omitted,empty])assert.throws(()=>interpretGcode(malformed,plan,machine),new RegExp(key.replaceAll('.','\\.')));
+  }
+  assert.throws(()=>interpretGcode(code.replace(/;PRINT.TIME:\d+/,';PRINT.TIME:-1'),plan,machine),/PRINT.TIME/);
+  assert.throws(()=>interpretGcode(code.replace(/;GENERATOR.BUILD_DATE:[^\n]+/,';GENERATOR.BUILD_DATE:unknown'),plan,machine),/build date/);
+});
+test('S5 export includes material identity and build volume metadata from the locked setup',()=>{
+  const header=interpretGcode(code,plan,machine).header;
+  assert.equal(header['EXTRUDER_TRAIN.1.MATERIAL.GUID'],'506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9');
+  assert.equal(header['BUILD_VOLUME.TEMPERATURE'],'28');
+  for(const key of ['EXTRUDER_TRAIN.1.MATERIAL.GUID','BUILD_VOLUME.TEMPERATURE']) {
+    const missing=code.split('\n').filter(line=>!line.startsWith(';'+key+':')).join('\n');
+    assert.throws(()=>interpretGcode(missing,plan,machine),/MATERIAL.GUID|BUILD_VOLUME.TEMPERATURE/);
+  }
+  const revised=clone(plan);revised.setup.buildVolumeC=0;
+  const revisedCode=exportGcode(generatePath(revised,machine),revised,machine);
+  assert.equal(interpretGcode(revisedCode,revised,machine).header['BUILD_VOLUME.TEMPERATURE'],'0');
+  assert.equal(revisedCode.split(';END_OF_HEADER')[1],code.split(';END_OF_HEADER')[1]);
+  revised.setup.materialGuid='';assert.throws(()=>validatePlan(revised,machine),/Material GUID/);
+});
+test('older print bundles and remembered setups gain explicit S5 metadata without losing user settings',async t=>{
+  const dir=await fixture(t),current=await loadBundle(dir),previous=clone(current.plan);
+  previous.generatorVersion='0.2.1';delete previous.setup.buildVolumeC;previous.setup.materialGuid='';previous.setup.firmwareVersion='8.3.1';
+  await approve(dir,{stage:'geometry',actor:'SYNTHETIC TEST',revision:current.revision});
+  await writeFile(resolve(dir,'plan.json'),JSON.stringify(previous));
+  await upgradeBundle(dir);const updated=await loadBundle(dir);
+  assert.deepEqual(updated.plan.geometry,previous.geometry);assert.equal(updated.geometryApproved,true);
+  assert.equal(updated.plan.setup.firmwareVersion,'8.3.1');assert.equal(updated.plan.setup.buildVolumeC,28);assert.equal(updated.planApproved,false);
+  const setupFile=resolve(dir,'old-setup.json');
+  await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:machine.id,setup:previous.setup}));
+  const next=resolve(dir,'new-print');await initBundle(next,undefined,{setupFile});
+  const reopened=await loadBundle(next);assert.equal(reopened.plan.setup.buildVolumeC,28);assert.equal(reopened.plan.setup.firmwareVersion,'8.3.1');assert.equal(reopened.plan.setup.materialGuid,updated.plan.setup.materialGuid);
 });
 test('valid parameter changes propagate while unsupported settings fail before generation',()=>{
   for(const angle of [1,5,15]) {

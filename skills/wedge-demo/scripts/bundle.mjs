@@ -22,7 +22,7 @@ export async function initBundle(directory,plan,{setupFile=defaultSetupFile}={})
   const dir=resolve(directory);
   try{await access(resolve(dir,'plan.json'));throw new Error('Print already exists. Open it or choose another directory.');}catch(e){if(e.code!=='ENOENT')throw e;}
   const machine=await json(resolve(root,'machines/ultimaker-s5.json'));
-  if(!plan){plan=defaults();try{const saved=await json(setupFile);requireThat(saved.machineId===machine.id&&saved.schema==='saam-machine-setup/1','Saved machine setup is incompatible.');plan.setup=saved.setup;}catch(e){if(e.code!=='ENOENT')throw e;}}
+  if(!plan){plan=defaults();try{const saved=await json(setupFile);requireThat(saved.machineId===machine.id&&saved.schema==='saam-machine-setup/1','Saved machine setup is incompatible.');plan.setup={...plan.setup,...saved.setup,materialGuid:saved.setup.materialGuid||plan.setup.materialGuid};}catch(e){if(e.code!=='ENOENT')throw e;}}
   validatePlan(plan,machine);
   const geometry=await createGeometry(plan.geometry);
   await save(resolve(dir,'geometry/model.3dm'),geometry.bytes);
@@ -49,8 +49,8 @@ export async function loadBundle(directory,{program=true}={}) {
   state.revision=hash({geometryHash,planHash,review});
   state.limitations=['Physical clearance is the operator’s responsibility for this demo.',
     'Bead shape and the staircase transition are approximations; no physical print has been validated.',
-    'Griffin firmware preflight/priming internals are not animated.'];
-  state.setupBasis=plan.setup.startupVerified?'Confirmed startup behavior':'Standard S5 Griffin startup assumed';
+    'Griffin firmware startup internals are not animated; this export does not request routine bed leveling.'];
+  state.setupBasis=plan.setup.startupVerified?'Confirmed startup behavior':'Standard S5 Griffin startup without routine bed leveling assumed';
   if(program&&review.generation) {
     try {
       requireThat(review.generation.planHash===planHash,'Generated program is stale; regenerate for the current plan.');
@@ -96,9 +96,11 @@ export async function adjustBundle(directory,patch,{setupFile=defaultSetupFile}=
 export async function upgradeBundle(directory) {
   const plan=await json(resolve(directory,'plan.json'));
   if(plan.generatorVersion===VERSION)return;
-  requireThat(plan.generatorVersion==='0.1.0','Unsupported bundle upgrade.');
+  requireThat(['0.1.0','0.2.0','0.2.1'].includes(plan.generatorVersion),'Unsupported bundle upgrade.');
   const review=await json(resolve(directory,'review.json'));
   plan.generatorVersion=VERSION;plan.process.skinDirection='alternating';
+  plan.setup.buildVolumeC??=defaults().setup.buildVolumeC;
+  plan.setup.materialGuid||=defaults().setup.materialGuid;
   delete review.approvals.plan;delete review.approvals.toolpath;review.generation=null;
   review.history.push({event:'generator-upgraded',version:VERSION,time:new Date().toISOString()});
   await save(resolve(directory,'plan.json'),plan);await save(resolve(directory,'review.json'),review);

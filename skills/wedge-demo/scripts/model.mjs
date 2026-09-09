@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.2';
+export const GENERIC_PLA_GUID = '506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9';
+// Release metadata, fixed so regenerating a reviewed plan is deterministic.
+export const BUILD_DATE = '2026-09-08';
 export const clone = value => structuredClone(value);
 export const canonical = value => JSON.stringify(value, function (_key, item) {
   if (item && typeof item === 'object' && !Array.isArray(item)) return Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]));
@@ -18,7 +21,7 @@ export function defaults() {
     geometry: {runMm: 30, widthMm: 20, baseMm: 2, angleDeg: 15},
     placement: {xMm: 150, yMm: 110},
     setup: {tool: 1, core: 'AA 0.4', nozzleMm: 0.4, material: 'PLA', filamentMm: 2.85,
-      nozzleC: 215, bedC: 60, materialGuid: '', firmwareVersion: '', startupVerified: false},
+      nozzleC: 215, bedC: 60, buildVolumeC: 28, materialGuid: GENERIC_PLA_GUID, firmwareVersion: '', startupVerified: false},
     process: {firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4, skinNormalMm: 0.2, skinLayers: 2,
       planarSpeedMmS: 20, skinSpeedMmS: 10, firstLayerSpeedMmS: 12, travelSpeedMmS: 60,
       zSpeedMmS: 5, retractMm: 6.5, retractSpeedMmS: 25, liftMm: 2, fanPercent: 100,
@@ -47,8 +50,9 @@ export function validatePlan(plan, machine) {
   requireThat(s.tool === 0 || s.tool === 1, 'Select nozzle #1 or #2.');
   requireThat(s.core === 'AA 0.4' && s.nozzleMm === 0.4 && s.material === 'PLA' && s.filamentMm === 2.85, 'This demo supports AA 0.4 and 2.85 mm PLA only.');
   number(s.nozzleC, 180, 230, 'PLA nozzle temperature'); number(s.bedC, 0, 70, 'PLA bed temperature');
+  number(s.buildVolumeC, 0, 50, 'Build volume temperature');
   requireThat(typeof s.startupVerified === 'boolean' && typeof s.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(s.firmwareVersion), 'Invalid firmware setup.');
-  requireThat(typeof s.materialGuid === 'string' && (s.materialGuid === '' || /^[a-f0-9-]{36}$/i.test(s.materialGuid)), 'Material GUID must be empty or a UUID.');
+  requireThat(typeof s.materialGuid === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(s.materialGuid), 'Material GUID must be a UUID; use the Generic PLA profile when the specific material is unknown.');
   requireThat(machine.id === 'ultimaker-s5' && machine.schema === 'saam-machine/1' && machine.outputs.some(o => o.id === plan.output), 'Unsupported machine/output.');
   const t = Math.tan(g.angleDeg*Math.PI/180), c = Math.cos(g.angleDeg*Math.PI/180);
   requireThat(g.baseMm - p.skinLayers*p.skinNormalMm/c > p.firstLayerMm, 'Base is too thin for the reserved skin.');
