@@ -12,7 +12,7 @@
 // area is excluded from the skin and reported, so the person sees what is not
 // covered before approving the plan; it is not silently printed flat.
 
-import { topAt, sampleTopSurface } from '../../../core/geom/field.mjs';
+import { topAt, sampleTopSurface } from '../../../core/geom/query.mjs';
 import { offsetRegion, scanlineFill, regionArea, loopArea } from '../../../core/region/region2d.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
 import { composeResults } from '../../../core/path/compose.mjs';
@@ -159,7 +159,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     const sequence = skin % 2 ? rows : [...rows].reverse();
     const strokes = sequence.map((row, position) => {
       const [from, to] = position % 2 ? [row.to, row.from] : [row.from, row.to];
-      return { role: 'skin', closed: false, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count) };
+      return { role: 'skin', closed: false, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count,survey.limitDeg) };
     }).filter(stroke => stroke.points.length > 1);
 
     // The surface this skin lies on, for both clearance and direct travel.
@@ -197,7 +197,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
 }
 
 // Sample a straight bed-plane run, lifting each sample onto the skin surface.
-function samplePath(shell, from, to, stepMm, below, thickness, process, count) {
+function samplePath(shell, from, to, stepMm, below, thickness, process, count,limitDeg) {
   const span = distance2(from, to);
   const steps = Math.max(1, Math.ceil(span / stepMm));
   const points = [];
@@ -205,9 +205,12 @@ function samplePath(shell, from, to, stepMm, below, thickness, process, count) {
     const t = i / steps;
     const x = from[0] + (to[0] - from[0]) * t, y = from[1] + (to[1] - from[1]) * t;
     const top = topAt(shell, x, y);
-    if (!top) continue;
+    requireThat(top&&top.slopeDeg<=limitDeg+1e-6,'Drape crosses an absent or unsampled steep surface; refine the survey or select a continuous roof.');
     const cos = Math.cos(top.slopeDeg * Math.PI / 180);
     const z = top.zMm - below * thickness / cos;
+    if(points.length){const previous=points[points.length-1].point;
+      requireThat(Math.atan2(Math.abs(z-previous[2]),Math.hypot(x-previous[0],y-previous[1]))*180/Math.PI<=limitDeg+1e-5,'Drape crosses a discontinuity or exceeds its angle limit; select a continuous roof.');
+    }
     // The first skin bridges the body's stepped top, so its gap is measured to
     // the actual layer below rather than assumed equal to the skin thickness.
     const gap = below === count - 1
@@ -276,5 +279,6 @@ export const skinReport = report => ({
 });
 
 export function generateDrapedSkin(builder,options){
+  builder.planMaxZ=Math.max(builder.planMaxZ??-Infinity,options.shell.bounds.max[2]);
   const result=drapedSkinResult(options);composeResults(builder,[result]);return result.report;
 }

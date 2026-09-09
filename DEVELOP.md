@@ -113,7 +113,7 @@ temporary bundles and never authorize the person's real print.
 | skills/full-fill/ | Solid planar layers for any closed shell: manual, generator and tests |
 | skills/draped-skin/ | Surface-following skins under the machine's non-planar angle limit: manual, generator and tests |
 | skills/wedge-demo/ | Bounded wedge demo manual, geometry/generation tools and shared-workflow adapter, references and tests |
-| machines/ | S5 machine definition and declared export |
+| machines/ | S5 and H2D capability/setup definitions and output availability |
 | studio/ | Local geometry and G-code viewer, review UI and loopback server, for either kind of print bundle |
 | examples/prints/ | Specifically curated public examples |
 | Prints/ | Ignored local print bundles |
@@ -136,9 +136,9 @@ there is no mandatory seed field or randomized skill in this foundation.
 
 ## Rhino geometry
 
-The current implementation uses Rhino and native 3DM files. The requested
-replacement is [native mesh geometry](#geometry-interoperability-for-skill-authors);
-that design is under review and has not migrated existing bundles.
+The spline backend uses Rhino and native 3DM files. Imported meshes use
+[native indexed geometry](#geometry-interoperability-for-skill-authors), with
+the user-confirmed shared interface preserving direct spline slicing.
 The wedge uses pinned rhino3dm 8.32.2 to create a capped extrusion and six named
 NURBS reference surfaces, then tests the saved 3DM by reopening it. The exact
 planar faces also supply a small display proxy. General edited-3DM import,
@@ -232,7 +232,7 @@ Prints/<name>/
 - `saam-review/1`: exact-version human approvals, history and generation hashes.
   `saam-checks/1` records software checks and limitations.
 
-On reopening, verify 3DM integrity, regenerate from the locked recipe, compare
+On reopening, verify native geometry/source integrity, regenerate from the locked recipe, compare
 SAAMpath and export, and reinterpret G-code. No edited/stale artifact can inherit
 toolpath approval. Delivery copies the already reviewed bytes. Local approval
 records capture a person's statement; they are not authenticated digital
@@ -255,11 +255,12 @@ one SAAMpath and one reviewed export. See [skill-result composition](#skill-resu
 
 **Status: software only, and less established than the wedge.** The workflow is
 implemented once in `core/print/workflow.mjs`; `core/print/bundle.mjs` supplies the shell adapter for a print bundle
-with native 3DM geometry and a review record, Studio serves it, a person gives
+with native spline or mesh geometry and a review record, Studio serves it, a person gives
 the three approvals, and delivery copies the reviewed bytes. What that does not
 establish: no part from these skills has been printed, no maker agent has used
-them end to end, and the plan expresses only the shapes in `core/geom/shapes.mjs`
-(`box`, `wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`, and an `assembly` of these components) - an
+them end to end. The plan expresses shapes in `core/geom/shapes.mjs`
+(`box`, `wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`), indexed
+triangle meshes, and an `assembly` of these components. An
 edited or imported 3DM is still not accepted as input. The vertical spline shell
 extrudes its bulged spline footprint vertically below a spline roof; arbitrary
 side editing remains deferred. Generation without approvals is recorded as
@@ -267,7 +268,9 @@ side editing remains deferred. Generation without approvals is recorded as
 
 ### Geometry contract
 
-Input is a **closed shell of untrimmed bivariate spline patches**. Every face is
+The **spline backend** accepts a closed shell of untrimmed bivariate spline
+patches. Mesh input uses the [shared geometry interface](#geometry-interoperability-for-skill-authors).
+Every spline face is
 a full rectangular (u,v) patch, which is what makes sectioning tractable without
 a kernel: a face's section is the zero contour of a scalar function over the
 whole domain, with no trim classification. That restriction is not cosmetic.
@@ -335,9 +338,9 @@ overlap resolution in a plan remain deferred; an assembly is not a boolean union
 
 ### Travel planning
 
-`core/path/builder.mjs` classifies each move as joined, combed or hopped, and
-computes clearance per hop from a callback: a planar layer clears the layer it
-is on, while a draped skin clears the surface that particular hop crosses. Fill
+`core/path/builder.mjs` classifies each move as joined, combed or hopped.
+The composer sets whole-plan clearance; local callbacks decide direct/combed
+eligibility. See [travel requirements](#whole-plan-travel-requirement). Fill
 strokes alternate their direction to keep neighbouring endpoints close. The wedge
 uses its own bounded travel policy: nearby starts stay down, while longer moves
 lift to the part maximum plus clearance. Both use the shared export and checks.
@@ -420,112 +423,117 @@ them narrow, explain their reason and limits, and test the shared boundary.
 The bounded S5 wedge is one such exception in geometry and generation. It uses
 the common exporter and print lifecycle. Mesh and NURBS backends should share
 downstream regions, composition, SAAMpath, export and review; neither is a reason
-for another complete pipeline. Mesh slicing is not yet implemented.
+for another complete pipeline. Both backends now use the shared geometry-query interface described below.
 
 ## Geometry interoperability for skill authors
 
-**Design for review, 2026-09-09; not implemented.** Mesh becomes the native
-part-geometry representation, replacing the earlier Rhino/3DM direction
-([D-021](DECISIONS.md#d-021--native-mesh-geometry)). Keep source CAD optionally;
-convert spline input to mesh with a locked chord/normal tolerance before geometry
-approval. Existing restricted spline queries can remain behind the shared
-interface where useful; do not build a second mesh-to-export pipeline.
+`core/geom/query.mjs` is the skill-facing boundary: `sectionGeometry`, `topAt`
+and `sampleTopSurface`, with conservative bounds on the geometry object. It
+supports the existing closed untrimmed spline shells and validated indexed
+triangle meshes. Full-fill, planar-infill and draped-skin use these queries;
+pattern code must not branch on triangle versus spline internals. Declare new
+capabilities here and provide a backend implementation or an explicit rejection.
+The user confirmed retaining both backends on 2026-09-09. Mesh conversion is not
+required before SAAMpath generation.
 
-Skills request capabilities from `core/geom/`, rather than reading control nets
-or triangles themselves:
+| Representation | Role |
+|---|---|
+| Spline shell / triangle mesh | Part geometry behind common queries. |
+| Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
+| Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
+| Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
+| SAAMpath | Machine-independent XYZ motion, deposition and process actions. |
+| Output artifact | Machine-specific commands/packaging with a matching interpreter. |
 
-| Capability | Used by | Required behavior |
-|---|---|---|
-| Identity, units, placement, bounds | All | Stable revision/feature references, millimeters, one transform, conservative bounds. |
-| Plane section | Full-fill, planar-infill | Closed regions with holes; shared tolerances; report ambiguous/nudged cuts. |
-| Top height and normal at XY | Draped-skin | Highest exposed surface or explicit outside/unsupported result; preserve sharp mesh creases. |
+Native mesh assets use `geometry/model.mesh.json` with `saam-native-geometry/1`,
+millimeter indexed triangles, original source provenance and shape parameters.
+Mixed assemblies retain spline recipes for spline components. Existing spline
+and wedge bundles continue using `geometry/model.3dm`; no silent migration occurs.
+STL import accepts ASCII and binary with explicit mm/inch units, indexes exact
+shared vertices, records translation onto the bed, and retains `geometry/source.stl`
+and its hash. File changes invalidate review. STL does not supply semantic CAD
+faces, so Studio selects the imported component as a whole.
 
-The current fill and drape implementations call spline-specific functions;
-refactoring is required. Meshes describe parts and may describe layer surfaces;
-sections remain curves/regions and SAAMpath remains motion plus process data.
-Meshing is an approximation of smooth CAD, not a lossless universal replacement
-for these other representations. The wedge's eight-point generator stays a
-bounded exception using the shared export and lifecycle.
+`core/geom/mesh.mjs` rejects invalid indices/nonfinite coordinates, degenerate or
+duplicate triangles, open edges, inconsistent winding, nonmanifold vertices and
+intersecting nonadjacent triangles. It does not repair geometry. Checks are
+bounded to 100000 triangles and two million candidate intersection tests; adjacent
+facets sharing vertices are excluded from the intersection pass, so this is not
+a complete solid-kernel validity proof. Mesh sections preserve holes/islands and
+report nudged boundary cuts. Normals at equal-height creases use the steeper
+facet. Drape requires a continuous accessible roof; discontinuities or sampled
+segments above its angle limit are rejected. Sampling and bead-width limits remain.
 
-STL import must accept ASCII and binary, require explicit units/scale in the
-locked recipe, preserve the source hash, and produce a validated indexed
-triangle mesh. Start with a simple versioned mesh asset in the existing print
-bundle; the exact encoding is still a review choice. Do not require Rhino/3DM
-as its native storage. Reject nonfinite/degenerate facets, open or nonmanifold
-geometry and unresolved intersections. Any welding, repair or tessellation must
-be explicit and occur before geometry approval. Preserve stable feature IDs
-where available; STL does not supply CAD faces. Reopening verifies source/native
-hashes through the existing approval and delivery workflow.
-
-General skills must declare capabilities and document narrow exceptions.
-Test equivalent spline and mesh shapes through the same skills: holes, islands,
-slopes, boundary cuts, malformed input, and reviewed-byte delivery. Compare within
-conversion/query tolerances. Drape remains a top-surface operation; mesh input
-alone does not enable underside wrapping, support generation or collision checks.
+Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
+regions, machine checks, native-file integrity, approvals and exact-byte S5
+export delivery. Add equivalent backend tests for each general skill. The
+bounded eight-point S5 wedge remains an explicit geometry/machine exception.
 
 ## Whole-plan travel requirement
 
-**Required change, not implemented:** compute one conservative maximum from the
-entire placed process plan, including all skills/components and deposition
-offsets. Every ordinary lifted traverse clears that maximum plus locked lift,
-including future operations. Cooling/final parking use the same bound; never
-lower a traverse below its endpoints or clamp an out-of-bounds clearance.
-Enforce this centrally in composition/travel, not separately in every skill.
+The shared composer computes a conservative height from all operation strokes
+and the entire placed plan's geometry bounds, including later or unselected
+components. Lifted traverses clear it by the locked `liftMm`; cooling uses the
+same bound. Traverses never start below either endpoint. Final parking clears
+the plan. Required clearance above the selected tool's Z bounds is rejected.
+Single-skill compatibility helpers supply their geometry bounds to the same
+composer; compose all results together for a multi-skill process plan.
 
-Joined strokes and verified combing may stay down. Minimize travel with stroke
-ordering, seam placement and alternating connected infill. Combing should route
-inside permitted regions around holes, considering already deposited material
-from every skill; fall back to the whole-plan hop when no valid route exists.
-This is not a full swept-head collision model.
-
-**Today:** fill clears its layer, drape queries the crossed surface, and the
-composer includes earlier operations. Wedge longer moves clear its own maximum;
-nearby starts stay down. Test the new rule with a later tall operation, a descent
-from a taller batch, cooling, machine bounds and combing around holes.
+Nearest wall starts, alternating infill and verified combing reduce travel.
+Planar combing checks boundary crossings and standoff, then can route around
+holes via a bounded visibility graph (256 offset corners, `maxCombMm` route
+length); otherwise it hops. Earlier operation queries can forbid combing.
+Drape retains its own local surface query for direct moves. These conservative
+policies are not a full swept-head collision or support model. Wedge's bounded
+nearby/direct and full-part-height policy remains unchanged.
 
 ## Planar-infill design
 
-Suggested name: **planar-infill**. Provide planar layers, a wall count and sparse
-alternating rectilinear infill (45°/135°), with locked density and overlap.
-Reuse section regions, offsets, scanlines and shared travel/composition. Return
-wall and infill operations with explicit wall-before-infill and prior-layer
-prerequisites. No new top/bottom pattern generator is needed.
+[Planar-infill](skills/planar-infill/SKILL.md) is implemented: walls and sparse
+alternating rectilinear interiors. Full-fill `mode: solid-surfaces` supplies
+local top/bottom solid masks by comparing neighboring sections. Sparse/solid
+interiors are complementary; walls have one owner and each layer's supporting
+operations precede the next. The shared region booleans now handle coincident
+sections and collinear edges. Drape reservation clips both planar patterns.
 
-Reuse full-fill for solid regions, but first add shared layer/region ownership:
-one layer grid, one wall owner, solid masks assigned to full-fill, and sparse
-infill only in the remainder. Example: a 20-layer box with three bottom and
-three top layers gets full-fill interiors on layers 1–3 and 18–20, sparse
-interiors on 4–17, and walls once on every layer. Full-fill currently selects
-whole components, not these masks; simply enabling both would double-print.
-
-Changing cross sections need local top/bottom masks from adjacent sections,
-not only global first/last layers. Reserve drape material from both planar
-skills. Solid tops over sparse infill require a bridging/support strategy;
-reuse of the fill pattern alone does not solve that. All choices are locked
-before plan approval. Verify material coverage without duplicate deposition,
-wall count, density, dependencies and travel on both geometry backends.
+The 20-layer box regression verifies three solid bottom/top layers, fourteen
+sparse layers, and one set of walls per layer across both backends/machines.
+A sloping roof regression checks local solid regions. Bridge optimization and
+support generation remain unimplemented; solid beads above sparse infill are
+an approximate deposition model, not validated physical bridges.
 
 ## Machine interoperability design
 
-**Partial today:** pattern skills share a machine definition, operation results
-and export lifecycle, and drape reads a declared non-planar angle limit. However,
-shared plan validation requires AA 0.4 / PLA / 2.85 mm filament and tool 0 or 1;
-bundle initialization selects the S5 profile, and Griffin is the only implemented
-export/interpreter. General machine interoperability is not complete.
+`core/machine/profile.mjs` validates selected tool bounds, nozzle/core, filament,
+material temperatures, flow/retraction and required skill capabilities. Profiles
+own setup defaults; remembered setup is separate per machine. Skills target
+compatible XYZ extrusion machines through this interface. Planar skills require
+`planar`; drape additionally requires `nonplanar` and a declared angle limit.
+`checkMachinePath` checks geometry-independent SAAMpath bounds, axis and extrusion
+feeds before export. Wedge explicitly rejects machines other than the S5.
 
-Move setup constraints, tool choices, motion/flow limits and startup state into
-machine capabilities and compatible material/tool profiles. Skills declare
-capability needs and consume the resolved locked process settings. Keep firmware
-commands, startup/shutdown and output packaging in machine/output adapters.
-An unsupported non-planar operation must fail clearly; planar skills should not
-require a non-planar capability. Test the same skills against both profiles.
+| Profile | Skill checks | Runnable output |
+|---|---|---|
+| UltiMaker S5 | Fill, planar-infill, drape on mesh/splines; bounded wedge | Griffin exporter/interpreter, same-file Studio review/delivery. |
+| Bambu H2D | Fill, planar-infill, drape on mesh/splines | Pending a verified startup/command/packaging envelope; export explicitly unavailable. |
 
-Add a Bambu H2D profile plus its required export/interpreter/package support in
-the shared lifecycle. Verify the intended tool/material configuration, firmware,
-limits and startup behavior against authoritative documentation or a known-good
-sample before implementation. A machine JSON alone does not establish support.
-Studio must interpret the exact artifact delivered; retain the same three
-approvals and distinguish software verification from a physical print.
+The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
+non-planar limit. The profile records official hardware/slicer sources, separate
+nozzle work areas and conservative PLA settings. Its internal path-check start
+is an explicit development assumption, not verified firmware state. The inherited
+left-tool height is 320 mm; the advertised overall height is 325 mm. No H2D print
+or machine file is validated. A known-good Bambu Studio export for the target
+setup is needed to finish startup, physical tool mapping, proprietary commands
+and sliced-3MF packaging. Geometry/settings review remains usable meanwhile.
+
+`core/export/registry.mjs` dispatches the selected output to its exporter and
+interpreter; it rejects unavailable outputs. SAAMpath is an interoperability
+boundary, not an automatic translator to every machine language. Current actions
+are XYZ moves with deposition volume, retraction/recovery, fan and dwell for one
+selected tool. New dialects need adapters; rotary orientation, in-program tool
+changes or other unsupported semantics need explicit representation extensions.
+Preserve units, transforms, feature identity and material ownership across every
+boundary. A common extension or file suffix alone does not establish compatibility.
 
 ## Documentation maintenance
 
@@ -570,16 +578,16 @@ finishes cooling once after all operations assigned to a shared layer. Hops
 account conservatively for previous operations' clearance queries, including
 travel from a taller batched column toward a lower one. This is not a full
 collision or swept-head model. Results must describe compatible regions and
-material ownership; the composer does not infer geometric overlap, support,
+material ownership; the composer does not infer arbitrary geometric overlap, support,
 bridge printability or a safe order from arbitrary strokes alone.
 
 Full-fill produces separate wall and interior-fill operations for each layer.
 An assembly's `geometry.parts` holds named components with `geometry` and
-`xMm/yMm/zMm` translations; native 3DM stores all their named surfaces.
+`xMm/yMm/zMm` translations; native geometry preserves each component's representation.
 `skills.full-fill.parts` selects the components to fill (empty means all),
 producing one skill instance per component. `skills.draped-skin.part` selects
-the roof component for an assembly. Assemblies are limited to the existing shape
-builders, not arbitrary imported CAD or automatic boolean solids. Assign regions
+the roof component for an assembly. Assemblies accept supported spline builders
+and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.
 
 Full-fill and draped-skin do **not** weave through each other. All supporting fill

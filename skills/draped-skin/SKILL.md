@@ -1,130 +1,71 @@
 ---
 name: draped-skin
-description: Surface-following skin layers over the top of any closed shell of untrimmed spline patches, limited by the machine's max non-planar angle. Steep area is excluded and reported. Reviewed in SAAM Studio through the three approvals; no part from it has been printed.
+description: Generate surface-following top skins on supported spline shells and closed meshes, using the selected machine's non-planar angle limit and the shared print workflow. Requires a continuous accessible roof; steep area is excluded and reported.
 ---
 
-# draped-skin
+# Draped skin
 
-Read the applicable root context: developer agents read both
-[DEVELOP.md](../../DEVELOP.md) and [MAKERS.md](../../MAKERS.md).
+Use for top layers that follow a surface rather than stepping across it in flat
+layers. Read [MAKERS.md](../../MAKERS.md); developers also read
+[DEVELOP.md](../../DEVELOP.md). Use the [shared tools](../full-fill/SKILL.md#setup-and-tools).
 
-This skill lays the top of a part along its actual surface instead of stepping
-across it in flat slices. It is the general form of the final pattern in the
-[wedge demo](../wedge-demo/SKILL.md): where that demo follows one flat inclined
-face computed from wedge parameters, this follows whatever top surface the
-geometry has.
+The skill queries surface height and normals through the shared geometry
+interface. Supported inputs are the existing untrimmed spline shapes, validated
+triangle meshes including STL, and a selected roof component in an assembly.
+It does not require a mesh conversion for spline inputs. Mesh normals remain
+faceted, with the steeper normal chosen at a shared crease; they are not smoothed.
 
-It also accepts the plan's `vertical-spline-shell` shape: a control-point-grid
-roof over a bulged footprint whose side walls remain vertical. The roof is
-surveyed as usual; its over-limit area is excluded when it exceeds the machine
-limit.
+## Behavior and limits
 
-**Nothing here has been printed.** No physical validation has been performed,
-no surface finish claim is established, and no maker has yet used this skill end
-to end. What is implemented is the software workflow it shares with
-[full-fill](../full-fill/SKILL.md): a print bundle with native 3DM geometry,
-SAAM Studio review, the three human approvals, and delivery of the exact
-reviewed bytes. Generation without those approvals is a development preview and
-says so.
+Survey the roof, exclude area steeper than the selected limit, reserve thickness
+under skinnable surface, and generate surface-following strokes. The reserve is
+subtracted from full-fill and planar-infill. All supporting body operations must
+finish before the skins; skins remain ordered. Surface height means the highest
+exposed surface at XY, not the underside of an overhang or a general wrapped skin.
 
-## What it does
+S5 declares a 15° software limit. The user also selected **experimental 15° for
+H2D** on 2026-09-09. Neither is a manufacturer-certified clearance rating. The
+machine must declare XYZ extrusion, non-planar capability and an angle limit.
+Steep percentage and the effective limit are reported by the survey/generator.
+A sampled stroke crossing a height discontinuity, missing roof or excessive
+angle is rejected; choose a continuous roof or refine the survey.
 
-1. Survey the top surface. For each point on the bed, the height, normal and
-   slope come from a vertical solve against the shell's patches.
-2. Work out where skinning is allowed: the machine's non-planar angle limit
-   excludes surface steeper than a fixed vertical nozzle can follow.
-3. Reserve thickness under the surface for the skins, and hand that reserve to
-   [full-fill](../full-fill/SKILL.md) so the body stops short of it.
-4. Print each skin as strokes that ride the surface, offset downwards along the
-   normal, alternating stroke direction and row order between skins.
-
-The lowest skin bridges the body's stepped top, so its gap is measured to the
-actual layer beneath rather than assumed equal to the skin thickness.
-
-## The machine's angle limit
-
-`machines/ultimaker-s5.json` declares `nonplanar.maxAngleDeg`, currently **15°**
-for the S5. Surface steeper than that is **excluded from the skin and reported**
-— the excluded area percentage and the surface's maximum slope appear in the
-path summary and the checks file, so a person can see what is not covered before
-approving anything. Steep area is not quietly printed flat.
-
-That 15° is a declared software limit, taken from the inclination range the
-wedge demo was built around. **It is not a measured clearance rating.** No head
-collision model is implemented, and no print has established it.
-
-## Setup and tools
-
-From the repository root, install with `npm ci` (Node.js 22+). The commands are
-the shared pipeline's, documented in
-[full-fill](../full-fill/SKILL.md#setup-and-tools). In short:
-
-- `node core/print/cli.mjs init Prints/<name>` creates the print,
-  `npm run studio -- Prints/<name>` opens it for the three approvals, and
-  `node core/print/cli.mjs adjust Prints/<name> patch.json` applies a change
-  asked for in chat.
-- `node core/print/cli.mjs demo Prints/<name>` generates without a
-  person in the loop; it creates no approval and cannot authorize delivery.
-
-The excluded steep area and the surface's maximum slope appear in the settings
-and toolpath review, so a person sees what will not be skinned before approving.
+`drapedSkinResult({shell, plan, machine, survey, id, after})` returns operations
+for the shared composer. `generateDrapedSkin(builder, options)` uses the same
+implementation for a single instance. Use all results together when composing a
+plan, so whole-plan travel accounts for every component and operation.
 
 ## Settings
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `part` | `null` | Roof component ID for an assembly; otherwise the part roof. |
-| `enabled` | `true` | Print surface-following skins at all. |
-| `layers` | `2` | Number of stacked skins. |
+| `enabled` | `true` | Select the skin. |
+| `part` | `null` | Roof component for an assembly; otherwise the part roof. |
+| `layers` | `2` | Number of skins. |
 | `normalMm` | `0.2` | Skin thickness measured along the surface normal. |
-| `strokeAngleDeg` | `0` | Direction of the skin strokes across the surface. |
-| `sampleStepMm` | `0.5` | Spacing at which a stroke is lifted onto the surface. |
-| `surveyStepMm` | `0.5` | Grid step for the surface survey and the reserve field. |
-| `maxAngleDegOverride` | `null` | Explicit per-print experimental limit. It leaves the machine file unchanged and is flagged in Studio and checks. |
+| `strokeAngleDeg` | `0` | Bed-plane stroke direction. |
+| `sampleStepMm` | `0.5` | Stroke sampling step. |
+| `surveyStepMm` | `0.5` | Surface survey step. |
+| `maxAngleDegOverride` | `null` | Explicit per-print experimental override; leaves the profile unchanged. |
 
 ## Travel
 
-A curved surface has no single safe travel height, so clearance is computed per
-hop: a lifted move clears the highest surface **along that hop** plus the locked
-`liftMm`. Between neighbouring strokes the nozzle crosses directly along the
-surface without retracting, since the surface between two adjacent strokes is at
-the same height as both ends. The wedge keeps its bounded policy of direct nearby travel and full-height
-lifts for longer moves. Both use shared export and review.
+Verified short direct moves may stay down on the current skin. Lifted travel and
+cooling clear the **entire placed process plan** plus its locked lift, not just
+this roof or the crossed surface. The local surface query still controls whether
+a short direct move is permitted. Other operations can disallow that move.
+Follow the [shared travel contract](../../DEVELOP.md#whole-plan-travel-requirement).
 
-## Composition
+## Validation status
 
-`drapedSkinResult({shell, plan, machine, survey, id, after})` returns surface
-operations to the [shared composer](../../DEVELOP.md#skill-result-composition).
-The coordinator makes the first skin depend on all supporting fill operations;
-each later skin depends on the previous skin. Full-fill and draped-skin are not
-interleaved. Separate supporting fill instances may be woven before the roof.
-The geometry and bead model do not establish unsupported bridge printability.
-`generateDrapedSkin` remains a compatibility callable through the same composer.
+Software tests exercise mesh and spline inputs against both S5 and H2D profiles.
+S5 supports checked Griffin export, Studio's three approvals and exact-byte
+delivery. H2D currently supports geometry/settings review and SAAMpath checks;
+its runnable exporter/interpreter is pending a verified startup/output envelope.
 
-## Implemented boundaries
-
-- An experimental `maxAngleDegOverride` can make this skill generate beyond the
-  machine profile's declared limit for a deliberately reviewed test. It is a
-  process-plan choice, not evidence that the machine can clear or deposit at
-  that angle. The machine file remains unchanged and the override is shown in
-  the toolpath review and checks.
-
-- Input geometry is a **closed shell of untrimmed bivariate spline patches**.
-- Skins stack by dropping the surface along its normal. Curvature convergence
-  between stacked offsets is not modelled: at small thickness on gentle surface
-  the difference is minor, but on tight curvature it is not.
-- Deposited volume uses a rectangular bead over each sampled interval: 3D stroke
-  length by row spacing by the vertical gap, converted along the normal. Contact,
-  adhesion, pressure and bead distortion are not modelled.
-- The skinnable boundary is found by bisection against the real surface, but the
-  region it bounds comes from a sampled grid at `surveyStepMm`.
-- A direct move between strokes may pass within a quarter of the skin thickness
-  of the surface, which is the same order as a flat layer's own turnaround.
-- No collision model, no clearance checking, including for the second nozzle.
-  Physical clearance is the operator's responsibility.
-
-Run `npm test` after changes. Tests live in
-[tests/](tests/draped-skin.test.mjs) and cover strokes lying on the surface,
-normal-direction stacking, exclusion of over-limit surface, the machine limit
-being required, and per-hop travel clearance. The shared review workflow is
-tested in [core/tests/workflow.test.mjs](../../core/tests/workflow.test.mjs).
+No physical print, head-clearance or surface-finish validation has been performed.
+Beads, skin offsets and first-skin bridging are approximate. Curvature convergence,
+automatic supports, pressure/adhesion and second-nozzle collision are not modeled.
+A direct turnaround permits up to a quarter-skin thickness of surface sag (capped
+at 0.05 mm). Sampling can miss features between samples; refine deliberately.
+Run `npm test` after changes.

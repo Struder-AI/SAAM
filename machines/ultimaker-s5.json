@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 3,
+  "revision": 4,
   "units": "mm",
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "bounds": {
@@ -45,6 +45,16 @@
       "startupXY": [
         330,
         237
+      ],
+      "cores": [
+        "AA 0.4"
+      ],
+      "nozzleDiametersMm": [
+        0.4
+      ],
+      "layerHeightMm": [
+        0.06,
+        0.3
       ]
     },
     {
@@ -57,6 +67,16 @@
       "startupXY": [
         330,
         219
+      ],
+      "cores": [
+        "AA 0.4"
+      ],
+      "nozzleDiametersMm": [
+        0.4
+      ],
+      "layerHeightMm": [
+        0.06,
+        0.3
       ]
     }
   ],
@@ -143,5 +163,37 @@
     "https://ultimaker.com/3d-printers/s-series/ultimaker-s5/"
   ],
   "sourceChecked": "2026-09-08",
-  "validation": "software definition; no physical print validation"
+  "validation": "software definition; no physical print validation",
+  "capabilities": [
+    "xyz-extrusion",
+    "planar",
+    "nonplanar"
+  ],
+  "materials": {
+    "PLA": {
+      "maxFlowMm3S": 4,
+      "maxRetractMm": 10,
+      "nozzleC": [
+        180,
+        230
+      ],
+      "bedC": [
+        0,
+        70
+      ]
+    }
+  },
+  "defaultSetup": {
+    "tool": 1,
+    "core": "AA 0.4",
+    "nozzleMm": 0.4,
+    "material": "PLA",
+    "filamentMm": 2.85,
+    "nozzleC": 215,
+    "bedC": 60,
+    "buildVolumeC": 28,
+    "materialGuid": "506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9",
+    "firmwareVersion": "",
+    "startupVerified": false
+  }
 }

@@ -3,11 +3,14 @@ import { readFile, writeFile, mkdir, rename, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
+import { exportProgram, interpretProgram } from '../export/registry.mjs';
+import { loadMachine } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const defaultSetupFile=resolve(root,'.local/machine-setups/ultimaker-s5.json');
+const setupFor=machine=>resolve(root,`.local/machine-setups/${machine.id}.json`);
+const nativeFile=geometry=>{const name=geometry.nativeFile??'model.3dm';requireThat(['model.3dm','model.mesh.json'].includes(name),'Unsupported native geometry file.');return 'geometry/'+name;};
 const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
 const hash=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:canonical(value)).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
@@ -23,29 +26,36 @@ export function createBundleWorkflow(adapter) {
     version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
   const machineFile=resolve(root,adapter.machineFile);
   const EXPORT_PATH='exports/griffin-gcode/'+EXPORT_NAME;
+  const exportPath=plan=>{requireThat(/^[a-z0-9-]+$/.test(plan.output),'Invalid output ID.');return `exports/${plan.output}/${EXPORT_NAME}`;};
   let runtimeCache;
   async function runtimeHash(){
     return runtimeCache??=hash(await Promise.all([
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
+      new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
       new URL('../geom/tolerance.mjs',import.meta.url), ...adapter.runtimeFiles
     ].map(async file=>[fileURLToPath(file).slice(root.length).replaceAll('\\','/'),await readFile(file,'utf8')])));
   }
-async function initBundle(directory, plan, { setupFile = defaultSetupFile } = {}) {
+async function initBundle(directory, plan, { setupFile, machineId, sourceBytes } = {}) {
   const dir = resolve(directory);
   try {
     await access(resolve(dir, 'plan.json'));
     throw new Error('Print already exists. Open it or choose another directory.');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
 
-  const machine = await json(machineFile);
+  const machine = machineId?loadMachine(machineId):await json(machineFile);
+  setupFile??=setupFor(machine);
   if (!plan) {
-    plan = defaults();
+    plan = defaults(machine);
     const remembered = await rememberedSetup(setupFile, machine);
     if (remembered) plan.setup = { ...plan.setup, ...remembered, materialGuid: remembered.materialGuid || plan.setup.materialGuid };
   }
   validatePlan(plan, machine);
   const geometry = await createGeometry(plan.geometry);
-  await save(resolve(dir, 'geometry/model.3dm'), geometry.bytes);
+  if(plan.geometry.source){
+    requireThat(sourceBytes&&hash(sourceBytes)===plan.geometry.source.sha256,'STL source bytes are required; use import-stl.');
+    await save(resolve(dir,'geometry/source.stl'),sourceBytes);
+  }
+  await save(resolve(dir, nativeFile(geometry.descriptor)), geometry.bytes);
   await save(resolve(dir, 'geometry/model.json'), geometry.descriptor);
   await save(resolve(dir, 'machine.json'), machine);
   await save(resolve(dir, 'plan.json'), plan);
@@ -65,9 +75,11 @@ async function rememberedSetup(setupFile, machine) {
 
 async function loadBundle(directory, { program = true } = {}) {
   const dir = resolve(directory);
-  const [plan, machine, geometry, review, bytes, runtime] = await Promise.all([
+  const [plan, machine, geometry, review, runtime] = await Promise.all([
     json(resolve(dir, 'plan.json')), json(resolve(dir, 'machine.json')), json(resolve(dir, 'geometry/model.json')),
-    json(resolve(dir, 'review.json')), readFile(resolve(dir, 'geometry/model.3dm')), runtimeHash()]);
+    json(resolve(dir, 'review.json')), runtimeHash()]);
+  const bytes=await readFile(resolve(dir,nativeFile(geometry)));
+  if(plan.geometry.source)requireThat(hash(await readFile(resolve(dir,'geometry/source.stl')))===plan.geometry.source.sha256,'Imported STL source changed; geometry approval is stale.');
   validatePlan(plan, machine);
   await verifyGeometry(bytes, geometry);
   requireThat(canonical(plan.geometry) === canonical(geometry.parameters),
@@ -78,6 +90,7 @@ async function loadBundle(directory, { program = true } = {}) {
   const state = {
     kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime,
     exportName: EXPORT_NAME, limitations: limitationsFor(plan, machine),
+    outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : ['wedge-demo'],
     geometryApproved: review.approvals.geometry?.hash === geometryHash,
     planApproved: review.approvals.plan?.hash === planHash
@@ -87,19 +100,19 @@ async function loadBundle(directory, { program = true } = {}) {
   state.revision = hash({ geometryHash, planHash, review });
   state.setupBasis = plan.setup.startupVerified
     ? 'Confirmed startup behavior'
-    : 'Standard S5 Griffin startup without routine bed leveling assumed';
+    : machine.startup.validation;
 
   if (program && review.generation) {
     try {
       requireThat(review.generation.planHash === planHash, 'Generated program is stale; regenerate for the current plan.');
-      const [code, path] = await Promise.all([readFile(resolve(dir, EXPORT_PATH), 'utf8'), json(resolve(dir, 'path.saampath'))]);
+      const [code, path] = await Promise.all([readFile(resolve(dir, exportPath(plan)), 'utf8'), json(resolve(dir, 'path.saampath'))]);
       requireThat(hash(code) === review.generation.exportHash && hash(path) === review.generation.pathHash,
         'Generated files changed; regenerate and review again.');
       const regenerated = await generatePath(plan, machine);
       requireThat(canonical(path) === canonical(regenerated), 'SAAMpath does not match the locked recipe.');
-      requireThat(code === exportGriffin(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }),
+      requireThat(code === exportProgram(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }),
         'Export does not match SAAMpath.');
-      state.program = interpretGriffin(code, plan, machine);
+      state.program = interpretProgram(code, plan, machine);
       state.pathSummary = path.summary;
       state.exportHash = hash(code);
       state.code = code;
@@ -115,7 +128,8 @@ async function loadBundle(directory, { program = true } = {}) {
 // A cheap liveness fingerprint for automatic viewer updates. Full validation
 // still runs on every changed snapshot and immediately before approval.
 async function bundleFingerprint(directory) {
-  const names = ['plan.json', 'machine.json', 'geometry/model.json', 'geometry/model.3dm', 'review.json', 'path.saampath', EXPORT_PATH];
+  const [plan,geometry]=await Promise.all([json(resolve(directory,'plan.json')),json(resolve(directory,'geometry/model.json'))]);
+  const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl','review.json', 'path.saampath', exportPath(plan)];
   const values = await Promise.all(names.map(async name => {
     try { return [name, hash(await readFile(resolve(directory, name)))]; }
     catch (error) { if (error.code === 'ENOENT') return [name, null]; throw error; }
@@ -123,8 +137,9 @@ async function bundleFingerprint(directory) {
   return hash(values);
 }
 
-async function rememberSetup(directory, { setupFile = defaultSetupFile, source = 'User setup supplied through chat' } = {}) {
+async function rememberSetup(directory, { setupFile, source = 'User setup supplied through chat' } = {}) {
   const state = await loadBundle(directory, { program: false });
+  setupFile??=setupFor(state.machine);
   await save(setupFile, {
     schema: 'saam-machine-setup/1', machineId: state.machine.id, setup: state.plan.setup,
     source, updatedAt: new Date().toISOString()
@@ -135,7 +150,7 @@ async function rememberSetup(directory, { setupFile = defaultSetupFile, source =
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
 // and the affected approvals fall away. An unknown key is refused here as well
 // as in the plan check, so a misspelled setting never silently does nothing.
-async function adjustBundle(directory, patch, { setupFile = defaultSetupFile } = {}) {
+async function adjustBundle(directory, patch, { setupFile } = {}) {
   const state = await loadBundle(directory, { program: false });
   const plan = structuredClone(state.plan);
   merge(plan, patch);
@@ -176,7 +191,7 @@ async function updatePlan(directory, plan, revision) {
   const geometryChanged = canonical(plan.geometry) !== canonical(state.plan.geometry);
   if (geometryChanged) {
     const geometry = await createGeometry(plan.geometry);
-    await save(resolve(state.dir, 'geometry/model.3dm'), geometry.bytes);
+    await save(resolve(state.dir, nativeFile(geometry.descriptor)), geometry.bytes);
     await save(resolve(state.dir, 'geometry/model.json'), geometry.descriptor);
   }
   const review = state.review;
@@ -200,8 +215,8 @@ async function generateBundle(directory, { development = false } = {}) {
   const state = await loadBundle(directory, { program: false });
   requireThat(development || state.planApproved, 'Approve the geometry and locked plan before production generation.');
   const path = await generatePath(state.plan, state.machine);
-  const code = exportGriffin(path, state.plan, state.machine, { generatorVersion: VERSION, buildDate: BUILD_DATE });
-  const program = interpretGriffin(code, state.plan, state.machine);
+  const code = exportProgram(path, state.plan, state.machine, { generatorVersion: VERSION, buildDate: BUILD_DATE });
+  const program = interpretProgram(code, state.plan, state.machine);
   const expected = path.actions.filter(action => action.kind === 'move');
   requireThat(program.moves.length === expected.length,
     `The exported program has ${program.moves.length} moves; SAAMpath has ${expected.length}.`);
@@ -217,14 +232,14 @@ async function generateBundle(directory, { development = false } = {}) {
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
     travel: path.summary.travel,
     nonplanarLimit: path.summary.nonplanarLimit ?? null,
-    checks: ['plan-inputs', 'closed-shell', '3dm-round-trip', 'declared-output', 'strict-gcode-interpretation',
+    checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', 'strict-gcode-interpretation',
       'xyz-bounds', 'axis-feed', 'extrusion-flow', 'temperature-state', 'saampath-export-round-trip'],
     clearance: 'operator responsibility; no collision model implemented',
     physicalValidation: 'not performed',
     limitations: limitationsFor(state.plan, state.machine)
   };
   await save(resolve(state.dir, 'path.saampath'), path);
-  await save(resolve(state.dir, EXPORT_PATH), code);
+  await save(resolve(state.dir, exportPath(state.plan)), code);
   await save(resolve(state.dir, 'checks.json'), checks);
   const review = state.review;
   delete review.approvals.toolpath;
@@ -259,7 +274,7 @@ async function approve(directory, { stage, actor, revision }) {
 async function deliver(directory) {
   const state = await loadBundle(directory);
   requireThat(state.toolpathApproved, 'Delivery requires approval of the exact current export.');
-  const bytes = await readFile(resolve(state.dir, EXPORT_PATH));
+  const bytes = await readFile(resolve(state.dir, exportPath(state.plan)));
   requireThat(hash(bytes) === state.exportHash, 'Export changed during delivery.');
   const destination = resolve(state.dir, `delivery/${EXPORT_NAME}`);
   await save(destination, bytes);
@@ -271,7 +286,7 @@ async function upgradeBundle(directory) {
   const plan=await json(resolve(directory,'plan.json'));
   const review=await json(resolve(directory,'review.json'));
   const previous=await json(resolve(directory,'machine.json'));
-  const machine=await json(machineFile);
+  const machine=loadMachine(previous.id);
   requireThat(previous.id===machine.id,'Cannot upgrade to a different machine.');
   if(adapter.upgradePlan) adapter.upgradePlan(plan);
   validatePlan(plan,machine);

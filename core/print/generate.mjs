@@ -14,8 +14,18 @@ import { fullFillResult } from '../../skills/full-fill/scripts/fill.mjs';
 import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
+import {makeMesh,translateMesh} from '../geom/mesh.mjs';
+import {checkMachinePath,toolFor,toolBounds} from '../machine/profile.mjs';
+import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
+
+export const hasMesh=geometry=>geometry.shape==='mesh'||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 export function buildShell(rhino, geometry) {
+  if(geometry.shape==='mesh')return makeMesh(geometry.vertices,geometry.triangles);
+  if(geometry.shape==='assembly'&&hasMesh(geometry)) {
+    const components=geometry.parts.map(part=>translateShell(buildShell(rhino,part.geometry),part.xMm,part.yMm,part.zMm));
+    return {kind:'assembly',components,bounds:{min:[0,1,2].map(i=>Math.min(...components.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...components.map(c=>c.bounds.max[i])))}};
+  }
   if(geometry.shape==='assembly') {
     const entries=geometry.parts.flatMap(part=>buildShell(rhino,part.geometry).surfaces.map(entry=>{
       const surface=entry.surface.duplicate();
@@ -46,6 +56,8 @@ export function buildShell(rhino, geometry) {
 // patches keep their parameterisation, so sections and surface solves are
 // unaffected apart from the translation.
 export function translateShell(shell, dx, dy, dz = 0) {
+  if(shell.kind==='triangle-mesh')return translateMesh(shell,dx,dy,dz);
+  if(shell.kind==='assembly')return {...shell,components:shell.components.map(s=>translateShell(s,dx,dy,dz)),bounds:{min:shell.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:shell.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
   const patches = shell.patches.map(patch => {
     const cp = Float64Array.from(patch.cp);
     for (let i = 0; i < cp.length; i += 4) {
@@ -67,13 +79,16 @@ export function generatePath(plan, machine, rhino) {
   const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
     translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
   const process = plan.process;
-  const fill = plan.skills['full-fill'], skin = plan.skills['draped-skin'];
+  const bounds=toolBounds(machine,plan.setup.tool);
+  requireThat(placed.bounds.min.every((v,i)=>v>=bounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=bounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
+  const fill = plan.skills['full-fill'], skin = plan.skills['draped-skin'],normal=plan.skills['planar-infill'];
 
   const builder = new PathBuilder({
-    start: [...machine.tools[plan.setup.tool].startupXY, (machine.startup.zAfterStartupMm ?? machine.startup.zAfterPrimeMm)],
+    start: [...toolFor(machine,plan.setup.tool).startupXY, (machine.startup.zAfterStartupMm ?? machine.startup.zAfterPrimeMm)],
     process, machine, generatorVersion: VERSION
   });
   builder.setContext('start', 0);
+  builder.motionBounds=bounds;
   builder.fan(0);
 
   const skinShell=componentShells&&skin.part ? componentShells.get(skin.part):placed;
@@ -83,23 +98,35 @@ export function generatePath(plan, machine, rhino) {
     const effectiveLimitDeg = skin.maxAngleDegOverride ?? declaredLimitDeg;
     survey = surveySurface(skinShell, { ...DRAPED_SKIN_DEFAULTS, ...skin }, effectiveLimitDeg);
     survey.declaredLimitDeg = declaredLimitDeg;
-    survey.experimentalOverride = skin.maxAngleDegOverride !== null && skin.maxAngleDegOverride !== declaredLimitDeg;
+    survey.experimentalOverride = Boolean(machine.nonplanar?.experimental)||(skin.maxAngleDegOverride !== null && skin.maxAngleDegOverride !== declaredLimitDeg);
     requireThat(Number.isFinite(survey.maxMm), 'The top surface survey found no surface to skin.');
   }
 
   const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
   const results=[];
-  if(fill.enabled){
-    const instances=componentShells ? (fill.parts.length?fill.parts:[...componentShells.keys()]).map(id=>[id,componentShells.get(id)]) : [['full-fill',placed]];
-    for(const [id,shell] of instances) results.push(fullFillResult({id,shell,plan,reserve:survey}));
-    summary.fullFill=Object.fromEntries(Object.keys(results[0].report).map(key=>[key,results.reduce((sum,r)=>sum+r.report[key],0)]));
-    summary.fullFill.instances=results.map(r=>({id:r.id,...r.report}));
+  const fillResults=[],normalResults=[];
+  for(const [id,shell] of componentShells??[['full-fill',placed]]) {
+    const selected=settings=>settings.enabled&&(!componentShells||!settings.parts.length||settings.parts.includes(id));
+    const useFill=selected(fill),useNormal=selected(normal);
+    requireThat(!(useFill&&useNormal&&fill.mode==='body'),'Full-fill body and planar-infill overlap; select full-fill solid-surfaces mode or separate components.');
+    requireThat(!(useFill&&fill.mode==='solid-surfaces'&&!useNormal),'Solid-surface selection requires planar-infill on the same component.');
+    if(useNormal){
+      const [sparse,solid]=planarInfillResults({shell,plan,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
+      results.push(sparse);normalResults.push(sparse);
+      if(solid){results.push(solid);fillResults.push(solid);}
+    } else if(useFill){const result=fullFillResult({id,shell,plan,reserve:survey});results.push(result);fillResults.push(result);}
   }
+  if(fillResults.length){
+    summary.fullFill=Object.fromEntries(Object.keys(fillResults[0].report).map(key=>[key,fillResults.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
+    summary.fullFill.instances=fillResults.map(r=>({id:r.id,...r.report}));
+  }
+  if(normalResults.length)summary.planarInfill={instances:normalResults.map(r=>({id:r.id,...r.report}))};
   if(skin.enabled){
     // Every skin operation depends transitively on the ENTIRE supporting body.
     const result=drapedSkinResult({shell:skinShell,plan,machine,survey,after:results.flatMap(r=>r.operations.map(op=>op.id))});
     results.push(result);summary.drapedSkin=result.report;
   }
+  builder.planMaxZ=placed.bounds.max[2];
   summary.composition=composeResults(builder,results,plan.composition);
 
   builder.setContext('finish', 0);
@@ -117,5 +144,7 @@ export function generatePath(plan, machine, rhino) {
     surfaceMaxSlopeDeg: Number(survey.maxSlopeDeg.toFixed(3)),
     excludedAreaPercent: Number((survey.steepFraction * 100).toFixed(2))
   };
-  return builder.toPath(summary);
+  const path=builder.toPath(summary);
+  path.summary.machineChecks=checkMachinePath(path,plan,machine);
+  return path;
 }

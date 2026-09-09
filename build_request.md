@@ -240,6 +240,8 @@ This is a proposed evaluation direction, not a claim of implemented advantage.
 
 ## BR-016 — Printing and geometry design for review
 
+Historical design snapshot; implementation progress and remaining work are in BR-017.
+
 - Status: design documented; implementation pending review.
 - Requested by: user, 2026-09-09, this repository task; explicitly scoped to “Design and requirements for me to review. Let's keep it lean.”
 - Documentation completed: README now owns the introduction and product direction; PROJECT_CHARTER is a compatibility pointer. Developer guidance explains node_modules and routes skill authors to shared requirements.
@@ -251,3 +253,14 @@ This is a proposed evaluation direction, not a claim of implemented advantage.
 - Verify: equivalent geometry across backends, material ownership, travel limits, deterministic generation, profile-specific setup rejection and supported machine-program interpretation. Exercise both machine profiles through the same skills, three approvals and exact-byte delivery. Report software checks separately from physical printing.
 - Design: [geometry](DEVELOP.md#geometry-interoperability-for-skill-authors), [travel](DEVELOP.md#whole-plan-travel-requirement), [planar-infill](DEVELOP.md#planar-infill-design), [machines](DEVELOP.md#machine-interoperability-design).
 - Approval scope: records requested work, not contributor consensus or manufacturing-job approval. Existing runtime remains unchanged.
+
+## BR-017 — Implement interoperability first, then planar infill and import
+
+- Status: geometry/skill/machine interfaces, planar-infill and STL import implemented; H2D runnable output remains pending target evidence.
+- Source: user, 2026-09-09, this task: “the interoperability work should come first” and “finish out the task list”. User confirmed both geometry backends, H2D left 0.4 mm nozzle/PLA, and experimental 15° draping.
+- Completed: shared mesh/spline queries, native mesh storage and ASCII/binary STL import with explicit units/source hash; geometry validation and mixed assemblies; machine-owned defaults/capabilities and separate remembered setups; selected-tool bounds and machine-independent SAAMpath checks; H2D profile with official source references; output-adapter dispatch with explicit unsupported-output rejection.
+- Completed: whole-plan lifted travel and cooling, bounded comb routes around holes; planar-infill with walls/density; full-fill solid-surface masks and single wall ownership; local top/bottom regions, drape reservation and dependencies; common booleans handle coincident boundaries and close level sets at their domain boundary.
+- Completed: README/charter consolidation, maintained skill manuals and shared authoring guidance; Studio shows the actual machine, mesh dimensions, sparse/solid settings and unavailable output status. Wedge remains bounded and S5-only.
+- Software verification: both backends × S5/H2D × full-fill/drape/planar-infill, material/setup rejection, wedge exception, mesh holes/islands/invalid input, changed STL source, mixed assemblies, whole-plan clearance/cooling, comb routing, sparse density/solid-layer ownership, S5 native mesh review/delivery and preservation of the prior S5 envelope. Tests create no real approvals or hardware actions.
+- Remaining: H2D exporter/interpreter plus sliced-3MF packaging, using a known-good Bambu Studio export for the selected setup to establish startup state, physical tool mapping and proprietary command behavior. A profile/SAAMpath pass does not claim that output compatibility. No H2D machine file is delivered yet.
+- Physical validation remains open for every new skill/profile. General trimmed CAD import, rotary/tool-changing SAAMpath extensions, automatic supports and bridge optimization are outside this implementation.

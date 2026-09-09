@@ -22,31 +22,31 @@ software checks and a local Studio review workflow. It is the most exercised
 package, so prefer it when the request is a wedge on an S5. Physical printing has
 not been validated. Do not present the legacy runtime as the restarted product.
 
-Two further skills, [full-fill](skills/full-fill/SKILL.md) and
-[draped-skin](skills/draped-skin/SKILL.md), slice any closed shell of untrimmed
-spline patches: solid planar layers, and skins that follow the part's top surface
-within the machine's non-planar angle limit. They run the same review flow —
-initialize the print, open it in Studio, take the three approvals, deliver the
-reviewed bytes — so they can be used for a part a person will run, with the
-limits stated plainly:
+[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md)
+and [draped-skin](skills/draped-skin/SKILL.md) share geometry queries, composition
+and the print workflow. Their manuals own settings and limits. They support
+validated STL/mesh inputs and the existing untrimmed spline shape builders,
+including mixed assemblies. General edited/trimmed CAD import is not implemented.
 
-- No part from either skill has been printed, and no maker has used them end to
-  end. Software checks are all that stands behind them.
-- The shape must be one the plan can express: `box`, `wedge`, a `spline-top`
-  prism whose top surface is a control-point grid, a `spline-shell` with
-  tapered sides, or a `vertical-spline-shell` whose vertical walls bulge
-  outward along X and inward along Y under a domed roof. Importing a part from
-  CAD is not implemented. If the request needs a shape outside that set, say
-  so rather than approximating it with one that fits.
-- The machine's non-planar angle limit excludes steeper surface from the skin.
-  The excluded percentage is shown before settings approval; point it out.
+The three skills have software checks on S5 and H2D profiles. S5 provides the
+complete export/review/delivery workflow. H2D supports geometry/settings review
+and SAAMpath compatibility checks, but has no runnable export yet; explain this
+before proposing an H2D print. The user selected left 0.4 mm nozzle with PLA and
+experimental 15° draping for the H2D profile. No physical print from these skills
+has been validated.
 
-An `assembly` can select separate components for full-fill instances and a roof
-for draping. Propose one-layer alternation or small layer batches in chat before
-plan approval when compatible operations need weaving. Supporting body fill must
-finish before draped-skin starts. Studio previews the exact checked export; do
-not create a separate preview pipeline. General part making from arbitrary CAD
-is still not implemented.
+For ordinary planar printing, combine planar-infill with full-fill in
+`solid-surfaces` mode. The agent sets the plan from chat; the maker need not learn
+JSON settings. The patterns share walls and complementary interior regions.
+Drape follows a selected continuous roof and excludes steep area; its angle
+limit is a software declaration, not measured head clearance. All supporting
+body operations precede the draped skin. Compatible component layers can be
+woven or batched under the locked composition rules.
+
+Import STL with explicit units and show the translated geometry in Studio before
+approval. Unknown units require clarification because scale changes the part.
+Retain the original file, and do not silently repair unsupported topology.
+Use the same Studio viewer and approvals for every supported input.
 
 ## Maker interaction flow
 

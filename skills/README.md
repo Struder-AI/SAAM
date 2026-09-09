@@ -1,46 +1,28 @@
 # Skills
 
-A skill packages its own text instruction manual and callable tools. Three
-manufacturing packages are implemented in this refresh:
+Skills package a manual, callable tools and tests. Discover their behavior and
+limits in the owning manual:
 
-| Skill | Scope | Status |
+| Skill | Geometry | Machine compatibility |
 |---|---|---|
-| [wedge-demo](wedge-demo/SKILL.md) | Horizontal-body/inclined-skin S5 wedge | Shared workflow; user-reported startup behavior, complete print validation open. |
-| [full-fill](full-fill/SKILL.md) | Solid planar layers for any closed shell | Full workflow on the shared core. Shapes limited to the plan's; no physical print. |
-| [draped-skin](draped-skin/SKILL.md) | Surface-following skins under the machine's non-planar angle limit | Full workflow on the shared core. Shapes limited to the plan's; no physical print. |
+| [wedge-demo](wedge-demo/SKILL.md) | Bounded eight-point wedge | S5 only; shared Griffin/review lifecycle. |
+| [full-fill](full-fill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5 and H2D skill/SAAMpath checks. |
+| [planar-infill](planar-infill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5 and H2D skill/SAAMpath checks. |
+| [draped-skin](draped-skin/SKILL.md) | Continuous accessible roof on either backend | Declared non-planar capability/limit; S5 and experimental H2D checks. |
 
-full-fill and draped-skin generalize the wedge demo's two patterns to any closed
-shell of untrimmed spline patches. They share the slicing core in `core/`, a
-single plan and one review workflow, described in
-[the developer notes](../DEVELOP.md#shell-pipeline-full-fill-and-draped-skin).
-Their geometry comes from the plan's own shapes (`box`, `wedge`, `spline-top`,
-`spline-shell`, `vertical-spline-shell`). The vertical spline shell exposes a
-domed roof above bulged but vertically extruded side walls. Importing a part
-from CAD is not implemented. The wedge keeps its bounded geometry/generator and shares export and lifecycle.
+S5 has the complete export, Studio toolpath review and delivery workflow.
+H2D runnable export is pending a verified startup/command/packaging envelope.
+Software verification does not establish a physical print.
 
-Each future package should keep its manual, tools, input definitions, examples
-and tests together. The manual explains when to use the skill, what information
-is needed, how to call its tools, and what its limitations are. Maker agents load
-that manual when choosing or using the skill. Tools enforce their own inputs.
+Shared authoring requirements live in DEVELOP.md:
 
-Each package contains its manual, scripts and tests. Agents discover them
-through AGENTS.md and MAKERS.md. Do not invent placeholder manufacturing
-capabilities or revive the old operation catalog. Describe each package's status
-as it is: a development preview is not an approved program.
-Shared terms belong in [GLOSSARY.md](../GLOSSARY.md); development setup belongs
-in [the developer notes](../DEVELOP.md).
+- [Geometry queries and representation boundaries](../DEVELOP.md#geometry-interoperability-for-skill-authors).
+- [Machine capabilities and output adapters](../DEVELOP.md#machine-interoperability-design).
+- [Whole-plan travel and combing](../DEVELOP.md#whole-plan-travel-requirement).
+- [Composable operations and dependencies](../DEVELOP.md#skill-result-composition).
 
-All skills should aspire to work across machines through declared capabilities
-and shared result interfaces. Document justified exceptions. Return composable
-operations rather than exchanging G-code fragments; use the shared composer,
-exporter and review workflow. See [composition](../DEVELOP.md#skill-result-composition)
-and [pipeline principles](../DEVELOP.md#interoperability-and-one-workflow).
-
-New and revised skills must follow the shared
-[geometry interoperability contract](../DEVELOP.md#geometry-interoperability-for-skill-authors)
-and [whole-plan travel requirement](../DEVELOP.md#whole-plan-travel-requirement).
-These sections distinguish required future behavior from current runtime limits.
-Follow the [machine interoperability design](../DEVELOP.md#machine-interoperability-design)
-as shared S5 assumptions are removed and the H2D profile is added.
-The proposed [planar-infill design](../DEVELOP.md#planar-infill-design) reuses
-full-fill for solid regions; it is not an available manufacturing package yet.
+Keep pattern decisions in skills, representation-specific queries in the
+geometry core and machine behavior in profiles/output adapters. Add equivalent
+backend/machine tests for general skills; document narrow exceptions. Reuse the
+existing composer, Studio, approvals and delivery rather than creating another
+pipeline. Intermediate tests use the same components in scratch bundles.

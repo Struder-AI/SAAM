@@ -12,13 +12,16 @@
 // demo's flat "core plane".
 
 import { composeResults } from '../../../core/path/compose.mjs';
-import { sectionShell } from '../../../core/geom/shell.mjs';
+import { sectionGeometry as sectionShell } from '../../../core/geom/query.mjs';
 import { offsetRegion, scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
 import { intersect, levelSetRegion, levelSetCoverage } from '../../../core/region/boolean.mjs';
 import { planarPolicy } from '../../../core/path/builder.mjs';
 import { requireThat, distance2 } from '../../../core/geom/tolerance.mjs';
 
 export const FULL_FILL_DEFAULTS = {
+  mode: 'body',
+  bottomLayers: 3,
+  topLayers: 3,
   perimeters: 2,
   fillAnglesDeg: [45, 135],
   fillOverlap: 0.15,
@@ -37,10 +40,10 @@ export function layerHeights(process, fromMm, toMm) {
   return heights;
 }
 
-export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill' }) {
+export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null }) {
   const operations=[];
   let previous=[];
-  const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'] };
+  const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'],...overrides };
   const width = process.lineWidthMm;
   const top = reserve ? reserve.maxMm : shell.bounds.max[2];
   const heights = layerHeights(process, shell.bounds.min[2], top);
@@ -77,9 +80,10 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill' }
     // Fill starts half a bead inside the last perimeter, less the overlap that
     // welds fill to perimeter.
     const inset = width * (settings.perimeters + 0.5 - settings.fillOverlap) - width / 2;
-    const fillRegion = settings.perimeters > 0 ? offsetRegion(region, -(width / 2 + inset)) : region;
+    let fillRegion = settings.perimeters > 0 ? offsetRegion(region, -(width / 2 + inset)) : offsetRegion(region,-width/2);
+    if(interiorRegion)fillRegion=interiorRegion(fillRegion,index,z,region);
     const angle = settings.fillAnglesDeg[index % settings.fillAnglesDeg.length];
-    const rows = fillRegion.length ? scanlineFill(fillRegion, width, angle) : [];
+    const rows = fillRegion.length ? scanlineFill(fillRegion, spacingMm??width, angle) : [];
     report.fillRows += rows.length;
     // Alternate direction down the rows so consecutive strokes end where the
     // next one starts; the travel planner then joins or combs instead of hopping.
@@ -102,7 +106,7 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill' }
       if(!selected.length)continue;
       const operationId=id+':'+index+':'+role;
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
-        after:[...previous],strokes:selected,order:closed?'nearest':'given',region,
+        after:[...previous,...current],strokes:selected,order:closed?'nearest':'given',region,
         travelPolicy:policy,clearanceZ:z+process.liftMm,
         ...(index===1?{fanPercent:process.fanPercent}:{})});
       current.push(operationId);
@@ -116,6 +120,7 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill' }
 
 // Compatibility callable, using the same result/composition implementation.
 export function generateFullFill(builder,options){
+  builder.planMaxZ=Math.max(builder.planMaxZ??-Infinity,options.shell.bounds.max[2]);
   const result=fullFillResult(options);
   composeResults(builder,[result]);
   return result.report;

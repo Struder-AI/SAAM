@@ -13,6 +13,7 @@
 // is on while a draped skin clears the surface it is crossing.
 
 import { requireThat, distance } from '../geom/tolerance.mjs';
+import {combRoute,combSegment} from './comb.mjs';
 
 // Griffin coordinates are written with five decimals.
 export const MINIMUM_MOVE_MM = 1e-4;
@@ -50,6 +51,8 @@ export class PathBuilder {
     if (volumeMm3 > 0) limited = Math.min(limited, this.process.maxFlowMm3S * length / volumeMm3);
     const dz = Math.abs(to[2] - this.position[2]);
     if (dz > 0) limited = Math.min(limited, this.process.zSpeedMmS * length / dz);
+    for(let i=0;i<3;i++)if(Math.abs(to[i]-this.position[i])>0)
+      limited=Math.min(limited,this.machine.maxFeedMmS['xyz'[i]]*length/Math.abs(to[i]-this.position[i]));
     this.actions.push({ kind: 'move', to: [...to], speedMmS: limited, volumeMm3, phase: this.phase, layer: this.layer, ...(this.operationId?{operation:this.operationId}:{}), ...extra });
     this.layerSeconds += length / limited;
     if (volumeMm3 > 0) this.stats.printMm += length; else this.stats.travelMm += length;
@@ -76,6 +79,7 @@ export class PathBuilder {
   // Hold the nozzle off the part for the remainder of a short layer instead of
   // parking it on the fresh bead.
   finishLayer(clearanceZ) {
+    clearanceZ=Math.max(clearanceZ,this.planClearanceZ??-Infinity,this.position[2]);
     const remaining = this.process.minimumLayerSeconds - this.layerSeconds;
     if (remaining > 0) {
       this.retract();
@@ -94,9 +98,12 @@ export class PathBuilder {
       this.move(target, this.process.travelSpeedMmS);
       return 'combed';
     }
+    const route=combRoute(this.position,target,policy);
+    if(route){this.stats.combed++;this.recover();for(const point of route)this.move(point,this.process.travelSpeedMmS);return 'combed';}
     this.stats.hopped++;
     this.retract();
-    const clearance = policy.clearanceFor(this.position, target);
+    const clearance = Math.max(this.planClearanceZ??-Infinity,this.position[2],target[2],policy.clearanceFor(this.position, target));
+    requireThat(Number.isFinite(clearance)&&clearance<=(this.motionBounds??this.machine.bounds).max[2],'Travel clearance exceeds machine/tool Z bounds.');
     this.move([this.position[0], this.position[1], clearance], this.process.zSpeedMmS);
     this.move([target[0], target[1], clearance], this.process.travelSpeedMmS);
     this.move(target, this.process.zSpeedMmS);
@@ -116,15 +123,7 @@ export class PathBuilder {
     if (Math.abs(target[2] - this.position[2]) > 1e-9) return false;
     const span = Math.hypot(target[0] - this.position[0], target[1] - this.position[1]);
     if (span > policy.maxCombMm) return false;
-    const clear = policy.combClearanceMm ?? 0;
-    const steps = Math.max(2, Math.ceil(span / 0.5));
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const point = [this.position[0] + (target[0] - this.position[0]) * t, this.position[1] + (target[1] - this.position[1]) * t];
-      if (!pointInRegion(point, policy.combRegion)) return false;
-      if (clear > 0 && policy.combIndex && policy.combIndex.distanceTo(point, clear * 2) < clear) return false;
-    }
-    return true;
+    return combSegment(this.position,target,policy);
   }
 
   toPath(summary = {}) {

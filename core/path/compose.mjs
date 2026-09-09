@@ -44,6 +44,11 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
 
 export function composeResults(builder, results, rules = {}) {
   const operations = scheduleOperations(results, rules);
+  let maximum=builder.planMaxZ??-Infinity;
+  for(const op of operations)for(const stroke of op.strokes)for(const point of stroke.points)maximum=Math.max(maximum,point[2]);
+  requireThat(Number.isFinite(maximum),'Composition needs deposition geometry.');
+  builder.planClearanceZ=maximum+builder.process.liftMm;
+  requireThat(builder.planClearanceZ<=(builder.motionBounds??builder.machine.bounds).max[2],'Whole-plan travel clearance exceeds machine/tool Z bounds.');
   const remaining = new Map(), elapsed = new Map();
   const deposited=[];
   for (const op of operations) remaining.set(op.layerId, (remaining.get(op.layerId) ?? 0) + 1);
@@ -59,7 +64,7 @@ export function composeResults(builder, results, rules = {}) {
       // the destination's layer (particularly when a dependency descends in Z).
       const policy = {
         ...op.travelPolicy,
-        clearanceFor: (from, to) => Math.max(to[2], op.travelPolicy.clearanceFor(from, to),
+        clearanceFor: (from, to) => Math.max(builder.planClearanceZ,from[2],to[2], op.travelPolicy.clearanceFor(from, to),
           ...deposited.map(previous => previous.travelPolicy.clearanceFor(from,to)))
       };
       // Geometry queries, not the scheduling rank, decide whether an earlier
@@ -80,8 +85,8 @@ export function composeResults(builder, results, rules = {}) {
     deposited.push(op);
     elapsed.set(op.layerId, builder.layerSeconds);
     remaining.set(op.layerId, remaining.get(op.layerId) - 1);
-    if (remaining.get(op.layerId) === 0) builder.finishLayer(Math.max(op.clearanceZ, builder.position[2]));
+    if (remaining.get(op.layerId) === 0) builder.finishLayer(Math.max(builder.planClearanceZ,op.clearanceZ, builder.position[2]));
   }
   builder.operationId = undefined;
-  return { operationOrder: operations.map(op => op.id), layers: remaining.size };
+  return { operationOrder: operations.map(op => op.id), layers: remaining.size,clearanceZ:builder.planClearanceZ };
 }

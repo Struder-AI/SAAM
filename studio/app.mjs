@@ -40,10 +40,11 @@ const views={
     // Faces are named by the shape that built them, so the label is the name.
     names:{},
     facts(state,tab) {
-      const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'];
+      const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'];
       const shape={assembly:'Assembly',box:'Box',wedge:'Wedge',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
       if(tab==='geometry') {
-        const rows=[['Shape',shape],['Footprint',g.runMm+' × '+g.widthMm+' mm'],['Height',round2(state.geometry.boundsMm.max[2])+' mm']];
+        const bounds=state.geometry.boundsMm;
+        const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
         if(g.shape==='spline-top'||g.shape==='spline-shell')rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
         if(g.shape==='spline-shell')rows.push(['Side taper','Long sides in '+g.longSideInsetMm+' mm · short sides out '+g.shortSideOutsetMm+' mm']);
         if(g.shape==='vertical-spline-shell'){
@@ -54,7 +55,8 @@ const views={
         return rows;
       }
       if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Body',fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],
+        ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],
+        ['Solid surfaces',normal?.enabled&&fill.enabled?fill.bottomLayers+' bottom / '+fill.topLayers+' top layers':'—'],
         ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None'],['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All'],['Roof component',skin.part??'Part roof']];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
@@ -78,7 +80,7 @@ const views={
         ['Smallest section feature',fill.minFeatureMm+' mm'],
         ['Skin strokes',skin.strokeAngleDeg+'°, sampled every '+skin.sampleStepMm+' mm'],['Surface survey',skin.surveyStepMm+' mm grid'],
         ['Non-planar limit',(effectiveLimit??'—')+'°'+(skin.maxAngleDegOverride===null?' (profile declaration)':' experimental override; profile declares '+declaredLimit+'°')],
-        ['Travel','Direct while inside this layer, up to '+p.maxCombMm+' mm; otherwise lift '+p.liftMm+' mm clear'],
+        ['Travel','Comb up to '+p.maxCombMm+' mm; otherwise clear the whole plan by '+p.liftMm+' mm'],
         ['Startup',state.setupBasis]];
     }
   }
@@ -120,6 +122,7 @@ function table(entries) {
   return dl;
 }
 function render() {
+  $('.machine').textContent=state.machine.name;
   const stage={geometry:1,plan:2,toolpath:3}[tab];
   $('#stage-label').textContent='STEP '+stage+' OF 3';
   $('#view-title').textContent={geometry:'Your geometry',plan:'Your geometry',toolpath:'Your toolpath'}[tab];
@@ -131,7 +134,7 @@ function render() {
   const ready=tab==='geometry'||(tab==='plan'&&state.geometryApproved)||(tab==='toolpath'&&state.planApproved&&state.program&&state.review.generation?.mode==='production');
   $('#confirm').disabled=!ready||busy;
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?'Export G-code':'Confirm & export';
-  $('#review-note').textContent=tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':'Clearance is your check for this demo.')):'';
+  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':'Clearance is your check for this demo.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});

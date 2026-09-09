@@ -20,8 +20,7 @@ Use [GLOSSARY.md](GLOSSARY.md) for shared terms; proposed terms are marked there
 
 README.md owns the project introduction and direction for people and agents;
 PROJECT_CHARTER.md is a compatibility pointer. Skill authors must read DEVELOP.md's
-geometry interoperability and whole-plan travel requirements. Those requirements
-do not imply that mesh support or the new planar-infill skill is implemented.
+geometry, machine interoperability and whole-plan travel requirements.
 
 ## Shared context
 
@@ -52,10 +51,12 @@ The old source is preserved in Git history and a separate local archive,
 outside the active tree. The wedge uses rhino3dm; full Rhino computation and
 general surface slicing remain deferred.
 
-The [full-fill](skills/full-fill/SKILL.md) and
+The [full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md) and
 [draped-skin](skills/draped-skin/SKILL.md) manuals own their current shape and
 process limits. They share operation composition, export, Studio review and
-bundle delivery. Mesh slicing and arbitrary CAD import are not implemented.
+bundle delivery. They accept validated STL/mesh input and supported spline shells
+through shared queries. S5 and H2D have skill/SAAMpath software checks; H2D runnable
+export is pending. Arbitrary trimmed CAD import remains unimplemented.
 See [the developer guide](DEVELOP.md#skill-result-composition) for weaving and
 [machine observations](DEVELOP.md#machine-program-templates-and-s5-observations)
 for the user's scoped S5 startup report; complete physical validation remains open.

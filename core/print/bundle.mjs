@@ -6,8 +6,11 @@ import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
   '../geom/nurbs.mjs', '../geom/section.mjs', '../geom/shell.mjs', '../geom/shapes.mjs', '../geom/field.mjs',
   '../geom/tolerance.mjs', '../region/region2d.mjs', '../region/boolean.mjs', '../path/builder.mjs', '../path/compose.mjs',
+  '../geom/query.mjs','../geom/mesh.mjs','../machine/profile.mjs','../export/registry.mjs',
+  '../path/comb.mjs',
   '../export/griffin.mjs', './plan.mjs', './generate.mjs', './geometry.mjs', './bundle.mjs',
-  '../../skills/full-fill/scripts/fill.mjs', '../../skills/draped-skin/scripts/drape.mjs'
+  '../../skills/full-fill/scripts/fill.mjs', '../../skills/draped-skin/scripts/drape.mjs',
+  '../../skills/planar-infill/scripts/infill.mjs'
 ];
 
 export const LIMITATIONS = [
@@ -20,7 +23,8 @@ export const LIMITATIONS = [
 
 const limitationsFor = (plan, machine) => {
   const override = plan.skills['draped-skin'].maxAngleDegOverride;
-  return override === null ? LIMITATIONS : [...LIMITATIONS,
+  const limits=machine.nonplanar?.experimental?[...LIMITATIONS,'The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating.']:LIMITATIONS;
+  return override === null ? limits : [...limits,
     `EXPERIMENTAL: this print overrides the machine profile’s declared ${machine.nonplanar.maxAngleDeg}° non-planar limit with ${override}°. Physical clearance and deposition behavior are unvalidated.`];
 };
 

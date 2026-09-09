@@ -12,12 +12,11 @@
 // region, keep the pieces the operation calls for, and chain them back into
 // closed loops.
 //
-// Limitation: coincident collinear boundaries are not a supported input. Two
-// solids sharing exactly a face plane in a layer should be nudged apart, the
-// same way a degenerate section plane is.
+// Coincident/collinear edges are split into an arrangement and classified on
+// both sides, so repeated section boundaries do not need artificial nudges.
 
 import { TOLERANCE, requireThat, distance2 } from '../geom/tolerance.mjs';
-import { SegmentIndex, segmentIntersection, pointInRegion, loopArea, dedupe } from './region2d.mjs';
+import { pointInRegion, loopArea, dedupe } from './region2d.mjs';
 
 const CHAIN_TOLERANCE = 1e-7;
 
@@ -31,59 +30,35 @@ function combine(a, b, operation) {
   if (!left.length) return operation === 'union' ? right.map(loop => [...loop]) : [];
   if (!right.length) return operation === 'intersect' ? [] : left.map(loop => [...loop]);
 
-  const keepLeftInside = operation === 'intersect';
-  const keepRightInside = operation === 'intersect' || operation === 'difference';
-  const pieces = [
-    ...splitAgainst(left, right).filter(piece => pointInRegion(midpoint(piece), right) === keepLeftInside),
-    ...splitAgainst(right, left).filter(piece => pointInRegion(midpoint(piece), left) === keepRightInside)
-      .map(piece => operation === 'difference' ? [...piece].reverse() : piece)
-  ];
-  return chain(pieces);
-}
-
-// Cut each loop of `loops` wherever it crosses `others`, returning open pieces.
-// A loop with no crossing survives whole, as a closed piece.
-function splitAgainst(loops, others) {
-  const index = new SegmentIndex(others, 1);
-  const pieces = [];
-  for (const loop of loops) {
-    const walk = [];
-    const cuts = [];
-    for (let i = 0; i < loop.length; i++) {
-      const a = loop[i], b = loop[(i + 1) % loop.length];
-      walk.push(a);
-      const hits = [];
-      for (const [c, d] of index.near(a, distance2(a, b) + 1)) {
-        const hit = segmentIntersection(a, b, c, d);
-        if (hit && !hits.some(other => distance2(other, hit) <= TOLERANCE.point)) hits.push(hit);
+  // Classify both sides of every arrangement edge. This also handles identical
+  // sections and shared/collinear edges, which local top/bottom masks need.
+  const segments=[...left,...right].flatMap(loop=>loop.map((p,i)=>[p,loop[(i+1)%loop.length]]));
+  const result=new Map();
+  const contains=p=>{const l=pointInRegion(p,left),r=pointInRegion(p,right);return operation==='union'?l||r:operation==='intersect'?l&&r:l&&!r;};
+  const key=p=>p.map(v=>Math.round(v/1e-7)).join(',');
+  for(const [p,q] of segments){
+    const dx=q[0]-p[0],dy=q[1]-p[1],length=Math.hypot(dx,dy);if(length<1e-8)continue;
+    const cuts=[0,1];
+    for(const [c,d] of segments){
+      const ex=d[0]-c[0],ey=d[1]-c[1],ax=c[0]-p[0],ay=c[1]-p[1],det=dx*ey-dy*ex;
+      if(Math.abs(det)>1e-12){
+        const t=(ax*ey-ay*ex)/det,u=(ax*dy-ay*dx)/det;
+        if(t>1e-9&&t<1-1e-9&&u>=-1e-9&&u<=1+1e-9)cuts.push(t);
+      } else if(Math.abs(ax*dy-ay*dx)<1e-8*length)for(const v of [c,d]){
+        const t=((v[0]-p[0])*dx+(v[1]-p[1])*dy)/(length*length);if(t>1e-9&&t<1-1e-9)cuts.push(t);
       }
-      hits.sort((p, q) => distance2(a, p) - distance2(a, q));
-      for (const hit of hits) { cuts.push(walk.length); walk.push(hit); }
     }
-    if (!cuts.length) { pieces.push(walk); continue; }
-    // Re-open the loop at the first cut, then split at each subsequent one.
-    const rotated = [...walk.slice(cuts[0]), ...walk.slice(0, cuts[0])];
-    const marks = cuts.map(cut => (cut - cuts[0] + walk.length) % walk.length).sort((x, y) => x - y);
-    for (let i = 0; i < marks.length; i++) {
-      const from = marks[i], to = i + 1 < marks.length ? marks[i + 1] : rotated.length;
-      const piece = rotated.slice(from, to + 1);
-      if (i + 1 === marks.length) piece.push(rotated[0]);
-      if (piece.length >= 2) pieces.push(piece);
+    cuts.sort((a,b)=>a-b);
+    for(let i=1;i<cuts.length;i++){
+      if((cuts[i]-cuts[i-1])*length<1e-7)continue;
+      const start=[p[0]+dx*cuts[i-1],p[1]+dy*cuts[i-1]],end=[p[0]+dx*cuts[i],p[1]+dy*cuts[i]],mid=[(start[0]+end[0])/2,(start[1]+end[1])/2];
+      const epsilon=1e-7,l=contains([mid[0]-dy/length*epsilon,mid[1]+dx/length*epsilon]),r=contains([mid[0]+dy/length*epsilon,mid[1]-dx/length*epsilon]);
+      if(l===r)continue;
+      const edge=l?[start,end]:[end,start];result.set(key(edge[0])+'>'+key(edge[1]),edge);
     }
   }
-  return pieces;
+  return chain([...result.values()]);
 }
-
-const midpoint = piece => {
-  // Midpoint of the piece's longest segment: far from any crossing, so the
-  // inside test is not decided on a boundary.
-  let best = 0, bestLength = -1;
-  for (let i = 0; i + 1 < piece.length; i++) {
-    const length = distance2(piece[i], piece[i + 1]);
-    if (length > bestLength) { bestLength = length; best = i; }
-  }
-  return [(piece[best][0] + piece[best + 1][0]) / 2, (piece[best][1] + piece[best + 1][1]) / 2];
-};
 
 // Reassemble kept pieces into closed loops end to end.
 function chain(pieces) {
@@ -105,6 +80,7 @@ function chain(pieces) {
       if (best < 0) break;
       current.push(...pool.splice(best, 1)[0].slice(1));
     }
+    requireThat(distance2(current[0],current[current.length-1])<=CHAIN_TOLERANCE,'Region operation produced an open contour.');
     const closed = dedupe(current);
     if (closed.length >= 3 && Math.abs(loopArea(closed)) > TOLERANCE.chord) loops.push(closed);
   }
@@ -166,5 +142,22 @@ export function levelSetRegion(field, level, { refine = null } = {}) {
       }
       for (let k = 0; k < Math.min(exits.length, entries.length); k++) segments.push([exits[k], entries[k]]);
     }
+  // A level set can meet the sampled domain boundary. Close its high side
+  // along that boundary instead of implicitly joining an open contour by a chord.
+  const border=[];
+  const sample=(i,j)=>({x:xs[i],y:ys[j],value:values[i][j]});
+  for(let i=0;i<xs.length-1;i++)border.push(sample(i,0));
+  for(let j=0;j<ys.length-1;j++)border.push(sample(xs.length-1,j));
+  for(let i=xs.length-1;i>0;i--)border.push(sample(i,ys.length-1));
+  for(let j=ys.length-1;j>0;j--)border.push(sample(0,j));
+  for(let i=0;i<border.length;i++){
+    const p=border[i],q=border[(i+1)%border.length],above=p.value>=level,next=q.value>=level;
+    if(!above&&!next)continue;
+    if(above&&next){segments.push([[p.x,p.y],[q.x,q.y]]);continue;}
+    let point;
+    if(refine&&(Math.abs(p.value)>=SENTINEL||Math.abs(q.value)>=SENTINEL))point=above?refine([p.x,p.y],[q.x,q.y]):refine([q.x,q.y],[p.x,p.y]);
+    if(!point){const t=(level-p.value)/(q.value-p.value);point=[p.x+t*(q.x-p.x),p.y+t*(q.y-p.y)];}
+    segments.push(above?[[p.x,p.y],point]:[point,[q.x,q.y]]);
+  }
   return chain(segments.map(segment => [...segment]));
 }

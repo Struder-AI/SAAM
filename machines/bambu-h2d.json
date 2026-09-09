@@ -1,0 +1,30 @@
+{
+  "schema": "saam-machine/1",
+  "id": "bambu-h2d",
+  "name": "Bambu Lab H2D",
+  "revision": 1,
+  "units": "mm",
+  "kinematics": "cartesian-fixed-vertical-nozzle",
+  "capabilities": ["xyz-extrusion", "planar", "nonplanar"],
+  "bounds": {"min": [0,0,0], "max": [350,320,325]},
+  "maxFeedMmS": {"x": 1000,"y": 1000,"z": 30,"e": 50},
+  "temperatureLimitsC": {"nozzle": [0,350],"bed": [0,120],"chamberMax": 65},
+  "filamentDiameterMm": 1.75,
+  "tools": [
+    {"index":0,"label":"Left nozzle","bounds":{"min":[0,0,0],"max":[325,320,320]},"startupXY":[100,100],"cores":["Hardened steel 0.4"],"nozzleDiametersMm":[0.4],"layerHeightMm":[0.08,0.28]},
+    {"index":1,"label":"Right nozzle","bounds":{"min":[25,0,0],"max":[350,320,325]},"startupXY":[100,100],"cores":["Hardened steel 0.4"],"nozzleDiametersMm":[0.4],"layerHeightMm":[0.08,0.28]}
+  ],
+  "materials": {"PLA":{"nozzleC":[190,230],"bedC":[0,70],"maxFlowMm3S":4,"maxRetractMm":2}},
+  "defaultSetup":{"tool":0,"core":"Hardened steel 0.4","nozzleMm":0.4,"material":"PLA","filamentMm":1.75,"nozzleC":215,"bedC":60,"buildVolumeC":28,"materialGuid":null,"firmwareVersion":"","startupVerified":false},
+  "defaultProcess":{"retractMm":0.8,"retractSpeedMmS":30},
+  "outputs":[{"id":"bambu-gcode","extension":".gcode.3mf","flavor":"Bambu","implemented":false,"reason":"H2D startup, physical tool mapping, proprietary command interpretation and sliced 3MF packaging need a verified target envelope; no runnable H2D export is implemented."}],
+  "startup":{"protocol":"unresolved-h2d","zAfterStartupMm":20,"validation":"Internal path-check start [100,100,20] only; not a verified machine startup or a runnable program."},
+  "nonplanar":{"maxAngleDeg":15,"experimental":true,"basis":"User explicitly chose experimental 15 degrees on 2026-09-09; no manufacturer non-planar clearance rating or physical validation."},
+  "sources":[
+    "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/Bambu%20Lab%20H2D%200.4%20nozzle.json",
+    "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/fdm_bbl_3dp_002_common.json",
+    "https://cdn1.bambulab.com/documentation/h2d/en/H2D_Laser_Full_Combo_20250305.pdf"
+  ],
+  "sourceChecked":"2026-09-09",
+  "validation":"Profile and SAAMpath software checks only. Conservative PLA flow/temperature recipe; left printable height follows the official inherited profile's 320 mm rather than the headline 325 mm. No physical print or H2D export validation."
+}

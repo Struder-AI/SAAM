@@ -34,11 +34,10 @@ This is the product direction, not a list of implemented capabilities.
 Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md);
 the direction remains provisional where only one approval is recorded.
 
-The requested new direction is mesh as native part geometry, with CAD inputs
-converted at a declared tolerance. The current implementation still uses
-Rhino/3DM; the [mesh and printing design](DEVELOP.md#geometry-interoperability-for-skill-authors)
-is ready for review, and [D-021](DECISIONS.md#d-021--native-mesh-geometry)
-records the requested decision change.
+Mesh imports use native indexed triangles. Existing spline geometry keeps direct
+spline slicing and Rhino/3DM storage; both backends serve the same skill queries.
+See [geometry interoperability](DEVELOP.md#geometry-interoperability-for-skill-authors)
+and the requested direction in [D-021](DECISIONS.md#d-021--native-mesh-geometry).
 Skills should work across geometry types and machines through shared interfaces,
 with explicit, narrow exceptions. Prints keep geometry, the process plan,
 SAAMpath, and its export together locally.
@@ -49,10 +48,14 @@ The first development demo is an UltiMaker S5 wedge with horizontal body layers
 and a 15° inclined skin. It includes native Rhino geometry, SAAMpath, Griffin
 G-code, automated checks, and a local SAAM Studio viewer.
 
-[Full-fill](skills/full-fill/SKILL.md) and [draped-skin](skills/draped-skin/SKILL.md)
+[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md)
+and [draped-skin](skills/draped-skin/SKILL.md)
 share operation composition, export and the Studio approval/delivery workflow.
-Their manuals own their current shapes and limitations. General CAD import and
-mesh slicing are not implemented. Software checks do not establish physical
+Their manuals own their current shapes and limitations. STL/mesh input and
+restricted spline shapes are supported. All three have software checks against
+S5 and H2D profiles; H2D runnable export is pending a verified startup/output
+envelope. General trimmed CAD import is not implemented.
+Software checks do not establish physical
 print success. The user has reported that the latest S5 wedge startup avoids bed
 leveling and unused-nozzle heating; complete print validation remains open.
 See [implementation and observations](DEVELOP.md).

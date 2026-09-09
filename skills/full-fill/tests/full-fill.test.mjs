@@ -90,18 +90,18 @@ test('travel between fill strokes stays down instead of lifting over the part', 
   assert.ok(stats.travelMm < stats.printMm / 5, `travel ${stats.travelMm} against print ${stats.printMm}`);
 });
 
-test('a lifted travel clears only the layer it is on', () => {
+test('lifted traverses clear the whole part while combing stays down', () => {
   const plan = planFor({ shape: 'wedge', runMm: 20, widthMm: 12, baseMm: 2, angleDeg: 15 });
   const { shell, path } = run(plan);
   const partMax = shell.bounds.max[2];
   let lifted = 0;
+  let previous=path.initialPosition;
   for (const action of path.actions) {
-    if (action.kind !== 'move' || action.volumeMm3 > 0 || action.phase !== 'planar') continue;
-    const printedAt = path.actions.find(other => other.kind === 'move' && other.layer === action.layer && other.volumeMm3 > 0);
-    if (!printedAt) continue;
-    assert.ok(action.to[2] <= printedAt.to[2] + plan.process.liftMm + 1e-6,
-      `travel at ${action.to[2]} rose above its own layer plus lift`);
-    if (action.to[2] > printedAt.to[2] + 1e-6) lifted++;
+    if(action.kind!=='move')continue;
+    if(!action.volumeMm3&&Math.hypot(action.to[0]-previous[0],action.to[1]-previous[1])>1e-6&&action.to[2]>partMax){
+      assert.ok(action.to[2]>=partMax+plan.process.liftMm-1e-6);lifted++;
+    }
+    previous=action.to;
   }
   assert.ok(lifted > 0, 'some travel does lift');
   assert.ok(partMax > 4, 'the part is tall enough for this to matter');
