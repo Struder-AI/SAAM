@@ -7,20 +7,33 @@ The aim is a seamless, reliable path into 3D printing for non-technical people,
 with guidance suited to their experience. SAAM is an ecosystem of slicer
 components, including planned support for angled and curved deposition layers.
 
-**Refresh foundation:** agent guidance, decisions, a glossary, development
-requests, and repository checks are ready. The manufacturing runtime is not
-implemented. Rhino/3DM is selected for geometry, SAAMpath names the internal
-toolpath representation, and the user interface is named **SAAM Studio**.
+**First development demo:** an UltiMaker S5 wedge with horizontal body layers
+and a 15° inclined skin. It includes native Rhino geometry, SAAMpath, Griffin
+G-code, automated checks, and a local **SAAM Studio** viewer. Software validation
+is implemented; physical printing remains unvalidated. Standard S5 startup is
+assumed, and installed firmware information is optional.
 
 - Agents: start at [AGENTS.md](AGENTS.md).
 - Product direction: [PROJECT_CHARTER.md](PROJECT_CHARTER.md).
 - Contributor decisions: [DECISIONS.md](DECISIONS.md).
 - Shared terms: [GLOSSARY.md](GLOSSARY.md).
 - Completed scope and deferred work: [build_request.md](build_request.md).
-- Setup, organization, and design proposals: [Development foundation](docs/development.md).
+- Developer rules, setup, formats, and organization: [DEVELOP.md](DEVELOP.md).
+- Maker guidance: [MAKERS.md](MAKERS.md).
 
-Run `npm test` with Node.js 22+ and Git. These are repository checks, not
-manufacturing tests. No npm dependencies are required.
+With Node.js 22+ and Git:
+
+```sh
+npm ci
+npm test
+npm run demo
+npm run studio
+```
+
+Open [SAAM Studio](http://127.0.0.1:4321). The demo uses right nozzle #2,
+AA 0.4 and PLA at 215°C. Its development preview creates no human approvals.
+Physical clearance is the operator's responsibility for this demo.
+Read the [wedge skill](skills/wedge-demo/SKILL.md) for the three-approval workflow.
 
 Local print bundles belong in ignored `Prints/`; curated examples belong in
 `examples/prints/`. A personal architecture map may live in ignored
@@ -28,7 +41,7 @@ Local print bundles belong in ignored `Prints/`; curated examples belong in
 
 The previous runtime was removed from the active tree and remains recoverable
 from Git history. No legacy component has been adopted.
-See [legacy reference](docs/development.md#legacy-reference).
+See [legacy reference](DEVELOP.md#legacy-reference).
 
 The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).
 Licensing remains in [LICENSE](LICENSE).

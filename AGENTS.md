@@ -8,13 +8,14 @@ to 3D printing, including for people without CAD, slicing, or programming experi
 
 | Your task | Read next |
 |---|---|
-| Maker agent: help a person make a part | [Using SAAM](docs/agents/use.md) |
-| Build, fix, or document SAAM itself | [Developing SAAM](docs/agents/develop.md) |
-| Develop SAAM and exercise its skills/tools as a test | Read both, then apply the development testing boundary |
+| Developer agent (default): build, fix, or document SAAM | Read both [DEVELOP.md](DEVELOP.md) and [MAKERS.md](MAKERS.md) |
+| Maker agent: help a person make a part | Read [MAKERS.md](MAKERS.md) |
+| Developer agent exercising maker skills/tools | Read both files and apply DEVELOP.md's development testing boundary |
 
 These are task roles, not different models or permanent agent identities.
-Default to use when the person asks for a part; development requires a request
-to change SAAM. Load a skill's instruction manual when that skill is relevant.
+When the role is not specified, default to developer for now. Every developer
+agent reads both DEVELOP.md and MAKERS.md. A role does not expand the user's
+authorized task scope. Load a skill's instruction manual when that skill is relevant.
 Use [GLOSSARY.md](GLOSSARY.md) for shared terms; proposed terms are marked there.
 
 ## Shared context
@@ -37,14 +38,18 @@ Use [GLOSSARY.md](GLOSSARY.md) for shared terms; proposed terms are marked there
 
 ## Restart state
 
-The manufacturing restart currently has documentation foundations only. The
-local architecture map is a development aid, not a manufacturing runtime. No legacy component
-has been approved for adoption, and no new manufacturing runtime is implemented.
+The restart includes a bounded S5 wedge development demo with Rhino geometry,
+SAAMpath, Griffin export, software checks, and a local Studio review workflow.
+Read [the wedge skill](skills/wedge-demo/SKILL.md) when working on that demo.
+No physical print has been validated. The local architecture map is a development
+aid. No legacy component has been approved for adoption.
 The old source is preserved in Git history and a separate local archive,
-outside the active tree. Rhino/3DM is selected for geometry; integration is deferred.
+outside the active tree. The wedge uses rhino3dm; full Rhino computation and
+general surface slicing remain deferred.
 
 The current entry documents are this file, `CLAUDE.md`, `README.md`,
-`PROJECT_CHARTER.md`, `DECISIONS.md`, `GLOSSARY.md`, `build_request.md`, and
-`docs/agents/`. Skills will package their own manuals and tools. Developer setup,
-organization and open design proposals are in [Development foundation](docs/development.md).
+`PROJECT_CHARTER.md`, `DECISIONS.md`, `GLOSSARY.md`, `build_request.md`,
+`DEVELOP.md`, and `MAKERS.md`. Skills package their own manuals and tools.
+Developer rules, setup, organization and open design proposals live together
+in [DEVELOP.md](DEVELOP.md). There is no separate docs folder.
 Do not load the old architecture or operation instructions as always-on context.

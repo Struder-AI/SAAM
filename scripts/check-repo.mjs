@@ -68,5 +68,5 @@ if (errors.length) {
   process.exitCode = 1;
 } else {
   console.log(`Checked ${documents.length} documents, ${links} local links, ${entries.length} decision records, and private-file exclusions.`);
-  console.log('These are repository checks. No manufacturing runtime is implemented.');
+  console.log('Repository checks only; manufacturing software tests run separately and do not establish physical print success.');
 }

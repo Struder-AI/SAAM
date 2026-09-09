@@ -18,7 +18,7 @@ starting vocabulary for the ontology we develop together.
 | Process plan | The recipe for making a part: geometry reference, selected skills, their settings, and machine/setup choices. |
 | Locked process plan | The complete version of the recipe submitted for approval; generation introduces no further process choices. |
 | Toolpath | The route and associated printing actions the machine will follow. |
-| SAAMpath | SAAM's internal toolpath representation, generated directly from the approved process plan. Its encoding is still to be chosen. |
+| SAAMpath | SAAM's internal toolpath representation, generated directly from the approved process plan. The wedge demo uses versioned JSON with XYZ motion, deposited volume and printing actions. |
 | Machine file | The definition of a machine, including its supported output options. |
 | Export | The machine-ready file or file bundle produced from SAAMpath, using an output option declared by the machine file. Studio runs the same export the machine receives. |
 | Print | A local bundle containing a process plan, SAAMpath and its export. Specific curated examples may be shared. |

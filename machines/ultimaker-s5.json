@@ -1,0 +1,28 @@
+{
+  "schema": "saam-machine/1",
+  "id": "ultimaker-s5",
+  "name": "Ultimaker S5",
+  "revision": 1,
+  "units": "mm",
+  "kinematics": "cartesian-fixed-vertical-nozzle",
+  "bounds": {"min": [0, 0, 0], "max": [330, 240, 300]},
+  "maxFeedMmS": {"x": 300, "y": 300, "z": 40, "e": 45},
+  "temperatureLimitsC": {"nozzle": [180, 280], "bed": [0, 120]},
+  "filamentDiameterMm": 2.85,
+  "tools": [
+    {"index": 0, "label": "Left nozzle (#1)", "nominalOffsetMm": [0, 0], "startupXY": [330, 237]},
+    {"index": 1, "label": "Right nozzle (#2)", "nominalOffsetMm": [22, 0], "startupXY": [330, 219]}
+  ],
+  "offsetHandling": "firmware: commands are in the active nozzle's build coordinates; do not subtract the nominal offset again",
+  "outputs": [{"id": "griffin-gcode", "extension": ".gcode", "flavor": "Griffin", "extrusionUnits": "mm-filament"}],
+  "clearance": {"model": null, "validatedInclinationDeg": null},
+  "startup": {"protocol": "griffin-managed-with-G280-S1", "zAfterPrimeMm": 20, "validation": "standard S5 Griffin startup assumed; installed firmware and verification are optional metadata"},
+  "sources": [
+    "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker_s5.def.json",
+    "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker.def.json",
+    "https://github.com/Ultimaker/Cura/blob/main/resources/extruders/ultimaker_s5_extruder_right.def.json",
+    "https://ultimaker.com/3d-printers/s-series/ultimaker-s5/"
+  ],
+  "sourceChecked": "2026-09-08",
+  "validation": "software definition; no physical print validation"
+}

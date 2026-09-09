@@ -3,10 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "SAAM refresh foundation. Manufacturing runtime is not implemented yet.",
+  "description": "SAAM S5 inclined-wedge development demo.",
   "scripts": {
-    "test": "node scripts/check-repo.mjs"
+    "test": "node scripts/check-repo.mjs && node --test skills/wedge-demo/tests/*.test.mjs",
+    "demo": "node skills/wedge-demo/scripts/cli.mjs demo",
+    "studio": "node studio/server.mjs",
+    "check:print": "node skills/wedge-demo/scripts/cli.mjs check"
   },
-  "engines": { "node": ">=22" },
-  "license": "Apache-2.0"
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "rhino3dm": "8.32.2"
+  }
 }

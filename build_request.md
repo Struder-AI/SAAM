@@ -57,22 +57,50 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 
 ## BR-004 — Rhino geometry integration
 
-- Status: deferred
+- Status: wedge integration implemented; general integration deferred
 - Direction: remettub selected Rhino; use 3DM as native geometry. The earlier kernel comparison is closed.
 - Result needed: Choose and test the Rhino integration method, preserve spline surfaces and feature references, and establish runtime/install/licensing requirements.
+- Wedge result: pinned rhino3dm creates a capped extrusion and six named NURBS reference surfaces; 3DM round-trip tests pass. General spline intersections and edited-file import remain deferred.
 
 ## BR-005 — First complete print
 
-- Status: deferred
+- Status: software demo implemented; physical print pending
 - Result needed: One specified printer/material/nozzle, geometry edit, three approvals, direct generation, automated checks, same-file preview/delivery, and save/reopen of the print bundle.
 - Depends on: BR-003, BR-004, and selection of the first printer/setup.
+- Current implementation: BR-007 supplies the S5 wedge workflow. Each job requires three actual print approvals; software tests do not complete a physical print. Standard S5 startup is assumed without requiring firmware identification.
 
 ## BR-006 — SAAM Studio interaction and export interpretation
 
-- Status: deferred
+- Status: bounded S5 demo implemented; general interpreter deferred
 - Result needed: Shared geometry references and a viewer that interprets the actual export, including its helper files and declared machine state. Detect unsupported behavior before review; tie approval to the reviewed version and invalidate affected approvals after changes.
-- Proposed interaction: Click-to-select geometry with shared labels; compare a feature tree and screenshot markup during usability testing. See [developer proposals](docs/development.md#studio-feature-references).
+- Proposed interaction: Click-to-select geometry with shared labels; compare a feature tree and screenshot markup during usability testing. See [developer proposals](DEVELOP.md#studio-feature-references).
 - Verify: A novice can identify a feature, request an edit, approve the three stages, and reopen the print. The delivered export is byte-identical to the reviewed export.
+- Current result: named face selection, geometry/process editing, three version-bound approvals, exact Griffin export playback, save/reopen, and byte-identical delivery tests. Novice usability and physical validation remain pending.
+
+## BR-007 — S5 inclined-wedge demo
+
+- Status: implemented locally; physical validation pending
+- Source: user in the S5 wedge conversation, 2026-09-08: "looks good, go ahead". Setup clarified as AA 0.4, right nozzle #2, PLA at 215°C.
+- Build: S5 machine definition; Rhino wedge; horizontal solid-fill body; 15° inclined skin; SAAMpath; Griffin export; software checks; local Studio and print bundle.
+- Clearance scope: user explicitly said "Don't worry about clearance for this one. I'll make sure it clears." Physical head collision checking is deferred for this demo; bounds, motion and extrusion checks remain.
+- Verify: generation, native geometry round trip, supported-command interpretation, temperature/flow/bounds checks, deterministic export, stale-approval invalidation and byte-identical delivery. No real approval is fabricated and no printer is started.
+- Job inputs: actual geometry, locked-plan and toolpath approvals. Bed temperature and other defaults are proposed recipe values until plan approval. Firmware identification and startup verification are optional metadata.
+
+## BR-008 — Root developer and maker guidance
+
+- Status: complete locally
+- Source: user correction during the S5 wedge conversation, 2026-09-08.
+- Result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. Unspecified agents default to developer for now, and every developer reads both root files.
+- Approval scope: this records the user's development instruction, not an inferred contributor decision approval.
+
+## BR-009 — Accessible chat-driven review and wedge refinement
+
+- Status: implemented locally; physical validation remains pending.
+- Source: user in the S5 wedge conversation, 2026-09-08.
+- Result: concise geometry → settings → toolpath review, chat-only recipe edits with automatic viewer updates, playback speed selector, adjustable sloped-layer count, 0.2 mm nominal layers, alternating sloped strokes and alternating flat-layer traversal.
+- Travel: fixed clearance at full part maximum Z plus 2 mm by default, for every generated horizontal travel in this profile.
+- Setup: remove installed-firmware approval requirement; assume standard S5 startup, resolve concrete questions in chat, and remember setup locally for later prints.
+- Guidance: MAKERS.md owns the review/revision flow and setup conversation; DEVELOP.md documents implementation and setup persistence; the wedge manual documents adjustment tools.
 
 ## What should earn adoption next
 
