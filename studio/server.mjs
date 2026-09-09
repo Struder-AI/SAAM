@@ -8,9 +8,8 @@ const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
 
 // Studio reviews whatever print it is opened on. A bundle names its own schema,
-// and that selects the module that owns its workflow: the wedge demo keeps its
-// own bounded package, the shell pipeline uses the shared core. Both expose the
-// same load/update/approve/generate/deliver contract.
+// and that selects its geometry/recipe adapter. Both adapters use the single
+// workflow implementation in core/print/workflow.mjs.
 const bundles={
   'saam-wedge-plan/1':()=>import('../skills/wedge-demo/scripts/bundle.mjs'),
   'saam-shell-plan/1':()=>import('../core/print/bundle.mjs')

@@ -3,7 +3,7 @@
 Track concrete development work here. Decisions belong in [DECISIONS.md](DECISIONS.md);
 terms belong in [GLOSSARY.md](GLOSSARY.md). Implementation status is not approval status.
 
-## This refresh cycle
+## Initial refresh scope — historical snapshot, 2026-09-08
 
 Authorized by remettub on 2026-09-08: finish a clean refreshed repository, commit,
 and push a new `refresh` branch directly to `Struder-AI/SAAM`.
@@ -41,7 +41,7 @@ licenses/notices and update developer entry documents. No legacy runtime is adop
 - Build: Maker-agent vocabulary, glossary, three approvals, direct generation from the locked plan, skill packages, local Prints, and concise developer documentation.
 - Verify: Consistent current documents; superseded decisions preserved in the log.
 
-## Refresh foundation verification
+## Initial foundation verification — historical snapshot
 
 The old implementation is removed from the active tree. All 114 archived files
 were checked against their original SHA-256 hashes. No legacy runtime was adopted.
@@ -53,7 +53,7 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 
 - Status: resolved
 - Source: R3 refers to both a native-format path and an output toolpath in a print.
-- Result: R4/R5 establish SAAMpath as the internal representation, with a separate export using an output option in the machine file. Encoding and exact bundle layout remain open.
+- Result: R4/R5 establish SAAMpath as the internal representation, with a separate export using an output option in the machine file. Encoding and bundle layout were open at this point; see DEVELOP.md for the implemented formats.
 
 ## BR-004 — Rhino geometry integration
 
@@ -98,11 +98,13 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 - Status: implemented locally; physical validation remains pending.
 - Source: user in the S5 wedge conversation, 2026-09-08.
 - Result: concise geometry → settings → toolpath review, chat-only recipe edits with automatic viewer updates, playback speed selector, adjustable sloped-layer count, 0.2 mm nominal layers, alternating sloped strokes and alternating flat-layer traversal.
-- Travel: fixed clearance at full part maximum Z plus 2 mm by default, for every generated horizontal travel in this profile.
+- Historical travel policy: every horizontal move lifted to the full part maximum plus 2 mm. Later wedge work added direct nearby travel; the current manual owns that behavior.
 - Setup: remove installed-firmware approval requirement; assume standard S5 startup, resolve concrete questions in chat, and remember setup locally for later prints.
 - Guidance: MAKERS.md owns the review/revision flow and setup conversation; DEVELOP.md documents implementation and setup persistence; the wedge manual documents adjustment tools.
 
 ## BR-010 — Split the wedge patterns into general skills
+
+Historical result at completion; Studio/delivery limitations below were replaced by BR-011.
 
 - Status: implemented locally; untested beyond software checks
 - Requested by: remettub, 2026-09-08: split the wedge skill in two, a "full fill"
@@ -134,6 +136,8 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 - The wedge skill was left unchanged, as requested.
 
 ## BR-011 — Make full-fill, draped-skin and the core usable
+
+Historical result at completion; later shape additions and shared lifecycle are recorded below.
 
 - Status: implemented locally; untested beyond software checks
 - Requested by: remettub, 2026-09-08: "We need to be able to use the drape and
@@ -197,6 +201,33 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
   Studio show both the 15° profile declaration and the experimental override.
 - Boundary: it creates no approval, delivery or machine action, and does not
   establish physical clearance or deposition behavior at the override angle.
+
+## BR-015 — Consolidation, interoperability and general operation weaving
+
+- Status: implemented; software verification recorded in the associated tests
+- Requested by: user in the repository assessment conversation, 2026-09-08.
+- Scope: fix documentation drift; make parallel pipelines exceptional and normally
+  require prior user agreement; establish interoperability as an ideal with justified
+  exceptions; remove standalone shell preview; share G-code generation and the
+  bundle-to-delivery lifecycle; enable generalized weaving of skill results.
+- Clarification: weaving applies to compatible skill operations, including separate
+  full-fill instances. Supporting body fill must complete before draped-skin. A
+  two-column/spanning-roof example motivates alternation and AA–BB batching but
+  does not define or limit the generic composer.
+- Implementation: machine-owned program templates; one exporter/interpreter;
+  adapter-based shared lifecycle; one bundle in development and production modes;
+  operation results with layers/surfaces, dependencies, deterministic order and
+  batching; assembly component selection through the existing shell plan.
+- User observation: the last S5 wedge change achieved no routine bed leveling and
+  no unused-nozzle heating. Preserve that header/startup/shutdown behavior. Earlier
+  first-layer under-extrusion was reported; complete physical validation is open.
+- Verify: exact S5 envelope regression, strict temperature/modal/numeric checks,
+  shared workflow tests for both adapters, generic composition and same-layer order,
+  batch clearance, support-before-roof rejection, and woven bundle delivery.
+- General mesh input, automatic overlap/support inference, and physical bridge or
+  collision validation are not implemented. Developer details live in DEVELOP.md.
+- Approval scope: this records the user's implementation instruction and observation;
+  it does not infer either contributor's approval of new decision wording.
 
 ## What should earn adoption next
 

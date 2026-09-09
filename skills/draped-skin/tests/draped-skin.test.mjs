@@ -106,7 +106,7 @@ test('travel over a curved surface clears that surface, not the whole part', () 
     if (action.to[2] < partMax + plan.process.liftMm - 1e-6) belowPartMax++;
   }
   assert.ok(travels > 0);
-  // The wedge demo lifts to the whole part's maximum for every travel.
+  // Longer wedge travels use full-part clearance; this policy queries the surface.
   assert.ok(belowPartMax > 0, 'some travel stays below the full part clearance height');
   assert.ok(builder.stats.combed > 0, 'neighbouring skin strokes cross directly');
 });

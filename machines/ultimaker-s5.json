@@ -2,31 +2,140 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 2,
+  "revision": 3,
   "units": "mm",
   "kinematics": "cartesian-fixed-vertical-nozzle",
-  "bounds": {"min": [0, 0, 0], "max": [330, 240, 300]},
-  "maxFeedMmS": {"x": 300, "y": 300, "z": 40, "e": 45},
-  "temperatureLimitsC": {"nozzle": [180, 280], "bed": [0, 120]},
+  "bounds": {
+    "min": [
+      0,
+      0,
+      0
+    ],
+    "max": [
+      330,
+      240,
+      300
+    ]
+  },
+  "maxFeedMmS": {
+    "x": 300,
+    "y": 300,
+    "z": 40,
+    "e": 45
+  },
+  "temperatureLimitsC": {
+    "nozzle": [
+      180,
+      280
+    ],
+    "bed": [
+      0,
+      120
+    ]
+  },
   "filamentDiameterMm": 2.85,
   "tools": [
-    {"index": 0, "label": "Left nozzle (#1)", "nominalOffsetMm": [0, 0], "startupXY": [330, 237]},
-    {"index": 1, "label": "Right nozzle (#2)", "nominalOffsetMm": [22, 0], "startupXY": [330, 219]}
+    {
+      "index": 0,
+      "label": "Left nozzle (#1)",
+      "nominalOffsetMm": [
+        0,
+        0
+      ],
+      "startupXY": [
+        330,
+        237
+      ]
+    },
+    {
+      "index": 1,
+      "label": "Right nozzle (#2)",
+      "nominalOffsetMm": [
+        22,
+        0
+      ],
+      "startupXY": [
+        330,
+        219
+      ]
+    }
   ],
   "offsetHandling": "firmware: commands are in the active nozzle's build coordinates; do not subtract the nominal offset again",
-  "outputs": [{"id": "griffin-gcode", "extension": ".gcode", "flavor": "Griffin", "extrusionUnits": "mm-filament"}],
+  "outputs": [
+    {
+      "id": "griffin-gcode",
+      "extension": ".gcode",
+      "flavor": "Griffin",
+      "extrusionUnits": "mm-filament",
+      "program": {
+        "header": [
+          ";START_OF_HEADER",
+          ";HEADER_VERSION:0.1",
+          ";FLAVOR:Griffin",
+          ";GENERATOR.NAME:SAAM",
+          ";GENERATOR.VERSION:4.4.0",
+          ";SAAM.GENERATOR.VERSION:{generatorVersion}",
+          ";GENERATOR.BUILD_DATE:{buildDate}",
+          ";TARGET_MACHINE.NAME:Ultimaker S5",
+          ";EXTRUDER_TRAIN.{tool}.INITIAL_TEMPERATURE:{nozzleC}",
+          ";EXTRUDER_TRAIN.{tool}.MATERIAL.VOLUME_USED:{volume}",
+          ";EXTRUDER_TRAIN.{tool}.MATERIAL.GUID:{materialGuid}",
+          ";EXTRUDER_TRAIN.{tool}.NOZZLE.DIAMETER:{nozzleMm}",
+          ";EXTRUDER_TRAIN.{tool}.NOZZLE.NAME:{core}",
+          ";BUILD_PLATE.TYPE:glass",
+          ";BUILD_PLATE.INITIAL_TEMPERATURE:{bedC}",
+          ";BUILD_VOLUME.TEMPERATURE:{buildVolumeC}",
+          ";PRINT.TIME:{seconds}",
+          ";PRINT.GROUPS:1",
+          ";PRINT.SIZE.MIN.X:{minX}",
+          ";PRINT.SIZE.MIN.Y:{minY}",
+          ";PRINT.SIZE.MIN.Z:{minZ}",
+          ";PRINT.SIZE.MAX.X:{maxX}",
+          ";PRINT.SIZE.MAX.Y:{maxY}",
+          ";PRINT.SIZE.MAX.Z:{maxZ}",
+          ";END_OF_HEADER"
+        ],
+        "start": [
+          ";Clearance: operator responsibility for this demo",
+          ";Firmware owns Griffin startup; this export does not request routine bed leveling.",
+          "T{tool}",
+          "G21",
+          "G90",
+          "M82",
+          "M190 S{bedC}",
+          "M109 T{tool} S{nozzleC}",
+          "G0 Z{startupZ} F300",
+          "G92 E0"
+        ],
+        "end": [
+          "M400",
+          "M104 T{tool} S0",
+          "M140 S0",
+          "M107",
+          ";END_OF_SAAM"
+        ]
+      }
+    }
+  ],
   "exportGuidance": {
     "header": "Use a complete Griffin header, including GENERATOR.BUILD_DATE, the active tool's MATERIAL.GUID and BUILD_VOLUME.TEMPERATURE. The accepted PLA demo uses Generic PLA GUID 506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9 and build-volume temperature 28 C.",
     "troubleshooting": "A file rejected as missing necessary data may have incomplete metadata even when libCharon accepts it. Compare with a Cura S5 export; UFP contains /3D/model.gcode.",
-    "acceptance": "User reports firmware 8.3.1 accepted the SAAM 0.2.2 metadata correction from USB. The later no-routine-leveling startup and Griffin-4.4 compatibility declaration have software checks only; neither establishes successful printing or clearance."
+    "acceptance": "User reports on 2026-09-08 that the final wedge change achieved the requested Ultimaker behavior: no bed leveling and no heating of the unused nozzle. Preserve this envelope, including Griffin compatibility 4.4.0, material identity and build-volume metadata. This observation does not establish complete print quality or physical clearance."
   },
-  "clearance": {"model": null, "validatedInclinationDeg": null},
+  "clearance": {
+    "model": null,
+    "validatedInclinationDeg": null
+  },
   "nonplanar": {
     "maxAngleDeg": 15,
     "basis": "Bounded working limit for surface-following layers with this fixed vertical nozzle. Set from the inclination range the wedge demo was built around; it is not a measured clearance rating and no head collision model is implemented.",
     "validation": "software limit only; no physical print has established it"
   },
-  "startup": {"protocol": "griffin-managed-no-routine-leveling", "zAfterStartupMm": 20, "validation": "standard S5 Griffin startup without a per-job leveling routine is assumed; installed firmware and verification are optional metadata"},
+  "startup": {
+    "protocol": "griffin-managed-no-routine-leveling",
+    "zAfterStartupMm": 20,
+    "validation": "standard S5 Griffin startup without a per-job leveling routine is assumed; installed firmware and verification are optional metadata"
+  },
   "sources": [
     "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker_s5.def.json",
     "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker.def.json",

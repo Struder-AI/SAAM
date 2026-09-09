@@ -11,10 +11,11 @@
 // reserved surface is still above the layer - the general form of the wedge
 // demo's flat "core plane".
 
+import { composeResults } from '../../../core/path/compose.mjs';
 import { sectionShell } from '../../../core/geom/shell.mjs';
 import { offsetRegion, scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
 import { intersect, levelSetRegion, levelSetCoverage } from '../../../core/region/boolean.mjs';
-import { planarPolicy, orderStrokes } from '../../../core/path/builder.mjs';
+import { planarPolicy } from '../../../core/path/builder.mjs';
 import { requireThat, distance2 } from '../../../core/geom/tolerance.mjs';
 
 export const FULL_FILL_DEFAULTS = {
@@ -36,7 +37,9 @@ export function layerHeights(process, fromMm, toMm) {
   return heights;
 }
 
-export function generateFullFill(builder, { shell, plan, reserve = null }) {
+export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill' }) {
+  const operations=[];
+  let previous=[];
   const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'] };
   const width = process.lineWidthMm;
   const top = reserve ? reserve.maxMm : shell.bounds.max[2];
@@ -61,8 +64,7 @@ export function generateFullFill(builder, { shell, plan, reserve = null }) {
     }
     if (!region.length || regionArea(region) < width * width) { report.skippedLayers++; continue; }
 
-    builder.setContext('planar', index);
-    if (index === 1) builder.fan(process.fanPercent);
+
     const strokes = [];
     let inner = region;
     for (let ring = 0; ring < settings.perimeters; ring++) {
@@ -92,28 +94,29 @@ export function generateFullFill(builder, { shell, plan, reserve = null }) {
       maxCombMm: process.maxCombMm,
       lineWidthMm: width
     });
-    printStrokes(builder, strokes, z, height, speed, policy, { fillFirst: false });
-    builder.finishLayer(z + process.liftMm);
+    const current=[];
+    for(const [role,closed] of [['walls',true],['fill',false]]) {
+      const selected=strokes.filter(stroke=>stroke.closed===closed).map(stroke=>({
+        ...stroke,points:stroke.points.map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:width*height
+      }));
+      if(!selected.length)continue;
+      const operationId=id+':'+index+':'+role;
+      operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
+        after:[...previous],strokes:selected,order:closed?'nearest':'given',region,
+        travelPolicy:policy,clearanceZ:z+process.liftMm,
+        ...(index===1?{fanPercent:process.fanPercent}:{})});
+      current.push(operationId);
+    }
+    previous=current;
     report.layers++;
     report.areaMm2 += regionArea(region);
   }
-  return report;
+  return {id,operations,report};
 }
 
-// Print ordered strokes at one height. Ordering is nearest-first, and fill rows
-// keep their generated order so the boustrophedon survives.
-export function printStrokes(builder, strokes, z, height, speed, policy, { fillFirst = false } = {}) {
-  const loops = strokes.filter(stroke => stroke.closed);
-  const lines = strokes.filter(stroke => !stroke.closed);
-  const ordered = fillFirst
-    ? [...orderStrokes(lines, builder.position), ...orderStrokes(loops, builder.position)]
-    : [...orderStrokes(loops, builder.position), ...lines];
-  for (const stroke of ordered) {
-    const points = stroke.points.map(point => [point[0], point[1], z]);
-    builder.travelTo(points[0], policy);
-    for (let i = 1; i < points.length; i++) {
-      const length = distance2(points[i - 1], points[i]);
-      builder.move(points[i], speed, length * builder.process.lineWidthMm * height, { role: stroke.role });
-    }
-  }
+// Compatibility callable, using the same result/composition implementation.
+export function generateFullFill(builder,options){
+  const result=fullFillResult(options);
+  composeResults(builder,[result]);
+  return result.report;
 }

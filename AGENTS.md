@@ -47,18 +47,13 @@ The old source is preserved in Git history and a separate local archive,
 outside the active tree. The wedge uses rhino3dm; full Rhino computation and
 general surface slicing remain deferred.
 
-It also includes two newer skills, [full-fill](skills/full-fill/SKILL.md) and
-[draped-skin](skills/draped-skin/SKILL.md), which slice any closed shell of
-untrimmed spline patches on the shared core in `core/`. They now run the same
-reviewed workflow as the wedge: a print bundle with native 3DM geometry, Studio
-review, the three human approvals and byte-identical delivery. That is software
-only. No part from either skill has been printed, no maker has used them end to
-end, and their geometry is limited to the shapes the plan can express (`box`,
-`wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`); importing a
-part from CAD is still not implemented. The vertical spline shell has a domed
-roof over vertically extruded, bulged spline side patches; arbitrary side
-editing remains deferred.
-The wedge demo is unchanged.
+The [full-fill](skills/full-fill/SKILL.md) and
+[draped-skin](skills/draped-skin/SKILL.md) manuals own their current shape and
+process limits. They share operation composition, export, Studio review and
+bundle delivery. Mesh slicing and arbitrary CAD import are not implemented.
+See [the developer guide](DEVELOP.md#skill-result-composition) for weaving and
+[machine observations](DEVELOP.md#machine-program-templates-and-s5-observations)
+for the user's scoped S5 startup report; complete physical validation remains open.
 
 The current entry documents are this file, `CLAUDE.md`, `README.md`,
 `PROJECT_CHARTER.md`, `DECISIONS.md`, `GLOSSARY.md`, `build_request.md`,
@@ -67,6 +62,12 @@ Developer rules, setup, organization and open design proposals live together
 in [DEVELOP.md](DEVELOP.md). There is no separate docs folder.
 Do not load the old architecture or operation instructions as always-on context.
 
-For the bounded S5 wedge, use only `skills/wedge-demo/` and its eight-point
-wedge geometry. Do not route that job through `core/`, `full-fill`, or
-`draped-skin`; those are separate development-preview work.
+For the bounded S5 wedge, retain `skills/wedge-demo/` and its eight-point
+geometry/generator. Use the shared export and bundle lifecycle; do not substitute
+the shell slicer for its bounded geometry.
+
+Prefer shared interfaces and one pipeline. Skills should aspire to work across
+machines and other elements should generalize where practical, with documented
+exceptions. Normally ask before introducing a genuinely necessary parallel
+pipeline. Studio is the toolpath preview; intermediate developer tests are
+scratch using the same components. See [the principles](DEVELOP.md#interoperability-and-one-workflow).

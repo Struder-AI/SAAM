@@ -63,8 +63,8 @@ the shared pipeline's, documented in
   `npm run studio -- Prints/<name>` opens it for the three approvals, and
   `node core/print/cli.mjs adjust Prints/<name> patch.json` applies a change
   asked for in chat.
-- `node core/print/cli.mjs demo|preview Prints/<name>` generates without a
-  person in the loop; neither creates an approval or can be delivered.
+- `node core/print/cli.mjs demo Prints/<name>` generates without a
+  person in the loop; it creates no approval and cannot authorize delivery.
 
 The excluded steep area and the surface's maximum slope appear in the settings
 and toolpath review, so a person sees what will not be skinned before approving.
@@ -73,6 +73,7 @@ and toolpath review, so a person sees what will not be skinned before approving.
 
 | Setting | Default | Meaning |
 |---|---|---|
+| `part` | `null` | Roof component ID for an assembly; otherwise the part roof. |
 | `enabled` | `true` | Print surface-following skins at all. |
 | `layers` | `2` | Number of stacked skins. |
 | `normalMm` | `0.2` | Skin thickness measured along the surface normal. |
@@ -87,8 +88,18 @@ A curved surface has no single safe travel height, so clearance is computed per
 hop: a lifted move clears the highest surface **along that hop** plus the locked
 `liftMm`. Between neighbouring strokes the nozzle crosses directly along the
 surface without retracting, since the surface between two adjacent strokes is at
-the same height as both ends. The wedge demo instead lifts to the whole part's
-maximum height for every travel; that demo is not being changed.
+the same height as both ends. The wedge keeps its bounded policy of direct nearby travel and full-height
+lifts for longer moves. Both use shared export and review.
+
+## Composition
+
+`drapedSkinResult({shell, plan, machine, survey, id, after})` returns surface
+operations to the [shared composer](../../DEVELOP.md#skill-result-composition).
+The coordinator makes the first skin depend on all supporting fill operations;
+each later skin depends on the previous skin. Full-fill and draped-skin are not
+interleaved. Separate supporting fill instances may be woven before the roof.
+The geometry and bead model do not establish unsupported bridge printability.
+`generateDrapedSkin` remains a compatibility callable through the same composer.
 
 ## Implemented boundaries
 

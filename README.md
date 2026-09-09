@@ -5,7 +5,7 @@ approve it, and get a file your machine can run.
 
 The aim is a seamless, reliable path into 3D printing for non-technical people,
 with guidance suited to their experience. SAAM is an ecosystem of slicer
-components, including planned support for angled and curved deposition layers.
+components, including bounded implementations of angled and curved deposition layers.
 
 **First development demo:** an UltiMaker S5 wedge with horizontal body layers
 and a 15° inclined skin. It includes native Rhino geometry, SAAMpath, Griffin
@@ -13,14 +13,11 @@ G-code, automated checks, and a local **SAAM Studio** viewer. Software validatio
 is implemented; physical printing remains unvalidated. Standard S5 startup is
 assumed, and installed firmware information is optional.
 
-Two further skills, [full-fill](skills/full-fill/SKILL.md) and
-[draped-skin](skills/draped-skin/SKILL.md), slice any closed shell of untrimmed
-spline patches on the shared core in `core/` and run the same Studio review and
-three approvals. Their shapes come from the plan (`box`, `wedge`, `spline-top`,
-`spline-shell`, `vertical-spline-shell`). A vertical spline shell keeps its
-walls vertical while bulging them out along X and in along Y below a domed roof.
-Importing a part from CAD is not implemented, and nothing from the skills has
-printed.
+[Full-fill](skills/full-fill/SKILL.md) and [draped-skin](skills/draped-skin/SKILL.md)
+share operation composition, export and the Studio approval/delivery workflow.
+Their manuals describe current shapes and limitations. The user has reported
+the latest S5 wedge startup avoids bed leveling and unused-nozzle heating;
+complete print validation remains open. [Current architecture and observations](DEVELOP.md).
 
 - Agents: start at [AGENTS.md](AGENTS.md).
 - Product direction: [PROJECT_CHARTER.md](PROJECT_CHARTER.md).

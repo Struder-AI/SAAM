@@ -14,8 +14,9 @@ horizontal solid-fill toolpaths, alternating inclined skin strokes, SAAMpath, an
 Griffin G-code. [Studio](../../studio/server.mjs) reconstructs motion from the
 exact G-code and records three version-bound human approvals.
 
-Use this package's own geometry and generator for the wedge. Do not substitute
-the newer shell/core geometry or the full-fill and draped-skin preview skills.
+Use this package's own eight-point geometry and generator for the wedge.
+Export/interpretation and bundle review/delivery use the shared core. Do not
+substitute shell geometry or the full-fill/draped-skin generators for this demo.
 
 ## Setup and tools
 
@@ -28,7 +29,7 @@ From the repository root, install with `npm ci` (Node.js 22+).
 - `node skills/wedge-demo/scripts/cli.mjs deliver Prints/<name>` copies the approved export byte-for-byte into `delivery/wedge.gcode`.
 - `node skills/wedge-demo/scripts/cli.mjs adjust Prints/<name> <patch.json>` applies a chat-requested geometry, process or setup adjustment.
 - `node skills/wedge-demo/scripts/cli.mjs remember-setup Prints/<name>` saves setup for subsequent prints.
-- `node skills/wedge-demo/scripts/cli.mjs upgrade Prints/<name>` upgrades a 0.1.0–0.2.3 demo to the current generator, retaining geometry approval and invalidating settings/toolpath approval.
+- `node skills/wedge-demo/scripts/cli.mjs upgrade Prints/<name>` upgrades an older demo and its machine snapshot, retaining unchanged geometry approval and invalidating settings/toolpath approval.
 
 For a maker's first geometry review, do not wait for all process details. Once
 their request reasonably identifies this supported wedge, run `init` for a new
@@ -125,3 +126,9 @@ never test approval actions on the person's real print.
 Run `npm test` after changes. General freeform surface slicing, dual-material
 printing, UFP packaging, network sending and full Rhino computation are outside
 this package.
+
+The user reported on 2026-09-08 that the final wedge change achieved the requested
+no-bed-leveling and no-unused-nozzle-heating behavior. The shared exporter uses
+the machine profile's preserved header/start/end templates. See
+[the scoped observation](../../DEVELOP.md#machine-program-templates-and-s5-observations);
+this is not a claim of complete print quality or clearance validation.

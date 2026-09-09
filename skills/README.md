@@ -5,7 +5,7 @@ manufacturing packages are implemented in this refresh:
 
 | Skill | Scope | Status |
 |---|---|---|
-| [wedge-demo](wedge-demo/SKILL.md) | Horizontal-body/inclined-skin S5 wedge | Full workflow: Studio review, three approvals, delivery. No physical print. |
+| [wedge-demo](wedge-demo/SKILL.md) | Horizontal-body/inclined-skin S5 wedge | Shared workflow; user-reported startup behavior, complete print validation open. |
 | [full-fill](full-fill/SKILL.md) | Solid planar layers for any closed shell | Full workflow on the shared core. Shapes limited to the plan's; no physical print. |
 | [draped-skin](draped-skin/SKILL.md) | Surface-following skins under the machine's non-planar angle limit | Full workflow on the shared core. Shapes limited to the plan's; no physical print. |
 
@@ -16,7 +16,7 @@ single plan and one review workflow, described in
 Their geometry comes from the plan's own shapes (`box`, `wedge`, `spline-top`,
 `spline-shell`, `vertical-spline-shell`). The vertical spline shell exposes a
 domed roof above bulged but vertically extruded side walls. Importing a part
-from CAD is not implemented. The wedge demo is unchanged.
+from CAD is not implemented. The wedge keeps its bounded geometry/generator and shares export and lifecycle.
 
 Each future package should keep its manual, tools, input definitions, examples
 and tests together. The manual explains when to use the skill, what information
@@ -29,3 +29,9 @@ capabilities or revive the old operation catalog. Describe each package's status
 as it is: a development preview is not an approved program.
 Shared terms belong in [GLOSSARY.md](../GLOSSARY.md); development setup belongs
 in [the developer notes](../DEVELOP.md).
+
+All skills should aspire to work across machines through declared capabilities
+and shared result interfaces. Document justified exceptions. Return composable
+operations rather than exchanging G-code fragments; use the shared composer,
+exporter and review workflow. See [composition](../DEVELOP.md#skill-result-composition)
+and [pipeline principles](../DEVELOP.md#interoperability-and-one-workflow).

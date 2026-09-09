@@ -16,6 +16,14 @@ consulted on 2026-09-08; no legacy SAAM component or Cura source was imported:
 
 ## Startup contract
 
+The current machine output owns `program.header`, `program.start` and
+`program.end`; the shared emitter uses those templates for both print adapters.
+On 2026-09-08 the user specifically reported that the **last wedge change**
+achieved no bed leveling and no heating of the unused nozzle. The regression
+fixture preserves that envelope. Earlier observations below describe earlier
+revisions; they must not be substituted for this final behavior. This does not
+establish complete print quality or physical clearance.
+
 S5 firmware handles Griffin job preflight, including machine preparation. The
 export selects the tool, millimeters, absolute XYZ and absolute E, then waits
 for the planned bed/nozzle temperatures. It does **not** emit `G280 S1`: that

@@ -41,7 +41,12 @@ limits stated plainly:
 - The machine's non-planar angle limit excludes steeper surface from the skin.
   The excluded percentage is shown before settings approval; point it out.
 
-General part making from arbitrary CAD is still not implemented.
+An `assembly` can select separate components for full-fill instances and a roof
+for draping. Propose one-layer alternation or small layer batches in chat before
+plan approval when compatible operations need weaving. Supporting body fill must
+finish before draped-skin starts. Studio previews the exact checked export; do
+not create a separate preview pipeline. General part making from arbitrary CAD
+is still not implemented.
 
 ## Maker interaction flow
 
@@ -105,8 +110,7 @@ next time. Do not label an assumption as verification.
   Generate SAAMpath and an export supported by the machine file. Run automated
   checks before sending the export to SAAM Studio's program viewer;
   it runs the same export that will be delivered after toolpath approval. Do not
-  add an export approval. The wedge demo and the two shell skills each implement
-  this workflow locally.
+  add an export approval. The wedge and shell adapters use one shared implementation of this workflow.
 - Keep the person's print bundle in `Prints/`. Do not publish prints; specific
   curated examples require an explicit selection for sharing.
 

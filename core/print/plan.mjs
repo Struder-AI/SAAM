@@ -46,9 +46,10 @@ export function defaults() {
       clearanceNote: 'No collision model is implemented; the operator owns physical clearance.'
     },
     skills: {
-      'full-fill': { enabled: true, ...FULL_FILL_DEFAULTS },
-      'draped-skin': { enabled: true, ...DRAPED_SKIN_DEFAULTS }
+      'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
+      'draped-skin': { enabled: true, part: null, ...DRAPED_SKIN_DEFAULTS }
     },
+    composition: { order: [], dependencies: [], batchLayers: 1 },
     output: 'griffin-gcode'
   };
 }
@@ -68,6 +69,7 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape) {
+  if(shape==='assembly')return {shape:'assembly',parts:[]};
   if (shape === 'box') return { shape: 'box', runMm: 30, widthMm: 20, heightMm: 10 };
   if (shape === 'wedge') return { shape: 'wedge', runMm: 30, widthMm: 20, baseMm: 2, angleDeg: 15 };
   if (shape === 'spline-shell') return {
@@ -82,17 +84,23 @@ export function geometryTemplate(shape) {
 }
 
 export function validatePlan(plan, machine) {
-  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly'].includes(plan.geometry?.shape), 'Unsupported shape.');
   // Shell bundles created before the experimental setting existed retain the
   // profile limit until a chat adjustment writes the explicit null value.
   if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
     plan.skills['draped-skin'].maxAngleDegOverride = null;
+  plan.skills['full-fill'].parts ??= [];
+  plan.skills['draped-skin'].part ??= null;
+  plan.composition ??= { order: [], dependencies: [], batchLayers: 1 };
+  plan.composition.batchLayers ??= 1;
+  requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
+  requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
   const expected = { ...defaults(), geometry: geometryTemplate(plan.geometry.shape) };
   keys(plan, expected);
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
 
   const { geometry, placement, process, setup, skills } = plan;
-  for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
+  if(geometry.shape!=='assembly') for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
   if (geometry.shape === 'box') number(geometry.heightMm, 0.5, 200, 'heightMm');
   if (geometry.shape === 'wedge') {
     number(geometry.baseMm, 0.5, 50, 'baseMm');
@@ -133,6 +141,24 @@ export function validatePlan(plan, machine) {
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
   const fill = skills['full-fill'], skin = skills['draped-skin'];
+  requireThat(Array.isArray(fill.parts)&&new Set(fill.parts).size===fill.parts.length&&fill.parts.every(id=>typeof id==='string'),'Invalid full-fill component selection.');
+  requireThat(skin.part===null||typeof skin.part==='string','Invalid draped surface component.');
+  if(geometry.shape==='assembly') {
+    requireThat(Array.isArray(geometry.parts)&&geometry.parts.length>=2&&geometry.parts.length<=20,'An assembly needs 2–20 components.');
+    const ids=new Set();
+    for(const part of geometry.parts){
+      requireThat(part&&Object.keys(part).sort().join()==='geometry,id,xMm,yMm,zMm'&&/^[a-z][a-z0-9-]*$/.test(part.id)&&!ids.has(part.id),'Invalid or duplicate component.');
+      ids.add(part.id);
+      requireThat(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
+      number(part.xMm,-200,200,'Component X');number(part.yMm,-200,200,'Component Y');number(part.zMm,0,200,'Component Z');
+      const child=structuredClone(plan);child.geometry=part.geometry;
+      child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
+      child.skills['full-fill'].parts=[];child.skills['draped-skin'].part=null;
+      validatePlan(child,machine);
+    }
+    requireThat(fill.parts.every(id=>ids.has(id))&&(skin.part===null||ids.has(skin.part)),'Unknown selected component.');
+    requireThat(!skin.enabled||skin.part!==null,'An assembly must select the component whose roof is draped.');
+  } else requireThat(fill.parts.length===0&&skin.part===null,'Component selection requires assembly geometry.');
   requireThat(typeof fill.enabled === 'boolean' && typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
   requireThat(fill.enabled || skin.enabled, 'Select at least one pattern skill.');
   number(fill.perimeters, 0, 8, 'perimeters');
@@ -154,8 +180,8 @@ export function validatePlan(plan, machine) {
   if (skin.enabled) requireThat(Number.isFinite(machine.nonplanar?.maxAngleDeg), 'The machine file must declare nonplanar.maxAngleDeg.');
   const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
     : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
-  number(placement.xMm, 5 + xBulgeMm, machine.bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
-  number(placement.yMm, 5, machine.bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
+  if(geometry.shape!=='assembly') number(placement.xMm, 5 + xBulgeMm, machine.bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
+  if(geometry.shape!=='assembly') number(placement.yMm, 5, machine.bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   return plan;
 }
 

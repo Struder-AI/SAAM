@@ -21,7 +21,7 @@ without those approvals is a development preview and says so; do not present a
 preview as an approved program.
 
 Shapes come from the plan's `geometry` block - `box`, `wedge`, `spline-top`,
-`spline-shell`, or `vertical-spline-shell`. A vertical spline shell has a
+`spline-shell`, `vertical-spline-shell`, or an `assembly` of those components. A vertical spline shell has a
 control-point-grid roof and four untrimmed ruled spline side patches whose
 footprint is identical at the base and roof: its walls stay vertical while X
 bulges outward and Y bulges inward. Importing an arbitrary part from CAD is not
@@ -71,14 +71,12 @@ Trying something out without a person in the loop:
 
 - `node core/print/cli.mjs demo Prints/<name>` generates a development preview
   in a print bundle, creating no approvals.
-- `node core/print/cli.mjs preview Prints/<name> [plan.json]` writes a
-  standalone preview - plan, SAAMpath, Griffin export and software checks -
-  with no bundle and no review record. It cannot be delivered.
 
 ## Settings
 
 | Setting | Default | Meaning |
 |---|---|---|
+| `parts` | `[]` | Assembly component IDs to fill; empty selects all components. |
 | `enabled` | `true` | Print the solid body at all. |
 | `perimeters` | `2` | Outline loops before the fill starts. |
 | `fillAnglesDeg` | `[45, 135]` | Fill direction per layer, cycled. |
@@ -98,8 +96,23 @@ clears **the layer it is on** plus the locked `liftMm`, not the whole part's
 maximum height. On a solid box this leaves roughly one lift per layer against
 several thousand direct moves.
 
-This differs deliberately from the wedge demo, which retracts and lifts to the
-full part height for every horizontal move. That demo is not being changed.
+The wedge uses its own bounded travel rule: nearby starts stay down and longer
+moves lift to the part maximum. Export and review are shared.
+
+## Composition
+
+`fullFillResult({shell, plan, reserve, id})` returns an in-memory result with
+wall and fill operations per layer. The shared composer owns ordering, connecting
+travel, retraction and layer completion. Each instance requires a unique ID.
+`generateFullFill(builder, options)` is a compatibility callable that uses that
+same result and composer. It is not another generation implementation.
+
+Multiple instances may alternate by layer or use locked small batches. For an
+assembly, name its component geometry and select `skills.full-fill.parts` in
+the plan; `composition.batchLayers`, `order`, and `dependencies` control the
+shared schedule. Supporting fills always finish before draped-skin. See the
+[shared contract](../../DEVELOP.md#skill-result-composition). Intermediate tests
+are scratch; Studio's exact-export viewer is the preview.
 
 ## Implemented boundaries
 

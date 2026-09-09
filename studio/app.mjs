@@ -19,7 +19,7 @@ const views={
     names:{'sloping-face':'Sloped face',base:'Bottom','front-side':'Front','back-side':'Back','high-end':'Tall end','low-end':'Low end'},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,high=g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
-      if(tab==='geometry')return [['Size',g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
+      if(tab==='geometry')return [['Size',g.shape==='assembly'?g.parts.length+' components':g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
       if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Sloped layers',p.skinLayers+' × '+p.skinNormalMm+' mm'],['Travel height',high.toFixed(2)+' + '+p.liftMm+' mm']];
       return state.program?[['Layers',state.pathSummary.planarLayers+' flat + '+p.skinLayers+' sloped'],
@@ -41,7 +41,7 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'];
-      const shape={box:'Box',wedge:'Wedge',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const rows=[['Shape',shape],['Footprint',g.runMm+' × '+g.widthMm+' mm'],['Height',round2(state.geometry.boundsMm.max[2])+' mm']];
         if(g.shape==='spline-top'||g.shape==='spline-shell')rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
@@ -50,11 +50,12 @@ const views={
           rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
           rows.push(['Vertical wall outline','X out '+g.xBulgeMm+' mm · Y in '+g.yInsetMm+' mm']);
         }
+        if(g.shape==='assembly')for(const part of g.parts)rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);
         return rows;
       }
       if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],
-        ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None']];
+        ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None'],['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All'],['Roof component',skin.part??'Part roof']];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const rows=[['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],

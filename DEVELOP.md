@@ -71,16 +71,15 @@ npm test
 npm run demo
 npm run studio
 npm run check:print
-npm run preview
 ```
 
-`preview` runs the shell pipeline (`core/print/cli.mjs`) into the ignored
-`Prints/shell-preview` directory: plan, SAAMpath, Griffin export and software
-checks for the full-fill and draped-skin skills, with no bundle and no
-approvals. `npm run shell -- <command> <directory>` reaches the same CLI's
-bundle commands (`init`, `demo`, `adjust`, `generate`, `check`, `remember-setup`,
-`deliver`); `npm run studio -- <directory>` opens either kind of print. See the
-shell pipeline section below.
+Both print adapters use one lifecycle in `core/print/workflow.mjs`.
+`npm run shell -- <command> <directory>` exposes `init`, `demo`, `adjust`,
+`generate`, `check`, `upgrade`, `remember-setup`, and `deliver` for shell
+plans; the wedge CLI exposes the same lifecycle for its bounded recipe.
+`npm run studio -- <directory>` opens either kind. Studio's G-code viewer is
+the toolpath preview. There is no standalone shell-preview command or artifact
+format. Development generation uses the same bundle and checks with no approvals.
 
 `demo` creates/reopens the ignored `Prints/s5-wedge-demo` bundle and generates a
 development preview without approvals. Studio serves that print on
@@ -88,7 +87,7 @@ development preview without approvals. Studio serves that print on
 print directory after `--` to the Studio script to open another bundle.
 There is no hardware connection or automatic machine execution.
 
-`scripts/check-repo.mjs` checks local document links, decision-record structure
+`scripts/check-repo.mjs` checks local document links and heading anchors, decision-record structure
 and approval metadata, and exclusion of private Prints and local artifacts.
 It does not verify that a human actually approved a decision or that a part is
 printable. The subsequent Node tests check manufacturing software behavior.
@@ -106,7 +105,7 @@ temporary bundles and never authorize the person's real print.
 | core/ | Shared slicing core: patch geometry, sectioning, planar regions, travel planning, SAAMpath, Griffin export, native 3DM geometry, print bundle and review workflow, plan and print CLI |
 | skills/full-fill/ | Solid planar layers for any closed shell: manual, generator and tests |
 | skills/draped-skin/ | Surface-following skins under the machine's non-planar angle limit: manual, generator and tests |
-| skills/wedge-demo/ | Bounded wedge demo manual, geometry/generation/export tools, references and tests |
+| skills/wedge-demo/ | Bounded wedge demo manual, geometry/generation tools and shared-workflow adapter, references and tests |
 | machines/ | S5 machine definition and declared export |
 | studio/ | Local geometry and G-code viewer, review UI and loopback server, for either kind of print bundle |
 | examples/prints/ | Specifically curated public examples |
@@ -153,7 +152,11 @@ fingerprint and reloads changed data automatically, keeping the view when nothin
 changes and returning to the affected approval step after edits.
 Geometry edits invalidate all three approvals; settings edits preserve geometry
 approval and invalidate settings/toolpath approval. A server running old imported
-code must be restarted after runtime changes; check geometry loads afterward.
+code must be restarted after runtime changes. Reuse the correct existing viewer
+when possible; identify its print directory and port before replacing a process.
+Do not launch another viewer as a workaround for stale imports. Check the loaded
+geometry and export afterward. `--close-when-idle` is available for a temporary
+Studio session; only stop processes known to belong to the current work.
 
 ### Remembered printer setup
 
@@ -188,7 +191,7 @@ A path display alone cannot establish arbitrary machine-program behavior.
 
 ## Print bundle and current formats
 
-The wedge implementation stores one directory per print:
+The shared workflow stores one directory per print (wedge filenames shown):
 
 ```text
 Prints/<name>/
@@ -203,11 +206,11 @@ Prints/<name>/
   delivery/wedge.gcode
 ```
 
-`delivery/` exists only after approval and delivery. Current formats are scoped
-to this demo, not a promise of compatibility with future general slicing:
+`delivery/` exists only after approval and delivery. Geometry and plan schemas remain adapter-specific; lifecycle and SAAMpath formats are shared:
 
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
-  and the declared firmware startup contract.
+  and the declared firmware startup contract. Output options carry program
+  header, start and end templates; these are part of the locked machine snapshot.
 - `saam-wedge-plan/1`: geometry parameters, placement, setup, complete process
   settings, generator version and selected output. Its lock hash also includes
   the native geometry, machine snapshot and generating runtime source hash.
@@ -238,17 +241,16 @@ Hand-authored relationships and runtime plans remain labelled as such.
 
 `core/` holds the shared slicing core used by
 [full-fill](skills/full-fill/SKILL.md) and
-[draped-skin](skills/draped-skin/SKILL.md). Both skills read one plan and write
-one program, so travel planning, sectioning and export are shared rather than
-duplicated per skill.
+[draped-skin](skills/draped-skin/SKILL.md). Both skills return operation results to the shared composer. One plan produces
+one SAAMpath and one reviewed export. See [skill-result composition](#skill-result-composition).
 
 **Status: software only, and less established than the wedge.** The workflow is
-now the same one the wedge uses: `core/print/bundle.mjs` writes a print bundle
+implemented once in `core/print/workflow.mjs`; `core/print/bundle.mjs` supplies the shell adapter for a print bundle
 with native 3DM geometry and a review record, Studio serves it, a person gives
 the three approvals, and delivery copies the reviewed bytes. What that does not
 establish: no part from these skills has been printed, no maker agent has used
 them end to end, and the plan expresses only the shapes in `core/geom/shapes.mjs`
-(`box`, `wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`) - an
+(`box`, `wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`, and an `assembly` of these components) - an
 edited or imported 3DM is still not accepted as input. The vertical spline shell
 extrudes its bulged spline footprint vertically below a spline roof; arbitrary
 side editing remains deferred. Generation without approvals is recorded as
@@ -318,18 +320,18 @@ reserves material under a top surface, by intersecting a section with the level
 set of the reserve height. Coincident collinear boundaries are not supported
 input.
 
-The region layer is implemented and tested; the plan schema does not yet accept
-more than one solid, so multi-solid work is available in the core but not yet
-reachable from a plan.
+The region layer is implemented and tested. Assemblies now select separate
+components for fill instances and a roof for draping. Automatic solid union and
+overlap resolution in a plan remain deferred; an assembly is not a boolean union.
 
 ### Travel planning
 
 `core/path/builder.mjs` classifies each move as joined, combed or hopped, and
 computes clearance per hop from a callback: a planar layer clears the layer it
 is on, while a draped skin clears the surface that particular hop crosses. Fill
-strokes are generated so each ends where the next begins. This is deliberately
-different from the wedge demo's fixed policy of retracting and lifting to the
-whole part's maximum height for every horizontal move; the wedge is unchanged.
+strokes alternate their direction to keep neighbouring endpoints close. The wedge
+uses its own bounded travel policy: nearby starts stay down, while longer moves
+lift to the part maximum plus clearance. Both use the shared export and checks.
 
 ### Print bundle and review
 
@@ -341,20 +343,24 @@ the reviewed control nets. That check runs again on every load, so an edited or
 substituted file stops the print rather than being sliced as something else. The
 descriptor also carries a quad proxy mesh, tessellated per patch, for the viewer.
 
-`core/print/bundle.mjs` owns the rest: the plan lock hashes the plan, the machine
-snapshot, the geometry and the generating source, so a runtime change invalidates
-a plan approval. Approvals, staleness, chat adjustment, generation modes and
-delivery behave exactly as the wedge's do. The remembered S5 setup file is shared
-between the two packages; only fields this plan already has are taken from it.
+`core/print/workflow.mjs` owns initialization, geometry verification, plan and
+runtime hashes, adjustment, approvals, generation/checks, reopening, setup reuse,
+upgrades and delivery. The shell and wedge bundle modules only provide adapters:
+recipe validation, geometry, generation, limitations and release metadata.
+Studio chooses an adapter by the saved plan schema and uses this same lifecycle.
+Geometry changes invalidate all approvals; process, composition, runtime or
+machine-template changes invalidate plan and toolpath approval. Reviewed delivery
+bytes are never regenerated during delivery.
 
-Studio selects the module that owns a bundle from the schema in its `plan.json`,
-and the viewer reads the part's shape from the display proxy, so the same review
-interface serves both kinds. The wedge package itself is untouched.
+Old machine snapshots without templates must be explicitly upgraded with the
+owning CLI's `upgrade` command before generation. It installs the current machine
+snapshot and invalidates plan/toolpath approval, retaining unchanged geometry
+approval. Do not rewrite a person's existing export or delivery as a migration.
 
 ### Formats
 
 - `saam-shell-plan/1`: shape and its parameters, placement, setup, shared
-  process settings, and each skill's settings under `skills`. Unknown or
+  process settings, and each skill's settings under `skills`. Composition rules, component selections and settings are locked with the plan. Unknown or
   misspelled fields are rejected, and the strict field check is made against the
   selected shape. Generation introduces no further process choices.
 - `saam-shell-geometry/1`: native file hash, shape parameters, geometry version,
@@ -366,10 +372,9 @@ interface serves both kinds. The wedge package itself is untouched.
   slope beyond which a fixed vertical nozzle cannot follow. It is a declared
   software limit, not a measured clearance rating, and no collision model exists.
 - SAAMpath and the Griffin export follow the same contracts as the wedge,
-  including the header fields the printer's reader requires. The exporter reads
+  including machine-owned header/start/end templates and the header fields the printer's reader requires. The exporter reads
   `startup.zAfterStartupMm`, falling back to the older `zAfterPrimeMm`.
-- Moves shorter than 1e-4 mm are not emitted: below the export's five-decimal
-  coordinate resolution a move cannot be written down, and SAAMpath and the
+- Moves shorter than 1e-4 mm are not emitted: this conservative cutoff avoids commands collapsing at the export's five-decimal coordinate resolution, and SAAMpath and the
   program would then disagree about how many moves exist.
 
 ### Checks
@@ -386,6 +391,107 @@ delivery, the approvals each kind of edit invalidates, remembered setup, and
 Studio serving and delivering a shell print. Synthetic approvals are written
 with an actor name that says so. None of that establishes clearance, surface
 quality, or that any part prints.
+
+## Interoperability and one workflow
+
+Prefer one shared pipeline with narrow adapters. Introduce a parallel pipeline
+only when it is genuinely necessary; normally explain why a shared extension
+cannot serve the need and ask the user before building it. Authorization already
+given applies. Convenience, a demo, an agent's private test, or a new skill is
+not by itself a reason to duplicate generation, preview, review or delivery.
+Intermediate developer experiments belong in temporary scratch directories and
+call the same components. They must not become a second product command, artifact
+format or approval route without an explicit scope decision.
+
+Interoperability is a design ideal: skills should work across machines through
+declared capabilities and shared geometry/result interfaces; other elements
+should generalize wherever practical. Keep machine behavior in machine profiles
+and output adapters, not in pattern skills. Exceptions will be necessary; keep
+them narrow, explain their reason and limits, and test the shared boundary.
+The bounded S5 wedge is one such exception in geometry and generation. It uses
+the common exporter and print lifecycle. Mesh and NURBS backends should share
+downstream regions, composition, SAAMpath, export and review; neither is a reason
+for another complete pipeline. Mesh slicing is not yet implemented.
+
+## Documentation maintenance
+
+AGENTS routes agents; MAKERS owns the maker interaction; DEVELOP owns shared
+implementation, formats and commands; skill manuals own their tools and limits.
+The glossary owns terms, decisions own contributor approvals, and build requests
+own requested work and dated implementation history. Keep capability status at
+its owning implementation/manual and link from entry summaries. Do not duplicate
+detailed status or behavior across entry files. Mark past build results as dated
+history and point to their replacement, rather than presenting old limitations as
+current. Distinguish user-reported machine observations, software verification and
+a validated physical print. Update affected documentation in the same change.
+Link/anchor checks cannot establish factual accuracy: review claims against the
+code, tests and explicitly authorized user reports.
+
+## Skill-result composition
+
+Skills return an in-memory result `{id, operations, report}`. An operation has
+a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
+`rank` for default ordering, and `after` dependencies. Rank is a scheduling
+coordinate, not universally Z: planar fill uses layer height. Operations also
+provide strokes (3D points, speed, role, and either uniform bead area or per-segment
+volume/metadata), travel-policy queries, and a cooling clearance. An operation is
+atomic; expose smaller operations when within-layer interleaving is permitted.
+These runtime results are not separate machine files or a persisted preview
+format. Travel policies may contain geometry-query callbacks.
+
+`core/path/compose.mjs` is skill-independent. It topologically orders operations,
+rejects duplicate IDs, missing dependencies and cycles, and uses stable result
+order to break ties. Plan `composition` contains `batchLayers` (1–20), `order`
+(an optional ordered subsequence of operation IDs), and `dependencies` (additional
+`{before, after}` edges). Batch size 1 alternates compatible results at each
+rank; size 2 gives AA–BB for two results with matching layers. Explicit ordering
+and dependencies can interleave operations within a layer. They cannot remove a
+skill's prerequisites. The agent proposes these choices before plan approval;
+generation executes the locked rules without a new planning or approval stage.
+
+One PathBuilder owns the resulting travel/retraction state, and the composer
+finishes cooling once after all operations assigned to a shared layer. Hops
+account conservatively for previous operations' clearance queries, including
+travel from a taller batched column toward a lower one. This is not a full
+collision or swept-head model. Results must describe compatible regions and
+material ownership; the composer does not infer geometric overlap, support,
+bridge printability or a safe order from arbitrary strokes alone.
+
+Full-fill produces separate wall and interior-fill operations for each layer.
+An assembly's `geometry.parts` holds named components with `geometry` and
+`xMm/yMm/zMm` translations; native 3DM stores all their named surfaces.
+`skills.full-fill.parts` selects the components to fill (empty means all),
+producing one skill instance per component. `skills.draped-skin.part` selects
+the roof component for an assembly. Assemblies are limited to the existing shape
+builders, not arbitrary imported CAD or automatic boolean solids. Assign regions
+and geometry deliberately; component selection is part of the reviewed recipe.
+
+Full-fill and draped-skin do **not** weave through each other. All supporting fill
+operations precede the first skin, and skin layers remain ordered. Two supporting
+columns may alternate or batch before a spanning roof. The current skin bead
+model is approximate and does not prove that an unsupported span will print.
+Future skills use the same operation/dependency boundary; do not add a new
+composer for each skill pair.
+
+## Machine program templates and S5 observations
+
+`core/export/griffin.mjs` is the single implemented G-code emitter/interpreter.
+The selected machine output's `program.header`, `program.start` and
+`program.end` arrays contain literal lines with named value substitutions.
+Values come from the locked setup, release metadata and path totals/bounds;
+templates execute no JavaScript. Unknown values and invalid/nonfinite path data
+are rejected. The emitter writes shared SAAMpath actions between these sections.
+The supported dialect remains the declared Griffin subset, not arbitrary G-code.
+Coordinate and extrusion rounding must still obey the locked flow limit.
+
+On 2026-09-08 the user reported that the **last wedge change** achieved no routine
+bed leveling and no heating of the unused nozzle. Preserve that observed envelope:
+Griffin compatibility `4.4.0`, SAAM's own version field, build date, material GUID,
+build-volume metadata, active-tool temperature commands, no G280, and shutdown.
+The default recipe uses nozzle #2/T1. Earlier in the day the user reported initial
+under-extrusion; the wedge recipe now accounts for its terminal retraction on the
+next start. These are scoped observations, not a claim of complete physical print
+validation. Never treat an earlier export revision as the reported working one.
 
 ## Legacy reference
 

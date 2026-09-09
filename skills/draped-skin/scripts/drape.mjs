@@ -15,7 +15,7 @@
 import { topAt, sampleTopSurface } from '../../../core/geom/field.mjs';
 import { offsetRegion, scanlineFill, regionArea, loopArea } from '../../../core/region/region2d.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
-import { orderStrokes } from '../../../core/path/builder.mjs';
+import { composeResults } from '../../../core/path/compose.mjs';
 import { requireThat, distance, distance2 } from '../../../core/geom/tolerance.mjs';
 
 export const DRAPED_SKIN_DEFAULTS = {
@@ -135,7 +135,9 @@ function extrapolate(values, sentinel) {
   return filled;
 }
 
-export function generateDrapedSkin(builder, { shell, plan, machine, survey }) {
+export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-skin', after = [] }) {
+  const operations=[];
+  let previous=after;
   const process = plan.process, settings = { ...DRAPED_SKIN_DEFAULTS, ...plan.skills['draped-skin'] };
   const width = process.lineWidthMm, count = settings.layers, thickness = settings.normalMm;
   const region = offsetRegion(survey.skinRegion, -width / 2);
@@ -149,7 +151,7 @@ export function generateDrapedSkin(builder, { shell, plan, machine, survey }) {
   };
 
   for (let skin = 1; skin <= count; skin++) {
-    builder.setContext('draped-skin', skin - 1);
+
     const below = count - skin;
     const rows = scanlineFill(region, width, settings.strokeAngleDeg);
     // Alternate row order between skins and stroke direction along the rows, so
@@ -167,8 +169,9 @@ export function generateDrapedSkin(builder, { shell, plan, machine, survey }) {
       return top.zMm - below * thickness / Math.cos(top.slopeDeg * Math.PI / 180);
     };
     const policy = drapedPolicy(shell, process, surfaceZ, thickness);
+    const deposition=[];
     for (const stroke of strokes) {
-      builder.travelTo(stroke.points[0].point, policy);
+      const volumesMm3=[],segmentMetadata=[];
       for (let i = 1; i < stroke.points.length; i++) {
         const previous = stroke.points[i - 1], current = stroke.points[i];
         const length = distance(previous.point, current.point);
@@ -180,13 +183,17 @@ export function generateDrapedSkin(builder, { shell, plan, machine, survey }) {
         // Rectangular bead over the sampled interval: 3D length by row spacing
         // by the vertical gap, converted to the normal direction.
         const volume = length * width * gap * Math.cos(slope * Math.PI / 180);
-        builder.move(current.point, process.skinSpeedMmS, volume, { role: 'skin', gapMm: gap, slopeDeg: slope });
+        volumesMm3.push(volume);segmentMetadata.push({gapMm:gap,slopeDeg:slope});
       }
+      deposition.push({points:stroke.points.map(p=>p.point),role:'skin',speedMmS:process.skinSpeedMmS,volumesMm3,segmentMetadata});
       report.strokes++;
     }
-    builder.finishLayer(shell.bounds.max[2] + process.liftMm);
+    const operationId=id+':'+(skin-1);
+    operations.push({id:operationId,layerId:id+':'+(skin-1),phase:'draped-skin',layer:skin-1,
+      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,travelPolicy:policy,clearanceZ:shell.bounds.max[2]+process.liftMm});
+    previous=[operationId];
   }
-  return report;
+  return {id,operations,report};
 }
 
 // Sample a straight bed-plane run, lifting each sample onto the skin surface.
@@ -267,3 +274,7 @@ export const skinReport = report => ({
   ...report,
   excludedPercent: Number((report.excludedFraction * 100).toFixed(2))
 });
+
+export function generateDrapedSkin(builder,options){
+  const result=drapedSkinResult(options);composeResults(builder,[result]);return result.report;
+}

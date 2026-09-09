@@ -17,15 +17,33 @@ async function walk(dir) {
 await walk(root);
 const errors = [];
 let links = 0;
+const anchors = markdown => {
+  const result=new Set(),counts=new Map();
+  let fenced=false;
+  for(const line of markdown.split(/\r?\n/)) {
+    if(/^\s*```|^\s*~~~/.test(line)){fenced=!fenced;continue;}
+    if(fenced)continue;
+    const heading=/^#{1,6}\s+(.+?)(?:\s+#+)?$/.exec(line);
+    if(!heading)continue;
+    const base=heading[1].toLowerCase().replace(/<[^>]*>/g,'').replace(/[^\p{L}\p{N}_\-\s]/gu,'').replace(/\s/g,'-');
+    const count=counts.get(base)??0;counts.set(base,count+1);
+    result.add(count?`${base}-${count}`:base);
+  }
+  return result;
+};
 for (const path of documents) {
   const markdown = await readFile(path, 'utf8');
   for (const match of markdown.matchAll(/\]\(([^)]+)\)/g)) {
-    const target = match[1].split('#')[0];
-    if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+    const [target,fragment] = match[1].split('#');
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
     links++;
-    const resolved = resolve(dirname(path), decodeURIComponent(target));
+    const resolved = target ? resolve(dirname(path), decodeURIComponent(target)) : path;
     if (!resolved.startsWith(root + sep)) errors.push(`${relative(root,path)}: link escapes repository: ${target}`);
-    else try { await stat(resolved); } catch { errors.push(`${relative(root,path)}: missing link ${target}`); }
+    else try {
+      await stat(resolved);
+      if(fragment&&resolved.endsWith('.md')&&!anchors(await readFile(resolved,'utf8')).has(decodeURIComponent(fragment)))
+        errors.push(`${relative(root,path)}: missing heading ${match[1]}`);
+    } catch { errors.push(`${relative(root,path)}: missing link ${target}`); }
   }
 }
 const decisions = await readFile(resolve(root, 'DECISIONS.md'), 'utf8');

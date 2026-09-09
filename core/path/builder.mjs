@@ -1,10 +1,7 @@
 // SAAMpath construction and travel planning.
 //
-// Travel policy is the reason this is shared rather than written per skill. The
-// wedge demo retracts, lifts to the full part's maximum Z, traverses, descends
-// and recovers for every horizontal move, including between neighbouring fill
-// strokes on the same layer. That is safe and simple, and it spends most of a
-// layer's time going up and down. Here a move is classified first:
+// One travel/retraction state is shared across composed skill operations.
+// A move is classified before choosing its travel behavior:
 //
 //   * joined   - the next stroke starts where this one ended: keep extruding.
 //   * combed   - a short hop that stays inside the material already under the
@@ -23,7 +20,7 @@ import { pointInRegion, pointSegmentDistance, SegmentIndex } from '../region/reg
 
 export class PathBuilder {
   constructor({ start, process, machine, generatorVersion }) {
-    requireThat(Array.isArray(start) && start.length === 3, 'PathBuilder needs a 3D start position.');
+    requireThat(Array.isArray(start) && start.length === 3 && start.every(Number.isFinite), 'PathBuilder needs a 3D start position.');
     this.actions = [];
     this.start = [...start];
     this.position = [...start];
@@ -42,6 +39,7 @@ export class PathBuilder {
   // Speed is capped by the locked material flow and Z feed, exactly as the
   // plan specifies; generation makes no new process choices.
   move(to, speed, volumeMm3 = 0, extra = {}) {
+    requireThat(Array.isArray(to)&&to.length===3&&to.every(Number.isFinite)&&Number.isFinite(speed)&&speed>0&&Number.isFinite(volumeMm3)&&volumeMm3>=0,'Invalid path move.');
     const length = distance(this.position, to);
     // Below the export's coordinate resolution a move cannot be written down:
     // it would round to the position the nozzle is already at, and SAAMpath and
@@ -52,7 +50,7 @@ export class PathBuilder {
     if (volumeMm3 > 0) limited = Math.min(limited, this.process.maxFlowMm3S * length / volumeMm3);
     const dz = Math.abs(to[2] - this.position[2]);
     if (dz > 0) limited = Math.min(limited, this.process.zSpeedMmS * length / dz);
-    this.actions.push({ kind: 'move', to: [...to], speedMmS: limited, volumeMm3, phase: this.phase, layer: this.layer, ...extra });
+    this.actions.push({ kind: 'move', to: [...to], speedMmS: limited, volumeMm3, phase: this.phase, layer: this.layer, ...(this.operationId?{operation:this.operationId}:{}), ...extra });
     this.layerSeconds += length / limited;
     if (volumeMm3 > 0) this.stats.printMm += length; else this.stats.travelMm += length;
     this.position = [...to];

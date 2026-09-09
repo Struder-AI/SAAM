@@ -8,7 +8,7 @@ import rhino3dm from 'rhino3dm';
 import { defaults, validatePlan, canonical, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
 import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
-import { makePreview, checkPreview } from '../print/cli.mjs';
+import { initBundle, generateBundle, loadBundle, deliver } from '../print/bundle.mjs';
 
 const rhino = await rhino3dm();
 const machine = JSON.parse(readFileSync('machines/ultimaker-s5.json', 'utf8'));
@@ -98,29 +98,29 @@ test('the interpreter rejects programs it cannot account for', () => {
   const path = generatePath(plan, machine, rhino);
   const code = exportGriffin(path, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE });
   const cases = [
-    ['unsupported command', code.replace('\nM400', '\nM117 hello\nM400'), /Unsupported|Unrecognized/],
-    ['move outside the build volume', code.replace(/G1 X[\d.]+/, 'G1 X999'), /leaves the build volume/],
+    ['unsupported command', code.replace('\nM400', '\nM117 hello\nM400'), /Unsupported|Unrecognized|Malformed/],
+    ['move outside the build volume', code.replace(/G1 X[\d.]+/, 'G1 X999'), /Out-of-bounds/],
     ['missing build date', code.replace(/;GENERATOR\.BUILD_DATE:.*\n/, ''), /BUILD_DATE/],
-    ['wrong tool', code.replace(/^T\d/m, 'T0'), /locks T1|selects T0/]
+    ['wrong tool', code.replace(/^T\d/m, 'T0'), /Unexpected tool change/]
   ];
   for (const [name, broken, pattern] of cases)
     assert.throws(() => interpretGriffin(broken, plan, machine), pattern, name);
 });
 
-test('a preview writes a bundle, records no approvals, and reopens identically', async () => {
+test('development generation uses the reviewed bundle workflow without approvals', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'saam-shell-'));
   try {
-    const { checks } = await makePreview(directory, { plan: smallPlan() });
+    await initBundle(directory,smallPlan());
+    const checks = await generateBundle(directory,{development:true});
     assert.equal(checks.mode, 'development');
-    assert.match(checks.approvals, /none/);
+    await assert.rejects(()=>deliver(directory),/approval/);
     assert.equal(checks.physicalValidation, 'not performed');
     const written = await readFile(join(directory, 'exports/griffin-gcode/part.gcode'), 'utf8');
     assert.ok(written.startsWith(';START_OF_HEADER'));
-    const reopened = await checkPreview(directory);
+    const reopened = await loadBundle(directory);
     assert.equal(reopened.exportHash, checks.exportHash, 'reopening regenerates the same bytes');
     // Nothing in the bundle claims a human approved anything.
-    const bundle = await readFile(join(directory, 'checks.json'), 'utf8');
-    assert.ok(!/approved/i.test(bundle.replace(/"approvals":\s*"[^"]*"/, '')));
+    assert.deepEqual(reopened.review.approvals,{});
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -129,12 +129,13 @@ test('a preview writes a bundle, records no approvals, and reopens identically',
 test('an edited export is caught when the print is reopened', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'saam-shell-'));
   try {
-    await makePreview(directory, { plan: smallPlan() });
+    await initBundle(directory,smallPlan());
+    await generateBundle(directory,{development:true});
     const file = join(directory, 'exports/griffin-gcode/part.gcode');
     const code = await readFile(file, 'utf8');
     const { writeFile } = await import('node:fs/promises');
     await writeFile(file, code.replace(/G0 Z20 F300/, 'G0 Z21 F300'));
-    await assert.rejects(() => checkPreview(directory), /does not match the plan/);
+    assert.match((await loadBundle(directory)).programError,/files changed/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
