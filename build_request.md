@@ -102,6 +102,37 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 - Setup: remove installed-firmware approval requirement; assume standard S5 startup, resolve concrete questions in chat, and remember setup locally for later prints.
 - Guidance: MAKERS.md owns the review/revision flow and setup conversation; DEVELOP.md documents implementation and setup persistence; the wedge manual documents adjustment tools.
 
+## BR-010 — Split the wedge patterns into general skills
+
+- Status: implemented locally; untested beyond software checks
+- Requested by: remettub, 2026-09-08: split the wedge skill in two, a "full fill"
+  skill doing the first pattern for any shape, and a non-planar top surface skill
+  doing the final pattern for any shape, limited by a max-nonplanar-angle machine
+  setting (15 degrees for the S5). Also: improve on the wedge's travel moves, and
+  leave the wedge skill as it is.
+- Naming and behavior chosen by remettub during the work: the second skill is
+  `draped-skin`; surface steeper than the limit is excluded from the skin and
+  reported rather than rejecting the job.
+- Geometry scope agreed in the same conversation: closed breps of untrimmed
+  bivariate spline surfaces. Intersections between several such solids are
+  computed at the toolpath, not as boolean geometry. Running a Rhino Compute
+  server was rejected.
+- Build: `core/` slicing core (patch evaluation, plane sectioning, planar regions
+  and booleans, top-surface height field, travel planning, SAAMpath, Griffin
+  export, plan and preview CLI); `skills/full-fill/`; `skills/draped-skin/`;
+  `nonplanar.maxAngleDeg` in the S5 machine file.
+- Verified in software: 29 tests covering evaluation against rhino3dm, sections
+  and offsets and booleans against analytic areas, closure rejection, degenerate
+  cuts, the surface height field, travel and lift behavior, exclusion of
+  over-limit surface, strict export interpretation, determinism, and detection of
+  an edited export.
+- Not verified: no physical print, no Studio integration, no approval or delivery
+  workflow, and no maker agent has used either skill end to end. Multi-solid
+  geometry is implemented in the region core but not reachable from a plan.
+  Contour completeness rests on a rigorous bound for cells with no sign change
+  and a sampling check elsewhere, bounded by `minFeatureMm`.
+- The wedge skill was left unchanged, as requested.
+
 ## What should earn adoption next
 
 Recommend proving one complete print before adding a catalog of operations.

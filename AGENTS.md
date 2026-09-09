@@ -9,7 +9,7 @@ to 3D printing, including for people without CAD, slicing, or programming experi
 | Your task | Read next |
 |---|---|
 | Developer agent (default): build, fix, or document SAAM | Read both [DEVELOP.md](DEVELOP.md) and [MAKERS.md](MAKERS.md) |
-| Maker agent: help a person make a part | Read [MAKERS.md](MAKERS.md) |
+| Maker agent: help a person make a part | Read [MAKERS.md](MAKERS.md) **before responding to the maker** |
 | Developer agent exercising maker skills/tools | Read both files and apply DEVELOP.md's development testing boundary |
 
 These are task roles, not different models or permanent agent identities.
@@ -46,6 +46,13 @@ aid. No legacy component has been approved for adoption.
 The old source is preserved in Git history and a separate local archive,
 outside the active tree. The wedge uses rhino3dm; full Rhino computation and
 general surface slicing remain deferred.
+
+It also includes two newer skills, [full-fill](skills/full-fill/SKILL.md) and
+[draped-skin](skills/draped-skin/SKILL.md), which slice any closed shell of
+untrimmed spline patches on the shared core in `core/`. They are development
+previews: software checks only, no Studio integration, no approvals, no delivery
+and no physical print. The wedge demo is unchanged and remains the only package
+wired to the three-approval workflow.
 
 The current entry documents are this file, `CLAUDE.md`, `README.md`,
 `PROJECT_CHARTER.md`, `DECISIONS.md`, `GLOSSARY.md`, `build_request.md`,

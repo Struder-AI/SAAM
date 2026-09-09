@@ -3,12 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "SAAM S5 inclined-wedge development demo.",
+  "description": "SAAM S5 development demos: inclined wedge, plus full-fill and draped-skin shell slicing.",
   "scripts": {
-    "test": "node scripts/check-repo.mjs && node --test skills/wedge-demo/tests/*.test.mjs",
+    "test": "node scripts/check-repo.mjs && node --test core/tests/*.test.mjs skills/*/tests/*.test.mjs",
     "demo": "node skills/wedge-demo/scripts/cli.mjs demo",
     "studio": "node studio/server.mjs",
-    "check:print": "node skills/wedge-demo/scripts/cli.mjs check"
+    "check:print": "node skills/wedge-demo/scripts/cli.mjs check",
+    "preview": "node core/print/cli.mjs preview"
   },
   "engines": {
     "node": ">=22"

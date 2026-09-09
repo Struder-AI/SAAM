@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 1,
+  "revision": 2,
   "units": "mm",
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "bounds": {"min": [0, 0, 0], "max": [330, 240, 300]},
@@ -15,8 +15,18 @@
   ],
   "offsetHandling": "firmware: commands are in the active nozzle's build coordinates; do not subtract the nominal offset again",
   "outputs": [{"id": "griffin-gcode", "extension": ".gcode", "flavor": "Griffin", "extrusionUnits": "mm-filament"}],
+  "exportGuidance": {
+    "header": "Use a complete Griffin header, including GENERATOR.BUILD_DATE, the active tool's MATERIAL.GUID and BUILD_VOLUME.TEMPERATURE. The accepted PLA demo uses Generic PLA GUID 506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9 and build-volume temperature 28 C.",
+    "troubleshooting": "A file rejected as missing necessary data may have incomplete metadata even when libCharon accepts it. Compare with a Cura S5 export; UFP contains /3D/model.gcode.",
+    "acceptance": "User reports firmware 8.3.1 accepted the SAAM 0.2.2 metadata correction from USB. The later no-routine-leveling startup and Griffin-4.4 compatibility declaration have software checks only; neither establishes successful printing or clearance."
+  },
   "clearance": {"model": null, "validatedInclinationDeg": null},
-  "startup": {"protocol": "griffin-managed-with-G280-S1", "zAfterPrimeMm": 20, "validation": "standard S5 Griffin startup assumed; installed firmware and verification are optional metadata"},
+  "nonplanar": {
+    "maxAngleDeg": 15,
+    "basis": "Bounded working limit for surface-following layers with this fixed vertical nozzle. Set from the inclination range the wedge demo was built around; it is not a measured clearance rating and no head collision model is implemented.",
+    "validation": "software limit only; no physical print has established it"
+  },
+  "startup": {"protocol": "griffin-managed-no-routine-leveling", "zAfterStartupMm": 20, "validation": "standard S5 Griffin startup without a per-job leveling routine is assumed; installed firmware and verification are optional metadata"},
   "sources": [
     "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker_s5.def.json",
     "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker.def.json",
