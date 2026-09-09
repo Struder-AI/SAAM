@@ -44,8 +44,9 @@ as a shortcut to testing. Report software and physical validation separately.
 ## Checks
 
 Run `npm test` at the repository root before and after changes. It checks the
-documentation, decision metadata, private-file exclusions, wedge generation,
-Rhino file round trips, Griffin interpretation and review/delivery behavior.
+documentation, decision metadata, private-file exclusions, wedge and shell
+generation, Rhino file round trips, Griffin interpretation and review/delivery
+behavior for both kinds of print.
 Add meaningful implementation checks as runtime capabilities are introduced.
 
 ## Developer documentation outside skills
@@ -74,9 +75,12 @@ npm run preview
 ```
 
 `preview` runs the shell pipeline (`core/print/cli.mjs`) into the ignored
-`Prints/shell-preview` bundle: plan, SAAMpath, Griffin export and software
-checks for the full-fill and draped-skin skills. It creates no approvals and has
-no Studio integration; see the shell pipeline section below.
+`Prints/shell-preview` directory: plan, SAAMpath, Griffin export and software
+checks for the full-fill and draped-skin skills, with no bundle and no
+approvals. `npm run shell -- <command> <directory>` reaches the same CLI's
+bundle commands (`init`, `demo`, `adjust`, `generate`, `check`, `remember-setup`,
+`deliver`); `npm run studio -- <directory>` opens either kind of print. See the
+shell pipeline section below.
 
 `demo` creates/reopens the ignored `Prints/s5-wedge-demo` bundle and generates a
 development preview without approvals. Studio serves that print on
@@ -99,12 +103,12 @@ temporary bundles and never authorize the person's real print.
 | GLOSSARY.md | User-accessible meanings |
 | DECISIONS.md | Contributor choices and recorded approvals |
 | build_request.md | This cycle's scope and deferred implementation |
-| core/ | Shared slicing core: patch geometry, sectioning, planar regions, travel planning, SAAMpath, Griffin export, plan and preview CLI |
+| core/ | Shared slicing core: patch geometry, sectioning, planar regions, travel planning, SAAMpath, Griffin export, native 3DM geometry, print bundle and review workflow, plan and print CLI |
 | skills/full-fill/ | Solid planar layers for any closed shell: manual, generator and tests |
 | skills/draped-skin/ | Surface-following skins under the machine's non-planar angle limit: manual, generator and tests |
 | skills/wedge-demo/ | Bounded wedge demo manual, geometry/generation/export tools, references and tests |
 | machines/ | S5 machine definition and declared export |
-| studio/ | Local geometry and G-code viewer, review UI and loopback server |
+| studio/ | Local geometry and G-code viewer, review UI and loopback server, for either kind of print bundle |
 | examples/prints/ | Specifically curated public examples |
 | Prints/ | Ignored local print bundles |
 
@@ -143,9 +147,10 @@ scrubbing and travel visibility as viewer controls. Layer height means deposited
 layer thickness; the old "horizontal body" label referred to the flat-layer
 portion of the wedge, not a separate height setting.
 
-The agent applies patches with the wedge CLI's `adjust` command. Studio polls a
-bundle fingerprint and reloads changed data automatically, keeping the view
-when nothing changes and returning to the affected approval step after edits.
+The agent applies patches with the owning package's `adjust` command - the wedge
+CLI for a wedge, `core/print/cli.mjs` for a shell print. Studio polls a bundle
+fingerprint and reloads changed data automatically, keeping the view when nothing
+changes and returning to the affected approval step after edits.
 Geometry edits invalidate all three approvals; settings edits preserve geometry
 approval and invalidate settings/toolpath approval. A server running old imported
 code must be restarted after runtime changes; check geometry loads afterward.
@@ -175,8 +180,8 @@ For toolpath review, the interpreter must support the selected export language
 and required machine state. Unsupported commands, missing helper files, or
 incompatible setup must be resolved before production review. The S5 subset
 interpreter checks the actual export and rejects unsupported commands. Griffin
-firmware preflight and G280 priming are external events; their internal motions
-are not simulated. An unknown installed firmware version does not block review;
+firmware startup is external and its internal motions are not simulated. The S5
+wedge export does not issue G280 or run a bed-leveling routine. An unknown installed firmware version does not block review;
 the standard profile assumption is shown with the settings. Development preview
 creates no approvals and cannot authorize delivery.
 A path display alone cannot establish arbitrary machine-program behavior.
@@ -237,12 +242,17 @@ Hand-authored relationships and runtime plans remain labelled as such.
 one program, so travel planning, sectioning and export are shared rather than
 duplicated per skill.
 
-**Status: software only, and less established than the wedge.** Every path in
-this pipeline is a development preview. There is no Studio integration, no
-approval workflow and no delivery step; `core/print/cli.mjs` cannot produce an
-approved program and says so in its own output. No part from these skills has
-been printed, and no maker agent has used them end to end. The wedge demo
-remains the reviewed workflow for a job a person will actually run.
+**Status: software only, and less established than the wedge.** The workflow is
+now the same one the wedge uses: `core/print/bundle.mjs` writes a print bundle
+with native 3DM geometry and a review record, Studio serves it, a person gives
+the three approvals, and delivery copies the reviewed bytes. What that does not
+establish: no part from these skills has been printed, no maker agent has used
+them end to end, and the plan expresses only the shapes in `core/geom/shapes.mjs`
+(`box`, `wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`) - an
+edited or imported 3DM is still not accepted as input. The vertical spline shell
+extrudes its bulged spline footprint vertically below a spline roof; arbitrary
+side editing remains deferred. Generation without approvals is recorded as
+`mode: development` and cannot satisfy delivery.
 
 ### Geometry contract
 
@@ -321,12 +331,37 @@ strokes are generated so each ends where the next begins. This is deliberately
 different from the wedge demo's fixed policy of retracting and lifting to the
 whole part's maximum height for every horizontal move; the wedge is unchanged.
 
+### Print bundle and review
+
+`core/print/geometry.mjs` writes the shell as its named untrimmed NURBS surfaces
+in a 3DM. rhino3dm builds no general solid from a set of patches, so there is no
+capped extrusion to store as the wedge does; instead the file is accepted only
+once it reopens, rebuilds the same patches, passes the closure check and matches
+the reviewed control nets. That check runs again on every load, so an edited or
+substituted file stops the print rather than being sliced as something else. The
+descriptor also carries a quad proxy mesh, tessellated per patch, for the viewer.
+
+`core/print/bundle.mjs` owns the rest: the plan lock hashes the plan, the machine
+snapshot, the geometry and the generating source, so a runtime change invalidates
+a plan approval. Approvals, staleness, chat adjustment, generation modes and
+delivery behave exactly as the wedge's do. The remembered S5 setup file is shared
+between the two packages; only fields this plan already has are taken from it.
+
+Studio selects the module that owns a bundle from the schema in its `plan.json`,
+and the viewer reads the part's shape from the display proxy, so the same review
+interface serves both kinds. The wedge package itself is untouched.
+
 ### Formats
 
 - `saam-shell-plan/1`: shape and its parameters, placement, setup, shared
   process settings, and each skill's settings under `skills`. Unknown or
   misspelled fields are rejected, and the strict field check is made against the
   selected shape. Generation introduces no further process choices.
+- `saam-shell-geometry/1`: native file hash, shape parameters, geometry version,
+  per-patch control-net hash, named face references and the display proxy.
+- The bundle layout matches the wedge's, with `exports/griffin-gcode/part.gcode`
+  and `delivery/part.gcode` in place of `wedge.gcode`. `saampath/1`,
+  `saam-review/1` and `saam-checks/1` are unchanged.
 - The machine file gains `nonplanar.maxAngleDeg` (15 for the S5): the surface
   slope beyond which a fixed vertical nozzle cannot follow. It is a declared
   software limit, not a measured clearance rating, and no collision model exists.
@@ -344,8 +379,13 @@ cover evaluation against rhino3dm, sections against analytic areas, closure
 rejection, degenerate cuts, offsets and booleans against analytic areas, the
 surface height field, travel and lift behaviour, the angle limit excluding steep
 surface, strict interpretation of the export, determinism, and detection of an
-edited export. None of that establishes clearance, surface quality, or that any
-part prints.
+edited export. `core/tests/workflow.test.mjs` adds the review workflow: the 3DM
+round trip and rejection of a substituted file, development generation creating
+no approvals, three synthetic approvals with stale views and byte-identical
+delivery, the approvals each kind of edit invalidates, remembered setup, and
+Studio serving and delivering a shell print. Synthetic approvals are written
+with an actor name that says so. None of that establishes clearance, surface
+quality, or that any part prints.
 
 ## Legacy reference
 

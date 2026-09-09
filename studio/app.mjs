@@ -1,14 +1,98 @@
 import { advancePlayback, frameAtTime } from './playback.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
-let state,tab='geometry',selected='sloping-face',yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
+let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas'),ctx=canvas.getContext('2d');
 let polygons=[],drag=null,moved=false;
-const names={'sloping-face':'Sloped face',base:'Bottom','front-side':'Front','back-side':'Back','high-end':'Tall end','low-end':'Low end'};
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
 const duration=()=>state?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+const round2=v=>Number(v).toFixed(2);
 function stop(){playing=false;lastFrame=0;cancelAnimationFrame(frame);$('#play').textContent='Play';}
+
+// Studio reviews more than one kind of print. Everything that depends on which
+// package produced the bundle lives here; the viewer, approvals and playback
+// below are shared. A print names its kind in its own state.
+const views={
+  wedge:{
+    eyebrow:'WEDGE DEMO',skinPhase:'inclined',skinLabel:'Sloped layers',exportName:'wedge.gcode',
+    names:{'sloping-face':'Sloped face',base:'Bottom','front-side':'Front','back-side':'Back','high-end':'Tall end','low-end':'Low end'},
+    facts(state,tab) {
+      const {geometry:g,setup:s,process:p}=state.plan,high=g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
+      if(tab==='geometry')return [['Size',g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
+      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],
+        ['Sloped layers',p.skinLayers+' × '+p.skinNormalMm+' mm'],['Travel height',high.toFixed(2)+' + '+p.liftMm+' mm']];
+      return state.program?[['Layers',state.pathSummary.planarLayers+' flat + '+p.skinLayers+' sloped'],
+        ['Estimated motion',Math.round(duration()/60)+' min'],['Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']]:[];
+    },
+    settings(state) {
+      const {setup:s,process:p}=state.plan;
+      return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC+'°C'],['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
+        ['Flat / sloped speed',p.planarSpeedMmS+' / '+p.skinSpeedMmS+' mm/s'],['First-layer speed',p.firstLayerSpeedMmS+' mm/s'],
+        ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
+        ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],['Material flow limit',p.maxFlowMm3S+' mm³/s'],
+        ['Filament diameter',s.filamentMm+' mm'],['Placement','X '+state.plan.placement.xMm+' / Y '+state.plan.placement.yMm+' mm'],
+        ['Fill','Solid; direction reverses each layer'],['Sloped passes','Back and forth'],['Startup',state.setupBasis]];
+    }
+  },
+  shell:{
+    eyebrow:'DEVELOPMENT PREVIEW',skinPhase:'draped-skin',skinLabel:'Draped skin',exportName:'part.gcode',
+    // Faces are named by the shape that built them, so the label is the name.
+    names:{},
+    facts(state,tab) {
+      const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'];
+      const shape={box:'Box',wedge:'Wedge',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      if(tab==='geometry') {
+        const rows=[['Shape',shape],['Footprint',g.runMm+' × '+g.widthMm+' mm'],['Height',round2(state.geometry.boundsMm.max[2])+' mm']];
+        if(g.shape==='spline-top'||g.shape==='spline-shell')rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
+        if(g.shape==='spline-shell')rows.push(['Side taper','Long sides in '+g.longSideInsetMm+' mm · short sides out '+g.shortSideOutsetMm+' mm']);
+        if(g.shape==='vertical-spline-shell'){
+          rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
+          rows.push(['Vertical wall outline','X out '+g.xBulgeMm+' mm · Y in '+g.yInsetMm+' mm']);
+        }
+        return rows;
+      }
+      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],
+        ['Body',fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],
+        ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None']];
+      if(!state.program)return [];
+      const limit=state.pathSummary?.nonplanarLimit;
+      const rows=[['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
+        ['Estimated motion',Math.round(duration()/60)+' min'],['Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']];
+      if(limit) {
+        rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
+        if(limit.experimentalOverride)rows.push(['Experimental override',limit.effectiveMaxAngleDeg+'° versus the profile’s '+limit.machineMaxAngleDeg+'°']);
+      }
+      return rows;
+    },
+    settings(state) {
+      const {setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'];
+      const declaredLimit=state.machine.nonplanar?.maxAngleDeg,effectiveLimit=skin.maxAngleDegOverride??declaredLimit;
+      return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC+'°C'],['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
+        ['Flat / skin speed',p.planarSpeedMmS+' / '+p.skinSpeedMmS+' mm/s'],['First-layer speed',p.firstLayerSpeedMmS+' mm/s'],
+        ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
+        ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],['Material flow limit',p.maxFlowMm3S+' mm³/s'],
+        ['Filament diameter',s.filamentMm+' mm'],['Placement','X '+state.plan.placement.xMm+' / Y '+state.plan.placement.yMm+' mm'],
+        ['Fill directions',fill.fillAnglesDeg.join('° / ')+'°, cycled by layer'],['Fill overlap',Math.round(fill.fillOverlap*100)+'% of a bead'],
+        ['Smallest section feature',fill.minFeatureMm+' mm'],
+        ['Skin strokes',skin.strokeAngleDeg+'°, sampled every '+skin.sampleStepMm+' mm'],['Surface survey',skin.surveyStepMm+' mm grid'],
+        ['Non-planar limit',(effectiveLimit??'—')+'°'+(skin.maxAngleDegOverride===null?' (profile declaration)':' experimental override; profile declares '+declaredLimit+'°')],
+        ['Travel','Direct while inside this layer, up to '+p.maxCombMm+' mm; otherwise lift '+p.liftMm+' mm clear'],
+        ['Startup',state.setupBasis]];
+    }
+  }
+};
+const view=()=>views[state?.kind==='shell'?'shell':'wedge'];
+const label=id=>view().names[id]??id.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());
+
+// Part bounds come from the display proxy both packages write, so the camera
+// and the bed grid do not need to know which shape produced them.
+function partBounds() {
+  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+  for(const point of state.geometry.vertices)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
+  return {min,max};
+}
+
 async function api(route,data) {
   const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(data)});
   if(!response.ok)throw new Error((await response.json()).error);
@@ -18,9 +102,15 @@ async function refresh(follow=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
   const next=await response.json(),previous=state;state=next;
   if(previous?.exportHash!==next.exportHash){stop();seconds=duration();fitBounds=null;}
-  if(!previous)tab=state.geometryApproved?(state.planApproved?'toolpath':'plan'):'geometry';
+  if(!previous) {
+    tab=state.geometryApproved?(state.planApproved?'toolpath':'plan'):'geometry';
+    $('#kind-label').textContent=view().eyebrow;
+    $('#skin-label').textContent=view().skinLabel;
+    document.title='SAAM Studio · '+(state.kind==='shell'?'Print':'Wedge');
+  }
   else if(follow&&previous.planHash!==state.planHash){tab=state.geometryApproved?'plan':'geometry';message('Updated from chat.');}
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
+  if(!selected||!state.geometry.labels.includes(selected))selectFeature(state.geometry.labels[0]);
   render();
 }
 function table(entries) {
@@ -29,26 +119,14 @@ function table(entries) {
   return dl;
 }
 function render() {
-  const {geometry:g,setup:s,process:p}=state.plan;
-  const high=g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
   const stage={geometry:1,plan:2,toolpath:3}[tab];
   $('#stage-label').textContent='STEP '+stage+' OF 3';
   $('#view-title').textContent={geometry:'Your geometry',plan:'Your geometry',toolpath:'Your toolpath'}[tab];
   $('#prompt').textContent={geometry:'Look at the geometry.',plan:'Look at the settings.',toolpath:'Review the toolpath.'}[tab];
   $('#guidance').textContent={geometry:'Check the shape and size before continuing.',plan:'Confirm how this part will be printed.',toolpath:'Play it through, then confirm and export.'}[tab];
-  const geometryFacts=[['Size',g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
-  const settingFacts=[['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],['Sloped layers',p.skinLayers+' × '+p.skinNormalMm+' mm'],['Travel height',high.toFixed(2)+' + '+p.liftMm+' mm']];
-  const programFacts=state.program?[['Layers',state.pathSummary.planarLayers+' flat + '+p.skinLayers+' sloped'],['Estimated motion',Math.round(duration()/60)+' min'],['Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']]:[];
-  $('#facts').replaceChildren(table(tab==='geometry'?geometryFacts:tab==='plan'?settingFacts:programFacts));
+  $('#facts').replaceChildren(table(view().facts(state,tab)));
   $('#more-settings').hidden=tab!=='plan';
-  $('#settings-detail').replaceChildren(table([
-    ['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC+'°C'],['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
-    ['Flat / sloped speed',p.planarSpeedMmS+' / '+p.skinSpeedMmS+' mm/s'],['First-layer speed',p.firstLayerSpeedMmS+' mm/s'],
-    ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
-    ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],['Material flow limit',p.maxFlowMm3S+' mm³/s'],
-    ['Filament diameter',s.filamentMm+' mm'],['Placement','X '+state.plan.placement.xMm+' / Y '+state.plan.placement.yMm+' mm'],
-    ['Fill','Solid; direction reverses each layer'],['Sloped passes','Back and forth'],['Startup',state.setupBasis]
-  ]));
+  $('#settings-detail').replaceChildren(table(view().settings(state)));
   const ready=tab==='geometry'||(tab==='plan'&&state.geometryApproved)||(tab==='toolpath'&&state.planApproved&&state.program&&state.review.generation?.mode==='production');
   $('#confirm').disabled=!ready||busy;
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?'Export G-code':'Confirm & export';
@@ -58,12 +136,11 @@ function render() {
   $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
   draw();
 }
-function selectFeature(id){selected=id;$('#selection').textContent=names[id]??id;draw();}
+function selectFeature(id){selected=id;$('#selection').textContent=label(id);draw();}
 function setTab(next){if(!state)return;tab=next;stop();render();}
 
 function project(point) {
-  const g=state.plan.geometry,height=g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
-  const bounds=tab==='toolpath'&&fitBounds?fitBounds:{min:[0,0,0],max:[g.runMm,g.widthMm,height]};
+  const bounds=tab==='toolpath'&&fitBounds?fitBounds:partBounds();
   const size=bounds.max.map((v,i)=>Math.max(1,v-bounds.min[i]));
   const x=point[0]-(bounds.min[0]+bounds.max[0])/2,y=point[1]-(bounds.min[1]+bounds.max[1])/2,z=point[2]-(bounds.min[2]+bounds.max[2])/2;
   const u=x*Math.cos(yaw)-y*Math.sin(yaw),v=x*Math.sin(yaw)+y*Math.cos(yaw);
@@ -76,11 +153,11 @@ function draw() {
   const ratio=devicePixelRatio||1;
   if(canvas.width!==Math.round(canvas.clientWidth*ratio)||canvas.height!==Math.round(canvas.clientHeight*ratio)){canvas.width=Math.round(canvas.clientWidth*ratio);canvas.height=Math.round(canvas.clientHeight*ratio);}
   ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
-  const g=state.plan.geometry;
-  for(let x=-10;x<=g.runMm+10;x+=5)segment(project([x,-10,0]),project([x,g.widthMm+10,0]),'#dbe1d4',.6);
-  for(let y=-10;y<=g.widthMm+10;y+=5)segment(project([-10,y,0]),project([g.runMm+10,y,0]),'#dbe1d4',.6);
+  const bounds=partBounds(),skinPhase=view().skinPhase;
+  for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(project([x,bounds.min[1]-10,0]),project([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
+  for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(project([bounds.min[0]-10,y,0]),project([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
   const pts=state.geometry.vertices.map(project);
-  polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/4})).sort((a,b)=>a.depth-b.depth);
+  polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
   for(const polygon of polygons) {
     ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
     ctx.fillStyle=tab==='toolpath'?'rgba(206,216,194,.11)':polygon.id===selected?'#cedcab':'#dbe3d0';
@@ -91,18 +168,18 @@ function draw() {
     const local=p=>[p[0]-placement.xMm,p[1]-placement.yMm,p[2]];
     for(let i=0;i<count;i++) {
       const move=moves[i];if(!move.extruding&&!$('#travel').checked)continue;
-      const color=move.extruding?(move.phase==='inclined'?'#d97735':move.phase==='prime'?'#5b92a3':'#80977788'):'#8795ab66';
-      segment(project(local(move.from)),project(local(move.to)),color,move.phase==='inclined'?1.25:.7);
+      const color=move.extruding?(move.phase===skinPhase?'#d97735':move.phase==='prime'?'#5b92a3':'#80977788'):'#8795ab66';
+      segment(project(local(move.from)),project(local(move.to)),color,move.phase===skinPhase?1.25:.7);
     }
     const current=moves[at.active];
-    if(current&&at.fraction<1&&(current.extruding||$('#travel').checked))segment(project(local(current.from)),project(local(at.point)),current.phase==='inclined'?'#d97735':'#809777',1.25);
+    if(current&&at.fraction<1&&(current.extruding||$('#travel').checked))segment(project(local(current.from)),project(local(at.point)),current.phase===skinPhase?'#d97735':'#809777',1.25);
     if(at.point){const p=project(local(at.point)),q=project(local([at.point[0],at.point[1],at.point[2]+3]));segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();
       $('#time-label').textContent=clock(seconds)+' / '+clock(duration());
     }
   }
   const origin=project([0,0,0]);segment(origin,project([5,0,0]),'#b26751',1.5);segment(origin,project([0,5,0]),'#659a7a',1.5);segment(origin,project([0,0,5]),'#638599',1.5);
   ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,canvas.clientHeight-18);
-  if(tab!=='toolpath'){const polygon=polygons.find(p=>p.id===selected);if(polygon){const center=polygon.points.reduce((s,p)=>[s[0]+p[0]/4,s[1]+p[1]/4],[0,0]);ctx.fillStyle='#31432c';ctx.fillText(names[selected]??selected,center[0]-25,center[1]);}}
+  if(tab!=='toolpath'){const polygon=polygons.find(p=>p.id===selected);if(polygon){const center=polygon.points.reduce((s,p)=>[s[0]+p[0]/polygon.points.length,s[1]+p[1]/polygon.points.length],[0,0]);ctx.fillStyle='#31432c';ctx.fillText(label(selected),center[0]-25,center[1]);}}
 }
 
 function inPolygon(x,y,points){let inside=false;for(let i=0,j=points.length-1;i<points.length;j=i++){const a=points[i],b=points[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
@@ -117,7 +194,8 @@ $('#reset-view').onclick=()=>{zoom=1;yaw=-.78;tilt=.62;fitBounds=null;$('#fit-pr
 $('#fit-program').onclick=()=>{
   if(fitBounds){fitBounds=null;$('#fit-program').textContent='Fit all moves';}
   else {
-    fitBounds={min:[0,0,0],max:[state.plan.geometry.runMm,state.plan.geometry.widthMm,0]};
+    const part=partBounds();
+    fitBounds={min:[part.min[0],part.min[1],0],max:[part.max[0],part.max[1],0]};
     for(const move of state.program.moves)for(const p of [move.from,move.to])for(let i=0;i<3;i++){
       const v=p[i]-(i===0?state.plan.placement.xMm:i===1?state.plan.placement.yMm:0);
       fitBounds.min[i]=Math.min(fitBounds.min[i],v);fitBounds.max[i]=Math.max(fitBounds.max[i],v);
@@ -128,7 +206,12 @@ $('#fit-program').onclick=()=>{
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 async function approval(stage){await api('approve',{stage,actor:'Local user',revision:state.revision});await refresh();}
-async function download(){const response=await api('deliver',{}),url=URL.createObjectURL(await response.blob());const a=document.createElement('a');a.href=url;a.download='wedge.gcode';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function download(){
+  const response=await fetch('/api/deliver',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:'{}'});
+  if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
+  const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');
+  a.href=url;a.download=state.exportName??view().exportName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;busy=true;render();message('');
   try{

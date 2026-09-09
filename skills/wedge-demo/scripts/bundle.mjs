@@ -96,9 +96,11 @@ export async function adjustBundle(directory,patch,{setupFile=defaultSetupFile}=
 export async function upgradeBundle(directory) {
   const plan=await json(resolve(directory,'plan.json'));
   if(plan.generatorVersion===VERSION)return;
-  requireThat(['0.1.0','0.2.0','0.2.1'].includes(plan.generatorVersion),'Unsupported bundle upgrade.');
+  requireThat(['0.1.0','0.2.0','0.2.1','0.2.2','0.2.3'].includes(plan.generatorVersion),'Unsupported bundle upgrade.');
   const review=await json(resolve(directory,'review.json'));
   plan.generatorVersion=VERSION;plan.process.skinDirection='alternating';
+  plan.process.combTravelMm??=defaults().process.combTravelMm;
+  plan.process.startupRetracted??=defaults().process.startupRetracted;
   plan.setup.buildVolumeC??=defaults().setup.buildVolumeC;
   plan.setup.materialGuid||=defaults().setup.materialGuid;
   delete review.approvals.plan;delete review.approvals.toolpath;review.generation=null;

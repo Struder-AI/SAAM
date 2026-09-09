@@ -160,7 +160,7 @@ export function interpretGriffin(text, plan, machine) {
             requireThat(axisSpeed <= machine.maxFeedMmS[axis] + 1e-6, `Line ${line} exceeds the ${axis.toUpperCase()} feed limit.`);
           }
           seconds += length / speed;
-          moves.push({ line, to: target, volumeMm3: deltaE > 0 ? deltaE * area : 0, speedMmS: speed, phase, layer, extruding: deltaE > 0 });
+          moves.push({ line, from: [...position], to: target, volumeMm3: deltaE > 0 ? deltaE * area : 0, speedMmS: speed, phase, layer, extruding: deltaE > 0, startSeconds: seconds - length / speed, durationSeconds: length / speed });
           if (deltaE > 0) volume += deltaE * area;
         } else if (deltaE !== 0) {
           events.push({ line, kind: deltaE < 0 ? 'retract' : 'recover', filamentMm: Math.abs(deltaE) });
@@ -181,5 +181,18 @@ export function interpretGriffin(text, plan, machine) {
   requireThat(header[`EXTRUDER_TRAIN.${setup.tool}.MATERIAL.GUID`]?.trim(), 'The active train needs a MATERIAL.GUID.');
   requireThat(header['BUILD_VOLUME.TEMPERATURE']?.trim(), 'BUILD_VOLUME.TEMPERATURE must be set.');
   requireThat(nozzle === 0 && bed === 0 && fan === 0, 'The program must switch off nozzle, bed and fan.');
-  return { header, moves, events, seconds, volumeMm3: volume, finalPosition: position };
+  return {
+    header, moves, events, seconds, volumeMm3: volume, finalPosition: position,
+    // A summary for review surfaces; every value is read back from the exported
+    // text, never from SAAMpath.
+    summary: {
+      moves: moves.length,
+      extrusionMoves: moves.filter(move => move.extruding).length,
+      motionSeconds: seconds,
+      volumeMm3: volume,
+      filamentMm: volume / area,
+      layers: new Set(moves.filter(move => move.extruding && move.phase === 'planar').map(move => move.layer)).size,
+      skins: new Set(moves.filter(move => move.extruding && move.phase === 'draped-skin').map(move => move.layer)).size
+    }
+  };
 }

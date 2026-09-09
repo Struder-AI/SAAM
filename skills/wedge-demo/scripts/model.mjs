@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-export const VERSION = '0.2.2';
+export const VERSION = '0.2.4';
 export const GENERIC_PLA_GUID = '506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9';
 // Release metadata, fixed so regenerating a reviewed plan is deterministic.
 export const BUILD_DATE = '2026-09-08';
@@ -24,7 +24,7 @@ export function defaults() {
       nozzleC: 215, bedC: 60, buildVolumeC: 28, materialGuid: GENERIC_PLA_GUID, firmwareVersion: '', startupVerified: false},
     process: {firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4, skinNormalMm: 0.2, skinLayers: 2,
       planarSpeedMmS: 20, skinSpeedMmS: 10, firstLayerSpeedMmS: 12, travelSpeedMmS: 60,
-      zSpeedMmS: 5, retractMm: 6.5, retractSpeedMmS: 25, liftMm: 2, fanPercent: 100,
+      zSpeedMmS: 5, retractMm: 6.5, retractSpeedMmS: 25, liftMm: 2, combTravelMm: 12, startupRetracted: true, fanPercent: 100,
       maxFlowMm3S: 4, minimumLayerSeconds: 6, skinDirection: 'alternating',
       substrate: 'horizontal-solid-fill', transition: 'staircase-gap-volume', beadModel: 'rectangular',
       clearanceResponsibility: 'operator', clearanceNote: 'For this demo the user will verify physical clearance.'},
@@ -43,8 +43,9 @@ export function validatePlan(plan, machine) {
   requireThat(plan.schema === d.schema && plan.generatorVersion === VERSION, 'Unsupported plan/generator version.');
   const {geometry: g, placement: pos, process: p, setup: s} = plan;
   for (const [key,min,max] of [['runMm',8,80],['widthMm',8,60],['baseMm',1,10],['angleDeg',1,15]]) number(g[key],min,max,key);
-  for (const [key,min,max] of [['firstLayerMm',0.15,0.25],['layerMm',0.06,0.2],['lineWidthMm',0.35,0.48],['skinNormalMm',0.12,0.22],['skinLayers',1,4],['planarSpeedMmS',2,35],['skinSpeedMmS',2,20],['firstLayerSpeedMmS',2,20],['travelSpeedMmS',5,100],['zSpeedMmS',1,10],['retractMm',0,8],['retractSpeedMmS',1,35],['liftMm',0.5,10],['fanPercent',0,100],['maxFlowMm3S',0.1,8],['minimumLayerSeconds',0,30]]) number(p[key],min,max,key);
+  for (const [key,min,max] of [['firstLayerMm',0.15,0.25],['layerMm',0.06,0.2],['lineWidthMm',0.35,0.48],['skinNormalMm',0.12,0.22],['skinLayers',1,20],['planarSpeedMmS',2,35],['skinSpeedMmS',2,20],['firstLayerSpeedMmS',2,20],['travelSpeedMmS',5,100],['zSpeedMmS',1,10],['retractMm',0,8],['retractSpeedMmS',1,35],['liftMm',0.5,10],['combTravelMm',0,20],['fanPercent',0,100],['maxFlowMm3S',0.1,8],['minimumLayerSeconds',0,30]]) number(p[key],min,max,key);
   requireThat(Number.isInteger(p.skinLayers), 'skinLayers must be an integer.');
+  requireThat(typeof p.startupRetracted === 'boolean', 'startupRetracted must be true or false.');
   for (const key of ['skinDirection','substrate','transition','beadModel','clearanceResponsibility']) requireThat(p[key] === d.process[key], `Unsupported ${key}.`);
   requireThat(typeof p.clearanceNote === 'string' && p.clearanceNote.length <= 1000, 'Invalid clearance note.');
   requireThat(s.tool === 0 || s.tool === 1, 'Select nozzle #1 or #2.');
@@ -55,7 +56,8 @@ export function validatePlan(plan, machine) {
   requireThat(typeof s.materialGuid === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(s.materialGuid), 'Material GUID must be a UUID; use the Generic PLA profile when the specific material is unknown.');
   requireThat(machine.id === 'ultimaker-s5' && machine.schema === 'saam-machine/1' && machine.outputs.some(o => o.id === plan.output), 'Unsupported machine/output.');
   const t = Math.tan(g.angleDeg*Math.PI/180), c = Math.cos(g.angleDeg*Math.PI/180);
-  requireThat(g.baseMm - p.skinLayers*p.skinNormalMm/c > p.firstLayerMm, 'Base is too thin for the reserved skin.');
+  const lowestSkinAtCrest=g.baseMm-(p.skinLayers-1)*p.skinNormalMm/c+(g.runMm-p.lineWidthMm/2)*t;
+  requireThat(lowestSkinAtCrest>=p.firstLayerMm, 'The lowest tilted layer has no printable extent.');
   // At the staircase interface the local gap is not the nominal layer height.
   // The generator bounds it by the actual substrate step geometry, not an
   // unsupported assumption that nozzle diameter is a physical gap limit.

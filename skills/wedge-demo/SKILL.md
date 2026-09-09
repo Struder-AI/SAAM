@@ -8,10 +8,14 @@ description: Create a Rhino wedge and generate a mixed horizontal and inclined-l
 Read the applicable root context: developer agents read both
 [DEVELOP.md](../../DEVELOP.md) and [MAKERS.md](../../MAKERS.md).
 
-This package creates a capped Rhino extrusion and named NURBS face references,
+This package creates the bounded eight-vertex wedge as a capped Rhino extrusion
+and named NURBS face references,
 horizontal solid-fill toolpaths, alternating inclined skin strokes, SAAMpath, and
 Griffin G-code. [Studio](../../studio/server.mjs) reconstructs motion from the
 exact G-code and records three version-bound human approvals.
+
+Use this package's own geometry and generator for the wedge. Do not substitute
+the newer shell/core geometry or the full-fill and draped-skin preview skills.
 
 ## Setup and tools
 
@@ -24,7 +28,7 @@ From the repository root, install with `npm ci` (Node.js 22+).
 - `node skills/wedge-demo/scripts/cli.mjs deliver Prints/<name>` copies the approved export byte-for-byte into `delivery/wedge.gcode`.
 - `node skills/wedge-demo/scripts/cli.mjs adjust Prints/<name> <patch.json>` applies a chat-requested geometry, process or setup adjustment.
 - `node skills/wedge-demo/scripts/cli.mjs remember-setup Prints/<name>` saves setup for subsequent prints.
-- `node skills/wedge-demo/scripts/cli.mjs upgrade Prints/<name>` upgrades a 0.1.0, 0.2.0 or 0.2.1 demo to the current generator, retaining geometry approval and invalidating settings/toolpath approval.
+- `node skills/wedge-demo/scripts/cli.mjs upgrade Prints/<name>` upgrades a 0.1.0–0.2.3 demo to the current generator, retaining geometry approval and invalidating settings/toolpath approval.
 
 For a maker's first geometry review, do not wait for all process details. Once
 their request reasonably identifies this supported wedge, run `init` for a new
@@ -55,11 +59,18 @@ specific profile; a known material profile can replace it through chat. The
 build-volume value matches the supplied Cura S5 reference and is adjustable as
 `setup.buildVolumeC`. It is separate from nozzle and bed temperatures.
 
-`skinLayers` is the adjustable sloped-layer count. Sloped strokes always
+`skinLayers` is the adjustable 1–20 sloped-layer count. Sloped strokes always
 alternate uphill/downhill, and flat-layer traversal reverses every layer.
-For this profile, every generated horizontal travel retracts and lifts first
-to the full part's maximum Z plus `liftMm` (default 2 mm), then traverses,
-descends and recovers. It does not use just the height printed so far.
+When a thin base cannot contain every inner tilted layer at the downhill end,
+the earliest tilted layers begin where they reach first-layer height; later
+ones extend farther downhill. This is a geometric clipping rule, not a
+physical-validation claim.
+For this profile, starts within `combTravelMm` (default 12 mm) stay down and
+move directly; that includes nearby loops, fill strokes and adjacent sloped
+strokes. Longer moves retract, lift to the full part's maximum Z plus `liftMm`
+(default 2 mm), traverse, descend and recover. A new job assumes the prior SAAM
+wedge ended with its terminal retraction, so its first recovery cancels that
+retraction rather than backing filament up a second time.
 
 Setup changes are remembered in ignored `.local/machine-setups/ultimaker-s5.json`
 with source and update time; `init` reuses this setup for a new print unless an

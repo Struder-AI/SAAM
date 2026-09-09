@@ -33,6 +33,8 @@ from the three approvals within a print.
 |---|---|---|
 | Design file | The saved geometry, and editable design information where available. | Rhino/3DM is selected; this user-facing name and the editing workflow remain proposed. |
 | Shell | A closed surface made of untrimmed spline patches, describing one solid. | The current geometry input for the full-fill and draped-skin skills; the general geometry contract is still open. |
+| Spline shell | A current plan shape with a domed spline roof, long sides drawn inward and short sides pushed outward from its rectangular base. | It exposes one symmetric taper for each pair of sides; arbitrary side-surface editing is not implemented. |
+| Vertical spline shell | A current plan shape with a domed spline roof over a bulged spline footprint, copied unchanged from the base to the roof. | The walls are vertical; it exposes symmetric X-outward and Y-inward bulges, not arbitrary side editing. |
 | Full fill | Filling a layer solid: an outline, then material across the whole inside. | Named after the skill; the wider fill vocabulary (sparse infill, densities) is not settled. |
 | Draped skin | Top layers that follow the shape of the surface instead of stepping across it in flat slices. | Proposed user-facing name for non-planar surface layers. |
 | Non-planar angle limit | How steep a surface the machine can lay material along, given a nozzle that always points straight down. | Declared per machine (15 degrees for the S5). A software limit, not a measured or validated clearance rating. |

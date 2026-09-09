@@ -57,7 +57,7 @@ function prismShell(rhino, outline, height, name) {
 // heights(i, j) supplies the control height of each grid node; because control
 // points sit on the Greville abscissae in X and Y, the patch's footprint is
 // exactly the rectangle, so the four sides meet it exactly.
-export function splineTopShell(rhino, { runMm = 40, widthMm = 30, heights, cpU = 5, cpV = 5, name = 'spline-top' } = {}) {
+function splineTopSurface(rhino, { xMin = 0, xMax, yMin = 0, yMax, xyAt = null, heights, cpU = 5, cpV = 5 } = {}) {
   requireThat(typeof heights === 'function', 'splineTopShell needs a heights(i, j) function.');
   const surface = rhino.NurbsSurface.create(3, false, 4, 4, cpU, cpV);
   surface.knotsU().createUniformKnots(1);
@@ -67,21 +67,80 @@ export function splineTopShell(rhino, { runMm = 40, widthMm = 30, heights, cpU =
   const points = surface.points();
   for (let i = 0; i < cpU; i++)
     for (let j = 0; j < cpV; j++)
-      points.set(i, j, [runMm * (gu[i] - gu[0]) / span[0], widthMm * (gv[j] - gv[0]) / span[1], heights(i, j), 1]);
+      {
+        const u = (gu[i] - gu[0]) / span[0], v = (gv[j] - gv[0]) / span[1];
+        const [x, y] = xyAt ? xyAt(i, j, u, v) : [xMin + (xMax - xMin) * u, yMin + (yMax - yMin) * v];
+        points.set(i, j, [x, y, heights(i, j), 1]);
+      }
+  return surface;
+}
 
-  const [u0, u1] = surface.domain(0), [v0, v1] = surface.domain(1);
+function splineShellFromSurfaces(rhino, { top, bottom, bottomEdges = null, name }) {
+  const [u0, u1] = top.domain(0), [v0, v1] = top.domain(1);
   // isoCurve(0, v) runs along U; isoCurve(1, u) runs along V.
-  const edges = [surface.isoCurve(0, v0), surface.isoCurve(1, u1), surface.isoCurve(0, v1), surface.isoCurve(1, u0)];
-  const corners = [[0, 0], [runMm, 0], [runMm, widthMm], [0, widthMm]].map(([x, y]) => [x, y, 0]);
+  const topEdges = [top.isoCurve(0, v0), top.isoCurve(1, u1), top.isoCurve(0, v1), top.isoCurve(1, u0)];
+  bottomEdges ??= [bottom.isoCurve(0, v0), bottom.isoCurve(1, u1), bottom.isoCurve(0, v1), bottom.isoCurve(1, u0)];
   const entries = [
-    { name: 'top', surface },
-    { name: 'bottom', surface: quad(rhino, corners[0], corners[3], corners[2], corners[1]) },
-    { name: 'front', surface: ruled(rhino, line(rhino, corners[0], corners[1]), edges[0]) },
-    { name: 'right', surface: ruled(rhino, line(rhino, corners[1], corners[2]), edges[1]) },
-    { name: 'back', surface: ruled(rhino, line(rhino, corners[3], corners[2]), edges[2]) },
-    { name: 'left', surface: ruled(rhino, line(rhino, corners[0], corners[3]), edges[3]) }
+    { name: 'top', surface: top }, { name: 'bottom', surface: bottom },
+    { name: 'front', surface: ruled(rhino, bottomEdges[0], topEdges[0]) },
+    { name: 'right', surface: ruled(rhino, bottomEdges[1], topEdges[1]) },
+    { name: 'back', surface: ruled(rhino, bottomEdges[2], topEdges[2]) },
+    { name: 'left', surface: ruled(rhino, bottomEdges[3], topEdges[3]) }
   ];
   return assertClosed(shellFromSurfaces(rhino, entries, name));
+}
+
+function splineShellFromTop(rhino, { runMm, widthMm, xMin = 0, xMax = runMm, yMin = 0, yMax = widthMm, heights, cpU, cpV, name }) {
+  const top = splineTopSurface(rhino, { xMin, xMax, yMin, yMax, heights, cpU, cpV });
+  const corners = [[0, 0], [runMm, 0], [runMm, widthMm], [0, widthMm]].map(([x, y]) => [x, y, 0]);
+  const bottom = quad(rhino, corners[0], corners[3], corners[2], corners[1]);
+  const bottomEdges = [line(rhino, corners[0], corners[1]), line(rhino, corners[1], corners[2]),
+    line(rhino, corners[3], corners[2]), line(rhino, corners[0], corners[3])];
+  return splineShellFromSurfaces(rhino, { top, bottom, bottomEdges, name });
+}
+
+export function splineTopShell(rhino, { runMm = 40, widthMm = 30, heights, cpU = 5, cpV = 5, name = 'spline-top' } = {}) {
+  return splineShellFromTop(rhino, { runMm, widthMm, heights, cpU, cpV, name });
+}
+
+// A spline-roofed shell whose side faces are also untrimmed NURBS patches.
+// The roof overhangs the short ends while drawing in from the long sides. Each
+// side is ruled from the rectangular base to the roof's own spline boundary,
+// which gives the core an exact shared edge to verify rather than an
+// independently approximated seam.
+export function splineSideShell(rhino, {
+  runMm = 40, widthMm = 30, longSideInsetMm = 1, shortSideOutsetMm = 1,
+  heights, cpU = 5, cpV = 5, name = 'spline-shell'
+} = {}) {
+  requireThat(longSideInsetMm >= 0 && longSideInsetMm * 2 < widthMm,
+    'Long-side inset must leave a positive roof width.');
+  requireThat(shortSideOutsetMm >= 0, 'Short-side outset cannot be negative.');
+  return splineShellFromTop(rhino, {
+    runMm, widthMm,
+    xMin: -shortSideOutsetMm, xMax: runMm + shortSideOutsetMm,
+    yMin: longSideInsetMm, yMax: widthMm - longSideInsetMm,
+    heights, cpU, cpV, name
+  });
+}
+
+// A vertically walled spline shell. The same curved footprint is used at the
+// base and roof, so every ruled side travels straight up. X bulge pushes the
+// left/right ends outward; Y inset draws the front/back long sides inward.
+export function verticalSplineSideShell(rhino, {
+  runMm = 40, widthMm = 30, xBulgeMm = 4, yInsetMm = 3,
+  heights, cpU = 4, cpV = 4, name = 'vertical-spline-shell'
+} = {}) {
+  requireThat(xBulgeMm >= 0 && yInsetMm >= 0 && yInsetMm * 2 < widthMm,
+    'Spline-side bulges must leave a positive footprint width.');
+  const bump = value => 4 * value * (1 - value);
+  const footprint = (i, j, u, v) => {
+    const x = runMm * u + (i === 0 ? -xBulgeMm : i === cpU - 1 ? xBulgeMm : 0) * bump(v);
+    const y = widthMm * v + (j === 0 ? yInsetMm : j === cpV - 1 ? -yInsetMm : 0) * bump(u);
+    return [x, y];
+  };
+  const top = splineTopSurface(rhino, { xyAt: footprint, heights, cpU, cpV });
+  const bottom = splineTopSurface(rhino, { xyAt: footprint, heights: () => 0, cpU, cpV });
+  return splineShellFromSurfaces(rhino, { top, bottom, name });
 }
 
 // Greville abscissae: control values placed here reproduce a linear function,

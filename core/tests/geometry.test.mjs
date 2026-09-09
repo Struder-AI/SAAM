@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import rhino3dm from 'rhino3dm';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
 import { sectionShell, assertClosed } from '../geom/shell.mjs';
-import { boxShell, wedgeShell, splineTopShell, shellFromSurfaces } from '../geom/shapes.mjs';
+import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell, shellFromSurfaces } from '../geom/shapes.mjs';
 import { topAt } from '../geom/field.mjs';
 import { offsetRegion, regionArea, scanlineFill, pointInRegion } from '../region/region2d.mjs';
 import { union, intersect, difference, levelSetRegion, levelSetCoverage } from '../region/boolean.mjs';
@@ -67,6 +67,40 @@ test('a curved top surface sections cleanly at every layer', () => {
     layers++;
   }
   assert.ok(layers > 20);
+});
+
+test('a spline-sided shell closes the tapered walls to its domed roof', () => {
+  const shell = splineSideShell(rhino, {
+    runMm: 24, widthMm: 18, longSideInsetMm: 1.5, shortSideOutsetMm: 2,
+    cpU: 4, cpV: 4,
+    heights: (i, j) => 5 + Math.sin(Math.PI * i / 3) * Math.sin(Math.PI * j / 3)
+  });
+  assert.equal(shell.closure.unmatched.length, 0, 'each tapered side shares the roof boundary exactly');
+  assert.deepEqual(shell.bounds.min.map(value => Number(value.toFixed(6))), [-2, 0, 0]);
+  assert.deepEqual(shell.bounds.max.map(value => Number(value.toFixed(6))), [26, 18, 5.75]);
+  assert.ok(shell.patches.some(patch => patch.name === 'front') && shell.patches.some(patch => patch.name === 'left'));
+  for (let z = 0.2; z < shell.bounds.max[2]; z += 0.2) {
+    const section = sectionShell(shell, z);
+    assert.equal(section.openChains.length, 0, `tapered shell section closes at z=${z.toFixed(2)}`);
+    assert.ok(section.loops.every(loop => loop.length >= 3));
+  }
+});
+
+test('a vertically walled spline shell keeps its bulged footprint at every body height', () => {
+  const shell = verticalSplineSideShell(rhino, {
+    runMm: 24, widthMm: 18, xBulgeMm: 4, yInsetMm: 3, cpU: 4, cpV: 4,
+    heights: (i, j) => 6 + 4 * Math.sin(Math.PI * i / 3) * Math.sin(Math.PI * j / 3)
+  });
+  const top = shell.patches.find(patch => patch.name === 'top');
+  const bottom = shell.patches.find(patch => patch.name === 'bottom');
+  for (const u of [0.1, 0.5, 0.9])
+    for (const v of [0.1, 0.5, 0.9]) {
+      const a = evaluate(top, u, v, false).point, b = evaluate(bottom, u, v, false).point;
+      assert.ok(Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9, 'roof and base use the same footprint');
+    }
+  assert.ok(shell.bounds.min[0] < -3 && shell.bounds.max[0] > 27, 'ends bulge out along X');
+  const low = sectionShell(shell, 1), high = sectionShell(shell, 5.8);
+  assert.ok(Math.abs(area(low.loops) - area(high.loops)) < 1e-4, 'walls stay vertical below the roof');
 });
 
 test('an unclosed shell is rejected rather than sliced into open contours', () => {

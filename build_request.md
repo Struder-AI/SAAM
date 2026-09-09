@@ -133,6 +133,71 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
   and a sampling check elsewhere, bounded by `minFeatureMm`.
 - The wedge skill was left unchanged, as requested.
 
+## BR-011 — Make full-fill, draped-skin and the core usable
+
+- Status: implemented locally; untested beyond software checks
+- Requested by: remettub, 2026-09-08: "We need to be able to use the drape and
+  fill skills and the geometry core." Scope confirmed in the same conversation
+  as the full maker workflow, at parity with the wedge, leaving the wedge alone.
+- Build: `core/print/geometry.mjs` (native 3DM of the shell's named untrimmed
+  surfaces, verified by reopening and rebuilding the closed shell, plus a display
+  proxy); `core/print/bundle.mjs` (print bundle, plan lock over geometry/machine/
+  runtime, chat adjustment, generation modes, three approvals, delivery);
+  bundle commands in `core/print/cli.mjs`; Studio serving either kind of bundle,
+  selected by the schema in `plan.json`, with a viewer that reads the part's
+  shape from the display proxy.
+- Verified in software: `core/tests/workflow.test.mjs` — 3DM round trip and
+  rejection of a substituted file, development generation creating no approvals
+  and refusing delivery, three synthetic approvals with stale-view rejection and
+  byte-identical delivery, the approvals each edit invalidates, remembered setup
+  reuse, one-skill plans, and Studio review and delivery of a shell print. The
+  wedge's own tests, including its Studio test, still pass unchanged.
+- Not verified: no physical print, no maker agent has used either skill end to
+  end, and no usability testing. Geometry is still limited to the plan's shapes
+  (`box`, `wedge`, `spline-top`); importing or editing a 3DM remains deferred,
+  as does multi-solid input, which the region core supports but no plan can
+  express.
+- The wedge demo package was left unchanged. Studio, which is not part of that
+  package, became bundle-agnostic. The available plan shapes now include
+  `spline-shell` through BR-012.
+
+## BR-012 — Spline-sided shell plan shape
+
+- Status: implemented locally; untested beyond software checks
+- Requested by: maker, 2026-09-08: expose spline side support through the
+  geometry core rather than limiting spline geometry to the roof.
+- Build: `spline-shell` adds a closed shell with a control-point-grid roof and
+  four untrimmed ruled spline side patches. The plan exposes symmetric
+  `longSideInsetMm` and `shortSideOutsetMm` parameters, validates the flared
+  bounding box against printer placement, and shows the taper in Studio.
+- Verify: geometry closure and every sampled horizontal section; both slicing
+  skills generate from the locked shape and report excluded over-limit tapered
+  surfaces. No physical print or clearance validation has been performed.
+
+## BR-013 — Vertical spline-side shell
+
+- Status: implemented locally; untested beyond software checks
+- Requested by: maker, 2026-09-08: keep the walls vertical while bulging them
+  outward along X and inward along Y, with a stronger domed roof.
+- Build: `vertical-spline-shell` uses the same spline footprint for the base
+  and roof, so its ruled side patches are vertical. It exposes `xBulgeMm` and
+  `yInsetMm`, supports a 4 × 4 roof control grid, and validates its X bulge
+  against printer placement.
+- Verify: matching roof/base XY points, equal body sections at distinct heights,
+  closed-shell checks, locked-plan generation and Studio presentation. No
+  physical print or clearance validation has been performed.
+
+## BR-014 — Experimental per-print non-planar override
+
+- Status: implemented locally; untested beyond software checks
+- Requested by: maker, 2026-09-08: test a 45° draped-skin path without changing
+  the S5 machine file's declared 15° limit.
+- Build: `maxAngleDegOverride` is an explicit draped-skin plan setting. It
+  changes only that print's effective survey/generation limit, while checks and
+  Studio show both the 15° profile declaration and the experimental override.
+- Boundary: it creates no approval, delivery or machine action, and does not
+  establish physical clearance or deposition behavior at the override angle.
+
 ## What should earn adoption next
 
 Recommend proving one complete print before adding a catalog of operations.

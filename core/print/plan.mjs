@@ -70,11 +70,23 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 export function geometryTemplate(shape) {
   if (shape === 'box') return { shape: 'box', runMm: 30, widthMm: 20, heightMm: 10 };
   if (shape === 'wedge') return { shape: 'wedge', runMm: 30, widthMm: 20, baseMm: 2, angleDeg: 15 };
+  if (shape === 'spline-shell') return {
+    shape: 'spline-shell', runMm: 40, widthMm: 30, cpU: 5, cpV: 5,
+    longSideInsetMm: 1, shortSideOutsetMm: 1, heightsMm: []
+  };
+  if (shape === 'vertical-spline-shell') return {
+    shape: 'vertical-spline-shell', runMm: 40, widthMm: 30, cpU: 4, cpV: 4,
+    xBulgeMm: 4, yInsetMm: 3, heightsMm: []
+  };
   return { shape: 'spline-top', runMm: 40, widthMm: 30, cpU: 5, cpV: 5, heightsMm: [] };
 }
 
 export function validatePlan(plan, machine) {
-  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  // Shell bundles created before the experimental setting existed retain the
+  // profile limit until a chat adjustment writes the explicit null value.
+  if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
+    plan.skills['draped-skin'].maxAngleDegOverride = null;
   const expected = { ...defaults(), geometry: geometryTemplate(plan.geometry.shape) };
   keys(plan, expected);
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
@@ -86,13 +98,21 @@ export function validatePlan(plan, machine) {
     number(geometry.baseMm, 0.5, 50, 'baseMm');
     number(geometry.angleDeg, 0.5, 60, 'angleDeg');
   }
-  if (geometry.shape === 'spline-top') {
+  if (geometry.shape === 'spline-top' || geometry.shape === 'spline-shell' || geometry.shape === 'vertical-spline-shell') {
     for (const [key, min, max] of [['cpU', 3, 12], ['cpV', 3, 12]]) number(geometry[key], min, max, key);
     requireThat(Array.isArray(geometry.heightsMm) && geometry.heightsMm.length === geometry.cpU, 'heightsMm must have cpU rows.');
     for (const row of geometry.heightsMm) {
       requireThat(Array.isArray(row) && row.length === geometry.cpV, 'heightsMm rows must have cpV entries.');
       for (const value of row) number(value, 0.5, 200, 'control height');
     }
+  }
+  if (geometry.shape === 'spline-shell') {
+    number(geometry.longSideInsetMm, 0, (geometry.widthMm - 5) / 2, 'Long-side inset');
+    number(geometry.shortSideOutsetMm, 0, 50, 'Short-side outset');
+  }
+  if (geometry.shape === 'vertical-spline-shell') {
+    number(geometry.xBulgeMm, 0, 50, 'X-side bulge');
+    number(geometry.yInsetMm, 0, (geometry.widthMm - 5) / 2, 'Y-side inset');
   }
 
   for (const [key, min, max] of [['firstLayerMm', 0.1, 0.3], ['layerMm', 0.06, 0.3], ['lineWidthMm', 0.3, 0.8],
@@ -126,10 +146,15 @@ export function validatePlan(plan, machine) {
   number(skin.strokeAngleDeg, -180, 180, 'skin stroke angle');
   number(skin.sampleStepMm, 0.1, 5, 'skin sample step');
   number(skin.surveyStepMm, 0.1, 5, 'survey step');
+  requireThat(skin.maxAngleDegOverride === null || (Number.isFinite(skin.maxAngleDegOverride)
+    && skin.maxAngleDegOverride > 0 && skin.maxAngleDegOverride < 90),
+  'Experimental non-planar override must be null or an angle between 0 and 90 degrees.');
 
   requireThat(machine.schema === 'saam-machine/1' && machine.outputs.some(option => option.id === plan.output), 'Unsupported machine or output.');
   if (skin.enabled) requireThat(Number.isFinite(machine.nonplanar?.maxAngleDeg), 'The machine file must declare nonplanar.maxAngleDeg.');
-  number(placement.xMm, 5, machine.bounds.max[0] - geometry.runMm - 5, 'Placement X');
+  const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
+    : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
+  number(placement.xMm, 5 + xBulgeMm, machine.bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
   number(placement.yMm, 5, machine.bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   return plan;
 }

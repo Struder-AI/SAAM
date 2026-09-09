@@ -1,21 +1,29 @@
-// Command line for shell-based prints.
+// Command line for shell-based prints (full-fill and draped-skin).
 //
-// This produces a development preview: geometry, SAAMpath, a Griffin export and
-// software checks. It records no approvals and cannot deliver. The wedge demo
-// owns the reviewed three-approval workflow in Studio; these two skills are not
-// wired into it yet, and nothing here may be presented as an approved program.
+// Two ways in, and the difference matters:
+//
+//   * `preview` writes a standalone development preview - plan, SAAMpath,
+//     export and software checks in a plain directory. It records no approvals
+//     and cannot be delivered.
+//   * `init` creates a print bundle with native geometry and a review record.
+//     A person then reviews it in SAAM Studio and gives the three approvals;
+//     only after toolpath approval can `deliver` copy the reviewed bytes out.
+//
+// No command here approves anything on a person's behalf.
 
-import { readFile, writeFile, mkdir, rename } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import rhino3dm from 'rhino3dm';
 import { defaults, validatePlan, canonical, hash, VERSION, BUILD_DATE } from './plan.mjs';
 import { generatePath } from './generate.mjs';
 import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
-import { requireThat, distance } from '../geom/tolerance.mjs';
+import { requireThat } from '../geom/tolerance.mjs';
+import { initBundle, loadBundle, generateBundle, adjustBundle, rememberSetup, deliver } from './bundle.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const readJson = async file => JSON.parse(await readFile(file, 'utf8'));
+const exists = async file => { try { await access(file); return true; } catch { return false; } };
 
 async function save(file, value) {
   await mkdir(dirname(file), { recursive: true });
@@ -93,21 +101,64 @@ export async function checkPreview(directory) {
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
-  const [command, target, planFile] = process.argv.slice(2);
-  const directory = target ?? 'Prints/shell-preview';
+  const [command, target, argument] = process.argv.slice(2);
+  const bundleDirectory = () => resolve(target ?? 'Prints/shell-part');
+  const report = state => JSON.stringify({
+    print: state.dir, skills: state.skills, revision: state.revision,
+    geometryApproved: state.geometryApproved, planApproved: state.planApproved, toolpathApproved: state.toolpathApproved,
+    program: state.program?.summary ?? null, programError: state.programError ?? null,
+    nonplanarLimit: state.pathSummary?.nonplanarLimit ?? null, limitations: state.limitations
+  }, null, 2);
+
   const run = async () => {
     if (command === 'preview' || command === undefined) {
-      const plan = planFile ? await readJson(resolve(planFile)) : defaults();
+      const directory = target ?? 'Prints/shell-preview';
+      const plan = argument ? await readJson(resolve(argument)) : defaults();
       const { checks } = await makePreview(directory, { plan });
       console.log(`Development preview written to ${directory}`);
       console.log(`  ${checks.moves} moves, ${checks.volumeMm3} mm3, about ${checks.estimatedMinutes} minutes of commanded motion`);
       console.log(`  travel: ${checks.travel.combed} direct, ${checks.travel.hopped} lifted, ${checks.travel.retractions} retractions`);
       console.log('  No approvals were created. This preview cannot be delivered to a machine.');
+    } else if (command === 'init') {
+      const plan = argument ? await readJson(resolve(argument)) : undefined;
+      const directory = await initBundle(bundleDirectory(), plan);
+      console.log(`Print created at ${directory}`);
+      console.log(`Open it for review with: npm run studio -- ${directory}`);
+      console.log('Nothing is approved yet; the three approvals are made by a person in Studio.');
+    } else if (command === 'demo') {
+      const directory = bundleDirectory();
+      try { await access(resolve(directory, 'plan.json')); } catch { await initBundle(directory); }
+      const checks = await generateBundle(directory, { development: true });
+      console.log(`Development generation only; no human approvals created.`);
+      console.log(`  ${checks.moves} moves, about ${checks.estimatedMinutes} minutes`);
+      console.log(`Print: ${directory}`);
+      console.log(`Open Studio with: npm run studio -- ${directory}`);
+    } else if (command === 'generate') {
+      console.log(JSON.stringify(await generateBundle(bundleDirectory()), null, 2));
+    } else if (command === 'adjust') {
+      if (!argument) throw new Error('Supply a JSON patch file after the print directory.');
+      const state = await adjustBundle(bundleDirectory(), await readJson(resolve(argument)));
+      console.log(JSON.stringify({ revision: state.revision, plan: state.plan }, null, 2));
+    } else if (command === 'remember-setup') {
+      console.log(await rememberSetup(bundleDirectory()));
+    } else if (command === 'deliver') {
+      console.log(await deliver(bundleDirectory()));
     } else if (command === 'check') {
-      const checks = await checkPreview(directory);
-      console.log(`Reopened ${directory}: regeneration and export match (${checks.moves} moves).`);
+      const directory = bundleDirectory();
+      // A bundle checks its approvals as well as its files; a bare preview
+      // directory only has files to check.
+      if (await exists(resolve(directory, 'review.json'))) {
+        const state = await loadBundle(directory);
+        console.log(report(state));
+        if (state.programError) process.exitCode = 1;
+      } else {
+        const checks = await checkPreview(directory);
+        console.log(`Reopened ${directory}: regeneration and export match (${checks.moves} moves).`);
+      }
     } else {
-      console.error('Usage: cli.mjs [preview|check] <directory> [plan.json]');
+      console.error('Usage: cli.mjs preview [directory] [plan.json]');
+      console.error('       cli.mjs init|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
+      console.error('       cli.mjs adjust <print-directory> <patch.json>');
       process.exitCode = 1;
     }
   };

@@ -18,19 +18,30 @@ specification merely to show a first geometry.
 
 The [S5 wedge skill](skills/wedge-demo/SKILL.md) implements a bounded wedge demo:
 Rhino geometry, horizontal body layers, inclined skin, SAAMpath, Griffin export,
-software checks and a local Studio review workflow. It is the only skill wired to
-the geometry/settings/toolpath approvals, so use it for a part a person will
-actually print. Physical printing has not been validated. Do not present the
-legacy runtime as the restarted product.
+software checks and a local Studio review workflow. It is the most exercised
+package, so prefer it when the request is a wedge on an S5. Physical printing has
+not been validated. Do not present the legacy runtime as the restarted product.
 
 Two further skills, [full-fill](skills/full-fill/SKILL.md) and
 [draped-skin](skills/draped-skin/SKILL.md), slice any closed shell of untrimmed
 spline patches: solid planar layers, and skins that follow the part's top surface
-within the machine's non-planar angle limit. They are **development previews**.
-They have no Studio integration, create no approvals and cannot deliver, and no
-part from them has been printed or reviewed by a person. Offer them only as work
-in progress a developer can inspect, never as a route to a finished job. General
-part making from arbitrary CAD is still not implemented.
+within the machine's non-planar angle limit. They run the same review flow —
+initialize the print, open it in Studio, take the three approvals, deliver the
+reviewed bytes — so they can be used for a part a person will run, with the
+limits stated plainly:
+
+- No part from either skill has been printed, and no maker has used them end to
+  end. Software checks are all that stands behind them.
+- The shape must be one the plan can express: `box`, `wedge`, a `spline-top`
+  prism whose top surface is a control-point grid, a `spline-shell` with
+  tapered sides, or a `vertical-spline-shell` whose vertical walls bulge
+  outward along X and inward along Y under a domed roof. Importing a part from
+  CAD is not implemented. If the request needs a shape outside that set, say
+  so rather than approximating it with one that fits.
+- The machine's non-planar angle limit excludes steeper surface from the skin.
+  The excluded percentage is shown before settings approval; point it out.
+
+General part making from arbitrary CAD is still not implemented.
 
 ## Maker interaction flow
 
@@ -38,7 +49,8 @@ part making from arbitrary CAD is still not implemented.
    a reasonable initial shape, initialize the local print and open it in SAAM
    Studio. For the bounded S5 wedge, a request for a wedge on an S5 is enough:
    show the supported default wedge and label its dimensions and setup as
-   proposed. Ask only the questions that help the maker revise that visible
+   proposed. For a shape the shell skills express, `init` the print the same way
+   and label its shape, size and setup as proposed. Ask only the questions that help the maker revise that visible
    shape (for example, intended use or target dimensions). If a needed feature
    is ambiguous and no supported default resolves it, ask that focused question
    before initializing.
@@ -93,10 +105,12 @@ next time. Do not label an assumption as verification.
   Generate SAAMpath and an export supported by the machine file. Run automated
   checks before sending the export to SAAM Studio's program viewer;
   it runs the same export that will be delivered after toolpath approval. Do not
-  add an export approval. The wedge skill implements this workflow locally.
+  add an export approval. The wedge demo and the two shell skills each implement
+  this workflow locally.
 - Keep the person's print bundle in `Prints/`. Do not publish prints; specific
   curated examples require an explicit selection for sharing.
 
-Follow the wedge skill's installation and tool instructions when that part and
-machine fit the request. Reuse confirmed setup values. Development previews are
-identified as such and do not authorize a real job.
+Follow the chosen skill's installation and tool instructions: the wedge demo for
+a wedge on an S5, the shell skills for the shapes their plan expresses. Reuse
+confirmed setup values; the remembered S5 setup is shared between them. A
+development preview is identified as such and does not authorize a real job.

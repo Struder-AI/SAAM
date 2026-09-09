@@ -23,7 +23,10 @@ export const DRAPED_SKIN_DEFAULTS = {
   normalMm: 0.2,
   strokeAngleDeg: 0,
   sampleStepMm: 0.5,
-  surveyStepMm: 0.5
+  surveyStepMm: 0.5,
+  // A per-print experimental value. The machine profile remains authoritative
+  // for its declared limit; an override is visibly reported, never inferred.
+  maxAngleDegOverride: null
 };
 
 export const machineMaxAngle = machine => {
@@ -52,7 +55,10 @@ export function surveySurface(shell, { layers, normalMm, surveyStepMm }, maxAngl
     allowed.push(new Float64Array(ys.length));
     for (let j = 0; j < ys.length; j++) {
       const top = topAt(shell, xs[i], ys[j]);
-      if (!top) {
+      // The named base patch closes the shell but is never a roof. At a side
+      // boundary its upward-flipped normal can otherwise look like a zero-height
+      // top hit and carve an accidental hole in the body's reserve field.
+      if (!top || top.patch === 'bottom') {
         // Outside the footprint nothing is reserved and nothing is skinned; the
         // section itself bounds the body there.
         reserve[i][j] = SENTINEL;
@@ -60,10 +66,14 @@ export function surveySurface(shell, { layers, normalMm, surveyStepMm }, maxAngl
         continue;
       }
       insideCount++;
+      const skinnable = top.slopeDeg <= maxAngleDeg;
+      // The body only gives space back to a skin that will actually be printed.
+      // An over-limit side is excluded from draping, but it must still receive
+      // its ordinary planar body layers instead of becoming a hollow omission.
       const thickness = layers * normalMm / Math.cos(top.slopeDeg * Math.PI / 180);
-      reserve[i][j] = top.zMm - thickness;
+      reserve[i][j] = skinnable ? top.zMm - thickness : shell.bounds.max[2];
       allowed[i][j] = maxAngleDeg - top.slopeDeg;
-      if (top.slopeDeg > maxAngleDeg) steepCount++;
+      if (!skinnable) steepCount++;
       maxReserve = Math.max(maxReserve, reserve[i][j]);
     }
   }
@@ -71,7 +81,7 @@ export function surveySurface(shell, { layers, normalMm, surveyStepMm }, maxAngl
   // sampling grid: bisect between a skinnable sample and an unskinnable one.
   const skinnable = (x, y) => {
     const top = topAt(shell, x, y);
-    return Boolean(top) && top.slopeDeg <= maxAngleDeg;
+    return Boolean(top) && top.patch !== 'bottom' && top.slopeDeg <= maxAngleDeg;
   };
   const refine = (inside, outside) => {
     let a = inside, b = outside;

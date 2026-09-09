@@ -54,19 +54,20 @@ test('flat layers precede 15 degree skin strokes that always alternate direction
   const ideal=30*20*(2+30*Math.tan(Math.PI/12)/2);
   assert.ok(Math.abs(volume-ideal)/ideal<.05,'Deposition should approximate the wedge volume.');
 });
-test('every horizontal travel uses the complete part height plus the locked clearance',()=>{
-  let pos=path.initialPosition,high=0;
+test('nearby starts comb directly while longer transitions use the locked clearance',()=>{
+  let pos=path.initialPosition,combed=0,hopped=0;
   for(const a of path.actions) {
     if(a.kind!=='move')continue;
-    if(a.volumeMm3>0)high=Math.max(high,pos[2],a.to[2]);
-    else if(Math.hypot(pos[0]-a.to[0],pos[1]-a.to[1])>1e-8){assert.ok(Math.abs(a.to[2]-(2+30*Math.tan(Math.PI/12)+plan.process.liftMm))<1e-7);assert.equal(a.to[2],pos[2]);}
+    if(a.travel==='combed') {combed++;assert.ok(distance(pos,a.to)<=plan.process.combTravelMm+1e-8);}
+    else if(a.volumeMm3===0&&Math.hypot(pos[0]-a.to[0],pos[1]-a.to[1])>1e-8&&Math.abs(pos[2]-a.to[2])<1e-8) {hopped++;assert.ok(Math.abs(a.to[2]-(2+30*Math.tan(Math.PI/12)+plan.process.liftMm))<1e-7);}
     pos=a.to;
   }
+  assert.ok(combed>100,'Nearby loop, fill, and skin starts should stay down.');assert.ok(hopped>0,'Long transitions still clear the complete wedge.');
 });
 test('deterministic Griffin export uses T1, explicit filament advance, 215 C and complete modal interpretation',()=>{
   assert.equal(exportGcode(generatePath(plan,machine),plan,machine),code);
   assert.match(code,/\nT1\n/);assert.doesNotMatch(code,/\nT0\n/);assert.match(code,/M109 T1 S215/);
-  assert.match(code,/;GENERATOR.NAME:SAAM/);assert.match(code,/;GENERATOR.VERSION:4\.4\.0/);assert.match(code,/;SAAM\.GENERATOR\.VERSION:0\.2\.2/);
+  assert.match(code,/;GENERATOR.NAME:SAAM/);assert.match(code,/;GENERATOR.VERSION:4\.4\.0/);assert.match(code,/;SAAM\.GENERATOR\.VERSION:0\.2\.4/);
   assert.doesNotMatch(code,/^G280\b/m,'Routine leveling must not be requested by each job.');
   const program=interpretGcode(code,plan,machine),native=path.actions.filter(a=>a.kind==='move');
   assert.equal(program.moves.length,native.length);
@@ -76,6 +77,7 @@ test('deterministic Griffin export uses T1, explicit filament advance, 215 C and
   });
   const area=Math.PI*(2.85/2)**2;
   assert.ok(Math.abs(program.summary.filamentMm-program.summary.volumeMm3/area)<1e-9);
+  assert.equal(program.events.filter(e=>e.kind==='startup-recover').length,1,'The initial recovery must cancel one terminal retraction.');
   // Assert the serialized program itself carries a positive E delta for every
   // deposited SAAMpath move, rather than relying only on the interpreter's
   // reconstructed volume.
@@ -190,6 +192,17 @@ test('chat adjustments update snapshots, allow sloped-layer count changes, and r
   await generateBundle(dir,{development:true});assert.equal((await loadBundle(dir)).pathSummary.skinLayers,3);
   await assert.rejects(adjustBundle(dir,{process:{nonexistent:1}}),/Unknown setting/);
 });
+test('a thin base clips the earliest tilted layers instead of rejecting a twenty-layer stack',()=>{
+  const dense=clone(defaults());dense.geometry={runMm:40,widthMm:20,baseMm:2,angleDeg:15};dense.process.skinLayers=20;
+  validatePlan(dense,machine);const densePath=generatePath(dense,machine),firstX=[];
+  for(let k=0;k<dense.process.skinLayers;k++) {
+    const moves=densePath.actions.filter(a=>a.kind==='move'&&a.phase==='inclined'&&a.volumeMm3>0&&Math.floor(a.stroke/densePath.summary.skinRows)===k);
+    assert.ok(moves.length>0,`Tilted layer ${k+1} should have a printable extent.`);
+    firstX.push(Math.min(...moves.map(a=>a.to[0]))-dense.placement.xMm);
+  }
+  assert.ok(firstX[0]>firstX.at(-1)+1,'The earliest tilted layer should begin farther uphill.');
+  assert.ok(firstX.at(-1)<=dense.process.lineWidthMm*2+1e-8,'The outer tilted layer should reach the downhill edge.');
+});
 test('machine setup persists across prints without requiring a firmware version',async t=>{
   const dir=await fixture(t),setupFile=resolve(dir,'saved-setup.json');
   await adjustBundle(dir,{setup:{nozzleC:220}},{setupFile});
@@ -225,4 +238,11 @@ test('Studio serves the exact export and rejects cross-origin or stale mutations
   const denied=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:'https://example.com','X-SAAM-Token':token},body:'{}'});assert.equal(denied.status,403);
   const stale=await fetch(origin+'/api/plan',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({plan:s.plan,revision:'old'})});assert.equal(stale.status,400);
   const blocked=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});assert.equal(blocked.status,400);
+});
+test('an ephemeral Studio listener closes after its viewer goes idle',async t=>{
+  const dir=await fixture(t),server=createStudio(dir,{closeWhenIdle:true,idleMs:25});
+  await new Promise(r=>server.listen(0,'127.0.0.1',r));
+  const origin=`http://127.0.0.1:${server.address().port}`;
+  await fetch(origin);
+  await new Promise((resolve,reject)=>{server.once('close',resolve);setTimeout(()=>reject(new Error('Studio listener did not close after viewer inactivity.')),500);});
 });

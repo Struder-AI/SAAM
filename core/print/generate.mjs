@@ -7,7 +7,7 @@
 // it. With no skin selected the body simply fills the whole solid.
 
 import { makeShell, assertClosed } from '../geom/shell.mjs';
-import { boxShell, wedgeShell, splineTopShell, shellFromSurfaces } from '../geom/shapes.mjs';
+import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell } from '../geom/shapes.mjs';
 import { PathBuilder } from '../path/builder.mjs';
 import { generateFullFill } from '../../skills/full-fill/scripts/fill.mjs';
 import { generateDrapedSkin, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
@@ -17,6 +17,16 @@ import { requireThat } from '../geom/tolerance.mjs';
 export function buildShell(rhino, geometry) {
   if (geometry.shape === 'box') return boxShell(rhino, { xMm: geometry.runMm, yMm: geometry.widthMm, zMm: geometry.heightMm ?? 10 });
   if (geometry.shape === 'wedge') return wedgeShell(rhino, { runMm: geometry.runMm, widthMm: geometry.widthMm, baseMm: geometry.baseMm ?? 2, angleDeg: geometry.angleDeg ?? 15 });
+  if (geometry.shape === 'spline-shell') return splineSideShell(rhino, {
+    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
+    longSideInsetMm: geometry.longSideInsetMm, shortSideOutsetMm: geometry.shortSideOutsetMm,
+    heights: (i, j) => geometry.heightsMm[i][j]
+  });
+  if (geometry.shape === 'vertical-spline-shell') return verticalSplineSideShell(rhino, {
+    runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
+    xBulgeMm: geometry.xBulgeMm, yInsetMm: geometry.yInsetMm,
+    heights: (i, j) => geometry.heightsMm[i][j]
+  });
   return splineTopShell(rhino, {
     runMm: geometry.runMm, widthMm: geometry.widthMm, cpU: geometry.cpU, cpV: geometry.cpV,
     heights: (i, j) => geometry.heightsMm[i][j]
@@ -56,7 +66,11 @@ export function generatePath(plan, machine, rhino) {
 
   let survey = null;
   if (skin.enabled) {
-    survey = surveySurface(placed, { ...DRAPED_SKIN_DEFAULTS, ...skin }, machineMaxAngle(machine));
+    const declaredLimitDeg = machineMaxAngle(machine);
+    const effectiveLimitDeg = skin.maxAngleDegOverride ?? declaredLimitDeg;
+    survey = surveySurface(placed, { ...DRAPED_SKIN_DEFAULTS, ...skin }, effectiveLimitDeg);
+    survey.declaredLimitDeg = declaredLimitDeg;
+    survey.experimentalOverride = skin.maxAngleDegOverride !== null && skin.maxAngleDegOverride !== declaredLimitDeg;
     requireThat(Number.isFinite(survey.maxMm), 'The top surface survey found no surface to skin.');
   }
 
@@ -73,7 +87,9 @@ export function generatePath(plan, machine, rhino) {
   summary.clearance = 'operator responsibility; no collision model implemented';
   summary.physicalValidation = 'not performed';
   if (survey) summary.nonplanarLimit = {
-    machineMaxAngleDeg: survey.limitDeg,
+    machineMaxAngleDeg: survey.declaredLimitDeg,
+    effectiveMaxAngleDeg: survey.limitDeg,
+    experimentalOverride: survey.experimentalOverride,
     surfaceMaxSlopeDeg: Number(survey.maxSlopeDeg.toFixed(3)),
     excludedAreaPercent: Number((survey.steepFraction * 100).toFixed(2))
   };

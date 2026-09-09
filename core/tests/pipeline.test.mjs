@@ -35,6 +35,38 @@ test('both skills generate one program from one locked plan', () => {
   assert.ok(topSkin > topPlanar, `skin tops out at ${topSkin} above the body at ${topPlanar}`);
 });
 
+test('a spline-sided shell reaches both patterns through the locked plan', () => {
+  const plan = smallPlan();
+  plan.geometry = {
+    shape: 'vertical-spline-shell', runMm: 16, widthMm: 12, cpU: 4, cpV: 4,
+    xBulgeMm: 2, yInsetMm: 1.5,
+    heightsMm: [[3, 3, 3, 3], [3, 5, 5, 3], [3, 5, 5, 3], [3, 3, 3, 3]]
+  };
+  validatePlan(plan, machine);
+  const tooFarLeft = structuredClone(plan);
+  tooFarLeft.placement.xMm = 5;
+  assert.throws(() => validatePlan(tooFarLeft, machine), /Placement X/,
+    'the short-side flare must remain inside the printer bounds');
+  const path = generatePath(plan, machine, rhino);
+  assert.equal(path.summary.shape, 'vertical-spline-shell');
+  assert.ok(path.summary.fullFill.layers > 5);
+  assert.equal(path.summary.drapedSkin.skinLayers, 2);
+  assert.ok(path.summary.fullFill.unclippedLayers > 0, 'vertical sides retain their ordinary planar body layers');
+});
+
+test('an explicit per-print angle override leaves the machine declaration visible', () => {
+  const plan = smallPlan();
+  plan.skills['draped-skin'].maxAngleDegOverride = 45;
+  validatePlan(plan, machine);
+  const path = generatePath(plan, machine, rhino);
+  assert.equal(path.summary.nonplanarLimit.machineMaxAngleDeg, 15);
+  assert.equal(path.summary.nonplanarLimit.effectiveMaxAngleDeg, 45);
+  assert.equal(path.summary.nonplanarLimit.experimentalOverride, true);
+  const invalid = structuredClone(plan);
+  invalid.skills['draped-skin'].maxAngleDegOverride = 90;
+  assert.throws(() => validatePlan(invalid, machine), /Experimental non-planar override/);
+});
+
 test('the export round trips through a strict interpreter', () => {
   const plan = smallPlan();
   const path = generatePath(plan, machine, rhino);

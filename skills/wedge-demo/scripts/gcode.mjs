@@ -58,7 +58,7 @@ export function interpretGcode(text,plan,machine) {
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   let pos=[...machine.tools[s.tool].startupXY,startupZ],e=0,feed=0,absolute=null,absE=null,metric=false;
-  let tool=null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,phase='startup',layer=-1,time=0,volume=0;
+  let tool=null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=plan.process.startupRetracted,phase='startup',layer=-1,time=0,volume=0;
   const moves=[],events=[],header={};
   let inHeader=false,endedHeader=false;
   const tokens=/([A-Z])([+-]?(?:\d+(?:\.\d*)?|\.\d+))/g;
@@ -119,10 +119,12 @@ export function interpretGcode(text,plan,machine) {
           volume+=v;time+=duration;
         } else if(Math.abs(de)>1e-9) {
           requireThat(feed<=machine.maxFeedMmS.e,'Stationary extrusion speed exceeds limit.');
+          let startupRecovery=false;
           if(de<0)debt-=de;
-          else{requireThat(de<=debt+1e-4,'Unexpected stationary extrusion.');debt=Math.max(0,debt-de);}
+          else if(debt>0){requireThat(de<=debt+1e-4,'Unexpected stationary extrusion.');debt=Math.max(0,debt-de);}
+          else {requireThat(startupRecoveryPending&&de<=plan.process.retractMm+1e-4,'Unexpected stationary extrusion.');startupRecovery=true;startupRecoveryPending=false;}
           requireThat(debt<=8.001,'Excessive retraction.');
-          events.push({line,kind:de<0?'retract':'recover',filamentMm:Math.abs(de),startSeconds:time,seconds:Math.abs(de)/feed});time+=Math.abs(de)/feed;
+          events.push({line,kind:de<0?'retract':startupRecovery?'startup-recover':'recover',filamentMm:Math.abs(de),startSeconds:time,seconds:Math.abs(de)/feed});time+=Math.abs(de)/feed;
         }
         pos=next;e=nextE;break;
       }

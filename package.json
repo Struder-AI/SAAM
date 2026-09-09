@@ -9,7 +9,8 @@
     "demo": "node skills/wedge-demo/scripts/cli.mjs demo",
     "studio": "node studio/server.mjs",
     "check:print": "node skills/wedge-demo/scripts/cli.mjs check",
-    "preview": "node core/print/cli.mjs preview"
+    "preview": "node core/print/cli.mjs preview",
+    "shell": "node core/print/cli.mjs"
   },
   "engines": {
     "node": ">=22"

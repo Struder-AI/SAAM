@@ -1,6 +1,6 @@
 ---
 name: full-fill
-description: Solid planar layers for any closed shell of untrimmed spline patches. Sections the real geometry at each layer height, prints perimeters and solid fill, and reserves material where a draped skin will follow. Development preview only; not wired to Studio's approval workflow.
+description: Solid planar layers for any closed shell of untrimmed spline patches. Sections the real geometry at each layer height, prints perimeters and solid fill, and reserves material where a draped skin will follow. Reviewed in SAAM Studio through the three approvals; no part from it has been printed.
 ---
 
 # full-fill
@@ -14,10 +14,19 @@ a clipped rectangle computed from wedge parameters, each layer is the part's own
 cross section, so the pattern follows whatever shape it is given.
 
 **Nothing here has been printed.** No physical validation has been performed,
-and this skill is not connected to SAAM Studio or the three-approval workflow.
-It produces a development preview only. Do not present its output as an
-approved program. For a job a person will actually run, use the wedge demo,
-which owns the reviewed workflow.
+and no maker has yet used this skill end to end. What is implemented is the
+software workflow: a print bundle with native 3DM geometry, SAAM Studio review,
+the three human approvals, and delivery of the exact reviewed bytes. Generation
+without those approvals is a development preview and says so; do not present a
+preview as an approved program.
+
+Shapes come from the plan's `geometry` block - `box`, `wedge`, `spline-top`,
+`spline-shell`, or `vertical-spline-shell`. A vertical spline shell has a
+control-point-grid roof and four untrimmed ruled spline side patches whose
+footprint is identical at the base and roof: its walls stay vertical while X
+bulges outward and Y bulges inward. Importing an arbitrary part from CAD is not
+implemented, so a request this package's shapes cannot express is out of scope
+rather than approximated.
 
 ## What it does
 
@@ -36,16 +45,35 @@ For each layer height, from the first layer up:
 
 ## Setup and tools
 
-From the repository root, install with `npm ci` (Node.js 22+).
-
-- `node core/print/cli.mjs preview Prints/<name>` writes a development preview:
-  plan, SAAMpath, Griffin export and software checks.
-- `node core/print/cli.mjs preview Prints/<name> plan.json` uses a supplied plan.
-- `node core/print/cli.mjs check Prints/<name>` reopens the print, regenerates
-  from the locked plan, and requires the export to match byte for byte.
-
-Both skills share one plan and one program; select them with the `enabled` flag
+From the repository root, install with `npm ci` (Node.js 22+). Both skills share
+one plan, one program and one command line; select them with the `enabled` flag
 in the plan's `skills` block.
+
+Making a part a person will review:
+
+- `node core/print/cli.mjs init Prints/<name> [plan.json]` creates the print:
+  native 3DM geometry, the plan, and an empty review record. With no plan it
+  starts from the defaults and any remembered S5 setup.
+- `npm run studio -- Prints/<name>` opens it in SAAM Studio, where the person
+  reviews geometry, then the locked settings, then the toolpath. Studio
+  generates and delivers; the three approvals are theirs to give.
+- `node core/print/cli.mjs adjust Prints/<name> patch.json` applies a requested
+  change from chat. A settings change keeps geometry approval; a geometry change
+  invalidates all three. Studio picks the change up on its own.
+- `node core/print/cli.mjs check Prints/<name>` reopens the print, regenerates
+  from the locked plan, and reports what is approved.
+- `node core/print/cli.mjs remember-setup Prints/<name>` saves the machine setup
+  locally for the next print. Remembered setup approves nothing.
+- `node core/print/cli.mjs deliver Prints/<name>` copies the reviewed bytes to
+  `delivery/`. It refuses unless the current export is the approved one.
+
+Trying something out without a person in the loop:
+
+- `node core/print/cli.mjs demo Prints/<name>` generates a development preview
+  in a print bundle, creating no approvals.
+- `node core/print/cli.mjs preview Prints/<name> [plan.json]` writes a
+  standalone preview - plan, SAAMpath, Griffin export and software checks -
+  with no bundle and no review record. It cannot be delivered.
 
 ## Settings
 
@@ -94,4 +122,7 @@ full part height for every horizontal move. That demo is not being changed.
 
 Run `npm test` after changes. Tests live in [tests/](tests/full-fill.test.mjs)
 and cover pattern behaviour per shape, layer volume against the section area,
-alternating fill direction, and the travel and lift rules above.
+alternating fill direction, and the travel and lift rules above. The shared
+review workflow - native geometry round trip, approvals, stale views and
+byte-identical delivery - is tested in
+[core/tests/workflow.test.mjs](../../core/tests/workflow.test.mjs).

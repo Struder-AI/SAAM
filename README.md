@@ -13,6 +13,15 @@ G-code, automated checks, and a local **SAAM Studio** viewer. Software validatio
 is implemented; physical printing remains unvalidated. Standard S5 startup is
 assumed, and installed firmware information is optional.
 
+Two further skills, [full-fill](skills/full-fill/SKILL.md) and
+[draped-skin](skills/draped-skin/SKILL.md), slice any closed shell of untrimmed
+spline patches on the shared core in `core/` and run the same Studio review and
+three approvals. Their shapes come from the plan (`box`, `wedge`, `spline-top`,
+`spline-shell`, `vertical-spline-shell`). A vertical spline shell keeps its
+walls vertical while bulging them out along X and in along Y below a domed roof.
+Importing a part from CAD is not implemented, and nothing from the skills has
+printed.
+
 - Agents: start at [AGENTS.md](AGENTS.md).
 - Product direction: [PROJECT_CHARTER.md](PROJECT_CHARTER.md).
 - Contributor decisions: [DECISIONS.md](DECISIONS.md).
@@ -33,7 +42,14 @@ npm run studio
 Open [SAAM Studio](http://127.0.0.1:4321). The demo uses right nozzle #2,
 AA 0.4 and PLA at 215°C. Its development preview creates no human approvals.
 Physical clearance is the operator's responsibility for this demo.
-Read the [wedge skill](skills/wedge-demo/SKILL.md) for the three-approval workflow.
+Read the [wedge skill](skills/wedge-demo/SKILL.md) for the three-approval
+workflow, or [full-fill](skills/full-fill/SKILL.md) for the same workflow on the
+shared core:
+
+```sh
+npm run shell -- init Prints/my-part
+npm run studio -- Prints/my-part
+```
 
 Local print bundles belong in ignored `Prints/`; curated examples belong in
 `examples/prints/`. A personal architecture map may live in ignored

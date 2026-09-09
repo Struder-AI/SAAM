@@ -1,6 +1,6 @@
 ---
 name: draped-skin
-description: Surface-following skin layers over the top of any closed shell of untrimmed spline patches, limited by the machine's max non-planar angle. Steep area is excluded and reported. Development preview only; not wired to Studio's approval workflow.
+description: Surface-following skin layers over the top of any closed shell of untrimmed spline patches, limited by the machine's max non-planar angle. Steep area is excluded and reported. Reviewed in SAAM Studio through the three approvals; no part from it has been printed.
 ---
 
 # draped-skin
@@ -14,9 +14,18 @@ across it in flat slices. It is the general form of the final pattern in the
 face computed from wedge parameters, this follows whatever top surface the
 geometry has.
 
+It also accepts the plan's `vertical-spline-shell` shape: a control-point-grid
+roof over a bulged footprint whose side walls remain vertical. The roof is
+surveyed as usual; its over-limit area is excluded when it exceeds the machine
+limit.
+
 **Nothing here has been printed.** No physical validation has been performed,
-no surface finish claim is established, and this skill is not connected to SAAM
-Studio or the three-approval workflow. It produces a development preview only.
+no surface finish claim is established, and no maker has yet used this skill end
+to end. What is implemented is the software workflow it shares with
+[full-fill](../full-fill/SKILL.md): a print bundle with native 3DM geometry,
+SAAM Studio review, the three human approvals, and delivery of the exact
+reviewed bytes. Generation without those approvals is a development preview and
+says so.
 
 ## What it does
 
@@ -47,10 +56,18 @@ collision model is implemented, and no print has established it.
 ## Setup and tools
 
 From the repository root, install with `npm ci` (Node.js 22+). The commands are
-the shared pipeline's, documented in [full-fill](../full-fill/SKILL.md#setup-and-tools):
+the shared pipeline's, documented in
+[full-fill](../full-fill/SKILL.md#setup-and-tools). In short:
 
-- `node core/print/cli.mjs preview Prints/<name>`
-- `node core/print/cli.mjs check Prints/<name>`
+- `node core/print/cli.mjs init Prints/<name>` creates the print,
+  `npm run studio -- Prints/<name>` opens it for the three approvals, and
+  `node core/print/cli.mjs adjust Prints/<name> patch.json` applies a change
+  asked for in chat.
+- `node core/print/cli.mjs demo|preview Prints/<name>` generates without a
+  person in the loop; neither creates an approval or can be delivered.
+
+The excluded steep area and the surface's maximum slope appear in the settings
+and toolpath review, so a person sees what will not be skinned before approving.
 
 ## Settings
 
@@ -62,6 +79,7 @@ the shared pipeline's, documented in [full-fill](../full-fill/SKILL.md#setup-and
 | `strokeAngleDeg` | `0` | Direction of the skin strokes across the surface. |
 | `sampleStepMm` | `0.5` | Spacing at which a stroke is lifted onto the surface. |
 | `surveyStepMm` | `0.5` | Grid step for the surface survey and the reserve field. |
+| `maxAngleDegOverride` | `null` | Explicit per-print experimental limit. It leaves the machine file unchanged and is flagged in Studio and checks. |
 
 ## Travel
 
@@ -73,6 +91,12 @@ the same height as both ends. The wedge demo instead lifts to the whole part's
 maximum height for every travel; that demo is not being changed.
 
 ## Implemented boundaries
+
+- An experimental `maxAngleDegOverride` can make this skill generate beyond the
+  machine profile's declared limit for a deliberately reviewed test. It is a
+  process-plan choice, not evidence that the machine can clear or deposit at
+  that angle. The machine file remains unchanged and the override is shown in
+  the toolpath review and checks.
 
 - Input geometry is a **closed shell of untrimmed bivariate spline patches**.
 - Skins stack by dropping the surface along its normal. Curvature convergence
@@ -91,4 +115,5 @@ maximum height for every travel; that demo is not being changed.
 Run `npm test` after changes. Tests live in
 [tests/](tests/draped-skin.test.mjs) and cover strokes lying on the surface,
 normal-direction stacking, exclusion of over-limit surface, the machine limit
-being required, and per-hop travel clearance.
+being required, and per-hop travel clearance. The shared review workflow is
+tested in [core/tests/workflow.test.mjs](../../core/tests/workflow.test.mjs).

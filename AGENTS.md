@@ -49,10 +49,16 @@ general surface slicing remain deferred.
 
 It also includes two newer skills, [full-fill](skills/full-fill/SKILL.md) and
 [draped-skin](skills/draped-skin/SKILL.md), which slice any closed shell of
-untrimmed spline patches on the shared core in `core/`. They are development
-previews: software checks only, no Studio integration, no approvals, no delivery
-and no physical print. The wedge demo is unchanged and remains the only package
-wired to the three-approval workflow.
+untrimmed spline patches on the shared core in `core/`. They now run the same
+reviewed workflow as the wedge: a print bundle with native 3DM geometry, Studio
+review, the three human approvals and byte-identical delivery. That is software
+only. No part from either skill has been printed, no maker has used them end to
+end, and their geometry is limited to the shapes the plan can express (`box`,
+`wedge`, `spline-top`, `spline-shell`, `vertical-spline-shell`); importing a
+part from CAD is still not implemented. The vertical spline shell has a domed
+roof over vertically extruded, bulged spline side patches; arbitrary side
+editing remains deferred.
+The wedge demo is unchanged.
 
 The current entry documents are this file, `CLAUDE.md`, `README.md`,
 `PROJECT_CHARTER.md`, `DECISIONS.md`, `GLOSSARY.md`, `build_request.md`,
@@ -60,3 +66,7 @@ The current entry documents are this file, `CLAUDE.md`, `README.md`,
 Developer rules, setup, organization and open design proposals live together
 in [DEVELOP.md](DEVELOP.md). There is no separate docs folder.
 Do not load the old architecture or operation instructions as always-on context.
+
+For the bounded S5 wedge, use only `skills/wedge-demo/` and its eight-point
+wedge geometry. Do not route that job through `core/`, `full-fill`, or
+`draped-skin`; those are separate development-preview work.

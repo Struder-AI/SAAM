@@ -97,6 +97,10 @@ Griffin firmware emulator or arbitrary G-code importer.
 
 SAAMpath stores deposited volume in mm³; Griffin E is millimeters of 2.85 mm
 filament. Retraction/recovery uses filament length separately from deposition.
+The wedge's terminal retraction is carried into the next wedge job as its
+explicit first recovery, avoiding a second initial retraction and the resulting
+first-layer under-extrusion. Nearby starts move directly without retracting or
+lifting; only longer transitions use a hop.
 The header describes the selected tool, target temperatures, nozzle, estimated
 material/motion time, and program bounds. All executable moves are regenerated
 and compared on reopening. Any altered export or outdated plan blocks approval

@@ -13,7 +13,10 @@ export function generatePath(plan, machine) {
   const partMaxZ=wedgeMesh(g).vertices.reduce((z,v)=>Math.max(z,v[2]),0);
   const clearanceZ=partMaxZ+p.liftMm;
   const actions=[];
-  let position=[...machine.tools[s.tool].startupXY, startupZ], high=0, retracted=false;
+  // A completed SAAM wedge leaves this amount retracted.  Begin the next job
+  // from that state, so its first recovery cancels it instead of retracting a
+  // second time before the first deposited line.
+  let position=[...machine.tools[s.tool].startupXY, startupZ], high=0, retracted=p.startupRetracted;
   const start=[...position];
   const world=q=>[o.xMm+q[0],o.yMm+q[1],q[2]];
   let phase='prime', layer=0, layerSeconds=0;
@@ -35,7 +38,12 @@ export function generatePath(plan, machine) {
     if(retracted) {actions.push({kind:'recover',filamentMm:p.retractMm,speedMmS:p.retractSpeedMmS,phase,layer});retracted=false;}
   }
   function travel(q) {
-    const target=world(q); retract();
+    const target=world(q), span=distance(position,target);
+    // Stay down for nearby starts. The bounded wedge's planar and adjacent
+    // sloped strokes are over material, so a direct combed move avoids a
+    // retract/lift/recover cycle and its associated seam.
+    if(!retracted&&span>1e-8&&span<=p.combTravelMm) {move(target,p.travelSpeedMmS,0,{travel:'combed'});return;}
+    retract();
     // Fixed profile clearance above the complete native wedge, even on layer 1.
     const z=clearanceZ;
     move([position[0],position[1],z],p.zSpeedMmS);
@@ -88,6 +96,7 @@ export function generatePath(plan, machine) {
   const substrateHeight=x=>{
     // Use the downhill bead edge to account for finite-width perimeter support.
     const target=coreBase+Math.max(0,x-w/2)*slope;
+    if(target<p.firstLayerMm) return 0;
     return p.firstLayerMm+Math.floor((target-p.firstLayerMm+1e-9)/p.layerMm)*p.layerMm;
   };
   const transitionGaps=[];
@@ -102,15 +111,24 @@ export function generatePath(plan, machine) {
     if(x>x0+1e-8 && x<x1-1e-8) breaks.push(x);
   }
   breaks.sort((a,b)=>a-b);
-  const xs=[];
-  for(let i=0;i<breaks.length-1;i++) {
-    const count=Math.max(1,Math.ceil((breaks[i+1]-breaks[i])/0.5));
-    for(let j=0;j<count;j++) xs.push(breaks[i]+(breaks[i+1]-breaks[i])*j/count);
+  function sampledXs(start) {
+    const nodes=[start,...breaks.filter(x=>x>start+1e-8&&x<x1-1e-8),x1].sort((a,b)=>a-b);
+    const xs=[];
+    for(let i=0;i<nodes.length-1;i++) {
+      const count=Math.max(1,Math.ceil((nodes[i+1]-nodes[i])/0.5));
+      for(let j=0;j<count;j++) xs.push(nodes[i]+(nodes[i+1]-nodes[i])*j/count);
+    }
+    xs.push(x1);return xs;
   }
-  xs.push(x1);
   for(let k=1;k<=p.skinLayers;k++) {
     layer=zs.length+k-1;
     const zAt=x=>coreBase+k*skinZ+x*slope;
+    // A thin downhill end cannot hold every inner skin below the final
+    // surface. Start each skin where it reaches first-layer height; later
+    // skins therefore extend farther downhill than the earliest ones.
+    const startX=Math.max(x0,(p.firstLayerMm-coreBase-k*skinZ)/slope);
+    if(startX>=x1-1e-8) continue;
+    const xs=sampledXs(startX);
     for(let row=0;row<rows;row++) {
       const y=spacing*((k%2?row:rows-1-row)+0.5);
       const stroke=(k-1)*rows+row;
