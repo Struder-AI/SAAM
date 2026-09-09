@@ -30,6 +30,15 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
     }));
   };
   const lines=[...render(envelope.header),...render(envelope.start)];
+  lines.push(...exportMotion(path,plan));
+  lines.push(...render(envelope.end));
+  return lines.join('\n')+'\n';
+}
+
+// The same volumetric SAAMpath actions and rounding rules feed every dialect.
+export function exportMotion(path,plan) {
+  validatePath(path);
+  const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2;
   let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition];
   for(const a of path.actions) {
     if((a.operation??'')!==operation){operation=a.operation??'';requireThat(!/[\r\n]/.test(operation),'Invalid operation label.');lines.push(`;SAAM_OPERATION:${operation}`);}
@@ -60,21 +69,25 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
     else if(a.kind==='dwell') lines.push(`G4 P${Math.ceil(a.seconds*1000)}`);
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
   }
-  lines.push(...render(envelope.end));
-  return lines.join('\n')+'\n';
+  return lines;
 }
 
 // A strict interpreter for the exported subset. Geometry is reconstructed from
 // G-code coordinates and modal state, never from SAAMpath/display annotations.
-export function interpretGriffin(text,plan,machine) {
+export const interpretGriffin=(text,plan,machine)=>interpretGcode(text,plan,machine);
+// Body-only interpretation starts after a dialect's checked firmware envelope.
+// It still requires explicit units, modes, tool and temperature waits. This is
+// the same modal engine as Griffin, without inventing a Griffin header.
+export const interpretMotion=(text,plan,machine)=>interpretGcode(text,plan,machine,true);
+function interpretGcode(text,plan,machine,bodyOnly=false) {
   requireThat(typeof text==='string'&&text.length<25_000_000,'Invalid/oversized G-code.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   let pos=[...machine.tools[s.tool].startupXY,startupZ],e=0,feed=0,absolute=null,absE=null,metric=false;
-  let tool=null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=plan.process.startupRetracted,phase='startup',layer=-1,time=0,volume=0,operation='';
+  let tool=bodyOnly?s.tool:null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=plan.process.startupRetracted,phase='startup',layer=-1,time=0,volume=0,operation='';
   const moves=[],events=[],header={};
-  let inHeader=false,endedHeader=false;
+  let inHeader=false,endedHeader=bodyOnly;
   const tokens=/([A-Z])([+-]?(?:\d+(?:\.\d*)?|\.\d+))/g;
   for(const [index,raw]of text.split(/\r?\n/).entries()) {
     const line=index+1,trim=raw.trim();
@@ -146,6 +159,7 @@ export function interpretGriffin(text,plan,machine) {
       default:throw new Error(`Unsupported command ${command} at line ${line}.`);
     }
   }
+  if(!bodyOnly) {
   requireThat(!inHeader&&endedHeader&&header.FLAVOR==='Griffin'&&header['HEADER_VERSION']==='0.1'&&header['TARGET_MACHINE.NAME']==='Ultimaker S5','Invalid Griffin target/header.');
   // libCharon's Griffin reader requires all three generator fields before a
   // USB file can be selected. Motion round trips alone cannot catch omissions.
@@ -163,6 +177,7 @@ export function interpretGriffin(text,plan,machine) {
     requireThat(moves.every(m=>m.to[i]>=lo-1e-4&&m.to[i]<=hi+1e-4&&m.from[i]>=lo-1e-4&&m.from[i]<=hi+1e-4),'Moves exceed header bounds.');
   }
   requireThat(Math.abs(Number(header[`EXTRUDER_TRAIN.${s.tool}.MATERIAL.VOLUME_USED`])-volume)<1.1,'Header material volume mismatch.');
+  } else requireThat(moves.some(m=>m.extruding)&&metric&&absolute===true&&absE===true&&hot&&bedReady&&nozzle===s.nozzleC&&bed===s.bedC,'Invalid body or terminal machine state.');
   return {moves,events,header,seconds:time,volumeMm3:volume,finalPosition:pos,summary:{moves:moves.length,extrusionMoves:moves.filter(m=>m.extruding).length,
     volumeMm3:volume,filamentMm:volume/area,motionSeconds:time,
     startup:'Firmware startup and heating time are not simulated; this export does not request routine bed leveling.',clearance:'Operator responsibility; not checked.'}};
@@ -172,6 +187,7 @@ export function validatePath(path) {
   const point=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
   requireThat(path?.schema==='saampath/1'&&point(path.initialPosition)&&Array.isArray(path.actions), 'Invalid SAAMpath or initial position.');
   for(const a of path.actions) {
+    requireThat(typeof a.phase==='string'&&!/[\r\n]/.test(a.phase)&&Number.isFinite(a.layer),'Invalid SAAMpath context.');
     if(a.kind==='move') requireThat(point(a.to)&&Number.isFinite(a.speedMmS)&&a.speedMmS>0&&Number.isFinite(a.volumeMm3)&&a.volumeMm3>=0, 'Invalid SAAMpath move.');
     else if(a.kind==='retract'||a.kind==='recover') requireThat(Number.isFinite(a.filamentMm)&&a.filamentMm>=0&&Number.isFinite(a.speedMmS)&&a.speedMmS>0, 'Invalid filament action.');
     else if(a.kind==='fan') number(a.percent,0,100,'Fan');

@@ -53,8 +53,9 @@ and [draped-skin](skills/draped-skin/SKILL.md)
 share operation composition, export and the Studio approval/delivery workflow.
 Their manuals own their current shapes and limitations. STL/mesh input and
 restricted spline shapes are supported. All three have software checks against
-S5 and H2D profiles; H2D runnable export is pending a verified startup/output
-envelope. General trimmed CAD import is not implemented.
+S5 and H2D profiles. H2D has experimental sliced-3MF export through the same
+review/delivery workflow; its firmware service routines are not simulated.
+See the [H2D output scope](DEVELOP.md#h2d-output-contract). General trimmed CAD import is not implemented.
 Software checks do not establish physical
 print success. The user has reported that the latest S5 wedge startup avoids bed
 leveling and unused-nozzle heating; complete print validation remains open.

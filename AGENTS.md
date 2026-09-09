@@ -55,8 +55,9 @@ The [full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill
 [draped-skin](skills/draped-skin/SKILL.md) manuals own their current shape and
 process limits. They share operation composition, export, Studio review and
 bundle delivery. They accept validated STL/mesh input and supported spline shells
-through shared queries. S5 and H2D have skill/SAAMpath software checks; H2D runnable
-export is pending. Arbitrary trimmed CAD import remains unimplemented.
+through shared queries. S5 and H2D have skill/SAAMpath software checks and shared
+review/delivery; H2D output is experimental with a fixed firmware-service contract.
+See [H2D output scope](DEVELOP.md#h2d-output-contract). Arbitrary trimmed CAD import remains unimplemented.
 See [the developer guide](DEVELOP.md#skill-result-composition) for weaving and
 [machine observations](DEVELOP.md#machine-program-templates-and-s5-observations)
 for the user's scoped S5 startup report; complete physical validation remains open.

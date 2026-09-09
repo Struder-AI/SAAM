@@ -11,7 +11,8 @@ limits in the owning manual:
 | [draped-skin](draped-skin/SKILL.md) | Continuous accessible roof on either backend | Declared non-planar capability/limit; S5 and experimental H2D checks. |
 
 S5 has the complete export, Studio toolpath review and delivery workflow.
-H2D runnable export is pending a verified startup/command/packaging envelope.
+H2D has experimental sliced-3MF output through the same review/delivery workflow.
+Its [firmware-service contract](../DEVELOP.md#h2d-output-contract) is checked but not motion-simulated.
 Software verification does not establish a physical print.
 
 Shared authoring requirements live in DEVELOP.md:

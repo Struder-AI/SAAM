@@ -515,16 +515,14 @@ feeds before export. Wedge explicitly rejects machines other than the S5.
 | Profile | Skill checks | Runnable output |
 |---|---|---|
 | UltiMaker S5 | Fill, planar-infill, drape on mesh/splines; bounded wedge | Griffin exporter/interpreter, same-file Studio review/delivery. |
-| Bambu H2D | Fill, planar-infill, drape on mesh/splines | Pending a verified startup/command/packaging envelope; export explicitly unavailable. |
+| Bambu H2D | Fill, planar-infill, drape on mesh/splines | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
 
 The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
 non-planar limit. The profile records official hardware/slicer sources, separate
-nozzle work areas and conservative PLA settings. Its internal path-check start
-is an explicit development assumption, not verified firmware state. The inherited
-left-tool height is 320 mm; the advertised overall height is 325 mm. No H2D print
-or machine file is validated. A known-good Bambu Studio export for the target
-setup is needed to finish startup, physical tool mapping, proprietary commands
-and sliced-3MF packaging. Geometry/settings review remains usable meanwhile.
+nozzle work areas and conservative PLA settings. The inherited left-tool height
+is 320 mm; the advertised overall height is 325 mm. The supplied left/right
+Bambu Studio exports establish the bounded [H2D output contract](#h2d-output-contract).
+No physical H2D print has been validated.
 
 `core/export/registry.mjs` dispatches the selected output to its exporter and
 interpreter; it rejects unavailable outputs. SAAMpath is an interoperability
@@ -599,7 +597,8 @@ composer for each skill pair.
 
 ## Machine program templates and S5 observations
 
-`core/export/griffin.mjs` is the single implemented G-code emitter/interpreter.
+`core/export/griffin.mjs` owns the S5 dialect and the shared motion emitter/modal
+interpreter. `core/export/bambu.mjs` adds the H2D envelope and sliced-3MF package.
 The selected machine output's `program.header`, `program.start` and
 `program.end` arrays contain literal lines with named value substitutions.
 Values come from the locked setup, release metadata and path totals/bounds;
@@ -607,6 +606,65 @@ templates execute no JavaScript. Unknown values and invalid/nonfinite path data
 are rejected. The emitter writes shared SAAMpath actions between these sections.
 The supported dialect remains the declared Griffin subset, not arbitrary G-code.
 Coordinate and extrusion rounding must still obey the locked flow limit.
+
+### H2D output contract
+
+H2D output is **experimental**. The user supplied Bambu Studio 02.08.02.61
+right- and left-nozzle sliced exports on 2026-09-09. The machine file records
+their SHA-256 hashes. Only their machine envelope and format facts informed
+implementation; reference geometry, thumbnails and personal project settings
+are not copied into output or committed. This establishes a software reference,
+not a successful physical print or universal firmware compatibility.
+
+The initial contract supports one selected standard hardened 0.4 mm nozzle,
+1.75 mm PLA, Textured PEI and **no chamber heating** (`buildVolumeC: 0`). Left
+is the default. Left/right package maps are 1/2, nozzle IDs 0/1, and physical
+heater selectors 1/0. Logical material `T0 H-1` remains the same under Bambu's
+remapping. Do not replace all T numbers to select a nozzle. Package structure
+also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
+
+The pinned start/end arrays come from the reference's executable blocks.
+Allowed substitutions are planned temperatures, selected physical heater,
+placed geometry's probe rectangle and whole-plan shutdown/parking clearance.
+The reference PLA purge recipe uses 240 °C and up to 25 mm³/s independently of
+the conservative print-body flow limit. The startup explicitly establishes
+`[100,100,20]` before the body's explicit units, absolute XYZ/E, extrusion reset
+and temperature waits. Whole-plan shutdown lifts by at least 10 mm and never
+descends below the completed path's maximum Z; parking remains at or below
+320 mm. Reject a plan that cannot fit that clearance. The bed's -0.02 mm
+Textured PEI correction and service-area purge moves are part of the firmware
+contract, not object geometry.
+
+Probing, homing, wiping, purge, calibration, unloading and firmware-conditioned
+service moves are **not motion-simulated**. The interpreter matches the complete
+rendered envelope to its pinned contract; altered or unknown commands are
+rejected. Firmware flags remain controlled by the printer. Calibration may heat
+both nozzles; the scoped S5 promise about unused-nozzle heating does not apply
+to H2D. Inside that envelope, the shared modal engine reconstructs XYZ,
+deposition, retractions, fan and dwell from the actual G-code and checks bounds,
+feeds, flow and temperature state. Studio displays this print body and states
+the simulation boundary. Its time and material totals exclude service routines.
+Envelope matching is not a proof of their physical motion or clearance.
+
+`bambu-gcode` produces `exports/bambu-gcode/part.gcode.3mf`. The output registry
+accepts text or binary artifacts; the shared lifecycle hashes, regenerates and
+compares the complete artifact. ZIP entries have deterministic bytes/dates,
+CRC checks and a G-code MD5. No filesystem extraction is needed. The package
+contains fresh metadata and a schematic thumbnail generated from interpreted
+printing moves. Metadata, program and thumbnail must agree. Studio's code view
+reads the archive's G-code; toolpath approval binds the complete archive hash,
+and delivery copies the original archive unchanged. Unsupported ZIP features,
+unknown envelopes and edited files fail closed.
+
+Software tests cover both nozzle maps, both geometry backends, all three skills,
+malformed/tampered output and the shared approval/HTTP delivery path. The installed
+Bambu Studio CLI's model-import (`--info`) check reported -6, "The input model
+file to the slicer can not be parsed," for both the user's sliced reference and
+the generated archive, including a retry outside the sandbox. This does not
+check the program-viewer route. Independent Bambu Studio program-viewer import
+and physical validation therefore remain unconfirmed. No printer
+was connected or run. Older H2D bundles must explicitly set `buildVolumeC: 0`
+with `adjust` before `upgrade`; plan/toolpath approvals are invalidated normally.
 
 On 2026-09-08 the user reported that the **last wedge change** achieved no routine
 bed leveling and no heating of the unused nozzle. Preserve that observed envelope:

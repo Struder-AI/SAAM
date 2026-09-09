@@ -6,7 +6,7 @@ import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino,createGeometry,verifyGeometry} from '../print/geometry.mjs';
-import {exportProgram} from '../export/registry.mjs';
+import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {initBundle,loadBundle,generateBundle,approve,deliver} from '../print/bundle.mjs';
 import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -46,7 +46,8 @@ test('fill and drape generate on both geometry backends and both machine profile
       const path=generatePath(plan,machine,r);paths.push(path);
       assert.equal(path.summary.machineChecks.machine,id);
       assert.ok(path.actions.some(a=>a.volumeMm3>0));
-      if(id==='bambu-h2d')assert.throws(()=>exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'}),/H2D startup/);
+      const output=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'});
+      assert.equal(interpretProgram(output,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
     }
     const volume=p=>p.actions.reduce((s,a)=>s+(a.volumeMm3??0),0);
     assert.ok(Math.abs(volume(paths[0])-volume(paths[1]))/volume(paths[0])<0.01,`${id}/${skill}: backend volume parity`);

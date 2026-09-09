@@ -15,8 +15,9 @@ of those components. Arbitrary edited 3DM and trimmed CAD import are unsupported
 The shared geometry interface supplies each layer's real cross section.
 
 Software checks exercise this skill on both S5 and H2D profiles and both geometry
-backends. Only S5 has a runnable export and complete toolpath review/delivery.
-H2D currently supports geometry/settings review and SAAMpath compatibility checks.
+backends, including the shared export, toolpath review and delivery workflow.
+H2D output is experimental; read its [machine contract](../../DEVELOP.md#h2d-output-contract)
+before use. Firmware service routines are not simulated by playback.
 No physical print from this skill has been validated.
 
 ## Setup and tools
@@ -89,4 +90,4 @@ support, geometric overlap resolution between arbitrary components and physical
 clearance validation are not implemented.
 
 Run `npm test` after changes. Tests cover shape/volume, travel, geometry and
-machine interoperability, source changes, approvals and exact-byte S5 delivery.
+machine interoperability, source changes, approvals and exact-byte S5/H2D delivery.

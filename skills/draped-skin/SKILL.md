@@ -60,8 +60,9 @@ Follow the [shared travel contract](../../DEVELOP.md#whole-plan-travel-requireme
 
 Software tests exercise mesh and spline inputs against both S5 and H2D profiles.
 S5 supports checked Griffin export, Studio's three approvals and exact-byte
-delivery. H2D currently supports geometry/settings review and SAAMpath checks;
-its runnable exporter/interpreter is pending a verified startup/output envelope.
+delivery. H2D uses the same workflow with experimental sliced-3MF output and
+strict interpretation of the print body. Its firmware service routines are not
+simulated; read the [machine contract](../../DEVELOP.md#h2d-output-contract).
 
 No physical print, head-clearance or surface-finish validation has been performed.
 Beads, skin offsets and first-skin bridging are approximate. Curvature convergence,

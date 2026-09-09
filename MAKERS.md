@@ -28,12 +28,14 @@ and the print workflow. Their manuals own settings and limits. They support
 validated STL/mesh inputs and the existing untrimmed spline shape builders,
 including mixed assemblies. General edited/trimmed CAD import is not implemented.
 
-The three skills have software checks on S5 and H2D profiles. S5 provides the
-complete export/review/delivery workflow. H2D supports geometry/settings review
-and SAAMpath compatibility checks, but has no runnable export yet; explain this
-before proposing an H2D print. The user selected left 0.4 mm nozzle with PLA and
-experimental 15° draping for the H2D profile. No physical print from these skills
-has been validated.
+The three skills share export/review/delivery on S5 and experimental H2D output.
+The H2D defaults to the user's left 0.4 mm nozzle, PLA and experimental 15°
+draping. Its output currently assumes Textured PEI, no chamber heating and the
+supplied Bambu Studio firmware routines. Explain that playback covers printing
+moves; probing, wiping, purge, calibration and unloading are not simulated.
+Those routines follow printer-selected conditions and may use both nozzles.
+See [H2D output scope](DEVELOP.md#h2d-output-contract). No physical print from
+these skills has been validated.
 
 For ordinary planar printing, combine planar-infill with full-fill in
 `solid-surfaces` mode. The agent sets the plan from chat; the maker need not learn

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 
@@ -70,8 +70,8 @@ export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000}={}) {
         else if(url.pathname==='/api/approve')await bundle.approve(dir,data);
         else if(url.pathname==='/api/generate')await bundle.generateBundle(dir,{development:data.development===true});
         else if(url.pathname==='/api/deliver') {
-          const file=await bundle.deliver(dir);const name=bundle.EXPORT_NAME??'wedge.gcode';
-          res.writeHead(200,{'Content-Type':'text/plain','Content-Disposition':`attachment; filename="${name}"`});res.end(await readFile(file));return;
+          const file=await bundle.deliver(dir),name=basename(file);
+          res.writeHead(200,{'Content-Type':name.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':'text/plain','Content-Disposition':`attachment; filename="${name}"`});res.end(await readFile(file));return;
         } else throw new Error('Unknown operation.');
         send({ok:true});
       });

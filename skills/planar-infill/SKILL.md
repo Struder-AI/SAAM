@@ -8,9 +8,9 @@ description: Generate planar walls and sparse rectilinear infill on closed mesh 
 Use for conventional flat-layer printing with walls and a sparse interior.
 Read [MAKERS.md](../../MAKERS.md) for making a part; developers also read
 [DEVELOP.md](../../DEVELOP.md). Software tests cover the S5 and H2D profiles,
-mesh and restricted spline inputs. No physical print is validated. H2D machine
-export is still unavailable; its profile currently supports geometry/settings
-review and SAAMpath compatibility checks only.
+mesh and restricted spline inputs. No physical print is validated. Both machines
+use the shared export/review/delivery workflow. H2D output is experimental; read
+its [machine contract](../../DEVELOP.md#h2d-output-contract) before use.
 
 ## Tools
 

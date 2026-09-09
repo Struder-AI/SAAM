@@ -18,12 +18,12 @@ export const LIMITATIONS = [
   'Bead shape, perimeter overlap and skin stacking are approximations; no part from these skills has been printed.',
   'Contour sampling is bounded by minFeatureMm; a closed feature smaller than that can be missed.',
   'The machine’s non-planar angle limit is a declared software limit, not a measured clearance rating.',
-  'Griffin firmware startup is external; its internal motions are not simulated.'
+  'Firmware startup and service routines are not motion-simulated.'
 ];
 
 const limitationsFor = (plan, machine) => {
   const override = plan.skills['draped-skin'].maxAngleDegOverride;
-  const limits=machine.nonplanar?.experimental?[...LIMITATIONS,'The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating.']:LIMITATIONS;
+  const limits=machine.nonplanar?.experimental?[...LIMITATIONS,'H2D uses the supplied PLA / Textured PEI firmware envelope. Startup purge uses 240 C and up to 25 mm³/s; its time and material are excluded from print-body totals. Printer-selected calibration may heat both nozzles. Experimental output has not been physically validated.','The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating.']:LIMITATIONS;
   return override === null ? limits : [...limits,
     `EXPERIMENTAL: this print overrides the machine profile’s declared ${machine.nonplanar.maxAngleDeg}° non-planar limit with ${override}°. Physical clearance and deposition behavior are unvalidated.`];
 };

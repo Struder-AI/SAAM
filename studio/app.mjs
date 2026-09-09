@@ -20,7 +20,7 @@ const views={
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,high=g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
       if(tab==='geometry')return [['Size',g.shape==='assembly'?g.parts.length+' components':g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
-      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],
+      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Sloped layers',p.skinLayers+' × '+p.skinNormalMm+' mm'],['Travel height',high.toFixed(2)+' + '+p.liftMm+' mm']];
       return state.program?[['Layers',state.pathSummary.planarLayers+' flat + '+p.skinLayers+' sloped'],
         ['Estimated motion',Math.round(duration()/60)+' min'],['Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']]:[];
@@ -54,14 +54,14 @@ const views={
         if(g.shape==='assembly')for(const part of g.parts)rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);
         return rows;
       }
-      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle','#'+(s.tool+1)+' · '+s.core],['Layer height',p.layerMm+' mm'],
+      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],
         ['Solid surfaces',normal?.enabled&&fill.enabled?fill.bottomLayers+' bottom / '+fill.topLayers+' top layers':'—'],
         ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None'],['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All'],['Roof component',skin.part??'Part roof']];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const rows=[['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
-        ['Estimated motion',Math.round(duration()/60)+' min'],['Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']];
+        [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],[state.program.envelope?'Part material':'Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']];
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
         if(limit.experimentalOverride)rows.push(['Experimental override',limit.effectiveMaxAngleDeg+'° versus the profile’s '+limit.machineMaxAngleDeg+'°']);
@@ -70,8 +70,11 @@ const views={
     },
     settings(state) {
       const {setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'];
+      const contract=state.machine.outputs.find(o=>o.id===state.plan.output)?.constraints;
       const declaredLimit=state.machine.nonplanar?.maxAngleDeg,effectiveLimit=skin.maxAngleDegOverride??declaredLimit;
-      return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC+'°C'],['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
+      return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC===0?'Heating off':s.buildVolumeC+'°C'],
+        ...(contract?.bedType?[['Build surface',contract.bedType==='textured_plate'?'Textured PEI':contract.bedType],['Startup purge',contract.startupPurgeC+'°C · up to '+contract.startupPurgeFlowMm3S+' mm³/s']]:[]),
+        ['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
         ['Flat / skin speed',p.planarSpeedMmS+' / '+p.skinSpeedMmS+' mm/s'],['First-layer speed',p.firstLayerSpeedMmS+' mm/s'],
         ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
         ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],['Material flow limit',p.maxFlowMm3S+' mm³/s'],
@@ -134,7 +137,7 @@ function render() {
   const ready=tab==='geometry'||(tab==='plan'&&state.geometryApproved)||(tab==='toolpath'&&state.planApproved&&state.program&&state.review.generation?.mode==='production');
   $('#confirm').disabled=!ready||busy;
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?'Export G-code':'Confirm & export';
-  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':'Clearance is your check for this demo.')):'');
+  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':state.program.envelope?.notice??'Clearance is your check for this demo.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});

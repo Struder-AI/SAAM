@@ -50,15 +50,17 @@ test('combing routes around a hole and falls back when the route exceeds the loc
   policy.maxCombMm=10;const short=new PathBuilder({start:[5,10,1],machine,process:plan.process,generatorVersion:'test'});
   short.planClearanceZ=20;assert.equal(short.travelTo([15,10,1],policy),'hopped');assert.ok(short.actions.some(a=>a.to?.[2]===20));
 });
-test('H2D setup, geometry review and compatibility checks use the shared bundle without claiming an export',async t=>{
+test('H2D setup and development output use the shared bundle without creating approvals',async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-h2d-'));t.after(()=>rm(root,{recursive:true,force:true}));
   const setupFile=join(root,'h2d-setup.json'),dir=join(root,'print'),machine=loadMachine('bambu-h2d'),plan=defaults(machine);
   plan.geometry={shape:'box',runMm:12,widthMm:10,heightMm:2};plan.process.minimumLayerSeconds=0;
   await initBundle(dir,plan,{machineId:machine.id});await rememberSetup(dir,{setupFile});
   const state=await loadBundle(dir);assert.equal(state.machine.id,'bambu-h2d');assert.equal(state.plan.setup.tool,0);
   assert.equal(generatePath(state.plan,state.machine,await rhino()).summary.nonplanarLimit.experimentalOverride,true);
-  await assert.rejects(generateBundle(dir,{development:true}),/H2D startup/);
-  assert.equal(JSON.parse(await readFile(join(dir,'review.json'),'utf8')).generation,null);
+  await generateBundle(dir,{development:true});
+  const generated=await loadBundle(dir);assert.equal(generated.programError,undefined);
+  assert.equal(generated.exportName,'part.gcode.3mf');assert.equal(generated.toolpathApproved,false);
+  assert.equal(JSON.parse(await readFile(join(dir,'review.json'),'utf8')).generation.mode,'development');
   const other=join(root,'next');await initBundle(other,undefined,{machineId:machine.id,setupFile});
   assert.equal((await loadBundle(other)).plan.setup.filamentMm,1.75);
 });

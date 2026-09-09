@@ -26,12 +26,18 @@ export function createBundleWorkflow(adapter) {
     version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
   const machineFile=resolve(root,adapter.machineFile);
   const EXPORT_PATH='exports/griffin-gcode/'+EXPORT_NAME;
-  const exportPath=plan=>{requireThat(/^[a-z0-9-]+$/.test(plan.output),'Invalid output ID.');return `exports/${plan.output}/${EXPORT_NAME}`;};
+  const exportName=(plan,machine)=>{
+    const extension=machine.outputs.find(o=>o.id===plan.output)?.extension??'.gcode';
+    requireThat(/^\.[a-z0-9.]+$/.test(extension),'Invalid export extension.');
+    return EXPORT_NAME.replace(/\.gcode$/,extension);
+  };
+  const exportPath=(plan,machine)=>{requireThat(/^[a-z0-9-]+$/.test(plan.output),'Invalid output ID.');return `exports/${plan.output}/${exportName(plan,machine)}`;};
   let runtimeCache;
   async function runtimeHash(){
     return runtimeCache??=hash(await Promise.all([
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
+      new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
       new URL('../geom/tolerance.mjs',import.meta.url), ...adapter.runtimeFiles
     ].map(async file=>[fileURLToPath(file).slice(root.length).replaceAll('\\','/'),await readFile(file,'utf8')])));
   }
@@ -89,7 +95,7 @@ async function loadBundle(directory, { program = true } = {}) {
   const planHash = hash({ plan, machine, geometryHash, runtime });
   const state = {
     kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime,
-    exportName: EXPORT_NAME, limitations: limitationsFor(plan, machine),
+    exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : ['wedge-demo'],
     geometryApproved: review.approvals.geometry?.hash === geometryHash,
@@ -105,17 +111,18 @@ async function loadBundle(directory, { program = true } = {}) {
   if (program && review.generation) {
     try {
       requireThat(review.generation.planHash === planHash, 'Generated program is stale; regenerate for the current plan.');
-      const [code, path] = await Promise.all([readFile(resolve(dir, exportPath(plan)), 'utf8'), json(resolve(dir, 'path.saampath'))]);
+      const [code, path] = await Promise.all([readFile(resolve(dir, exportPath(plan,machine))), json(resolve(dir, 'path.saampath'))]);
       requireThat(hash(code) === review.generation.exportHash && hash(path) === review.generation.pathHash,
         'Generated files changed; regenerate and review again.');
       const regenerated = await generatePath(plan, machine);
       requireThat(canonical(path) === canonical(regenerated), 'SAAMpath does not match the locked recipe.');
-      requireThat(code === exportProgram(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }),
+      requireThat(code.equals(Buffer.from(exportProgram(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }))),
         'Export does not match SAAMpath.');
       state.program = interpretProgram(code, plan, machine);
       state.pathSummary = path.summary;
       state.exportHash = hash(code);
-      state.code = code;
+      state.code = state.program.code??code.toString('utf8');
+      delete state.program.code;
       state.toolpathApproved = state.planApproved
         && review.approvals.toolpath?.hash === state.exportHash
         && review.approvals.toolpath?.planHash === planHash
@@ -128,8 +135,8 @@ async function loadBundle(directory, { program = true } = {}) {
 // A cheap liveness fingerprint for automatic viewer updates. Full validation
 // still runs on every changed snapshot and immediately before approval.
 async function bundleFingerprint(directory) {
-  const [plan,geometry]=await Promise.all([json(resolve(directory,'plan.json')),json(resolve(directory,'geometry/model.json'))]);
-  const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl','review.json', 'path.saampath', exportPath(plan)];
+  const [plan,geometry,machine]=await Promise.all([json(resolve(directory,'plan.json')),json(resolve(directory,'geometry/model.json')),json(resolve(directory,'machine.json'))]);
+  const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl','review.json', 'path.saampath', exportPath(plan,machine)];
   const values = await Promise.all(names.map(async name => {
     try { return [name, hash(await readFile(resolve(directory, name)))]; }
     catch (error) { if (error.code === 'ENOENT') return [name, null]; throw error; }
@@ -232,14 +239,15 @@ async function generateBundle(directory, { development = false } = {}) {
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
     travel: path.summary.travel,
     nonplanarLimit: path.summary.nonplanarLimit ?? null,
-    checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', 'strict-gcode-interpretation',
+    checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation']),
       'xyz-bounds', 'axis-feed', 'extrusion-flow', 'temperature-state', 'saampath-export-round-trip'],
     clearance: 'operator responsibility; no collision model implemented',
     physicalValidation: 'not performed',
+    firmwareEnvelope: program.envelope??null,
     limitations: limitationsFor(state.plan, state.machine)
   };
   await save(resolve(state.dir, 'path.saampath'), path);
-  await save(resolve(state.dir, exportPath(state.plan)), code);
+  await save(resolve(state.dir, exportPath(state.plan,state.machine)), code);
   await save(resolve(state.dir, 'checks.json'), checks);
   const review = state.review;
   delete review.approvals.toolpath;
@@ -274,9 +282,9 @@ async function approve(directory, { stage, actor, revision }) {
 async function deliver(directory) {
   const state = await loadBundle(directory);
   requireThat(state.toolpathApproved, 'Delivery requires approval of the exact current export.');
-  const bytes = await readFile(resolve(state.dir, exportPath(state.plan)));
+  const bytes = await readFile(resolve(state.dir, exportPath(state.plan,state.machine)));
   requireThat(hash(bytes) === state.exportHash, 'Export changed during delivery.');
-  const destination = resolve(state.dir, `delivery/${EXPORT_NAME}`);
+  const destination = resolve(state.dir, `delivery/${state.exportName}`);
   await save(destination, bytes);
   requireThat(hash(await readFile(destination)) === state.exportHash, 'Delivery bytes differ from reviewed export.');
   return destination;

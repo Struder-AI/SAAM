@@ -1,6 +1,10 @@
 import {exportGriffin,interpretGriffin} from './griffin.mjs';
+import {exportBambu,interpretBambu} from './bambu.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
-const adapters={'griffin-gcode':{export:exportGriffin,interpret:interpretGriffin}};
+const adapters={
+  'griffin-gcode':{export:exportGriffin,interpret:(bytes,plan,machine)=>interpretGriffin(Buffer.isBuffer(bytes)?bytes.toString('utf8'):bytes,plan,machine)},
+  'bambu-gcode':{export:exportBambu,interpret:interpretBambu}
+};
 export function outputAdapter(plan,machine){
   const declaration=machine.outputs.find(o=>o.id===plan.output);
   requireThat(declaration,'Machine does not declare the requested output.');

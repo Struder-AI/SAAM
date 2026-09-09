@@ -28,6 +28,8 @@ export function validateSetup(plan,machine) {
   range(p.firstLayerMm,t.layerHeightMm,'First layer');range(p.layerMm,t.layerHeightMm,'Layer height');
   range(p.lineWidthMm,[s.nozzleMm*0.75,s.nozzleMm*2],'Line width');
   requireThat(machine.outputs.some(o=>o.id===plan.output),'Output is not declared by the machine.');
+  const output=machine.outputs.find(o=>o.id===plan.output);
+  if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
   if(plan.output==='griffin-gcode')requireThat(/^[a-f0-9-]{36}$/i.test(s.materialGuid),'A material GUID is required for Griffin.');
   else requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
 }
