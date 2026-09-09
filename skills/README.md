@@ -35,3 +35,12 @@ and shared result interfaces. Document justified exceptions. Return composable
 operations rather than exchanging G-code fragments; use the shared composer,
 exporter and review workflow. See [composition](../DEVELOP.md#skill-result-composition)
 and [pipeline principles](../DEVELOP.md#interoperability-and-one-workflow).
+
+New and revised skills must follow the shared
+[geometry interoperability contract](../DEVELOP.md#geometry-interoperability-for-skill-authors)
+and [whole-plan travel requirement](../DEVELOP.md#whole-plan-travel-requirement).
+These sections distinguish required future behavior from current runtime limits.
+Follow the [machine interoperability design](../DEVELOP.md#machine-interoperability-design)
+as shared S5 assumptions are removed and the H2D profile is added.
+The proposed [planar-infill design](../DEVELOP.md#planar-infill-design) reuses
+full-fill for solid regions; it is not an available manufacturing package yet.

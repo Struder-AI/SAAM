@@ -1,6 +1,6 @@
 # Developing SAAM
 
-Read [the product direction](PROJECT_CHARTER.md),
+Read [the product direction](README.md#project-direction),
 [decisions](DECISIONS.md), [glossary](GLOSSARY.md), and
 [build requests](build_request.md), then the manuals relevant to the change.
 Every developer agent must also read [MAKERS.md](MAKERS.md), even when not
@@ -64,6 +64,13 @@ checked examples into `examples/prints/` for sharing.
 
 Use Node.js 22+ and Git. `npm ci` installs the pinned rhino3dm dependency;
 no Rhino desktop installation or Compute server is needed for the wedge.
+
+`node_modules/` is the conventional installation folder for packages used by
+Node.js, the JavaScript runtime. Here it contains dependencies such as
+`rhino3dm`, installed by `npm ci`. `package.json` declares dependencies and
+`package-lock.json` pins their resolved versions. Keep dependency source out of
+our own source edits and Git; change the package declarations when needed and
+reinstall. The folder name comes from the Node ecosystem, not SAAM geometry.
 
 ```sh
 npm ci
@@ -129,7 +136,9 @@ there is no mandatory seed field or randomized skill in this foundation.
 
 ## Rhino geometry
 
-Rhino is the selected geometry platform and 3DM is the native geometry format.
+The current implementation uses Rhino and native 3DM files. The requested
+replacement is [native mesh geometry](#geometry-interoperability-for-skill-authors);
+that design is under review and has not migrated existing bundles.
 The wedge uses pinned rhino3dm 8.32.2 to create a capped extrusion and six named
 NURBS reference surfaces, then tests the saved 3DM by reopening it. The exact
 planar faces also supply a small display proxy. General edited-3DM import,
@@ -413,9 +422,116 @@ the common exporter and print lifecycle. Mesh and NURBS backends should share
 downstream regions, composition, SAAMpath, export and review; neither is a reason
 for another complete pipeline. Mesh slicing is not yet implemented.
 
+## Geometry interoperability for skill authors
+
+**Design for review, 2026-09-09; not implemented.** Mesh becomes the native
+part-geometry representation, replacing the earlier Rhino/3DM direction
+([D-021](DECISIONS.md#d-021--native-mesh-geometry)). Keep source CAD optionally;
+convert spline input to mesh with a locked chord/normal tolerance before geometry
+approval. Existing restricted spline queries can remain behind the shared
+interface where useful; do not build a second mesh-to-export pipeline.
+
+Skills request capabilities from `core/geom/`, rather than reading control nets
+or triangles themselves:
+
+| Capability | Used by | Required behavior |
+|---|---|---|
+| Identity, units, placement, bounds | All | Stable revision/feature references, millimeters, one transform, conservative bounds. |
+| Plane section | Full-fill, planar-infill | Closed regions with holes; shared tolerances; report ambiguous/nudged cuts. |
+| Top height and normal at XY | Draped-skin | Highest exposed surface or explicit outside/unsupported result; preserve sharp mesh creases. |
+
+The current fill and drape implementations call spline-specific functions;
+refactoring is required. Meshes describe parts and may describe layer surfaces;
+sections remain curves/regions and SAAMpath remains motion plus process data.
+Meshing is an approximation of smooth CAD, not a lossless universal replacement
+for these other representations. The wedge's eight-point generator stays a
+bounded exception using the shared export and lifecycle.
+
+STL import must accept ASCII and binary, require explicit units/scale in the
+locked recipe, preserve the source hash, and produce a validated indexed
+triangle mesh. Start with a simple versioned mesh asset in the existing print
+bundle; the exact encoding is still a review choice. Do not require Rhino/3DM
+as its native storage. Reject nonfinite/degenerate facets, open or nonmanifold
+geometry and unresolved intersections. Any welding, repair or tessellation must
+be explicit and occur before geometry approval. Preserve stable feature IDs
+where available; STL does not supply CAD faces. Reopening verifies source/native
+hashes through the existing approval and delivery workflow.
+
+General skills must declare capabilities and document narrow exceptions.
+Test equivalent spline and mesh shapes through the same skills: holes, islands,
+slopes, boundary cuts, malformed input, and reviewed-byte delivery. Compare within
+conversion/query tolerances. Drape remains a top-surface operation; mesh input
+alone does not enable underside wrapping, support generation or collision checks.
+
+## Whole-plan travel requirement
+
+**Required change, not implemented:** compute one conservative maximum from the
+entire placed process plan, including all skills/components and deposition
+offsets. Every ordinary lifted traverse clears that maximum plus locked lift,
+including future operations. Cooling/final parking use the same bound; never
+lower a traverse below its endpoints or clamp an out-of-bounds clearance.
+Enforce this centrally in composition/travel, not separately in every skill.
+
+Joined strokes and verified combing may stay down. Minimize travel with stroke
+ordering, seam placement and alternating connected infill. Combing should route
+inside permitted regions around holes, considering already deposited material
+from every skill; fall back to the whole-plan hop when no valid route exists.
+This is not a full swept-head collision model.
+
+**Today:** fill clears its layer, drape queries the crossed surface, and the
+composer includes earlier operations. Wedge longer moves clear its own maximum;
+nearby starts stay down. Test the new rule with a later tall operation, a descent
+from a taller batch, cooling, machine bounds and combing around holes.
+
+## Planar-infill design
+
+Suggested name: **planar-infill**. Provide planar layers, a wall count and sparse
+alternating rectilinear infill (45°/135°), with locked density and overlap.
+Reuse section regions, offsets, scanlines and shared travel/composition. Return
+wall and infill operations with explicit wall-before-infill and prior-layer
+prerequisites. No new top/bottom pattern generator is needed.
+
+Reuse full-fill for solid regions, but first add shared layer/region ownership:
+one layer grid, one wall owner, solid masks assigned to full-fill, and sparse
+infill only in the remainder. Example: a 20-layer box with three bottom and
+three top layers gets full-fill interiors on layers 1–3 and 18–20, sparse
+interiors on 4–17, and walls once on every layer. Full-fill currently selects
+whole components, not these masks; simply enabling both would double-print.
+
+Changing cross sections need local top/bottom masks from adjacent sections,
+not only global first/last layers. Reserve drape material from both planar
+skills. Solid tops over sparse infill require a bridging/support strategy;
+reuse of the fill pattern alone does not solve that. All choices are locked
+before plan approval. Verify material coverage without duplicate deposition,
+wall count, density, dependencies and travel on both geometry backends.
+
+## Machine interoperability design
+
+**Partial today:** pattern skills share a machine definition, operation results
+and export lifecycle, and drape reads a declared non-planar angle limit. However,
+shared plan validation requires AA 0.4 / PLA / 2.85 mm filament and tool 0 or 1;
+bundle initialization selects the S5 profile, and Griffin is the only implemented
+export/interpreter. General machine interoperability is not complete.
+
+Move setup constraints, tool choices, motion/flow limits and startup state into
+machine capabilities and compatible material/tool profiles. Skills declare
+capability needs and consume the resolved locked process settings. Keep firmware
+commands, startup/shutdown and output packaging in machine/output adapters.
+An unsupported non-planar operation must fail clearly; planar skills should not
+require a non-planar capability. Test the same skills against both profiles.
+
+Add a Bambu H2D profile plus its required export/interpreter/package support in
+the shared lifecycle. Verify the intended tool/material configuration, firmware,
+limits and startup behavior against authoritative documentation or a known-good
+sample before implementation. A machine JSON alone does not establish support.
+Studio must interpret the exact artifact delivered; retain the same three
+approvals and distinguish software verification from a physical print.
+
 ## Documentation maintenance
 
-AGENTS routes agents; MAKERS owns the maker interaction; DEVELOP owns shared
+README owns the introduction and product direction for people and agents;
+PROJECT_CHARTER is only a compatibility pointer. AGENTS routes agents;
+MAKERS owns the maker interaction; DEVELOP owns shared
 implementation, formats and commands; skill manuals own their tools and limits.
 The glossary owns terms, decisions own contributor approvals, and build requests
 own requested work and dated implementation history. Keep capability status at

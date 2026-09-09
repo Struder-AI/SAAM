@@ -237,3 +237,17 @@ compared with the same agent using existing CAD and slicing tools. Extra agent
 instructions alone are not enough. Test repeatable generation, useful machine
 checks, shared geometry references, and review of the exact delivered program.
 This is a proposed evaluation direction, not a claim of implemented advantage.
+
+## BR-016 — Printing and geometry design for review
+
+- Status: design documented; implementation pending review.
+- Requested by: user, 2026-09-09, this repository task; explicitly scoped to “Design and requirements for me to review. Let's keep it lean.”
+- Documentation completed: README now owns the introduction and product direction; PROJECT_CHARTER is a compatibility pointer. Developer guidance explains node_modules and routes skill authors to shared requirements.
+- Task: Add planar-infill (suggested name): wall count, sparse alternating rectilinear infill, travel reduction and combing. Reuse full-fill for solid top/bottom masks with one layer grid and no duplicate walls/material. Include local top/bottom detection and bridging/support limits.
+- Task: Centralize whole-plan maximum-height clearance for lifted travel, cooling and parking; preserve verified joined/combed moves and test cross-skill obstacles and machine bounds.
+- Task: Make mesh native part geometry (D-021); add validated ASCII/binary STL import with locked units and conversion tolerances. Adapt full-fill and draped-skin to shared geometry queries; preserve the bounded wedge exception and one export/review lifecycle.
+- Task: Add a Bambu H2D machine profile and general machine interoperability. Move S5-specific setup validation out of shared plan code. Declare machine/tool/material capabilities and supported outputs; keep machine behavior out of pattern skills. Implement the H2D-compatible exporter/interpreter and packaging needed for the exact reviewed artifact, using verified machine documentation or a user-supplied known-good program for the intended configuration.
+- H2D scope to resolve before implementation: target nozzle/tool and material setup, firmware/output packaging, startup/shutdown behavior and machine limits. Do not copy the S5 Griffin envelope or assume an H2D profile alone enables support. No hardware execution is requested.
+- Verify: equivalent geometry across backends, material ownership, travel limits, deterministic generation, profile-specific setup rejection and supported machine-program interpretation. Exercise both machine profiles through the same skills, three approvals and exact-byte delivery. Report software checks separately from physical printing.
+- Design: [geometry](DEVELOP.md#geometry-interoperability-for-skill-authors), [travel](DEVELOP.md#whole-plan-travel-requirement), [planar-infill](DEVELOP.md#planar-infill-design), [machines](DEVELOP.md#machine-interoperability-design).
+- Approval scope: records requested work, not contributor consensus or manufacturing-job approval. Existing runtime remains unchanged.

@@ -3,29 +3,61 @@
 SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes,
 approve it, and get a file your machine can run.
 
-The aim is a seamless, reliable path into 3D printing for non-technical people,
-with guidance suited to their experience. SAAM is an ecosystem of slicer
-components, including bounded implementations of angled and curved deposition layers.
+SAAM lowers the barrier to 3D printing. You should be able to point your agent
+at this repository, describe what you want to make, and receive guidance suited
+to your experience, without needing to learn CAD, slicing, or programming first.
 
-**First development demo:** an UltiMaker S5 wedge with horizontal body layers
+## How it works
+
+1. Describe your part. Your agent prepares geometry for you to inspect in
+   **SAAM Studio**, and revises it with you until you approve it.
+2. Agree on the process plan: how the part will be printed, with which machine,
+   material, patterns, and settings.
+3. Inspect the generated toolpath in Studio and approve it. SAAM delivers the
+   same machine-program bytes you reviewed.
+
+The locked process plan generates **SAAMpath**, our internal toolpath
+representation, then an export supported by the machine. Automated checks run
+before Studio displays that export. Delivery adds no fourth approval.
+
+## Project direction
+
+SAAM is an ecosystem of composable slicer components. Skills describe printing
+patterns and package their manuals and tools together. The aim is to combine
+patterns in one part, including planar, inclined, and curved deposition layers,
+through one generation, review, and delivery workflow.
+
+The intended scope includes spline curves and surfaces, mesh geometry,
+3D printers, robot arms with printing end effectors, rotaries, and multi-axis
+setups. Output adapters can target G-code, Lua, or other machine languages.
+This is the product direction, not a list of implemented capabilities.
+Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md);
+the direction remains provisional where only one approval is recorded.
+
+The requested new direction is mesh as native part geometry, with CAD inputs
+converted at a declared tolerance. The current implementation still uses
+Rhino/3DM; the [mesh and printing design](DEVELOP.md#geometry-interoperability-for-skill-authors)
+is ready for review, and [D-021](DECISIONS.md#d-021--native-mesh-geometry)
+records the requested decision change.
+Skills should work across geometry types and machines through shared interfaces,
+with explicit, narrow exceptions. Prints keep geometry, the process plan,
+SAAMpath, and its export together locally.
+
+## What works today
+
+The first development demo is an UltiMaker S5 wedge with horizontal body layers
 and a 15° inclined skin. It includes native Rhino geometry, SAAMpath, Griffin
-G-code, automated checks, and a local **SAAM Studio** viewer. Software validation
-is implemented; physical printing remains unvalidated. Standard S5 startup is
-assumed, and installed firmware information is optional.
+G-code, automated checks, and a local SAAM Studio viewer.
 
 [Full-fill](skills/full-fill/SKILL.md) and [draped-skin](skills/draped-skin/SKILL.md)
 share operation composition, export and the Studio approval/delivery workflow.
-Their manuals describe current shapes and limitations. The user has reported
-the latest S5 wedge startup avoids bed leveling and unused-nozzle heating;
-complete print validation remains open. [Current architecture and observations](DEVELOP.md).
+Their manuals own their current shapes and limitations. General CAD import and
+mesh slicing are not implemented. Software checks do not establish physical
+print success. The user has reported that the latest S5 wedge startup avoids bed
+leveling and unused-nozzle heating; complete print validation remains open.
+See [implementation and observations](DEVELOP.md).
 
-- Agents: start at [AGENTS.md](AGENTS.md).
-- Product direction: [PROJECT_CHARTER.md](PROJECT_CHARTER.md).
-- Contributor decisions: [DECISIONS.md](DECISIONS.md).
-- Shared terms: [GLOSSARY.md](GLOSSARY.md).
-- Completed scope and deferred work: [build_request.md](build_request.md).
-- Developer rules, setup, formats, and organization: [DEVELOP.md](DEVELOP.md).
-- Maker guidance: [MAKERS.md](MAKERS.md).
+## Try the development demo
 
 With Node.js 22+ and Git:
 
@@ -37,11 +69,11 @@ npm run studio
 ```
 
 Open [SAAM Studio](http://127.0.0.1:4321). The demo uses right nozzle #2,
-AA 0.4 and PLA at 215°C. Its development preview creates no human approvals.
+AA 0.4 and PLA at 215°C. Standard S5 startup is assumed; installed firmware
+information is optional. Its development preview creates no human approvals.
 Physical clearance is the operator's responsibility for this demo.
 Read the [wedge skill](skills/wedge-demo/SKILL.md) for the three-approval
-workflow, or [full-fill](skills/full-fill/SKILL.md) for the same workflow on the
-shared core:
+workflow, or [full-fill](skills/full-fill/SKILL.md) for the shared-core workflow:
 
 ```sh
 npm run shell -- init Prints/my-part
@@ -52,8 +84,23 @@ Local print bundles belong in ignored `Prints/`; curated examples belong in
 `examples/prints/`. A personal architecture map may live in ignored
 `.local/architecture-map/`; it is optional and is not shipped in the repository.
 
-The previous runtime was removed from the active tree and remains recoverable
-from Git history. No legacy component has been adopted.
+## Reading and contributing
+
+This README introduces the project to people and agents. Agents can use it for
+product context. [AGENTS.md](AGENTS.md) routes agents to the instructions for
+their task: maker agents use SAAM, and developer agents build it and exercise
+the maker workflow in development tests.
+
+- [MAKERS.md](MAKERS.md): guidance for helping a person make a part.
+- [DEVELOP.md](DEVELOP.md): developer rules, setup, shared formats and organization.
+- [skills/README.md](skills/README.md): available printing skills and their manuals.
+- [GLOSSARY.md](GLOSSARY.md): shared terms.
+- [DECISIONS.md](DECISIONS.md): contributor choices and approval status.
+- [build_request.md](build_request.md): requested work and dated implementation history.
+
+This is a clean restart with selective adoption. The previous runtime remains
+recoverable from Git history; no legacy component has been adopted. Adopting an
+old component or concept requires explicit human approval.
 See [legacy reference](DEVELOP.md#legacy-reference).
 
 The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).

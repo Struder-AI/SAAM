@@ -213,3 +213,13 @@ will be useful.” Source R8: remettub clarified the destination is directly
 - Recorded: 2026-09-08T22:40:51Z
 - Approvals: remettub — R7; tkeller — not recorded
 - Source: R7, “Let's go with rhino. My familiarity will be useful.”
+
+## D-021 — Native mesh geometry
+
+- Decision: Make mesh the native part-geometry representation; support CAD-to-mesh conversion with explicit tolerances. Native mesh storage should not require Rhino/3DM. Keep sections as curves/regions and SAAMpath as motion/process data.
+- Status: proposed
+- Recorded: 2026-09-09T16:24:37Z
+- Approvals: Current user explicitly requested the native-mesh direction; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User, 2026-09-09, this design-review task: “It makes more sense to have mesh be the native format (decision change)”.
+- Replaces on contributor attribution/approval: D-020's native-format choice. Its earlier approval record is preserved; no second-contributor agreement is inferred.
+- Scope: Design and requirements for review only. No runtime migration, new mesh encoding, or legacy adoption is approved by this record. The sections/SAAMpath distinction is an agent recommendation for review.

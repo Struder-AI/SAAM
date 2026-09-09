@@ -18,6 +18,11 @@ agent reads both DEVELOP.md and MAKERS.md. A role does not expand the user's
 authorized task scope. Load a skill's instruction manual when that skill is relevant.
 Use [GLOSSARY.md](GLOSSARY.md) for shared terms; proposed terms are marked there.
 
+README.md owns the project introduction and direction for people and agents;
+PROJECT_CHARTER.md is a compatibility pointer. Skill authors must read DEVELOP.md's
+geometry interoperability and whole-plan travel requirements. Those requirements
+do not imply that mesh support or the new planar-infill skill is implemented.
+
 ## Shared context
 
 - Describe capabilities and limitations as implemented. A proposal, preview,
