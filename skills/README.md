@@ -8,6 +8,9 @@ limits in the owning manual:
 | [wedge-demo](wedge-demo/SKILL.md) | Eight-point mesh, rectangular base, planar roof in any direction | S5, experimental H2D and configured Dobot software checks; shared export/review lifecycle. |
 | [full-fill](full-fill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |
 | [planar-infill](planar-infill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |
+| [supports](supports/SKILL.md) | Explicit standard footprints or tree skeletons; shared mesh/spline part-clearance queries | Bed-rooted, same-tool planar supports through the shared S5/H2D/configured Dobot lifecycle. |
+| [rimming-planar](rimming-planar/SKILL.md) | Assigned open bivariate spline surface between base and supported edges | Two outward horizontal offsets per section, shared planar pipeline; bed/edge bases. |
+| [rimming-normal](rimming-normal/SKILL.md) | Same assigned surface as rimming-planar | Experimental 3D normal offsets; shifted heights and ordering remain subjects for physical comparison. |
 | [draped-skin](draped-skin/SKILL.md) | Continuous accessible roof on either backend | Declared non-planar capability/limit; S5, experimental H2D and configured Dobot checks. |
 | [vase-wall](vase-wall/SKILL.md) | One supported convex outer section on mesh or untrimmed splines, no holes/islands | Continuous rising wall with optional level ending for successors; S5, experimental H2D and configured Dobot software checks. |
 

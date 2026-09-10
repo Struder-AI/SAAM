@@ -22,7 +22,7 @@ const printIdSchema = z.string().min(1).max(384).refine(id => {
     && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part));
 }, 'Invalid print name: use up to three relative folder names, without traversal, reserved names or Windows path characters.');
 const kindSchema = z.enum(['shell', 'wedge']);
-const skillIds = ['draped-skin', 'full-fill', 'planar-infill', 'vase-wall', 'wedge-demo'];
+const skillIds = ['draped-skin', 'full-fill', 'planar-infill', 'rimming-normal', 'rimming-planar', 'supports', 'vase-wall', 'wedge-demo'];
 const guidanceFiles = {
   makers: 'MAKERS.md', development: 'DEVELOP.md', glossary: 'GLOSSARY.md',
   mcp: 'adapters/mcp/README.md', 'wedge-generation': 'skills/wedge-demo/references/generation.md',
@@ -245,6 +245,9 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
       session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` };
       studioSessions.set(printId, session);
+      studio.once('close',()=>{
+        if(studioSessions.get(printId)===session)studioSessions.delete(printId);
+      });
     }
     await session.server.openPrint(dir);
     const browserOpenRequested = autoOpen ? await openBrowser(session.url) : false;
@@ -262,9 +265,8 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   }, false);
   return { server, async close() {
     await queue;
-    await Promise.all([...studioSessions.values()].map(({ server: studio }) => new Promise(done => {
-      studio.close(done); studio.closeAllConnections();
-    })));
+    await Promise.all([...studioSessions.values()].map(({ server: studio }) => studio.shutdown()));
+    studioSessions.clear();
     await server.close();
   } };
 }

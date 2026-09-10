@@ -43,7 +43,7 @@ export function layerHeights(process, fromMm, toMm) {
   return heights;
 }
 
-export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, zStartMm=null, zEndMm=null, lowerSurface=null }) {
+export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, interiorStrokes=null, sectionAt=null, zStartMm=null, zEndMm=null, lowerSurface=null }) {
   const operations=[];
   let previous=[];
   const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'],...overrides };
@@ -58,7 +58,7 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     const index=Math.round((z-shell.bounds.min[2]-process.firstLayerMm)/process.layerMm);
     const height = index === 0 ? process.firstLayerMm : process.layerMm;
     const speed = index === 0 ? process.firstLayerSpeedMmS : process.planarSpeedMmS;
-    const section = sectionShell(shell, z, { minFeatureMm: settings.minFeatureMm });
+    const section = sectionAt?sectionAt(z):sectionShell(shell, z, { minFeatureMm: settings.minFeatureMm });
     if (section.nudgedByMm) report.nudgedLayers++;
     // Below the reserved surface the body prints solid; where the skin has
     // claimed the material, the body stops. A layer entirely below the reserve
@@ -87,7 +87,7 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     let fillRegion = settings.perimeters > 0 ? offsetRegion(region, -(width / 2 + inset)) : offsetRegion(region,-width/2);
     if(interiorRegion)fillRegion=interiorRegion(fillRegion,index,z,region);
     const angle = settings.fillAnglesDeg[index % settings.fillAnglesDeg.length];
-    const rows = fillRegion.length ? scanlineFill(fillRegion, spacingMm??width, angle) : [];
+    const rows = fillRegion.length && !interiorStrokes ? scanlineFill(fillRegion, spacingMm??width, angle) : [];
     report.fillRows += rows.length;
     // Alternate direction down the rows so consecutive strokes end where the
     // next one starts; the travel planner then joins or combs instead of hopping.
@@ -95,6 +95,11 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
       const points = position % 2 ? [row.to, row.from] : [row.from, row.to];
       strokes.push({ role: 'fill', closed: false, points });
     });
+    if(fillRegion.length&&interiorStrokes){
+      const generated=interiorStrokes(fillRegion,index,z);
+      strokes.push(...generated.map(stroke=>({...stroke,role:'fill'})));
+      report.fillRows+=generated.length;
+    }
 
     const policy = planarPolicy(region, {
       layerZ: z,
@@ -104,9 +109,9 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     });
     const current=[];
     for(const [role,closed] of [['walls',true],['fill',false]]) {
-      const selected=strokes.filter(stroke=>stroke.closed===closed).map(stroke=>lowerSurface?{
+      const selected=strokes.filter(stroke=>closed?stroke.role!=='fill':stroke.role==='fill').map(stroke=>lowerSurface?{
         ...stroke,...surfaceStroke({points2d:stroke.points,z,nominalHeightMm:height,widthMm:width,surface:lowerSurface,closed:stroke.closed,maxStepMm:Math.min(0.2,settings.minFeatureMm/2)}),speedMmS:speed
-      }:{...stroke,points:stroke.points.map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:width*height});
+      }:{...stroke,points:(stroke.closed&&stroke.role==='fill'?[...stroke.points,stroke.points[0]]:stroke.points).map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:width*height});
       if(!selected.length)continue;
       const operationId=id+':'+index+':'+role;
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,

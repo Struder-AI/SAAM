@@ -25,7 +25,8 @@ export function clipperContext(regions, precision = CLIPPER_PRECISION, margin = 
     Y: Clipper.Clipper.Round((p[1] - origin[1]) / precision)
   })));
   const decode = paths => canonicalLoops(paths.map(loop => loop.map(p => [origin[0] + p.X * precision, origin[1] + p.Y * precision])));
-  return { encode, decode, precision };
+  const decodeOpen = paths => paths.map(path => path.map(p => [origin[0] + p.X * precision, origin[1] + p.Y * precision]));
+  return { encode, decode, decodeOpen, precision };
 }
 
 // Stable seams and component order make output independent of Clipper's scan

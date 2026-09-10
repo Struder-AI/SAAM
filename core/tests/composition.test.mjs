@@ -48,6 +48,16 @@ test('clearance uses geometry even when scheduling rank is unrelated to Z',()=>{
   assert.ok(builder.actions.some(a=>a.operation==='later-low'&&!a.volumeMm3&&a.to[2]>=5+plan.process.liftMm));
 });
 
+test('ready skills weave by actual deposition height while prerequisites take precedence',()=>{
+  const low=operation('low',1);low.rank=100;
+  const high=operation('high',5);high.rank=0;
+  const middle=operation('middle',3);middle.rank=-1;
+  const results=[{operations:[high]},{operations:[low]},{operations:[middle]}];
+  assert.deepEqual(scheduleOperations(results).map(op=>op.id),['low','middle','high']);
+  low.after=[high.id];
+  assert.deepEqual(scheduleOperations(results).map(op=>op.id),['middle','high','low']);
+});
+
 function columns(batchLayers=1){
   const plan=defaults();
   plan.geometry={shape:'assembly',parts:[

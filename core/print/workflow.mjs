@@ -42,7 +42,10 @@ export function createBundleWorkflow(adapter) {
     // The interpreter result is owned here and has not escaped to a caller.
     // Copy only on return; a second full cache copy serves no purpose.
     const text=program.code??code.toString('utf8');delete program.code;
-    verifiedProgram={key,program,code:text};
+    const sources=program.sources??{program:text};delete program.sources;
+    const {moves,events,...metadata}=program;
+    const sourceInfo=Object.entries(sources).map(([name,source])=>({name,sha256:hash(source)}));
+    verifiedProgram={key,program,code:text,sources,metadata:{...metadata,sources:sourceInfo}};
   }
   async function runtimeHash(){
     return runtimeCache??=hash(await Promise.all([
@@ -50,6 +53,8 @@ export function createBundleWorkflow(adapter) {
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
       new URL('../export/gcode-lines.mjs',import.meta.url),
+      new URL('../machine/rules.mjs',import.meta.url),new URL('../export/bambu-player.mjs',import.meta.url),
+      new URL('../export/dobot-player.mjs',import.meta.url),
       new URL('../export/dobot.mjs',import.meta.url),new URL('../export/dobot-lua-subset.mjs',import.meta.url),
       new URL('../geom/tolerance.mjs',import.meta.url), new URL('../geom/polyline.mjs',import.meta.url), ...adapter.runtimeFiles
     ].map(async file=>[fileURLToPath(file).slice(root.length).replaceAll('\\','/'),hash(await readFile(file))])));
@@ -95,7 +100,7 @@ async function rememberedSetup(setupFile, machine) {
   return Object.fromEntries(Object.entries(saved.setup ?? {}).filter(([key]) => Object.hasOwn(known, key)));
 }
 
-async function loadBundle(directory, { program = true } = {}) {
+async function loadBundle(directory, { program = true, sourceFile } = {}) {
   const dir = resolve(directory);
   const [plan, machine, geometry, review, runtime] = await Promise.all([
     json(resolve(dir, 'plan.json')), json(resolve(dir, 'machine.json')), json(resolve(dir, 'geometry/model.json')),
@@ -114,7 +119,7 @@ async function loadBundle(directory, { program = true } = {}) {
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.composition?.regions?.length
-      ? [...new Set(plan.composition.regions.flatMap(region=>Object.keys(region.skills)))]
+      ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','rimming-planar','rimming-normal'].filter(name=>plan.skills?.[name]?.enabled)])]
       : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : ['wedge-demo'],
     geometryApproved: review.approvals.geometry?.hash === geometryHash,
     planApproved: review.approvals.plan?.hash === planHash
@@ -142,11 +147,15 @@ async function loadBundle(directory, { program = true } = {}) {
         // commands; reopening never invokes a slicing skill or exporter.
         rememberProgram(key,interpretProgram(code, plan, machine),code);
       }
-      state.program = structuredClone(verifiedProgram.program);
+      state.program = structuredClone(program==='source'?verifiedProgram.metadata:verifiedProgram.program);
       state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
       state.pathSummary = structuredClone(review.generation.summary??{});
       state.exportHash = exportHash;
       state.code = verifiedProgram.code;
+      if(sourceFile!==undefined){
+        requireThat(Object.hasOwn(verifiedProgram.sources,sourceFile),'Unknown machine source file.');
+        state.code=verifiedProgram.sources[sourceFile];
+      }
       state.toolpathApproved = state.planApproved
         && review.approvals.toolpath?.hash === state.exportHash
         && review.approvals.toolpath?.planHash === planHash

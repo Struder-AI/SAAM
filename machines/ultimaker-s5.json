@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 4,
+  "revision": 5,
   "units": "mm",
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "bounds": {
@@ -182,6 +182,13 @@
         70
       ]
     }
+  },
+  "defaultProcess": {
+    "planarSpeedMmS": 40,
+    "skinSpeedMmS": 20,
+    "firstLayerSpeedMmS": 24,
+    "travelSpeedMmS": 120,
+    "zSpeedMmS": 10
   },
   "defaultSetup": {
     "tool": 1,

@@ -4,8 +4,9 @@ import {regionArea} from '../../../core/region/region2d.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {intersect,difference,union,levelSetRegion,levelSetCoverage} from '../../../core/region/boolean.mjs';
 import {clipReservedRegion,clipAboveSurface} from '../../../core/region/reservation.mjs';
+import {infillStrokes} from './patterns.mjs';
 
-export const PLANAR_INFILL_DEFAULTS={perimeters:2,density:0.2,fillAnglesDeg:[45,135],fillOverlap:0.15,minFeatureMm:0.4};
+export const PLANAR_INFILL_DEFAULTS={perimeters:2,density:0.2,pattern:'rectilinear',sampleStepMm:0.2,maxPatternCells:1000000,fillAnglesDeg:[45,135],fillOverlap:0.15,minFeatureMm:0.4};
 
 // One owner for walls; full-fill owns only selected solid interiors. Neither
 // pattern makes a second toolpath or chooses process parameters at generation.
@@ -28,9 +29,11 @@ export function planarInfillResults({shell,plan,reserve=null,id='planar-infill',
     return union(difference(region,supported),difference(region,covered));
   });
   const sparse=fullFillResult({shell,plan,reserve,id,settings,spacingMm:width/settings.density,zStartMm,zEndMm,lowerSurface,
+    interiorStrokes:(region,i,z)=>infillStrokes(region,{...settings,widthMm:width,angleDeg:settings.fillAnglesDeg[(settings.pattern==='rectilinear'?i:0)%settings.fillAnglesDeg.length],zMm:z}),
     interiorRegion:(region,i)=>difference(region,solids[i-layerOffset])});
   for(const op of sparse.operations)for(const stroke of op.strokes)if(stroke.role==='fill')stroke.role='infill';
   sparse.report.density=settings.density;
+  sparse.report.pattern=settings.pattern??'rectilinear';
   if(!solid)return [sparse];
   const solidResult=fullFillResult({shell,plan,reserve,id:id+':solid',settings:{...settings,perimeters:0},zStartMm,zEndMm,lowerSurface,
     interiorRegion:(_region,i,_z,whole)=>{

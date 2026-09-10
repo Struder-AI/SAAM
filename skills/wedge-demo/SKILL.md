@@ -27,7 +27,9 @@ substitute shell geometry or the full-fill/draped-skin generators for this demo.
 From the repository root, install with `npm ci` (Node.js 22+).
 
 - `node skills/wedge-demo/scripts/cli.mjs init Prints/<name>` creates an unapproved geometry and process plan.
-- `npm run studio -- Prints/<name>` opens that bundle on `http://127.0.0.1:4321`.
+- `npm run studio -- Prints/<name>` serves that bundle at its own local URL,
+  printed by the command. Open it within 60 seconds. Closing the last viewer tab
+  shuts down that instance; rerun the command to resume the saved bundle.
 - `node skills/wedge-demo/scripts/cli.mjs generate Prints/<name>` generates directly from an approved plan and completes checks.
 - `node skills/wedge-demo/scripts/cli.mjs check Prints/<name>` reopens and verifies the current bundle and exact export.
 - `node skills/wedge-demo/scripts/cli.mjs deliver Prints/<name>` copies the approved export byte-for-byte into `delivery/`, retaining the selected output's filename and extension.
@@ -91,11 +93,11 @@ bed, 28°C build-volume setting, Generic PLA material profile, 0.2 mm first and 
 skins measured normal to the slope. Reuse the user's confirmed setup; do not
 describe defaults such as bed temperature as separately human-approved.
 
-Printing speed defaults are 20 mm/s flat, 10 mm/s sloped and 12 mm/s first
-layer. A request to double printing speed sets targets of 40, 20 and 24 mm/s.
+S5 and H2D printing speed defaults are 40 mm/s flat, 20 mm/s sloped and
+24 mm/s first layer, with 120 mm/s XY travel and 10 mm/s Z travel.
 Targets are validated against the machine XY feed limits; actual moves remain
-capped by the locked material flow and Z-speed limits. Travel, lift, retraction,
-flow and cooling settings are separate choices, not automatically doubled.
+capped by the locked material flow and Z-speed limits. Retraction, flow and
+cooling retain their existing defaults. Saved plans retain their locked speeds.
 Do not silently substitute a lower target for a requested speed.
 
 S5 export includes `BUILD_VOLUME.TEMPERATURE` and the active tool's material

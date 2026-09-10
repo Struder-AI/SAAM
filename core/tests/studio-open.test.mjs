@@ -28,7 +28,7 @@ test('Studio reopens saved approval stages and exports without creating or rewri
   assert.equal((await post('open',{path:ready},false)).status,403);
   const archive=join(ready,'exports/bambu-gcode/wedge.gcode.3mf');
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
-  state=await get();assert.equal(state.planApproved,true);assert.ok(state.program.moves.length);assert.equal(state.toolpathApproved,false);
+  state=await get();assert.equal(state.planApproved,true);assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
   assert.deepEqual(await readFile(join(ready,'review.json')),original);
   assert.equal((await post('generate',{development:true,printId:first.printId})).status,400,'an old tab cannot mutate a newly opened print');

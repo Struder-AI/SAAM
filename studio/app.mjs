@@ -1,8 +1,9 @@
 import { advancePlayback, frameAtTime } from './playback.mjs';
 import { createProjection } from './camera.mjs';
-import { buildToolpathView, toolpathFrame, toolpathStyle } from './toolpath-view.mjs';
+import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey } from './toolpath-view.mjs';
 import {buildMeshView} from './mesh-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows} from './settings.mjs';
+import {moveStore} from './studio/move-store.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
@@ -12,6 +13,7 @@ const canvas=$('#canvas'),ctx=canvas.getContext('2d');
 let polygons=[],drag=null,moved=false;
 let redrawFrame=0;
 let pathView,meshView;
+const layerFade=createLayerFade();
 function requestDraw(){
   if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
 }
@@ -109,7 +111,7 @@ const views={
       if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),
         ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
+        ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
         ['Solid surfaces',normal?.enabled&&fill.enabled?fill.bottomLayers+' bottom / '+fill.topLayers+' top layers':'—'],
         ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None'],['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All'],['Roof component',skin.part??'Part roof']];
       if(!state.program)return [];
@@ -159,9 +161,18 @@ async function api(route,data) {
 }
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
-  const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;state=next;
+  const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;
+  if(next.program){
+    if(previous?.program&&previous.exportHash===next.exportHash&&previous.planHash===next.planHash)next.program=previous.program;
+    else try{
+      const decoded=await decodeInWorker(next);
+      next.program={...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}};
+    }catch(error){next.programError=error.message;delete next.program;next.toolpathApproved=false;}
+  }
+  state=next;
   if(!meshView||previous?.geometry.geometryVersion!==state.geometry.geometryVersion)meshView=buildMeshView(state.geometry);
   pathView=state.program?buildToolpathView(state.program.moves):null;
+  layerFade.reset();
   if(previous?.exportHash!==next.exportHash){stop();seconds=duration();fitBounds=null;}
   if(!previous) {
     stop();selected=null;fitBounds=null;zoom=1;seconds=duration();
@@ -175,6 +186,19 @@ async function refresh(follow=false,reopen=false) {
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
   if(!selected||!state.geometry.labels.includes(selected))selectFeature(state.geometry.labels[0]);
   render();
+}
+function decodeInWorker(snapshot){
+  return new Promise((resolve,reject)=>{
+    const worker=new Worker('/studio/source-worker.mjs',{type:'module'});
+    worker.onmessage=({data})=>{
+      worker.terminate();
+      if(data.error)reject(new Error(data.error));
+      else resolve({...data.program,moves:moveStore(data.program.moves)});
+    };
+    worker.onerror=event=>{worker.terminate();reject(new Error(event.message||'Unable to load the machine-code player.'));};
+    worker.postMessage({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
+      plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
+  });
 }
 function table(entries) {
   const dl=document.createElement('dl');
@@ -204,7 +228,7 @@ function render() {
   requestDraw();
 }
 function selectFeature(id){selected=id;$('#selection').textContent=label(id);requestDraw();}
-function setTab(next){if(!state)return;tab=next;stop();render();}
+function setTab(next){if(!state)return;tab=next;stop();layerFade.reset();render();}
 
 function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
 function draw() {
@@ -235,12 +259,18 @@ function draw() {
     const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[count].from}]:detail.segments;
     const current=moves[at.active];
     const currentLayer=current?.phase==='finish'?moves.findLast(m=>m.extruding):current;
+    const fade=layerFade.frame(currentLayer,performance.now()),styles=new Map();
     // Draw the active layer last so older geometry cannot obscure it.
     for(const active of [false,true])for(const edge of displayed) {
-      const style=toolpathStyle(edge.move,currentLayer,skinPhase);if(style.active!==active)continue;
+      const key=layerKey(edge.move),styleKey=key+':'+!!edge.move.extruding;
+      let style=styles.get(styleKey);
+      if(!style){style=toolpathStyle(edge.move,currentLayer,skinPhase,fade.weights.get(key)??0);styles.set(styleKey,style);}
+      if(style.active!==active)continue;
       ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);
     }
     ctx.globalAlpha=1;
+    // Finish an outgoing fade even when playback is paused at the boundary.
+    if(fade.fading&&!playing)requestDraw();
     if(current&&at.fraction<1&&(current.extruding||showTravel)){
       const style=toolpathStyle(current,current,skinPhase);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);
     }
@@ -248,7 +278,12 @@ function draw() {
       $('#time-label').textContent=clock(seconds)+' / '+clock(duration());
     }
   }
-  const origin=project([0,0,0]);segment(origin,project([5,0,0]),'#b26751',1.5);segment(origin,project([0,5,0]),'#659a7a',1.5);segment(origin,project([0,0,5]),'#638599',1.5);
+  const origin=project([0,0,0]);
+  ctx.font='10px Segoe UI';
+  for(const [point,name,color] of [[[5,0,0],'X','#b26751'],[[0,5,0],'Y','#659a7a'],[[0,0,5],'Z','#638599']]){
+    const end=project(point);segment(origin,end,color,1.5);
+    if(Math.hypot(end[0]-origin[0],end[1]-origin[1])>1){ctx.fillStyle=color;ctx.fillText(name,end[0]+4,end[1]-4);}
+  }
   ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,canvas.clientHeight-18);
   if(tab!=='toolpath'){const polygon=polygons.find(p=>p.id===selected);if(polygon){const center=polygon.points.reduce((s,p)=>[s[0]+p[0]/polygon.points.length,s[1]+p[1]/polygon.points.length],[0,0]);ctx.fillStyle='#31432c';ctx.fillText(label(selected),center[0]-25,center[1]);}}
 }
@@ -314,13 +349,14 @@ $('#open-print').onclick=async()=>{
 $('#close-picker').onclick=()=>$('#print-picker').close();
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
-$('#scrub').oninput=()=>{stop();seconds=Number($('#scrub').value);requestDraw();};
-$('#play').onclick=()=>{if(playing){stop();return;}if(seconds>=duration())seconds=0;playing=true;lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
+$('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
+$('#scrub').oninput=()=>{stop();layerFade.reset();seconds=Number($('#scrub').value);requestDraw();};
+$('#play').onclick=()=>{if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
 function animate(now){
   if(!playing)return;
   if(lastFrame)seconds=advancePlayback(seconds,now-lastFrame,Number($('#playback-speed').value),duration());
   lastFrame=now;$('#scrub').value=seconds;draw();
-  if(seconds>=duration()){stop();return;}frame=requestAnimationFrame(animate);
+  if(seconds>=duration()){stop();requestDraw();return;}frame=requestAnimationFrame(animate);
 }
 async function poll(){
   if(polling||busy)return;polling=true;

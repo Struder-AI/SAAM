@@ -1,6 +1,6 @@
 ---
 name: planar-infill
-description: Generate planar walls and sparse rectilinear infill on closed mesh or supported spline geometry for compatible XYZ extrusion machines. Combine with full-fill for solid regions and draped-skin for surface-following roofs through the shared print workflow.
+description: Generate planar walls and rectilinear, grid, triangles, concentric or gyroid infill on closed mesh or supported spline geometry. Combine with solid surfaces, assigned supports and draped skin through the shared workflow.
 ---
 
 # Planar infill
@@ -29,7 +29,10 @@ All settings and component selections are locked before generation.
 | `parts` | `[]` | Assembly components; empty selects all. |
 | `perimeters` | `2` | Wall loops per layer. |
 | `density` | `0.2` | Approximate interior volume fraction; spacing is line width / density. |
-| `fillAnglesDeg` | `[45, 135]` | Rectilinear direction, alternated by layer. |
+| `pattern` | `rectilinear` | Sparse interior pattern, described below. |
+| `sampleStepMm` | `0.2` | Gyroid maximum sampling grid step, also limited to 1/32 of its period. |
+| `maxPatternCells` | `1000000` | Gyroid sampling cells per layer; raise explicitly for larger/finer slices. |
+| `fillAnglesDeg` | `[45, 135]` | Rectilinear and solid-skin directions alternate by layer. Grid/triangles use the first angle as their stable orientation; concentric/gyroid ignore angles for sparse fill. |
 | `fillOverlap` | `0.15` | Overlap with the inner wall as a fraction of bead width. |
 | `minFeatureMm` | `0.4` | Smallest sampled spline section feature. |
 
@@ -37,8 +40,47 @@ Full-fill owns `bottomLayers` and `topLayers` (three each by default).
 Local solid masks compare neighboring sections, including shelves and sloping
 roofs. One skill owns walls; sparse and solid interiors use complementary masks.
 Drape's material reservation applies to both. The first solid layer over sparse
-infill is a bridge with an approximate bead model; support generation, bridge
-optimization and physical bridge validation are not implemented.
+infill is a bridge with an approximate bead model; bridge optimization and
+physical bridge validation are not implemented. External sacrificial supports
+can be explicitly assigned with [supports](../supports/SKILL.md).
+
+## Choosing an infill pattern
+
+All five patterns keep the same wall owner and complementary solid-surface
+masks. Pattern settings can be overridden per material region through the same
+plan. They do not change full-fill's solid top/bottom strokes or drape reservations.
+
+| Pattern | Why choose it | Tradeoff |
+|---|---|---|
+| `rectilinear` | Simple straight strokes, one direction per layer; retains existing recipes. | Direction changes between layers rather than within one layer. |
+| `grid` | Two crossing directions per layer; simple support lattice for a roof. | Crossings accumulate material locally; direction-dependent behavior remains. |
+| `triangles` | Three directions per layer form triangular cells. | More crossings; strength depends on material, orientation and bonding, not just the name. |
+| `concentric` | Nested contours follow the local outline, including holes. | Narrow regions collapse under offsets; no automatic short-gap or thin-feature fill. |
+| `gyroid` | Curved, connected strokes vary with Z without grid-style crossings within a layer. | More calculation/segments; boundary clipping can split strokes and small regions can have uneven density. |
+
+For grid/triangles, the line-length budget is split over two/three directions;
+adding directions does not multiply the requested material fraction. Density
+does not compensate for intersections or finite boundary effects. Concentric
+spacing is line width / density; each remaining contour is explicitly closed.
+Thin strips and their roof support deserve judgment and Studio inspection.
+
+Gyroid samples the nodal field `sin(x)cos(y) + sin(y)cos(z) + sin(z)cos(x) = 0`
+in scaled millimeter coordinates, with period `2.4 * lineWidthMm / density`.
+This approximate density calibration measured 20.52% deposited line-volume
+fraction for requested 20% on a 48 mm square averaged over 16 phases, at 0.2 mm
+sampling and 0.4 mm width. It is not a certified surface or exact-volume model.
+The existing level-set constructor extracts contours; the shared Clipper2 open
+path tool clips them at walls, holes, islands and solid masks without adding
+extrusion connections across gaps. The pattern is anchored to the shared world
+coordinate grid, including Z, so placement can change its phase within a part.
+Sample refinement tests measure field residual and contour-length convergence.
+No upstream slicer code or documentation text was copied.
+
+`scripts/patterns.mjs` exposes `infillStrokes(region, settings)` for the owning
+generator and developer tests. Makers use the shared plan tools, not a separate
+pattern export. Closed interiors remain fill operations, so they cannot acquire
+wall material ownership or duplicate the part's perimeters. New settings in old
+plans resolve to the existing rectilinear behavior before locking.
 
 ## Shared interfaces and boundaries
 

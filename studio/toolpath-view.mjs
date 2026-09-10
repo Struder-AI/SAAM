@@ -1,12 +1,41 @@
 // A display budget, never a modification of the interpreted or exported path.
 export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
-export function toolpathStyle(move,current,skinPhase='draped-skin') {
+export const layerKey=move=>move?`${move.phase}\0${move.layer}`:null;
+// Wall-clock time keeps the fade at two seconds at every playback speed.
+export function createLayerFade() {
+  let previous=null;
+  const outgoing=new Map();
+  return {
+    reset(){previous=null;outgoing.clear();},
+    frame(current,now){
+      const key=layerKey(current),weights=new Map();
+      if(key!==previous){
+        if(previous!==null)outgoing.set(previous,now);
+        outgoing.delete(key);previous=key;
+      }
+      for(const [id,start] of outgoing){
+        const t=Math.max(0,Math.min(1,(now-start)/2000));
+        if(t===1)outgoing.delete(id);
+        else weights.set(id,1-t*t*(3-2*t));
+      }
+      if(key!==null)weights.set(key,1);
+      return {weights,fading:outgoing.size>0};
+    }
+  };
+}
+function mixColor(from,to,t){
+  if(t===0)return from;if(t===1)return to;
+  return '#'+[1,3,5].map(i=>Math.round(parseInt(from.slice(i,i+2),16)*(1-t)+parseInt(to.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
+}
+export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis) {
   const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
   const skin=move.phase===skinPhase||move.phase==='vase-wall';
-  return {active,color:move.extruding?(skin?(active?'#c65b19':'#d6a17c'):
-    move.phase==='prime'?'#5b92a3':active?'#24583e':'#91a68a'):(active?'#657fa3':'#aeb8c5'),
-    opacity:active?1:0.2,width:active?(move.extruding?1.35:0.85):0.65};
+  const strength=active?1:emphasis??0;
+  const foreground=move.extruding?(skin?'#c65b19':move.phase==='prime'?'#5b92a3':'#24583e'):'#657fa3';
+  const background=move.extruding?(skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#91a68a'):'#aeb8c5';
+  return {active,color:mixColor(background,foreground,strength),
+    opacity:0.65+0.35*strength,width:0.65+((move.extruding?1.35:0.85)-0.65)*strength};
 }
 const same=(a,b)=>a.every((v,i)=>v===b[i]);
 const distance2=(p,a,b)=>{
@@ -32,9 +61,10 @@ function simplify(moves,first,last) {
 }
 export function buildToolpathView(moves) {
   const groups=[];
+  const value=(i,key)=>moves.value?moves.value(i,key):moves[i][key];
   for(let i=0;i<moves.length;){
-    const first=i,m= moves[i];
-    while(i+1<moves.length&&moves[i+1].layer===m.layer&&moves[i+1].phase===m.phase)i++;
+    const first=i,layer=value(i,'layer'),phase=value(i,'phase');
+    while(i+1<moves.length&&value(i+1,'layer')===layer&&value(i+1,'phase')===phase)i++;
     groups.push({first,last:i,raw:null,reduced:null});i++;
   }
   return {moves,groups};
@@ -44,7 +74,7 @@ function entries(view,group,reduced) {
     const i=group.first+j,m=view.moves[i];return {first:i,last:i,from:m.from,to:m.to,move:m};
   });
   if(group.reduced)return group.reduced;
-  const out=[],moves=view.moves;
+  const out=[],moves=view.moves.range?view.moves.range(group.first,group.last+1):view.moves;
   for(let first=group.first;first<=group.last;){
     let last=first;
     while(last<group.last&&moves[last+1].extruding===moves[first].extruding&&moves[last+1].operation===moves[first].operation
@@ -91,9 +121,13 @@ function selectFrame(view,count,travel,pointCap) {
   // Reserve endpoints for the partial simplified edge and exact active move.
   const budget=Math.max(0,Math.floor(pointCap/2)-2);
   const groups=view.groups.filter(g=>g.first<count);
-  let rows=groups.map(g=>visible(view,g,count,travel,false));
-  if(rows.reduce((s,a)=>s+a.length,0)<=budget)return {segments:rows.flat(),reduced:false,overview:false};
-  rows=groups.map(g=>visible(view,g,count,travel,true));
+  // Avoid materializing an object for every original move in a dense job.
+  // Exact entries are useful only when the visible range fits the draw budget.
+  if(count<=budget){
+    const rows=groups.map(g=>visible(view,g,count,travel,false));
+    return {segments:rows.flat(),reduced:false,overview:false};
+  }
+  let rows=groups.map(g=>visible(view,g,count,travel,true));
   const activeGroup=groups.at(-1),active=activeGroup&&entries(view,activeGroup,true).find(s=>s.first<count&&s.last>=count&&(travel||s.move.extruding));
   if(rows.reduce((s,a)=>s+a.length,0)<=budget)return {segments:rows.flat(),partial:active,reduced:true,overview:false};
   // Prefer complete representative layers, keeping the most recent layer in

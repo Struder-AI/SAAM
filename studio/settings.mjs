@@ -1,10 +1,13 @@
 // Human-readable review of the same locked recipe used by every adapter.
-export const skillName=name=>({'full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin'}[name]??name);
-export const hasSkill=(plan,name)=>plan.composition?.regions?.length
+const supportSkills=['supports','rimming-planar','rimming-normal'];
+export const skillName=name=>({'full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
+export const hasSkill=(plan,name)=>supportSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
   ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
   :Boolean(plan.skills?.[name]?.enabled);
 const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
 const fields={
+  pattern:['Pattern',''],maxPatternCells:['Pattern cell budget',''],interfaceDensity:['Interface fraction',''],
+  interfaceLayers:['Interface layers',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
   mode:['Fill mode',''],bottomLayers:['Solid bottom layers',''],topLayers:['Solid top layers',''],
   perimeters:['Walls',''],density:['Infill fraction',''],fillAnglesDeg:['Fill directions','°'],fillOverlap:['Wall overlap (bead fraction)',''],
   minFeatureMm:['Smallest sampled feature',' mm'],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
@@ -16,6 +19,25 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
   const rows=[];
   for(const [key,v] of Object.entries(settings)){
     if(['enabled','part','parts'].includes(key))continue;
+    if(key==='surfaces'){
+      for(const s of v){
+        rows.push([prefix+' · '+s.id,s.reason],[s.id+' · Base',s.baseEdge+(s.basePart?' on '+s.basePart:'')],
+          [s.id+' · Supported edge',s.supportedEdge+(s.supportedPart?' on '+s.supportedPart:'')],
+          [s.id+' · Wall','Two beads outward from the assigned reference surface; exact-edge contact'],
+          [s.id+' · Reference surface',s.controlPoints.map(row=>row.map(p=>'('+p.join(', ')+')').join(' → ')).join('; ')+' mm; degrees '+s.degreeU+'/'+s.degreeV],
+          [s.id+' · Outward side',s.outwardSide===1?'Along surface normal':'Opposite surface normal']);
+      }
+      continue;
+    }
+    if(key==='assignments'){
+      for(const a of v){
+        rows.push([prefix+' · '+a.id,a.style+' · '+a.reason],
+          [a.id+' · Contact height',a.contactZMm+' mm above bed']);
+        if(a.style==='standard')rows.push([a.id+' · Footprint',a.footprint.map(loop=>loop.map(p=>'('+p.join(', ')+')').join(' → ')).join('; ')+' mm from part placement']);
+        else for(const n of a.treeNodes)rows.push([a.id+' · '+n.id,n.point.join(', ')+' mm · radius '+n.radiusMm+' mm · '+(n.parent===null?'bed root':'from '+n.parent)]);
+      }
+      continue;
+    }
     const [label,unit]=fields[key]??[key,''];
     const rendered=key==='maxAngleDegOverride'&&v===null?'Machine profile limit'
       :key==='zEndMm'&&v===null?'Geometry top'
@@ -39,13 +61,14 @@ export function recipeRows(plan){
       ['Additional dependencies',composition.dependencies.length?composition.dependencies.map(e=>e.before+' → '+e.after).join('; '):'None']);
   }
   if(regions.length){
+    for(const name of supportSkills)if(plan.skills?.[name]?.enabled)rows.push(...skillSettingsRows(name,plan.skills[name]));
     rows.push(...regionRows(plan));
     for(const region of regions)for(const [name,overrides] of Object.entries(region.skills))rows.push(
       ...skillSettingsRows(name,{...plan.skills[name],...overrides},region.id+' · '+skillName(name))
         .filter(([label])=>!label.endsWith('above component base')));
   }else if(plan.skills){
     for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled){
-      rows.push([skillName(name)+' · Component',settings.parts?.join(', ')||settings.part||'All selected geometry']);
+      rows.push([skillName(name)+' · Component',supportSkills.includes(name)?'Explicitly assigned supports':settings.parts?.join(', ')||settings.part||'All selected geometry']);
       rows.push(...skillSettingsRows(name,settings));
     }
   }

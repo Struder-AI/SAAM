@@ -240,10 +240,16 @@ test('Studio serves the exact export and rejects cross-origin or stale mutations
   const stale=await fetch(origin+'/api/plan',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({plan:s.plan,revision:'old'})});assert.equal(stale.status,400);
   const blocked=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});assert.equal(blocked.status,400);
 });
-test('an ephemeral Studio listener closes after its viewer goes idle',async t=>{
-  const dir=await fixture(t),server=createStudio(dir,{closeWhenIdle:true,idleMs:25});
+test('Studio closes after its viewer disconnects and preserves the bundle',async t=>{
+  const dir=await fixture(t),server=createStudio(dir,{disconnectMs:25});
+  t.after(()=>server.shutdown());
   await new Promise(r=>server.listen(0,'127.0.0.1',r));
   const origin=`http://127.0.0.1:${server.address().port}`;
-  await fetch(origin);
+  const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const controller=new AbortController();
+  const viewer=await fetch(origin+'/api/viewer?token='+token,{signal:controller.signal});
+  assert.equal(viewer.status,200);
+  controller.abort();
   await new Promise((resolve,reject)=>{server.once('close',resolve);setTimeout(()=>reject(new Error('Studio listener did not close after viewer inactivity.')),500);});
+  assert.ok(await loadBundle(dir));
 });

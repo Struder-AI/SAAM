@@ -12,22 +12,33 @@ const CHAIN_TOLERANCE = 1e-7;
 // Reassemble kept pieces into closed loops end to end.
 function chain(pieces) {
   const pool = pieces.map(piece => [...piece]).filter(piece => piece.length >= 2);
+  const buckets=new Map(),used=new Set();
+  const cell=p=>p.map(v=>Math.floor(v/CHAIN_TOLERANCE));
+  for(let i=0;i<pool.length;i++){
+    const key=cell(pool[i][0]).join('|');
+    if(!buckets.has(key))buckets.set(key,[]);
+    buckets.get(key).push(i);
+  }
   const loops = [];
   // One bound for the whole walk: a shrinking pool must not cut a long contour
   // short half way round.
   const limit = pool.length + 2;
-  while (pool.length) {
-    let current = pool.pop();
+  for(let start=pool.length-1;start>=0;start--) {
+    if(used.has(start))continue;
+    let current = [...pool[start]];used.add(start);
     let guard = 0;
     while (distance2(current[0], current[current.length - 1]) > CHAIN_TOLERANCE && guard++ < limit) {
       const tip = current[current.length - 1];
       let best = -1, bestDistance = CHAIN_TOLERANCE;
-      for (let i = 0; i < pool.length; i++) {
-        const d = distance2(tip, pool[i][0]);
-        if (d <= bestDistance) { bestDistance = d; best = i; }
+      const [x,y]=cell(tip);
+      for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(const i of buckets.get((x+dx)+'|'+(y+dy))??[]){
+        if(used.has(i))continue;
+        const d=distance2(tip,pool[i][0]);
+        // Preserve the previous scan's last-index tie rule and output order.
+        if(d<bestDistance||(d===bestDistance&&i>best)){bestDistance=d;best=i;}
       }
       if (best < 0) break;
-      current.push(...pool.splice(best, 1)[0].slice(1));
+      used.add(best);current.push(...pool[best].slice(1));
     }
     requireThat(distance2(current[0],current[current.length-1])<=CHAIN_TOLERANCE,'Region operation produced an open contour.');
     const closed = dedupe(current);

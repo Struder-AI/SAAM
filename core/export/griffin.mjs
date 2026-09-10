@@ -1,6 +1,6 @@
 import { distance, requireThat } from '../geom/tolerance.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
-import {toolBounds} from '../machine/profile.mjs';
+import {toolBounds} from '../machine/rules.mjs';
 const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
@@ -89,12 +89,12 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
 
 // A strict interpreter for the exported subset. Geometry is reconstructed from
 // G-code coordinates and modal state, never from SAAMpath/display annotations.
-export const interpretGriffin=(text,plan,machine)=>interpretGcode(text,plan,machine);
+export const interpretGriffin=(text,plan,machine,options={})=>interpretGcode(text,plan,machine,false,'absolute',options);
 // Body-only interpretation starts after a dialect's checked firmware envelope.
 // It still requires explicit units, modes, tool and temperature waits. This is
 // the same modal engine as Griffin, without inventing a Griffin header.
-export const interpretMotion=(text,plan,machine,{extrusionMode='absolute'}={})=>interpretGcode(text,plan,machine,true,extrusionMode);
-function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute') {
+export const interpretMotion=(text,plan,machine,{extrusionMode='absolute',...options}={})=>interpretGcode(text,plan,machine,true,extrusionMode,options);
+function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute',{moves=[]}={}) {
   const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
@@ -102,7 +102,9 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   let pos=[...machine.tools[s.tool].startupXY,startupZ],e=0,feed=0,absolute=null,absE=null,metric=false;
   let tool=bodyOnly?s.tool:null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=plan.process.startupRetracted,phase='startup',layer=-1,time=0,volume=0,operation='';
-  const moves=[],events=[],header={};
+  const events=[],header={};
+  let extrusionMoves=0;
+  const motionMin=[Infinity,Infinity,Infinity],motionMax=[-Infinity,-Infinity,-Infinity];
   let inHeader=false,endedHeader=bodyOnly;
   const tokens=/([A-Z])([+-]?(?:\d+(?:\.\d*)?|\.\d+))/g;
   let line=0;
@@ -162,6 +164,8 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
           const v=Math.max(0,de)*area;
           requireThat(v/duration<=plan.process.maxFlowMm3S+0.03,`Flow exceeds locked limit at line ${line}.`);
           moves.push({line,from:[...pos],to:next,extruding:de>1e-8,volumeMm3:v,speedMmS:feed,phase,layer,operation,fan,startSeconds:time,durationSeconds:duration});
+          if(de>1e-8)extrusionMoves++;
+          for(let i=0;i<3;i++){motionMin[i]=Math.min(motionMin[i],pos[i],next[i]);motionMax[i]=Math.max(motionMax[i],pos[i],next[i]);}
           volume+=v;time+=duration;
         } else if(Math.abs(de)>1e-9) {
           requireThat(feed<=machine.maxFeedMmS.e,'Stationary extrusion speed exceeds limit.');
@@ -188,15 +192,15 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   requireThat(Number(header['BUILD_PLATE.INITIAL_TEMPERATURE'])===s.bedC,'Header bed temperature mismatch.');
   requireThat(header['BUILD_VOLUME.TEMPERATURE']?.trim()&&Number(header['BUILD_VOLUME.TEMPERATURE'])===s.buildVolumeC,'Missing or mismatched BUILD_VOLUME.TEMPERATURE in S5 header.');
   requireThat(header[`EXTRUDER_TRAIN.${s.tool}.MATERIAL.GUID`]===s.materialGuid,'Missing or mismatched MATERIAL.GUID in S5 header.');
-  requireThat(moves.some(m=>m.extruding)&&nozzle===0&&bed===0&&fan===0,'Missing deposition or shutdown.');
+  requireThat(extrusionMoves>0&&nozzle===0&&bed===0&&fan===0,'Missing deposition or shutdown.');
   for(const [i,axis]of ['X','Y','Z'].entries()) {
     const lo=Number(header[`PRINT.SIZE.MIN.${axis}`]),hi=Number(header[`PRINT.SIZE.MAX.${axis}`]);
     requireThat(Number.isFinite(lo)&&Number.isFinite(hi)&&lo<=hi,'Missing/invalid header bounds.');
-    requireThat(moves.every(m=>m.to[i]>=lo-1e-4&&m.to[i]<=hi+1e-4&&m.from[i]>=lo-1e-4&&m.from[i]<=hi+1e-4),'Moves exceed header bounds.');
+    requireThat(motionMin[i]>=lo-1e-4&&motionMax[i]<=hi+1e-4,'Moves exceed header bounds.');
   }
   requireThat(Math.abs(Number(header[`EXTRUDER_TRAIN.${s.tool}.MATERIAL.VOLUME_USED`])-volume)<1.1,'Header material volume mismatch.');
-  } else requireThat(moves.some(m=>m.extruding)&&metric&&absolute===true&&absE===(extrusionMode==='absolute')&&hot&&bedReady&&nozzle===s.nozzleC&&bed===s.bedC,'Invalid body or terminal machine state.');
-  return {moves,events,header,seconds:time,volumeMm3:volume,finalPosition:pos,summary:{moves:moves.length,extrusionMoves:moves.filter(m=>m.extruding).length,
+  } else requireThat(extrusionMoves>0&&metric&&absolute===true&&absE===(extrusionMode==='absolute')&&hot&&bedReady&&nozzle===s.nozzleC&&bed===s.bedC,'Invalid body or terminal machine state.');
+  return {moves,events,header,seconds:time,volumeMm3:volume,finalPosition:pos,summary:{moves:moves.length,extrusionMoves,
     volumeMm3:volume,filamentMm:volume/area,motionSeconds:time,
     startup:'Firmware startup and heating time are not simulated; this export does not request routine bed leveling.',clearance:'Operator responsibility; not checked.'}};
 }

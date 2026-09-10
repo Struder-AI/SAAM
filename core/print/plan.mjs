@@ -13,7 +13,10 @@ import { requireThat } from '../geom/tolerance.mjs';
 import {loadMachine,validateSetup,toolBounds,requireMachine} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
+import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
+import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
+import {RIMMING_DEFAULTS,validateRimming} from '../../skills/rimming-planar/scripts/rimming.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -46,6 +49,9 @@ export function defaults(machine=loadMachine()) {
       clearanceNote: 'No collision model is implemented; the operator owns physical clearance.'
     },
     skills: {
+      supports: structuredClone(SUPPORT_DEFAULTS),
+      'rimming-planar':structuredClone(RIMMING_DEFAULTS),
+      'rimming-normal':structuredClone(RIMMING_DEFAULTS),
       'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
@@ -98,7 +104,10 @@ export function validatePlan(plan, machine) {
   plan.skills['full-fill'].parts ??= [];
   for(const field of ['mode','bottomLayers','topLayers'])plan.skills['full-fill'][field]??=FULL_FILL_DEFAULTS[field];
   plan.skills['planar-infill']??={enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS};
+  for(const field of ['pattern','sampleStepMm','maxPatternCells'])plan.skills['planar-infill'][field]??=PLANAR_INFILL_DEFAULTS[field];
   plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
+  plan.skills.supports??=structuredClone(SUPPORT_DEFAULTS);
+  for(const name of ['rimming-planar','rimming-normal'])plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);
   plan.skills['vase-wall'].endTransition??='spiral';
   // Preserve the old numerical boundary allowance when opening older recipes.
   // New plans lock this independently from contour subdivision tolerance.
@@ -157,6 +166,21 @@ export function validatePlan(plan, machine) {
   requireThat(typeof process.clearanceNote === 'string' && process.clearanceNote.length <= 1000, 'Invalid clearance note.');
 
   validateSetup(plan,machine);
+  validateSupports(skills.supports,process);
+  const rimSurfaces=new Set();
+  for(const name of ['rimming-planar','rimming-normal']){
+    validateRimming(skills[name]);
+    if(skills[name].enabled){
+      requireMachine(machine,name==='rimming-normal'?['xyz-extrusion','nonplanar']:['xyz-extrusion','planar'],name);
+      for(const surface of skills[name].surfaces){
+        const key=JSON.stringify(surface.controlPoints);
+        requireThat(!rimSurfaces.has(key),'Choose one rimming offset skill for a given surface; compare the two in separate prints.');rimSurfaces.add(key);
+        if(geometry.shape==='assembly')requireThat([surface.basePart,surface.supportedPart].every(id=>id===null||geometry.parts.some(p=>p.id===id)),'Unknown rimming component.');
+        else requireThat(surface.basePart===null&&surface.supportedPart===null,'Rimming component names require an assembly.');
+      }
+    }
+  }
+  if(skills.supports.enabled)requireMachine(machine,['xyz-extrusion','planar'],'supports');
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
   const fill = skills['full-fill'], skin = skills['draped-skin'],normal=skills['planar-infill'];
@@ -188,6 +212,7 @@ export function validatePlan(plan, machine) {
       child.skills['full-fill'].parts=[];child.skills['draped-skin'].part=null;
       child.skills['planar-infill'].parts=[];
       child.skills['vase-wall'].part=null;
+      for(const name of ['rimming-planar','rimming-normal'])child.skills[name].enabled=false;
       child.composition.regions=[];
       if(regional){for(const settings of Object.values(child.skills))settings.enabled=false;child.skills['full-fill'].enabled=true;child.skills['full-fill'].mode='body';}
       validatePlan(child,machine);
@@ -209,6 +234,9 @@ export function validatePlan(plan, machine) {
   number(fill.fillOverlap, 0, 0.5, 'fillOverlap');
   number(fill.minFeatureMm, 0.05, 5, 'minFeatureMm');
   number(normal.density,0.01,1,'Infill density');
+  requireThat(INFILL_PATTERNS.includes(normal.pattern),'Unknown infill pattern.');
+  number(normal.sampleStepMm,0.01,2,'Infill sample step');
+  requireThat(Number.isSafeInteger(normal.maxPatternCells)&&normal.maxPatternCells>0,'Infill maxPatternCells must be a positive safe integer.');
   requireThat(Number.isInteger(normal.perimeters)&&normal.perimeters>=0&&normal.perimeters<=8,'Infill perimeters must be 0–8.');
   requireThat(Array.isArray(normal.fillAnglesDeg)&&normal.fillAnglesDeg.length>0&&normal.fillAnglesDeg.every(v=>Number.isFinite(v)&&v>=-180&&v<=180),'Invalid infill angles.');
   number(normal.fillOverlap,0,0.5,'Infill overlap');number(normal.minFeatureMm,0.05,5,'Infill feature size');
@@ -246,6 +274,7 @@ export function validatePlan(plan, machine) {
     if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
     for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
     for(const [name,overrides] of Object.entries(region.skills)) {
+      requireThat(!['supports','rimming-planar','rimming-normal'].includes(name),'Assign sacrificial supports through their global skill settings, outside part material regions.');
       const settings=child.skills[name];
       requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
       requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');

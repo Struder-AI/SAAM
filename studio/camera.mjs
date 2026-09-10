@@ -8,6 +8,8 @@ export function createProjection(bounds,width,height,yaw,tilt,zoom) {
   return point=>{
     const x=point[0]-center[0],y=point[1]-center[1],z=point[2]-center[2];
     const u=x*cosYaw-y*sinYaw,v=x*sinYaw+y*cosYaw;
-    return [width/2+u*scale,height*.53+(v*sinTilt-z*cosTilt)*scale,v*cosTilt+z*sinTilt];
+    // Orthographic, right-handed XYZ: +Y goes into the bed, +Z goes up.
+    // Canvas Y increases downward; depth increases toward the viewer.
+    return [width/2+u*scale,height*.53-(v*sinTilt+z*cosTilt)*scale,-v*cosTilt+z*sinTilt];
   };
 }

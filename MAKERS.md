@@ -44,6 +44,18 @@ these skills has been validated.
 For ordinary planar printing, combine planar-infill with full-fill in
 `solid-surfaces` mode. The agent sets the plan from chat; the maker need not learn
 JSON settings. The patterns share walls and complementary interior regions.
+Planar infill offers rectilinear, grid, triangles, concentric and gyroid; read
+its manual for selection and density limits. For sacrificial supports, read
+[assigned supports](skills/supports/SKILL.md). Use judgment with the maker to
+assign the contact areas and record why each is needed. Do not automatically
+scan the whole part and assign supports from overhang angles; see
+[D-025](DECISIONS.md#d-025--support-areas-assigned-through-judgment).
+Standard bed-rooted footprints and explicit tree skeletons are implemented;
+automatic branch routing is not. Edge supports use [rimming-planar](skills/rimming-planar/SKILL.md)
+or experimental [rimming-normal](skills/rimming-normal/SKILL.md), with assigned
+spline surfaces and bases on the bed or another edge. Read the normal version's
+height/ordering limits before choosing a comparison. Assignments are reviewed
+in the existing locked-plan stage.
 Drape follows a selected continuous roof and excludes steep area; its angle
 limit is a software declaration, not measured head clearance. All supporting
 body operations precede the draped skin. Compatible component layers can be

@@ -7,7 +7,6 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   requireThat(Number.isInteger(batchLayers) && batchLayers >= 1 && batchLayers <= 20, 'Batch size must be 1–20 layers.');
   const operations = results.flatMap(result => result.operations);
   const resultIndex = new Map(results.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
-  const ranks=[...new Set(operations.map(op=>op.rank))].sort((a,b)=>a-b);
   const byId = new Map();
   for (const operation of operations) {
     requireThat(typeof operation.id === 'string' && operation.id && !byId.has(operation.id), 'Duplicate or missing operation id.');
@@ -18,6 +17,14 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
       'Nearest ordering requires closed strokes with a uniform bead area.');
     byId.set(operation.id, operation);
   }
+  // Dependencies express what must exist first. Among ready operations, keep
+  // skills near the same physical height, even when a skill's rank is merely
+  // its construction order (for example surface-normal rimming or draped skin).
+  // An atomic continuous operation stays intact; this is a preference, not a
+  // height-difference gate or permission to split its deposition.
+  const heights=new Map(operations.map(op=>[op.id,op.strokes.reduce((z,s)=>s.points.reduce((h,p)=>Math.max(h,p[2]),z),-Infinity)]));
+  const levels=[...new Set(heights.values())].sort((a,b)=>a-b);
+  const bands=new Map(levels.map((z,i)=>[z,Math.floor(i/batchLayers)]));
   const prerequisites = new Map(operations.map(op => [op.id, new Set(op.after ?? [])]));
   for (const edge of dependencies) {
     requireThat(edge && byId.has(edge.before) && byId.has(edge.after), 'Unknown composition dependency.');
@@ -33,7 +40,7 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   while (pending.length) {
     const ready = pending.filter(op => [...prerequisites.get(op.id)].every(id => completed.has(id)));
     requireThat(ready.length > 0, 'Composition dependencies contain a cycle.');
-    ready.sort((a, b) => Math.floor(ranks.indexOf(a.rank)/batchLayers)-Math.floor(ranks.indexOf(b.rank)/batchLayers)
+    ready.sort((a, b) => bands.get(heights.get(a.id))-bands.get(heights.get(b.id))
       || resultIndex.get(a.id)-resultIndex.get(b.id) || a.rank-b.rank || operations.indexOf(a)-operations.indexOf(b));
     const next = ready[0];
     pending.splice(pending.indexOf(next), 1);

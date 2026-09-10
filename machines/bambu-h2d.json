@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 2,
+  "revision": 3,
   "units": "mm",
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "capabilities": [
@@ -132,6 +132,11 @@
     "startupVerified": false
   },
   "defaultProcess": {
+    "planarSpeedMmS": 40,
+    "skinSpeedMmS": 20,
+    "firstLayerSpeedMmS": 24,
+    "travelSpeedMmS": 120,
+    "zSpeedMmS": 10,
     "retractMm": 0.8,
     "retractSpeedMmS": 30
   },

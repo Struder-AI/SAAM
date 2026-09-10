@@ -3,9 +3,14 @@ import { readFile, readdir, stat, realpath } from 'node:fs/promises';
 import { resolve, dirname, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
+import { viewerLifetime } from './lifetime.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
+// Explicit browser module allowlist; no generic repository/file serving.
+const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
+  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
+  'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs']);
 
 // Studio reviews whatever print it is opened on. A bundle names its own schema,
 // and that selects its geometry/recipe adapter. Both adapters use the single
@@ -46,7 +51,7 @@ export async function listPrints(libraryRoot) {
   }
   await walk(resolve(libraryRoot),0);return prints.sort((a,b)=>b.modified.localeCompare(a.modified));
 }
-export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000,libraryRoot=resolve(root,'Prints')}={}) {
+export function createStudio(directory,{startupMs=60_000,disconnectMs=3_000,libraryRoot=resolve(root,'Prints')}={}) {
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
   const printId=()=>createHash('sha256').update(dir).digest('hex');
@@ -59,43 +64,48 @@ export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000,librar
     await adapter.loadBundle(next,{program:false});
     dir=next;opened=Promise.resolve(adapter);
   };
-  let idleTimer;
-  function noteClientActivity() {
-    if(!closeWhenIdle)return;
-    clearTimeout(idleTimer);
-    idleTimer=setTimeout(()=>server.close(),idleMs);
-  }
   const server=http.createServer(async(req,res)=>{
-    noteClientActivity();
     const host=req.headers.host;
     if(!/^127\.0\.0\.1:\d+$/.test(host??'')){res.writeHead(403);res.end('Localhost only.');return;}
     const origin=`http://${host}`;
     res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
-    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'");
     const url=new URL(req.url,origin);
     const send=(data,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
     try {
+      if(req.method==='GET'&&url.pathname==='/api/viewer'){
+        if(url.searchParams.get('token')!==token||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
+        lifetime.attach(res);return;
+      }
       if(req.method==='GET'&&url.pathname==='/') {
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
+      }
+      if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
+        res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){send({prints:await listPrints(libraryRoot)});return;}
       await queue;
       const readDir=dir,readId=printId();
       const bundle=await opened;
       if(req.method==='GET'&&url.pathname==='/api/state') {
-        const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir);
+        const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir,{program:'source'});
         if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
         delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;send(state);return;
       }
       if(req.method==='GET'&&url.pathname==='/api/revision'){send({fingerprint:readId+await bundle.bundleFingerprint(readDir)});return;}
       if(req.method==='GET'&&['/api/program','/api/gcode'].includes(url.pathname)) {
-        const state=await bundle.loadBundle(readDir);
+        const fingerprint=await bundle.bundleFingerprint(readDir);
+        const state=await bundle.loadBundle(readDir,{program:'source',sourceFile:url.searchParams.get('file')??undefined});
         if(readDir!==dir)throw new Error('The open print changed. Reload before continuing.');
-        if(!state.program)throw new Error(state.programError??'Generate the program first.');
+        if(fingerprint!==await bundle.bundleFingerprint(readDir))throw new Error('The print is being updated.');
+        for(const [name,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]]){
+          if(url.searchParams.has(name)&&url.searchParams.get(name)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
+        }
+        if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
         res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end(state.code);return;
       }
       if(req.method!=='POST'||!url.pathname.startsWith('/api/')){send({error:'Not found'},404);return;}
@@ -127,15 +137,18 @@ export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000,librar
     const run=queue.then(()=>openPrint(input));
     queue=run.catch(()=>{});return run;
   };
-  server.on('close',()=>clearTimeout(idleTimer));
+  const lifetime=viewerLifetime(server,{startupMs,disconnectMs});
+  server.shutdown=lifetime.shutdown;
   return server;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  const args=process.argv.slice(2),closeWhenIdle=args.includes('--close-when-idle')||process.env.SAAM_STUDIO_CLOSE_WHEN_IDLE==='1';
+  // Retain the old flag as a harmless alias: viewer-owned shutdown is universal.
+  const args=process.argv.slice(2);
   const dir=resolve(args.find(arg=>arg!=='--close-when-idle')??resolve(root,'Prints/s5-wedge-demo'));
   const bundle=await bundleFor(dir);
   await bundle.loadBundle(dir,{program:false});
-  const server=createStudio(dir,{closeWhenIdle}),port=Number(process.env.SAAM_STUDIO_PORT??4321);
-  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}${closeWhenIdle?'\nCloses after 10 seconds without a viewer request.':''}`));
+  const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);
+  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nOpen within 60 seconds. Closes 3 seconds after the last viewer disconnects.`));
+  for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void server.shutdown());
   server.on('error',e=>{console.error(e.message);process.exitCode=1;});
 }

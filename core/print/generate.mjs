@@ -19,6 +19,9 @@ import {toolBounds,startupPosition} from '../machine/profile.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
+import {supportResults} from '../../skills/supports/scripts/supports.mjs';
+import {rimmingPlanarResults} from '../../skills/rimming-planar/scripts/rimming.mjs';
+import {rimmingNormalResults} from '../../skills/rimming-normal/scripts/rimming.mjs';
 
 export const hasMesh=geometry=>geometry.shape==='mesh'||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
@@ -156,6 +159,10 @@ export function generatePath(plan, machine, rhino) {
     results.push(result);summary.drapedSkin=result.report;
   }
   }
+  const rims=[...rimmingPlanarResults({plan,modelResults:results}),...rimmingNormalResults({plan,modelResults:results})];
+  if(rims.length){results.unshift(...rims);summary.rimming=rims.map(r=>r.report);}
+  const supports=supportResults({plan,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});
+  if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
   summary.composition=composeResults(builder,results,plan.composition);
 
   builder.setContext('finish', 0);

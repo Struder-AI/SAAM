@@ -55,6 +55,8 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(names.includes('request_review'));
   assert.ok(!names.some(name => /^(approve|post_process|compile_plan)$/.test(name)));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'full-fill'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
+  assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   assert.match((await call('read_skill', { skillId: 'wedge-demo' })).manual, /eight-point/i);
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
   assert.match(guidance.text, /three human approval/i);
@@ -98,6 +100,34 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   const again = await clientFor(t, printsRoot);
   assert.equal((await again.call('get_print', { printId: 'first' })).plan.process.planarSpeedMmS, 21);
   assert.equal((await again.call('get_print', { printId: 'second' })).machineId, 'bambu-h2d');
+});
+
+test('MCP Studio ownership survives one viewer closing and restarts from the saved bundle',async t=>{
+  const {call,printsRoot}=await fixture(t);
+  await call('create_print',{printId:'owned',kind:'wedge',machineId:'ultimaker-s5',plan:await smallPlan(call,'wedge')});
+  const other=await clientFor(t,printsRoot);
+  const a=await call('request_review',{printId:'owned'}),b=await other.call('request_review',{printId:'owned'});
+  assert.notEqual(a.url,b.url,'separate adapters never adopt each other\'s listener');
+  const before=await readFile(resolve(printsRoot,'owned','review.json'));
+  async function view(url){
+    const token=(await(await fetch(url)).text()).match(/name="saam-token" content="([^"]+)"/)[1];
+    const controller=new AbortController();t.after(()=>controller.abort());
+    assert.equal((await fetch(url+'/api/viewer?token='+token,{signal:controller.signal})).status,200);
+    return controller;
+  }
+  const first=await view(a.url);await view(b.url);first.abort();
+  const deadline=Date.now()+6000;
+  while(true){
+    try{await(await fetch(a.url)).text();}
+    catch{break;}
+    assert.ok(Date.now()<deadline,'closed viewer must release its listener');
+    await new Promise(done=>setTimeout(done,100));
+  }
+  assert.equal((await fetch(b.url)).status,200);
+  assert.equal((await call('get_print',{printId:'owned'})).printId,'owned','MCP remains connected');
+  const restarted=await call('request_review',{printId:'owned'});
+  assert.equal((await fetch(restarted.url)).status,200);
+  assert.deepEqual(await readFile(resolve(printsRoot,'owned','review.json')),before);
 });
 
 for (const [kind, machineId, skill] of [['shell', 'ultimaker-s5'], ['wedge', 'bambu-h2d'], ['shell', 'ultimaker-s5', 'vase-wall'], ['shell', 'bambu-h2d', 'vase-wall'], ['shell', 'dobot-mg400'], ['shell', 'dobot-mg400', 'vase-wall']]) {

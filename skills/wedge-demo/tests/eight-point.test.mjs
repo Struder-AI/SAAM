@@ -98,7 +98,7 @@ test('requested double-speed left-high H2D wedge keeps targets while enforcing f
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);
   plan.geometry.points=legacyPoints({runMm:30,widthMm:20,baseMm:2,angleDeg:15}).map(([x,y,z])=>[30-x,y,z]);
   plan.process.skinLayers=6;
-  for(const key of ['planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS'])plan.process[key]*=2;
+  // The requested 40/20/24 targets are now the machine's defaults.
   assert.deepEqual([plan.process.planarSpeedMmS,plan.process.skinSpeedMmS,plan.process.firstLayerSpeedMmS],[40,20,24]);
   const path=generatePath(plan,machine);checkMachinePath(path,plan,machine);
   assert.ok(roofGeometry(plan.geometry).a<0);assert.equal(path.summary.skinLayers,6);

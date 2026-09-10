@@ -70,9 +70,17 @@ Read `read_guidance` with `guidanceId: "makers"` and the skill manual, create th
 `request_review`. Studio opens in the default browser where available; the
 returned URL remains usable if browser launch fails. Set `SAAM_NO_AUTO_OPEN=1`
 for tests or a headless client. Studio servers are owned by the MCP process,
-use free loopback ports, and close when the client disconnects. Repeated review
-requests reuse the print's server. A separately launched CLI Studio remains
-independent and is never terminated by this adapter.
+use free loopback ports, and close three seconds after the last viewer tab
+disconnects (with a grace period for refresh), or when the owning stdio client
+disconnects. A launch with no viewer connection closes after 60 seconds.
+Repeated review requests use the print's still-open server within this adapter;
+after it closes, they start a fresh instance from the saved bundle. Closing a
+viewer leaves the MCP connection and its other viewers running. Separate adapter
+processes never adopt each other's Studio sessions. The temporary web-chat bridge
+shares an adapter across clients and has no per-agent ownership lock; use separate
+adapters for independent agent ownership and separate bundles for concurrent edits.
+A separately launched CLI Studio remains independent and is never terminated by
+this adapter.
 
 Only the person approves geometry, then the locked settings, then the exact
 toolpath in Studio. No MCP tool can approve, accept approval fields, select

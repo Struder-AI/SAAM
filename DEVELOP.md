@@ -99,12 +99,15 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/export/`: streamed G-code lines and large ZIP members | [gcode-stream.test.mjs](core/tests/gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
 | Dobot profile, Lua export/interpreter and relay behavior | [dobot.test.mjs](core/tests/dobot.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | [dobot.test.mjs](skills/wedge-demo/tests/dobot.test.mjs), vase and regional machine coverage |
 | `studio/`: camera, display detail, mesh visibility and playback | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
-| Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs) | Workflow, regional workflow and machine-specific Studio delivery |
+| Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs), [studio-lifetime.test.mjs](core/tests/studio-lifetime.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
+| Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](core/tests/source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
 | `adapters/mcp/`: stdio tools, shared import/setup and CLI access | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow and recipe validation |
 | Temporary HTTP/OAuth bridge, Claude package and web probe | [mcp-http.test.mjs](core/tests/mcp-http.test.mjs), [claude-plugin.test.mjs](core/tests/claude-plugin.test.mjs), [web-agent-probe.test.mjs](core/tests/web-agent-probe.test.mjs) | MCP stdio integration when shared tools change |
 | `scripts/bench/`: analytical fixtures and mesh convergence | [benchmark-fixtures.test.mjs](core/tests/benchmark-fixtures.test.mjs) | Performance measurements remain opt-in; see benchmark instructions |
 | Full-fill generation | Shared geometry, travel and pipeline tests as affected | [full-fill.test.mjs](skills/full-fill/tests/full-fill.test.mjs) |
-| Planar infill, solid masks and sparse/drape composition | Shared booleans, scanlines and reservations as affected | [infill.test.mjs](skills/planar-infill/tests/infill.test.mjs) |
+| Planar infill patterns, open clipping, solid masks and sparse/drape composition | Shared booleans, scanlines and reservations as affected | [infill.test.mjs](skills/planar-infill/tests/infill.test.mjs), [patterns.test.mjs](skills/planar-infill/tests/patterns.test.mjs) |
+| Explicit conventional/tree supports, interfaces and support-before-part ordering | Pipeline, workflow, regional and machine tests as affected | [supports.test.mjs](skills/supports/tests/supports.test.mjs) |
+| Bivariate support surfaces, horizontal/normal section offsets and rimming composition | Shared geometry, plan, workflow and machine boundaries | [rimming.test.mjs](skills/rimming-planar/tests/rimming.test.mjs) covers both rimming skills |
 | Draped skin, normal spacing, slope exclusion and support | Shared surface/reservation and pipeline tests as affected | [draped-skin.test.mjs](skills/draped-skin/tests/draped-skin.test.mjs) |
 | Vase wall, topology, budgets and level ending | Regional composition and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs) |
 | Bounded eight-point wedge geometry, generator and lifecycle | Shared travel, export and workflow tests as affected | [eight-point.test.mjs](skills/wedge-demo/tests/eight-point.test.mjs), [wedge.test.mjs](skills/wedge-demo/tests/wedge.test.mjs), H2D/Dobot wedge tests above |
@@ -185,7 +188,8 @@ format. Development generation uses the same bundle and checks with no approvals
 
 `demo` creates/reopens the ignored `Prints/s5-wedge-demo` bundle and generates a
 development preview without approvals. Studio serves that print on
-`http://127.0.0.1:4321`; set `SAAM_STUDIO_PORT` to select another port. Pass a
+the free loopback port printed by the command; set `SAAM_STUDIO_PORT` to select
+an explicit port. Each launch is independent. Pass a
 print directory after `--` to the Studio script to open another bundle.
 There is no hardware connection or automatic machine execution.
 
@@ -314,6 +318,18 @@ benchmark.
 
 ## Studio performance and display detail
 
+Studio uses a right-handed orthographic camera: top view shows +X right and
++Y up (toward the back of the bed), with +Z toward the viewer. Orbit, side and
+top views share this projection without perspective scaling. Playback has a
+1×–30× slider, initially 10×; inactive toolpath layers draw at 65% opacity.
+Outgoing layers ease their color, opacity and line weight into that background
+style over two seconds of wall-clock time, including when paused. Rapid layer
+changes can overlap fades; scrubbing, replay and opening a print reset them.
+S5 and H2D profiles supply new shell and wedge plans with 40/20/24 mm/s
+planar/skin/first-layer targets, 120 mm/s XY travel and 10 mm/s Z travel.
+Existing locked plans, material flow limits, retraction and firmware service
+speeds are unchanged; actual deposition remains capped by flow and axis limits.
+
 Geometry view draws boundary/crease edges only. It hides edges between coplanar
 faces or face planes differing by less than 3 degrees, including coincident
 vertices in separate patch proxies. This affects display only. Toolpath view
@@ -330,7 +346,27 @@ cache with its checked interpreter result. Returned programs and summaries are
 copies. Delivery reads and hashes the exact reviewed export. Local hash records
 detect changes relative to the recorded bytes; they are not signatures proving
 the provenance of files whose records were also edited. Shell, wedge, Griffin,
-H2D and Dobot use this lifecycle. Playback uses only interpreted export moves.
+H2D and Dobot use this lifecycle.
+
+Studio's state response contains geometry, review records and a small program
+summary/source manifest, never move/event arrays. It fetches the checked machine
+source separately: plain Griffin G-code, the exact G-code member of an H2D 3MF,
+or each actual Dobot Lua file (global, definitions and entry). Requests bind the
+print, review revision and export hash; the browser checks each source digest.
+Archive and H2D firmware-envelope checks remain on the server. Delivery retains
+the original archive bytes, not a repacked or regenerated program.
+
+A browser worker runs the same modal G-code interpreter or bounded Lua runtime
+as export checks. Lua helpers and entry code are executed; annotations cannot
+substitute for actual motion commands. H2D playback retains its checked print-body
+scope, with firmware service motion explicitly not simulated. The worker stores
+decoded moves in chunked typed arrays and transfers their ownership inside the
+browser. These are local drawing/timeline data, not another persisted path or
+server transport format. No motion JSON is sent to the browser. Timeline, layer,
+travel and robot acceleration controls share the existing renderer. Browsers
+still decode all moves before playback; fully paged playback is not implemented.
+Machine profile loading stays in the Node wrapper; pure machine rules and source
+interpreters are shared with the browser through an explicit module allowlist.
 
 Studio computes bounds/layout/camera transforms once per frame and coalesces
 redraw requests. It preserves segment order, colour and transparency. The
@@ -500,11 +536,26 @@ fingerprint and reloads changed data automatically, keeping the view when nothin
 changes and returning to the affected approval step after edits.
 Geometry edits invalidate all three approvals; settings edits preserve geometry
 approval and invalidate settings/toolpath approval. A server running old imported
-code must be restarted after runtime changes. Reuse the correct existing viewer
-when possible; identify its print directory and port before replacing a process.
-Do not launch another viewer as a workaround for stale imports. Check the loaded
-geometry and export afterward. `--close-when-idle` is available for a temporary
-Studio session; only stop processes known to belong to the current work.
+code must be restarted after runtime changes. Each agent owns its Studio instances;
+do not adopt another agent's viewer or terminate another agent's process. Independent
+CLI launches and separate local MCP adapter processes use separate free loopback
+ports. Identify the current work's print and URL before restarting its viewer.
+Check the loaded geometry and export afterward.
+
+Studio tracks open pages through authenticated persistent viewer connections,
+independent of revision polling and background-tab timer throttling. It closes
+three seconds after its last viewer disconnects, allowing ordinary refreshes to
+reconnect. A launch that receives no viewer connection closes after 60 seconds,
+even if other HTTP requests arrive. An accepted bundle write finishes before
+shutdown completes. Saved bundles are retained and can be opened in a fresh
+instance later. The old `--close-when-idle` flag is accepted but no longer needed.
+The CLI process exits when its work drains. In MCP, only that Studio listener and
+session are released; the adapter and its other viewers stay available. Repeated
+review requests within the same adapter can use that print's still-open session.
+The temporary web-chat bridge shares one adapter across clients; it does not
+provide per-agent identity or locking. Independent agent ownership requires
+separate adapters. Distinct instances do not lock a shared bundle against edits
+from another process, so concurrent agent work should use separate bundles.
 
 ### Remembered printer setup
 
@@ -934,7 +985,11 @@ shared Clipper2 tool below.
 layer masks, wall/interior coverage and material reservation. Outer/island loops
 are CCW, holes CW, with nonzero winding; overlapping material is counted once.
 Empty material is `[]`; boundary-only point/edge contact has no material area.
-There are no open paths, XOR, contact-event API, UV surface adapter, mesh booleans,
+`clipOpenPaths(paths, region)` additionally clips open 2D polylines to a closed
+region using the same Clipper2 kernel, precision and allocation lifetime. Gyroid
+infill needs this to retain curved strokes while splitting at holes and solid
+masks. Open paths preserve point sequence; they are not rotated or closed by the
+closed-loop canonicalizer. There is no XOR, contact-event API, UV surface adapter, mesh booleans,
 NURBS intersections or backend-selection framework. The user selected Clipper2
 first; consider CGAL only if tests show an unmet requirement.
 
@@ -1126,8 +1181,8 @@ its bounded nearby/direct policy; its lifts use the shared deposited height.
 
 ## Planar-infill design
 
-[Planar-infill](skills/planar-infill/SKILL.md) is implemented: walls and sparse
-alternating rectilinear interiors. Full-fill `mode: solid-surfaces` supplies
+[Planar-infill](skills/planar-infill/SKILL.md) supplies walls and rectilinear,
+grid, triangles, concentric or gyroid interiors. Full-fill `mode: solid-surfaces` supplies
 local top/bottom solid masks by comparing neighboring sections. Sparse/solid
 interiors are complementary; walls have one owner and each layer's supporting
 operations precede the next. The shared region booleans now handle coincident
@@ -1135,9 +1190,91 @@ sections and collinear edges. Drape reservation clips both planar patterns.
 
 The 20-layer box regression verifies three solid bottom/top layers, fourteen
 sparse layers, and one set of walls per layer across both backends/machines.
-A sloping roof regression checks local solid regions. Bridge optimization and
-support generation remain unimplemented; solid beads above sparse infill are
+A sloping roof regression checks local solid regions. Bridge optimization remains
+unimplemented; solid beads above sparse infill are
 an approximate deposition model, not validated physical bridges.
+
+The infill callback returns open/closed interior strokes to the same full-fill
+producer; closed concentric interiors retain fill ownership. Solid-surface
+settings, masks, drape reservations and consumed lower surfaces are unchanged.
+The existing level-set contour joiner now indexes segment starts spatially,
+preserving its distance tolerance, tie order and closed-loop output. A 48 mm
+square gyroid construction over 16 phases at 0.2 mm sampling measured 24.60 s
+before and 1.18 s after in this checkout; mean line-volume fraction was identical
+(20.52% for requested 20%). This measures contour construction/clipping only,
+not full bundle generation, export or Studio. The manual owns pattern limits.
+
+## Assigned support design
+
+[Supports](skills/supports/SKILL.md) owns explicit sacrificial footprints and tree
+skeletons. [D-025](DECISIONS.md#d-025--support-areas-assigned-through-judgment)
+prohibits whole-part angle-based support assignment. The maker/agent records
+selected contacts and reasons in `skills.supports.assignments`; generation
+constructs only those assignments. Local section queries test the assigned
+geometry against the chosen part clearance; they do not select support areas.
+Overlaps between assignments are unioned; walls, sparse interiors and interface
+interiors have distinct owners. An optional `sectionAt` callback lets this
+producer reuse full-fill without pretending sacrificial geometry is native CAD.
+
+These bed-rooted, same-tool supports use the shared layer grid, planar machine
+capability, travel, cooling, composer, export-only bundles, Studio and three
+approvals. They are independent of part `composition.regions` and may coexist
+with regional recipes. Required support layers precede atomic part operations
+using their highest deposition Z, including nonplanar operations, rather than
+assuming scheduling rank is physical height. This does not prove head clearance,
+branch printability or physical contact. The current tree geometry is explicitly
+authored circular branches, not Bambu's automatic routing algorithm. Supports
+on the model and curved contact surfaces remain unimplemented for these two styles.
+
+### Rimming support specification
+
+User description, 2026-09-10 in the infill/support task. Initial implementations:
+[rimming-planar](skills/rimming-planar/SKILL.md) and
+[rimming-normal](skills/rimming-normal/SKILL.md). Their manuals own actual limits.
+A rimming support applies to a selected edge or edge portion. Its reference
+geometry is a bivariate spline surface: the top boundary matches the supported
+edge, the base boundary rests on the bed or on another selected edge, and side
+boundaries complete the surface. Top and base edges may curve; a slightly curved
+base is generally preferred for strength. The base may lean away to avoid other
+part geometry. Staying less than roughly 45 degrees from vertical is guidance,
+not a numerical gate or check.
+
+Two extrusion paths lie 0.5 and 1.5 line widths outward from the reference
+surface, away from the part. For 0.4 mm beads this makes an approximately
+0.8 mm solid wall with its inner material boundary on the reference surface,
+sharing the exact supported edge. Do not silently apply conventional support's
+top separation gap. The user describes supported edges as bridge anchors: a
+vertical barbell can use an edge of its lower end as the base of a rim reaching
+the lower edge of its upper end, enabling a bridge across that upper end.
+This is the requested process behavior, not physical validation.
+
+The user chose both offset metrics as separate skills for comparison. The shared
+`core/geom/support-surface.mjs` authors an open, nonrational, uniform-clamped
+bivariate spline and uses existing native sectioning. `core/region/section-offset.mjs`
+offsets its sections horizontally or along the full normal with adaptive chord
+refinement. This extends shared ambient section offsets; it is distinct from the
+existing intrinsic/geodesic region offset on a surface. The current control net
+must rise strictly in V for the section refinement's bracketed height solves.
+No lean-angle threshold is imposed.
+
+“Reference slice” was agent shorthand, not a new geometry object: a horizontal
+intersection curve on the original unoffset surface. Using those curves as the
+starting family was an implementation choice, not required by the user's initial
+surface definition. Normal offsets can alter Z. Subsequent user instructions
+establish whole-edge dependencies for both skills: every part of the base edge
+prints before any rim starts; the whole rim finishes before anything it supports
+starts. Among ready operations, keep heights similar across all mixed skills.
+Horizontal boundaries are the degenerate case of these same rules. The shared
+composer prefers lower maximum actual deposition Z, respecting dependencies and
+selected batches. The rimming producer conservatively binds base operations
+crossing the base control edge's height range and all named supported-component
+operations; see the manual for single-part binding and atomic-operation limits.
+Within each rim, inner/outer pairs retain increasing original section height.
+This does not split continuous operations or optimize intra-rim path families.
+Height shifts are reported, not silently repaired. Reference edges are assigned by the agent;
+arbitrary CAD edge matching, continuous top trimming, self-intersection cleanup
+and a proof of physical contact/clearance remain unimplemented. Edge assignment
+stays judgment-based under D-025, with the existing three approvals.
 
 ## Machine interoperability design
 
@@ -1193,7 +1330,7 @@ code, tests and explicitly authorized user reports.
 
 Skills return an in-memory result `{id, operations, report}`. An operation has
 a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
-`rank` for default ordering, and `after` dependencies. Rank is a scheduling
+`rank` for ordering within a height batch, and `after` dependencies. Rank is a scheduling
 coordinate, not universally Z: planar fill uses layer height. Operations also
 provide strokes (3D points, speed, role, and either uniform bead area or per-segment
 volume/metadata) and travel-policy queries. Existing `clearanceFor` queries
@@ -1207,8 +1344,11 @@ format. Travel policies may contain geometry-query callbacks.
 rejects duplicate IDs, missing dependencies and cycles, and uses stable result
 order to break ties. Plan `composition` contains `batchLayers` (1–20), `order`
 (an optional ordered subsequence of operation IDs), and `dependencies` (additional
-`{before, after}` edges), plus optional material `regions` described below. Batch size 1 alternates compatible results at each
-rank; size 2 gives AA–BB for two results with matching layers. Explicit ordering
+`{before, after}` edges), plus optional material `regions` described below. Ready
+operations are grouped by maximum actual deposition Z to keep skill heights
+similar. Batch size 1 alternates compatible results at each height; size 2 gives
+AA–BB for two results with matching layers. Rank breaks ties within a result's
+height batch. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
 skill's prerequisites. The agent proposes these choices before plan approval;
 generation executes the locked rules without a new planning or approval stage.

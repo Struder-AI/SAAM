@@ -54,6 +54,13 @@ also has configured Dobot software export/review/delivery checks.
 [draped-skin](skills/draped-skin/SKILL.md) and [vase-wall](skills/vase-wall/SKILL.md)
 share operation composition, export and the Studio approval/delivery workflow.
 Their manuals own their current shapes and limitations. STL/mesh input and
+five planar infill options are available. [Assigned supports](skills/supports/SKILL.md)
+adds conventional bed-rooted footprints and explicit tree skeletons through the
+same workflow; the agent and maker choose the support areas using judgment.
+Automatic angle-based assignment and branch routing are not implemented.
+Edge-based spline supports have [horizontal-offset](skills/rimming-planar/SKILL.md)
+and experimental [normal-offset](skills/rimming-normal/SKILL.md) rimming skills
+for comparison. Mesh and
 restricted spline shapes are supported. Vase-wall prints a continuous rising
 outer wall from a single supported convex section. Skills can be assigned to
 different material regions of the same part: for example, a solid base, vase
@@ -96,7 +103,9 @@ npm run demo
 npm run studio
 ```
 
-Open [SAAM Studio](http://127.0.0.1:4321). The demo uses right nozzle #2,
+Open the local Studio URL printed by the command within 60 seconds. Each launch
+gets its own free port and closes after its last viewer tab closes; the saved
+print remains available to restart. The demo uses right nozzle #2,
 AA 0.4 and PLA at 215°C. Standard S5 startup is assumed; installed firmware
 information is optional. Its development preview creates no human approvals.
 Physical clearance is the operator's responsibility for this demo.
