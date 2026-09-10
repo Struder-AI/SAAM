@@ -273,5 +273,47 @@ export function orderStrokes(strokes, from) {
   return ordered;
 }
 
+// Preserve each uninterrupted zigzag, selecting either endpoint of either end
+// row from the actual nozzle position. Row order and stroke direction can change
+// independently. Stable ties retain producer order; segment data stays attached.
+export function orderScanlineCells(strokes, from) {
+  const cells = new Map();
+  for (const stroke of strokes) {
+    const cell = cells.get(stroke.scanlineCell) ?? [];
+    cell.push(stroke);
+    cells.set(stroke.scanlineCell, cell);
+  }
+  const remaining = [...cells.values()], ordered = [];
+  let cursor = from;
+  while (remaining.length) {
+    let best = 0, reverseRows = false, reverseStrokes = false, bestDistance = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const cell = remaining[i];
+      const entries = [
+        {point:cell[0].points[0],rows:false,strokes:false},
+        {point:cell.at(-1).points.at(-1),rows:true,strokes:true},
+        {point:cell[0].points.at(-1),rows:false,strokes:true},
+        {point:cell.at(-1).points[0],rows:true,strokes:false}
+      ];
+      for (const entry of entries) {
+        const gap = distance(cursor, entry.point);
+        if (gap < bestDistance) {
+          best = i; reverseRows = entry.rows; reverseStrokes = entry.strokes; bestDistance = gap;
+        }
+      }
+    }
+    let cell = remaining.splice(best, 1)[0];
+    if (reverseRows) cell = [...cell].reverse();
+    if (reverseStrokes) cell = cell.map(stroke => ({
+      ...stroke, points: [...stroke.points].reverse(),
+      ...(stroke.volumesMm3 ? {volumesMm3: [...stroke.volumesMm3].reverse()} : {}),
+      ...(stroke.segmentMetadata ? {segmentMetadata: [...stroke.segmentMetadata].reverse()} : {})
+    }));
+    ordered.push(...cell);
+    cursor = cell.at(-1).points.at(-1);
+  }
+  return ordered;
+}
+
 export const beadVolume = (lengthMm, widthMm, heightMm) => lengthMm * widthMm * heightMm;
 export { pointSegmentDistance };

@@ -121,7 +121,17 @@ turn endings too and does not double the last wall bead. It publishes only a
 level annular rim as material support.
 
 Every sampled point queries its actual Z section, offsets by half the bead width,
-and checks boundary standoff. Adaptive subdivision checks segment length and
+and checks boundary standoff. Repeated mesh cuts use a generation-local Z index
+to skip triangles outside the section; they preserve the direct cut's ordering,
+vertex nudges and topology checks. Spline inputs keep the shared spline sectioner.
+Vase offsets use the shared Clipper tool with a **0.00001 mm integer grid**,
+independent of contour and boundary tolerances. This vase-only precision avoids
+expensive large-integer arithmetic for ordinary part sizes; larger coordinate
+spans still use the kernel's full-range arithmetic. Source sections must be
+convex. Since erosion preserves convexity, the inset does not repeat that test
+on corners perturbed by integer rounding. Collapse, common interior origin and
+sampled boundary standoff remain checked. The report includes offset precision.
+Adaptive subdivision checks segment length and
 midpoint deviation; initial angular steps are at most 1/16 turn. Generation does
 not query a second section one pitch below or reject turn-to-turn radial drift.
 The agent reasons about sensible wall geometry and pitch with the maker; Studio

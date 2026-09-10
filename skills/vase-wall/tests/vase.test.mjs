@@ -13,6 +13,7 @@ import {boxMesh,ringMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle,EXPORT_PATH} from '../../../core/print/bundle.mjs';
 import {syntheticDobotSetup} from '../../../core/tests/fixtures/dobot.mjs';
 import {exportProgram,interpretProgram} from '../../../core/export/registry.mjs';
+import {offsetRegion} from '../../../core/region/offset.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
@@ -50,6 +51,32 @@ function splittingMesh() {
   }
   return {shape:'mesh',vertices,triangles,source:null};
 }
+
+test('convex wall survives an inset corner perturbed by the vase integer grid',async()=>{
+  // Synthetic near-straight top edge, rotated off the integer axes. Rounding
+  // makes its inset microscopically concave although the source is convex.
+  const c=Math.cos(.013),s=Math.sin(.013);
+  const loop=[[0,0],[60,0],[60,40],[23,40.000001],[0,40]].map(([x,y])=>[80+x*c-y*s,50+x*s+y*c]);
+  const inset=offsetRegion([loop],-.2,{precisionMm:.00001,arcToleranceMm:.005})[0];
+  assert.ok(inset.some((p,i)=>{
+    const q=inset[(i+1)%inset.length],r=inset[(i+2)%inset.length];
+    const ax=q[0]-p[0],ay=q[1]-p[1],bx=r[0]-q[0],by=r[1]-q[1];
+    return ax*by-ay*bx < -1e-7*Math.hypot(ax,ay)*Math.hypot(bx,by);
+  }),'fixture exercises the former false rejection');
+  const n=loop.length,vertices=[...loop.map(p=>[...p,0]),...loop.map(p=>[...p,.6])],triangles=[];
+  for(let i=0;i<n;i++){const j=(i+1)%n;triangles.push([i,j,j+n],[i,j+n,i+n]);}
+  for(let i=1;i<n-1;i++)triangles.push([0,i+1,i],[n,n+i,n+i+1]);
+  const machine=loadMachine(),plan=vasePlan(machine,{shape:'mesh',vertices,triangles,source:null});
+  const path=generatePath(plan,machine,await rhino());
+  assert.equal(path.summary.vaseWall.offsetPrecisionMm,.00001);
+  const wall=path.actions.filter(a=>a.role==='vase-wall');
+  assert.ok(wall.length>100);assert.equal(wall.at(-1).to[2],.6);
+  for(const action of wall) {
+    const xy=action.to.map((v,k)=>v-(k===0?plan.placement.xMm:k===1?plan.placement.yMm:0));
+    const standoff=Math.min(...loop.map((p,i)=>pointSegmentDistance(xy,p,loop[(i+1)%n])));
+    assert.ok(Math.abs(standoff-.2)<.00003,'emitted centerline stays within the measured rounding allowance');
+  }
+});
 
 test('vase follows rising noncircular mesh and restricted spline sections on S5 and H2D',async()=>{
   const r=await rhino();

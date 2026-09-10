@@ -141,7 +141,9 @@ function componentKey(component) {
 // scanline intervals: finish each uninterrupted run of rows before changing
 // sides. This changes only ordering, never deposition endpoints or coverage.
 export function scanlineFill(loops, spacingMm, angleDeg, options = {}) {
-  return regionComponents(loops).flatMap(component => scanlineFillComponent(component, spacingMm, angleDeg, options));
+  return regionComponents(loops)
+    .flatMap(component => scanlineFillComponent(component, spacingMm, angleDeg, options))
+    .flatMap((cell, cellId) => cell.map(row => ({...row, cellId})));
 }
 
 function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] } = {}) {
@@ -200,5 +202,5 @@ function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] }
     // Do not retain the adjacency graph; only the previous row is needed.
     previous=current.map(({left,right,cell})=>({left,right,cell,children:[]}));
   }
-  return cells.flat();
+  return cells;
 }

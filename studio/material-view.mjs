@@ -12,10 +12,18 @@ export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=fa
   const clad=move.phase==='cladding-axial'||move.phase==='cladding-hoop';
   let height=move.layer===0?p.firstLayerMm:p.layerMm,normal=()=>[0,0,1],centered=false;
   if(clad){
-    if(plan.geometry.shape!=='pipe')return null;
     const center=plan.setup.denso?.rotaryCenterMm??[plan.placement.xMm,plan.placement.yMm,0];
     height=plan.skills['pipe-cladding'].normalMm;centered=true;
-    normal=point=>normalize([point[0]-center[0],point[1]-center[1],0]);
+    if(plan.skills['pipe-cladding'].surface){
+      // Recover the commanded surface frame from interpreted tool orientation.
+      // The cladding producer tilts toward -V and sets tool Y to V cross normal.
+      if(!move.toolAxisTo||!move.toolUpTo)return null;
+      const tilt=plan.skills['pipe-cladding'].tiltDeg*Math.PI/180;
+      const frame=(axis,up)=>normalize(add(scale(axis,-Math.sin(tilt)),scale(cross(up,axis),-Math.cos(tilt))));
+      const a=frame(move.toolAxisFrom,move.toolUpFrom),b=frame(move.toolAxisTo,move.toolUpTo);
+      normal=point=>normalize(mix(a,b,Math.min(1,distanceAlong(point))));
+      function distanceAlong(point){return length(subtract(point,move.from))/Math.max(1e-12,length(subtract(move.to,move.from)));}
+    }else normal=point=>normalize([point[0]-center[0],point[1]-center[1],0]);
   }else if(move.phase==='inclined'&&geometry.roof){
     height=p.skinNormalMm;normal=()=>normalize([-geometry.roof.a,-geometry.roof.b,1]);
   }else if(move.phase==='draped-skin'||move.phase==='rimming-normal'){

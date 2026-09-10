@@ -25,8 +25,8 @@ export function infillStrokes(region,{pattern='rectilinear',widthMm,density,angl
   if(pattern==='gyroid')return gyroid(region,{periodMm:2.4*spacing,zMm,sampleStepMm,maxPatternCells});
   const angles=pattern==='grid'?[angleDeg,angleDeg+90]:pattern==='triangles'?[angleDeg,angleDeg+60,angleDeg+120]:[angleDeg];
   // Split the requested line-length budget over all directions on EACH layer.
-  return angles.flatMap(angle=>scanlineFill(region,spacing*angles.length,angle)
-    .map((row,i)=>({closed:false,points:i%2?[row.to,row.from]:[row.from,row.to]})));
+  return angles.flatMap((angle,direction)=>scanlineFill(region,spacing*angles.length,angle)
+    .map((row,i)=>({closed:false,scanlineCell:direction+':'+row.cellId,points:i%2?[row.to,row.from]:[row.from,row.to]})));
 }
 
 // Nodal gyroid: sin(x)cos(y)+sin(y)cos(z)+sin(z)cos(x)=0.

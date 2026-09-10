@@ -25,10 +25,12 @@ import {rimmingNormalResults} from '../../skills/rimming-normal/scripts/rimming.
 import {pipeMesh} from '../geom/cylinder.mjs';
 import {pipeCladdingResult,substrateSection,substrateLoops} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {infillStrokes} from '../../skills/planar-infill/scripts/patterns.mjs';
+import {splineTubeShell} from '../geom/spline-tube.mjs';
 
 export const hasMesh=geometry=>['mesh','pipe'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 export function buildShell(rhino, geometry) {
+  if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
   if(geometry.shape==='pipe')return pipeMesh(geometry);
   if(geometry.shape==='mesh')return makeMesh(geometry.vertices,geometry.triangles);
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {
@@ -144,7 +146,7 @@ export function generatePath(plan, machine, rhino) {
       const [sparse,solid]=planarInfillResults({shell,plan,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
       results.push(sparse);normalResults.push(sparse);
       if(solid){results.push(solid);fillResults.push(solid);}
-    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled;const result=fullFillResult({id,shell,plan,reserve:useVase?null:survey,zEndMm:baseTop,
+    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,reserve:useVase?null:survey,zEndMm:baseTop,
       ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1})}:{})});results.push(result);fillResults.push(result);}
   }
   if(fillResults.length){
@@ -164,7 +166,7 @@ export function generatePath(plan, machine, rhino) {
     results.push(result);summary.drapedSkin=result.report;
   }
   }
-  if(plan.skills['pipe-cladding'].enabled){const result=pipeCladdingResult({plan,after:results.flatMap(r=>r.operations.map(op=>op.id))});results.push(result);summary.pipeCladding=result.report;}
+  if(plan.skills['pipe-cladding'].enabled){const result=pipeCladdingResult({plan,shell:placed,after:results.flatMap(r=>r.operations.map(op=>op.id))});results.push(result);summary.pipeCladding=result.report;}
   const rims=[...rimmingPlanarResults({plan,modelResults:results}),...rimmingNormalResults({plan,modelResults:results})];
   if(rims.length){results.unshift(...rims);summary.rimming=rims.map(r=>r.report);}
   const supports=supportResults({plan,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});

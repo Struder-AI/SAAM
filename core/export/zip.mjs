@@ -6,12 +6,12 @@ import {requireThat} from '../geom/tolerance.mjs';
 // ZIP32 has 32-bit member sizes and offsets. This is the container's actual
 // representational boundary, not a manufacturing/file-size policy. ZIP64 is
 // outside the currently declared machine artifact contract.
-const MAX=0xffffffff, MAX_ENTRIES=64;
+const MAX=0xffffffff, MAX_ENTRIES=0xfffe;
 const table=Uint32Array.from({length:256},(_,i)=>{for(let j=0;j<8;j++)i=(i>>>1)^((i&1)?0xedb88320:0);return i>>>0;});
 export function crc32(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
 const validName=name=>requireThat(typeof name==='string'&&name.length<256&&/^[A-Za-z0-9_\[\]./-]+$/.test(name)&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..'),'Invalid ZIP member name.');
 export function packZip(entries){
-  requireThat(entries instanceof Map&&entries.size>0&&entries.size<=MAX_ENTRIES,'Invalid ZIP entries.');
+  requireThat(entries instanceof Map&&entries.size>0&&entries.size<=MAX_ENTRIES,'ZIP32 requires 1–65534 entries; ZIP64 is not supported.');
   const local=[],central=[];let offset=0;
   for(const [name,value] of [...entries].sort(([a],[b])=>a<b?-1:a>b?1:0)){
     validName(name);const bytes=Buffer.from(value),filename=Buffer.from(name),compressed=deflateRawSync(bytes,{level:9}),crc=crc32(bytes);

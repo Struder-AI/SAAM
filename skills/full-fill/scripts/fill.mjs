@@ -92,7 +92,7 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     // next one starts; the travel planner then joins or combs instead of hopping.
     rows.forEach((row, position) => {
       const points = position % 2 ? [row.to, row.from] : [row.from, row.to];
-      strokes.push({ role: 'fill', closed: false, points });
+      strokes.push({ role: 'fill', closed: false, points, scanlineCell:row.cellId });
     });
     if(fillRegion.length&&interiorStrokes){
       const generated=interiorStrokes(fillRegion,index,z);
@@ -114,7 +114,8 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
       if(!selected.length)continue;
       const operationId=id+':'+index+':'+role;
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
-        after:[...previous,...current],strokes:selected,order:closed&&!lowerSurface?'nearest':'given',region,
+        after:[...previous,...current],strokes:selected,
+        order:closed&&!lowerSurface?'nearest':!closed&&selected.every(s=>s.scanlineCell!==undefined)?'nearest-cells':'given',region,
         materialRegion:closed?difference(region,offsetRegion(region,-width*settings.perimeters)):
           // Coverage participates in booleans: a coarse round-join chord can
           // leave artificial corner gaps despite the requested wall overlap.

@@ -82,13 +82,13 @@ All file names in the core column below are relative to `core/tests/`.
 
 | Implementation area / behavior | Core test files | Related skill tests / integration selection |
 |---|---|---|
-| `core/geom/`: spline evaluation, sections, height queries, STL/mesh input | [geometry.test.mjs](core/tests/geometry.test.mjs), [mesh.test.mjs](core/tests/mesh.test.mjs), [mesh-boundary.test.mjs](core/tests/mesh-boundary.test.mjs) | Affected skill tests; pipeline and regional tests for shared query changes |
+| `core/geom/`: spline evaluation, sections, prepared mesh section index, height queries, STL/mesh input | [geometry.test.mjs](core/tests/geometry.test.mjs), [mesh.test.mjs](core/tests/mesh.test.mjs), [mesh-boundary.test.mjs](core/tests/mesh-boundary.test.mjs) | Affected skill tests; pipeline and regional tests for shared query changes |
 | `core/geom/polyline.mjs`: numerical contour seams before offsets and deposition | [contour-cleanup.test.mjs](core/tests/contour-cleanup.test.mjs) | Mesh sections, full-fill and planar-infill |
 | `core/region/offset.mjs`, Clipper normalization and offset compatibility | [offset.test.mjs](core/tests/offset.test.mjs), [offset-junctions.test.mjs](core/tests/offset-junctions.test.mjs), [offset-remnants.test.mjs](core/tests/offset-remnants.test.mjs) | Fill, infill, drape, vase and wedge consumers as affected |
 | `core/region/perimeters.mjs`: coincident closed wall fronts | [perimeters.test.mjs](core/tests/perimeters.test.mjs) | [perimeter-wall.test.mjs](skills/full-fill/tests/perimeter-wall.test.mjs) covers full-fill, planar-infill, solid masks and S5/H2D export |
 | `core/region/surface-offset.mjs`, surface derivatives | [surface-offset.test.mjs](core/tests/surface-offset.test.mjs) | Experimental surface tool; no implicit skill adoption |
 | `core/region/intersection.mjs`, closed planar booleans | [intersection.test.mjs](core/tests/intersection.test.mjs) | Infill masks, reservations and regional composition |
-| `core/region/region2d.mjs`: scanline fill and stroke ordering | [scanline-cells.test.mjs](core/tests/scanline-cells.test.mjs), [geometry.test.mjs](core/tests/geometry.test.mjs) | Full-fill and planar-infill |
+| `core/region/region2d.mjs`, `core/path/builder.mjs`: scanline cells and closest-entry ordering, segment-preserving reversal | [scanline-cells.test.mjs](core/tests/scanline-cells.test.mjs), [geometry.test.mjs](core/tests/geometry.test.mjs) | Full-fill, line-based planar-infill and draped-skin |
 | `core/path/`: travel, combing, deposited height, move coalescing | [travel.test.mjs](core/tests/travel.test.mjs), [straight-moves.test.mjs](core/tests/straight-moves.test.mjs), [interoperability.test.mjs](core/tests/interoperability.test.mjs) | Affected skill paths, composition and machine round trips |
 | `core/path/compose.mjs`: scheduling, weaving and joins | [composition.test.mjs](core/tests/composition.test.mjs) | Pipeline and regional workflow |
 | Material regions, reservations and consumed surfaces | [regions.test.mjs](core/tests/regions.test.mjs), [assembly-reservation.test.mjs](core/tests/assembly-reservation.test.mjs), [reservation-surface.test.mjs](core/tests/reservation-surface.test.mjs), [regional-workflow.test.mjs](core/tests/regional-workflow.test.mjs) | Infill, drape and vase composition |
@@ -100,6 +100,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/export/`: streamed G-code lines and large ZIP members | [gcode-stream.test.mjs](core/tests/gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
 | Dobot profile, Lua export/interpreter and relay behavior | [dobot.test.mjs](core/tests/dobot.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | [dobot.test.mjs](skills/wedge-demo/tests/dobot.test.mjs), vase and regional machine coverage |
 | VP-6242 / RC8, oriented/rotary motion, native pipe cladding and both Studio frames | [denso.test.mjs](core/tests/denso.test.mjs) | Shared mesh/spline regional skills, wedge, composition, browser source and exact-byte lifecycle |
+| Periodic spline tube, selected surface charts, normal-offset cladding and partial courses | [surface-cladding.test.mjs](core/tests/surface-cladding.test.mjs) | Native spline/bore, explicit mesh strips, three-perimeter interaction, RC8 lifecycle, bead orientation and ZIP32 helper counts |
 | `studio/`: camera, display detail, mesh visibility, playback and offline movies | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [studio-geometry.test.mjs](core/tests/studio-geometry.test.mjs), [studio-material.test.mjs](core/tests/studio-material.test.mjs), [studio-movie.test.mjs](core/tests/studio-movie.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
 | Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs), [studio-lifetime.test.mjs](core/tests/studio-lifetime.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
 | Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](core/tests/source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
@@ -111,7 +112,7 @@ All file names in the core column below are relative to `core/tests/`.
 | Explicit conventional/tree supports, interfaces and support-before-part ordering | Pipeline, workflow, regional and machine tests as affected | [supports.test.mjs](skills/supports/tests/supports.test.mjs) |
 | Bivariate support surfaces, horizontal/normal section offsets and rimming composition | Shared geometry, plan, workflow and machine boundaries | [rimming.test.mjs](skills/rimming-planar/tests/rimming.test.mjs) covers both rimming skills |
 | Draped skin, normal spacing, slope exclusion and support | Shared surface/reservation and pipeline tests as affected | [draped-skin.test.mjs](skills/draped-skin/tests/draped-skin.test.mjs) |
-| Vase wall, topology, budgets and level ending | Regional composition and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs) |
+| Vase wall, topology, offset rounding, budgets and level ending | Regional composition and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs) |
 | Bounded eight-point wedge geometry, generator and lifecycle | Shared travel, export and workflow tests as affected | [eight-point.test.mjs](skills/wedge-demo/tests/eight-point.test.mjs), [wedge.test.mjs](skills/wedge-demo/tests/wedge.test.mjs), H2D/Dobot wedge tests above |
 | Documentation links, decision metadata and private-file exclusions | `node scripts/check-repo.mjs` | No manufacturing test selection needed for prose-only edits |
 
@@ -1059,8 +1060,11 @@ step fixes observed C#/JS differences in grouping touching loops and prevents
 component-aware fill from treating them as one self-touching boundary.
 
 Options are `join: 'round' | 'square' | 'miter'` (round by default),
-`miterLimit: 2`, `arcToleranceMm: 0.02` and `precisionMm: 1e-9`. Arc tolerance
-is the upstream polygonal approximation target. Integer precision is distinct
+`miterLimit: 2`, `arcToleranceMm: 0.02` and `precisionMm: 1e-9`. Vase-wall
+explicitly uses a 0.00001 mm integer grid to reduce offset arithmetic cost;
+other callers keep their current precision. Its manual documents retained
+checks and the rounding tradeoff. Arc tolerance is the upstream polygonal
+approximation target. Integer precision is distinct
 from surface/section chord tolerance. A deterministic local origin reduces
 coordinate magnitude; range checks leave headroom for bounded miters. Invalid
 numbers/options or excessive range raise; genuine collapse returns `[]`.
@@ -1340,6 +1344,15 @@ retain winding, corners and reversals. Full-fill/planar-infill also clean offset
 deposition contours at that tolerance, while retaining the offset kernel's region
 output for booleans. No curve-resolution or Clipper precision setting is relaxed.
 
+`createSectionQuery` in `core/geom/query.mjs` prepares repeated sections of one
+fixed geometry. Vase-wall uses it for its changing-Z samples. Mesh queries build
+a Z-bound hierarchy and sorted vertex heights once, preserving triangle order,
+vertex nudges and contour construction while skipping irrelevant triangles.
+Each triangle is stored once, so tall triangles do not multiply index storage.
+The query belongs to one generation; recreate it after any geometry edit or
+placement change. Direct one-off cuts and spline sectioning remain available
+through the same shared boundary. The index changes no sampling tolerance.
+
 The shared S5/H2D motion emitter establishes XYZ/feed state on first use, then
 omits unchanged fields. Retractions update the same modal feed state. E remains
 explicit with the selected absolute/relative convention. The interpreter checks
@@ -1539,6 +1552,17 @@ material ownership; the composer does not infer arbitrary geometric overlap, sup
 bridge printability or a safe order from arbitrary strokes alone.
 
 Full-fill produces separate wall and interior-fill operations for each layer.
+Scanline-based interiors and draped skins label uninterrupted zigzags with
+`scanlineCell` and request `order: 'nearest-cells'`. The shared composer chooses
+the closest endpoint of either end row of each remaining cell by XYZ distance
+from the actual nozzle position. It completes that cell before selecting another.
+Row order and stroke direction can reverse independently, providing up to four
+entry choices. Reversing strokes also reverses per-segment volumes/metadata.
+Equal distances retain producer order. This mode requires open strokes without
+tool poses and does not reorder operations or split continuous operations.
+Concentric/gyroid paths and the bounded wedge keep their existing ordering.
+No lookahead, travel-time scoring or heat balancing is included; see
+[D-026](DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations).
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
 `skills.full-fill.parts` selects the components to fill (empty means all),
@@ -1857,11 +1881,30 @@ Interoperability is shared at geometry storage, ordinary section/offset/boolean
 tools, full-fill/concentric substrate generation, operations, motion, output
 registry, exact-source Studio, approvals, cold reopening and delivery. The new
 radial skill is restricted to a native circular pipe aligned with the rotary;
-general CAD cylindrical recognition and radial material-region interfaces are
-not implemented. A later general cylinder query or radial region descriptor can
-replace that bounded recipe check without introducing another composer.
+general CAD cylindrical recognition and inward radial material-region interfaces are
+not implemented. Explicit surface cladding now also accepts a periodic native
+spline patch or mapped native triangle strip through
+[surface-region](core/geom/surface-region.mjs). Shared
+[normal-surface](core/region/normal-surface.mjs) operations evaluate outward normal
+offsets and refine curves; they do not use the intrinsic boundary-offset tool.
+The selected surface describes the substrate, and cladding adds outside it.
+The `spline-tube` builder stores a periodic 16-by-8 example in native 3DM with a
+rational circular bore; full-fill consumes its real sections with three
+perimeters. Arc-length cells create partial axial passes as local area varies.
+Scope, mesh normal interpolation, sampled coverage, unsupported topology and
+normal-field limits are owned by the [cladding manual](skills/pipe-cladding/SKILL.md#bumpy-spline-and-explicit-surface-cladding).
+The producer uses the same composer, oriented travel, RC8 export and approval
+workflow. General inward reservations, arbitrary chart unwrapping and multi-patch
+cladding remain unimplemented.
 Tests include the existing mesh/spline base-vase-cap-infill-drape stack at fixed
 orientation on RC8, bounded wedge and ordinary pipe geometry on S5.
+
+Large RC8 programs can exceed 64 helper files. Shared ZIP output now uses the
+ZIP32 non-sentinel entry limit of 65,534 while retaining CRC, path, size, overlap
+and inventory checks. Studio streams the exact checked source inventory in one
+NDJSON response instead of reloading the archive per helper. The browser still
+checks every file hash and the server binds the stream to print/revision/export
+identity. This changes transport, not interpretation or approval requirements.
 
 Primary technical references used for this experimental command contract:
 

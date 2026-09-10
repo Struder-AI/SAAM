@@ -100,17 +100,18 @@ function proxyMesh(shell) {
   const vertices = [], faces = [], labels = [];
   for (const patch of shell.patches) {
     const [u0, u1] = patch.domainU, [v0, v1] = patch.domainV;
-    const base = vertices.length, row = PROXY_STEPS + 1;
-    for (let i = 0; i <= PROXY_STEPS; i++)
-      for (let j = 0; j <= PROXY_STEPS; j++)
-        vertices.push(evaluate(patch, u0 + (u1 - u0) * i / PROXY_STEPS, v0 + (v1 - v0) * j / PROXY_STEPS, false).point.map(round));
-    for (let i = 0; i < PROXY_STEPS; i++)
-      for (let j = 0; j < PROXY_STEPS; j++) {
+    const stepsU=shell.name==='spline-tube'?64:PROXY_STEPS,stepsV=shell.name==='spline-tube'?32:PROXY_STEPS;
+    const base = vertices.length, row = stepsV + 1;
+    for (let i = 0; i <= stepsU; i++)
+      for (let j = 0; j <= stepsV; j++)
+        vertices.push(evaluate(patch, u0 + (u1 - u0) * i / stepsU, v0 + (v1 - v0) * j / stepsV, false).point.map(round));
+    for (let i = 0; i < stepsU; i++)
+      for (let j = 0; j < stepsV; j++) {
         faces.push([base + i * row + j, base + (i + 1) * row + j, base + (i + 1) * row + j + 1, base + i * row + j + 1]);
         labels.push(patch.name);
       }
   }
-  return { vertices, faces, labels, proxyStepsPerPatch: PROXY_STEPS };
+  return { vertices, faces, labels, proxyStepsPerPatch: shell.name==='spline-tube'?[64,32]:PROXY_STEPS };
 }
 
 // A native mesh is stored as indexed triangles. Mixed assemblies retain the

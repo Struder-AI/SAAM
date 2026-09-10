@@ -19,6 +19,7 @@ import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/s
 import {RIMMING_DEFAULTS,validateRimming} from '../../skills/rimming-planar/scripts/rimming.mjs';
 import {PIPE_CLADDING_DEFAULTS,validateCladding} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {pipeMesh} from '../geom/cylinder.mjs';
+import {validateSplineTube} from '../geom/spline-tube.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -83,6 +84,7 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape) {
+  if(shape==='spline-tube')return {shape,innerRadiusMm:8,heightMm:24,controlPoints:[]};
   if(shape==='pipe')return {shape:'pipe',innerRadiusMm:8,outerRadiusMm:10.4,heightMm:12,toleranceMm:0.01};
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
   if(shape==='assembly')return {shape:'assembly',parts:[]};
@@ -100,8 +102,9 @@ export function geometryTemplate(shape) {
 }
 
 export function validatePlan(plan, machine) {
-  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube'].includes(plan.geometry?.shape), 'Unsupported shape.');
   plan.skills['pipe-cladding']??=structuredClone(PIPE_CLADDING_DEFAULTS);
+  plan.skills['pipe-cladding'].surface??=null;
   // Shell bundles created before the experimental setting existed retain the
   // profile limit until a chat adjustment writes the explicit null value.
   if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
@@ -134,7 +137,8 @@ export function validatePlan(plan, machine) {
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
 
   const { geometry, placement, process, setup, skills } = plan;
-  if(!['assembly','mesh','pipe'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
+  if(geometry.shape==='spline-tube')validateSplineTube(geometry);
+  if(!['assembly','mesh','pipe','spline-tube'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
   if(geometry.shape==='pipe'){
     for(const key of ['innerRadiusMm','outerRadiusMm','heightMm','toleranceMm'])requireThat(Number.isFinite(geometry[key])&&geometry[key]>0,'Invalid pipe '+key+'.');
     requireThat(geometry.toleranceMm<geometry.innerRadiusMm/4,'Pipe mesh tolerance exceeds its bore radius.');pipeMesh(geometry);
@@ -265,8 +269,8 @@ export function validatePlan(plan, machine) {
   const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
     : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
   const bounds=toolBounds(machine,setup.tool);
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   const regionIds=new Set();
   for(const region of plan.composition.regions) {

@@ -1,12 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {makeMesh,sectionMesh} from '../geom/mesh.mjs';
+import {makeMesh,sectionMesh,translateMesh} from '../geom/mesh.mjs';
+import {createSectionQuery,sectionGeometry} from '../geom/query.mjs';
 import {regionArea} from '../region/region2d.mjs';
-import {boxMesh} from './fixtures/mesh.mjs';
+import {boxMesh,ringMesh} from './fixtures/mesh.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
+import {buildShell} from '../print/generate.mjs';
+
+test('prepared sections exactly match direct cuts across heights, holes, islands and placement',async()=>{
+  const boxes=Array.from({length:12},(_,i)=>boxMesh(8,6,2+i%3,.5));
+  const vertices=[],triangles=[];
+  for(const [i,box] of boxes.entries()) {
+    const base=vertices.length;
+    vertices.push(...box.vertices.map(p=>[p[0]+12*i,p[1],p[2]+i]));
+    triangles.push(...box.triangles.map(t=>t.map(v=>v+base)));
+  }
+  const many=makeMesh(vertices,triangles),ring=ringMesh();
+  const geometries=[many,translateMesh(many,-100,30,-4),makeMesh(ring.vertices,ring.triangles),
+    buildShell(await rhino(),{shape:'box',runMm:8,widthMm:6,heightMm:2})];
+  for(const mesh of geometries) {
+    const query=createSectionQuery(mesh),[min,max]=[mesh.bounds.min[2],mesh.bounds.max[2]];
+    const heights=[min-1e-8,max+1e-8,min-Number.EPSILON,max+Number.EPSILON,
+      ...Array.from({length:65},(_,i)=>min+(max-min)*i/64),
+      ...new Set(mesh.vertices?.map(p=>p[2])??[])];
+    // Nonmonotonic/repeated cuts exercise adaptive subdivision and reuse.
+    for(const z of [...heights,...heights.reverse()])assert.deepEqual(query(z),sectionGeometry(mesh,z));
+    if(mesh.kind==='triangle-mesh')assert.throws(()=>query(NaN),/finite/);
+  }
+});
 
 test('mesh sections tolerate floating-point boundary roundoff symmetrically without accepting outside cuts',()=>{
   const geometry=boxMesh(8,8,6),mesh=makeMesh(geometry.vertices,geometry.triangles);

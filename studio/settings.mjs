@@ -1,6 +1,6 @@
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
-export const skillName=name=>({'full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
+export const skillName=name=>({'pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
 export const hasSkill=(plan,name)=>supportSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
   ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
   :Boolean(plan.skills?.[name]?.enabled);
@@ -19,6 +19,11 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
   const rows=[];
   for(const [key,v] of Object.entries(settings)){
     if(['enabled','part','parts'].includes(key))continue;
+    if(key==='surface'){
+      rows.push([prefix+' · Surface',v?(v.kind==='spline'?'Native spline: '+v.patch:'Explicit mesh strip'):'Circular pipe'],
+        [prefix+' · Boundary',v?'Substrate surface; cladding adds outward':'Finished pipe; cladding reserved inward']);
+      continue;
+    }
     if(key==='surfaces'){
       for(const s of v){
         rows.push([prefix+' · '+s.id,s.reason],[s.id+' · Base',s.baseEdge+(s.basePart?' on '+s.basePart:'')],

@@ -1,7 +1,7 @@
 // Skill results describe deposition operations. Only this composer writes the
 // final sequence, connecting travel and layer cooling through one PathBuilder.
 import { requireThat, distance } from '../geom/tolerance.mjs';
-import { orderStrokes } from './builder.mjs';
+import { orderStrokes, orderScanlineCells } from './builder.mjs';
 
 export function scheduleOperations(results, { order = [], dependencies = [], batchLayers = 1 } = {}) {
   requireThat(Number.isInteger(batchLayers) && batchLayers >= 1 && batchLayers <= 20, 'Batch size must be 1–20 layers.');
@@ -15,6 +15,8 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
       && Number.isFinite(operation.clearanceZ), 'Operation needs strokes and a travel policy.');
     requireThat(operation.order!=='nearest'||operation.strokes.every(s=>s.closed&&Number.isFinite(s.beadAreaMm2)&&!s.volumesMm3&&!s.poses),
       'Nearest ordering requires closed strokes with a uniform bead area.');
+    requireThat(operation.order!=='nearest-cells'||(!operation.continuous&&operation.strokes.every(s=>s.scanlineCell!==undefined&&!s.closed&&!s.poses)),
+      'Nearest cell ordering requires grouped open strokes without tool poses.');
     byId.set(operation.id, operation);
   }
   // Dependencies express what must exist first. Among ready operations, keep
@@ -59,7 +61,8 @@ export function composeResults(builder, results, rules = {}) {
     builder.operationId = op.id;
     builder.layerSeconds = elapsed.get(op.layerId) ?? 0;
     if (op.fanPercent !== undefined) builder.fan(op.fanPercent);
-    const strokes = op.order === 'nearest' ? orderStrokes(op.strokes, builder.position) : op.strokes;
+    const strokes = op.order === 'nearest' ? orderStrokes(op.strokes, builder.position)
+      : op.order === 'nearest-cells' ? orderScanlineCells(op.strokes, builder.position) : op.strokes;
     for (const stroke of strokes) {
       requireThat(stroke.points.length >= 2, 'An operation stroke needs at least two points.');
       requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');

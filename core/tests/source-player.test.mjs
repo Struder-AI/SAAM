@@ -72,3 +72,15 @@ test('compact drawing storage crosses chunk boundaries without losing precision 
   assert.equal(decoded.length,17000);
   for(const i of [0,16383,16384,16999])assert.deepEqual(decoded[i],store[i]);
 });
+
+test('streamed source transport checks inventory and hashes across arbitrary chunks',async()=>{
+  const text="Sub main\n' unicode: é\nEnd Sub\n",bytes=new TextEncoder().encode(text);
+  const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
+  const state={sourceTransport:'ndjson',printId:'print',revision:'revision',exportHash:'export',program:{sources:[{name:'main.pcs',sha256:hash}]}};
+  const fetcher=lines=>async()=>new Response(new ReadableStream({start(controller){const b=new TextEncoder().encode(lines);for(let i=0;i<b.length;i+=7)controller.enqueue(b.slice(i,i+7));controller.close();}}));
+  const line=JSON.stringify({name:'main.pcs',text})+'\n';
+  assert.deepEqual(await fetchSources(state,fetcher(line)),{'main.pcs':text});
+  await assert.rejects(()=>fetchSources(state,fetcher(line+line)),/duplicate/);
+  await assert.rejects(()=>fetchSources(state,fetcher('')),/Missing/);
+  await assert.rejects(()=>fetchSources(state,fetcher(line.replace('unicode','changed'))),/changed/);
+});

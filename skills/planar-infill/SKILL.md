@@ -121,6 +121,9 @@ own tool/material limits and export behavior. Follow the
 Travel uses nearest wall starts, alternating fill direction and verified combing,
 including bounded routes around holes. Fill completes disconnected regions and
 uninterrupted row groups on each side of holes/concavities before changing sides.
+Rectilinear, grid and triangle row groups choose the closest endpoint of either
+end row, with row order and stroke direction chosen independently. Concentric
+and gyroid keep their existing ordering. Heat balancing and lookahead are deferred.
 Shared motion compacts straight runs and directly repositions across permitted
 gaps of at most 1 mm without retraction or lift. Other moves clear
 the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../DEVELOP.md#whole-plan-travel-requirement).

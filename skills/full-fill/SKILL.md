@@ -83,7 +83,12 @@ reopening interprets that export without regenerating or loading a SAAMpath file
 
 Alternating fill strokes and nearest wall starts reduce travel. Disconnected
 regions and uninterrupted row groups beside holes/concavities are completed
-before changing sides. Shared motion compacts straight runs and directly
+before changing sides. Each next row group is selected by the closest endpoint
+of its first or last row. Row order and stroke direction are chosen independently,
+so either side of either end row can be the entry.
+Variable-gap volumes stay attached to their segments when reversed. This is
+straight-line distance ordering; heat balancing and lookahead are deferred.
+Shared motion compacts straight runs and directly
 repositions across permitted gaps of at most 1 mm without retraction or lift. Verified
 combing stays inside the allowed region at print height, with routes around
 holes when possible within `maxCombMm`. Other traverses clear the highest material
@@ -117,8 +122,9 @@ use normal thickness. The consumer's start cannot skip those lower partial
 layers. The supplied interface must cover the requested footprint. Missing
 coverage, an unresolvable sampled boundary or an exhausted sampling budget is
 rejected. Traverses use the clipped region rather than the unprinted envelope.
-Variable-gap strokes keep their order so volumes remain attached to their
-original segments.
+Variable-gap walls keep their order. Segmented fill may reverse its row order
+and stroke direction independently, reversing segment volumes with the stroke
+points so material amounts remain attached to their original segments.
 
 A cap above a hollow wall uses a level wall ending. The agent chooses bridge
 direction and wall contact with the maker and reviews the path in Studio;

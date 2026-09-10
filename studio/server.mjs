@@ -97,7 +97,22 @@ export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(r
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir,{program:'source'});
         if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
-        delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;send(state);return;
+        delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;state.sourceTransport='ndjson';send(state);return;
+      }
+      if(req.method==='GET'&&url.pathname==='/api/sources'){
+        const fingerprint=await bundle.bundleFingerprint(readDir),state=await bundle.loadBundle(readDir,{program:'source',allSources:true});
+        if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
+        for(const [key,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]])
+          if(url.searchParams.get(key)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
+        if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
+        res.writeHead(200,{'Content-Type':'application/x-ndjson; charset=utf-8'});
+        for(const [name,text] of Object.entries(state.sources)){
+          if(res.destroyed)return;
+          if(!res.write(JSON.stringify({name,text})+'\n'))await new Promise(done=>{
+            const finish=()=>{res.off('drain',finish);res.off('close',finish);done();};res.once('drain',finish);res.once('close',finish);
+          });
+        }
+        res.end();return;
       }
       if(req.method==='GET'&&url.pathname==='/api/revision'){send({fingerprint:readId+await bundle.bundleFingerprint(readDir)});return;}
       if(req.method==='GET'&&['/api/program','/api/gcode'].includes(url.pathname)) {

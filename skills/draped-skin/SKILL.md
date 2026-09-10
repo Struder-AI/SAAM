@@ -74,6 +74,12 @@ validation; the fixture's robot setup is explicitly synthetic.
 
 ## Travel
 
+Within each skin layer, complete uninterrupted scanline groups in closest-entry
+order from the nozzle, choosing either endpoint of either end row. Row order and
+stroke direction can reverse independently; reversing strokes also reverses
+their segment volumes and metadata. Skin-layer dependencies
+remain ordered; heat balancing and lookahead are deferred.
+
 Verified short direct moves may stay down on the current skin. Lifted travel and
 cooling clear the **highest material deposited so far** across all skills plus
 the locked `liftMm` (default 1 mm; zero allowed). The local surface query still controls whether

@@ -102,7 +102,7 @@ async function rememberedSetup(setupFile, machine) {
   return Object.fromEntries(Object.entries(saved.setup ?? {}).filter(([key]) => Object.hasOwn(known, key)));
 }
 
-async function loadBundle(directory, { program = true, sourceFile } = {}) {
+async function loadBundle(directory, { program = true, sourceFile, allSources=false } = {}) {
   const dir = resolve(directory);
   const [plan, machine, geometry, review, runtime] = await Promise.all([
     json(resolve(dir, 'plan.json')), json(resolve(dir, 'machine.json')), json(resolve(dir, 'geometry/model.json')),
@@ -158,6 +158,7 @@ async function loadBundle(directory, { program = true, sourceFile } = {}) {
       state.pathSummary = structuredClone(review.generation.summary??{});
       state.exportHash = exportHash;
       state.code = verifiedProgram.code;
+      if(allSources)state.sources={...verifiedProgram.sources};
       if(sourceFile!==undefined){
         requireThat(Object.hasOwn(verifiedProgram.sources,sourceFile),'Unknown machine source file.');
         state.code=verifiedProgram.sources[sourceFile];
@@ -223,6 +224,11 @@ function merge(target, changes) {
   requireThat(changes && typeof changes === 'object' && !Array.isArray(changes), 'Adjustment must be an object.');
   for (const [key, value] of Object.entries(changes)) {
     requireThat(Object.hasOwn(target, key), `Unknown setting: ${key}`);
+    // Surface selectors are discriminated records, including a legacy null.
+    // Replace the complete selection and let validatePlan check its schema.
+    if(key==='surface'&&value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'kind')){
+      target[key]=structuredClone(value);continue;
+    }
     // Shapes deliberately have different strict field sets. Retain only the
     // fields the new shape shares, start the new shape's fields from its own
     // template, then apply the chat-requested geometry change.

@@ -2,19 +2,23 @@ import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {circlePoints,cylindricalPoint,cylindricalPose} from '../../../core/geom/cylinder.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
 import {intersect} from '../../../core/region/intersection.mjs';
+import {validateSurfaceSelection} from '../../../core/geom/surface-region.mjs';
+import {surfaceCladdingResult} from './surface-clad.mjs';
 
-export const PIPE_CLADDING_DEFAULTS={enabled:false,shells:4,normalMm:0.2,tiltDeg:45,sampleStepMm:1,toleranceMm:0.01,maxPoints:500000};
+export const PIPE_CLADDING_DEFAULTS={enabled:false,shells:4,normalMm:0.2,tiltDeg:45,sampleStepMm:1,toleranceMm:0.01,maxPoints:500000,surface:null};
 export function validateCladding(plan,machine){
   const s=plan.skills['pipe-cladding'];
   requireThat(typeof s.enabled==='boolean'&&Number.isInteger(s.shells)&&s.shells>0,'Cladding needs a positive integer shell count.');
   for(const k of ['normalMm','sampleStepMm','toleranceMm'])requireThat(Number.isFinite(s[k])&&s[k]>0,'Invalid cladding '+k+'.');
   requireThat(Number.isFinite(s.tiltDeg)&&s.tiltDeg>0&&s.tiltDeg<90,'Cladding tilt must be between 0 and 90 degrees from downward.');
   requireThat(Number.isSafeInteger(s.maxPoints)&&s.maxPoints>=100,'Cladding maxPoints must be at least 100.');
+  if(s.surface)validateSurfaceSelection(s.surface);
   if(!s.enabled)return;
   requireThat(machine.capabilities?.includes('tool-orientation')&&machine.capabilities?.includes('coordinated-rotary'),'Pipe cladding requires tool orientation and a coordinated rotary.');
-  requireThat(plan.geometry.shape==='pipe','Initial pipe cladding requires the native circular pipe recipe.');
+  requireThat(s.surface||plan.geometry.shape==='pipe','Cladding needs a native pipe or an explicit surface selection.');
   requireThat(!plan.composition.regions.length,'Pipe cladding currently owns an explicit radial band; Z-region assignments are not yet supported for it.');
   requireThat(plan.skills['full-fill'].enabled&&!plan.skills['planar-infill'].enabled&&!plan.skills['draped-skin'].enabled&&!plan.skills['vase-wall'].enabled,'Pipe substrate requires full-fill; other patterns must not own the same material.');
+  if(s.surface){requireThat(plan.geometry.shape!=='assembly'&&plan.skills['full-fill'].mode==='body','Selected surface cladding currently requires one full-fill body.');return;}
   requireThat(plan.geometry.outerRadiusMm-s.shells*s.normalMm>plan.geometry.innerRadiusMm+plan.process.lineWidthMm,'Cladding leaves less than one bead for the substrate.');
   requireThat(plan.geometry.heightMm>2*plan.process.lineWidthMm,'Pipe is too short for axial cladding tracks.');
   const center=plan.setup.denso?.rotaryCenterMm;
@@ -37,7 +41,8 @@ export function substrateLoops(plan){
   return Array.from({length:count},(_,i)=>({closed:true,points:circlePoints(inner+width/2+i*spacing,center,plan.geometry.toleranceMm)}));
 }
 
-export function pipeCladdingResult({plan,after=[],id='pipe-cladding'}){
+export function pipeCladdingResult({plan,shell,after=[],id='pipe-cladding'}){
+  if(plan.skills['pipe-cladding'].surface)return surfaceCladdingResult({plan,shell,after,id});
   const s=plan.skills['pipe-cladding'],p=plan.process,g=plan.geometry,center=[plan.placement.xMm,plan.placement.yMm,0];
   const base=g.outerRadiusMm-s.shells*s.normalMm,operations=[];
   let used=0,angle=0,previous=after;

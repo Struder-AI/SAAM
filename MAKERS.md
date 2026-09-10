@@ -93,6 +93,12 @@ calibration. SAAM defers robot reach, singularities, joint/motion limits and
 collisions. Studio can follow the bed or show it rotating in the room; playback
 is nominal commanded motion with relay estimates, not verified robot execution.
 
+The same cladding skill now has a bumpy native spline demo with a circular bore,
+variable substrate thickness and three full-fill perimeters. Explicit periodic
+spline or mapped mesh-strip surfaces support outward normal-offset cladding and
+partial axial courses. Read its [surface mode and limits](skills/pipe-cladding/SKILL.md#bumpy-spline-and-explicit-surface-cladding):
+the selected surface is the substrate boundary; cladding adds outside it.
+
 With a compatible local MCP chat client, use the
 [MCP tools](adapters/mcp/README.md) for the same workflow: read the chosen manual,
 create the bundle and request Studio review, then apply chat adjustments using

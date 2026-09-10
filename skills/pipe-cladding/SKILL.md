@@ -1,6 +1,6 @@
 ---
 name: pipe-cladding
-description: Print a circular pipe substrate with ordinary concentric loops, then alternate axial and helical cylindrical shells using oriented motion and a rotary through the shared RC8 export and Studio workflow.
+description: Print a full-fill substrate and alternate axial/helical cladding on a circular pipe, selected periodic native spline surface, or explicitly mapped mesh strip, through shared composition, RC8 export and Studio.
 ---
 
 # Pipe cladding
@@ -65,9 +65,10 @@ on the edge turns. These are deposition approximations, not a measured bead
 model or proof of level, fully filled end surfaces. The substrate must retain
 more than one line width and the pipe must be taller than two line widths.
 
-This first skill requires the native circular pipe recipe. It does not infer a
-cylinder from arbitrary STL/CAD, implement general curved material interfaces,
-or accept `composition.regions` Z assignments. General support/rim contact
+The legacy `surface: null` mode requires the native circular pipe recipe. It does not infer a
+cylinder from arbitrary STL/CAD or accept `composition.regions` Z assignments.
+The explicit surface mode below adds outward cladding to an assigned substrate.
+General support/rim contact
 with the radial band is not established. Those are explicit remaining geometry
 and composition boundaries; ordinary skills still share the RC8 output in their
 existing fixed-orientation scope.
@@ -140,3 +141,84 @@ Software coverage is in [denso.test.mjs](../../core/tests/denso.test.mjs): nativ
 geometry, radial ownership/order, unwrapped turns, tilted poses, source edits,
 relay behavior, both preview frames, mesh/spline predecessor skills, bounded
 wedge, cold reopen, synthetic approval invalidation and exact-byte delivery.
+
+## Bumpy spline and explicit surface cladding
+
+The development example uses a 16-column periodic cubic exterior with eight
+vertical control points, stored as a native NURBS surface in the bundle's 3DM.
+Three seam columns repeat to close the periodic cubic; there are 16 independent
+angular columns. An exact rational circular bore and ruled annular ends close
+the substrate. Full-fill sections the native surfaces and uses its ordinary
+three perimeters, overlap and scanline fill. It does not replace that section
+with a circle or a constant wall thickness. In the example's first two layers,
+opposing perimeter fronts meet locally and produce five closed loops per layer.
+
+```sh
+node skills/pipe-cladding/scripts/bumpy-demo.mjs Prints/development/denso-bumpy-spline
+node studio/server.mjs Prints/development/denso-bumpy-spline
+```
+
+Defaults: 16 mm bore, 32 mm substrate height, sampled 2.00–7.99 mm radial wall,
+three perimeters, six alternating cladding shells at 0.2 mm normal thickness.
+Pseudo-random phases are fixed and the resulting control net is saved. Geometry
+review shows the substrate boundary; cladding adds outward from this surface.
+This is deliberately different from the legacy pipe recipe, where the pipe's
+outer radius includes the cladding and its band is reserved inward. Nothing in
+this example implements arbitrary inward surface-volume reservations.
+
+Set `skills.pipe-cladding.surface` to an explicit selection:
+
+- Native spline: `{kind:'spline', patch:'outer', periodicU:true, normalSide:1,
+  uvBounds:[[0,16],[0,1]]}`. Bounds are native patch parameters. Positive V runs
+  upward on this example, and positive normal points out of the substrate.
+- Native mesh: `{kind:'mesh-strip', rows:[[...],...], periodicU:true,
+  normalSide:1}`. Each row lists native vertex indices along V; consecutive rows
+  progress in U. The last U row repeats the first for a periodic seam. Every
+  cell must match two existing native mesh triangles. Point evaluation stays
+  on those triangles; area-weighted selected-face vertex normals are interpolated
+  for an explicitly smooth offset/pose field. This does not reconstruct a CAD surface.
+
+The shared [surface-region query](../../core/geom/surface-region.mjs) retains
+native parameters. The shared [normal-surface operations](../../core/region/normal-surface.mjs)
+evaluate ambient normal offsets and refine curve samples using millimeter chord
+and step targets. Native spline evaluation calls the existing NURBS evaluator.
+These are ambient offsets, not geodesic boundary offsets; the intrinsic offset
+tool has separate capabilities. Mesh normal interpolation and the new coverage
+construction are experimental SAAM code, not a copied upstream offset kernel.
+
+Axial coverage partitions the periodic U domain into local sectors, measures
+their offset-surface arc length at sampled V rows, and allocates bead-width cells
+within each sector. A cell's course starts or ends when local width crosses its
+threshold. The root is refined in V, and the last cell tapers its intended bead
+width; no full-height course is forced through a disappearing cell. Alternating
+direction avoids flipping the nozzle frame. Repositioning between separate
+courses turns extrusion off and uses the shared oriented retreat/approach policy.
+Hoop layers use a continuous periodic helix with pitch based on a sampled longest
+meridian and locally scaled bead width. All substrate operations precede the
+first shell; every later shell depends on the complete preceding shell.
+
+Nozzle direction blends inward surface normal and negative V tangent using
+`tiltDeg`; 45 degrees bisects them. This is a local surface tilt, not a fixed
+angle to the room's vertical. Tool Y is V cross normal. Unwrapped rotary angles
+bring each contact azimuth to the working side. The same interpreted tool frame
+drives Studio's bead orientation; neither playback nor material display guesses
+a cylindrical normal for the new mode.
+
+Current limits: one full-fill body and one rectangular periodic surface chart;
+no arbitrary face-region unwrapping, holes in the chart, multi-patch seam routing,
+Z-region composition, open-patch cladding or general inward material reservation.
+The `spline-tube` authoring shape uses evenly angled columns and linear V height,
+with a control-hull condition that keeps its bore separate. Other regular native
+patches can be selected through the same query. Arbitrary folded offset surfaces,
+offset self-intersections and mesh normal-field singularities are not resolved.
+Coverage uses sampled arc-length cells and projected cell widths; it is not a
+globally certified geodesic spacing or complete bead-volume coverage proof.
+`sampleStepMm`, `toleranceMm` and `maxPoints` control construction. Narrow terminal
+cells have small intended bead widths. Fixed relay flow cannot meter those widths;
+software intent and relay estimates remain separate. Physical clearance, robot
+feasibility and execution remain unverified.
+
+[Surface-cladding tests](../../core/tests/surface-cladding.test.mjs) cover native
+round trips, bore and wall dimensions, normal offsets/refinement, mesh-strip
+mapping, perimeter-front interaction, partial courses, rotary continuity, bead
+frames, packaging beyond 64 helper files and the shared export/review lifecycle.

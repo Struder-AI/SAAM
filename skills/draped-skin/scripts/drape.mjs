@@ -160,7 +160,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     const sequence = skin % 2 ? rows : [...rows].reverse();
     const strokes = sequence.map((row, position) => {
       const [from, to] = position % 2 ? [row.to, row.from] : [row.from, row.to];
-      return { role: 'skin', closed: false, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count,survey.limitDeg,supportTopAt) };
+      return { role: 'skin', closed: false, scanlineCell:row.cellId, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count,survey.limitDeg,supportTopAt) };
     }).filter(stroke => stroke.points.length > 1);
 
     // The surface this skin lies on, for both clearance and direct travel.
@@ -186,12 +186,12 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
         const volume = length * width * gap * Math.cos(slope * Math.PI / 180);
         volumesMm3.push(volume);segmentMetadata.push({gapMm:gap,slopeDeg:slope});
       }
-      deposition.push({points:stroke.points.map(p=>p.point),role:'skin',speedMmS:process.skinSpeedMmS,volumesMm3,segmentMetadata});
+      deposition.push({points:stroke.points.map(p=>p.point),scanlineCell:stroke.scanlineCell,role:'skin',speedMmS:process.skinSpeedMmS,volumesMm3,segmentMetadata});
       report.strokes++;
     }
     const operationId=id+':'+(skin-1);
     operations.push({id:operationId,layerId:id+':'+(skin-1),phase:'draped-skin',layer:skin-1,
-      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,travelPolicy:policy,clearanceZ:shell.bounds.max[2]+process.liftMm});
+      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,order:'nearest-cells',travelPolicy:policy,clearanceZ:shell.bounds.max[2]+process.liftMm});
     previous=[operationId];
   }
   return {id,operations,report};

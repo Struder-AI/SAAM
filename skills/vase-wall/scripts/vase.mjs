@@ -6,6 +6,9 @@ import {offsetRegion} from '../../../core/region/offset.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 
 export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'spiral',sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,maxPoints:100000};
+// Ten-nanometer integer grid: independent of contour/chord and boundary
+// tolerances, and avoids Clipper's large-integer path for ordinary part sizes.
+const OFFSET_PRECISION_MM=0.00001;
 const cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
 
@@ -52,9 +55,13 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const cut=sectionAt(z);
     requireThat(Math.abs(cut.nudgedByMm??0)<=settings.boundaryToleranceMm,'Vase section nudge exceeds boundaryToleranceMm.');
     if(cut.nudgedByMm)nudgedSections++;
-    const outer=convexLoop(cut.loops),inset=offsetRegion([outer],-width/2,{arcToleranceMm:settings.boundaryToleranceMm/4});
+    const outer=convexLoop(cut.loops),inset=offsetRegion([outer],-width/2,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall inward offset is empty, split or collapsed at Z ${z.toFixed(6)} mm for bead width ${width} mm.`);
-    const loop=convexLoop(inset);
+    // Eroding a convex region preserves convexity. Rechecking every inset
+    // corner rejects harmless integer-grid rounding near collinear vertices.
+    // Keep collapse, common-origin and sampled standoff checks below.
+    const loop=dedupe(inset[0]);
+    requireThat(loop.length>=3,'Vase wall section collapsed.');
     center??=loop.reduce((sum,p)=>[sum[0]+p[0]/loop.length,sum[1]+p[1]/loop.length],[0,0]);
     requireThat(pointInRegion(center,[loop]),'Vase sections must retain a common interior origin; section collapse, major drift or topology change is unsupported.');
     const value={outer,loop};cache.set(key,value);return value;
@@ -106,7 +113,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   return {id,operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
     after,strokes:[stroke],order:'given',continuous:true,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,clearanceFor:()=>end+process.liftMm},clearanceZ:end+process.liftMm}],
-    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,maxPoints:settings.maxPoints,sectionQueries:cache.size,maxSectionQueries,nudgedSections,
+    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,maxPoints:settings.maxPoints,sectionQueries:cache.size,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
       volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,
       scope:'One convex outer section with a persistent interior origin; sampled topology and boundary checks. Overhang and bridging are process choices reviewed in Studio; no physical validation.'}};
 }

@@ -121,7 +121,7 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'];
-      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
@@ -133,11 +133,18 @@ const views={
           rows.push(['Vertical wall outline','X out '+g.xBulgeMm+' mm · Y in '+g.yInsetMm+' mm']);
         }
         if(g.shape==='assembly')for(const part of g.parts)rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);
+        if(g.shape==='spline-tube')rows.push(['Circular bore',2*g.innerRadiusMm+' mm'],['Substrate height',g.heightMm+' mm'],['Outer spline',g.controlPoints.length+' × '+g.controlPoints[0].length+' control points'],['Surface meaning','Full-fill boundary; cladding builds outward']);
         return rows;
       }
       if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),
         ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
-      if(tab==='plan'&&hasSkill(state.plan,'pipe-cladding'))return [materialSetup(state),['Body','Concentric horizontal loops'],['Exterior',state.plan.skills['pipe-cladding'].shells+' alternating axial / circumferential shells'],['Radial thickness per shell',state.plan.skills['pipe-cladding'].normalMm+' mm'],['Nozzle tilt',state.plan.skills['pipe-cladding'].tiltDeg+'° inward from downward'],['Axial turnarounds','Bed indexing with extrusion off'],...robotRows(state.plan)];
+      if(tab==='plan'&&hasSkill(state.plan,'pipe-cladding')){
+        const clad=state.plan.skills['pipe-cladding'],surface=Boolean(clad.surface);
+        return [materialSetup(state),['Body',surface?fill.perimeters+' perimeters + solid fill':'Concentric horizontal loops'],
+          ['Exterior',clad.shells+' alternating axial / circumferential shells'],[surface?'Normal thickness per shell':'Radial thickness per shell',clad.normalMm+' mm'],
+          ['Nozzle tilt',clad.tiltDeg+(surface?'° from the downward surface tangent toward the surface':'° inward from downward')],
+          ['Axial passes',surface?'Local surface spacing with partial passes':'Full height'],['Between passes','Extrusion off'],...robotRows(state.plan)];
+      }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
         ['Solid surfaces',normal?.enabled&&fill.enabled?fill.bottomLayers+' bottom / '+fill.topLayers+' top layers':'—'],
@@ -149,6 +156,7 @@ const views={
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasSkill(state.plan,'vase-wall'))rows.push(['Vase wall','Continuous spiral within its assigned region']);
       if(hasSkill(state.plan,'pipe-cladding'))rows.push(['Exterior shells',state.plan.skills['pipe-cladding'].shells+' · alternating axial / circumferential'],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
+      if(state.pathSummary?.pipeCladding?.partialAxialPasses!==undefined)rows.push(['Partial vertical passes',String(state.pathSummary.pipeCladding.partialAxialPasses)],['Full vertical passes',String(state.pathSummary.pipeCladding.fullAxialPasses)]);
       if(state.plan.composition?.regions?.length)rows.push(...regionRows(state.plan));
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
