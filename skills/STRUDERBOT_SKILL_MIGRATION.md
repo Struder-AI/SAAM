@@ -57,6 +57,10 @@ current SAAM MCP adapter still uses its fixed capability list under D-022.
    geometry.
 6. Add equivalent backend and configured-machine tests before registering a
    migrated skill in the plan schema, composer, Studio or MCP fixed list.
+7. Treat the bundled Python geometry and validation helpers as transitional
+   executable specifications, not the target implementation. Port their
+   behavior into SAAM's JavaScript skill-result/shared-plan architecture and
+   remove them only after equivalent fixtures and regressions pass.
 
 ## Recommended implementation order
 

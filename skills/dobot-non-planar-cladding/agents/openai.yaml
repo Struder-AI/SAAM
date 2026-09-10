@@ -1,0 +1,6 @@
+interface:
+  display_name: "Dobot Non-Planar Cladding"
+  short_description: "Plan supported non-planar StruderBot skins"
+  default_prompt: "Use $dobot-non-planar-cladding to plan and validate this supported non-planar surface test."
+policy:
+  allow_implicit_invocation: true

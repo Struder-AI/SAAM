@@ -39,6 +39,11 @@ integration work still required.
 
 See [the import manifest](STRUDERBOT_SKILL_MIGRATION.md) for source provenance,
 evidence boundaries and migration priorities.
+Install and validate the imported manuals as one transitional bundle using the
+[portable suite guide](STRUDERBOT_SUITE.md) and its machine-readable
+[`STRUDERBOT_SUITE.json`](STRUDERBOT_SUITE.json) manifest. The bundled Python
+helpers are executable migration specifications; all callable functionality
+still needs conversion into SAAM's JavaScript skill-result architecture.
 
 S5 has the complete export, Studio toolpath review and delivery workflow.
 H2D has experimental sliced-3MF output through the same review/delivery workflow.

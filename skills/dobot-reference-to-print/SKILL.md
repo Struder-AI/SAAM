@@ -116,3 +116,10 @@ Provide the full copy/paste Lua when requested.
 Record the exact references, assumptions, revision, robot configuration,
 physical result, measurements, and failure/success evidence. Promote inferred
 geometry or process parameters only after operator or robot confirmation.
+
+## Portable dependencies
+
+Install this as part of the complete suite in `../STRUDERBOT_SUITE.json`.
+It requires `dobot-programmer`. Web access and suitable file-inspection tools
+are task-time capabilities when the user asks for online research or supplies
+CAD, mesh, or reference files; they are not vendored software dependencies.
