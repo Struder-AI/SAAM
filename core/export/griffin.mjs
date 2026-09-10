@@ -1,4 +1,6 @@
 import { distance, requireThat } from '../geom/tolerance.mjs';
+import {gcodeLines} from './gcode-lines.mjs';
+import {toolBounds} from '../machine/profile.mjs';
 const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
@@ -43,6 +45,14 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
   const relativeE=extrusionMode==='relative';
   const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2;
   let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition];
+  // This body is also embedded in machine templates. Establish XYZ and feed on
+  // its first use, then rely only on modal state written by this exporter.
+  const modal={};
+  const motion=line=>line.split(' ').filter(token=>{
+    if(!/^[XYZF][-\d.]+$/.test(token))return true;
+    const key=token[0],value=Number(token.slice(1)),same=modal[key]===value;
+    modal[key]=value;return !same;
+  }).join(' ');
   for(const a of path.actions) {
     if((a.operation??'')!==operation){operation=a.operation??'';requireThat(!/[\r\n]/.test(operation),'Invalid operation label.');lines.push(`;SAAM_OPERATION:${operation}`);}
     const nextTag=`${a.phase}:${a.layer}`;
@@ -60,15 +70,15 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
         const speed=Math.min(a.speedMmS,de>0?plan.process.maxFlowMm3S*length/(de*area):a.speedMmS);
         const feed=Math.floor(speed*60*1000)/1000;
         requireThat(feed>0,'Deposition feed collapsed at export precision.');
-        lines.push(`G1 ${xyz} E${fmt(relativeE?filamentMm:e)} F${fmt(feed,3)}`);
+        lines.push(motion(`G1 ${xyz} E${fmt(relativeE?filamentMm:e)} F${fmt(feed,3)}`));
         if(!relativeE)writtenE=nextE;
       }
-      else lines.push(`G0 ${xyz} F${fmt(a.speedMmS*60,3)}`);
+      else lines.push(motion(`G0 ${xyz} F${fmt(a.speedMmS*60,3)}`));
       writtenPosition=a.to.map(v=>Number(fmt(v)));
     } else if(a.kind==='retract'||a.kind==='recover') {
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
       if(!relativeE)e+=filamentMm;
-      lines.push(`G1 E${fmt(relativeE?filamentMm:e)} F${fmt(a.speedMmS*60,3)}`);
+      lines.push(motion(`G1 E${fmt(relativeE?filamentMm:e)} F${fmt(a.speedMmS*60,3)}`));
       if(!relativeE)writtenE=Number(fmt(e));
     } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);
     else if(a.kind==='dwell') lines.push(`G4 P${Math.ceil(a.seconds*1000)}`);
@@ -85,7 +95,7 @@ export const interpretGriffin=(text,plan,machine)=>interpretGcode(text,plan,mach
 // the same modal engine as Griffin, without inventing a Griffin header.
 export const interpretMotion=(text,plan,machine,{extrusionMode='absolute'}={})=>interpretGcode(text,plan,machine,true,extrusionMode);
 function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute') {
-  requireThat(typeof text==='string'&&text.length<25_000_000,'Invalid/oversized G-code.');
+  const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
@@ -95,8 +105,10 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   const moves=[],events=[],header={};
   let inHeader=false,endedHeader=bodyOnly;
   const tokens=/([A-Z])([+-]?(?:\d+(?:\.\d*)?|\.\d+))/g;
-  for(const [index,raw]of text.split(/\r?\n/).entries()) {
-    const line=index+1,trim=raw.trim();
+  let line=0;
+  for(const raw of gcodeLines(text)) {
+    line++;
+    const trim=raw.trim();
     if(trim===';START_OF_HEADER'){requireThat(!inHeader&&!endedHeader&&line===1,'Malformed Griffin header.');inHeader=true;continue;}
     if(trim===';END_OF_HEADER'){requireThat(inHeader,'Malformed Griffin header.');inHeader=false;endedHeader=true;continue;}
     if(inHeader) {
@@ -139,7 +151,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
         if(args.F!==undefined){requireThat(args.F>0,'Feed must be positive.');feed=args.F/60;}
         requireThat(feed>0,'Move has no feed.');
         const next=pos.map((v,i)=>args['XYZ'[i]]===undefined?v:(absolute?args['XYZ'[i]]:v+args['XYZ'[i]]));
-        for(let i=0;i<3;i++)requireThat(next[i]>=machine.bounds.min[i]-1e-5&&next[i]<=machine.bounds.max[i]+1e-5,`Out-of-bounds ${'XYZ'[i]} move at line ${line}.`);
+        for(let i=0;i<3;i++)requireThat(next[i]>=bounds.min[i]-1e-5&&next[i]<=bounds.max[i]+1e-5,`Out-of-bounds ${'XYZ'[i]} move at line ${line} (selected tool bounds).`);
         const length=distance(pos,next),nextE=args.E===undefined?e:(absE?args.E:e+args.E),de=nextE-e;
         if(length>1e-9) {
           const duration=length/feed;

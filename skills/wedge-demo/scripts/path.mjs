@@ -39,8 +39,8 @@ export function generatePath(plan, machine) {
   function travel(q) {
     // Keep the bounded wedge's nearby-start policy and eight-point generator;
     // the shared builder owns travel, retraction and deposited-height tracking.
-    builder.travelTo(world(q),{canTravelDirect:(from,to)=>
-      !builder.retracted&&distance(from,to)<=p.combTravelMm});
+    builder.travelTo(world(q),{canTravelDirect:(from,to,maxDistance=p.combTravelMm)=>
+      !builder.retracted&&distance(from,to)<=maxDistance});
   }
   function line(points,height,speed,role='fill') {
     travel(points[0]);

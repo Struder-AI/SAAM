@@ -151,8 +151,8 @@ next time. Do not label an assumption as verification.
   the person. There are exactly three human approval stages: geometry, locked
   process plan, and toolpath. The approved plan must specify the choices needed
   for direct generation; do not introduce another planning stage after approval.
-  Generate SAAMpath and an export supported by the machine file. Run automated
-  checks before sending the export to SAAM Studio's program viewer;
+  Generate an export supported by the machine file. Check its actual commands
+  before sending it to SAAM Studio's program viewer;
   it runs the same export that will be delivered after toolpath approval. Do not
   add an export approval. The wedge and shell adapters use one shared implementation of this workflow.
 - Keep the person's print bundle in `Prints/`. Do not publish prints; specific

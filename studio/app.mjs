@@ -1,6 +1,7 @@
 import { advancePlayback, frameAtTime } from './playback.mjs';
 import { createProjection } from './camera.mjs';
-import { buildToolpathView, toolpathFrame } from './toolpath-view.mjs';
+import { buildToolpathView, toolpathFrame, toolpathStyle } from './toolpath-view.mjs';
+import {buildMeshView} from './mesh-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows} from './settings.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
@@ -10,7 +11,7 @@ let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,
 const canvas=$('#canvas'),ctx=canvas.getContext('2d');
 let polygons=[],drag=null,moved=false;
 let redrawFrame=0;
-let pathView;
+let pathView,meshView;
 function requestDraw(){
   if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
 }
@@ -159,6 +160,7 @@ async function api(route,data) {
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
   const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;state=next;
+  if(!meshView||previous?.geometry.geometryVersion!==state.geometry.geometryVersion)meshView=buildMeshView(state.geometry);
   pathView=state.program?buildToolpathView(state.program.moves):null;
   if(previous?.exportHash!==next.exportHash){stop();seconds=duration();fitBounds=null;}
   if(!previous) {
@@ -195,6 +197,8 @@ function render() {
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm & export';
   $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':state.program.notice??state.program.envelope?.notice??'Clearance is your check for this demo.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
+  $('#selection').hidden=tab==='toolpath';
+  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Current layer is dark; earlier layers are faded. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a face to select it.');
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
   requestDraw();
@@ -213,12 +217,15 @@ function draw() {
   const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,canvas.clientWidth,canvas.clientHeight,yaw,tilt,zoom);
   for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(project([x,bounds.min[1]-10,0]),project([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(project([bounds.min[0]-10,y,0]),project([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
-  const pts=state.geometry.vertices.map(project);
-  polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
-  for(const polygon of polygons) {
-    ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
-    ctx.fillStyle=tab==='toolpath'?'rgba(206,216,194,.11)':polygon.id===selected?'#cedcab':'#dbe3d0';
-    ctx.fill();ctx.strokeStyle=tab==='toolpath'?'#a6b99b88':'#81947d';ctx.lineWidth=.9;ctx.stroke();
+  polygons=[];
+  if(tab!=='toolpath') {
+    const pts=state.geometry.vertices.map(project);
+    polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],edges:meshView.edgeMasks[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
+    for(const polygon of polygons) {
+      ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
+      ctx.fillStyle=polygon.id===selected?'#cedcab':'#dbe3d0';ctx.fill();
+      for(let i=0;i<polygon.points.length;i++)if(polygon.edges[i])segment(polygon.points[i],polygon.points[(i+1)%polygon.points.length],'#81947d',.9);
+    }
   }
   if(tab==='toolpath'&&state.program) {
     const moves=state.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=state.plan.placement,showTravel=$('#travel').checked;
@@ -226,14 +233,17 @@ function draw() {
     const detail=toolpathFrame(pathView,count,showTravel);
     $('#viewer-detail').textContent=detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'';
     const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[count].from}]:detail.segments;
-    for(const edge of displayed) {
-      const move=edge.move;
-      const highlighted=move.phase===skinPhase||move.phase==='vase-wall';
-      const color=move.extruding?(highlighted?'#d97735':move.phase==='prime'?'#5b92a3':'#80977788'):'#8795ab66';
-      segment(project(local(edge.from)),project(local(edge.to)),color,highlighted?1.25:.7);
-    }
     const current=moves[at.active];
-    if(current&&at.fraction<1&&(current.extruding||showTravel))segment(project(local(current.from)),project(local(at.point)),current.phase===skinPhase?'#d97735':'#809777',1.25);
+    const currentLayer=current?.phase==='finish'?moves.findLast(m=>m.extruding):current;
+    // Draw the active layer last so older geometry cannot obscure it.
+    for(const active of [false,true])for(const edge of displayed) {
+      const style=toolpathStyle(edge.move,currentLayer,skinPhase);if(style.active!==active)continue;
+      ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);
+    }
+    ctx.globalAlpha=1;
+    if(current&&at.fraction<1&&(current.extruding||showTravel)){
+      const style=toolpathStyle(current,current,skinPhase);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);
+    }
     if(at.point){const p=project(local(at.point)),q=project(local([at.point[0],at.point[1],at.point[2]+3]));segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();
       $('#time-label').textContent=clock(seconds)+' / '+clock(duration());
     }

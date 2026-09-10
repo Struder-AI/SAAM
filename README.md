@@ -16,9 +16,10 @@ to your experience, without needing to learn CAD, slicing, or programming first.
 3. Inspect the generated toolpath in Studio and approve it. SAAM delivers the
    same machine-program bytes you reviewed.
 
-The locked process plan generates **SAAMpath**, our internal toolpath
-representation, then an export supported by the machine. Automated checks run
-before Studio displays that export. Delivery adds no fourth approval.
+The locked process plan generates an export supported by the machine. Automated
+checks interpret that export before Studio displays it. Intermediate motion is
+kept only during generation; reopening reads the saved export without slicing
+again. Delivery adds no fourth approval.
 
 ## Project direction
 
@@ -40,7 +41,7 @@ See [geometry interoperability](DEVELOP.md#geometry-interoperability-for-skill-a
 and the requested direction in [D-021](DECISIONS.md#d-021--native-mesh-geometry).
 Skills should work across geometry types and machines through shared interfaces,
 with explicit, narrow exceptions. Prints keep geometry, the process plan,
-SAAMpath, and its export together locally.
+the checked export, and review records together locally.
 
 ## What works today
 

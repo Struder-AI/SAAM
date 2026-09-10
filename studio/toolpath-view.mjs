@@ -1,6 +1,13 @@
 // A display budget, never a modification of the interpreted or exported path.
 export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
+export function toolpathStyle(move,current,skinPhase='draped-skin') {
+  const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
+  const skin=move.phase===skinPhase||move.phase==='vase-wall';
+  return {active,color:move.extruding?(skin?(active?'#c65b19':'#d6a17c'):
+    move.phase==='prime'?'#5b92a3':active?'#24583e':'#91a68a'):(active?'#657fa3':'#aeb8c5'),
+    opacity:active?1:0.2,width:active?(move.extruding?1.35:0.85):0.65};
+}
 const same=(a,b)=>a.every((v,i)=>v===b[i]);
 const distance2=(p,a,b)=>{
   const v=b.map((x,i)=>x-a[i]),w=p.map((x,i)=>x-a[i]);

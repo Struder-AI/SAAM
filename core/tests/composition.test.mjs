@@ -73,7 +73,14 @@ test('two real fill instances weave below one spanning roof; roof dependencies c
     const firstSkin=path.actions.findIndex(a=>a.volumeMm3>0&&a.phase==='draped-skin');
     assert.ok(firstSkin>0);
     assert.ok(path.actions.slice(firstSkin).every(a=>a.phase!=='planar'));
-    assert.ok(path.actions.some(a=>a.phase==='draped-skin'&&a.volumeMm3>0&&a.to[0]>plan.placement.xMm+6&&a.to[0]<plan.placement.xMm+10),'the roof spans the open gap');
+    let position=path.initialPosition,spansGap=false;
+    const middle=plan.placement.xMm+8;
+    for(const action of path.actions)if(action.kind==='move') {
+      if(action.phase==='draped-skin'&&action.volumeMm3>0&&
+        Math.min(position[0],action.to[0])<middle&&Math.max(position[0],action.to[0])>=middle)spansGap=true;
+      position=action.to;
+    }
+    assert.ok(spansGap,'the roof spans the open gap, even when a straight stroke has no intermediate endpoint there');
     plan.composition.order=['draped-skin:0','left:0:walls'];
     assert.throws(()=>generatePath(plan,machine,rhino),/cycle/);
   }

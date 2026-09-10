@@ -44,7 +44,6 @@ test('fill and drape generate on both geometry backends and both machine profile
       const plan=defaults(machine);plan.geometry=geometry;plan.process.minimumLayerSeconds=0;
       plan.skills['full-fill'].enabled=skill==='full-fill';plan.skills['draped-skin'].enabled=skill==='draped-skin';
       const path=generatePath(plan,machine,r);paths.push(path);
-      assert.equal(path.summary.machineChecks.machine,id);
       assert.ok(path.actions.some(a=>a.volumeMm3>0));
       const output=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'});
       assert.equal(interpretProgram(output,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);

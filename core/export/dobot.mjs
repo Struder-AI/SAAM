@@ -38,7 +38,7 @@ function config(plan,machine){
 }
 
 export function exportDobot(path,plan,machine,release={}){
-  const c=config(plan,machine);validatePath(path);checkMachinePath(path,plan,machine);
+  const c=config(plan,machine);validatePath(path);
   requireThat(equal(path.initialPosition,c.initialPositionMm),'Dobot initial position differs from the locked external start pose.');
   inside(transform(path.initialPosition,c),c);
   const global=`-- SAAM fixed XYZ calibration; installation values are locked in manifest.json.\nfunction P(x,y,z)\n  return {coordinate={x*${num(c.scaleX)}+${num(c.offsetXMm)},y*${num(c.scaleY)}+${num(c.offsetYMm)},z+${num(c.bedZMm)},${num(c.rDeg)}},tool=${c.toolFrame},user=${c.userFrame}}\nend\n`;

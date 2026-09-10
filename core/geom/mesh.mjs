@@ -1,6 +1,7 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
 import { requireThat } from './tolerance.mjs';
 import { orientLoops } from './shell.mjs';
+import { cleanPlanarLoop } from './polyline.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
 const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -96,7 +97,7 @@ export function sectionMesh(mesh,z) {
         const next=graph.get(current).find(k=>k!==previous);previous=current;current=next;
       } while(current!==start);
       // Remove collinear triangle seams before offsetting regions.
-      const clean=loop.filter((p,i)=>{const a=loop[(i+loop.length-1)%loop.length],b=loop[(i+1)%loop.length];return Math.abs((p[0]-a[0])*(b[1]-p[1])-(p[1]-a[1])*(b[0]-p[0]))>1e-9*Math.hypot(p[0]-a[0],p[1]-a[1])*Math.hypot(b[0]-p[0],b[1]-p[1]);});
+      const clean=cleanPlanarLoop(loop);
       requireThat(clean.length>=3,'Mesh section collapsed below tolerance.');loops.push(clean);
     }
     return {loops:orientLoops(loops),requestedZ:z,nudgedByMm:nudge};

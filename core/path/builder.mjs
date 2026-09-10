@@ -12,11 +12,12 @@
 // Lifted travel clears the highest material deposited so far, across every
 // operation. Geometry policies only decide whether a move can stay down.
 
-import { requireThat, distance } from '../geom/tolerance.mjs';
+import { requireThat, distance, TOLERANCE } from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
 
 // Griffin coordinates are written with five decimals.
 export const MINIMUM_MOVE_MM = 1e-4;
+export const NEARBY_MOVE_MM = 1;
 import { pointInRegion, pointSegmentDistance, SegmentIndex } from '../region/region2d.mjs';
 
 export class PathBuilder {
@@ -54,7 +55,17 @@ export class PathBuilder {
     if (dz > 0) limited = Math.min(limited, this.process.zSpeedMmS * length / dz);
     for(let i=0;i<3;i++)if(Math.abs(to[i]-this.position[i])>0)
       limited=Math.min(limited,this.machine.maxFeedMmS['xyz'[i]]*length/Math.abs(to[i]-this.position[i]));
-    this.actions.push({ kind: 'move', to: [...to], speedMmS: limited, volumeMm3, phase: this.phase, layer: this.layer, ...(this.operationId?{operation:this.operationId}:{}), ...extra });
+    const action={kind:'move',to:[...to],speedMmS:limited,volumeMm3,phase:this.phase,layer:this.layer,
+      ...(this.operationId?{operation:this.operationId}:{}),...extra};
+    const run=this.moveRun;
+    if(run&&this.actions.at(-1)===run.action&&mergeableMove(run,action)) {
+      run.action.to=action.to;
+      run.action.volumeMm3+=volumeMm3;
+      run.action.speedMmS=Math.min(run.action.speedMmS,limited);
+    } else {
+      this.actions.push(action);
+      this.moveRun={action,from:[...this.position],direction:to.map((v,i)=>(v-this.position[i])/length),density:volumeMm3/length};
+    }
     this.layerSeconds += length / limited;
     if (volumeMm3 > 0) {
       this.stats.printMm += length;
@@ -105,6 +116,14 @@ export class PathBuilder {
   travelTo(target, policy) {
     const gap = distance(this.position, target);
     if (gap <= 1e-9) { this.stats.joined++; this.recover(); return 'joined'; }
+    // Nearby stroke starts do not need a retraction/lift cycle merely because
+    // the longer combing budget is disabled or smaller. Keep the same material,
+    // surface and earlier-operation checks; proximity does not bridge a hole.
+    if(gap<=NEARBY_MOVE_MM&&this.canComb(target,policy,NEARBY_MOVE_MM)) {
+      this.stats.combed++;this.recover();
+      this.move(target,this.process.travelSpeedMmS,0,{travel:'combed'});
+      return 'combed';
+    }
     if (this.canComb(target, policy)) {
       this.stats.combed++;
       this.recover();
@@ -127,14 +146,15 @@ export class PathBuilder {
   // line between the two points remains inside this layer's material with the
   // nozzle's own width to spare. Crossing the outline would drag a bead across
   // open air, so that always hops.
-  canComb(target, policy) {
+  canComb(target, policy, distanceLimit) {
     // A policy may decide for itself: a draped skin travels over a curved
     // surface, where "same height" is the wrong question.
-    if (policy.canTravelDirect) return policy.canTravelDirect(this.position, target);
-    if (!policy.combRegion || !(policy.maxCombMm > 0)) return false;
+    if (policy.canTravelDirect) return policy.canTravelDirect(this.position, target, distanceLimit);
+    const maxDistance=distanceLimit??policy.maxCombMm;
+    if (!policy.combRegion || !(maxDistance > 0)) return false;
     if (Math.abs(target[2] - this.position[2]) > 1e-9) return false;
     const span = Math.hypot(target[0] - this.position[0], target[1] - this.position[1]);
-    if (span > policy.maxCombMm) return false;
+    if (span > maxDistance) return false;
     return combSegment(this.position,target,policy);
   }
 
@@ -149,6 +169,24 @@ export class PathBuilder {
       summary: { ...summary, travel: { ...this.stats } }
     };
   }
+}
+
+// Remove subdivision in the common writer so every skill, machine export and
+// Studio sees the same compact SAAMpath. Keep a fixed line for the entire run:
+// a succession of tiny turns must not gradually straighten a real curve.
+function mergeableMove(run,next) {
+  const previous=run.action,keys=Object.keys(previous).filter(k=>!['to','volumeMm3','speedMmS'].includes(k));
+  const close=(a,b)=>Math.abs(a-b)<=1e-10*Math.max(1,Math.abs(a),Math.abs(b));
+  const physical=['gapMm','normalHeightMm','slopeDeg','lowerSurfaceGapStartMm','lowerSurfaceGapEndMm','sampledGapErrorMm'];
+  if(keys.length!==Object.keys(next).length-3||keys.some(k=>previous[k]!==next[k]&&
+    !(physical.includes(k)&&Number.isFinite(previous[k])&&Number.isFinite(next[k])&&close(previous[k],next[k]))))return false;
+  if(!close(previous.speedMmS,next.speedMmS)||(previous.volumeMm3>0)!==(next.volumeMm3>0))return false;
+  const segmentLength=distance(previous.to,next.to);
+  if(!close(run.density,next.volumeMm3/segmentLength))return false;
+  const vector=next.to.map((v,i)=>v-run.from[i]),along=vector.reduce((s,v,i)=>s+v*run.direction[i],0);
+  const before=previous.to.reduce((s,v,i)=>s+(v-run.from[i])*run.direction[i],0);
+  if(along<=before)return false; // a reversal is deposition/travel, not redundancy
+  return Math.hypot(...vector.map((v,i)=>v-along*run.direction[i]))<=TOLERANCE.plane;
 }
 
 // Travel policy for one planar layer: comb inside the layer's own outline.

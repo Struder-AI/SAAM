@@ -63,7 +63,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `upgrade_print` | Run the owning adapter's explicit migration for an old bundle, preserving delivered files and invalidating affected approvals. |
 | `request_review` | Start/reuse the shared Studio for this print and return its loopback URL. |
 | `get_approval_status` | Read the current hash-bound three-stage status from disk. |
-| `generate_print` | Generate/check SAAMpath and the machine's export from approved geometry and settings. |
+| `generate_print` | Generate and check the machine export from approved geometry and settings. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
 Read `read_guidance` with `guidanceId: "makers"` and the skill manual, create the first reasonable geometry, and call

@@ -1,5 +1,5 @@
 // One print lifecycle for every geometry/generator adapter.
-import { readFile, writeFile, mkdir, rename, access } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, access, rm } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -37,19 +37,21 @@ export function createBundleWorkflow(adapter) {
   // actual file bytes, not mtimes or editable review claims. Approval state is
   // always read afresh; callers receive copies so they cannot alter this cache.
   let verifiedProgram;
-  const programKey=(planHash,code,pathBytes)=>hash([planHash,hash(code),hash(pathBytes)]);
-  function rememberProgram(key,pathHash,path,program,code) {
-    const copy=structuredClone(program);
-    const text=copy.code??code.toString('utf8');delete copy.code;
-    verifiedProgram={key,pathHash,program:copy,pathSummary:structuredClone(path.summary),code:text};
+  const programKey=(planHash,exportHash)=>hash([planHash,exportHash]);
+  function rememberProgram(key,program,code) {
+    // The interpreter result is owned here and has not escaped to a caller.
+    // Copy only on return; a second full cache copy serves no purpose.
+    const text=program.code??code.toString('utf8');delete program.code;
+    verifiedProgram={key,program,code:text};
   }
   async function runtimeHash(){
     return runtimeCache??=hash(await Promise.all([
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
+      new URL('../export/gcode-lines.mjs',import.meta.url),
       new URL('../export/dobot.mjs',import.meta.url),new URL('../export/dobot-lua-subset.mjs',import.meta.url),
-      new URL('../geom/tolerance.mjs',import.meta.url), ...adapter.runtimeFiles
+      new URL('../geom/tolerance.mjs',import.meta.url), new URL('../geom/polyline.mjs',import.meta.url), ...adapter.runtimeFiles
     ].map(async file=>[fileURLToPath(file).slice(root.length).replaceAll('\\','/'),hash(await readFile(file))])));
   }
 async function proposedPlan(machineId, { setupFile } = {}) {
@@ -131,23 +133,18 @@ async function loadBundle(directory, { program = true } = {}) {
   if (program && review.generation) {
     try {
       requireThat(review.generation.planHash === planHash, 'Generated program is stale; regenerate for the current plan.');
-      const [code, pathBytes] = await Promise.all([readFile(resolve(dir, exportPath(plan,machine))), readFile(resolve(dir, 'path.saampath'))]);
-      const exportHash=hash(code),key=programKey(planHash,code,pathBytes);
+      const code = await readFile(resolve(dir, exportPath(plan,machine)));
+      const exportHash=hash(code),key=programKey(planHash,exportHash);
       requireThat(exportHash === review.generation.exportHash,
         'Generated files changed; regenerate and review again.');
       if(verifiedProgram?.key!==key) {
-        const path=JSON.parse(pathBytes.toString('utf8')),pathHash=hash(path);
-        requireThat(pathHash === review.generation.pathHash,'Generated files changed; regenerate and review again.');
-        const regenerated = await generatePath(plan, machine);
-        requireThat(canonical(path) === canonical(regenerated), 'SAAMpath does not match the locked recipe.');
-        requireThat(code.equals(Buffer.from(exportProgram(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }))),
-          'Export does not match SAAMpath.');
-        rememberProgram(key,pathHash,path,interpretProgram(code, plan, machine),code);
+        // Reopen the saved machine program. Interpretation checks the actual
+        // commands; reopening never invokes a slicing skill or exporter.
+        rememberProgram(key,interpretProgram(code, plan, machine),code);
       }
-      requireThat(verifiedProgram.pathHash===review.generation.pathHash,'Generated files changed; regenerate and review again.');
       state.program = structuredClone(verifiedProgram.program);
       state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
-      state.pathSummary = structuredClone(verifiedProgram.pathSummary);
+      state.pathSummary = structuredClone(review.generation.summary??{});
       state.exportHash = exportHash;
       state.code = verifiedProgram.code;
       state.toolpathApproved = state.planApproved
@@ -163,7 +160,7 @@ async function loadBundle(directory, { program = true } = {}) {
 // still runs on every changed snapshot and immediately before approval.
 async function bundleFingerprint(directory) {
   const [plan,geometry,machine]=await Promise.all([json(resolve(directory,'plan.json')),json(resolve(directory,'geometry/model.json')),json(resolve(directory,'machine.json'))]);
-  const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl','review.json', 'path.saampath', exportPath(plan,machine)];
+  const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl','review.json', exportPath(plan,machine)];
   const values = await Promise.all(names.map(async name => {
     try { return [name, hash(await readFile(resolve(directory, name)))]; }
     catch (error) { if (error.code === 'ENOENT') return [name, null]; throw error; }
@@ -186,7 +183,9 @@ async function rememberSetup(directory, { setupFile, source = 'User setup suppli
 async function checkPathBundle(directory) {
   const state = await loadBundle(directory, { program: false });
   const path = await generatePath(state.plan, state.machine);
-  return { mode: 'development-check-only', revision: state.revision, ...path.summary };
+  const code=exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
+  const program=interpretProgram(code,state.plan,state.machine);
+  return { mode: 'development-check-only', revision: state.revision, ...path.summary, exportSummary:program.summary };
 }
 
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
@@ -260,39 +259,32 @@ async function generateBundle(directory, { development = false } = {}) {
   const path = await generatePath(state.plan, state.machine);
   const code = exportProgram(path, state.plan, state.machine, { generatorVersion: VERSION, buildDate: BUILD_DATE });
   const program = interpretProgram(code, state.plan, state.machine);
-  const expected = path.actions.filter(action => action.kind === 'move');
-  requireThat(program.moves.length === expected.length,
-    `The exported program has ${program.moves.length} moves; SAAMpath has ${expected.length}.`);
-  for (let i = 0; i < expected.length; i++) {
-    requireThat(expected[i].to.every((value, k) => Math.abs(value - program.moves[i].to[k]) <= 6e-6)
-      && Math.abs(expected[i].volumeMm3 - program.moves[i].volumeMm3) <= 1e-4, 'Export round trip changed the path.');
-  }
   const checks = {
     schema: 'saam-checks/1', result: 'pass', mode: development ? 'development' : 'production',
-    generatorVersion: VERSION, planHash: state.planHash, pathHash: hash(path), exportHash: hash(code),
+    generatorVersion: VERSION, planHash: state.planHash, exportHash: hash(code),
     moves: program.moves.length,
     volumeMm3: Number(program.volumeMm3.toFixed(3)),
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
     travel: path.summary.travel,
     nonplanarLimit: path.summary.nonplanarLimit ?? null,
     checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
-      'xyz-bounds', 'axis-feed', ...(program.language==='dobot-lua'?['commanded-flow-intent']:['extrusion-flow','temperature-state']), 'saampath-export-round-trip'],
+      'xyz-bounds', 'axis-feed', ...(program.language==='dobot-lua'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
     clearance: 'operator responsibility; no collision model implemented',
     physicalValidation: 'not performed',
     firmwareEnvelope: program.envelope??null,
     limitations: [...limitationsFor(state.plan, state.machine),...(program.limitations??[])],
     ...(program.summary.materialModel==='relay-estimate'?{materialModel:'relay-estimate',commandedVolumeMm3:program.summary.commandedVolumeMm3,estimatedRelayVolumeMm3:program.summary.estimatedRelayVolumeMm3,relayEstimateDifferenceMm3:program.summary.relayEstimateDifferenceMm3}:{})
   };
-  const pathBytes=Buffer.from(JSON.stringify(path,null,2)+'\n');
-  await save(resolve(state.dir, 'path.saampath'), pathBytes);
   await save(resolve(state.dir, exportPath(state.plan,state.machine)), code);
   await save(resolve(state.dir, 'checks.json'), checks);
   const review = state.review;
   delete review.approvals.toolpath;
-  review.generation = { mode: checks.mode, planHash: state.planHash, exportHash: checks.exportHash, pathHash: checks.pathHash, version: VERSION };
+  review.generation = { mode: checks.mode, planHash: state.planHash, exportHash: checks.exportHash, summary: path.summary, version: VERSION };
   review.history.push({ event: 'generated', mode: checks.mode, time: new Date().toISOString(), exportHash: checks.exportHash });
   await save(resolve(state.dir, 'review.json'), review);
-  rememberProgram(programKey(state.planHash,code,pathBytes),checks.pathHash,path,program,code);
+  // Remove an obsolete intermediate when regenerating an older bundle.
+  await rm(resolve(state.dir,'path.saampath'),{force:true});
+  rememberProgram(programKey(state.planHash,checks.exportHash),program,code);
   return checks;
 }
 

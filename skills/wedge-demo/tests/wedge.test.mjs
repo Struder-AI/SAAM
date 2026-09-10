@@ -85,7 +85,7 @@ test('deterministic Griffin export uses T1, explicit filament advance, 215 C and
   let e=0,serializedDepositions=0;
   for(const line of code.split('\n')) {
     const reset=/^G92 E(-?[\d.]+)$/.exec(line);if(reset){e=Number(reset[1]);continue;}
-    const move=/^G1 (?=.*\bE(-?[\d.]+))(?=.*\bX)(?=.*\bY)(?=.*\bZ)/.exec(line);
+    const move=/^G1 (?=.*\bE(-?[\d.]+))(?=.*\b[XYZ])/.exec(line);
     if(move){const next=Number(move[1]);if(next>e+1e-8)serializedDepositions++;e=next;continue;}
     const eOnly=/^G1 E(-?[\d.]+)\b/.exec(line);if(eOnly)e=Number(eOnly[1]);
   }

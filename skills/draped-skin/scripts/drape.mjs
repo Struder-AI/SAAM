@@ -249,10 +249,10 @@ export function drapedPolicy(shell, process, surfaceZ = null, skinNormalMm = 0.2
   // the same height as both ends, so the nozzle can cross directly instead of
   // retracting, climbing above the whole part and coming back down. The test is
   // whether the straight 3D line stays at or above the skin surface it crosses.
-  const canTravelDirect = (from, to) => {
-    if (!surfaceZ || !(process.maxCombMm > 0)) return false;
+  const canTravelDirect = (from, to, maxDistance=process.maxCombMm) => {
+    if (!surfaceZ || !(maxDistance > 0)) return false;
     const span = Math.hypot(to[0] - from[0], to[1] - from[1]);
-    if (span > process.maxCombMm) return false;
+    if (span > maxDistance) return false;
     const steps = Math.max(2, Math.ceil(span / 0.5));
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;

@@ -136,10 +136,10 @@ function componentKey(component) {
 }
 
 // Scanline fill: parallel lines at the given spacing and angle, clipped to the
-// region by the nonzero winding rule. Disconnected components are filled in a
-// stable order, with each component's rows completed before the next starts.
-// This prevents a gap between sides/islands from becoming a repeated
-// left-right-left-right travel pattern.
+// region by the nonzero winding rule. Complete disconnected components, then
+// sweep cells within each component. A hole or concavity splits/merges the
+// scanline intervals: finish each uninterrupted run of rows before changing
+// sides. This changes only ordering, never deposition endpoints or coverage.
 export function scanlineFill(loops, spacingMm, angleDeg, options = {}) {
   return regionComponents(loops).flatMap(component => scanlineFillComponent(component, spacingMm, angleDeg, options));
 }
@@ -156,7 +156,8 @@ function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] }
   let min = Infinity, max = -Infinity;
   for (const loop of rotated) for (const point of loop) { min = Math.min(min, point[1]); max = Math.max(max, point[1]); }
   if (!Number.isFinite(min)) return [];
-  const rows = [];
+  const cells = [];
+  let previous = [];
   for (let y = Math.ceil(min / spacingMm) * spacingMm; y <= max; y += spacingMm) {
     const crossings = [];
     for (const loop of rotated)
@@ -167,13 +168,37 @@ function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] }
       }
     crossings.sort((a, b) => a.x - b.x);
     let winding = 0;
+    const current = [];
     for (let i = 0; i < crossings.length - 1; i++) {
       winding += crossings[i].winding;
       if (winding === 0) continue;
       const length = crossings[i + 1].x - crossings[i].x;
       if (length <= TOLERANCE.point) continue;
-      rows.push({ scanY: y, from: toWorld([crossings[i].x, y]), to: toWorld([crossings[i + 1].x, y]), lengthMm: length });
+      current.push({left:crossings[i].x,right:crossings[i+1].x,parents:[],children:[],
+        row:{scanY:y,from:toWorld([crossings[i].x,y]),to:toWorld([crossings[i+1].x,y]),lengthMm:length}});
     }
+    // Interval adjacency is linear in the number of crossings. End a cell at
+    // every split/merge rather than picking one branch and shuttling across
+    // the other on each row. Empty rows also end cells. Actual connecting
+    // travel still goes through the shared combing/clearance checks.
+    let first = 0;
+    for (const span of current) {
+      while(first<previous.length&&previous[first].right<=span.left+TOLERANCE.point)first++;
+      for(let j=first;j<previous.length&&previous[j].left<span.right-TOLERANCE.point;j++) {
+        const before=previous[j];
+        if(Math.min(before.right,span.right)-Math.max(before.left,span.left)>TOLERANCE.point) {
+          span.parents.push(before);before.children.push(span);
+        }
+      }
+    }
+    for(const span of current) {
+      const parent=span.parents.length===1?span.parents[0]:null;
+      if(parent&&parent.children.length===1)span.cell=parent.cell;
+      else {span.cell=[];cells.push(span.cell);}
+      span.cell.push(span.row);
+    }
+    // Do not retain the adjacency graph; only the previous row is needed.
+    previous=current.map(({left,right,cell})=>({left,right,cell,children:[]}));
   }
-  return rows;
+  return cells.flat();
 }

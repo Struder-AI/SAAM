@@ -1,5 +1,6 @@
 import {pointInRegion,pointSegmentDistance,segmentIntersection} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
+import {TOLERANCE} from '../geom/tolerance.mjs';
 const span=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 export function combSegment(a,b,policy) {
   const loops=policy.combRegion,clear=policy.combClearanceMm??0;
@@ -8,7 +9,7 @@ export function combSegment(a,b,policy) {
     const c=loop[i],d=loop[(i+1)%loop.length];
     if(segmentIntersection(a,b,c,d))return false;
     const distance=Math.min(pointSegmentDistance(a,c,d),pointSegmentDistance(b,c,d),pointSegmentDistance(c,a,b),pointSegmentDistance(d,a,b));
-    if(distance<Math.max(clear,1e-8)-1e-9)return false;
+    if(distance<Math.max(clear,1e-8)-Math.min(clear/2,TOLERANCE.plane))return false;
   }
   return true;
 }

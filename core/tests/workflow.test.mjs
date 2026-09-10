@@ -114,8 +114,8 @@ test('reopening verifies the locked plan and detects a stale program', async t =
   // program; a changed locked plan cannot reuse that result.
   const before = await loadBundle(dir);
   assert.equal(before.programError, undefined);
-  const saved = JSON.parse(await readFile(resolve(dir, 'path.saampath'), 'utf8'));
-  assert.equal(hash(saved), before.review.generation.pathHash);
+  await assert.rejects(readFile(resolve(dir, 'path.saampath')), {code:'ENOENT'});
+  assert.equal(before.review.generation.pathHash,undefined);
   assert.equal(hash(await readFile(resolve(dir, EXPORT_PATH), 'utf8')), before.review.generation.exportHash);
 
   // A plan edit leaves the generated program stale until it is regenerated.

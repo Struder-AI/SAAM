@@ -73,9 +73,10 @@ own tool/material limits and export behavior. Follow the
 [shared interoperability guidance](../../DEVELOP.md#geometry-interoperability-for-skill-authors).
 
 Travel uses nearest wall starts, alternating fill direction and verified combing,
-including bounded routes around holes. Disconnected material regions on one
-layer are completed as separate groups, so sparse rows do not alternate across
-an open gap; one side finishes before the next side begins. Other moves clear
+including bounded routes around holes. Fill completes disconnected regions and
+uninterrupted row groups on each side of holes/concavities before changing sides.
+Shared motion compacts straight runs and directly repositions across permitted
+gaps of at most 1 mm without retraction or lift. Other moves clear
 the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../DEVELOP.md#whole-plan-travel-requirement).
 Thin features may collapse under offsets; density is approximate near
 boundaries. No collision or automatic support model is implied by these checks.

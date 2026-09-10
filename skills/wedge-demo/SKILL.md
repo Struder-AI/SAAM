@@ -133,7 +133,7 @@ through chat as described in [MAKERS.md](../../MAKERS.md#printer-setup-and-assum
    person confirms that geometry version.
 2. Show the complete proposed settings; revise through chat and show them again
    until the person confirms the locked plan. Firmware version is not required.
-3. Generate SAAMpath and its declared machine export directly. Automated checks
+3. Generate the declared machine export directly. Automated export checks
    must pass before production toolpath review. The person reviews and approves
    the exact exported program, then confirms and exports. Revisions return to
    the affected earlier review. Delivery adds no fourth approval.
@@ -166,7 +166,8 @@ never test approval actions on the person's real print.
   motions or heating time.
   Read [S5 export notes](references/s5-export.md) before changing that contract.
 - Bounds, axis feeds, flow, temperature state, unsupported commands, artifact
-  integrity and SAAMpath/export agreement are checked. Software checks do not
+  integrity are checked on the exported program. Export round-trip agreement is
+  covered by software regression tests. Software checks do not
   measure clearance or certify printability.
 
 Run `npm test` after changes. General freeform surface slicing, dual-material

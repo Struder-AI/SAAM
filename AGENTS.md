@@ -37,8 +37,9 @@ Scope shared components to current needs and extend them when needed; see
   Project decisions and approval of a manufacturing job are separate records.
 - The maker workflow has three human approvals: geometry, locked process plan,
   then toolpath. Generate directly from the approved locked plan without a
-  separate planning stage or new process choices. Generate SAAMpath, then its
-  export in an output option declared by the machine file.
+  separate planning stage or new process choices. Generate the export in an
+  output option declared by the machine file. Intermediate motion is transient;
+  bundles do not require a saved SAAMpath or regenerate when reopened.
   Automated checks precede SAAM Studio's program viewer, which runs the same
   export that will be delivered. Delivery does not require a fourth approval.
 - [DECISIONS.md](DECISIONS.md) records project decisions and their approval status.

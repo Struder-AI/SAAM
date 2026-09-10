@@ -66,11 +66,18 @@ so the complementary regions share a common stroke grid and wall owner.
 Layer height, line width, speeds, flow, retraction and cooling come from the
 locked shared process settings, validated against the selected machine and tool.
 
+Mesh sections and offset wall strokes remove numerical straight-edge seams
+through the shared contour helper before expensive offsets or motion emission.
+This uses the existing numerical plane tolerance, preserving curved walls and
+the locked process settings. The bundle stores the checked export and summary;
+reopening interprets that export without regenerating or loading a SAAMpath file.
+
 ## Travel
 
 Alternating fill strokes and nearest wall starts reduce travel. Disconnected
-material regions are filled in separate groups, completing one region before
-traveling to the next; scanline fill does not bounce across a gap. Verified
+regions and uninterrupted row groups beside holes/concavities are completed
+before changing sides. Shared motion compacts straight runs and directly
+repositions across permitted gaps of at most 1 mm without retraction or lift. Verified
 combing stays inside the allowed region at print height, with routes around
 holes when possible within `maxCombMm`. Other traverses clear the highest material
 deposited so far across all skills plus `liftMm` (default 1 mm; zero allowed).

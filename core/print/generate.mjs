@@ -15,7 +15,7 @@ import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS 
 import { validatePlan, VERSION } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
-import {checkMachinePath,toolBounds,startupPosition} from '../machine/profile.mjs';
+import {toolBounds,startupPosition} from '../machine/profile.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
@@ -172,7 +172,5 @@ export function generatePath(plan, machine, rhino) {
     surfaceMaxSlopeDeg: Number(survey.maxSlopeDeg.toFixed(3)),
     excludedAreaPercent: Number((survey.steepFraction * 100).toFixed(2))
   };
-  const path=builder.toPath(summary);
-  path.summary.machineChecks=checkMachinePath(path,plan,machine);
-  return path;
+  return builder.toPath(summary);
 }

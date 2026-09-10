@@ -79,7 +79,7 @@ export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000,librar
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){send({prints:await listPrints(libraryRoot)});return;}

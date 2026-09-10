@@ -4,9 +4,10 @@
 import {createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
 import {exportMotion,interpretMotion,validatePath} from './griffin.mjs';
+import {gcodeLines} from './gcode-lines.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
-import {validateSetup,checkMachinePath,toolFor,toolBounds} from '../machine/profile.mjs';
+import {validateSetup,toolFor,toolBounds} from '../machine/profile.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
 const fmt=(n,d=5)=>Number(n.toFixed(d));
 const json=value=>JSON.stringify(value)+'\n';
@@ -66,14 +67,14 @@ function header(c,program){
 function interpretBody(body,plan,machine){
   requireThat(body.startsWith(prelude(plan)),'H2D body is missing its explicit modal/temperature state.');
   // Physical T selectors and firmware macros belong only to the pinned envelope.
-  requireThat(!body.split('\n').some(l=>/^T\d/.test(l.trim())),'H2D body cannot change the selected tool.');
+  for(const line of gcodeLines(body))requireThat(!/^T\d/.test(line.trim()),'H2D body cannot change the selected tool.');
   const program=interpretMotion(body,plan,machine,{extrusionMode:'relative'}),bounds=toolBounds(machine,plan.setup.tool);
   requireThat(program.moves.every(m=>[m.from,m.to].every(p=>p.every((v,i)=>v>=bounds.min[i]-1e-5&&v<=bounds.max[i]+1e-5))),'H2D body exceeds selected nozzle area.');
   return program;
 }
 
 export function exportBambu(path,plan,machine,release){
-  configuration(plan,machine);validatePath(path);checkMachinePath(path,plan,machine);
+  configuration(plan,machine);validatePath(path);
   const c=contextFor(path,plan,machine,release),s=sections(c,plan,machine);
   const body=prelude(plan)+exportMotion(path,plan,{extrusionMode:'relative'}).map(l=>l==='M107'?'M106 S0':l).join('\n')+'\n';
   const program=interpretBody(body,plan,machine);
@@ -83,14 +84,15 @@ export function exportBambu(path,plan,machine,release){
 export function interpretBambu(bytes,plan,machine){
   configuration(plan,machine);const entries=unpackZip(bytes);
   const c=JSON.parse(entries.get('Metadata/saam.json')?.toString()??'null');checkContext(c,plan,machine);
-  const code=entries.get(GCODE)?.toString('utf8');requireThat(typeof code==='string'&&code.length<25_000_000,'Missing/oversized H2D G-code.');
-  requireThat(code.split(BEGIN).length===2&&code.split(END).length===2,'Invalid H2D body boundary.');
-  const body=code.split(BEGIN)[1].split(END)[0],program=interpretBody(body,plan,machine),s=sections(c,plan,machine);
+  const code=entries.get(GCODE)?.toString('utf8');requireThat(typeof code==='string','Missing H2D G-code.');
+  const begin=code.indexOf(BEGIN),end=code.indexOf(END);
+  requireThat(begin>=0&&end>begin&&code.indexOf(BEGIN,begin+BEGIN.length)===-1&&code.indexOf(END,end+END.length)===-1,'Invalid H2D body boundary.');
+  const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine),s=sections(c,plan,machine);
   requireThat(code===header(c,program)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n','H2D program differs from its declared firmware envelope.');
   requireThat(program.moves.every(m=>m.to[2]<=c.pathMaxZ+1e-5),'H2D body exceeds declared shutdown clearance.');
   const expected=packageEntries(code,c,program,plan);
   requireThat(entries.size===expected.size&&[...expected].every(([name,value])=>entries.get(name)?.equals(Buffer.from(value))),'H2D package metadata, checksum or thumbnail differs from the program.');
-  const prefixLines=code.slice(0,code.indexOf(BEGIN)+BEGIN.length).split('\n').length-1;
+  let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
   for(const event of [...program.moves,...program.events])event.line+=prefixLines;
   program.code=code;
   program.envelope={contract:CONTRACT,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,

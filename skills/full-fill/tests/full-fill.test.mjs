@@ -94,18 +94,21 @@ test('lifted traverses clear deposited material without anticipating the finishe
   const plan = planFor({ shape: 'wedge', runMm: 20, widthMm: 12, baseMm: 2, angleDeg: 15 });
   plan.process.maxCombMm=0;
   const { shell, path } = run(plan);
-  let lifted=0,early=0,high=0,previous=path.initialPosition;
+  let lifted=0,early=0,nearby=0,high=0,previous=path.initialPosition;
   for(const action of path.actions) {
     if(action.kind!=='move')continue;
     if(action.volumeMm3>0)high=Math.max(high,previous[2],action.to[2]);
-    else if(Math.hypot(action.to[0]-previous[0],action.to[1]-previous[1])>1e-6) {
+    else if(action.travel==='combed') {
+      assert.ok(Math.hypot(...action.to.map((v,i)=>v-previous[i]))<=1+1e-7,'only nearby moves override a zero long-combing budget');
+      assert.ok(Math.abs(action.to[2]-previous[2])<1e-7);nearby++;
+    } else if(Math.hypot(action.to[0]-previous[0],action.to[1]-previous[1])>1e-6) {
       assert.ok(Math.abs(action.to[2]-previous[2])<1e-7);
       assert.ok(action.to[2]>=high+plan.process.liftMm-1e-7);lifted++;
       if(action.to[2]<shell.bounds.max[2])early++;
     }
     previous=action.to;
   }
-  assert.ok(lifted>0&&early>0);
+  assert.ok(lifted>0&&early>0&&nearby>0);
 });
 
 test('an unsupported layer height or missing setting is rejected before generation', async () => {

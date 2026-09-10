@@ -27,8 +27,8 @@ This file consolidates developer-agent rules and development documentation.
   authorization already given; do not ask for it again.
 - Once committing is authorized, commit the existing working tree before
   starting new work. The human's in-progress changes stay separable from the
-  agent's, and any later revert returns to a known state. Run `npm test` first
-  and say so if that baseline does not pass.
+  agent's, and any later revert returns to a known state. Apply the
+  [commit test requirement](#checks) to this checkpoint too.
 - The canonical destination is Struder-AI/SAAM. Use the requested feature
   branch when authorized to publish. Do not assume a personal fork is required.
   Do not push to main without an explicit request, or merge your own PR.
@@ -46,11 +46,80 @@ as a shortcut to testing. Report software and physical validation separately.
 
 ## Checks
 
-Run `npm test` at the repository root before and after changes. It checks the
-documentation, decision metadata, private-file exclusions, wedge and shell
-generation, Rhino file round trips, Griffin/H2D/Dobot interpretation and
-review/delivery behavior for both kinds of print, plus SDK stdio integrations.
-Add meaningful implementation checks as runtime capabilities are introduced.
+During development, agents choose the tests necessary for the change using the
+[test registry](#test-registry), the affected code and its consumers. Run focused
+tests as needed; do not automatically run the full suite at task start, after
+every edit, or at task completion. Repeat checks when subsequent changes or
+failures justify them. Documentation-only work normally needs only
+`node scripts/check-repo.mjs`; discussion and read-only investigation need no tests.
+
+Before every commit, run the complete `npm test` at the repository root against
+the state being committed, including for documentation and checkpoint commits.
+Finish edits before this run; if files change afterward, rerun before committing.
+Report a failure and resolve it before committing unless the user explicitly
+authorizes committing the failing state. Do not add another identical run merely
+for staging or immediately after the commit. CI also runs the full suite on push
+and pull requests. This policy does not itself authorize staging or committing.
+
+The full suite checks documentation, decision metadata, private-file exclusions,
+geometry, skill generation, machine export/interpretation, Studio, the shared
+review/delivery workflow and MCP integrations. Add meaningful implementation
+checks as capabilities are introduced and maintain their registry associations.
+Report which checks ran and their results; a focused pass is not a full-suite pass.
+This scheduling policy concerns repository tests, not checks on a generated print.
+
+### Test registry
+
+This table maps implementation areas to existing test files. It is a selection
+aid, not an automatic dependency resolver or a requirement to run every listed
+neighbor on each edit. For shared code, inspect the affected consumers and select
+their integration tests as needed. Test names and imports describe finer coverage.
+Update this table when adding, moving or removing a test file, or changing its
+responsibility. Keep new tests under the existing `core/tests/*.test.mjs` or
+`skills/*/tests/*.test.mjs` patterns so `npm test` continues to include them all.
+
+All file names in the core column below are relative to `core/tests/`.
+
+| Implementation area / behavior | Core test files | Related skill tests / integration selection |
+|---|---|---|
+| `core/geom/`: spline evaluation, sections, height queries, STL/mesh input | [geometry.test.mjs](core/tests/geometry.test.mjs), [mesh.test.mjs](core/tests/mesh.test.mjs), [mesh-boundary.test.mjs](core/tests/mesh-boundary.test.mjs) | Affected skill tests; pipeline and regional tests for shared query changes |
+| `core/geom/polyline.mjs`: numerical contour seams before offsets and deposition | [contour-cleanup.test.mjs](core/tests/contour-cleanup.test.mjs) | Mesh sections, full-fill and planar-infill |
+| `core/region/offset.mjs`, Clipper normalization and offset compatibility | [offset.test.mjs](core/tests/offset.test.mjs), [offset-junctions.test.mjs](core/tests/offset-junctions.test.mjs), [offset-remnants.test.mjs](core/tests/offset-remnants.test.mjs) | Fill, infill, drape, vase and wedge consumers as affected |
+| `core/region/surface-offset.mjs`, surface derivatives | [surface-offset.test.mjs](core/tests/surface-offset.test.mjs) | Experimental surface tool; no implicit skill adoption |
+| `core/region/intersection.mjs`, closed planar booleans | [intersection.test.mjs](core/tests/intersection.test.mjs) | Infill masks, reservations and regional composition |
+| `core/region/region2d.mjs`: scanline fill and stroke ordering | [scanline-cells.test.mjs](core/tests/scanline-cells.test.mjs), [geometry.test.mjs](core/tests/geometry.test.mjs) | Full-fill and planar-infill |
+| `core/path/`: travel, combing, deposited height, move coalescing | [travel.test.mjs](core/tests/travel.test.mjs), [straight-moves.test.mjs](core/tests/straight-moves.test.mjs), [interoperability.test.mjs](core/tests/interoperability.test.mjs) | Affected skill paths, composition and machine round trips |
+| `core/path/compose.mjs`: scheduling, weaving and joins | [composition.test.mjs](core/tests/composition.test.mjs) | Pipeline and regional workflow |
+| Material regions, reservations and consumed surfaces | [regions.test.mjs](core/tests/regions.test.mjs), [assembly-reservation.test.mjs](core/tests/assembly-reservation.test.mjs), [reservation-surface.test.mjs](core/tests/reservation-surface.test.mjs), [regional-workflow.test.mjs](core/tests/regional-workflow.test.mjs) | Infill, drape and vase composition |
+| `core/print/plan.mjs`, generation and machine compatibility | [pipeline.test.mjs](core/tests/pipeline.test.mjs), [interoperability.test.mjs](core/tests/interoperability.test.mjs) | Affected skill and machine tests |
+| `core/print/workflow.mjs`, bundles, approvals, reopening and exact delivery | [workflow.test.mjs](core/tests/workflow.test.mjs), [program-cache.test.mjs](core/tests/program-cache.test.mjs), [regional-workflow.test.mjs](core/tests/regional-workflow.test.mjs) | Wedge lifecycle, machine-specific delivery and MCP callers |
+| `core/export/griffin.mjs`: S5 templates, G-code interpretation | [export.test.mjs](core/tests/export.test.mjs), [large-export.test.mjs](core/tests/large-export.test.mjs) | Pipeline and wedge Griffin round trips |
+| Shared modal G-code fields and final-export checks | [modal-export.test.mjs](core/tests/modal-export.test.mjs) | S5/H2D, wedge, cold bundle reopening |
+| `core/export/bambu.mjs`, H2D profile and ZIP output | [bambu.test.mjs](core/tests/bambu.test.mjs) | [h2d.test.mjs](skills/wedge-demo/tests/h2d.test.mjs) |
+| `core/export/`: streamed G-code lines and large ZIP members | [gcode-stream.test.mjs](core/tests/gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
+| Dobot profile, Lua export/interpreter and relay behavior | [dobot.test.mjs](core/tests/dobot.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | [dobot.test.mjs](skills/wedge-demo/tests/dobot.test.mjs), vase and regional machine coverage |
+| `studio/`: camera, display detail, mesh visibility and playback | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
+| Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs) | Workflow, regional workflow and machine-specific Studio delivery |
+| `adapters/mcp/`: stdio tools, shared import/setup and CLI access | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow and recipe validation |
+| Temporary HTTP/OAuth bridge, Claude package and web probe | [mcp-http.test.mjs](core/tests/mcp-http.test.mjs), [claude-plugin.test.mjs](core/tests/claude-plugin.test.mjs), [web-agent-probe.test.mjs](core/tests/web-agent-probe.test.mjs) | MCP stdio integration when shared tools change |
+| `scripts/bench/`: analytical fixtures and mesh convergence | [benchmark-fixtures.test.mjs](core/tests/benchmark-fixtures.test.mjs) | Performance measurements remain opt-in; see benchmark instructions |
+| Full-fill generation | Shared geometry, travel and pipeline tests as affected | [full-fill.test.mjs](skills/full-fill/tests/full-fill.test.mjs) |
+| Planar infill, solid masks and sparse/drape composition | Shared booleans, scanlines and reservations as affected | [infill.test.mjs](skills/planar-infill/tests/infill.test.mjs) |
+| Draped skin, normal spacing, slope exclusion and support | Shared surface/reservation and pipeline tests as affected | [draped-skin.test.mjs](skills/draped-skin/tests/draped-skin.test.mjs) |
+| Vase wall, topology, budgets and level ending | Regional composition and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs) |
+| Bounded eight-point wedge geometry, generator and lifecycle | Shared travel, export and workflow tests as affected | [eight-point.test.mjs](skills/wedge-demo/tests/eight-point.test.mjs), [wedge.test.mjs](skills/wedge-demo/tests/wedge.test.mjs), H2D/Dobot wedge tests above |
+| Documentation links, decision metadata and private-file exclusions | `node scripts/check-repo.mjs` | No manufacturing test selection needed for prose-only edits |
+
+Run selected files directly, for example:
+
+```sh
+node --test core/tests/offset.test.mjs core/tests/offset-remnants.test.mjs
+node --test skills/planar-infill/tests/infill.test.mjs
+node scripts/check-repo.mjs
+```
+
+`npm test` remains the single full-suite command; selecting focused files does
+not change its membership or replace the full run required at commit.
 
 ### Checks must earn their place
 
@@ -245,16 +314,23 @@ benchmark.
 
 ## Studio performance and display detail
 
-The shared bundle workflow retains its latest verified program in memory per
+Geometry view draws boundary/crease edges only. It hides edges between coplanar
+faces or face planes differing by less than 3 degrees, including coincident
+vertices in separate patch proxies. This affects display only. Toolpath view
+draws no part mesh or outline; the current phase/layer is darker, opaque and
+drawn after the faded prior layers. At shutdown it retains emphasis on the last
+deposition layer. Source geometry, output and approval data are unchanged.
+
+The shared bundle workflow retains its latest interpreted export in memory per
 adapter. Reuse requires the current plan/machine/geometry/runtime identity and
-the hashes of the actual SAAMpath and export bytes. Review/approval records,
-geometry validation and source-file checks still run on each load. A cache miss
-performs the existing regeneration, canonical path comparison, export comparison
-and interpretation. Generation seeds the cache after its round-trip checks and
-saves complete. Returned programs and summaries are copies. The cache is neither
-a persisted approval nor permission to trust edited review hashes; a process
-restart or eviction requires verification again. Delivery still reads and hashes
-the exact reviewed export. Shell, wedge, Griffin, H2D and Dobot use this lifecycle.
+the hash of the actual export bytes. Review/approval records, geometry validation
+and source-file checks still run on each load. A cache miss interprets and checks
+the saved export; it never regenerates a path or export. Generation seeds the
+cache with its checked interpreter result. Returned programs and summaries are
+copies. Delivery reads and hashes the exact reviewed export. Local hash records
+detect changes relative to the recorded bytes; they are not signatures proving
+the provenance of files whose records were also edited. Shell, wedge, Griffin,
+H2D and Dobot use this lifecycle. Playback uses only interpreted export moves.
 
 Studio computes bounds/layout/camera transforms once per frame and coalesces
 redraw requests. It preserves segment order, colour and transparency. The
@@ -385,9 +461,9 @@ guidance; do not recreate a docs folder.
 
 ## Generation and review
 
-The user approves geometry, then the locked process plan. Generate SAAMpath
-directly from that complete plan, then produce an export in an output option
-declared by the machine file. Finish automated checks before SAAM Studio runs
+The user approves geometry, then the locked process plan. Generate the declared
+machine export directly from that complete plan, using transient motion objects.
+Check the actual exported commands before SAAM Studio runs
 the exact export for the third approval: toolpath. Deliver those bytes unchanged.
 
 Generation performs the calculations specified by the plan. It does not add
@@ -471,7 +547,6 @@ Prints/<name>/
   machine.json
   geometry/model.mesh.json
   geometry/model.json
-  path.saampath
   exports/griffin-gcode/wedge.gcode
   checks.json
   review.json
@@ -488,16 +563,18 @@ Prints/<name>/
   the native geometry, machine snapshot and generating runtime source hash.
 - `saam-wedge-geometry/1`: native mesh file hash, source points, roof coefficients, mesh display and
   geometry-version-specific face references.
-- `saampath/1`: JSON in a `.saampath` file. Moves carry absolute XYZ millimeters,
+- `saampath/1`: transient motion objects during generation. Moves carry absolute XYZ millimeters,
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
-  the move without determining its geometry.
-- `saam-review/1`: exact-version human approvals, history and generation hashes.
+  the move without determining its geometry. New bundles do not serialize this
+  representation. Regeneration removes an obsolete `path.saampath` file.
+- `saam-review/1`: exact-version human approvals, history, generation/export hashes
+  and a small generation summary for display (never playback geometry).
   `saam-checks/1` records software checks and limitations.
 
-On reopening, verify native geometry/source integrity, regenerate from the locked recipe, compare
-SAAMpath and export, and reinterpret G-code. No edited/stale artifact can inherit
-toolpath approval. Delivery copies the already reviewed bytes. Local approval
+On reopening, verify native geometry/source and plan identity, check the export
+digest, and interpret the saved machine commands. Do not regenerate. A changed
+export cannot inherit its previous toolpath approval. Delivery copies the already reviewed bytes. Local approval
 records capture a person's statement; they are not authenticated digital
 signatures. Use `examples/prints/` only for explicitly curated examples.
 
@@ -655,7 +732,7 @@ approval. Do not rewrite a person's existing export or delivery as a migration.
 
 ### Checks
 
-`npm test` runs `core/tests/` and both skills' tests alongside the wedge's. They
+`npm test` runs `core/tests/` and every skill's tests. They
 cover evaluation against rhino3dm, sections against analytic areas, closure
 rejection, degenerate cuts, offsets and booleans against analytic areas, the
 surface height field, travel and lift behaviour, the angle limit excluding steep
@@ -1002,6 +1079,44 @@ Machine firmware service routines (including H2D shutdown) retain their separate
 export contracts; they are not ordinary SAAMpath travel.
 
 Nearest wall starts, alternating infill and verified combing reduce travel.
+The shared scanline fill completes disconnected components and splits each
+connected component into uninterrupted runs of rows at interval splits/merges.
+This also orders the sides of holes and concavities, rather than crossing each
+hole on every row. Full-fill, planar-infill, draped-skin and the bounded wedge
+use the same scanline implementation. Ordering changes neither row endpoints
+nor deposition coverage; connections still use the shared travel checks.
+
+Stroke starts within 1 mm use direct non-extruding repositioning without a new
+retraction, lift or detour when the material/surface policy permits it, even
+when the longer combing budget is lower. A short distance does not permit
+crossing an opening or bypassing an earlier operation's clearance restriction.
+No plastic is added to these gaps. Vase-wall's continuous stroke has no internal
+stroke-start travels; its transitions still pass through the shared builder.
+
+The shared PathBuilder merges consecutive forward collinear moves with the same
+speed, volume per length and semantic metadata. A fixed line anchors each run
+within the numerical plane tolerance (0.0000001 mm), so successive small turns
+cannot accumulate into curve flattening. It sums deposited volume and retains
+the endpoint. Corners, reversals, process/flow changes, operation/layer/role
+boundaries and intervening retraction/fan/dwell actions remain explicit. All
+skills use this writer; variable-gap/surface samples remain separate when their
+flow or metadata changes. This compacts SAAMpath before any machine export,
+not just the displayed path.
+
+Mesh sections remove numerical triangle seams with `cleanPlanarLoop` before
+offsetting. The distance bound is the existing 0.0000001 mm plane tolerance,
+tested against every original point in the replacement span; it does not use
+an angle cutoff or accumulate successive local simplifications. Closed contours
+retain winding, corners and reversals. Full-fill/planar-infill also clean offset
+deposition contours at that tolerance, while retaining the offset kernel's region
+output for booleans. No curve-resolution or Clipper precision setting is relaxed.
+
+The shared S5/H2D motion emitter establishes XYZ/feed state on first use, then
+omits unchanged fields. Retractions update the same modal feed state. E remains
+explicit with the selected absolute/relative convention. The interpreter checks
+the final commands; regression tests compare their coordinates and volume with
+the generator's transient motion objects.
+
 Planar combing checks boundary crossings and standoff, then can route around
 holes via a bounded visibility graph (256 offset corners, `maxCombMm` route
 length); otherwise it hops. Earlier operation queries can forbid combing.
@@ -1031,8 +1146,9 @@ material temperatures, flow/retraction and required skill capabilities. Profiles
 own setup defaults; remembered setup is separate per machine. Skills target
 compatible XYZ extrusion machines through this interface. Planar skills require
 `planar`; drape and vase-wall additionally require `nonplanar` and a declared angle limit.
-`checkMachinePath` checks geometry-independent SAAMpath bounds, axis and extrusion
-feeds before export. Wedge uses the same profile validation and its bounded
+`checkMachinePath` remains available to developer tests; production checks run
+on interpreted export commands, including selected-tool bounds, feeds and flow.
+Dobot uses this shared function on commands reconstructed from Lua. Wedge uses the same profile validation and its bounded
 eight-point generator, with S5, experimental H2D and configured Dobot output.
 
 | Profile | Skill checks | Declared export and review |
@@ -1191,6 +1307,24 @@ templates execute no JavaScript. Unknown values and invalid/nonfinite path data
 are rejected. The emitter writes shared SAAMpath actions between these sections.
 The supported dialect remains the declared Griffin subset, not arbitrary G-code.
 Coordinate and extrusion rounding must still obey the locked flow limit.
+
+The Griffin/H2D modal reader has no arbitrary program-size cutoff. It walks
+lines incrementally rather than splitting the entire program into a line array;
+the shared reader also accepts an iterable of text chunks and preserves machine
+state, CRLF handling and source line numbers across chunk boundaries. Every
+command still passes the same checks, including commands after the former
+25-million-character boundary. This is incremental parsing, not a fully streamed
+bundle: generation, retained playback moves and
+browser transfer still use memory proportional to the job.
+
+The former 64 MB ZIP policy is also removed. H2D and Dobot keep the declared
+ZIP32 container and integrity checks (CRC, member ranges, declared decompression
+length, names and exact expected package contents). Its actual 32-bit member
+size/offset boundary remains: a member or offset requiring ZIP64 is unsupported
+and reported explicitly. No printer capacity is inferred from these software
+checks. Programs/archives remain subject to available runtime memory; chunked
+artifact writing and paged playback are further work if measurements require
+them, rather than a reason to force smaller parts or lower print quality.
 
 ### H2D output contract
 

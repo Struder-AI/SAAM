@@ -13,6 +13,7 @@
     <div id="playback" hidden>
       <div class="transport"><button id="play">Play</button><input id="scrub" aria-label="Playback position" type="range" min="0" max="1" step="0.01" value="1"><output id="time-label">0:00</output><label class="speed-label">Speed<select id="playback-speed" aria-label="Playback speed"><option value="1">1×</option><option value="10">10×</option><option value="50" selected>50×</option><option value="100">100×</option><option value="200">200×</option></select></label></div>
       <div class="legend"><span class="dot planar"></span>Flat layers <span class="dot inclined"></span><span id="skin-label">Sloped layers</span> <label><input id="travel" type="checkbox"> Show travel</label><button id="fit-program">Fit all moves</button></div>
+      <p class="chat-hint">Current layer is dark; earlier layers are faded.</p>
       <p id="viewer-detail" class="chat-hint" role="status"></p>
     </div>
   </section>

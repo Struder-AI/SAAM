@@ -19,6 +19,7 @@ import { difference } from '../../../core/region/boolean.mjs';
 import { planarPolicy } from '../../../core/path/builder.mjs';
 import { requireThat, distance2, TOLERANCE } from '../../../core/geom/tolerance.mjs';
 import {clipReservedRegion,clipAboveSurface,surfaceStroke} from '../../../core/region/reservation.mjs';
+import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
 
 export const FULL_FILL_DEFAULTS = {
   mode: 'body',
@@ -74,7 +75,9 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     for (let ring = 0; ring < settings.perimeters; ring++) {
       const loops = offsetRegion(region, -(width / 2 + ring * width));
       if (!loops.length) break;
-      for (const loop of loops) strokes.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true, points: loop });
+      // Offset rounding can reintroduce numerical seams. Retain the offset
+      // region for topology operations and clean only its deposition contour.
+      for (const loop of loops) strokes.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true, points: cleanPlanarLoop(loop) });
       inner = loops;
       report.perimeterLoops += loops.length;
     }
