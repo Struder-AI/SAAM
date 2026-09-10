@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dobot Mouse Ears"
+  short_description: "Plan corner adhesion ears and breakaway skirts"
+  default_prompt: "Use $dobot-dog-ears to add clipped corner adhesion ears and a connected breakaway skirt to this StruderBot print."

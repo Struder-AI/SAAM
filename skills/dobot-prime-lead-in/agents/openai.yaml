@@ -1,0 +1,4 @@
+interface:
+  display_name: "Dobot Prime Lead-In"
+  short_description: "Plan compact purge paths before Dobot prints"
+  default_prompt: "Use $dobot-prime-lead-in to add a compact 100 mm priming path that flows continuously into this print."
