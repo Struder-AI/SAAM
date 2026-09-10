@@ -115,7 +115,8 @@ Before Lua:
 
 ## Evidence
 
-Use evidence labels from `docs/ROBOT_KNOWLEDGE.md`.
+Use evidence labels from
+`../dobot-programmer/references/ROBOT_KNOWLEDGE.md`.
 
 - **EXPERIMENTAL**: all non-planar cladding behavior until physical tests are
   recorded.
@@ -132,3 +133,13 @@ Use evidence labels from `docs/ROBOT_KNOWLEDGE.md`.
   loops did not eliminate them.
 - Preserve the successful surface geometry while changing only the
   layer-transition strategy in the next coupon.
+
+## Portable implementation resources
+
+The deterministic legacy geometry modules and regression tests are bundled in
+`scripts/` and `tests/`. Run the suite-level portability check documented in
+`../STRUDERBOT_SUITE.md`; the modules require Python 3.10 or newer and only the
+standard library. The robot-confirmed 40 mm / 20 degree fixture is preserved in
+`assets/milestone-gable-40mm-20deg/`. These resources remain migration
+specifications; current SAAM jobs still use `draped-skin` until this behavior is
+ported into the shared runtime.

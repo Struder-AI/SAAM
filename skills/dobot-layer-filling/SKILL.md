@@ -69,3 +69,10 @@ become the limiting condition.
 
 Use a smaller-footprint or low-contact-area test when adhesion prevents a
 meaningful large-solid-layer result.
+
+## Portable dependencies
+
+Install this as part of the complete suite in `../STRUDERBOT_SUITE.json`.
+It requires `dobot-programmer`; current SAAM execution also requires the
+repository's `full-fill` and `planar-infill` skills. This manual has no direct
+runtime or package dependency of its own.

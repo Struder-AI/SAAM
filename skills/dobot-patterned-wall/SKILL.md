@@ -198,3 +198,11 @@ layers.
   and foundation count independently parameterized.
 - Omit top cap layers when the operator needs to inspect the internal cellular
   structure; cap counts remain user-selectable rather than mandatory.
+
+## Portable dependencies
+
+Install this as part of the complete suite in `../STRUDERBOT_SUITE.json`.
+It requires `dobot-programmer`, including that skill's Lua safety validator
+and Online-mode fixture. The deterministic legacy geometry modules under
+`scripts/` require Python 3.10 or newer and only the standard library. Run the
+suite audit before relying on the package on a different computer.

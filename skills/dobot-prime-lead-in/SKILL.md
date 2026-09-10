@@ -95,3 +95,9 @@ Treat the first physical purge as experimental. Record whether 100 mm clears
 the discoloration, whether the 5 mm gap prevents bonding, and whether the 4 mm
 pitch and 2 mm turns remain clean. Promote changed values only after a
 successful robot test.
+
+## Portable dependencies
+
+Install this as part of the complete suite in `../STRUDERBOT_SUITE.json`.
+It requires `dobot-programmer` for fixed-feed extrusion policy. The planner
+requires Python 3.10 or newer and has no third-party Python dependencies.

@@ -77,3 +77,10 @@ filled layers, use `dobot-layer-filling`.
 - Reject spacing calculated directly from edge cutback; use the regular-hex
   conversion in the reference.
 - Treat physical print results as authoritative.
+
+## Portable dependencies
+
+Install this as part of the complete suite in `../STRUDERBOT_SUITE.json`.
+It requires `dobot-programmer` and optionally composes with
+`dobot-layer-filling`. The lip planner requires Python 3.10 or newer and has
+no third-party Python dependencies.
