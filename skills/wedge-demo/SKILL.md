@@ -112,8 +112,10 @@ ones extend farther downhill. This is a geometric clipping rule, not a
 physical-validation claim.
 For this profile, starts within `combTravelMm` (default 12 mm) stay down and
 move directly; that includes nearby loops, fill strokes and adjacent sloped
-strokes. Longer moves retract, lift to the full part's maximum Z plus `liftMm`
-(default 2 mm), traverse, descend and recover. A new job assumes the prior SAAM
+strokes. All motion uses the shared PathBuilder. Longer moves retract, lift above
+the highest material deposited so far plus `liftMm` (default 1 mm; zero allowed),
+traverse, descend and recover. Cooling and final parking use that same height.
+See the [shared travel rule](../../DEVELOP.md#whole-plan-travel-requirement). A new job assumes the prior SAAM
 wedge ended with its terminal retraction, so its first recovery cancels that
 retraction rather than backing filament up a second time.
 

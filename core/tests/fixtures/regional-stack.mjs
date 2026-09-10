@@ -28,13 +28,13 @@ export function regionalStackPlan(machine,backend='mesh') {
   plan.geometry={shape:'assembly',parts:[{id:'roof',xMm:0,yMm:0,zMm:0,geometry:roof},
     {id:'upper',xMm:0,yMm:0,zMm:0,geometry:{shape:'box',runMm:8,widthMm:8,heightMm:4}}]};
   plan.process.minimumLayerSeconds=0;
-  const region=(id,part,zStartMm,zEndMm,skills,supportPolicy='supported',lowerSurfaceFrom=null)=>({id,part,zStartMm,zEndMm,skills,supportPolicy,lowerSurfaceFrom});
+  const region=(id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom=null)=>({id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom});
   plan.composition.regions=[
     region('base','roof',0,0.4,{'full-fill':{mode:'body'}}),
     region('wall','roof',0.4,1.2,{'vase-wall':{endTransition:'level'}}),
-    region('cap','roof',1.2,1.6,{'full-fill':{mode:'body'}},'bridge-experimental'),
+    region('cap','roof',1.2,1.6,{'full-fill':{mode:'body'}}),
     region('roof-finish','roof',1.6,null,{'planar-infill':{},'full-fill':{mode:'solid-surfaces',bottomLayers:1,topLayers:1},'draped-skin':{layers:2,normalMm:0.2,surveyStepMm:0.2,sampleStepMm:0.2}}),
-    region('above-roof','upper',0,4,{'full-fill':{mode:'body',minFeatureMm:0.2}},'supported','roof-finish')
+    region('above-roof','upper',0,4,{'full-fill':{mode:'body',minFeatureMm:0.2}},'roof-finish')
   ];
   return plan;
 }

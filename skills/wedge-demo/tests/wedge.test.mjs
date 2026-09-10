@@ -55,14 +55,15 @@ test('flat layers precede 15 degree skin strokes that always alternate direction
   assert.ok(Math.abs(volume-ideal)/ideal<.05,'Deposition should approximate the wedge volume.');
 });
 test('nearby starts comb directly while longer transitions use the locked clearance',()=>{
-  let pos=path.initialPosition,combed=0,hopped=0;
+  let pos=path.initialPosition,combed=0,hopped=0,high=0,early=0;
   for(const a of path.actions) {
     if(a.kind!=='move')continue;
+    if(a.volumeMm3>0)high=Math.max(high,pos[2],a.to[2]);
     if(a.travel==='combed') {combed++;assert.ok(distance(pos,a.to)<=plan.process.combTravelMm+1e-8);}
-    else if(a.volumeMm3===0&&Math.hypot(pos[0]-a.to[0],pos[1]-a.to[1])>1e-8&&Math.abs(pos[2]-a.to[2])<1e-8) {hopped++;assert.ok(Math.abs(a.to[2]-(2+30*Math.tan(Math.PI/12)+plan.process.liftMm))<1e-7);}
+    else if(a.volumeMm3===0&&Math.hypot(pos[0]-a.to[0],pos[1]-a.to[1])>1e-8&&Math.abs(pos[2]-a.to[2])<1e-8) {hopped++;assert.ok(a.to[2]>=high+plan.process.liftMm-1e-7);if(a.to[2]<path.summary.clearanceZMm-1)early++;}
     pos=a.to;
   }
-  assert.ok(combed>100,'Nearby loop, fill, and skin starts should stay down.');assert.ok(hopped>0,'Long transitions still clear the complete wedge.');
+  assert.ok(combed>100,'Nearby loop, fill, and skin starts should stay down.');assert.ok(hopped>0,'Long transitions clear deposited material.');assert.ok(early>0,'Early travel does not rise above the finished wedge.');
 });
 test('deterministic Griffin export uses T1, explicit filament advance, 215 C and complete modal interpretation',()=>{
   assert.equal(exportGcode(generatePath(plan,machine),plan,machine),code);

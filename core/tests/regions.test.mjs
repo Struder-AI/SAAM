@@ -9,7 +9,7 @@ import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 
-const region=(id,start,end,skills,supportPolicy='supported',lowerSurfaceFrom=null)=>({id,part:null,zStartMm:start,zEndMm:end,skills,supportPolicy,lowerSurfaceFrom});
+const region=(id,start,end,skills,lowerSurfaceFrom=null)=>({id,part:null,zStartMm:start,zEndMm:end,skills,lowerSurfaceFrom});
 function smallPlan(){const p=defaults();p.geometry={shape:'box',runMm:8,widthMm:6,heightMm:2};p.process.minimumLayerSeconds=0;return p;}
 
 test('six-stage regional stack keeps ownership, transitions and horizontal wavy-bottom fill across three machines and two native backends',async()=>{
@@ -60,30 +60,35 @@ test('level vase ending fills exactly the remaining partial-turn material gap',a
   assert.ok(stroke.volumesMm3.at(-1)<stroke.volumesMm3.at(-20),'leveling thickness ends at zero');
 });
 
-test('same-part region guards identify unsupported boundaries and material overlap',async()=>{
+test('a cap needs a level recipe boundary, while bridging needs no policy or support-coverage gate',async()=>{
   const r=await rhino(),machine=loadMachine(),plan=smallPlan();
-  plan.composition.regions=[region('base',0,0.4,{'full-fill':{mode:'body'}}),region('wall',0.4,1.2,{'vase-wall':{endTransition:'spiral'}}),region('cap',1.2,2,{'full-fill':{mode:'body'}},'bridge-experimental')];
+  plan.composition.regions=[region('base',0,0.4,{'full-fill':{mode:'body'}}),region('wall',0.4,1.2,{'vase-wall':{endTransition:'spiral'}}),region('cap',1.2,2,{'full-fill':{mode:'body'}})];
   assert.throws(()=>generatePath(plan,machine,r),/level vase ending/);
-  plan.composition.regions[1].skills['vase-wall'].endTransition='level';plan.composition.regions[2].supportPolicy='supported';assert.throws(()=>generatePath(plan,machine,r),/hollow wall/);
-  plan.composition.regions[2].supportPolicy='bridge-experimental';generatePath(plan,machine,r);
+  plan.composition.regions[1].skills['vase-wall'].endTransition='level';
+  const expected=generatePath(plan,machine,r);
+  assert.ok(expected.actions.some(a=>a.region==='cap'&&a.volumeMm3>0));
+  for(const legacyPolicy of ['supported','bridge-experimental']) {
+    plan.composition.regions[2].supportPolicy=legacyPolicy;
+    assert.deepEqual(generatePath(plan,machine,r),expected,'retired policy has no effect on path or summary');
+  }
   plan.composition.regions[2].zStartMm=1;assert.throws(()=>generatePath(plan,machine,r),/Overlapping material/);
   plan.composition.regions=[region('unsupported-base',0,0.4,{'planar-infill':{perimeters:0}}),region('wall',0.4,2,{'vase-wall':{endTransition:'level'}})];
-  assert.throws(()=>generatePath(plan,machine,r),/complete vase foundation ring/);
+  assert.ok(generatePath(plan,machine,r).actions.some(a=>a.role==='vase-wall'));
 });
 
-test('solid top masks publish area support while an actually sparse top requires bridging',async()=>{
+test('solid and sparse tops retain their coverage descriptions without bridge permission',async()=>{
   const r=await rhino(),machine=loadMachine(),plan=smallPlan();
-  plan.composition.regions=[region('body',0,1,{'planar-infill':{},'full-fill':{mode:'solid-surfaces',topLayers:1,bottomLayers:1}}),region('upper',0,2,{'full-fill':{mode:'body'}},'supported','body')];
+  plan.composition.regions=[region('body',0,1,{'planar-infill':{},'full-fill':{mode:'solid-surfaces',topLayers:1,bottomLayers:1}}),region('upper',0,2,{'full-fill':{mode:'body'}},'body')];
   assert.equal(generatePath(plan,machine,r).summary.regions[0].publishedSurface,'area');
-  plan.composition.regions[0].skills['full-fill'].topLayers=0;assert.throws(()=>generatePath(plan,machine,r),/sparse support/);
-  plan.composition.regions[1].supportPolicy='bridge-experimental';assert.equal(generatePath(plan,machine,r).summary.regions[0].publishedSurface,'sparse');
+  plan.composition.regions[0].skills['full-fill'].topLayers=0;
+  assert.equal(generatePath(plan,machine,r).summary.regions[0].publishedSurface,'sparse');
 });
 
 test('surface consumers cannot skip valleys, invent missing coverage or form dependency cycles',async()=>{
   const r=await rhino(),machine=loadMachine(),plan=regionalStackPlan(machine,'mesh');
   plan.composition.regions.at(-1).zStartMm=3.6;assert.throws(()=>generatePath(plan,machine,r),/skips material/);
   plan.composition.regions.at(-1).zStartMm=0;plan.geometry.parts[1].geometry.runMm=9;assert.throws(()=>generatePath(plan,machine,r),/does not cover the consumer/);
-  const cycle=smallPlan();cycle.composition.regions=[region('a',0,1,{'full-fill':{}},'supported','b'),region('b',0,2,{'full-fill':{}},'supported','a')];
+  const cycle=smallPlan();cycle.composition.regions=[region('a',0,1,{'full-fill':{}},'b'),region('b',0,2,{'full-fill':{}},'a')];
   assert.throws(()=>generatePath(cycle,machine,r),/cycle/);
   cycle.composition.regions[0].lowerSurfaceFrom='missing';assert.throws(()=>validatePlan(cycle,machine),/Unknown.*surface/);
 });

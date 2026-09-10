@@ -37,6 +37,8 @@ Shared authoring requirements live in DEVELOP.md:
 - [Machine capabilities and output adapters](../DEVELOP.md#machine-interoperability-design).
 - [Whole-plan travel and combing](../DEVELOP.md#whole-plan-travel-requirement).
 - [Composable operations and dependencies](../DEVELOP.md#skill-result-composition).
+- [Shared offsets and their supported scope](../DEVELOP.md#shared-offset-functions).
+- [Numerically robust, established and measured shared functions](../DEVELOP.md#shared-numerical-foundations).
 
 Keep pattern decisions in skills, representation-specific queries in the
 geometry core and machine behavior in profiles/output adapters. Add equivalent

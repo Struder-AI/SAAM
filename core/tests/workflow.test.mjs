@@ -107,11 +107,11 @@ test('three synthetic approvals, stale views, reopening and byte-identical deliv
   await assert.rejects(deliver(dir), /requires approval/);
 });
 
-test('reopening regenerates the locked plan and detects a stale program', async t => {
+test('reopening verifies the locked plan and detects a stale program', async t => {
   const dir = await fixture(t);
   await generateBundle(dir, { development: true });
-  // Loading regenerates from the locked plan and compares; a mismatch would
-  // surface as programError rather than as a quietly different program.
+  // Loading checks file identity and reuses only an exactly matching verified
+  // program; a changed locked plan cannot reuse that result.
   const before = await loadBundle(dir);
   assert.equal(before.programError, undefined);
   const saved = JSON.parse(await readFile(resolve(dir, 'path.saampath'), 'utf8'));

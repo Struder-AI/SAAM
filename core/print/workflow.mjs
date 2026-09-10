@@ -33,6 +33,16 @@ export function createBundleWorkflow(adapter) {
   };
   const exportPath=(plan,machine)=>{requireThat(/^[a-z0-9-]+$/.test(plan.output),'Invalid output ID.');return `exports/${plan.output}/${exportName(plan,machine)}`;};
   let runtimeCache;
+  // Retain only the latest verified program per adapter. Identity includes the
+  // actual file bytes, not mtimes or editable review claims. Approval state is
+  // always read afresh; callers receive copies so they cannot alter this cache.
+  let verifiedProgram;
+  const programKey=(planHash,code,pathBytes)=>hash([planHash,hash(code),hash(pathBytes)]);
+  function rememberProgram(key,pathHash,path,program,code) {
+    const copy=structuredClone(program);
+    const text=copy.code??code.toString('utf8');delete copy.code;
+    verifiedProgram={key,pathHash,program:copy,pathSummary:structuredClone(path.summary),code:text};
+  }
   async function runtimeHash(){
     return runtimeCache??=hash(await Promise.all([
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
@@ -40,7 +50,7 @@ export function createBundleWorkflow(adapter) {
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
       new URL('../export/dobot.mjs',import.meta.url),new URL('../export/dobot-lua-subset.mjs',import.meta.url),
       new URL('../geom/tolerance.mjs',import.meta.url), ...adapter.runtimeFiles
-    ].map(async file=>[fileURLToPath(file).slice(root.length).replaceAll('\\','/'),await readFile(file,'utf8')])));
+    ].map(async file=>[fileURLToPath(file).slice(root.length).replaceAll('\\','/'),hash(await readFile(file))])));
   }
 async function proposedPlan(machineId, { setupFile } = {}) {
   const machine = machineId ? loadMachine(machineId) : await json(machineFile);
@@ -121,19 +131,25 @@ async function loadBundle(directory, { program = true } = {}) {
   if (program && review.generation) {
     try {
       requireThat(review.generation.planHash === planHash, 'Generated program is stale; regenerate for the current plan.');
-      const [code, path] = await Promise.all([readFile(resolve(dir, exportPath(plan,machine))), json(resolve(dir, 'path.saampath'))]);
-      requireThat(hash(code) === review.generation.exportHash && hash(path) === review.generation.pathHash,
+      const [code, pathBytes] = await Promise.all([readFile(resolve(dir, exportPath(plan,machine))), readFile(resolve(dir, 'path.saampath'))]);
+      const exportHash=hash(code),key=programKey(planHash,code,pathBytes);
+      requireThat(exportHash === review.generation.exportHash,
         'Generated files changed; regenerate and review again.');
-      const regenerated = await generatePath(plan, machine);
-      requireThat(canonical(path) === canonical(regenerated), 'SAAMpath does not match the locked recipe.');
-      requireThat(code.equals(Buffer.from(exportProgram(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }))),
-        'Export does not match SAAMpath.');
-      state.program = interpretProgram(code, plan, machine);
+      if(verifiedProgram?.key!==key) {
+        const path=JSON.parse(pathBytes.toString('utf8')),pathHash=hash(path);
+        requireThat(pathHash === review.generation.pathHash,'Generated files changed; regenerate and review again.');
+        const regenerated = await generatePath(plan, machine);
+        requireThat(canonical(path) === canonical(regenerated), 'SAAMpath does not match the locked recipe.');
+        requireThat(code.equals(Buffer.from(exportProgram(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }))),
+          'Export does not match SAAMpath.');
+        rememberProgram(key,pathHash,path,interpretProgram(code, plan, machine),code);
+      }
+      requireThat(verifiedProgram.pathHash===review.generation.pathHash,'Generated files changed; regenerate and review again.');
+      state.program = structuredClone(verifiedProgram.program);
       state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
-      state.pathSummary = path.summary;
-      state.exportHash = hash(code);
-      state.code = state.program.code??code.toString('utf8');
-      delete state.program.code;
+      state.pathSummary = structuredClone(verifiedProgram.pathSummary);
+      state.exportHash = exportHash;
+      state.code = verifiedProgram.code;
       state.toolpathApproved = state.planApproved
         && review.approvals.toolpath?.hash === state.exportHash
         && review.approvals.toolpath?.planHash === planHash
@@ -267,7 +283,8 @@ async function generateBundle(directory, { development = false } = {}) {
     limitations: [...limitationsFor(state.plan, state.machine),...(program.limitations??[])],
     ...(program.summary.materialModel==='relay-estimate'?{materialModel:'relay-estimate',commandedVolumeMm3:program.summary.commandedVolumeMm3,estimatedRelayVolumeMm3:program.summary.estimatedRelayVolumeMm3,relayEstimateDifferenceMm3:program.summary.relayEstimateDifferenceMm3}:{})
   };
-  await save(resolve(state.dir, 'path.saampath'), path);
+  const pathBytes=Buffer.from(JSON.stringify(path,null,2)+'\n');
+  await save(resolve(state.dir, 'path.saampath'), pathBytes);
   await save(resolve(state.dir, exportPath(state.plan,state.machine)), code);
   await save(resolve(state.dir, 'checks.json'), checks);
   const review = state.review;
@@ -275,6 +292,7 @@ async function generateBundle(directory, { development = false } = {}) {
   review.generation = { mode: checks.mode, planHash: state.planHash, exportHash: checks.exportHash, pathHash: checks.pathHash, version: VERSION };
   review.history.push({ event: 'generated', mode: checks.mode, time: new Date().toISOString(), exportHash: checks.exportHash });
   await save(resolve(state.dir, 'review.json'), review);
+  rememberProgram(programKey(state.planHash,code,pathBytes),checks.pathHash,path,program,code);
   return checks;
 }
 

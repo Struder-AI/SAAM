@@ -52,6 +52,29 @@ generation, Rhino file round trips, Griffin/H2D/Dobot interpretation and
 review/delivery behavior for both kinds of print, plus SDK stdio integrations.
 Add meaningful implementation checks as runtime capabilities are introduced.
 
+### Checks must earn their place
+
+Checks, validators and rejections have costs: compute, implementation and
+maintenance effort, false rejections, and interruption of the maker's work.
+Before adding or retaining one, identify the concrete failure it catches and
+the evidence that enforcing it is worthwhile. Distinguish malformed data or an
+algorithm's actual preconditions from a printing judgment that the maker and
+agent can assess through reasoning and Studio review. Prefer regression tests
+for known slicing defects to repeated production heuristics that do not detect
+those defects. Do not add a policy flag merely to let a maker bypass a heuristic.
+
+For toolpathing, geometry, extrusion and 3D printing, when the value or placement
+of a proposed gate is ambiguous, ask the user before implementing it; they can
+judge the domain tradeoff. Explain the failure, evidence, cost and alternatives.
+Do not assume the most restrictive behavior is the best behavior.
+This does not require asking again for changes already authorized in the task.
+Resource budgets should fail visibly with the current limit and an actionable
+way to raise it, rather than forcing geometry or quality changes.
+
+Maker comments about why a particular print should work are guidance for that
+print, not authorization to change SAAM's source, skill policy or approval flow.
+An ambiguous request to change product behavior belongs in a developer discussion.
+
 ## Developer documentation outside skills
 
 Keep setup, test/build commands, code organization, and shared file-format
@@ -65,7 +88,7 @@ checked examples into `examples/prints/` for sharing.
 
 ## Setup and checks
 
-Use Node.js 22+ and Git. `npm ci` installs pinned rhino3dm, MCP SDK and Zod dependencies;
+Use Node.js 22+ and Git. `npm ci` installs pinned rhino3dm, Clipper, MCP SDK and Zod dependencies;
 no Rhino desktop installation or Compute server is needed for the wedge.
 
 `node_modules/` is the conventional installation folder for packages used by
@@ -104,13 +127,177 @@ printable. The subsequent Node tests check manufacturing software behavior.
 CI installs dependencies and runs the same tests. Synthetic approval tests use
 temporary bundles and never authorize the person's real print.
 
+## Slicing speed benchmarks
+
+`scripts/bench/slicing.mjs` is an opt-in development measurement harness over
+the existing geometry queries, full-fill, planar-infill, draped-skin, composer,
+machine checks, Griffin exporter and interpreter. It adds no product geometry
+type, approval route, toolpath viewer or manufacturing pipeline. Its twisted
+fixture is not yet a shape accepted by the public plan parser. It calls skill
+producers on prepared geometry; it does **not** time a complete public bundle
+generation or Studio load. Geometry construction/validation, section queries,
+roof queries, skill production, composition/checks and export/interpretation
+have separate measurements. The bounded wedge generator is not replaced.
+
+```sh
+node scripts/bench/slicing.mjs --out .local/slicing-bench --trials 3
+node scripts/bench/slicing.mjs --out .local/slicing-scale --fixtures twisted-box-large --targets 0.025 --modes full --trials 3
+node scripts/bench/slicing.mjs --out .local/slicing-fine --fixtures twisted-box --targets 0.00125 --modes full --trials 3
+node scripts/bench/slicing.mjs --out .local/slicing-rhino --fixtures twisted-box --targets none --stl path/to/export.stl --trials 3
+node scripts/bench/slicing.mjs --out .local/slicing-precision --fixtures twisted-box --targets 0.025 --native-mesh --trials 3
+node scripts/bench/diagnose-regions.mjs path/to/export.stl .local/slicing-diagnostics
+node scripts/bench/report.mjs .local/slicing-bench/measurements.md .local/slicing-bench/results.json .local/slicing-rhino/results.json
+```
+
+Use a fresh output directory for each experiment. Generated Rhino 6 `.3dm`
+files contain six named untrimmed surfaces in millimeters; join them in Rhino
+before exporting STL with the person's normal mesh settings. Keep the supplied
+STL unchanged. `--stl` expects that same fixture in millimeters at its original
+coordinates. It validates the mesh and checks sampled section topology and roof
+coverage; it reports deviations rather than silently registering or repairing
+the geometry. The external bytes and SHA-256 are saved in the ignored output.
+
+The control is a 24 mm cube. The main fixture has a 24 × 24 mm base, a 24 mm
+rim, a top rotated 45 degrees and a shallow bicubic roof reaching 24.9 mm.
+The four sides are ruled NURBS patches between the base and rotated roof edges:
+they form a waist, not a constant-width helical extrusion. The large fixture
+doubles all dimensions. All three use the same skill settings: 0.2 mm layers,
+0.4 mm line width and two walls. `full` fills the planar body at 100%; `planar`
+uses 20% rectilinear infill with three top/bottom solid layers; `draped` combines
+full-fill with two 0.2 mm skins at 0.5 mm survey/stroke sampling and the S5's
+15 degree limit. Cooling delay is zero in the benchmark. Draping uses the
+same planar support-height callback as shared generation. All results are
+software-only development data, with no approval or machine execution.
+
+Meshes use conforming UV grids over the same six patches, refined to sampled
+surface-to-triangle correspondence targets of 0.1, 0.025 and 0.005 mm by default.
+A second denser sampling grid verifies the chosen tessellation. This fixture
+mesher is neither Rhino's mesher nor a certified Hausdorff-error calculation.
+Independent comparisons include section topology, bidirectional sampled contour
+distance, section area, roof height and normals. Near-horizontal roof contours
+can move farther in XY than the surface error in XYZ. Matching triangle count
+alone does not establish equivalent shape or process output. The fine 0.00125 mm
+target stays within the existing 100000-triangle input limit; unsupported target
+sizes fail explicitly. `--native-mesh` adds the same triangles before binary
+STL float32 rounding to help distinguish meshing from import precision effects.
+
+For Cura 4.12, **Maximum Resolution** is a post-slicing segment-length setting,
+not an STL edge-length floor. The installed base definition has 0.5 mm maximum
+resolution and 0.025 mm maximum deviation; machine/material/quality settings
+can override these. The latter is only a reference error scale for the mesh
+test, not a declaration of equal slicer accuracy. See the
+[Cura 4.12 base definition](https://github.com/Ultimaker/Cura/blob/4.12/resources/definitions/fdmprinter.def.json)
+and [Rhino 6 meshing guidance](https://docs.mcneel.com/rhino/6mac/help/en-us/commands/mesh.htm).
+Rhino's maximum distance edge-to-surface is a meshing control, a different stage.
+
+Workers run serially, with a separately recorded first invocation and three
+warm repeats by default (median, minimum, maximum and raw samples). Preparation
+and query microbenchmarks are independent of the complete skill timing; do not
+add them to it. Output hashes check repeatability, while action/operation counts,
+deposited volume, skill reports and file sizes reveal unequal work. Failures
+carry their phase and stack and are never counted as fast slices. Record Node,
+CPU, memory, Git/dirty state, source hashes and exact STL hash. Do not run other
+CPU-heavy work during timing. These small samples establish local trends, not
+statistical significance across machines. Profiling runs should be separate
+from uninstrumented timing. Copy a saved `.job.json`, give it a separate result
+path and use Node's `--cpu-prof` on that worker to inspect hotspots without
+overwriting timed results. The optional diagnosis command intercepts an
+excessive region-index allocation in that process only and saves failing inputs;
+it is not a production safety fix.
+
+The initial 2026-09-09 run found slower direct spline queries but faster **planar
+full-fill** than the generated twisted meshes. The 24 mm spline took roughly
+0.34–0.40 s, versus 0.76 s / 2.10 s / 5.77 s for 768 / 3072 / 12288 triangles
+at the three mesh targets. The doubled fixture took 1.17 s for splines and
+14.13 s for its 12288-triangle 0.025 mm mesh. These are prepared-geometry skills
+plus composition/checks, excluding export and public workflow overhead. The
+mesh sections contain many more vertices, so downstream region work outweighs
+their cheaper intersections. Existing planar-infill/region-reservation failures
+prevent successful timings for several mesh combinations.
+
+At the finer 0.00125 mm mesh target (49152 triangles), full-fill took 22.26 s
+versus 0.39 s for splines in the same run. With the production planar-support
+callback included, the non-planar body+drape pass took 18.42 s for splines and
+5.00 s for the double-precision 3072-triangle mesh. The binary STL version
+failed region reservation. The successful drapes do not have identical coverage:
+faceted normals change the included skin area, so this is a backend diagnostic,
+not an equal-output speed claim. Earlier pilot drape data in local reports used
+the skill's default support callback and is superseded by `slicing-drape-final`.
+
+The user's normal Rhino export has 1078 triangles. It passes mesh validation
+and query checks but exposes a full-fill outward-offset/index blow-up at Z=12.2
+mm and a solid-mask intersection failure between Z=0.2 and Z=0.4 mm. Do not
+treat its failed generation as a speed measurement or disable checks to make
+the comparison succeed. The user's Cura 4.12 report is 14 s to load and 2.3 s
+to slice, two walls and 100% infill; the load boundary and layer height were
+not specified. Record load and slice separately, and compare only planar full
+fill with Cura. Non-planar measurements compare SAAM backends only.
+
+Prioritize bounded/robust offset and boolean processing, then an explicit
+error-bounded contour simplification experiment, indexed mesh Z/XY queries and
+redundant spline height-solve diagnostics. Keep native spline input while testing
+these shared-interface improvements. A language/runtime rewrite or forced mesh
+conversion is not justified by these measurements. Measure public bundle
+load/check/generate separately next, then repeat matched planar tests in Cura
+and Bambu Studio with saved profiles, exact versions, thread counts and repeated
+timings. No architecture decision or contributor approval is recorded by this
+benchmark.
+
+## Studio performance and display detail
+
+The shared bundle workflow retains its latest verified program in memory per
+adapter. Reuse requires the current plan/machine/geometry/runtime identity and
+the hashes of the actual SAAMpath and export bytes. Review/approval records,
+geometry validation and source-file checks still run on each load. A cache miss
+performs the existing regeneration, canonical path comparison, export comparison
+and interpretation. Generation seeds the cache after its round-trip checks and
+saves complete. Returned programs and summaries are copies. The cache is neither
+a persisted approval nor permission to trust edited review hashes; a process
+restart or eviction requires verification again. Delivery still reads and hashes
+the exact reviewed export. Shell, wedge, Griffin, H2D and Dobot use this lifecycle.
+
+Studio computes bounds/layout/camera transforms once per frame and coalesces
+redraw requests. It preserves segment order, colour and transparency. The
+toolpath viewer has a **40,000 drawn-endpoint budget** (two endpoints per line,
+including reserved space for the active move); this is a drawing budget, not an
+input/file limit or a manufacturing-path simplification. Geometry proxy and
+camera decorations are separate. Full interpreted moves remain available for
+playback timing, nozzle position, checks and export.
+
+Below the budget, the viewer draws the original segments. Above it,
+`studio/toolpath-view.mjs` simplifies only continuous same-operation strokes
+within one phase/layer, with 0.02 mm chord deviation. It retains bends exceeding
+that tolerance and never joins across travel/extrusion or operation boundaries.
+If that is insufficient, it keeps representative whole layers, preferentially
+retaining the latest layer. A single oversized layer gets a detailed window at
+playback, preference for walls/non-planar moves and distributed older samples.
+Omitted edges remain omitted, never connected into invented extrusion. Studio
+labels simplified curves or a layer overview; detail follows the playback
+position. This overview does not show every older segment simultaneously.
+
+The initial browser cap sweep used 23,953 and 383,248 interpreted moves, with
+10k, 20k, 40k, 80k and 160k endpoint budgets and 15 camera frames per case.
+At 40k the larger repeated-path stress fixture drew 21,446 endpoints in about
+2.9 ms median / 4.9 ms maximum in the isolated canvas loop; whole-layer selection
+can leave the budget partly unused. Its initial detail preparation was about
+148 ms. The 160k budget drew 84,694 endpoints in 10.4 / 12.9 ms. The 40k default
+leaves room for Studio's other frame work and slower hardware; it is a local
+empirical default, not a universal frame-rate guarantee. Raw local results are
+in `.local/studio-fast/cap-results.json`; the original Studio baseline is in
+`.local/studio-bench/findings.md`. Keep browser drawing measurements distinct
+from server generation, cold verification, JSON transfer and UI-ready time.
+
 ## Local MCP access
 
 [The MCP adapter](adapters/mcp/README.md) provides stdio tools for a compatible
 local chat client. Launch `node adapters/mcp/src/server.mjs` from the client's
 configuration; its README gives an absolute-path example and environment options.
-No client configuration is edited automatically. This is local access to this
-development checkout, not an arbitrary browser-chat or hosted connector.
+No client configuration is edited automatically. The stdio entry point accesses
+this development checkout from a local client. For a web chat, the adapter's
+[temporary connection](adapters/mcp/README.md#temporary-web-chat-connection)
+adds OAuth-protected Streamable HTTP and an outbound HTTPS tunnel. Studio and
+generation stay local; vendor-account connection checks remain separate from
+SDK integration tests. A packaged application remains a future direction.
 
 The adapter reads fixed known machine IDs and skill manuals, creates and reopens
 named Prints bundles, applies revision-checked chat adjustments, checks current
@@ -126,6 +313,15 @@ Automatic discovery and extensible registration are deferred by
 or manual is not proof that the selected geometry, settings and output will pass.
 `core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
 bundles and synthetic approval fixtures outside the adapter protocol.
+
+`npm run web-chat -- --cloudflared /path/to/cloudflared` starts the temporary
+connection. `adapters/mcp/src/http.mjs` forwards SDK HTTP requests over an
+in-memory transport to one existing adapter; it owns no manufacturing schema or
+approval route. `dev-oauth.mjs` adds single-installation pairing to the SDK's
+OAuth routes. `web-chat.mjs` owns the tunnel and ignored connection file.
+`core/tests/mcp-http.test.mjs` exercises the HTTP/OAuth boundary and shared
+workflow with synthetic approvals. See the adapter README for startup, security,
+timeouts and same-computer review limits.
 
 ## Web-agent runtime probe
 
@@ -386,18 +582,20 @@ close raises rather than returning a part with a gap in it.
 
 ### Layer regions and several solids
 
-`core/region/` does the planar work: inward offsets for perimeters (offset,
-prune against the true distance field, split at self-intersections, then verify
-every emitted point keeps its standoff), scanline fill, and boolean union,
-intersection and difference.
+`core/region/` does the planar work: shared Clipper offsets for perimeters and
+coverage, scanline fill, and shared Clipper2 region boolean operations.
+The previous raw-offset, distance-pruning and handwritten self-splitting
+implementation has been removed. See [shared offsets](#shared-offset-functions).
 
 Booleans are how several solids are meant to combine: section each solid on its
 own and combine the layers, rather than building a boolean B-rep. A slicer only
 needs the result one layer at a time, so surface-surface intersection curves and
 tolerance-consistent shell stitching are never posed. The same operation
 reserves material under a top surface, by intersecting a section with the level
-set of the reserve height. Coincident collinear boundaries are not supported
-input.
+set of the reserve height. The [shared planar intersection tool](#shared-planar-intersections)
+replaces the handwritten region booleans and resolves the recorded Rhino STL
+solid-mask failure. Sectioning and sampled level-set extraction remain separate
+constructions; this is not a general curve/surface intersection engine.
 
 The region layer is implemented and tested. Assemblies now select separate
 components for fill instances and a roof for draping. Automatic solid union and
@@ -406,11 +604,11 @@ overlap resolution in a plan remain deferred; an assembly is not a boolean union
 ### Travel planning
 
 `core/path/builder.mjs` classifies each move as joined, combed or hopped.
-The composer sets whole-plan clearance; local callbacks decide direct/combed
+The shared PathBuilder tracks deposited height; local callbacks decide direct/combed
 eligibility. See [travel requirements](#whole-plan-travel-requirement). Fill
 strokes alternate their direction to keep neighbouring endpoints close. The wedge
-uses its own bounded travel policy: nearby starts stay down, while longer moves
-lift to the part maximum plus clearance. Both use the shared export and checks.
+retains its bounded nearby-start policy through the same PathBuilder; longer
+moves lift above material deposited so far. Both use the shared export and checks.
 
 ### Print bundle and review
 
@@ -472,6 +670,16 @@ quality, or that any part prints.
 
 ## Interoperability and one workflow
 
+**Scope shared components to demonstrated needs.** Build the smallest shared
+interface that serves current callers and the authorized task. Identify those
+callers, their inputs, required operations and result semantics before adopting
+a library. An upstream library's broader capabilities are not a SAAM feature
+list: do not pre-build unused geometry types, operations, options, backends or
+extension frameworks. Extend the same component when a concrete new need arises,
+and add the corresponding interoperability tests then. Keep established upstream
+numerical machinery intact behind a narrow adapter; minimizing our integration
+does not mean cutting out robustness logic or maintaining a speculative fork.
+
 Prefer one shared pipeline with narrow adapters. Introduce a parallel pipeline
 only when it is genuinely necessary; normally explain why a shared extension
 cannot serve the need and ask the user before building it. Authorization already
@@ -506,6 +714,225 @@ downstream regions, composition, SAAMpath, export and review; neither is a reaso
 for another complete pipeline. Both backends now use the shared geometry-query interface described below.
 
 ## Geometry interoperability for skill authors
+
+### Shared numerical foundations
+
+Aspire to **numerically robust, established algorithms with measured performance**.
+Prefer a pinned, attributable upstream implementation behind one shared SAAM
+interface over handwritten approximations or skill-local copies. Preserve the
+upstream topology logic, tolerance semantics and required preconditions; an
+algorithm's reputation does not automatically transfer to a port or adaptation.
+Record source/version, intentional adaptations, supported geometry, precision,
+reference comparisons, known failures and measured cost. Claims such as
+"proven", "reliable" or "fast" must state the scope and supporting evidence.
+
+All skills must call the shared functions when offsetting or intersecting.
+Extend the shared interface when a capability is missing; do not add an inline
+copy, fallback kernel or private tolerance variant. Geometry-specific algorithms
+can live behind the same boundary with explicit capabilities and limitations.
+This aspiration applies to numerical geometry and toolpath operations generally,
+not just the two offset functions. It does not authorize replacing unrelated
+algorithms or selecting a new general intersection engine.
+
+Use source comparisons, adversarial fixtures, convergence tests and benchmarks
+in development. Keep those expensive comparisons out of the production hot path.
+Runtime checks must earn their cost under [the existing guidance](#checks-must-earn-their-place).
+Numerical integration/subdivision needed to construct a result to its requested
+tolerance is algorithm work; an additional independent verification pass needs
+its own justification. Preserve parameter/point correspondence and cache useful
+evaluations instead of repeatedly flattening and inverse-projecting geometry.
+
+### Shared offset functions
+
+**Planar:** [offsetRegion](core/region/offset.mjs) accepts closed 2D loops in mm
+and a signed distance: positive expands material, negative erodes it. Pass the
+whole region together, including CCW outer/island loops and CW holes. Nonzero
+winding determines material; loop order and seams do not assign ownership.
+The old `region2d.mjs` export is an alias to this exact function. Full-fill,
+planar-infill, draped-skin, vase-wall, shared rim coverage/travel and the bounded
+wedge all use it. The wedge retains its eight-point section generator and nearby-travel
+policy; only its independent boundary insets were replaced. Draped-skin retains
+its existing XY footprint inset, not an unrequested geodesic-spacing change.
+
+The [adapter](core/region/clipper.mjs) uses pinned `clipper-lib@6.4.2` (internal
+JS version `6.4.2.2`), a port of the Clipper 6.4.2 kernel included in the user's
+`ClipperComponents 0.3.2.0` reference. Reuse includes `ClipperOffset` construction,
+orientation handling, winding/union cleanup and `PolyTree` topology. Clipper2
+was not substituted. SAAM's adapter selects **closed material polygons**, not
+the Grasshopper wrapper's closed-line stroke/band mode. This is an intentional
+interface difference: an inset must yield the remaining material, not a stroke
+on both sides of each boundary. It normalizes inputs and splits point-touching
+output lobes using Clipper's `StrictlySimple` union. This additional construction
+step fixes observed C#/JS differences in grouping touching loops and prevents
+component-aware fill from treating them as one self-touching boundary.
+
+Options are `join: 'round' | 'square' | 'miter'` (round by default),
+`miterLimit: 2`, `arcToleranceMm: 0.02` and `precisionMm: 1e-9`. Arc tolerance
+is the upstream polygonal approximation target. Integer precision is distinct
+from surface/section chord tolerance. A deterministic local origin reduces
+coordinate magnitude; range checks leave headroom for bounded miters. Invalid
+numbers/options or excessive range raise; genuine collapse returns `[]`.
+There is no per-point standoff sweep or arbitrary small-area pruning in the
+new offset. Reference tests account for integer quantization. Skill authors
+must not import Clipper directly. General `intersect`/`difference`/`union` use
+the [Clipper2 tool](#shared-planar-intersections), re-exported from
+`core/region/boolean.mjs`. Clipper 6's
+internal clipping needed for offset cleanup is part of the adopted offset.
+
+**Surface, experimental:** [offsetSurfaceRegion](core/region/surface-offset.mjs)
+takes `(patch, loopsUv, deltaMm, options)` and returns `{loopsUv, loops, report}`;
+`loops` holds corresponding XYZ points. It constructs geodesic boundary strips
+and round corner sectors using native NURBS first/second derivatives and an
+adaptive Runge-Kutta integrator. Clipper's actual union/difference and winding
+implementation combines the swept bands with the source material and resolves
+holes, nesting and collapse. The distance construction is **new SAAM code**,
+not copied Rhino source. RhinoCommon's public `OffsetOnSurface` wrapper calls
+a native modelling routine whose implementation is not in the public source.
+No Rhino output fixture has been supplied or run; do not claim Rhino equivalence.
+
+The surface function retains UV throughout and caches surface evaluations; it
+performs **zero inverse mappings** and no global flatten/warp round trips.
+Constructing new points and emitting XYZ still requires surface evaluation.
+Scope is closed UV polyline regions on **one regular, injective C2 NURBS patch**,
+with the required offset-side sweeps remaining inside its domain. Low-degree
+single-span planes/cylinders are supported too. Poles, singular tangents,
+internal knots below C2 continuity and domain escape raise. Trimmed/multiple
+patches, periodic seams, folded parameterizations and mesh-surface offsets are
+not implemented. Large offsets reaching geodesic caustics/cut loci and arbitrary
+high-curvature surfaces are not validated; no general global distance-error
+guarantee is claimed. This function is available for development, with no current
+skill silently switched to it and no new maker geometry/plan/approval route.
+
+Options: `toleranceMm: 0.01` (local integration/chord target, not a certified
+global error bound), `maxStepMm: 0.5`, `precisionUv: 1e-10`,
+`maxEvaluations: 250000`. The report gives actual evaluation/integration and
+subdivision counts, the budget, and experimental status. Budget exhaustion
+identifies the setting to raise and returns no partial result. The caller must
+provide valid patch geometry and the stated chart preconditions; there is no
+expensive whole-surface injectivity or clearance validation in each call.
+
+Development checks compare 90 nested/neck/star/island/collapse cases, inward and
+outward with all three joins, against the plugin's **unmodified C# 6.4.2 kernel**.
+With identical material-region normalization and simple-loop cleanup, the JS
+port matches every output coordinate and loop exactly. The checked fixture
+contains source hash and provenance. Surface checks cover flat nesting/collapse,
+an inclined plane with rescaled UV, an independently unrolled rational cylinder,
+and refinement of nested regions on a doubly curved quadratic surface. These
+are software tests, not universal correctness or physical print validation.
+
+```sh
+node --test core/tests/offset.test.mjs core/tests/surface-offset.test.mjs
+node scripts/bench/offsets.mjs > .local/offset-timings.json
+```
+
+To regenerate the independent reference, download the plugin's `ClipperTools/clipper.cs`
+into ignored `.local/offset-reference/clipper.cs` (SHA-256
+`697a4d31d33642a41705e46247873a34694632cd180de46c00deb97fe7278f4f`).
+Write `offsetFixtures` from `scripts/bench/offset-fixtures.mjs` as JSON to
+`.local/offset-reference/inputs.json`. With .NET 8 SDK, build
+`scripts/bench/clipper-reference.csproj` using `--artifacts-path .local/offset-reference/artifacts`,
+then run its executable with that input and save stdout as
+`.local/offset-reference/expected.json`. Run
+`node scripts/bench/check-clipper-reference.mjs .local/offset-reference/expected.json --record`.
+Normal `npm ci`/`npm test` needs neither .NET, a network fetch nor Rhino desktop.
+Source URLs: [plugin](https://github.com/arendvw/clipper),
+[JavaScript port](https://github.com/junmer/clipper-lib),
+[Rhino wrapper](https://github.com/mcneel/rhino3dm/blob/main/src/dotnet/opennurbs/opennurbs_curve.cs).
+The dependency carries its upstream Boost license and JS support-code notices.
+
+Initial isolated Windows/Node 24 measurements: about **0.67 ms** warm median for
+the 16-vertex nested planar case, **35 ms** for all 90 planar cases, and **18 ms**
+for the four-vertex cylinder offset at 0.005 mm tolerance (1287 evaluations,
+zero inverse mappings). The runner reports cold time, three warm samples,
+source/output hashes and usage. These small fixtures establish local costs,
+not a general speed ranking; complex surface offsets remain more expensive.
+The original Rhino STL now passes all full-fill layers in the offset diagnostic;
+its separate solid-mask intersection failure was subsequently resolved by the
+shared Clipper2 tool below.
+
+### Shared planar intersections
+
+[intersect, union and difference](core/region/intersection.mjs) take two closed
+2D material regions in millimeters and return closed loops. Current callers need
+layer masks, wall/interior coverage and material reservation. Outer/island loops
+are CCW, holes CW, with nonzero winding; overlapping material is counted once.
+Empty material is `[]`; boundary-only point/edge contact has no material area.
+There are no open paths, XOR, contact-event API, UV surface adapter, mesh booleans,
+NURBS intersections or backend-selection framework. The user selected Clipper2
+first; consider CGAL only if tests show an unmet requirement.
+
+The adapter uses pinned `clipper2-wasm@0.4.0`, C++ Clipper2 2.0.1 compiled to
+WebAssembly, with upstream `Clipper64`, `NonZero`, `PreserveCollinear=false`.
+Intersection, winding and topology construction stay intact. Unused upstream
+functions are not exposed by SAAM; the packaged Z build uses zero/unused Z.
+Module initialization occurs once on import; operations remain synchronous.
+Allocated WASM objects are released on success/failure. Normal installation and
+tests need no compiler or Rhino desktop; operations need no network at runtime.
+
+Conversion shares the offset adapter's local origin/grid and canonical ordering,
+using one origin for both operands. `precisionMm` defaults to `1e-9`; the range
+bound is less than `2^50` grid units. Invalid numbers, non-2D points, invalid
+precision or excessive spans raise. Kernel failure raises without partial output.
+The booleans have no epsilon midpoint classifier, handwritten intersection
+construction, endpoint stitching or small-area pruning. Integer rounding still
+allows sub-grid features to collapse; JS decoding cannot recover precision lost
+in the inputs. This is a precision-grid contract, not exact arithmetic or a
+guarantee about unsampled spline/mesh detail.
+
+Existing imports through [boolean.mjs](core/region/boolean.mjs) alias this tool:
+full-fill, planar-infill, draped reservations and regional composition, including
+vase/cap transitions. Mesh/spline sectioning, sampled level sets, Clipper 6 offsets
+and experimental surface-offset cleanup retain their separate current scope.
+Full-fill's bead-coverage expansion uses the existing 0.001 mm `TOLERANCE.chord`
+arc target. Former 0.02 mm chords left four artificial corner gaps totaling
+about 0.000252 mm² in a rectangular solid top, hidden by the old boolean's area
+pruning. Tighter construction resolves those gaps without deleting material or
+changing deposition strokes. Runtime identity hashes exact JS/WASM bytes.
+
+Tests include the captured 60-vertex STL failure, analytic nesting, contacts,
+slivers, nearly parallel crossings through coincidence, translation/scaling,
+repeated operations and 200 seeded rectangle-set cases checked by independent
+cell classification. Another 138 star/nesting/contact/sliver/STL cases match the
+unmodified upstream C# results exactly in coordinates and topology. Agreement
+checks integration; it is not an independent proof of the upstream algorithm.
+The original 1078-triangle STL passes every offset/solid-mask diagnostic layer.
+
+```sh
+node --test core/tests/intersection.test.mjs
+node scripts/bench/intersections.mjs
+node scripts/bench/diagnose-regions.mjs .local/slicing-rhino/rhino-standard.stl .local/intersection-diagnostics
+```
+
+Reference provenance: [WASM source](https://github.com/ErikSom/Clipper2-WASM/tree/3c244f3edd0adae6c851460fc409c15f3d235395),
+[Clipper2 source](https://github.com/AngusJohnson/Clipper2/tree/642390d0d515cfb645d2ec4d95d218e28be645f4),
+Boost Software License 1.0. Installed WASM SHA-256:
+`429e866b4d7813cabfa7d31e6650825343109fb7d7a1702c533e8597573449ec`.
+To regenerate the saved reference, fetch that Clipper2 revision into ignored
+`.local/intersection-native-reference`, then use .NET 8:
+
+```sh
+node scripts/bench/intersections.mjs --inputs .local/intersection-inputs.json
+dotnet build scripts/bench/intersection-reference.csproj --artifacts-path .local/intersection-reference-artifacts
+dotnet .local/intersection-reference-artifacts/bin/intersection-reference/debug/intersection-reference.dll .local/intersection-inputs.json > .local/intersection-reference-output.json
+node scripts/bench/intersections.mjs --reference .local/intersection-reference-output.json --record
+```
+
+An initial Windows/Node 24 run took about 15 ms to import/initialize the adapter,
+27 ms for the first 138-case batch and 9.3 ms warm median over seven repeats.
+The benchmark records CPU, Node, samples and source/output hashes. These are
+local software measurements, not universal speed or physical-print claims.
+
+The follow-up twisted-fixture run passes full-fill, planar-infill and draped
+generation/export/interpretation for both native splines and the user's original
+Rhino STL. Prepared-geometry warm median slice times were approximately
+0.35/0.61/17.82 s for spline full/planar/draped and 1.17/1.34/2.02 s for that STL,
+three repeats per mode. Different draped coverage remains a backend limitation,
+so these are not equal-output surface-speed claims. Results are ignored local
+data in `.local/intersection-slicing/`. The public STL import/adjust/development
+generation workflow also passes all three modes; a cold CLI reopen verifies the
+last export. No job approval or physical validation was performed.
+
+### Geometry query boundary
 
 `core/geom/query.mjs` is the skill-facing boundary: `sectionGeometry`, `topAt`
 and `sampleTopSurface`, with conservative bounds on the geometry object. It
@@ -555,21 +982,32 @@ mesh validation, scanline fill, export and review.
 
 ## Whole-plan travel requirement
 
-The shared composer computes a conservative height from all operation strokes
-and the entire placed plan's geometry bounds, including later or unselected
-components. Lifted traverses clear it by the locked `liftMm`; cooling uses the
-same bound. Traverses never start below either endpoint. Final parking clears
-the plan. Required clearance above the selected tool's Z bounds is rejected.
-Single-skill compatibility helpers supply their geometry bounds to the same
-composer; compose all results together for a multi-skill process plan.
+`PathBuilder.travelTo` is the shared travel method for full-fill, planar-infill,
+draped-skin, vase-wall and the bounded wedge. The builder updates the highest
+deposited Z from both endpoints of every emitted positive-volume segment,
+including prime lines, sloping strokes and previous components. Travel without
+deposition never raises this material height. The initial material height is
+bed Z=0; pre-existing objects or fixtures are not modeled.
+
+Lifted traverses use `max(depositedMaxZ + process.liftMm, fromZ, toZ)`.
+`liftMm` is clearance in millimeters: **1 mm by default, with zero allowed**.
+Future strokes and unselected geometry do not raise current travel. The endpoint
+floor avoids descending before traversing from a higher startup/park position or
+toward a higher destination. Cooling and final SAAMpath parking use the same
+height calculation. Required clearance above the selected tool's Z bounds is
+rejected. Existing recipes retain their explicit locked clearance value.
+Compose all results together so one builder carries chronology across skills;
+the wedge retains its bounded eight-point generator and delegates motion to it.
+Machine firmware service routines (including H2D shutdown) retain their separate
+export contracts; they are not ordinary SAAMpath travel.
 
 Nearest wall starts, alternating infill and verified combing reduce travel.
 Planar combing checks boundary crossings and standoff, then can route around
 holes via a bounded visibility graph (256 offset corners, `maxCombMm` route
 length); otherwise it hops. Earlier operation queries can forbid combing.
 Drape retains its own local surface query for direct moves. These conservative
-policies are not a full swept-head collision or support model. Wedge's bounded
-nearby/direct and full-part-height policy remains unchanged.
+policies are not a full swept-head collision or support model. The wedge retains
+its bounded nearby/direct policy; its lifts use the shared deposited height.
 
 ## Planar-infill design
 
@@ -642,7 +1080,9 @@ a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
 `rank` for default ordering, and `after` dependencies. Rank is a scheduling
 coordinate, not universally Z: planar fill uses layer height. Operations also
 provide strokes (3D points, speed, role, and either uniform bead area or per-segment
-volume/metadata), travel-policy queries, and a cooling clearance. An operation is
+volume/metadata) and travel-policy queries. Existing `clearanceFor` queries
+constrain combing against previous operations; legacy operation `clearanceZ`
+metadata does not set lifted travel or cooling height. An operation is
 atomic; expose smaller operations when within-layer interleaving is permitted.
 These runtime results are not separate machine files or a persisted preview
 format. Travel policies may contain geometry-query callbacks.
@@ -659,8 +1099,8 @@ generation executes the locked rules without a new planning or approval stage.
 
 One PathBuilder owns the resulting travel/retraction state, and the composer
 finishes cooling once after all operations assigned to a shared layer. Hops
-account conservatively for previous operations' clearance queries, including
-travel from a taller batched column toward a lower one. This is not a full
+clear all material deposited so far, including travel from a taller batched
+column toward a lower one. This is not a full
 collision or swept-head model. Results must describe compatible regions and
 material ownership; the composer does not infer arbitrary geometric overlap, support,
 bridge printability or a safe order from arbitrary strokes alone.
@@ -689,14 +1129,15 @@ a spiral rim or complete a level rim with a final turn whose material thickness
 tapers to zero. A planar successor needs that level boundary. The continuous
 stroke cannot weave turn by turn with infill occupying the same height band;
 different regions of the same part can use the other skills. The manual owns
-standoff, sampling, bead overlap and point-budget limits.
+standoff, sampling and point-budget limits. Turn-to-turn bead overlap is a
+geometry/process judgment for the agent and maker, not a generation gate.
 
 ### Material regions and shared interfaces
 
 `composition.regions` assigns skills to regions of native geometry. An empty
 array retains the original whole-component recipe. Each assignment carries
 `id`, `part` (null for a single component), `zStartMm`, nullable `zEndMm`,
-`skills`, `supportPolicy` and nullable `lowerSurfaceFrom`. Heights are relative
+`skills` and nullable `lowerSurfaceFrom`. Heights are relative
 to the component's minimum Z. The skill map selects the skills and holds partial
 setting overrides; it resolves against the other settings locked in that plan.
 It supersedes global enabled flags. Regions own selection and height bounds;
@@ -706,10 +1147,13 @@ overrides cannot independently change those fields.
 generators. Full-fill can own separate base and cap regions; planar-infill and
 full-fill solid-surfaces can share complementary material in another region.
 Assignments retain their component layer grid and dependencies. Conflicting
-ownership, gaps in required support, unknown references and cycles are rejected.
-An explicit `bridge-experimental` support policy permits the planned transition
-over hollow or sparse material; it is recorded in Studio and is not a bridge
-optimizer or evidence that a physical span will print.
+ownership, unassigned height boundaries, unknown references and cycles are rejected.
+Bridging over hollow or sparse material is a process choice assessed in the
+recipe and Studio, without a permission flag or automated span-support gate.
+The retired `supportPolicy` field is accepted but ignored in older recipes;
+new recipes omit it. Where a drape crosses a void, its initial volume uses the
+assigned supporting components' layer grid, as in whole-component composition;
+this is a bead-volume approximation, not a claim of deposited material in the void.
 
 `lowerSurfaceFrom` consumes a preceding region's published material top. It can
 bound horizontal full fill above a nonflat draped surface without changing those
@@ -734,7 +1178,7 @@ exercises base, vase wall, cap, sparse/solid body, wavy draped roof, and horizon
 full fill above the roof through the shared pipeline. Regional settings, surface
 references and runtime helpers participate in the existing approval hashes;
 they introduce no new approval or artifact format. Studio shows effective regional
-settings and support choices. Tests and fixture calibration never authorize hardware.
+settings and surface references. Tests and fixture calibration never authorize hardware.
 
 ## Machine program templates and S5 observations
 
@@ -1000,9 +1444,8 @@ The composer owns chronology and calls one machine-motion interface for joins,
 travels, cooling and parking. Collision queries answer whether a candidate
 motion clears the scene; a planner searches alternative motions using those
 queries. Start by checking/reporting; automatic travel repair comes afterward.
-Deposition is checked too, not just non-extruding travel. Existing wedge travel
-remains its documented bounded policy until a separate change adopts the shared
-planner; it can still feed the common validator.
+Deposition is checked too, not just non-extruding travel. The wedge already uses the shared XYZ travel builder with its documented
+bounded direct-move policy; general collision queries remain proposed.
 
 The approved process plan locks clearance margins, allowed contact, orientation
 freedom, motion limits, planner/version, search budget and any seed, and permitted

@@ -2,7 +2,8 @@
 // the native geometry and one shared operation/dependency/approval pipeline.
 import {requireThat} from '../geom/tolerance.mjs';
 import {sectionGeometry,topAt} from '../geom/query.mjs';
-import {pointInRegion,pointSegmentDistance,offsetRegion,regionArea} from '../region/region2d.mjs';
+import {pointInRegion,pointSegmentDistance,regionArea} from '../region/region2d.mjs';
+import {offsetRegion} from '../region/offset.mjs';
 import {difference,union,intersect} from '../region/boolean.mjs';
 import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
@@ -19,7 +20,7 @@ const planarLayers=results=>results.flatMap(r=>r.operations).filter(op=>op.regio
 // Shared lattice support query, including translated components and deliberately
 // separate supporting columns. A bridge uses the declared underlying lattice;
 // it does not invent a deposited material surface in the intervening void.
-export function planarSupportTopAt(supports,process,{allowBridge=false}={}) {
+export function planarSupportTopAt(supports,process) {
   const sampledSupports=supports.map(support=>({...support,
     layers:support.results?planarLayers(support.results).sort((a,b)=>b.z-a.z):null}));
   return (x,y,ceiling)=>{
@@ -35,7 +36,7 @@ export function planarSupportTopAt(supports,process,{allowBridge=false}={}) {
       if(z<=ceiling+1e-8&&z>(support.start??support.shell.bounds.min[2])+1e-8)candidates.push(z);
     }
     if(candidates.length)return Math.max(...candidates);
-    requireThat(allowBridge&&supports.length,'No assigned material supports this surface; a compatible supporting region or explicit experimental bridge is required.');
+    requireThat(supports.length,'No supporting region supplies a layer grid for this surface.');
     const origin=Math.min(...supports.map(s=>s.shell.bounds.min[2]));
     return bodyTopAt(ceiling,process,origin);
   };
@@ -135,14 +136,12 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     const lowerSurface=assignment.lowerSurfaceFrom?byId.get(assignment.lowerSurfaceFrom).surface:null;
     if(assignment.lowerSurfaceFrom) {
       requireThat(lowerSurface,'The referenced region does not publish a consumable material top; finish its boundary transition first.');
-      requireThat(lowerSurface.kind==='area'||assignment.supportPolicy==='bridge-experimental','The lower surface has rim or sparse support; an explicit experimental bridge policy is required.');
       const minimum=lowerSurface.field.values.reduce((best,row)=>row.reduce((min,z)=>Math.min(min,z),best),Infinity);
       requireThat(start<=minimum+1e-6,'Consumer start skips material above the lower surface; start at or below its minimum height.');
     }
     if(start>shell.bounds.min[2]+1e-8&&!lowerSurface)requireThat(touching.length,'Region starts above unassigned material; assign its supporting region or consume a published lower surface.');
     for(const previous of touching)if(has(previous,'vase-wall')) {
-      requireThat(previous.plan.skills['vase-wall'].endTransition==='level','A following region needs a level vase ending transition, not a sloped spiral rim.');
-      if(planar(record)||has(record,'draped-skin'))requireThat(assignment.supportPolicy==='bridge-experimental','The interior above a hollow wall needs an explicit experimental bridge support policy.');
+      requireThat(previous.plan.skills['vase-wall'].endTransition==='level',`Region ${assignment.id} needs a level vase ending at its flat boundary; set region ${previous.assignment.id}'s vase-wall endTransition to level in the proposed recipe.`);
     }
     if(planar(record)||has(record,'vase-wall')) {
       const relative=start-shell.bounds.min[2],index=(relative-plan.process.firstLayerMm)/plan.process.layerMm;
@@ -156,12 +155,8 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,lowerSurface}));
     if(has(record,'vase-wall')) {
       requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
-      const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end});
-      if(touching.length&&assignment.supportPolicy!=='bridge-experimental') {
-        const ring=result.operations[0].strokes[0].points.filter(point=>Math.abs(point[2]-result.report.startMm)<1e-8);
-        requireThat(ring.every(point=>touching.some(previous=>previous.surface&&covered(point[0],point[1],previous.surface.solidFootprint))),
-          'The preceding material does not support the complete vase foundation ring; assign a covering solid/wall boundary or an explicit experimental bridge policy.');
-      }
+      const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,
+        budgetSetting:`composition.regions[${plan.composition.regions.indexOf(assignment)}].skills.vase-wall.maxPoints (region ${assignment.id})`});
       record.results.push(result);
     }
     if(has(record,'draped-skin')) {
@@ -169,7 +164,7 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
       const supportTopAt=lowerSurface?((x,y,ceiling)=>{
         const value=lowerSurface.topAt(x,y),z=typeof value==='number'?value:value?.zMm;
         requireThat(Number.isFinite(z)&&z<=ceiling+1e-8,'Drape lower surface exceeds its reserved material boundary.');return z;
-      }):planarSupportTopAt(supports,plan.process,{allowBridge:assignment.supportPolicy==='bridge-experimental'});
+      }):planarSupportTopAt(supports,plan.process);
       const skin=drapedSkinResult({shell,plan:localPlan,machine,survey:record.survey,id:prefix+':draped-skin',after:ids(record.results),supportTopAt});
       for(const op of skin.operations)for(const stroke of op.strokes)for(const point of stroke.points)
         requireThat(point[2]>start-1e-8&&point[2]<=end+1e-8,'Draped roof lies outside its assigned region; extend the region to include the actual roof and skin stack.');
@@ -180,9 +175,8 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     for(const result of record.results)for(const op of result.operations){op.regionId=assignment.id;op.after=[...new Set([...(op.after??[]),...prerequisiteIds])];}
     record.surface=publishSurface(record,record.results);results.push(...record.results);ordered.push(record);completed.add(assignment.id);
     summaries.push({id:assignment.id,part:assignment.part,zStartMm:assignment.zStartMm,zEndMm:assignment.zEndMm,startMm:start,endMm:end,
-      skills:Object.keys(assignment.skills),supportPolicy:assignment.supportPolicy,lowerSurfaceFrom:assignment.lowerSurfaceFrom,
-      publishedSurface:record.surface?.kind??null,operationIds:ids(record.results),
-      supportAssessment:assignment.supportPolicy==='bridge-experimental'?'Unsupported spans accepted experimentally; bridging and physical support are not validated.':'Assigned material boundary checks; bead/support geometry remains approximate.'});
+      skills:Object.keys(assignment.skills),lowerSurfaceFrom:assignment.lowerSurfaceFrom,
+      publishedSurface:record.surface?.kind??null,operationIds:ids(record.results)});
   }
   const full=results.filter(r=>r.id.includes(':full-fill')||r.id.endsWith(':solid')),sparse=results.filter(r=>r.id.endsWith(':planar-infill')),vases=results.filter(r=>r.id.endsWith(':vase-wall')),skins=results.filter(r=>r.id.endsWith(':draped-skin'));
   const aggregate=items=>Object.fromEntries([...new Set(items.flatMap(r=>Object.keys(r.report)))].filter(key=>items.every(r=>r.report[key]===undefined||typeof r.report[key]==='number')).map(key=>[key,items.reduce((sum,r)=>sum+(r.report[key]??0),0)]));

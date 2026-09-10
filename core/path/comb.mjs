@@ -1,4 +1,5 @@
-import {pointInRegion,pointSegmentDistance,segmentIntersection,offsetRegion} from '../region/region2d.mjs';
+import {pointInRegion,pointSegmentDistance,segmentIntersection} from '../region/region2d.mjs';
+import {offsetRegion} from '../region/offset.mjs';
 const span=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 export function combSegment(a,b,policy) {
   const loops=policy.combRegion,clear=policy.combClearanceMm??0;

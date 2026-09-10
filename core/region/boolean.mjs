@@ -1,64 +1,13 @@
-// Boolean operations on planar regions.
-//
-// This is where several solids meet: rather than building a boolean B-rep, each
-// solid is sectioned on its own and the layers are combined here. A slicer only
-// ever needs the result one layer at a time, so the hard 3D problem - surface
-// intersection curves and tolerance-consistent shell stitching - never has to
-// be posed. The same operation reserves material under a top surface, by
-// intersecting a section with the level set of the reserve height.
-//
-// Method: split every loop of A where it crosses a loop of B (and the reverse),
-// classify each resulting piece by whether its midpoint lies inside the other
-// region, keep the pieces the operation calls for, and chain them back into
-// closed loops.
-//
-// Coincident/collinear edges are split into an arrangement and classified on
-// both sides, so repeated section boundaries do not need artificial nudges.
+// Compatibility entry for planar booleans and the existing sampled level sets.
+// Every region boolean uses the shared Clipper2 implementation. Level-set
+// extraction below is a separate construction and retains its current scope.
 
 import { TOLERANCE, requireThat, distance2 } from '../geom/tolerance.mjs';
-import { pointInRegion, loopArea, dedupe } from './region2d.mjs';
+import { loopArea, dedupe } from './region2d.mjs';
+
+export { union, intersect, difference } from './intersection.mjs';
 
 const CHAIN_TOLERANCE = 1e-7;
-
-export const union = (a, b) => combine(a, b, 'union');
-export const intersect = (a, b) => combine(a, b, 'intersect');
-export const difference = (a, b) => combine(a, b, 'difference');
-
-function combine(a, b, operation) {
-  const left = a.map(dedupe).filter(loop => loop.length >= 3);
-  const right = b.map(dedupe).filter(loop => loop.length >= 3);
-  if (!left.length) return operation === 'union' ? right.map(loop => [...loop]) : [];
-  if (!right.length) return operation === 'intersect' ? [] : left.map(loop => [...loop]);
-
-  // Classify both sides of every arrangement edge. This also handles identical
-  // sections and shared/collinear edges, which local top/bottom masks need.
-  const segments=[...left,...right].flatMap(loop=>loop.map((p,i)=>[p,loop[(i+1)%loop.length]]));
-  const result=new Map();
-  const contains=p=>{const l=pointInRegion(p,left),r=pointInRegion(p,right);return operation==='union'?l||r:operation==='intersect'?l&&r:l&&!r;};
-  const key=p=>p.map(v=>Math.round(v/1e-7)).join(',');
-  for(const [p,q] of segments){
-    const dx=q[0]-p[0],dy=q[1]-p[1],length=Math.hypot(dx,dy);if(length<1e-8)continue;
-    const cuts=[0,1];
-    for(const [c,d] of segments){
-      const ex=d[0]-c[0],ey=d[1]-c[1],ax=c[0]-p[0],ay=c[1]-p[1],det=dx*ey-dy*ex;
-      if(Math.abs(det)>1e-12){
-        const t=(ax*ey-ay*ex)/det,u=(ax*dy-ay*dx)/det;
-        if(t>1e-9&&t<1-1e-9&&u>=-1e-9&&u<=1+1e-9)cuts.push(t);
-      } else if(Math.abs(ax*dy-ay*dx)<1e-8*length)for(const v of [c,d]){
-        const t=((v[0]-p[0])*dx+(v[1]-p[1])*dy)/(length*length);if(t>1e-9&&t<1-1e-9)cuts.push(t);
-      }
-    }
-    cuts.sort((a,b)=>a-b);
-    for(let i=1;i<cuts.length;i++){
-      if((cuts[i]-cuts[i-1])*length<1e-7)continue;
-      const start=[p[0]+dx*cuts[i-1],p[1]+dy*cuts[i-1]],end=[p[0]+dx*cuts[i],p[1]+dy*cuts[i]],mid=[(start[0]+end[0])/2,(start[1]+end[1])/2];
-      const epsilon=1e-7,l=contains([mid[0]-dy/length*epsilon,mid[1]+dx/length*epsilon]),r=contains([mid[0]+dy/length*epsilon,mid[1]-dx/length*epsilon]);
-      if(l===r)continue;
-      const edge=l?[start,end]:[end,start];result.set(key(edge[0])+'>'+key(edge[1]),edge);
-    }
-  }
-  return chain([...result.values()]);
-}
 
 // Reassemble kept pieces into closed loops end to end.
 function chain(pieces) {

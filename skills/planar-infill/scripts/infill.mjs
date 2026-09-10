@@ -1,6 +1,7 @@
 import {fullFillResult,layerHeights} from '../../full-fill/scripts/fill.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
-import {offsetRegion,regionArea} from '../../../core/region/region2d.mjs';
+import {regionArea} from '../../../core/region/region2d.mjs';
+import {offsetRegion} from '../../../core/region/offset.mjs';
 import {intersect,difference,union,levelSetRegion,levelSetCoverage} from '../../../core/region/boolean.mjs';
 import {clipReservedRegion,clipAboveSurface} from '../../../core/region/reservation.mjs';
 

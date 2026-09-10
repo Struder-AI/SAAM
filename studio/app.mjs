@@ -1,4 +1,6 @@
 import { advancePlayback, frameAtTime } from './playback.mjs';
+import { createProjection } from './camera.mjs';
+import { buildToolpathView, toolpathFrame } from './toolpath-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows} from './settings.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
@@ -7,6 +9,11 @@ const exportKey=()=>state?.printId+':'+state?.exportHash;
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas'),ctx=canvas.getContext('2d');
 let polygons=[],drag=null,moved=false;
+let redrawFrame=0;
+let pathView;
+function requestDraw(){
+  if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
+}
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
 const duration=()=>state?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
@@ -152,6 +159,7 @@ async function api(route,data) {
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
   const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;state=next;
+  pathView=state.program?buildToolpathView(state.program.moves):null;
   if(previous?.exportHash!==next.exportHash){stop();seconds=duration();fitBounds=null;}
   if(!previous) {
     stop();selected=null;fitBounds=null;zoom=1;seconds=duration();
@@ -189,26 +197,20 @@ function render() {
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
-  draw();
+  requestDraw();
 }
-function selectFeature(id){selected=id;$('#selection').textContent=label(id);draw();}
+function selectFeature(id){selected=id;$('#selection').textContent=label(id);requestDraw();}
 function setTab(next){if(!state)return;tab=next;stop();render();}
 
-function project(point) {
-  const bounds=tab==='toolpath'&&fitBounds?fitBounds:partBounds();
-  const size=bounds.max.map((v,i)=>Math.max(1,v-bounds.min[i]));
-  const x=point[0]-(bounds.min[0]+bounds.max[0])/2,y=point[1]-(bounds.min[1]+bounds.max[1])/2,z=point[2]-(bounds.min[2]+bounds.max[2])/2;
-  const u=x*Math.cos(yaw)-y*Math.sin(yaw),v=x*Math.sin(yaw)+y*Math.cos(yaw);
-  const scale=Math.min(canvas.clientWidth/(size[0]+size[1])*1.1,canvas.clientHeight/(size[2]+Math.max(size[0],size[1]))*.9)*zoom;
-  return [canvas.clientWidth/2+u*scale,canvas.clientHeight*.53+(v*Math.sin(tilt)-z*Math.cos(tilt))*scale,v*Math.cos(tilt)+z*Math.sin(tilt)];
-}
 function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
 function draw() {
+  if(redrawFrame){cancelAnimationFrame(redrawFrame);redrawFrame=0;}
   if(!state)return;
   const ratio=devicePixelRatio||1;
   if(canvas.width!==Math.round(canvas.clientWidth*ratio)||canvas.height!==Math.round(canvas.clientHeight*ratio)){canvas.width=Math.round(canvas.clientWidth*ratio);canvas.height=Math.round(canvas.clientHeight*ratio);}
   ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
   const bounds=partBounds(),skinPhase=view().skinPhase;
+  const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,canvas.clientWidth,canvas.clientHeight,yaw,tilt,zoom);
   for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(project([x,bounds.min[1]-10,0]),project([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(project([bounds.min[0]-10,y,0]),project([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
   const pts=state.geometry.vertices.map(project);
@@ -219,16 +221,19 @@ function draw() {
     ctx.fill();ctx.strokeStyle=tab==='toolpath'?'#a6b99b88':'#81947d';ctx.lineWidth=.9;ctx.stroke();
   }
   if(tab==='toolpath'&&state.program) {
-    const moves=state.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=state.plan.placement;
+    const moves=state.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=state.plan.placement,showTravel=$('#travel').checked;
     const local=p=>[p[0]-placement.xMm,p[1]-placement.yMm,p[2]];
-    for(let i=0;i<count;i++) {
-      const move=moves[i];if(!move.extruding&&!$('#travel').checked)continue;
+    const detail=toolpathFrame(pathView,count,showTravel);
+    $('#viewer-detail').textContent=detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'';
+    const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[count].from}]:detail.segments;
+    for(const edge of displayed) {
+      const move=edge.move;
       const highlighted=move.phase===skinPhase||move.phase==='vase-wall';
       const color=move.extruding?(highlighted?'#d97735':move.phase==='prime'?'#5b92a3':'#80977788'):'#8795ab66';
-      segment(project(local(move.from)),project(local(move.to)),color,highlighted?1.25:.7);
+      segment(project(local(edge.from)),project(local(edge.to)),color,highlighted?1.25:.7);
     }
     const current=moves[at.active];
-    if(current&&at.fraction<1&&(current.extruding||$('#travel').checked))segment(project(local(current.from)),project(local(at.point)),current.phase===skinPhase?'#d97735':'#809777',1.25);
+    if(current&&at.fraction<1&&(current.extruding||showTravel))segment(project(local(current.from)),project(local(at.point)),current.phase===skinPhase?'#d97735':'#809777',1.25);
     if(at.point){const p=project(local(at.point)),q=project(local([at.point[0],at.point[1],at.point[2]+3]));segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();
       $('#time-label').textContent=clock(seconds)+' / '+clock(duration());
     }
@@ -240,13 +245,13 @@ function draw() {
 
 function inPolygon(x,y,points){let inside=false;for(let i=0,j=points.length-1;i<points.length;j=i++){const a=points[i],b=points[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
 canvas.onpointerdown=e=>{canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY];moved=false;};
-canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag[0],dy=e.clientY-drag[1];if(Math.abs(dx)+Math.abs(dy)>2)moved=true;yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));drag=[e.clientX,e.clientY];draw();};
+canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag[0],dy=e.clientY-drag[1];if(Math.abs(dx)+Math.abs(dy)>2)moved=true;yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));drag=[e.clientX,e.clientY];requestDraw();};
 canvas.onpointerup=e=>{drag=null;if(!moved&&tab!=='toolpath'){const rect=canvas.getBoundingClientRect();const hit=[...polygons].reverse().find(p=>inPolygon(e.clientX-rect.left,e.clientY-rect.top,p.points));if(hit)selectFeature(hit.id);}};
-canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));draw();},{passive:false});
-canvas.onkeydown=e=>{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else if(e.key==='ArrowDown')tilt+=.1;else return;e.preventDefault();draw();};
-new ResizeObserver(draw).observe(canvas);
-$$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}draw();});
-$('#reset-view').onclick=()=>{zoom=1;yaw=-.78;tilt=.62;fitBounds=null;$('#fit-program').textContent='Fit all moves';draw();};
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
+canvas.onkeydown=e=>{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else if(e.key==='ArrowDown')tilt+=.1;else return;e.preventDefault();requestDraw();};
+new ResizeObserver(requestDraw).observe(canvas);
+$$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
+$('#reset-view').onclick=()=>{zoom=1;yaw=-.78;tilt=.62;fitBounds=null;$('#fit-program').textContent='Fit all moves';requestDraw();};
 $('#fit-program').onclick=()=>{
   if(fitBounds){fitBounds=null;$('#fit-program').textContent='Fit all moves';}
   else {
@@ -258,7 +263,7 @@ $('#fit-program').onclick=()=>{
     }
     $('#travel').checked=true;$('#fit-program').textContent='Fit part';
   }
-  zoom=1;draw();
+  zoom=1;requestDraw();
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 async function approval(stage){await api('approve',{stage,actor:'Local user',revision:state.revision});await refresh();}
@@ -298,8 +303,8 @@ $('#open-print').onclick=async()=>{
 };
 $('#close-picker').onclick=()=>$('#print-picker').close();
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
-$('#travel').onchange=draw;
-$('#scrub').oninput=()=>{stop();seconds=Number($('#scrub').value);draw();};
+$('#travel').onchange=requestDraw;
+$('#scrub').oninput=()=>{stop();seconds=Number($('#scrub').value);requestDraw();};
 $('#play').onclick=()=>{if(playing){stop();return;}if(seconds>=duration())seconds=0;playing=true;lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
 function animate(now){
   if(!playing)return;

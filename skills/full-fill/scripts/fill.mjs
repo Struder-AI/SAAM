@@ -13,10 +13,11 @@
 
 import { composeResults } from '../../../core/path/compose.mjs';
 import { sectionGeometry as sectionShell } from '../../../core/geom/query.mjs';
-import { offsetRegion, scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
+import { scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
+import { offsetRegion } from '../../../core/region/offset.mjs';
 import { difference } from '../../../core/region/boolean.mjs';
 import { planarPolicy } from '../../../core/path/builder.mjs';
-import { requireThat, distance2 } from '../../../core/geom/tolerance.mjs';
+import { requireThat, distance2, TOLERANCE } from '../../../core/geom/tolerance.mjs';
 import {clipReservedRegion,clipAboveSurface,surfaceStroke} from '../../../core/region/reservation.mjs';
 
 export const FULL_FILL_DEFAULTS = {
@@ -108,7 +109,9 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
         after:[...previous,...current],strokes:selected,order:closed&&!lowerSurface?'nearest':'given',region,
         materialRegion:closed?difference(region,offsetRegion(region,-width*settings.perimeters)):
-          (fillRegion.length?offsetRegion(fillRegion,width/2):[]),
+          // Coverage participates in booleans: a coarse round-join chord can
+          // leave artificial corner gaps despite the requested wall overlap.
+          (fillRegion.length?offsetRegion(fillRegion,width/2,{arcToleranceMm:TOLERANCE.chord}):[]),
         materialCoverage:!closed&&(spacingMm??width)>width+1e-8?'sparse':'area',
         travelPolicy:policy,clearanceZ:z+process.liftMm,
         ...(index===1?{fanPercent:process.fanPercent}:{})});
@@ -125,7 +128,6 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
 
 // Compatibility callable, using the same result/composition implementation.
 export function generateFullFill(builder,options){
-  builder.planMaxZ=Math.max(builder.planMaxZ??-Infinity,options.shell.bounds.max[2]);
   const result=fullFillResult(options);
   composeResults(builder,[result]);
   return result.report;

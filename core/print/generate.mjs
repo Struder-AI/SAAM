@@ -152,16 +152,14 @@ export function generatePath(plan, machine, rhino) {
   if(skin.enabled){
     // Every skin operation depends transitively on the ENTIRE supporting body.
     const result=drapedSkinResult({shell:skinShell,plan,machine,survey,after:results.flatMap(r=>r.operations.map(op=>op.id)),
-      supportTopAt:planarSupports.length?planarSupportTopAt(planarSupports,process,{allowBridge:true}):null});
+      supportTopAt:planarSupports.length?planarSupportTopAt(planarSupports,process):null});
     results.push(result);summary.drapedSkin=result.report;
   }
   }
-  builder.planMaxZ=placed.bounds.max[2];
   summary.composition=composeResults(builder,results,plan.composition);
 
   builder.setContext('finish', 0);
-  builder.retract();
-  builder.move([builder.position[0], builder.position[1], placed.bounds.max[2] + process.liftMm], process.zSpeedMmS);
+  builder.park();
   builder.fan(0);
 
   summary.boundsMm = placed.bounds;

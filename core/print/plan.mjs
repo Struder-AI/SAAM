@@ -40,7 +40,7 @@ export function defaults(machine=loadMachine()) {
     process: {
       firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4,
       planarSpeedMmS: 20, skinSpeedMmS: 10, firstLayerSpeedMmS: 12, travelSpeedMmS: 60, zSpeedMmS: 5,
-      retractMm: 6.5, retractSpeedMmS: 25, liftMm: 2, maxCombMm: 6,
+      retractMm: 6.5, retractSpeedMmS: 25, liftMm: 1, maxCombMm: 6,
       fanPercent: 100, maxFlowMm3S: 4, minimumLayerSeconds: 6,
       clearanceResponsibility: 'operator',
       clearanceNote: 'No collision model is implemented; the operator owns physical clearance.'
@@ -100,6 +100,13 @@ export function validatePlan(plan, machine) {
   plan.skills['planar-infill']??={enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS};
   plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
   plan.skills['vase-wall'].endTransition??='spiral';
+  // Preserve the old numerical boundary allowance when opening older recipes.
+  // New plans lock this independently from contour subdivision tolerance.
+  if(!Object.hasOwn(plan.skills['vase-wall'],'boundaryToleranceMm')) {
+    plan.skills['vase-wall'].boundaryToleranceMm=plan.skills['vase-wall'].toleranceMm;
+    for(const region of plan.composition?.regions??[])if(region.skills?.['vase-wall']?.toleranceMm!==undefined)
+      region.skills['vase-wall'].boundaryToleranceMm??=region.skills['vase-wall'].toleranceMm;
+  }
   plan.skills['draped-skin'].part ??= null;
   plan.composition ??= { order: [], dependencies: [], batchLayers: 1 };
   plan.composition.batchLayers ??= 1;
@@ -143,7 +150,7 @@ export function validatePlan(plan, machine) {
 
   for (const [key, min, max] of [['firstLayerMm', 0.1, 0.3], ['layerMm', 0.06, 0.3], ['lineWidthMm', 0.3, 0.8],
     ['planarSpeedMmS', 2, 80], ['skinSpeedMmS', 2, 40], ['firstLayerSpeedMmS', 2, 40], ['travelSpeedMmS', 5, 200],
-    ['zSpeedMmS', 1, 20], ['retractMm', 0, 10], ['retractSpeedMmS', 1, 50], ['liftMm', 0.2, 20],
+    ['zSpeedMmS', 1, 20], ['retractMm', 0, 10], ['retractSpeedMmS', 1, 50], ['liftMm', 0, 20],
     ['maxCombMm', 0, 100], ['fanPercent', 0, 100], ['maxFlowMm3S', 0.1, 15], ['minimumLayerSeconds', 0, 60]])
     number(process[key], min, max, key);
   requireThat(process.clearanceResponsibility === 'operator', 'Clearance responsibility must be recorded as operator.');
@@ -159,8 +166,9 @@ export function validatePlan(plan, machine) {
   number(vase.zStartMm,0,200,'Vase start height');
   requireThat(vase.zEndMm===null||(Number.isFinite(vase.zEndMm)&&vase.zEndMm>vase.zStartMm&&vase.zEndMm<=200),'Vase end height must be null or greater than its start, up to 200 mm.');
   number(vase.sampleStepMm,0.1,5,'Vase sampling step');number(vase.toleranceMm,0.002,0.05,'Vase chord tolerance');
+  number(vase.boundaryToleranceMm,0.002,0.05,'Vase boundary tolerance');
   number(vase.minFeatureMm,0.05,5,'Vase minimum section feature');
-  requireThat(Number.isInteger(vase.maxPoints)&&vase.maxPoints>=100&&vase.maxPoints<=200000,'Vase maxPoints must be 100–200000.');
+  requireThat(Number.isSafeInteger(vase.maxPoints)&&vase.maxPoints>=100,'Vase maxPoints must be a safe integer of at least 100; increase it to allow a larger wall (no preset 200000-point ceiling).');
   requireThat(typeof normal.enabled==='boolean'&&Array.isArray(normal.parts)&&new Set(normal.parts).size===normal.parts.length&&normal.parts.every(id=>typeof id==='string'),'Invalid planar-infill selection.');
   requireThat(['body','solid-surfaces'].includes(fill.mode),'Invalid full-fill mode.');
   for(const key of ['bottomLayers','topLayers'])requireThat(Number.isInteger(fill[key])&&fill[key]>=0&&fill[key]<=20,`${key} must be 0–20.`);
@@ -225,13 +233,13 @@ export function validatePlan(plan, machine) {
   const regionIds=new Set();
   for(const region of plan.composition.regions) {
     if(region&&typeof region==='object')region.lowerSurfaceFrom??=null;
-    requireThat(region&&Object.keys(region).sort().join()==='id,lowerSurfaceFrom,part,skills,supportPolicy,zEndMm,zStartMm','Invalid region assignment fields.');
+    // Retired supportPolicy is accepted only for reading old plans; it has no effect.
+    requireThat(region&&Object.keys(region).filter(key=>key!=='supportPolicy').sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
     const part=geometry.shape==='assembly'?geometry.parts.find(p=>p.id===region.part):null;
     requireThat(geometry.shape==='assembly'?Boolean(part):region.part===null,'Region must select its geometry component.');
     number(region.zStartMm,0,1000,'Region start');
     requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm&&region.zEndMm<=1000),'Region end must exceed its start or be null.');
-    requireThat(['supported','bridge-experimental'].includes(region.supportPolicy),'Invalid region support policy.');
     requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
     requireThat(region.skills&&typeof region.skills==='object'&&!Array.isArray(region.skills)&&Object.keys(region.skills).length>0,'A region needs selected skills.');
     const child=structuredClone(plan);child.composition.regions=[];

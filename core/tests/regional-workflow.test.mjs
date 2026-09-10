@@ -15,7 +15,7 @@ test('the complete regional stack uses native geometry, three approvals, shared 
   let state=await loadBundle(directory);
   const native=await readFile(join(directory,'geometry/model.3dm'));
   assert.deepEqual(new Set(state.skills),new Set(['full-fill','vase-wall','planar-infill','draped-skin']));
-  assert.match(state.limitations.join('\n'),/cap.*unsupported spans/);
+  assert.doesNotMatch(state.limitations.join('\n'),/cap.*unsupported spans/,'no retired bridge-policy warning in the shared review workflow');
   await assert.rejects(()=>generateBundle(directory),/[Aa]pprov/);
   for(const stage of ['geometry','plan'])state=await approve(directory,{stage,actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});
   await generateBundle(directory);state=await loadBundle(directory);

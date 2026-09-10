@@ -13,7 +13,8 @@
 // covered before approving the plan; it is not silently printed flat.
 
 import { topAt, sampleTopSurface } from '../../../core/geom/query.mjs';
-import { offsetRegion, scanlineFill, regionArea, loopArea } from '../../../core/region/region2d.mjs';
+import { scanlineFill, regionArea, loopArea } from '../../../core/region/region2d.mjs';
+import { offsetRegion } from '../../../core/region/offset.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
 import { composeResults } from '../../../core/path/compose.mjs';
 import { requireThat, distance, distance2 } from '../../../core/geom/tolerance.mjs';
@@ -279,6 +280,5 @@ export const skinReport = report => ({
 });
 
 export function generateDrapedSkin(builder,options){
-  builder.planMaxZ=Math.max(builder.planMaxZ??-Infinity,options.shell.bounds.max[2]);
   const result=drapedSkinResult(options);composeResults(builder,[result]);return result.report;
 }

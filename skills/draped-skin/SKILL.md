@@ -22,6 +22,9 @@ under skinnable surface, and generate surface-following strokes. The reserve is
 subtracted from full-fill and planar-infill. All supporting body operations must
 finish before the skins; skins remain ordered. Surface height means the highest
 exposed surface at XY, not the underside of an overhang or a general wrapped skin.
+Closed footprint/reservation booleans use the
+[shared Clipper2 region tool](../../DEVELOP.md#shared-planar-intersections);
+surface sampling and level-set extraction retain their existing limits.
 
 S5 declares a 15° software limit. The user also selected **experimental 15° for
 H2D** on 2026-09-09. Neither is a manufacturer-certified clearance rating. The
@@ -43,8 +46,9 @@ thickness. Spatial reservation affects only its footprint, including supporting
 components under a spanning roof, and preserves unrelated taller components.
 
 First-skin volumes use the emitted supporting layer heights, with each
-component's translated layer grid. Missing support requires an explicit
-experimental bridge policy in regional recipes. After deposition the skinned
+component's translated layer grid. Across voids, the assigned components' layer
+grid supplies the approximate initial gap; bridging is a recipe judgment for
+the maker and agent, with no bridge permission flag. After deposition the skinned
 footprint publishes its native material top as a shared surface interface;
 another region may consume it through `lowerSurfaceFrom`. For example full-fill
 can deposit horizontal layers above this wavy bottom, with variable initial
@@ -71,8 +75,8 @@ validation; the fixture's robot setup is explicitly synthetic.
 ## Travel
 
 Verified short direct moves may stay down on the current skin. Lifted travel and
-cooling clear the **entire placed process plan** plus its locked lift, not just
-this roof or the crossed surface. The local surface query still controls whether
+cooling clear the **highest material deposited so far** across all skills plus
+the locked `liftMm` (default 1 mm; zero allowed). The local surface query still controls whether
 a short direct move is permitted. Other operations can disallow that move.
 Follow the [shared travel contract](../../DEVELOP.md#whole-plan-travel-requirement).
 

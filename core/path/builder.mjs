@@ -9,8 +9,8 @@
 //   * hopped   - anything else: retract, lift to the clearance this particular
 //                hop needs, traverse, descend, recover.
 //
-// Clearance is per hop, from a callback, so a planar layer clears the layer it
-// is on while a draped skin clears the surface it is crossing.
+// Lifted travel clears the highest material deposited so far, across every
+// operation. Geometry policies only decide whether a move can stay down.
 
 import { requireThat, distance } from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
@@ -32,6 +32,7 @@ export class PathBuilder {
     this.phase = 'start';
     this.layer = 0;
     this.layerSeconds = 0;
+    this.depositedMaxZ = 0;
     this.stats = { joined: 0, combed: 0, hopped: 0, travelMm: 0, retractions: 0, printMm: 0 };
   }
 
@@ -55,7 +56,10 @@ export class PathBuilder {
       limited=Math.min(limited,this.machine.maxFeedMmS['xyz'[i]]*length/Math.abs(to[i]-this.position[i]));
     this.actions.push({ kind: 'move', to: [...to], speedMmS: limited, volumeMm3, phase: this.phase, layer: this.layer, ...(this.operationId?{operation:this.operationId}:{}), ...extra });
     this.layerSeconds += length / limited;
-    if (volumeMm3 > 0) this.stats.printMm += length; else this.stats.travelMm += length;
+    if (volumeMm3 > 0) {
+      this.stats.printMm += length;
+      this.depositedMaxZ = Math.max(this.depositedMaxZ, this.position[2], to[2]);
+    } else this.stats.travelMm += length;
     this.position = [...to];
   }
 
@@ -76,14 +80,23 @@ export class PathBuilder {
 
   dwell(seconds) { if (seconds > 0) this.actions.push({ kind: 'dwell', seconds, phase: this.phase, layer: this.layer }); }
 
-  // Hold the nozzle off the part for the remainder of a short layer instead of
-  // parking it on the fresh bead.
-  finishLayer(clearanceZ) {
-    clearanceZ=Math.max(clearanceZ,this.planClearanceZ??-Infinity,this.position[2]);
+  // Keep both endpoints reachable without treating a previous lift as material.
+  clearanceZ(target = this.position) {
+    const clearance = Math.max(this.depositedMaxZ + this.process.liftMm, this.position[2], target[2]);
+    requireThat(Number.isFinite(clearance)&&clearance<=(this.motionBounds??this.machine.bounds).max[2],'Travel clearance exceeds machine/tool Z bounds.');
+    return clearance;
+  }
+
+  park() {
+    const z = this.clearanceZ();
+    this.retract();
+    this.move([this.position[0], this.position[1], z], this.process.zSpeedMmS);
+  }
+
+  finishLayer() {
     const remaining = this.process.minimumLayerSeconds - this.layerSeconds;
     if (remaining > 0) {
-      this.retract();
-      this.move([this.position[0], this.position[1], clearanceZ], this.process.zSpeedMmS);
+      this.park();
       this.dwell(remaining);
     }
     this.layerSeconds = 0;
@@ -95,15 +108,14 @@ export class PathBuilder {
     if (this.canComb(target, policy)) {
       this.stats.combed++;
       this.recover();
-      this.move(target, this.process.travelSpeedMmS);
+      this.move(target, this.process.travelSpeedMmS, 0, { travel: 'combed' });
       return 'combed';
     }
     const route=combRoute(this.position,target,policy);
-    if(route){this.stats.combed++;this.recover();for(const point of route)this.move(point,this.process.travelSpeedMmS);return 'combed';}
+    if(route){this.stats.combed++;this.recover();for(const point of route)this.move(point,this.process.travelSpeedMmS,0,{travel:'combed'});return 'combed';}
     this.stats.hopped++;
     this.retract();
-    const clearance = Math.max(this.planClearanceZ??-Infinity,this.position[2],target[2],policy.clearanceFor(this.position, target));
-    requireThat(Number.isFinite(clearance)&&clearance<=(this.motionBounds??this.machine.bounds).max[2],'Travel clearance exceeds machine/tool Z bounds.');
+    const clearance = this.clearanceZ(target);
     this.move([this.position[0], this.position[1], clearance], this.process.zSpeedMmS);
     this.move([target[0], target[1], clearance], this.process.travelSpeedMmS);
     this.move(target, this.process.zSpeedMmS);

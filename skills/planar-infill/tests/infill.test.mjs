@@ -8,10 +8,11 @@ import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {intersect,difference,union} from '../../../core/region/boolean.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
 
-test('coincident sections and shared edges retain exact solid masks',()=>{
+test('coincident sections and shared edges retain solid masks within the region precision',()=>{
   const a=[[[0,0],[10,0],[10,10],[0,10]]],b=[[[5,0],[15,0],[15,10],[5,10]]];
-  assert.equal(regionArea(intersect(a,a)),100);assert.deepEqual(difference(a,a),[]);
-  assert.equal(regionArea(intersect(a,b)),50);assert.equal(regionArea(union(a,b)),150);assert.equal(regionArea(difference(a,b)),50);
+  const checkArea=(region,expected)=>assert.ok(Math.abs(regionArea(region)-expected)<1e-7);
+  checkArea(intersect(a,a),100);assert.deepEqual(difference(a,a),[]);
+  checkArea(intersect(a,b),50);checkArea(union(a,b),150);checkArea(difference(a,b),50);
 });
 test('planar infill and full-fill share walls and partition the solid layers on both machines/backends',async()=>{
   const r=await rhino();

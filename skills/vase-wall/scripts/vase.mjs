@@ -1,10 +1,11 @@
 // One continuous wall from the shared geometry section query. Polar phase is
 // fixed about one interior point; section vertex ordering never controls seams.
 import {sectionGeometry} from '../../../core/geom/query.mjs';
-import {offsetRegion,loopArea,pointInRegion,dedupe,pointSegmentDistance} from '../../../core/region/region2d.mjs';
+import {loopArea,pointInRegion,dedupe,pointSegmentDistance} from '../../../core/region/region2d.mjs';
+import {offsetRegion} from '../../../core/region/offset.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 
-export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'spiral',sampleStepMm:1,toleranceMm:0.02,minFeatureMm:0.4,maxPoints:100000};
+export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'spiral',sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,maxPoints:100000};
 const cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
 
@@ -31,21 +32,28 @@ function rayPoint(loop,center,angle) {
   return [center[0]+radius*direction[0],center[1]+radius*direction[1]];
 }
 
-export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStartMm=null,zEndMm=null}) {
+export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStartMm=null,zEndMm=null,budgetSetting='skills.vase-wall.maxPoints'}) {
   const settings={...VASE_WALL_DEFAULTS,...plan.skills['vase-wall']},process=plan.process;
   const width=process.lineWidthMm,pitch=process.layerMm,base=zStartMm??(shell.bounds.min[2]+settings.zStartMm);
   const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:pitch;
   const start=base+firstHeight,end=zEndMm??(settings.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+settings.zEndMm);
   requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Vase wall needs room for its first ring and a rising wall; choose zStartMm/zEndMm inside the geometry.');
-  requireThat(settings.toleranceMm<width/4,'Vase tolerance must be smaller than one quarter of the bead width.');
+  requireThat(settings.boundaryToleranceMm<width/4,'Vase boundaryToleranceMm must be smaller than one quarter of the bead width.');
+  const maxSectionQueries=Math.min(Number.MAX_SAFE_INTEGER,settings.maxPoints*4);
+  function exhausted(kind,used,limit,z) {
+    const next=Math.min(Number.MAX_SAFE_INTEGER,settings.maxPoints*2);
+    throw new Error(`Vase ${kind} budget exhausted for ${id}: ${used}/${limit} at Z ${z.toFixed(6)} mm (wall ${start.toFixed(6)}–${end.toFixed(6)} mm). Increase ${budgetSetting} from ${settings.maxPoints} to ${next} or higher and retry; this changes the compute allowance, not contour quality. No complete wall was generated.`);
+  }
   const cache=new Map();let center,nudgedSections=0;
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
-    requireThat(cache.size<settings.maxPoints*4,'Vase section query budget exceeded; shorten the wall or increase the locked maxPoints.');
+    if(cache.size>=maxSectionQueries)exhausted('section query',cache.size,maxSectionQueries,z);
     const cut=sectionGeometry(shell,z,{minFeatureMm:settings.minFeatureMm});
-    requireThat(Math.abs(cut.nudgedByMm??0)<=settings.toleranceMm,'Vase section nudge exceeds the locked tolerance.');
+    requireThat(Math.abs(cut.nudgedByMm??0)<=settings.boundaryToleranceMm,'Vase section nudge exceeds boundaryToleranceMm.');
     if(cut.nudgedByMm)nudgedSections++;
-    const outer=convexLoop(cut.loops),loop=convexLoop(offsetRegion([outer],-width/2,{arcToleranceMm:settings.toleranceMm/4}));
+    const outer=convexLoop(cut.loops),inset=offsetRegion([outer],-width/2,{arcToleranceMm:settings.boundaryToleranceMm/4});
+    requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall inward offset is empty, split or collapsed at Z ${z.toFixed(6)} mm for bead width ${width} mm.`);
+    const loop=convexLoop(inset);
     center??=loop.reduce((sum,p)=>[sum[0]+p[0]/loop.length,sum[1]+p[1]/loop.length],[0,0]);
     requireThat(pointInRegion(center,[loop]),'Vase sections must retain a common interior origin; section collapse, major drift or topology change is unsupported.');
     const value={outer,loop};cache.set(key,value);return value;
@@ -57,11 +65,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   function point(t) {
     const z=zAt(t),{loop,outer}=section(z),xy=rayPoint(loop,center,t*2*Math.PI);
     const standoff=outer.reduce((best,p,i)=>Math.min(best,pointSegmentDistance(xy,p,outer[(i+1)%outer.length])),Infinity);
-    requireThat(Math.abs(standoff-width/2)<=settings.toleranceMm,'Vase centerline does not preserve the declared bead-width boundary within tolerance.');
-    if(t>1) {
-      const belowZ=zAt(t-1),below=rayPoint(section(belowZ).loop,center,t*2*Math.PI);
-      requireThat(distance(xy,below)<=width-settings.toleranceMm,'Vase sections shift too far per turn for bead overlap; a gentler taper is required.');
-    }
+    requireThat(Math.abs(standoff-width/2)<=settings.boundaryToleranceMm,'Vase centerline does not preserve the declared bead-width boundary within boundaryToleranceMm.');
     return [...xy,z];
   }
   const points=[point(0)],times=[0];
@@ -71,7 +75,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     if(distance(pa,pb)>settings.sampleStepMm||distance(pm,linear)>settings.toleranceMm/2||pb[2]-pa[2]>settings.minFeatureMm/2) {
       append(a,mid,pa,pm,depth+1);append(mid,b,pm,pb,depth+1);return;
     }
-    requireThat(points.length<settings.maxPoints,'Vase point budget exceeded; shorten the wall or increase the locked maxPoints.');
+    if(points.length>=settings.maxPoints)exhausted('point',points.length,settings.maxPoints,pb[2]);
     points.push(pb);times.push(b);
   }
   // At most 1/16 turn per initial interval avoids aliasing an entire revolution.
@@ -101,7 +105,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   return {id,operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
     after,strokes:[stroke],order:'given',continuous:true,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,clearanceFor:()=>end+process.liftMm},clearanceZ:end+process.liftMm}],
-    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,sectionQueries:cache.size,nudgedSections,
+    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,maxPoints:settings.maxPoints,sectionQueries:cache.size,maxSectionQueries,nudgedSections,
       volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,
-      scope:'One convex outer section with a persistent interior origin; sampled topology and bead overlap checks, no physical validation.'}};
+      scope:'One convex outer section with a persistent interior origin; sampled topology and boundary checks. Overhang and bridging are process choices reviewed in Studio; no physical validation.'}};
 }

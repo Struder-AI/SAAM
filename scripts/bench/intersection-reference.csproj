@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefineConstants>USINGZ</DefineConstants><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../.local/intersection-native-reference/CSharp/Clipper2Lib/*.cs"/>
+    <Compile Include="intersection-reference.cs"/>
+  </ItemGroup>
+</Project>

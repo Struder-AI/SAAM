@@ -15,7 +15,7 @@ or separate preview/export workflow is used.
 The supported scope is **one convex outer section**, without holes or islands,
 throughout the selected height. Each inward-offset section must retain a common
 interior point. Concavity, disappearing walls, unsupported topology changes,
-large section drift and inadequate bead overlap are rejected. Supported inputs
+loss of the shared interior point are rejected. Supported inputs
 are validated triangle meshes/STL and the existing closed untrimmed spline
 builders. Arbitrary trimmed CAD import remains unsupported. Native geometry
 stays unchanged; the recipe prints its outer wall and deliberately leaves the
@@ -81,9 +81,23 @@ configuration solely for testing; it must not be run on hardware.
 | `zEndMm` | `null` | Wall top above component minimum Z; null uses the geometry's maximum Z. |
 | `endTransition` | `spiral` | Keep the sloping rim, or `level` to finish a planar material boundary. |
 | `sampleStepMm` | `1` | Maximum emitted segment length, 0.1–5 mm. |
-| `toleranceMm` | `0.02` | Centerline standoff and subdivision tolerance, 0.002–0.05 mm and less than one quarter of bead width. |
+| `toleranceMm` | `0.02` | Contour subdivision tolerance, 0.002–0.05 mm; midpoint deviation is limited to half this value. |
+| `boundaryToleranceMm` | `0.02` | Sampled centerline standoff and section-nudge allowance, 0.002–0.05 mm and less than one quarter of bead width; offset arc tolerance is one quarter of this value. Independent of contour subdivision. |
 | `minFeatureMm` | `0.4` | Shared section feature scale; also bounds vertical sampling gaps, 0.05–5 mm. |
-| `maxPoints` | `100000` | Hard emitted-point budget, 100–200000; section-query budget is four times this value. |
+| `maxPoints` | `100000` | Compute allowance: any safe integer of at least 100, with no preset 200000-point ceiling. Section-query allowance is four times this value, capped at the safe-integer limit. |
+
+On exhaustion, the error names the wall/region, used and allowed count, Z reached,
+and the exact setting to increase with a suggested larger value. Raise that
+setting through the normal chat adjustment (for example 100000 to 200000 or
+400000); keep geometry, pitch and contour quality unless the maker wants them
+changed. Larger allowances may need more memory and time. A larger budget does
+not change the resulting path when both budgets suffice. Successful reports
+include both usage and allowance. Never deliver a partial wall after exhaustion.
+
+Older recipes without `boundaryToleranceMm` retain their previous numerical
+boundary allowance when normalized, including regional tolerance overrides.
+New recipes lock contour and boundary tolerances separately; changing contour
+tolerance does not change the offset or standoff acceptance threshold.
 
 The shared process locks layer pitch, first-layer thickness, width, speed, flow,
 fan and cooling. A sloping or domed roof may yield a collapsing or narrow upper
@@ -108,10 +122,12 @@ level annular rim as material support.
 
 Every sampled point queries its actual Z section, offsets by half the bead width,
 and checks boundary standoff. Adaptive subdivision checks segment length and
-midpoint deviation; initial angular steps are at most 1/16 turn. A section one
-pitch below checks radial bead overlap; drift must be no greater than bead width
-minus tolerance. These are bounded numerical checks, not a proof of all surface
-topology between samples or of physical support. Features below the section
+midpoint deviation; initial angular steps are at most 1/16 turn. Generation does
+not query a second section one pitch below or reject turn-to-turn radial drift.
+The agent reasons about sensible wall geometry and pitch with the maker; Studio
+review covers the intended overhangs and wall contact. The retained checks are
+bounded numerical checks, not a proof of all surface topology between samples
+or of physical support. Features below the section
 sampling scale can be missed. Sharp corners, rectangular bead volume, the
 initial thickness ramp and overhang behavior remain approximations.
 
@@ -123,13 +139,17 @@ The composer treats the continuous operation atomically and omits its final
 layer-cooling park; normal final retraction and parking remain shared.
 
 Regions order supporting operations before the wall and subsequent regions
-after it. A planar cap requires `endTransition: level`, a layer-grid-aligned
-boundary and `supportPolicy: bridge-experimental`: the level rim does not fill
-the hollow interior or prove that a span will bridge. Sparse body, solid masks,
+after it. For a planar cap, the agent selects `endTransition: level` and a
+layer-grid-aligned boundary while proposing the recipe. Leaving `spiral` is a
+recipe mismatch for this flat interface: the final turn leaves different rim
+heights around the perimeter. The level rim does not fill the hollow interior.
+Choose cap direction and wall contact using the maker's printing judgment;
+there is no bridge permission policy. Sparse body, solid masks,
 draped roof and later solid material may follow through the same resolver. A
 continuous wall cannot weave turn by turn with other operations. Cross-component
 geometric overlap is not automatically resolved. Joins, cooling of other skills
-and final parking use whole-plan clearance; there is no swept-head or robot-arm
+and final parking clear the highest deposited material plus `liftMm`
+(default 1 mm; zero allowed); there is no swept-head or robot-arm
 collision proof. The machine's declared nonplanar angle limit is enforced for
 the actual rising segments and is not a measured clearance rating.
 

@@ -55,8 +55,11 @@ follow a full-fill base and finish with a level rim for a later cap. Assign othe
 skills to later material regions of the same part, including infill, a draped
 roof, and horizontal full fill whose bottom follows that roof. The native
 geometry remains the reference; show the recipe's actual hollow and solid regions
-during review. A cap over a hollow region needs an explicit experimental bridge
-choice in the locked plan; do not imply that software checks establish printability.
+during review. For a planar cap, choose the vase's level ending in the proposed
+recipe so the first cap layer meets a flat rim. Reason about wall drift,
+overhangs, bridge direction/span and contact with the walls using the maker's
+knowledge, then inspect the toolpath in Studio. No bridge permission flag or
+additional approval is required; software checks do not establish printability.
 Read [material regions](DEVELOP.md#material-regions-and-shared-interfaces) and
 the skill manuals before choosing settings. Describe geometry, boundaries and
 process choices in ordinary language; the agent manages the recipe fields.
@@ -76,7 +79,11 @@ create the bundle and request Studio review, then apply chat adjustments using
 the current revision. The person gives all three approvals in Studio. MCP can
 read their status, generate from the approved plan and deliver the reviewed
 bytes. Its fixed local lists do not prove every recipe compatible. This access
-does not work automatically from an arbitrary browser chat.
+does not work automatically from an arbitrary browser chat. A developer can
+start the [temporary web-chat connection](adapters/mcp/README.md#temporary-web-chat-connection)
+and the person pairs their compatible chat client through OAuth. The same MCP
+tools then apply. Studio opens on the SAAM computer; its local URLs and delivered
+files are not accessible from a phone or another computer through this bridge.
 
 Import STL with explicit units and show the translated geometry in Studio before
 approval. Unknown units require clarification because scale changes the part.
@@ -138,6 +145,8 @@ next time. Do not label an assumption as verification.
   Do not claim a physical result from a software preview.
 - A person's project files are their output. Using SAAM does not authorize
   editing, committing, or publishing SAAM's own source.
+  A maker's explanation that a bridge or other print feature will work is
+  guidance for that job, not permission to change skill policy or add a gate.
 - Do not create human job approvals or initiate machine execution on behalf of
   the person. There are exactly three human approval stages: geometry, locked
   process plan, and toolpath. The approved plan must specify the choices needed

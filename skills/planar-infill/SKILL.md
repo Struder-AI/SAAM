@@ -46,6 +46,8 @@ optimization and physical bridge validation are not implemented.
 operations, including full-fill operations when solid regions are selected.
 It reuses the planar stroke generator and region operations. Walls precede
 interiors; supporting layers precede later layers and draped skins.
+Closed solid/sparse mask intersections, unions and differences use the
+[shared Clipper2 region tool](../../DEVELOP.md#shared-planar-intersections).
 
 Shared `composition.regions` can place sparse walls above a solid cap on a vase,
 below a draped roof, or between other assigned material regions on the same
@@ -74,6 +76,6 @@ Travel uses nearest wall starts, alternating fill direction and verified combing
 including bounded routes around holes. Disconnected material regions on one
 layer are completed as separate groups, so sparse rows do not alternate across
 an open gap; one side finishes before the next side begins. Other moves clear
-the whole process plan. See [travel](../../DEVELOP.md#whole-plan-travel-requirement).
+the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../DEVELOP.md#whole-plan-travel-requirement).
 Thin features may collapse under offsets; density is approximate near
 boundaries. No collision or automatic support model is implied by these checks.

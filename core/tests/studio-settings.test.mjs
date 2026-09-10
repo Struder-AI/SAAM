@@ -18,7 +18,9 @@ test('Studio reviews region selections and effective overrides rather than inact
   const rows=new Map(recipeRows(plan));
   assert.equal(rows.get('wall · Vase wall · Wall ending'),'Level rim');
   assert.equal(rows.get('cap · Full fill · Walls'),'3');
-  assert.match(rows.get('cap · Support'),/bridging/);
+  assert.equal(rows.has('cap · Support'),false,'retired policy is not presented as a permission choice');
+  assert.equal(rows.get('wall · Vase wall · Point budget'),'100000');
+  assert.equal(rows.get('wall · Vase wall · Boundary tolerance'),'0.02 mm');
   assert.match(rows.get('finish · Bottom'),/roof/);
   assert.ok(![...rows.keys()].some(k=>k.startsWith('Draped skin')));
   assert.match(JSON.stringify(regionRows(plan)),/4–5 mm/);

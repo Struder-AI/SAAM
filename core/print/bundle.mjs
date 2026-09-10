@@ -4,6 +4,10 @@ import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './pla
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
 import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
+  '../region/offset.mjs', '../region/clipper.mjs', '../../node_modules/clipper-lib/clipper.js', '../../package-lock.json',
+  '../region/intersection.mjs', '../../node_modules/clipper2-wasm/dist/umd/clipper2z.js',
+  '../../node_modules/clipper2-wasm/dist/umd/clipper2z.wasm',
+  '../region/surface-offset.mjs', '../geom/surface-derivatives.mjs',
   '../geom/nurbs.mjs', '../geom/section.mjs', '../geom/shell.mjs', '../geom/shapes.mjs', '../geom/field.mjs',
   '../geom/tolerance.mjs', '../region/region2d.mjs', '../region/boolean.mjs', '../path/builder.mjs', '../path/compose.mjs',
   '../geom/query.mjs','../geom/mesh.mjs','../machine/profile.mjs','../export/registry.mjs',
@@ -28,8 +32,6 @@ const limitationsFor = (plan, machine) => {
   const limits=machine.id==='bambu-h2d'?[...LIMITATIONS,'H2D uses the supplied PLA / Textured PEI firmware envelope. Startup purge uses 240 C and up to 25 mm³/s; its time and material are excluded from print-body totals. Printer-selected calibration may heat both nozzles. Experimental output has not been physically validated.','The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating.']:[...LIMITATIONS];
   for(const override of new Set(skins.map(s=>s.maxAngleDegOverride).filter(v=>v!==null)))limits.push(
     `EXPERIMENTAL: this print overrides the machine profile’s declared ${machine.nonplanar.maxAngleDeg}° non-planar limit with ${override}°. Physical clearance and deposition behavior are unvalidated.`);
-  for(const region of regions.filter(r=>r.supportPolicy==='bridge-experimental'))limits.push(
-    `Region ${region.id} allows experimental deposition across unsupported spans. Bridge optimization and physical support validation are not implemented.`);
   return limits;
 };
 

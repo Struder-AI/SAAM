@@ -21,6 +21,11 @@ Use [GLOSSARY.md](GLOSSARY.md) for shared terms; proposed terms are marked there
 README.md owns the project introduction and direction for people and agents;
 PROJECT_CHARTER.md is a compatibility pointer. Skill authors must read DEVELOP.md's
 geometry, machine interoperability and whole-plan travel requirements.
+Use the [shared geometry operations](DEVELOP.md#shared-offset-functions) for
+offsets; skill authors must follow the [numerical reuse guidance](DEVELOP.md#shared-numerical-foundations).
+Closed planar booleans use the [shared Clipper2 tool](DEVELOP.md#shared-planar-intersections).
+Scope shared components to current needs and extend them when needed; see
+[developer guidance](DEVELOP.md#interoperability-and-one-workflow).
 
 ## Shared context
 
@@ -71,7 +76,10 @@ and interprets the delivered Lua source ZIP; robot reachability, continuous
 relay deposition and vendor project-import acceptance are not established.
 The [local MCP adapter](adapters/mcp/README.md) exposes this same workflow to a
 compatible local chat client, with fixed known profiles/manuals and no approval
-tool. It does not connect an arbitrary browser chat to the local machine.
+tool. Its [temporary web-chat connection](adapters/mcp/README.md#temporary-web-chat-connection)
+adds an OAuth-protected HTTP bridge and outbound HTTPS tunnel for compatible
+web clients; Studio and generation stay local. Actual vendor-account acceptance
+requires a separate connection check; arbitrary browser-chat access is not implied.
 See [the developer guide](DEVELOP.md#skill-result-composition) for weaving and
 [machine observations](DEVELOP.md#machine-program-templates-and-s5-observations)
 for the user's scoped S5 startup report; complete physical validation remains open.

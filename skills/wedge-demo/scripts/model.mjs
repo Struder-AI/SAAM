@@ -25,7 +25,7 @@ export function defaults(machine=loadMachine()) {
       nozzleC: 215, bedC: 60, buildVolumeC: 28, materialGuid: GENERIC_PLA_GUID, firmwareVersion: '', startupVerified: false},
     process: {firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4, skinNormalMm: 0.2, skinLayers: 2,
       planarSpeedMmS: 20, skinSpeedMmS: 10, firstLayerSpeedMmS: 12, travelSpeedMmS: 60,
-      zSpeedMmS: 5, retractMm: 6.5, retractSpeedMmS: 25, liftMm: 2, combTravelMm: 12, startupRetracted: true, fanPercent: 100,
+      zSpeedMmS: 5, retractMm: 6.5, retractSpeedMmS: 25, liftMm: 1, combTravelMm: 12, startupRetracted: true, fanPercent: 100,
       maxFlowMm3S: 4, minimumLayerSeconds: 6, skinDirection: 'alternating',
       substrate: 'horizontal-solid-fill', transition: 'staircase-gap-volume', beadModel: 'rectangular',
       clearanceResponsibility: 'operator', clearanceNote: 'For this demo the user will verify physical clearance.'},
@@ -51,7 +51,7 @@ export function validatePlan(plan, machine) {
   const roof=roofGeometry(g);
   number(roof.runMm,8,80,'Wedge X size');number(roof.widthMm,8,60,'Wedge Y size');
   const printSpeedLimit=Math.min(machine.maxFeedMmS.x,machine.maxFeedMmS.y);
-  for (const [key,min,max] of [['firstLayerMm',0.15,0.25],['layerMm',0.06,0.2],['lineWidthMm',0.35,0.48],['skinNormalMm',0.12,0.22],['skinLayers',1,20],['planarSpeedMmS',2,printSpeedLimit],['skinSpeedMmS',2,printSpeedLimit],['firstLayerSpeedMmS',2,printSpeedLimit],['travelSpeedMmS',5,100],['zSpeedMmS',1,10],['retractMm',0,8],['retractSpeedMmS',1,35],['liftMm',0.5,10],['combTravelMm',0,20],['fanPercent',0,100],['maxFlowMm3S',0.1,8],['minimumLayerSeconds',0,30]]) number(p[key],min,max,key);
+  for (const [key,min,max] of [['firstLayerMm',0.15,0.25],['layerMm',0.06,0.2],['lineWidthMm',0.35,0.48],['skinNormalMm',0.12,0.22],['skinLayers',1,20],['planarSpeedMmS',2,printSpeedLimit],['skinSpeedMmS',2,printSpeedLimit],['firstLayerSpeedMmS',2,printSpeedLimit],['travelSpeedMmS',5,100],['zSpeedMmS',1,10],['retractMm',0,8],['retractSpeedMmS',1,35],['liftMm',0,10],['combTravelMm',0,20],['fanPercent',0,100],['maxFlowMm3S',0.1,8],['minimumLayerSeconds',0,30]]) number(p[key],min,max,key);
   requireThat(Number.isInteger(p.skinLayers), 'skinLayers must be an integer.');
   requireThat(typeof p.startupRetracted === 'boolean', 'startupRetracted must be true or false.');
   for (const key of ['skinDirection','substrate','transition','beadModel','clearanceResponsibility']) requireThat(p[key] === d.process[key], `Unsupported ${key}.`);

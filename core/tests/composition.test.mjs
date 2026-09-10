@@ -45,7 +45,7 @@ test('clearance uses geometry even when scheduling rank is unrelated to Z',()=>{
   const low=operation('later-low',1,['earlier-high']);low.rank=2;
   low.travelPolicy.canTravelDirect=()=>true;
   composeResults(builder,[{operations:[high]},{operations:[low]}]);
-  assert.ok(builder.actions.some(a=>a.operation==='later-low'&&!a.volumeMm3&&a.to[2]>=7));
+  assert.ok(builder.actions.some(a=>a.operation==='later-low'&&!a.volumeMm3&&a.to[2]>=5+plan.process.liftMm));
 });
 
 function columns(batchLayers=1){

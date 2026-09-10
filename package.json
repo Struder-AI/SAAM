@@ -10,7 +10,8 @@
     "studio": "node studio/server.mjs",
     "check:print": "node skills/wedge-demo/scripts/cli.mjs check",
     "shell": "node core/print/cli.mjs",
-    "mcp": "node adapters/mcp/src/server.mjs"
+    "mcp": "node adapters/mcp/src/server.mjs",
+    "web-chat": "node adapters/mcp/src/web-chat.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -18,6 +19,9 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
+    "clipper-lib": "6.4.2",
+    "clipper2-wasm": "0.4.0",
+    "express": "5.2.1",
     "rhino3dm": "8.32.2",
     "zod": "4.4.3"
   }

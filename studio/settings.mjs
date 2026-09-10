@@ -10,7 +10,7 @@ const fields={
   minFeatureMm:['Smallest sampled feature',' mm'],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
   strokeAngleDeg:['Stroke direction','°'],sampleStepMm:['Maximum sampling step',' mm'],surveyStepMm:['Surface survey grid',' mm'],
   maxAngleDegOverride:['Experimental angle override','°'],zStartMm:['Start above component base',' mm'],zEndMm:['End above component base',' mm'],
-  toleranceMm:['Contour tolerance',' mm'],maxPoints:['Point budget',''],endTransition:['Wall ending','']
+  toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],maxPoints:['Point budget',''],endTransition:['Wall ending','']
 };
 export function skillSettingsRows(name,settings,prefix=skillName(name)){
   const rows=[];
@@ -28,8 +28,7 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
 export function regionRows(plan){
   return (plan.composition?.regions??[]).flatMap(region=>[
     [region.id,(region.part??'Part')+' · '+(region.zEndMm===null?region.zStartMm+' mm to geometry top':region.zStartMm+'–'+region.zEndMm+' mm')+' · '+Object.keys(region.skills).map(skillName).join(' + ')],
-    ...(region.lowerSurfaceFrom?[[region.id+' · Bottom','Follows the finished surface of '+region.lowerSurfaceFrom]]:[]),
-    ...(region.supportPolicy==='bridge-experimental'?[[region.id+' · Support','Experimental bridging across hollow or unsupported spans; unvalidated']]:[])
+    ...(region.lowerSurfaceFrom?[[region.id+' · Bottom','Follows the finished surface of '+region.lowerSurfaceFrom]]:[])
   ]);
 }
 export function recipeRows(plan){

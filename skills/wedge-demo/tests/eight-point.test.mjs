@@ -46,6 +46,7 @@ for(const [name,a,b] of [['right',.15,0],['left',-.15,0],['back',0,.15],['front'
       const machine=loadMachine(machineId),plan=defaults(machine);plan.geometry.points=pointsFor(a,b);plan.process.skinLayers=6;
       const roof=roofGeometry(plan.geometry),path=generatePath(plan,machine),meshData=wedgeMesh(plan.geometry),mesh=makeMesh(meshData.vertices,meshData.faces);
       checkMachinePath(path,plan,machine);
+      let high=0;
       let pos=path.initialPosition,skinStarted=false,volume=0,lastStroke,lastDirection;const layers=new Set();
       for(const move of path.actions) {
         if(move.kind!=='move')continue;
@@ -69,8 +70,9 @@ for(const [name,a,b] of [['right',.15,0],['left',-.15,0],['back',0,.15],['front'
           }
         }
         if(move.volumeMm3===0&&Math.abs(move.to[0]-pos[0])+Math.abs(move.to[1]-pos[1])>1e-6&&move.travel!=='combed') {
-          assert.ok(Math.abs(pos[2]-path.summary.clearanceZMm)<1e-7&&Math.abs(move.to[2]-path.summary.clearanceZMm)<1e-7);
+          assert.ok(Math.abs(pos[2]-move.to[2])<1e-7&&move.to[2]>=high+plan.process.liftMm-1e-7);
         }
+        if(move.volumeMm3>0)high=Math.max(high,pos[2],move.to[2]);
         pos=move.to;
       }
       assert.equal(layers.size,6);

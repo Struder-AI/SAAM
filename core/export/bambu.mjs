@@ -39,7 +39,9 @@ function checkContext(c,plan,machine){
   requireThat(c?.schema==='saam-h2d-artifact/1'&&c.contract===CONTRACT&&JSON.stringify(c.initialPosition)==='[100,100,20]','Invalid H2D artifact context.');
   requireThat(c.bounds&&['min','max'].every(k=>Array.isArray(c.bounds[k])&&c.bounds[k].length===3&&c.bounds[k].every(Number.isFinite)),'Missing H2D geometry bounds.');
   requireThat(c.bounds.min.every((v,i)=>v>=b.min[i]&&v<c.bounds.max[i])&&c.bounds.max.every((v,i)=>v<=b.max[i]),'H2D geometry bounds exceed selected nozzle area.');
-  requireThat(Number.isFinite(c.pathMaxZ)&&c.pathMaxZ>=c.bounds.max[2]&&c.pathMaxZ<=b.max[2]&&Math.max(c.pathMaxZ,c.bounds.max[2]+10)<=Math.min(320,b.max[2]),'H2D shutdown clearance exceeds machine bounds.');
+  // Actual travel may stay below unprinted geometry. Shutdown still uses the
+  // fixed firmware contract's geometry bound independently of print-body Z.
+  requireThat(Number.isFinite(c.pathMaxZ)&&c.pathMaxZ>=c.initialPosition[2]&&c.pathMaxZ<=b.max[2]&&Math.max(c.pathMaxZ,c.bounds.max[2]+10)<=Math.min(320,b.max[2]),'H2D shutdown clearance exceeds machine bounds.');
   requireThat(Number.isInteger(c.layers)&&c.layers>0&&c.layers<100000,'Invalid H2D layer count.');
   requireThat(c.release&&/^[a-zA-Z0-9.+-]{1,40}$/.test(c.release.generatorVersion)&&/^\d{4}-\d{2}-\d{2}$/.test(c.release.buildDate),'Invalid H2D release metadata.');
 }
@@ -94,7 +96,7 @@ export function interpretBambu(bytes,plan,machine){
   program.envelope={contract:CONTRACT,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,
     notice:'Firmware probing, wiping, calibration, purge, unload and service motions are checked against a fixed reference envelope; they are not simulated. Playback and timing cover the print body only.'};
   program.summary.startup=program.envelope.notice;
-  program.summary.clearance='Whole-plan travel checked; physical head clearance is not modeled.';
+  program.summary.clearance='Deposited-height travel checked; physical head clearance is not modeled.';
   return program;
 }
 

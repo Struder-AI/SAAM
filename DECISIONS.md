@@ -233,3 +233,23 @@ will be useful.” Source R8: remettub clarified the destination is directly
 - Approvals: Current user explicitly directed the deferral and its recording; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in the legacy-adoption session, 2026-09-09 local time: “We are in development, running at one location, all machines are available here.” Follow-up: “Record the deferred discovery decision.”
 - Scope: Active instruction for this implementation. Automatic discovery can be reconsidered when multiple installations or independently installed capabilities create a need. No contributor consensus is inferred.
+
+## D-023 — Future deployment: local SAAM application with a hosted relay
+
+- Decision: Adopt a local SAAM application for Windows and macOS with a hosted relay as the future deployment direction; defer implementation. The relay would connect compatible agents, including web-based chat clients, to the user's local SAAM workflow. Prioritize compatibility with commonly used agent clients and ease of onboarding. Keep generation and print bundles local, using the shared geometry, locked-plan, toolpath review and exact-byte delivery workflow; people give the three approvals in Studio.
+- Status: proposed
+- Recorded: 2026-09-10T04:14:08Z
+- Approvals: Current user explicitly selected this deployment direction and requested its recording; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in the Studio deployment discussion, 2026-09-09 local time: “We'll go with local SAAM app and hosted relay. Record in decisions.” Earlier requirements: “We'd need it for mac as well” and “The main priorities are compatibility with the agents that most people use, and ease of onboarding experience.”
+- Clarification: The user subsequently specified: “Let's put this in as a future direction, we won't be doing it immediately.”
+- Subsequent scope, 2026-09-10: D-024 authorizes a temporary development connection for the existing browser-based Studio now. Packaged Windows/macOS applications and a production hosted relay remain future work.
+- Scope: Future direction only, with no immediate implementation planned or authorized by this record. The packaged application and hosted relay are not yet implemented. Hosting provider, desktop framework, authentication/pairing and client-specific installation details remain to be designed when this work is taken up. Compatibility must be established for each supported client; MCP support alone does not establish universal web-chat access. This entry preserves D-015's local print bundles and does not change D-022's discovery deferral. Contributor status remains proposed until approval can be attributed under the rules above; this does not negate the user's explicit selection.
+
+## D-024 — Temporary web-chat access to the existing local workflow
+
+- Decision: Implement a temporary development connection now so compatible ChatGPT and Claude web chats can drive the existing local MCP tools and browser-based Studio. Run the bridge locally and use a temporary hosted HTTPS tunnel; keep generation, print bundles, Studio and the three human job approvals local. Packaged applications and production relay deployment remain deferred under D-023.
+- Status: proposed
+- Recorded: 2026-09-10T04:30:05Z
+- Approvals: Current user explicitly requested this implementation; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in this deployment task: “we can use our existing web app based SAAM, mcp, and hosted relay to drive our current implementation from a web chat. Right? We should do that now”. Clarifications: “Both ChatGPT and Claude” and “Yeah do the temp, we're just going to host relay from local during dev”.
+- Scope: Authorized development work through the shared workflow, with OAuth connection authorization distinct from manufacturing approvals. Actual vendor-web-chat acceptance must be tested in the user's account. No contributor consensus, hardware execution or public directory listing is inferred.

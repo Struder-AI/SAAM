@@ -79,7 +79,10 @@ The [local MCP adapter](adapters/mcp/README.md) lets a compatible local chat
 client create and adjust prints, open Studio, generate approved plans and deliver
 reviewed files. Its small fixed lists cover this development checkout; automatic
 discovery is [deferred](DECISIONS.md#d-022--defer-automatic-capability-discovery).
-No MCP tool approves a job. Arbitrary browser-chat access is not implemented.
+No MCP tool approves a job. A [temporary web-chat connection](adapters/mcp/README.md#temporary-web-chat-connection)
+adds OAuth-protected HTTP access through an outbound HTTPS tunnel, using the
+same local tools and Studio. Vendor-account compatibility must be verified
+separately; a packaged Windows/Mac application remains a future direction.
 
 ## Try the development demo
 

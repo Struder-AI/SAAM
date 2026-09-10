@@ -13,6 +13,9 @@ Supported geometry: validated indexed triangle meshes (including STL import),
 closed untrimmed spline shells from the existing shape builders, and assemblies
 of those components. Arbitrary edited 3DM and trimmed CAD import are unsupported.
 The shared geometry interface supplies each layer's real cross section.
+Closed planar masks and material reservations use the
+[shared Clipper2 region tool](../../DEVELOP.md#shared-planar-intersections).
+This does not add new input geometry types.
 
 Software checks exercise this skill on both S5 and H2D profiles and both geometry
 backends, including the shared export, toolpath review and delivery workflow.
@@ -69,9 +72,9 @@ Alternating fill strokes and nearest wall starts reduce travel. Disconnected
 material regions are filled in separate groups, completing one region before
 traveling to the next; scanline fill does not bounce across a gap. Verified
 combing stays inside the allowed region at print height, with routes around
-holes when possible within `maxCombMm`. Other traverses clear the maximum of
-the entire placed plan plus `liftMm`, including other skills and later
-operations. Cooling uses the same bound; an out-of-bounds clearance is rejected.
+holes when possible within `maxCombMm`. Other traverses clear the highest material
+deposited so far across all skills plus `liftMm` (default 1 mm; zero allowed).
+Cooling uses the same height; an out-of-bounds clearance is rejected.
 This is not a full head collision model. See [shared travel](../../DEVELOP.md#whole-plan-travel-requirement).
 
 ## Composition and limits
@@ -79,15 +82,15 @@ This is not a full head collision model. See [shared travel](../../DEVELOP.md#wh
 `fullFillResult({shell, plan, reserve, id})` returns wall and interior operations.
 `generateFullFill(builder, options)` uses the same result/composer for a single
 instance. General composition uses all results together, with one travel state
-and one whole-plan clearance. Assemblies can alternate or batch compatible layers;
+and one deposited-height record. Assemblies can alternate or batch compatible layers;
 body operations precede their draped skins. A drape reserve removes only its
 owned footprint from planar sections, including separate components supporting
 a spanning roof. It cannot truncate an unrelated component elsewhere.
 
 Shared `composition.regions` can assign this skill repeatedly on one part, for
 example base, cap, and solid material above a draped roof. Each region has an ID,
-selected component, component-relative Z bounds, skill setting overrides and a
-support policy. Layer intervals are open at the start and closed at the end on
+selected component, component-relative Z bounds and skill setting overrides.
+Layer intervals are open at the start and closed at the end on
 the component's shared layer grid. Sparse and solid masks can share one region;
 two complete body owners cannot overlap the same material. See the
 [shared contract](../../DEVELOP.md#skill-result-composition).
@@ -103,8 +106,9 @@ rejected. Traverses use the clipped region rather than the unprinted envelope.
 Variable-gap strokes keep their order so volumes remain attached to their
 original segments.
 
-A cap above a hollow wall needs a level wall ending and explicit experimental
-bridging policy. Full-fill above a draped surface consumes its published area
+A cap above a hollow wall uses a level wall ending. The agent chooses bridge
+direction and wall contact with the maker and reviews the path in Studio;
+no bridge permission flag is required. Full-fill above a draped surface consumes its published area
 interface through the same generator. The
 [synthetic stack fixture](../../core/tests/fixtures/regional-stack.mjs) exercises
 base, vase, cap, sparse walls, drape and horizontal fill over the wavy lower

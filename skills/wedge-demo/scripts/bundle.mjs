@@ -17,6 +17,7 @@ export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, pro
     'User reports the final startup avoids bed leveling and unused-nozzle heating; complete print quality is not validated.',
     'Griffin firmware startup internals are not animated.'])],
   runtimeFiles:[...['model.mjs','geometry.mjs','path.mjs','gcode.mjs','bundle.mjs'].map(file=>new URL(file,import.meta.url)),
+    ...['core/path/builder.mjs','core/path/comb.mjs','core/region/offset.mjs','core/region/clipper.mjs','node_modules/clipper-lib/clipper.js','package-lock.json'].map(file=>new URL('../../../'+file,import.meta.url)),
     ...['mesh.mjs','shell.mjs','nurbs.mjs','tolerance.mjs'].map(file=>new URL('../../../core/geom/'+file,import.meta.url)),
     new URL('../../../core/region/region2d.mjs',import.meta.url)],
   upgradePlan(plan,machine){

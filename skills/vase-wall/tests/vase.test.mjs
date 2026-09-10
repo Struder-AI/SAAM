@@ -25,6 +25,20 @@ function taperedMesh() {
   for(let i=4;i<8;i++){geometry.vertices[i][0]=geometry.vertices[i][0]*1.025-0.1;geometry.vertices[i][1]=geometry.vertices[i][1]*(5.8/6)+0.1;}
   return geometry;
 }
+function twistedMesh() {
+  const vertices=[],triangles=[],heights=[0,0.5,1,1.6];
+  for(const z of heights)for(const [x,y] of [[-4,-3],[4,-3],[4,3],[-4,3]]) {
+    const angle=z*0.02;
+    vertices.push([5+x*Math.cos(angle)-y*Math.sin(angle),4+x*Math.sin(angle)+y*Math.cos(angle),z]);
+  }
+  for(let j=0;j<heights.length-1;j++)for(let i=0;i<4;i++) {
+    const a=j*4+i,b=j*4+(i+1)%4,c=b+4,d=a+4;
+    // Outward diagonal gives convex sections through each twisted band.
+    triangles.push([a,b,d],[b,c,d]);
+  }
+  triangles.push([0,2,1],[0,3,2],[12,13,14],[12,14,15]);
+  return {shape:'mesh',vertices,triangles,source:null};
+}
 function splittingMesh() {
   const vertices=[],triangles=[],index=new Map(),filled=(x,z)=>x>=0&&x<3&&z>=0&&z<2&&(z===0||x!==1);
   const quads=[[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
@@ -82,7 +96,31 @@ test('explicit full-fill base ends before the continuous wall and rejects materi
   plan.skills['planar-infill'].enabled=false;plan.skills['draped-skin'].enabled=true;assert.throws(()=>generatePath(plan,machine,r),/overlap/);
 });
 
-test('vase rejects holes, islands, concavity, collapsed offsets, steep taper and exhausted sampling',async()=>{
+test('twisted mesh seams preserve a continuous level-ended wall followed by a solid cap',async()=>{
+  const r=await rhino();
+  for(const machineId of ['ultimaker-s5','bambu-h2d']) {
+    const machine=loadMachine(machineId),plan=vasePlan(machine,twistedMesh());
+    plan.composition.regions=[
+      {id:'wall',part:null,zStartMm:0,zEndMm:1.2,skills:{'vase-wall':{endTransition:'level'}},lowerSurfaceFrom:null},
+      {id:'cap',part:null,zStartMm:1.2,zEndMm:1.6,skills:{'full-fill':{mode:'body'}},lowerSurfaceFrom:null}
+    ];
+    const path=generatePath(plan,machine,r),wall=path.actions.filter(a=>a.role==='vase-wall');
+    assert.ok(wall.some(a=>a.to[2]<0.5)&&wall.some(a=>a.to[2]>1),'spiral crosses both internal mesh seams');
+    assert.ok(Math.abs(wall.at(-1).to[2]-1.2)<1e-8);
+    const lastWall=path.actions.findLastIndex(a=>a.role==='vase-wall');
+    assert.ok(path.actions.slice(lastWall+1).some(a=>a.region==='cap'&&a.volumeMm3>0));
+    const shell=translateShell(buildShell(r,plan.geometry),plan.placement.xMm,plan.placement.yMm);
+    for(const action of wall) {
+      const loop=sectionGeometry(shell,action.to[2]).loops[0];
+      const gap=Math.min(...loop.map((a,i)=>pointSegmentDistance(action.to,a,loop[(i+1)%loop.length])));
+      assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.skills['vase-wall'].toleranceMm);
+    }
+    const bytes=exportProgram(path,plan,machine,{generatorVersion:'0.1.0',buildDate:'2026-09-09'});
+    assert.equal(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
+  }
+});
+
+test('vase rejects unsupported topology and collapsed offsets, without an overhang policy',async()=>{
   const machine=loadMachine(),r=await rhino();
   assert.throws(()=>generatePath(vasePlan(machine,ringMesh()),machine,r),/holes|outer section/);
   const a=boxMesh(8,6,1),b=boxMesh(8,6,1),islands={shape:'mesh',source:null,vertices:[...a.vertices,...b.vertices.map(p=>[p[0]+12,p[1],p[2]])],triangles:[...a.triangles,...b.triangles.map(t=>t.map(i=>i+8))]};
@@ -90,12 +128,64 @@ test('vase rejects holes, islands, concavity, collapsed offsets, steep taper and
   assert.throws(()=>generatePath(vasePlan(machine,splittingMesh()),machine,r),/multiple islands/,'one lower loop becoming two upper loops is rejected');
   const concave={shape:'vertical-spline-shell',runMm:8,widthMm:6,cpU:4,cpV:4,xBulgeMm:0,yInsetMm:0.5,heightsMm:Array.from({length:4},()=>[1,1,1,1])};
   assert.throws(()=>generatePath(vasePlan(machine,concave),machine,r),/convex/);
-  assert.throws(()=>generatePath(vasePlan(machine,boxMesh(0.3,6,1)),machine,r),/outer section|collapse/);
-  const steep=taperedMesh();for(let i=4;i<8;i++)steep.vertices[i][0]=4+(steep.vertices[i][0]-4)*2;
-  assert.throws(()=>generatePath(vasePlan(machine,steep),machine,r),/shift too far/);
-  const plan=vasePlan();plan.skills['vase-wall'].maxPoints=100;assert.throws(()=>generatePath(plan,machine,r),/budget/);
-  plan.skills['vase-wall'].maxPoints=100000;plan.skills['vase-wall'].zEndMm=0.2;assert.throws(()=>generatePath(plan,machine,r),/first ring/);
+  assert.throws(()=>generatePath(vasePlan(machine,boxMesh(0.3,6,1)),machine,r),/inward offset.*collapsed at Z.*bead width/);
+  const plan=vasePlan();plan.skills['vase-wall'].zEndMm=0.2;assert.throws(()=>generatePath(plan,machine,r),/first ring/);
   const planarOnly=structuredClone(machine);planarOnly.capabilities=['xyz-extrusion','planar'];assert.throws(()=>validatePlan(vasePlan(),planarOnly),/nonplanar/);
+});
+
+test('a steep taper keeps the requested geometry and pitch without radial-overlap rejection',async()=>{
+  const machine=loadMachine(),r=await rhino(),steep=taperedMesh();
+  for(let i=4;i<8;i++)steep.vertices[i][0]=4+(steep.vertices[i][0]-4)*2;
+  const plan=vasePlan(machine,steep),before=structuredClone(plan),path=generatePath(plan,machine,r);
+  assert.deepEqual(plan,before);
+  assert.equal(path.summary.vaseWall.turns,5);
+  assert.equal(path.summary.vaseWall.endMm,1);
+  const shell=translateShell(buildShell(r,steep),plan.placement.xMm,plan.placement.yMm);
+  for(const action of path.actions.filter(a=>a.role==='vase-wall')) {
+    const loop=sectionGeometry(shell,action.to[2]).loops[0];
+    const gap=Math.min(...loop.map((p,i)=>pointSegmentDistance(action.to,p,loop[(i+1)%loop.length])));
+    assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.skills['vase-wall'].boundaryToleranceMm);
+  }
+});
+
+test('point exhaustion names usage and the setting to raise; larger budgets preserve path quality',async()=>{
+  const machine=loadMachine(),r=await rhino(),plan=vasePlan();
+  plan.skills['vase-wall'].maxPoints=100;
+  assert.throws(()=>generatePath(plan,machine,r),/point budget exhausted.*100\/100 at Z.*skills\.vase-wall\.maxPoints from 100 to 200/);
+  plan.skills['vase-wall'].maxPoints=400000;
+  const first=generatePath(plan,machine,r);
+  plan.skills['vase-wall'].maxPoints=800000;
+  const second=generatePath(plan,machine,r);
+  assert.deepEqual(first.actions,second.actions);
+  assert.equal(first.summary.vaseWall.maxPoints,400000);
+  assert.equal(first.summary.vaseWall.maxSectionQueries,1600000);
+  plan.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,skills:{'vase-wall':{maxPoints:100}}}];
+  assert.throws(()=>generatePath(plan,machine,r),/composition\.regions\[0\]\.skills\.vase-wall\.maxPoints \(region wall\)/);
+  for(const value of [99,100.5,Infinity,Number.MAX_SAFE_INTEGER+1]) {
+    const invalid=vasePlan();invalid.skills['vase-wall'].maxPoints=value;
+    assert.throws(()=>validatePlan(invalid,machine),/safe integer/);
+  }
+});
+
+test('contour and boundary tolerances are independent, with explicit normalization of older recipes',async()=>{
+  const machine=loadMachine(),plan=vasePlan();
+  plan.skills['vase-wall'].toleranceMm=0.05;
+  validatePlan(plan,machine);
+  assert.equal(plan.skills['vase-wall'].boundaryToleranceMm,0.02);
+  const r=await rhino(),coarse=generatePath(plan,machine,r);
+  plan.skills['vase-wall'].toleranceMm=0.002;
+  const fine=generatePath(plan,machine,r);
+  assert.ok(fine.summary.vaseWall.points>coarse.summary.vaseWall.points,'contour tolerance changes subdivision work');
+  assert.equal(plan.skills['vase-wall'].boundaryToleranceMm,0.02);
+  plan.skills['vase-wall'].toleranceMm=0.05;
+  delete plan.skills['vase-wall'].boundaryToleranceMm;
+  plan.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,skills:{'vase-wall':{toleranceMm:0.03}}}];
+  validatePlan(plan,machine);
+  assert.equal(plan.skills['vase-wall'].boundaryToleranceMm,0.05);
+  assert.equal(plan.composition.regions[0].skills['vase-wall'].boundaryToleranceMm,0.03);
+  plan.skills['vase-wall'].toleranceMm=0.01;
+  validatePlan(plan,machine);
+  assert.equal(plan.skills['vase-wall'].boundaryToleranceMm,0.05);
 });
 
 test('configured Dobot vase uses the same path and exact Lua interpreter with relay limits disclosed',async()=>{
