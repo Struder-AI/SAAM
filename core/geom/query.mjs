@@ -1,7 +1,7 @@
 // Skill-facing geometry queries. Adding a backend does not add a pattern pipeline.
 import { sectionShell } from './shell.mjs';
 import { topAt as splineTopAt } from './field.mjs';
-import { sectionMesh,meshTopAt } from './mesh.mjs';
+import { sectionMesh,meshTopAt,createMeshSectionQuery } from './mesh.mjs';
 import { requireThat } from './tolerance.mjs';
 
 export function requireGeometry(geometry, capabilities) {
@@ -12,6 +12,12 @@ export function requireGeometry(geometry, capabilities) {
 export function sectionGeometry(geometry,z,options={}) {
   requireGeometry(geometry,['planar-section']);
   return geometry.kind==='triangle-mesh'?sectionMesh(geometry,z):sectionShell(geometry,z,options);
+}
+// Prepare repeated sections of one fixed geometry without changing cut semantics.
+// Keep this query local to generation; rebuild it after changing geometry.
+export function createSectionQuery(geometry,options={}) {
+  requireGeometry(geometry,['planar-section']);
+  return geometry.kind==='triangle-mesh'?createMeshSectionQuery(geometry):z=>sectionShell(geometry,z,options);
 }
 export function topAt(geometry,x,y) {
   requireGeometry(geometry,['top-surface']);

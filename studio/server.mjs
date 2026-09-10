@@ -9,6 +9,7 @@ const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
+  'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
   'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs']);
 
@@ -27,23 +28,23 @@ export async function bundleFor(directory) {
 }
 // A selected plan, export or delivery file reopens its owning print bundle.
 // Standalone foreign programs need an interpreter contract before review.
-export async function printDirectory(input) {
+export async function printDirectory(input,resolveBundle=bundleFor) {
   if(typeof input!=='string'||!input.trim()||input.length>4096)throw new Error('Choose a saved print folder or a file inside it.');
   let dir=await realpath(isAbsolute(input)?input:resolve(root,input));
   if(!(await stat(dir)).isDirectory())dir=dirname(dir);
   for(let depth=0;depth<4;depth++){
-    try{await bundleFor(dir);return dir;}catch(error){if(error.code!=='ENOENT')throw error;}
+    try{await resolveBundle(dir);return dir;}catch(error){if(error.code!=='ENOENT')throw error;}
     const parent=dirname(dir);if(parent===dir)break;dir=parent;
   }
   throw new Error('No SAAM print bundle found. Open the saved print folder containing plan.json, geometry and machine.json. Standalone G-code/3MF import is not supported.');
 }
-export async function listPrints(libraryRoot) {
+export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
   const prints=[];
   async function walk(dir,depth){
     let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return;throw error;}
     if(entries.some(e=>e.name==='plan.json'&&e.isFile())){
       try{const plan=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),machine=JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
-        if(bundles[plan.schema])prints.push({path:dir,name:basename(dir),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
+        if(bundles[plan.schema]||await resolveBundle(dir))prints.push({path:dir,name:basename(dir),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
       }catch{/* One damaged bundle must not hide the other prints. */}
       return;
     }
@@ -51,16 +52,18 @@ export async function listPrints(libraryRoot) {
   }
   await walk(resolve(libraryRoot),0);return prints.sort((a,b)=>b.modified.localeCompare(a.modified));
 }
-export function createStudio(directory,{startupMs=60_000,disconnectMs=3_000,libraryRoot=resolve(root,'Prints')}={}) {
+// A local development launcher may explicitly supply a scratch adapter resolver.
+// This is a function supplied by code, never a module path supplied by a print or HTTP request.
+export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor}={}) {
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
   const printId=()=>createHash('sha256').update(dir).digest('hex');
   // Resolved on the first request; the no-op catch keeps an unopened print
   // from raising an unhandled rejection before a request reports it.
-  let opened=bundleFor(dir);opened.catch(()=>{});
+  let opened=Promise.resolve().then(()=>resolveBundle(dir));opened.catch(()=>{});
   let queue=Promise.resolve();
   const openPrint=async input=>{
-    const next=await printDirectory(input),adapter=await bundleFor(next);
+    const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
     await adapter.loadBundle(next,{program:false});
     dir=next;opened=Promise.resolve(adapter);
   };
@@ -81,13 +84,13 @@ export function createStudio(directory,{startupMs=60_000,disconnectMs=3_000,libr
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
-      if(req.method==='GET'&&url.pathname==='/api/prints'){send({prints:await listPrints(libraryRoot)});return;}
+      if(req.method==='GET'&&url.pathname==='/api/prints'){send({prints:await listPrints(libraryRoot,resolveBundle)});return;}
       await queue;
       const readDir=dir,readId=printId();
       const bundle=await opened;
@@ -137,7 +140,7 @@ export function createStudio(directory,{startupMs=60_000,disconnectMs=3_000,libr
     const run=queue.then(()=>openPrint(input));
     queue=run.catch(()=>{});return run;
   };
-  const lifetime=viewerLifetime(server,{startupMs,disconnectMs});
+  const lifetime=viewerLifetime(server,{disconnectMs});
   server.shutdown=lifetime.shutdown;
   return server;
 }
@@ -148,7 +151,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const bundle=await bundleFor(dir);
   await bundle.loadBundle(dir,{program:false});
   const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);
-  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nOpen within 60 seconds. Closes 3 seconds after the last viewer disconnects.`));
+  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes 3 seconds after the last viewer disconnects.`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void server.shutdown());
   server.on('error',e=>{console.error(e.message);process.exitCode=1;});
 }

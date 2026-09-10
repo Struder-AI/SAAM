@@ -14,6 +14,7 @@
 
 import { requireThat, distance, TOLERANCE } from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
+import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
 
 // Griffin coordinates are written with five decimals.
 export const MINIMUM_MOVE_MM = 1e-4;
@@ -21,7 +22,7 @@ export const NEARBY_MOVE_MM = 1;
 import { pointInRegion, pointSegmentDistance, SegmentIndex } from '../region/region2d.mjs';
 
 export class PathBuilder {
-  constructor({ start, process, machine, generatorVersion }) {
+  constructor({ start, process, machine, generatorVersion, motion=null }) {
     requireThat(Array.isArray(start) && start.length === 3 && start.every(Number.isFinite), 'PathBuilder needs a 3D start position.');
     this.actions = [];
     this.start = [...start];
@@ -29,6 +30,8 @@ export class PathBuilder {
     this.process = process;
     this.machine = machine;
     this.generatorVersion = generatorVersion;
+    this.motion=motion;
+    this.pose=motion?structuredClone(motion.initialPose):null;
     this.retracted = false;
     this.phase = 'start';
     this.layer = 0;
@@ -44,6 +47,20 @@ export class PathBuilder {
   move(to, speed, volumeMm3 = 0, extra = {}) {
     requireThat(Array.isArray(to)&&to.length===3&&to.every(Number.isFinite)&&Number.isFinite(speed)&&speed>0&&Number.isFinite(volumeMm3)&&volumeMm3>=0,'Invalid path move.');
     const length = distance(this.position, to);
+    if(this.pose){
+      const pose=validatePose(extra.pose??this.pose);
+      if(length<MINIMUM_MOVE_MM&&samePose(this.pose,pose))return;
+      const limited=volumeMm3>0?Math.min(speed,this.process.maxFlowMm3S*length/volumeMm3):speed;
+      const seconds=extra.durationSeconds??(length>=MINIMUM_MOVE_MM?length/limited:this.motion.transitionSeconds);
+      requireThat(Number.isFinite(seconds)&&seconds>0,'Pose motion needs positive duration.');
+      this.actions.push({kind:'move',to:[...to],speedMmS:speed,volumeMm3,phase:this.phase,layer:this.layer,
+        ...(this.operationId?{operation:this.operationId}:{}),...extra,pose:structuredClone(pose),durationSeconds:seconds});
+      this.layerSeconds+=seconds;
+      if(volumeMm3>0){this.stats.printMm+=length;this.depositedMaxZ=Math.max(this.depositedMaxZ,this.position[2],to[2]);}
+      else this.stats.travelMm+=length;
+      this.position=[...to];this.pose=structuredClone(pose);return;
+    }
+    requireThat(!extra.pose,'Machine cannot represent oriented/rotary motion.');
     // Below the export's coordinate resolution a move cannot be written down:
     // it would round to the position the nozzle is already at, and SAAMpath and
     // the exported program would then disagree about how many moves exist.
@@ -94,11 +111,14 @@ export class PathBuilder {
   // Keep both endpoints reachable without treating a previous lift as material.
   clearanceZ(target = this.position) {
     const clearance = Math.max(this.depositedMaxZ + this.process.liftMm, this.position[2], target[2]);
-    requireThat(Number.isFinite(clearance)&&clearance<=(this.motionBounds??this.machine.bounds).max[2],'Travel clearance exceeds machine/tool Z bounds.');
+    requireThat(Number.isFinite(clearance)&&(this.machine.motionChecks==='deferred'||clearance<=(this.motionBounds??this.machine.bounds).max[2]),'Travel clearance exceeds machine/tool Z bounds.');
     return clearance;
   }
 
   park() {
+    if(this.pose&&!samePose(this.pose,uprightPose())){
+      this.retract();this.move(this.position.map((v,i)=>v-this.pose.toolAxis[i]*this.motion.retreatMm),this.process.travelSpeedMmS,0,{travel:'tool-retreat'});return;
+    }
     const z = this.clearanceZ();
     this.retract();
     this.move([this.position[0], this.position[1], z], this.process.zSpeedMmS);
@@ -113,7 +133,24 @@ export class PathBuilder {
     this.layerSeconds = 0;
   }
 
-  travelTo(target, policy) {
+  travelTo(target, policy, targetPose) {
+    if(this.pose&&(targetPose||!samePose(this.pose,uprightPose()))){
+      const pose=validatePose(targetPose??uprightPose());
+      if(distance(this.position,target)<1e-9&&samePose(this.pose,pose)){this.stats.joined++;this.recover();return 'joined';}
+      if(policy.poseJoinMm>0&&this.actions.at(-1)?.operation===this.operationId&&Math.abs(this.position[2]-target[2])<1e-9&&distance(this.position,target)<=policy.poseJoinMm){
+        this.stats.combed++;this.move(target,this.process.skinSpeedMmS,0,{pose,travel:'surface-index'});return 'combed';
+      }
+      this.stats.hopped++;this.retract();
+      const retreat=this.position.map((v,i)=>v-this.pose.toolAxis[i]*this.motion.retreatMm);
+      this.move(retreat,this.process.travelSpeedMmS,0,{travel:'tool-retreat'});
+      // Hold the TCP fixed in the room while changing the bed and tool pose.
+      const room=bedPoint(this.position,this.pose.rotaryDeg,this.motion.rotaryCenterMm);
+      const held=bedPoint(room,pose.rotaryDeg,this.motion.rotaryCenterMm,true);
+      this.move(held,this.process.travelSpeedMmS,0,{pose,durationSeconds:this.motion.transitionSeconds,travel:'reorient'});
+      const approach=target.map((v,i)=>v-pose.toolAxis[i]*this.motion.retreatMm);
+      this.move(approach,this.process.travelSpeedMmS,0,{pose,travel:'position'});
+      this.move(target,this.process.travelSpeedMmS,0,{pose,travel:'approach'});this.recover();return 'hopped';
+    }
     const gap = distance(this.position, target);
     if (gap <= 1e-9) { this.stats.joined++; this.recover(); return 'joined'; }
     // Nearby stroke starts do not need a retraction/lift cycle merely because
@@ -165,6 +202,7 @@ export class PathBuilder {
       units: 'mm',
       materialUnits: 'mm3',
       initialPosition: this.start,
+      ...(this.motion?{initialPose:structuredClone(this.motion.initialPose),motionFrame:'part',rotaryCenterMm:this.motion.rotaryCenterMm}:{}),
       actions: this.actions,
       summary: { ...summary, travel: { ...this.stats } }
     };

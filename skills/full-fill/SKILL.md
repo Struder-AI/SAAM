@@ -56,7 +56,7 @@ Install with `npm ci` using Node.js 22+. From the repository root:
 | `parts` | `[]` | Assembly component IDs; empty selects all. |
 | `mode` | `body` | Entire body, or `solid-surfaces` alongside planar-infill. |
 | `bottomLayers` / `topLayers` | `3` / `3` | Local solid thickness in layers in solid-surfaces mode. |
-| `perimeters` | `2` | Wall count in body mode; planar-infill owns walls in shared solid-surfaces mode. |
+| `perimeters` | `2` | Maximum inward loops from each boundary in body mode; planar-infill owns walls in shared solid-surfaces mode. |
 | `fillAnglesDeg` | `[45, 135]` | Alternating fill directions in body mode. |
 | `fillOverlap` | `0.15` | Interior/wall overlap as a bead fraction in body mode. |
 | `minFeatureMm` | `0.4` | Smallest sampled spline section feature. |
@@ -65,6 +65,13 @@ Solid-surfaces mode uses planar-infill's directions, overlap and feature toleran
 so the complementary regions share a common stroke grid and wall owner.
 Layer height, line width, speeds, flow, retraction and cooling come from the
 locked shared process settings, validated against the selected machine and tool.
+
+Opposing fronts in a uniform closed wall share their final coincident loop.
+For example, a 2 mm circular wall at 0.4 mm line width with three or more
+perimeters produces five distinct loops and no interior fill. Increasing the
+setting stops adding loops once the wall is consumed. This recovers a closed
+central contour; it does not add general medial-axis or variable-width gap fill
+for branching, uneven or sharp-corner remnants.
 
 Mesh sections and offset wall strokes remove numerical straight-edge seams
 through the shared contour helper before expensive offsets or motion emission.

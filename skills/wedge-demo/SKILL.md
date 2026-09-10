@@ -28,7 +28,7 @@ From the repository root, install with `npm ci` (Node.js 22+).
 
 - `node skills/wedge-demo/scripts/cli.mjs init Prints/<name>` creates an unapproved geometry and process plan.
 - `npm run studio -- Prints/<name>` serves that bundle at its own local URL,
-  printed by the command. Open it within 60 seconds. Closing the last viewer tab
+  printed by the command. Open it whenever you are ready. Closing the last viewer tab
   shuts down that instance; rerun the command to resume the saved bundle.
 - `node skills/wedge-demo/scripts/cli.mjs generate Prints/<name>` generates directly from an approved plan and completes checks.
 - `node skills/wedge-demo/scripts/cli.mjs check Prints/<name>` reopens and verifies the current bundle and exact export.

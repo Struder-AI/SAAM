@@ -22,7 +22,7 @@ starting vocabulary for the ontology we develop together.
 | Process plan | The recipe for making a part: geometry reference, selected skills, their settings, and machine/setup choices. |
 | Locked process plan | The complete version of the recipe submitted for approval; generation introduces no further process choices. |
 | Toolpath | The route and associated printing actions the machine will follow. |
-| SAAMpath | The current transient motion objects used during generation and export: XYZ motion, deposited volume and printing actions. No separate path file is required or saved in new print bundles. |
+| SAAMpath | The current transient motion objects used during generation and export: XYZ motion, deposited volume and printing actions, with optional part-frame tool orientation and unwrapped rotary angle. No separate path file is required or saved in new print bundles. |
 | Machine file | The definition of a machine, including its supported output options. |
 | Export | The machine-ready file or file bundle produced from SAAMpath, using an output option declared by the machine file. Studio runs the same export the machine receives. |
 | Print | A local bundle containing geometry, a process plan, its checked machine export and review records. Specific curated examples may be shared. |

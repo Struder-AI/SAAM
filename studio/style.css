@@ -3,3 +3,5 @@
 /* Keep long regional recipes and machine settings within the review panel. */
 .speed-label{flex-shrink:0}#playback-speed{width:90px;min-width:60px}#speed-label{min-width:24px;text-align:right}@media(max-width:700px){.transport{flex-wrap:wrap}#playback-speed{width:75px}}
 aside dl>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:14px}aside dt,aside dd{min-width:0;overflow-wrap:anywhere}
+.movie-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;padding:12px 22px}.movie-controls a{font-size:12px;color:var(--green)}.movie-controls progress{width:120px;accent-color:var(--green)}#movie-status{margin:0 18px 12px}#movie-status:empty{display:none}canvas[inert]{pointer-events:none}
+#axial-colors{display:flex;flex-wrap:wrap;gap:5px;padding:10px 15px 0}#axial-colors button{display:flex;align-items:center;gap:5px;font-size:10px;padding:5px 7px}#axial-colors .dot{width:10px;height:10px;flex-shrink:0}

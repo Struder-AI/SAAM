@@ -66,7 +66,49 @@ export function translateMesh(mesh,dx,dy,dz=0) {
     bounds:{min:mesh.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:mesh.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
 }
 
+// Repeated cuts share only search data. The caller keeps geometry fixed for the
+// lifetime of this query; a newly built/translated mesh gets a fresh query.
+// A Z-bound hierarchy stores each triangle once, including tall triangles that
+// would occupy many bins in a uniform layer index.
+export function createMeshSectionQuery(mesh) {
+  const heights=mesh.vertices.map(p=>p[2]).sort((a,b)=>a-b);
+  const ranges=mesh.triangles.map((t,i)=>({i,
+    min:Math.min(...t.map(v=>mesh.vertices[v][2])),
+    max:Math.max(...t.map(v=>mesh.vertices[v][2]))}));
+  function build(items) {
+    let min=Infinity,max=-Infinity;
+    for(const item of items){min=Math.min(min,item.min);max=Math.max(max,item.max);}
+    if(items.length<=16)return {min,max,items};
+    items.sort((a,b)=>(a.min/2+a.max/2)-(b.min/2+b.max/2)||a.i-b.i);
+    const middle=Math.floor(items.length/2);
+    return {min,max,left:build(items.slice(0,middle)),right:build(items.slice(middle))};
+  }
+  const tree=build(ranges);
+  const nearVertex=cut=>{
+    let lo=0,hi=heights.length;
+    while(lo<hi){const mid=Math.floor((lo+hi)/2);if(heights[mid]<cut)lo=mid+1;else hi=mid;}
+    return (lo<heights.length&&Math.abs(heights[lo]-cut)<1e-10)
+      ||(lo>0&&Math.abs(heights[lo-1]-cut)<1e-10);
+  };
+  const trianglesAt=cut=>{
+    const found=[];
+    function visit(node) {
+      if(cut<=node.min||cut>=node.max)return;
+      if(node.items){for(const item of node.items)if(cut>item.min&&cut<item.max)found.push(item.i);}
+      else {visit(node.left);visit(node.right);}
+    }
+    visit(tree);
+    // Preserve the original edge overwrite and contour traversal order exactly.
+    return found.sort((a,b)=>a-b).map(i=>mesh.triangles[i]);
+  };
+  return z=>cutMesh(mesh,z,nearVertex,trianglesAt);
+}
+
 export function sectionMesh(mesh,z) {
+  return cutMesh(mesh,z,cut=>mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10),()=>mesh.triangles);
+}
+
+function cutMesh(mesh,z,nearVertex,trianglesAt) {
   requireThat(Number.isFinite(z),'Section height must be finite.');
   // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
   // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
@@ -76,9 +118,9 @@ export function sectionMesh(mesh,z) {
   // Move a cut off vertices/edges; prefer the interior side at the top bound.
   for(const nudge of [0,-1e-6,1e-6,-1e-5,1e-5]) {
     const cut=z+nudge;
-    if(cut<=mesh.bounds.min[2]||cut>=mesh.bounds.max[2]||mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10))continue;
+    if(cut<=mesh.bounds.min[2]||cut>=mesh.bounds.max[2]||nearVertex(cut))continue;
     const points=new Map(),graph=new Map();
-    for(const t of mesh.triangles){
+    for(const t of trianglesAt(cut)){
       const hits=[];
       for(let k=0;k<3;k++){
         const a=t[k],b=t[(k+1)%3],p=mesh.vertices[a],q=mesh.vertices[b];

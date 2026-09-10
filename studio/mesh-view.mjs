@@ -1,3 +1,6 @@
+import {add,subtract,scale,dot,length,normalize} from '../core/geom/tolerance.mjs';
+import {materialProjection} from './material-view.mjs';
+
 // Display creases, not tessellation. Weld coincident proxy vertices for edge
 // adjacency without changing the source mesh or the geometry used for slicing.
 export function buildMeshView({vertices,faces},creaseDeg=3) {
@@ -27,5 +30,104 @@ export function buildMeshView({vertices,faces},creaseDeg=3) {
     if(na&&nb&&Math.abs(na.reduce((s,v,i)=>s+v*nb[i],0))>cosine+1e-12)
       masks[a.f][a.i]=masks[b.f][b.i]=false;
   }
-  return {edgeMasks:masks};
+  return {edgeMasks:masks,normals,weld,edges};
+}
+
+// Angle-weighted corner normals remove triangulation shading without rounding
+// real corners or blending across separately named CAD/component features.
+export function buildGeometryView(geometry,creaseDeg=35){
+  const {vertices,faces,labels}=geometry,topology=buildMeshView(geometry,creaseDeg);
+  const {normals,weld,edges}=topology,incident=new Map(),cosine=Math.cos(creaseDeg*Math.PI/180);
+  const features=[...new Set(labels)],featureIds=new Map(features.map((id,i)=>[id,i]));
+  faces.forEach((face,f)=>face.forEach((v,k)=>{
+    const a=subtract(vertices[face[(k+face.length-1)%face.length]],vertices[v]),b=subtract(vertices[face[(k+1)%face.length]],vertices[v]);
+    const weight=Math.acos(Math.max(-1,Math.min(1,dot(a,b)/Math.max(1e-20,length(a)*length(b)))));
+    const list=incident.get(weld[v])??[];list.push({f,weight});incident.set(weld[v],list);
+  }));
+  const cornerNormals=faces.map((face,f)=>face.map(v=>{
+    const n=normals[f]??[0,0,1];let sum=[0,0,0];
+    for(const other of incident.get(weld[v])){
+      const candidate=normals[other.f];if(!candidate||labels[other.f]!==labels[f])continue;
+      const alignment=dot(n,candidate);
+      if(Math.abs(alignment)>cosine)sum=add(sum,scale(candidate,other.weight*(alignment<0?-1:1)));
+    }
+    return length(sum)>1e-12?normalize(sum):n;
+  }));
+  const triangles=[],surface=[],outlines=[];
+  faces.forEach((face,f)=>{
+    for(let i=1;i<face.length-1;i++){
+      const corners=[0,i,i+1];triangles.push({indices:corners.map(k=>face[k]),id:labels[f]});
+      for(const k of corners)surface.push(...vertices[face[k]],...cornerNormals[f][k],featureIds.get(labels[f]));
+    }
+  });
+  for(const entries of edges.values()){
+    const a=entries[0],b=entries[1];
+    if(entries.length===2&&labels[a.f]===labels[b.f]&&!topology.edgeMasks[a.f][a.i])continue;
+    for(const entry of entries.filter((e,i)=>entries.findIndex(o=>labels[o.f]===labels[e.f])===i)){
+      const face=faces[entry.f];
+      for(const k of [entry.i,(entry.i+1)%face.length])outlines.push(...vertices[face[k]],0,0,1,featureIds.get(labels[entry.f]));
+    }
+  }
+  const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  for(const p of vertices)p.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
+  bounds.min[2]=Math.min(0,bounds.min[2]);
+  return {geometry,features,triangles,cornerNormals,bounds,topology,surface:new Float32Array(surface),outlines:new Float32Array(outlines)};
+}
+
+// Interpolate depth at the click, rather than sorting by whole-face centers.
+export function pickGeometry(view,project,x,y){
+  const points=view.geometry.vertices.map(project);let closest=-Infinity,hit=null;
+  for(const triangle of view.triangles){
+    const [a,b,c]=triangle.indices.map(i=>points[i]);
+    const d=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);if(Math.abs(d)<1e-10)continue;
+    const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/d;
+    const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/d,w=1-u-v;
+    if(Math.min(u,v,w)<-1e-8)continue;
+    const depth=u*a[2]+v*b[2]+w*c[2];if(depth>closest){closest=depth;hit=triangle.id;}
+  }
+  return hit;
+}
+
+export function createGeometryRenderer(documentApi=document){
+  const canvas=documentApi.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:true,antialias:true,preserveDrawingBuffer:true});
+  if(!gl)return null;
+  let lost=false;canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();lost=true;});
+  const sources=[`#version 300 es
+    precision highp float;layout(location=0) in vec3 position;layout(location=1) in vec3 normal;layout(location=2) in float feature;
+    uniform mat4 projection;uniform bool shadow;out vec3 n;flat out float id;
+    void main(){vec3 p=position;if(shadow)p=vec3(p.xy+vec2(.12,.08)*max(0.,p.z),0.);
+      gl_Position=projection*vec4(p,1.);n=normal;id=feature;}`,
+    `#version 300 es
+    precision highp float;in vec3 n;flat in float id;uniform vec3 color,light,eye;uniform float selected;uniform bool shadow,edges;out vec4 result;
+    void main(){if(shadow){result=vec4(.12,.18,.20,1.);return;}
+      bool highlighted=selected>=0.&&abs(id-selected)<.1;
+      if(edges){float a=highlighted?.75:.22;result=vec4(vec3(.15,.34,.46)*a,a);return;}
+      vec3 normal=normalize(n);if(dot(normal,eye)<0.)normal=-normal;
+      float diffuse=max(0.,dot(normal,light));float highlight=pow(max(0.,dot(normal,normalize(light+eye))),36.)*.12;
+      vec3 base=highlighted?mix(color,vec3(.65,.83,.94),.22):color;
+      result=vec4(base*(.48+.52*diffuse)+highlight,1.);}`];
+  const shaders=sources.map((source,i)=>{const shader=gl.createShader(i?gl.FRAGMENT_SHADER:gl.VERTEX_SHADER);gl.shaderSource(shader,source);gl.compileShader(shader);
+    if(!gl.getShaderParameter(shader,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(shader));return shader;});
+  const program=gl.createProgram();shaders.forEach(s=>gl.attachShader(program,s));gl.linkProgram(program);shaders.forEach(s=>gl.deleteShader(s));
+  if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));
+  const uniforms=Object.fromEntries(['projection','shadow','color','light','eye','selected','edges'].map(name=>[name,gl.getUniformLocation(program,name)]));
+  let scene=null,buffers=[];
+  function reset(){for(const b of buffers){gl.deleteBuffer(b.buffer);gl.deleteVertexArray(b.vao);}buffers=[];}
+  function upload(data){const buffer=gl.createBuffer(),vao=gl.createVertexArray();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);
+    for(const [location,size,offset] of [[0,3,0],[1,3,12],[2,1,24]]){gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,size,gl.FLOAT,false,28,offset);}return {buffer,vao,count:data.length/7};}
+  return {canvas,draw(next,{project,width,height,ratio,color,selected=null,shadow=false}){
+    if(lost)throw new Error('Geometry graphics context lost. Refresh Studio to restore shading.');
+    if(scene!==next){reset();scene=next;buffers=[upload(scene.surface),upload(scene.outlines)];}
+    const w=Math.round(width*ratio),h=Math.round(height*ratio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+    gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    const {matrix,light}=materialProjection(project,width,height,scene.bounds),o=project([0,0,0]);
+    const eye=normalize([[1,0,0],[0,1,0],[0,0,1]].map(p=>project(p)[2]-o[2]));
+    gl.useProgram(program);gl.uniformMatrix4fv(uniforms.projection,false,matrix);gl.uniform3fv(uniforms.light,light);gl.uniform3fv(uniforms.eye,eye);
+    gl.uniform3fv(uniforms.color,[1,3,5].map(i=>parseInt(color.slice(i,i+2),16)/255));gl.uniform1f(uniforms.selected,scene.features.indexOf(selected));
+    gl.uniform1i(uniforms.shadow,shadow);gl.uniform1i(uniforms.edges,0);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LESS);
+    gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.bindVertexArray(buffers[0].vao);gl.drawArrays(gl.TRIANGLES,0,buffers[0].count);gl.disable(gl.POLYGON_OFFSET_FILL);
+    if(!shadow){gl.uniform1i(uniforms.edges,1);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthFunc(gl.LEQUAL);gl.depthMask(false);
+      gl.bindVertexArray(buffers[1].vao);gl.drawArrays(gl.LINES,0,buffers[1].count);}
+    gl.bindVertexArray(null);
+  },dispose(){reset();gl.deleteProgram(program);}};
 }

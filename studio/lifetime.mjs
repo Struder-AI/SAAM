@@ -1,7 +1,7 @@
 // One lifetime per Studio server, never shared between agents/adapter processes.
-// A persistent connection survives background-tab timer throttling. Closing the
-// last page releases the listener after a short refresh/reconnect grace period.
-export function viewerLifetime(server,{startupMs=60_000,disconnectMs=3_000}={}) {
+// Opening the first viewer has no deadline. Closing the last page releases the
+// listener after a short refresh/reconnect grace period.
+export function viewerLifetime(server,{disconnectMs=3_000}={}) {
   const viewers=new Set(),sockets=new Map();
   let timer,closing=false,finished;
   server.on('connection',socket=>{
@@ -33,7 +33,6 @@ export function viewerLifetime(server,{startupMs=60_000,disconnectMs=3_000}={}) 
     for(const [socket,active] of sockets)if(!active)socket.end();
     return finished;
   }
-  server.once('listening',()=>arm(startupMs));
   server.once('close',()=>{closing=true;clearTimeout(timer);});
   return {shutdown,attach(res){
     if(closing){res.writeHead(503);res.end('Studio is closing. Start a new viewer.');return;}

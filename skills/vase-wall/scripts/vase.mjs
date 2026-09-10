@@ -1,6 +1,6 @@
 // One continuous wall from the shared geometry section query. Polar phase is
 // fixed about one interior point; section vertex ordering never controls seams.
-import {sectionGeometry} from '../../../core/geom/query.mjs';
+import {createSectionQuery} from '../../../core/geom/query.mjs';
 import {loopArea,pointInRegion,dedupe,pointSegmentDistance} from '../../../core/region/region2d.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
@@ -45,10 +45,11 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     throw new Error(`Vase ${kind} budget exhausted for ${id}: ${used}/${limit} at Z ${z.toFixed(6)} mm (wall ${start.toFixed(6)}–${end.toFixed(6)} mm). Increase ${budgetSetting} from ${settings.maxPoints} to ${next} or higher and retry; this changes the compute allowance, not contour quality. No complete wall was generated.`);
   }
   const cache=new Map();let center,nudgedSections=0;
+  const sectionAt=createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
     if(cache.size>=maxSectionQueries)exhausted('section query',cache.size,maxSectionQueries,z);
-    const cut=sectionGeometry(shell,z,{minFeatureMm:settings.minFeatureMm});
+    const cut=sectionAt(z);
     requireThat(Math.abs(cut.nudgedByMm??0)<=settings.boundaryToleranceMm,'Vase section nudge exceeds boundaryToleranceMm.');
     if(cut.nudgedByMm)nudgedSections++;
     const outer=convexLoop(cut.loops),inset=offsetRegion([outer],-width/2,{arcToleranceMm:settings.boundaryToleranceMm/4});

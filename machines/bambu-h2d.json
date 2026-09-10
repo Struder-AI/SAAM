@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 3,
+  "revision": 4,
   "units": "mm",
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "capabilities": [
@@ -148,7 +148,7 @@
       "implemented": true,
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "program": {
-        "contract": "h2d-02.08.02.61-pla-textured-v1",
+        "contract": "h2d-02.08.02.61-pla-textured-v2",
         "start": [
           "M201 X20000 Y20000 Z500 E5000",
           "M203 X1000 Y1000 Z30 E50",
@@ -202,23 +202,10 @@
           "M104 S140 A",
           "M140 S{bedC}",
           "M982.2 S1",
-          "M1002 gcode_claim_action : 13",
-          "G28 X T300",
-          "G150.1 F18000",
-          "G150.3 F18000",
-          "M400 P200",
-          "M972 S24 P0 T2000",
           "M1002 gcode_claim_action : 74",
           "M972 S26 P0 C0",
           "M972 S35 P0 C0",
           "M972 S41 P0 T5000",
-          "M1009 Q1 L1",
-          "G91",
-          "G380 S2 Z30 F1200",
-          "G90",
-          "G1 X175 Y160 F30000",
-          "G28 Z P0 T250",
-          "M1009 Q1 L0",
           "M400",
           "M1002 judge_flag build_plate_detect_flag",
           "M622 S1",
@@ -547,13 +534,13 @@
         "endLiftMm": 10,
         "parkLimitMm": 320
       },
-      "validation": "Experimental output: matched to user-supplied Bambu Studio envelopes; firmware routines are checked as a fixed contract, not motion-simulated. No physical print validation."
+      "validation": "Experimental output: user-supplied Bambu Studio envelope with the initial homing block (startup triage H10) removed at the user's request on 2026-09-10. Later probing and calibration remain. Firmware routines are checked as a fixed contract, not motion-simulated. Revised startup has no physical validation."
     }
   ],
   "startup": {
-    "protocol": "bambu-h2d-reference-envelope",
+    "protocol": "bambu-h2d-reference-envelope-without-initial-homing",
     "zAfterStartupMm": 20,
-    "validation": "Bambu Studio 02.08.02.61 PLA / Textured PEI reference envelope, with explicit body origin [100,100,20]. Firmware probing, wiping, calibration, purge and unload routines are not simulated; their conditions remain controlled by the printer. No physical validation."
+    "validation": "Bambu Studio 02.08.02.61 PLA / Textured PEI reference envelope with startup triage H10 removed: initial X home, early wiping-area moves/M972 S24, and initial Z-clearance/center/Z-home block. Later bed leveling, Z/XY calibration and priming remain. Explicit body origin [100,100,20]. Firmware service routines are not simulated; their conditions remain controlled by the printer. Revised startup has no physical validation."
   },
   "nonplanar": {
     "maxAngleDeg": 15,

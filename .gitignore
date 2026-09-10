@@ -24,3 +24,6 @@ Thumbs.db
 # personal print bundles and architecture viewer
 /[Pp]rints/
 /.local/
+
+# personal Claude Code permissions; shared .claude/settings.json stays visible
+/.claude/settings.local.json

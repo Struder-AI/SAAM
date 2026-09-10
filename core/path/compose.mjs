@@ -13,7 +13,7 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
     requireThat(typeof operation.layerId === 'string' && operation.layerId && Number.isFinite(operation.rank), 'Operation needs a layer reference and finite scheduling rank.');
     requireThat(Array.isArray(operation.strokes) && operation.travelPolicy && typeof operation.travelPolicy.clearanceFor==='function'
       && Number.isFinite(operation.clearanceZ), 'Operation needs strokes and a travel policy.');
-    requireThat(operation.order!=='nearest'||operation.strokes.every(s=>s.closed&&Number.isFinite(s.beadAreaMm2)&&!s.volumesMm3),
+    requireThat(operation.order!=='nearest'||operation.strokes.every(s=>s.closed&&Number.isFinite(s.beadAreaMm2)&&!s.volumesMm3&&!s.poses),
       'Nearest ordering requires closed strokes with a uniform bead area.');
     byId.set(operation.id, operation);
   }
@@ -62,6 +62,7 @@ export function composeResults(builder, results, rules = {}) {
     const strokes = op.order === 'nearest' ? orderStrokes(op.strokes, builder.position) : op.strokes;
     for (const stroke of strokes) {
       requireThat(stroke.points.length >= 2, 'An operation stroke needs at least two points.');
+      requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
       // PathBuilder tracks deposited height per segment. These local queries
       // retain the existing restrictions on direct/combed moves only.
       const policy = { ...op.travelPolicy };
@@ -71,13 +72,13 @@ export function composeResults(builder, results, rules = {}) {
       if(deposited.some(previous=>previous.travelPolicy.clearanceFor(builder.position,stroke.points[0])>destinationClearance+1e-9)) {
         policy.canTravelDirect=()=>false; policy.maxCombMm=0;
       }
-      builder.travelTo(stroke.points[0], policy);
+      builder.travelTo(stroke.points[0], policy,stroke.poses?.[0]);
       for (let i = 1; i < stroke.points.length; i++) {
         const volume = stroke.volumesMm3 ? stroke.volumesMm3[i - 1]
           : distance(stroke.points[i - 1], stroke.points[i]) * stroke.beadAreaMm2;
         requireThat(Number.isFinite(volume) && volume >= 0, 'Invalid operation deposition volume.');
         builder.move(stroke.points[i], stroke.speedMmS, volume,
-          { role: stroke.role, ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
+          { role: stroke.role, ...(stroke.poses?{pose:stroke.poses[i]}:{}), ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
       }
     }
     deposited.push(op);

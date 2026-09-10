@@ -22,7 +22,7 @@ const printIdSchema = z.string().min(1).max(384).refine(id => {
     && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part));
 }, 'Invalid print name: use up to three relative folder names, without traversal, reserved names or Windows path characters.');
 const kindSchema = z.enum(['shell', 'wedge']);
-const skillIds = ['draped-skin', 'full-fill', 'planar-infill', 'rimming-normal', 'rimming-planar', 'supports', 'vase-wall', 'wedge-demo'];
+const skillIds = ['draped-skin', 'full-fill', 'pipe-cladding', 'planar-infill', 'rimming-normal', 'rimming-planar', 'supports', 'vase-wall', 'wedge-demo'];
 const guidanceFiles = {
   makers: 'MAKERS.md', development: 'DEVELOP.md', glossary: 'GLOSSARY.md',
   mcp: 'adapters/mcp/README.md', 'wedge-generation': 'skills/wedge-demo/references/generation.md',
@@ -69,7 +69,7 @@ function summary(printId, state) {
   };
 }
 
-async function openBrowser(url) {
+export async function openBrowser(url) {
   const command = process.platform === 'win32' ? 'rundll32.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
   const args = process.platform === 'win32' ? ['url.dll,FileProtocolHandler', url] : [url];
   return new Promise(resolveOpen => {

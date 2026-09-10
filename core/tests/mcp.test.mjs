@@ -56,6 +56,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(!names.some(name => /^(approve|post_process|compile_plan)$/.test(name)));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'full-fill'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'pipe-cladding'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   assert.match((await call('read_skill', { skillId: 'wedge-demo' })).manual, /eight-point/i);
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
@@ -68,6 +69,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(machines.some(machine => machine.id === 'ultimaker-s5'));
   assert.ok(machines.some(machine => machine.id === 'bambu-h2d'));
   assert.ok(machines.some(machine => machine.id === 'dobot-mg400'));
+  assert.ok(machines.some(machine => machine.id === 'denso-vp6242-rc8'));
   const dobot = await call('get_plan_template', { kind: 'shell', machineId: 'dobot-mg400' });
   assert.equal(dobot.plan.setup.dobot.configurationSource, null);
   await call('read_skill', { skillId: '../DEVELOP' }, /validation|Invalid|format/i);

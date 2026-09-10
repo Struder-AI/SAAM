@@ -72,7 +72,7 @@ returned URL remains usable if browser launch fails. Set `SAAM_NO_AUTO_OPEN=1`
 for tests or a headless client. Studio servers are owned by the MCP process,
 use free loopback ports, and close three seconds after the last viewer tab
 disconnects (with a grace period for refresh), or when the owning stdio client
-disconnects. A launch with no viewer connection closes after 60 seconds.
+disconnects. There is no deadline to open the first viewer.
 Repeated review requests use the print's still-open server within this adapter;
 after it closes, they start a fresh instance from the saved bundle. Closing a
 viewer leaves the MCP connection and its other viewers running. Separate adapter
@@ -102,6 +102,11 @@ prevents normal reopening; it does not silently migrate on read.
 The legacy `compile_plan` is replaced by `create_print` / `adjust_print` followed
 by the shared approvals and `generate_print`. `validate_plan` becomes
 `check_print`; `post_process` becomes shared generation and `deliver_print`.
+The fixed catalog also includes `denso-vp6242-rc8` and
+[pipe-cladding](../../skills/pipe-cladding/SKILL.md). This experimental rotary
+demo uses the same tools and Studio. Actual installation setup is unresolved;
+synthetic development calibration is not a hardware configuration.
+
 `list_operations` is replaced by the small known-manual list. `request_review`
 and `get_approval_status` now accept only a persisted print ID. The legacy
 revision-only approval and global live-session plan are deliberately not adopted.
@@ -141,7 +146,10 @@ The command reserves loopback port 4322, starts a temporary Cloudflare HTTPS
 tunnel, and writes the public `/mcp` URL and pairing code to the ignored
 `.local/web-chat/connection-4322.json`. The code is a credential: read it locally
 and enter it only on the SAAM OAuth page, never in a chat or a public URL.
-The launcher does not print the code. No project files or Studio routes are
+The launcher does not print the code to the terminal. It opens a pairing page
+on a separate loopback port with the code and a copy button; no tunnel points
+at that port, so the page is reachable only from this computer. Use
+`SAAM_NO_AUTO_OPEN=1` to suppress opening it. No project files or Studio routes are
 served by the public bridge. Cloudflare carries requests and responses, so tool
 arguments/results are not private from the tunnel provider or selected AI service.
 
@@ -149,8 +157,9 @@ arguments/results are not private from the tunnel provider or selected AI servic
    OAuth; dynamic client registration supplies the client ID and secret where
    needed, so normally leave those fields empty.
 2. The chat opens the SAAM authorization page. Check the client and return
-   address, then enter the local pairing code to connect that client. This is
-   connection authorization, separate from the three manufacturing approvals.
+   address, then copy the code from the local pairing page and paste it there to
+   connect that client. This is connection authorization, separate from the
+   three manufacturing approvals.
 3. Ask the agent to read `read_guidance` with `guidanceId: "makers"`, read the
    relevant skill, create an unapproved print, and request review.
 4. Review in the Studio window opened on this computer, approve geometry and
@@ -209,6 +218,29 @@ browser opening. `--public-url https://your-host.example` uses an already
 configured reverse proxy instead of starting Cloudflare. That proxy must forward
 to this command's loopback port and preserve either the configured public Host
 or its loopback Host. Issuer/resource URLs come only from startup configuration.
+A loopback `--public-url` is a local test of the bridge itself; it packages no
+Claude plugin, because that package needs a public HTTPS address.
+
+### Stable address with a named tunnel
+
+A quick tunnel gets a new URL on every restart, so every client has to be
+reconnected. To keep one address, create a
+[named tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
+on a Cloudflare domain you control, route the chosen hostname to
+`http://127.0.0.1:4322`, and start it through this launcher:
+
+```sh
+npm run web-chat -- --public-url https://saam.your-domain.example --tunnel-token-file /path/to/token
+```
+
+The token is read from that file or from `SAAM_TUNNEL_TOKEN`, never from the
+command line, because process arguments are readable by other local accounts.
+The launcher runs `cloudflared tunnel run`, waits for a registered connection,
+and owns that process as it does a quick tunnel. `--public-url` is required with
+a token: the hostname is configured in Cloudflare, not discovered here. A restart
+still invalidates every OAuth registration and token, but the address and the
+generated plugin package stay valid. Named tunnels also carry SSE, which quick
+tunnels do not; this bridge still uses stateless JSON responses.
 
 ## Development connection security and limits
 

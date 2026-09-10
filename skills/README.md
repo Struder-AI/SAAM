@@ -5,6 +5,7 @@ limits in the owning manual:
 
 | Skill | Geometry | Machine compatibility |
 |---|---|---|
+| [pipe-cladding](pipe-cladding/SKILL.md) | Native circular pipe: planar concentric substrate plus alternating axial/helical radial shells | Experimental VP-6242 / RC8 + configured external rotary; shared composer, source playback and lifecycle. |
 | [wedge-demo](wedge-demo/SKILL.md) | Eight-point mesh, rectangular base, planar roof in any direction | S5, experimental H2D and configured Dobot software checks; shared export/review lifecycle. |
 | [full-fill](full-fill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |
 | [planar-infill](planar-infill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |

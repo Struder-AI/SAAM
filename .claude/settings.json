@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node studio/server.mjs *)",
+      "PowerShell(node studio/server.mjs *)"
+    ]
+  },
+  "sandbox": {
+    "excludedCommands": [
+      "node studio/server.mjs",
+      "node studio/server.mjs *"
+    ]
+  }
+}

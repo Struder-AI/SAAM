@@ -4,6 +4,22 @@ SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes,
 approve it, and get a file your machine can run. The aim is to lower the barrier
 to 3D printing, including for people without CAD, slicing, or programming experience.
 
+## First run
+
+Do this before either role's work when the checkout has not been used yet; the
+person need not ask for it. Node.js 22+ is the one prerequisite these steps do
+not install: check `node --version` first, and if it is missing or older, name
+the installer the person should run rather than guessing a package manager.
+
+1. From the repository root, run `npm ci`, unless `node_modules/` is already
+   present as it is in a packaged download. Git is needed only to clone.
+2. Run `npm test` once to confirm the checkout works before offering to make a part.
+3. Apply the [first-use client setup](DEVELOP.md#studio-agent-permissions):
+   project trust, the shared Studio launcher permission, and browser access.
+
+Report a failure at any step as a setup problem and stop there; do not present a
+broken checkout as a working product. None of this creates a manufacturing approval.
+
 ## Choose your context
 
 | Your task | Read next |
@@ -29,6 +45,17 @@ Scope shared components to current needs and extend them when needed; see
 
 ## Shared context
 
+- Opening, inspecting, restarting and closing your own SAAM Studio instances
+  are part of authorized project work; do not ask a separate conversational
+  permission for each. For shell launches, run `node studio/server.mjs <print-directory>`
+  directly from the repository root using the client's managed terminal/background
+  session. Open the printed loopback URL with the client's browser tool, and close
+  your own viewer tabs when finished; the server then shuts down automatically.
+  Keep a requested review open for the person. Never stop another agent's instance
+  or approve a manufacturing job for the person. Follow the
+  [Studio permissions setup](DEVELOP.md#studio-agent-permissions) proactively on
+  first use if project trust or browser access is still required; repo instructions
+  do not override the client's permission enforcement.
 - Describe capabilities and limitations as implemented. A proposal, preview,
   or passing software test does not establish a successful physical print.
 - Adapt guidance to the person's knowledge. Clarify choices that affect their
@@ -84,6 +111,14 @@ requires a separate connection check; arbitrary browser-chat access is not impli
 See [the developer guide](DEVELOP.md#skill-result-composition) for weaving and
 [machine observations](DEVELOP.md#machine-program-templates-and-s5-observations)
 for the user's scoped S5 startup report; complete physical validation remains open.
+
+The [pipe-cladding demo](skills/pipe-cladding/SKILL.md) adds native pipe geometry,
+optional tool/rotary poses and experimental VP-6242 / RC8 PacScript output through
+the same composer, bundles and Studio. RC8 is confirmed; ceiling/coaxial mounting
+and the actual rotary installation remain provisional. Robot reach, IK solving
+in SAAM, joint/motion limits and collisions are deferred. Source playback uses
+nominal Cartesian/rotary progress and relay estimates; vendor compilation and
+physical execution are unverified. Synthetic demo calibration is not user setup.
 
 The current entry documents are this file, `CLAUDE.md`, `README.md`,
 `PROJECT_CHARTER.md`, `DECISIONS.md`, `GLOSSARY.md`, `build_request.md`,

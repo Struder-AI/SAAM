@@ -1,0 +1,3 @@
+# This project layer carries .codex/rules/studio.rules.
+# Trust this checkout and restart Codex to load the Studio launcher permission.
+# Keep model, general approval policy, and sandbox defaults in user settings.

@@ -12,9 +12,13 @@
     <div class="view-foot"><span>Drag to rotate · scroll to zoom</span><span id="selection">Sloped face</span></div>
     <div id="playback" hidden>
       <div class="transport"><button id="play">Play</button><input id="scrub" aria-label="Playback position" type="range" min="0" max="1" step="0.01" value="1"><output id="time-label">0:00</output><label class="speed-label">Speed<input id="playback-speed" aria-label="Playback speed" type="range" min="1" max="30" step="1" value="10"><output id="speed-label" for="playback-speed">10×</output></label></div>
-      <div class="legend"><span class="dot planar"></span>Flat layers <span class="dot inclined"></span><span id="skin-label">Sloped layers</span> <label><input id="travel" type="checkbox"> Show travel</label><button id="fit-program">Fit all moves</button></div>
+      <div class="legend"><span class="dot planar"></span><span id="planar-label">Flat layers</span> <span class="dot inclined"></span><span id="skin-label">Sloped layers</span> <label><input id="travel" type="checkbox"> Show travel</label><button id="fit-program">Fit all moves</button></div>
+      <label id="rotary-view" hidden><input id="follow-plate" type="checkbox"> Follow build plate</label>
+      <div id="axial-colors" aria-label="Inspect material layers" hidden></div>
       <p class="chat-hint">Current layer is dark; earlier layers are faded.</p>
       <p id="viewer-detail" class="chat-hint" role="status"></p>
+      <div class="movie-controls"><button id="export-movie" title="Render the full toolpath using this view and speed, including layer fades. Playback is not required.">Export movie</button><button id="cancel-movie" hidden>Cancel</button><progress id="movie-progress" max="1" value="0" aria-label="Movie export progress" hidden></progress><a id="movie-download" hidden>Download movie</a></div>
+      <p id="movie-status" class="chat-hint" role="status" aria-live="polite"></p>
     </div>
   </section>
   <aside>

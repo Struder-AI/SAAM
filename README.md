@@ -83,6 +83,13 @@ installation settings and exports a Lua source ZIP. Playback covers a bounded
 fixed-orientation command model; robot clearance, actual relay deposition and
 vendor project-import acceptance remain unvalidated.
 
+The experimental [pipe-cladding demo](skills/pipe-cladding/SKILL.md) targets the
+user's DENSO VP-6242 / RC8 with an external rotary. It prints concentric substrate
+loops followed by alternating axial and helical radial shells with a tilted
+nozzle. The same composer, bundles and Studio play exported PacScript source,
+with rotating-bed and part-following views. Calibration and the actual rotary
+interface remain unresolved; robot feasibility and physical deposition are unchecked.
+
 The [local MCP adapter](adapters/mcp/README.md) lets a compatible local chat
 client create and adjust prints, open Studio, generate approved plans and deliver
 reviewed files. Its small fixed lists cover this development checkout; automatic
@@ -94,6 +101,11 @@ separately; a packaged Windows/Mac application remains a future direction.
 
 ## Try the development demo
 
+Codex and Claude Code users get shared Studio launcher permissions with this
+checkout after trusting the project. Your agent handles the
+[initial Studio permission setup](DEVELOP.md#studio-agent-permissions) as needed;
+browser access may require a separate initial allowance.
+
 With Node.js 22+ and Git:
 
 ```sh
@@ -103,9 +115,9 @@ npm run demo
 npm run studio
 ```
 
-Open the local Studio URL printed by the command within 60 seconds. Each launch
-gets its own free port and closes after its last viewer tab closes; the saved
-print remains available to restart. The demo uses right nozzle #2,
+Open the local Studio URL printed by the command whenever you are ready. Each
+launch gets its own free port and closes after its last viewer tab closes; the
+saved print remains available to restart. The demo uses right nozzle #2,
 AA 0.4 and PLA at 215°C. Standard S5 startup is assumed; installed firmware
 information is optional. Its development preview creates no human approvals.
 Physical clearance is the operator's responsibility for this demo.

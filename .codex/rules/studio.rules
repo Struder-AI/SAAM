@@ -1,0 +1,21 @@
+# Shared SAAM Studio launcher permission. Load only in a trusted project.
+# Run from the repository root; retain this literal script path.
+# This trusts the script and its imports, not arbitrary Node commands.
+prefix_rule(
+    pattern = ["node", "studio/server.mjs"],
+    decision = "allow",
+    justification = "Run SAAM Studio's local preview server for this project's work.",
+    match = [
+        "node studio/server.mjs",
+        "node studio/server.mjs Prints/my-part",
+        'node studio/server.mjs "Prints/my part"',
+    ],
+    not_match = [
+        "node studio/server.mjs.other",
+        "node studio/other.mjs",
+        "node --eval 1",
+        "node --require other.mjs studio/server.mjs",
+        "npm run studio",
+        "taskkill /IM node.exe /F",
+    ],
+)

@@ -1,4 +1,5 @@
 import {requireThat,distance} from '../geom/tolerance.mjs';
+import {validateDensoConfiguration} from './denso.mjs';
 
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);
@@ -10,6 +11,7 @@ const range=(v,limits,name)=>requireThat(Number.isFinite(v)&&Array.isArray(limit
 export function validateSetup(plan,machine) {
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
   const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool),profile=machine.materials?.[s.material];
+  if(machine.id==='denso-vp6242-rc8')validateDensoConfiguration(plan);
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
   requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');
   requireThat(s.filamentMm===machine.filamentDiameterMm,'Filament diameter does not match the machine.');
@@ -56,7 +58,7 @@ export function validateDobotConfiguration(plan,machine,{required=false}={}){
   return {configured:missing.length===0,missing};
 }
 
-export const startupPosition=(machine,plan)=>plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,(machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm)];
+export const startupPosition=(machine,plan)=>plan.setup.denso?.initialPositionMm??plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,(machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm)];
 
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);

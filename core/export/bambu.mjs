@@ -15,14 +15,17 @@ const json=value=>JSON.stringify(value)+'\n';
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const meta=values=>Object.entries(values).map(([k,v])=>`    <metadata key="${k}" value="${xml(v)}"/>`).join('\n');
 const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.gcode';
-const CONTRACT='h2d-02.08.02.61-pla-textured-v1';
 // Updated only after reviewing changes to the firmware service contract.
-const ENVELOPE_HASH='8fdee627792030a4f8b614752257b7b2756df1ba2693d5087997084ac4970807';
+// Retain v1 for existing machine snapshots and exact-byte bundle reopening.
+const ENVELOPE_HASHES={
+  'h2d-02.08.02.61-pla-textured-v1':'8fdee627792030a4f8b614752257b7b2756df1ba2693d5087997084ac4970807',
+  'h2d-02.08.02.61-pla-textured-v2':'94568f3e3c38e4e0ff75de653e8b973cdce7fd9f63b5b688a294a55fe1fa48a0',
+};
 function configuration(plan,machine){
   validateSetup(plan,machine);
   const output=machine.outputs.find(o=>o.id===plan.output),t=toolFor(machine,plan.setup.tool),s=plan.setup;
-  requireThat(machine.id==='bambu-h2d'&&plan.output==='bambu-gcode'&&output?.program?.contract===CONTRACT,'Unsupported H2D output contract.');
-  requireThat(digest(JSON.stringify([output.program.start,output.program.end]))===ENVELOPE_HASH,'Unknown H2D firmware envelope; an interpreter update is required.');
+  requireThat(machine.id==='bambu-h2d'&&plan.output==='bambu-gcode'&&Object.hasOwn(ENVELOPE_HASHES,output?.program?.contract),'Unsupported H2D output contract.');
+  requireThat(digest(JSON.stringify([output.program.start,output.program.end]))===ENVELOPE_HASHES[output.program.contract],'Unknown H2D firmware envelope; an interpreter update is required.');
   requireThat(s.material==='PLA'&&s.nozzleMm===0.4&&s.filamentMm===1.75&&s.buildVolumeC===0,'H2D output requires 0.4 mm PLA, 1.75 mm filament and no chamber heating.');
   requireThat(t.physicalExtruder===1-s.tool&&JSON.stringify(t.startupXY)==='[100,100]'&&machine.startup.zAfterStartupMm===20,'H2D tool/startup contract mismatch.');
   return output;
@@ -32,13 +35,13 @@ function contextFor(path,plan,machine,release){
   const deposits=moves.filter(m=>m.volumeMm3>0);requireThat(deposits.length,'H2D output needs deposition.');
   const bounds=path.summary?.boundsMm;
   const layers=new Set(deposits.map(m=>`${m.phase}:${m.layer}`));
-  const context={schema:'saam-h2d-artifact/1',contract:CONTRACT,release,bounds,initialPosition:path.initialPosition,
+  const context={schema:'saam-h2d-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
     pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size};
   checkContext(context,plan,machine);return context;
 }
 function checkContext(c,plan,machine){
   const b=toolBounds(machine,plan.setup.tool);
-  requireThat(c?.schema==='saam-h2d-artifact/1'&&c.contract===CONTRACT&&JSON.stringify(c.initialPosition)==='[100,100,20]','Invalid H2D artifact context.');
+  requireThat(c?.schema==='saam-h2d-artifact/1'&&c.contract===machine.outputs.find(o=>o.id===plan.output).program.contract&&JSON.stringify(c.initialPosition)==='[100,100,20]','Invalid H2D artifact context.');
   requireThat(c.bounds&&['min','max'].every(k=>Array.isArray(c.bounds[k])&&c.bounds[k].length===3&&c.bounds[k].every(Number.isFinite)),'Missing H2D geometry bounds.');
   requireThat(c.bounds.min.every((v,i)=>v>=b.min[i]&&v<c.bounds.max[i])&&c.bounds.max.every((v,i)=>v<=b.max[i]),'H2D geometry bounds exceed selected nozzle area.');
   // Actual travel may stay below unprinted geometry. Shutdown still uses the
@@ -87,7 +90,7 @@ export function interpretBambu(bytes,plan,machine){
   let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
   for(const event of [...program.moves,...program.events])event.line+=prefixLines;
   program.code=code;
-  program.envelope={contract:CONTRACT,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,
+  program.envelope={contract:c.contract,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,
     notice:'Firmware probing, wiping, calibration, purge, unload and service motions are checked against a fixed reference envelope; they are not simulated. Playback and timing cover the print body only.'};
   program.summary.startup=program.envelope.notice;
   program.summary.clearance='Deposited-height travel checked; physical head clearance is not modeled.';

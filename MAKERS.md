@@ -85,6 +85,14 @@ material; a continuous planned wall does not establish smooth robot deposition.
 The delivered ZIP contains Lua source files, with no verified vendor project
 import workflow. See the [Dobot contract](DEVELOP.md#dobot-output-contract).
 
+For the DENSO VP-6242 / RC8 pipe demo, read [pipe-cladding](skills/pipe-cladding/SKILL.md)
+and the [RC8 contract](DEVELOP.md#denso-rc8-output-contract). The controller is
+confirmed, while ceiling/coaxial mounting is provisional. Use actual installation
+values for a real plan; the isolated development example uses labeled synthetic
+calibration. SAAM defers robot reach, singularities, joint/motion limits and
+collisions. Studio can follow the bed or show it rotating in the room; playback
+is nominal commanded motion with relay estimates, not verified robot execution.
+
 With a compatible local MCP chat client, use the
 [MCP tools](adapters/mcp/README.md) for the same workflow: read the chosen manual,
 create the bundle and request Studio review, then apply chat adjustments using
@@ -103,6 +111,10 @@ Retain the original file, and do not silently repair unsupported topology.
 Use the same Studio viewer and approvals for every supported input.
 
 ## Maker interaction flow
+
+For toolpath display colors, prefer Studio's [visually verified color set](DEVELOP.md#visually-verified-toolpath-colors):
+sky blue, orange, teal and lavender. Other colors are allowed when more are
+needed. These are viewer colors, not filament or material assignments.
 
 1. **Make and open the first geometry preview.** As soon as the request supports
    a reasonable initial shape, initialize the local print and open it in SAAM

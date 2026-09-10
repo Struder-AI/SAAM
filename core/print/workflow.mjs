@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { exportProgram, interpretProgram } from '../export/registry.mjs';
 import { loadMachine, validateDobotConfiguration } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
+import {validateDensoConfiguration} from '../machine/denso.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const defaultSetupFile=resolve(root,'.local/machine-setups/ultimaker-s5.json');
@@ -53,6 +54,7 @@ export function createBundleWorkflow(adapter) {
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
       new URL('../export/gcode-lines.mjs',import.meta.url),
+      new URL('../export/denso.mjs',import.meta.url),new URL('../export/denso-player.mjs',import.meta.url),new URL('../machine/denso.mjs',import.meta.url),new URL('../path/pose.mjs',import.meta.url),
       new URL('../machine/rules.mjs',import.meta.url),new URL('../export/bambu-player.mjs',import.meta.url),
       new URL('../export/dobot-player.mjs',import.meta.url),
       new URL('../export/dobot.mjs',import.meta.url),new URL('../export/dobot-lua-subset.mjs',import.meta.url),
@@ -125,6 +127,10 @@ async function loadBundle(directory, { program = true, sourceFile } = {}) {
     planApproved: review.approvals.plan?.hash === planHash
   };
   state.planApproved &&= state.geometryApproved;
+  if(machine.id==='denso-vp6242-rc8'){
+    state.machineConfiguration=validateDensoConfiguration(plan);
+    if(!state.machineConfiguration.configured)state.outputAvailability='DENSO installation is unconfigured. Supply tool/work frames, figure, arm group, relay and the rotary control interface before generation.';
+  }
   if(machine.id==='dobot-mg400'){
     state.machineConfiguration=validateDobotConfiguration(plan,machine);
     if(!state.machineConfiguration.configured)state.outputAvailability='Dobot installation is unconfigured; geometry can be reviewed. Supply frame, calibration, workspace, initial pose, controller limits and relay/thermal setup before generation.';
@@ -277,7 +283,7 @@ async function generateBundle(directory, { development = false } = {}) {
     travel: path.summary.travel,
     nonplanarLimit: path.summary.nonplanarLimit ?? null,
     checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
-      'xyz-bounds', 'axis-feed', ...(program.language==='dobot-lua'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
+      ...(state.machine.motionChecks==='deferred'?[]:['xyz-bounds','axis-feed']), ...(program.summary.materialModel==='relay-estimate'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
     clearance: 'operator responsibility; no collision model implemented',
     physicalValidation: 'not performed',
     firmwareEnvelope: program.envelope??null,

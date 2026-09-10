@@ -11,7 +11,7 @@ import {viewerLifetime} from '../../studio/lifetime.mjs';
 
 // No geometry creation, interpretation or slicing: only sockets and timers.
 async function fixture(t,options={}){
-  const server=createStudio('missing-synthetic-lifetime-bundle',{startupMs:2000,disconnectMs:60,...options});
+  const server=createStudio('missing-synthetic-lifetime-bundle',{disconnectMs:60,...options});
   t.after(()=>server.shutdown());
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const url=`http://127.0.0.1:${server.address().port}`;
@@ -26,29 +26,29 @@ async function fixture(t,options={}){
   return {server,url,token,connect};
 }
 
-test('Studio shuts down even if no browser ever requests a page',async t=>{
-  const server=createStudio('missing-synthetic-lifetime-bundle',{startupMs:30});
+test('Studio waits indefinitely before the first browser requests a page',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  const server=createStudio('missing-synthetic-lifetime-bundle');
   t.after(()=>server.shutdown());
-  const closed=once(server,'close');server.listen(0,'127.0.0.1');
-  await closed;assert.equal(server.listening,false);
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  t.mock.timers.tick(24*60*60*1000);
+  assert.equal(server.listening,true);
 });
 
-test('ordinary requests and unauthorized viewer connections do not prevent startup expiry',async t=>{
+test('ordinary requests and rejected viewer connections leave Studio ready for a late viewer',async t=>{
   t.mock.timers.enable({apis:['setTimeout']});
-  const {server,url}=await fixture(t,{startupMs:150});
-  const closed=once(server,'close');
+  const {server,url,connect}=await fixture(t);
   assert.equal((await fetch(url+'/api/viewer?token=wrong')).status,403);
-  t.mock.timers.tick(50);await(await fetch(url)).text();
-  t.mock.timers.tick(100);
-  assert.equal(server.listening,false,'requests must not extend the original startup deadline');
-  await closed;assert.equal(server.listening,false);
+  t.mock.timers.tick(24*60*60*1000);await(await fetch(url)).text();
+  assert.equal(server.listening,true);
+  await connect();assert.equal(server.listening,true);
 });
 
 test('last viewer closes only its instance; live background viewers need no polling',async t=>{
-  const a=await fixture(t,{startupMs:150}),b=await fixture(t,{startupMs:150});
+  const a=await fixture(t),b=await fixture(t);
   const closeA1=await a.connect(),closeA2=await a.connect(),closeB=await b.connect();
   await delay(180);
-  assert.ok(a.server.listening&&b.server.listening,'persistent connections outlive startup timer');
+  assert.ok(a.server.listening&&b.server.listening,'background viewers keep both instances alive');
   closeA1();await delay(100);assert.ok(a.server.listening,'second tab still owns instance');
   const closed=once(a.server,'close');closeA2();await closed;
   assert.ok(b.server.listening,'another agent instance stays alive');

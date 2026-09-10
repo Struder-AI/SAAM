@@ -22,10 +22,14 @@ import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
 import {supportResults} from '../../skills/supports/scripts/supports.mjs';
 import {rimmingPlanarResults} from '../../skills/rimming-planar/scripts/rimming.mjs';
 import {rimmingNormalResults} from '../../skills/rimming-normal/scripts/rimming.mjs';
+import {pipeMesh} from '../geom/cylinder.mjs';
+import {pipeCladdingResult,substrateSection,substrateLoops} from '../../skills/pipe-cladding/scripts/clad.mjs';
+import {infillStrokes} from '../../skills/planar-infill/scripts/patterns.mjs';
 
-export const hasMesh=geometry=>geometry.shape==='mesh'||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>['mesh','pipe'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 export function buildShell(rhino, geometry) {
+  if(geometry.shape==='pipe')return pipeMesh(geometry);
   if(geometry.shape==='mesh')return makeMesh(geometry.vertices,geometry.triangles);
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {
     const components=geometry.parts.map(part=>translateShell(buildShell(rhino,part.geometry),part.xMm,part.yMm,part.zMm));
@@ -85,14 +89,14 @@ export function generatePath(plan, machine, rhino) {
     translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
   const process = plan.process;
   const bounds=toolBounds(machine,plan.setup.tool);
-  requireThat(placed.bounds.min.every((v,i)=>v>=bounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=bounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
+  requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=bounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=bounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
   const fill = plan.skills['full-fill'], skin = plan.skills['draped-skin'],normal=plan.skills['planar-infill'];
   const vase=plan.skills['vase-wall'];
   requireThat(plan.composition.regions.length||!vase.enabled||!skin.enabled||(componentShells&&vase.part!==skin.part),'Vase wall and draped skin overlap on the same component.');
 
   const builder = new PathBuilder({
     start: startupPosition(machine,plan),
-    process, machine, generatorVersion: VERSION
+    process, machine, generatorVersion: VERSION,motion:plan.setup.denso??null
   });
   builder.setContext('start', 0);
   builder.motionBounds=bounds;
@@ -140,7 +144,8 @@ export function generatePath(plan, machine, rhino) {
       const [sparse,solid]=planarInfillResults({shell,plan,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
       results.push(sparse);normalResults.push(sparse);
       if(solid){results.push(solid);fillResults.push(solid);}
-    } else if(useFill){const result=fullFillResult({id,shell,plan,reserve:useVase?null:survey,zEndMm:baseTop});results.push(result);fillResults.push(result);}
+    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled;const result=fullFillResult({id,shell,plan,reserve:useVase?null:survey,zEndMm:baseTop,
+      ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1})}:{})});results.push(result);fillResults.push(result);}
   }
   if(fillResults.length){
     summary.fullFill=Object.fromEntries(Object.keys(fillResults[0].report).map(key=>[key,fillResults.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
@@ -159,6 +164,7 @@ export function generatePath(plan, machine, rhino) {
     results.push(result);summary.drapedSkin=result.report;
   }
   }
+  if(plan.skills['pipe-cladding'].enabled){const result=pipeCladdingResult({plan,after:results.flatMap(r=>r.operations.map(op=>op.id))});results.push(result);summary.pipeCladding=result.report;}
   const rims=[...rimmingPlanarResults({plan,modelResults:results}),...rimmingNormalResults({plan,modelResults:results})];
   if(rims.length){results.unshift(...rims);summary.rimming=rims.map(r=>r.report);}
   const supports=supportResults({plan,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});

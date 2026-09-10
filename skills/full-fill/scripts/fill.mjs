@@ -15,6 +15,7 @@ import { composeResults } from '../../../core/path/compose.mjs';
 import { sectionGeometry as sectionShell } from '../../../core/geom/query.mjs';
 import { scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
+import { perimeterLoops } from '../../../core/region/perimeters.mjs';
 import { difference } from '../../../core/region/boolean.mjs';
 import { planarPolicy } from '../../../core/path/builder.mjs';
 import { requireThat, distance2, TOLERANCE } from '../../../core/geom/tolerance.mjs';
@@ -71,14 +72,12 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
 
 
     const strokes = [];
-    let inner = region;
     for (let ring = 0; ring < settings.perimeters; ring++) {
-      const loops = offsetRegion(region, -(width / 2 + ring * width));
+      const loops = perimeterLoops(region, width / 2 + ring * width);
       if (!loops.length) break;
       // Offset rounding can reintroduce numerical seams. Retain the offset
       // region for topology operations and clean only its deposition contour.
       for (const loop of loops) strokes.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true, points: cleanPlanarLoop(loop) });
-      inner = loops;
       report.perimeterLoops += loops.length;
     }
     // Fill starts half a bead inside the last perimeter, less the overlap that

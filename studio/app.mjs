@@ -1,19 +1,45 @@
-import { advancePlayback, frameAtTime } from './playback.mjs';
+import { advancePlayback, frameAtTime, displayPoint, exportMovie } from './playback.mjs';
 import { createProjection } from './camera.mjs';
-import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey } from './toolpath-view.mjs';
-import {buildMeshView} from './mesh-view.mjs';
-import {hasSkill,regionRows,recipeRows,robotRows} from './settings.mjs';
+import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, TOOLPATH_COLORS } from './toolpath-view.mjs';
+import {buildGeometryView,createGeometryRenderer,pickGeometry} from './mesh-view.mjs';
+import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
+import {hasSkill,regionRows,recipeRows,robotRows,materialGrams} from './settings.mjs';
 import {moveStore} from './studio/move-store.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
-const canvas=$('#canvas'),ctx=canvas.getContext('2d');
+const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
 let redrawFrame=0;
 let pathView,meshView;
+let geometryScene,geometryRenderer,geometryProject,geometryError='';
+let materialScene,materialRenderer,materialError='';
 const layerFade=createLayerFade();
+let movieController=null,movieUrl=null;
+const viewStorageKey=()=> 'saam-view:'+state?.printId;
+function saveView(){
+  if(!state||movieController)return;
+  try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({exportHash:state.exportHash,yaw,tilt,zoom,fitBounds,seconds,tab,
+    speed:Number($('#playback-speed').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked}));}catch{}
+}
+function restoreView(){
+  try{
+    const saved=JSON.parse(sessionStorage.getItem(viewStorageKey()));if(!saved)return;
+    if([saved.yaw,saved.tilt,saved.zoom].every(Number.isFinite)){yaw=saved.yaw;tilt=saved.tilt;zoom=saved.zoom;}
+    if(Number.isFinite(saved.speed))$('#playback-speed').value=saved.speed;
+    $('#speed-label').value=$('#playback-speed').value+'×';
+    $('#travel').checked=saved.travel===true;$('#follow-plate').checked=saved.followPlate===true;
+    if(saved.exportHash===state.exportHash){
+      if(Number.isFinite(saved.seconds))seconds=Math.max(0,Math.min(duration(),saved.seconds));
+      if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))fitBounds=saved.fitBounds;
+      if(['geometry','plan','toolpath'].includes(saved.tab)&&(saved.tab!=='plan'||state.geometryApproved||state.inspection)&&(saved.tab!=='toolpath'||state.program))tab=saved.tab;
+    }
+    $('#fit-program').textContent=fitBounds?'Fit part':'Fit all moves';
+  }catch{}
+}
+window.addEventListener('pagehide',saveView);
 function requestDraw(){
   if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
 }
@@ -22,9 +48,9 @@ const duration=()=>state?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
 const materialFact=program=>program.summary.materialModel==='relay-estimate'
-  ? ['Material estimate',round2(program.summary.estimatedRelayVolumeMm3)+' mm³ from relay timing; unverified']
-  : [program.envelope?'Part material':'Material',round2(program.summary.filamentMm/1000)+' m of filament'];
-const materialSetup=state=>state.plan.setup.dobot
+  ? ['Material estimate',round2(materialGrams(program.summary.estimatedRelayVolumeMm3))+' g from relay timing; unverified']
+  : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.summary.volumeMm3??program.volumeMm3))+' g'];
+const materialSetup=state=>state.plan.setup.dobot||state.plan.setup.denso
   ? ['Extrusion','External relay control · '+state.plan.setup.material]
   : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'];
 const vaseSettings=state=>{
@@ -38,7 +64,7 @@ const vaseSettings=state=>{
   ]:[];
 };
 function machineSettings(state,rows){
-  const d=state.plan.setup.dobot;
+  const d=state.plan.setup.dobot??state.plan.setup.denso;
   if(!d)return rows;
   const omitted=new Set(['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']);
   return [...rows.filter(([name])=>!omitted.has(name)),...robotRows(state.plan)];
@@ -99,6 +125,7 @@ const views={
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
+        if(g.shape==='pipe')rows.push(['Bore / outside diameter',2*g.innerRadiusMm+' / '+2*g.outerRadiusMm+' mm'],['Wall thickness',round2(g.outerRadiusMm-g.innerRadiusMm)+' mm']);
         if(g.shape==='spline-top'||g.shape==='spline-shell')rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
         if(g.shape==='spline-shell')rows.push(['Side taper','Long sides in '+g.longSideInsetMm+' mm · short sides out '+g.shortSideOutsetMm+' mm']);
         if(g.shape==='vertical-spline-shell'){
@@ -110,6 +137,7 @@ const views={
       }
       if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),
         ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
+      if(tab==='plan'&&hasSkill(state.plan,'pipe-cladding'))return [materialSetup(state),['Body','Concentric horizontal loops'],['Exterior',state.plan.skills['pipe-cladding'].shells+' alternating axial / circumferential shells'],['Radial thickness per shell',state.plan.skills['pipe-cladding'].normalMm+' mm'],['Nozzle tilt',state.plan.skills['pipe-cladding'].tiltDeg+'° inward from downward'],['Axial turnarounds','Bed indexing with extrusion off'],...robotRows(state.plan)];
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
         ['Solid surfaces',normal?.enabled&&fill.enabled?fill.bottomLayers+' bottom / '+fill.topLayers+' top layers':'—'],
@@ -118,7 +146,9 @@ const views={
       const limit=state.pathSummary?.nonplanarLimit;
       const rows=[['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
+      if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasSkill(state.plan,'vase-wall'))rows.push(['Vase wall','Continuous spiral within its assigned region']);
+      if(hasSkill(state.plan,'pipe-cladding'))rows.push(['Exterior shells',state.plan.skills['pipe-cladding'].shells+' · alternating axial / circumferential'],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
       if(state.plan.composition?.regions?.length)rows.push(...regionRows(state.plan));
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
@@ -170,8 +200,21 @@ async function refresh(follow=false,reopen=false) {
     }catch(error){next.programError=error.message;delete next.program;next.toolpathApproved=false;}
   }
   state=next;
-  if(!meshView||previous?.geometry.geometryVersion!==state.geometry.geometryVersion)meshView=buildMeshView(state.geometry);
+  if(!geometryScene||previous?.geometry.geometryVersion!==state.geometry.geometryVersion){
+    geometryScene=buildGeometryView(state.geometry);meshView=geometryScene.topology;
+    try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
+    catch(error){geometryError='Shading unavailable: '+error.message;}
+  }
   pathView=state.program?buildToolpathView(state.program.moves):null;
+  if(state.program&&materialScene?.moves!==state.program.moves){
+    materialError='';
+    try{
+      materialRenderer??=createMaterialRenderer();
+      if(materialRenderer)materialScene=await buildMaterialScene(state.program.moves,state.plan,state.geometry,
+        {onProgress:progress=>activity('Preparing material view… '+Math.round(progress*100)+'%')});
+      else materialError='3D material rendering needs WebGL2. Showing toolpath lines.';
+    }catch(error){materialScene=null;materialError='Material view unavailable: '+error.message+' Showing toolpath lines.';}
+  }
   layerFade.reset();
   if(previous?.exportHash!==next.exportHash){stop();seconds=duration();fitBounds=null;}
   if(!previous) {
@@ -181,10 +224,11 @@ async function refresh(follow=false,reopen=false) {
     $('#skin-label').textContent=view().skinLabel;
     document.title='SAAM Studio · '+state.printName;
     $('#open-print').title='Open print: '+state.printName;
+    restoreView();
   }
   else if(follow&&previous.planHash!==state.planHash){tab=state.geometryApproved?'plan':'geometry';message('Updated from chat.');}
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
-  if(!selected||!state.geometry.labels.includes(selected))selectFeature(state.geometry.labels[0]);
+  if(!selected||!state.geometry.labels.includes(selected))selectFeature(null);
   render();
 }
 function decodeInWorker(snapshot){
@@ -215,7 +259,29 @@ function render() {
   $('#facts').replaceChildren(table(view().facts(state,tab)));
   $('#more-settings').hidden=tab!=='plan';
   $('#settings-detail').replaceChildren(table([...machineSettings(state,view().settings(state)),...recipeRows(state.plan)]));
-  $('#skin-label').textContent=hasSkill(state.plan,'vase-wall')?'Skin / spiral':view().skinLabel;
+  $('#planar-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
+  $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
+  const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasSkill(state.plan,'pipe-cladding')||!pathView;
+  const sampledPhases=new Set();
+  if(!samples.hidden)for(const [index,group] of pathView.groups.entries()){
+    const move=pathView.moves[group.first];
+    const swatch={planar:{name:'Body · Sky blue',color:TOOLPATH_COLORS.skyBlue},'cladding-axial':{name:'Axial · Teal',color:TOOLPATH_COLORS.teal},'cladding-hoop':{name:'Circumferential · Orange',color:TOOLPATH_COLORS.orange}}[move.phase];
+    if(!swatch||sampledPhases.has(move.phase))continue;
+    sampledPhases.add(move.phase);
+    const button=document.createElement('button'),dot=document.createElement('span');
+    dot.className='dot';dot.style.background=swatch.color;
+    button.append(dot,swatch.name);
+    button.title='Inspect '+swatch.name;
+    button.onclick=()=>{
+      if(busy)return;
+      stop();layerFade.reset();
+      const end=pathView.groups[index+1];
+      seconds=move.startSeconds+((end?pathView.moves[end.first].startSeconds:duration())-move.startSeconds)*(move.phase==='planar'?.98:.6);
+      $('#scrub').value=seconds;requestDraw();
+    };
+    samples.append(button);
+  }
+  $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Circumferential':hasSkill(state.plan,'vase-wall')?'Skin / spiral':view().skinLabel;
   const ready=tab==='geometry'||(tab==='plan'&&state.geometryApproved)||(tab==='toolpath'&&state.planApproved&&state.program&&state.review.generation?.mode==='production');
   $('#confirm').disabled=!ready||busy;
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm & export';
@@ -224,74 +290,128 @@ function render() {
   $('#selection').hidden=tab==='toolpath';
   canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Current layer is dark; earlier layers are faded. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a face to select it.');
   $('#scrub').max=duration();$('#scrub').value=seconds;
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
+  $('#rotary-view').hidden=!state.plan.setup.denso;
+  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||!state.inspection&&b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
+  // Explicit local scratch adapters can describe historical paths without
+  // assigning them a current skill or presenting manufacturing approval controls.
+  $('#confirm').hidden=Boolean(state.inspection);
+  if(state.inspection){
+    const inspection=state.inspection;
+    $('#stage-label').textContent='DEVELOPMENT INSPECTION';
+    $('#view-title').textContent=inspection.title;
+    $('#prompt').textContent=tab==='toolpath'?'Explore the historical toolpath.':tab==='plan'?'Original generator settings.':'Reference geometry.';
+    $('#guidance').textContent=inspection.description;
+    $('#facts').replaceChildren(table(tab==='plan'?inspection.settings:inspection.facts));
+    $('#more-settings').hidden=true;
+    $('#review-note').textContent=inspection.note;
+  }
   requestDraw();
 }
-function selectFeature(id){selected=id;$('#selection').textContent=label(id);requestDraw();}
+function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface to select';requestDraw();}
 function setTab(next){if(!state)return;tab=next;stop();layerFade.reset();render();}
 
-function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
-function draw() {
-  if(redrawFrame){cancelAnimationFrame(redrawFrame);redrawFrame=0;}
+function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight,ratio=devicePixelRatio||1,
+  position=seconds,now=performance.now(),fadeState=layerFade,updateUI=true,
+  playbackSpeed=playing?Number($('#playback-speed').value):0}={}) {
+  const ctx=target.getContext('2d'),seconds=position;
+  function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
+  if(updateUI&&redrawFrame){cancelAnimationFrame(redrawFrame);redrawFrame=0;}
   if(!state)return;
-  const ratio=devicePixelRatio||1;
-  if(canvas.width!==Math.round(canvas.clientWidth*ratio)||canvas.height!==Math.round(canvas.clientHeight*ratio)){canvas.width=Math.round(canvas.clientWidth*ratio);canvas.height=Math.round(canvas.clientHeight*ratio);}
-  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+  if(target.width!==Math.round(width*ratio)||target.height!==Math.round(height*ratio)){target.width=Math.round(width*ratio);target.height=Math.round(height*ratio);}
+  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.globalAlpha=1;
+  // Paint the CSS ellipse into the pixels too: movies have no CSS background.
+  ctx.save();ctx.translate(width/2,height/2);ctx.scale(width/Math.SQRT2,height/Math.SQRT2);
+  const background=ctx.createRadialGradient(0,0,0,0,0,1);background.addColorStop(0,'#f8faf1');background.addColorStop(1,'#eaf0e0');
+  ctx.fillStyle=background;ctx.fillRect(-1,-1,2,2);ctx.restore();
   const bounds=partBounds(),skinPhase=view().skinPhase;
-  const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,canvas.clientWidth,canvas.clientHeight,yaw,tilt,zoom);
+  const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,width,height,yaw,tilt,zoom);
+  const strokeScale={lineWidthMm:state.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm};
+  ctx.globalAlpha=1;
   for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(project([x,bounds.min[1]-10,0]),project([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(project([bounds.min[0]-10,y,0]),project([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
-  polygons=[];
+  ctx.globalAlpha=1;
+  if(updateUI)polygons=[];
   if(tab!=='toolpath') {
-    const pts=state.geometry.vertices.map(project);
-    polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],edges:meshView.edgeMasks[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
-    for(const polygon of polygons) {
-      ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
-      ctx.fillStyle=polygon.id===selected?'#cedcab':'#dbe3d0';ctx.fill();
-      for(let i=0;i<polygon.points.length;i++)if(polygon.edges[i])segment(polygon.points[i],polygon.points[(i+1)%polygon.points.length],'#81947d',.9);
+    geometryProject=project;
+    if(geometryRenderer){
+      try{
+        const options={project,width,height,ratio,color:TOOLPATH_COLORS.skyBlue,selected};
+        // Project the actual silhouette onto the bed, retaining openings.
+        geometryRenderer.draw(geometryScene,{...options,shadow:true});
+        ctx.save();ctx.globalAlpha=.16;ctx.filter='blur(6px)';ctx.drawImage(geometryRenderer.canvas,0,0,width,height);ctx.restore();
+        geometryRenderer.draw(geometryScene,options);ctx.drawImage(geometryRenderer.canvas,0,0,width,height);
+      }catch(error){geometryError=error.message;geometryRenderer.dispose();geometryRenderer=null;}
     }
+    if(!geometryRenderer){
+      const pts=state.geometry.vertices.map(project);
+      polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],edges:meshView.edgeMasks[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
+      for(const polygon of polygons){
+        ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
+        ctx.fillStyle=polygon.id===selected?'#83b5d6':TOOLPATH_COLORS.skyBlue;ctx.fill();
+        for(let i=0;i<polygon.points.length;i++)if(polygon.edges[i])segment(polygon.points[i],polygon.points[(i+1)%polygon.points.length],'#5c879e',.6);
+      }
+    }
+    if(updateUI)$('#selection').textContent=geometryError||(selected?label(selected):'Click a surface to select');
   }
   if(tab==='toolpath'&&state.program) {
     const moves=state.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=state.plan.placement,showTravel=$('#travel').checked;
-    const local=p=>[p[0]-placement.xMm,p[1]-placement.yMm,p[2]];
-    const detail=toolpathFrame(pathView,count,showTravel);
-    $('#viewer-detail').textContent=detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'';
+    const center=state.plan.setup.denso?.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0;
+    const local=p=>{const q=displayPoint(p,angle,center,!state.plan.setup.denso||$('#follow-plate').checked);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
+    if(state.plan.setup.denso){
+      const radius=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1])*.65;
+      let prior=null;
+      for(let i=0;i<=80;i++){const a=i*Math.PI/40,q=project(local([center[0]+radius*Math.cos(a),center[1]+radius*Math.sin(a),center[2]]));if(prior)segment(prior,q,'#718d91',1);prior=q;}
+      segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);
+    }
+    const solidView=!!materialScene&&!!materialRenderer;
+    const detail=!solidView||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
+    if(updateUI)$('#viewer-detail').textContent=solidView
+      ?'Shaded oval beads · solid completed layers.'+(materialScene.unsupported.length?' Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':'')
+      :materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
     const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[count].from}]:detail.segments;
     const current=moves[at.active];
     const currentLayer=current?.phase==='finish'?moves.findLast(m=>m.extruding):current;
-    const fade=layerFade.frame(currentLayer,performance.now()),styles=new Map();
+    const fade=fadeState.frame(currentLayer,now,remainingLayerMs(pathView,at.active,seconds,playbackSpeed)),styles=new Map();
+    if(solidView){
+      const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
+      try{
+        materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase});
+        ctx.drawImage(materialRenderer.canvas,0,0,width,height);
+      }catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;requestDraw();}
+    }
     // Draw the active layer last so older geometry cannot obscure it.
     for(const active of [false,true])for(const edge of displayed) {
+      if(solidView&&edge.move.extruding&&materialScene?.supported[edge.first])continue;
       const key=layerKey(edge.move),styleKey=key+':'+!!edge.move.extruding;
       let style=styles.get(styleKey);
-      if(!style){style=toolpathStyle(edge.move,currentLayer,skinPhase,fade.weights.get(key)??0);styles.set(styleKey,style);}
+      if(!style){style=toolpathStyle(edge.move,currentLayer,skinPhase,fade.weights.get(key)??0,strokeScale);styles.set(styleKey,style);}
       if(style.active!==active)continue;
       ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);
     }
     ctx.globalAlpha=1;
     // Finish an outgoing fade even when playback is paused at the boundary.
-    if(fade.fading&&!playing)requestDraw();
-    if(current&&at.fraction<1&&(current.extruding||showTravel)){
-      const style=toolpathStyle(current,current,skinPhase);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);
+    if(updateUI&&fade.fading&&!playing)requestDraw();
+    if(current&&at.fraction<1&&(current.extruding||showTravel)&&!(solidView&&materialScene?.supported[at.active])){
+      const style=toolpathStyle(current,current,skinPhase,undefined,strokeScale);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);
     }
-    if(at.point){const p=project(local(at.point)),q=project(local([at.point[0],at.point[1],at.point[2]+3]));segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();
-      $('#time-label').textContent=clock(seconds)+' / '+clock(duration());
+    if(at.point){const axis=at.toolAxis??[0,0,-1],p=project(local(at.point)),q=project(local(at.point.map((v,i)=>v-axis[i]*6)));segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();
+      if(updateUI)$('#time-label').textContent=clock(seconds)+' / '+clock(duration());
     }
   }
-  const origin=project([0,0,0]);
+  const projectedOrigin=project([0,0,0]),origin=tab==='toolpath'?projectedOrigin:[width-48,height-42];
+  ctx.globalAlpha=tab==='toolpath'?1:.65;
   ctx.font='10px Segoe UI';
   for(const [point,name,color] of [[[5,0,0],'X','#b26751'],[[0,5,0],'Y','#659a7a'],[[0,0,5],'Z','#638599']]){
-    const end=project(point);segment(origin,end,color,1.5);
+    const p=project(point),end=tab==='toolpath'?p:[origin[0]+(p[0]-projectedOrigin[0])*5/project.pixelsPerMm,origin[1]+(p[1]-projectedOrigin[1])*5/project.pixelsPerMm];segment(origin,end,color,tab==='toolpath'?1.5:1);
     if(Math.hypot(end[0]-origin[0],end[1]-origin[1])>1){ctx.fillStyle=color;ctx.fillText(name,end[0]+4,end[1]-4);}
   }
-  ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,canvas.clientHeight-18);
-  if(tab!=='toolpath'){const polygon=polygons.find(p=>p.id===selected);if(polygon){const center=polygon.points.reduce((s,p)=>[s[0]+p[0]/polygon.points.length,s[1]+p[1]/polygon.points.length],[0,0]);ctx.fillStyle='#31432c';ctx.fillText(label(selected),center[0]-25,center[1]);}}
+  ctx.globalAlpha=1;
+  ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
 }
 
-function inPolygon(x,y,points){let inside=false;for(let i=0,j=points.length-1;i<points.length;j=i++){const a=points[i],b=points[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
 canvas.onpointerdown=e=>{canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY];moved=false;};
 canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag[0],dy=e.clientY-drag[1];if(Math.abs(dx)+Math.abs(dy)>2)moved=true;yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));drag=[e.clientX,e.clientY];requestDraw();};
-canvas.onpointerup=e=>{drag=null;if(!moved&&tab!=='toolpath'){const rect=canvas.getBoundingClientRect();const hit=[...polygons].reverse().find(p=>inPolygon(e.clientX-rect.left,e.clientY-rect.top,p.points));if(hit)selectFeature(hit.id);}};
+canvas.onpointerup=e=>{drag=null;if(!moved&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top));}};
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
 canvas.onkeydown=e=>{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else if(e.key==='ArrowDown')tilt+=.1;else return;e.preventDefault();requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
@@ -332,6 +452,7 @@ $('#confirm').onclick=async()=>{
 };
 async function openPrint(path){
   if(busy)return;
+  saveView();
   $('#picker-message').textContent='';$('#print-picker').close();
   try{await working('Opening and checking your saved print…',async()=>{await api('open',{path});await refresh(false,true);message('');});}
   catch(error){message(error.message,true);$('#picker-message').textContent=error.message;$('#print-picker').showModal();}
@@ -349,8 +470,38 @@ $('#open-print').onclick=async()=>{
 $('#close-picker').onclick=()=>$('#print-picker').close();
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
+$('#follow-plate').onchange=requestDraw;
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
 $('#scrub').oninput=()=>{stop();layerFade.reset();seconds=Number($('#scrub').value);requestDraw();};
+$('#cancel-movie').onclick=()=>movieController?.abort();
+$('#export-movie').onclick=async()=>{
+  if(busy||!state?.program)return;
+  saveView();stop();requestDraw();busy=true;
+  const controller=new AbortController();movieController=controller;
+  const controls=$$('button,input').filter(element=>element.id!=='cancel-movie');
+  const disabled=controls.map(element=>element.disabled);
+  controls.forEach(element=>element.disabled=true);canvas.inert=true;
+  $('#cancel-movie').hidden=false;$('#movie-progress').hidden=false;$('#movie-progress').value=0;
+  $('#movie-download').hidden=true;
+  const speed=Number($('#playback-speed').value),width=canvas.clientWidth,height=canvas.clientHeight,ratio=devicePixelRatio||1;
+  const target=document.createElement('canvas');target.width=Math.round(width*ratio);target.height=Math.round(height*ratio);
+  const fadeState=createLayerFade();
+  $('#movie-status').textContent='Rendering movie at '+speed+'× · '+clock(duration()/speed+2)+' · 30 fps. Your viewer stays paused.';
+  try{
+    const blob=await exportMovie({canvas:target,duration:duration(),speed,signal:controller.signal,
+      draw:frame=>draw({target,width,height,ratio,position:frame.seconds,now:frame.now,fadeState,updateUI:false,playbackSpeed:speed}),
+      onProgress:value=>{$('#movie-progress').value=value;}});
+    if(movieUrl)URL.revokeObjectURL(movieUrl);movieUrl=URL.createObjectURL(blob);
+    const link=$('#movie-download');link.href=movieUrl;
+    link.download=(state.printName??'saam').replace(/[^a-zA-Z0-9_-]/g,'-')+'-toolpath-'+speed+'x.webm';
+    link.hidden=false;link.click();
+    $('#movie-status').textContent='Movie ready · '+clock(duration()/speed+2)+' · '+(blob.size/1024/1024).toFixed(1)+' MB WebM. Includes the final fade.';
+  }catch(error){$('#movie-status').textContent=controller.signal.aborted?'Movie export cancelled.':error.message;}
+  finally{
+    movieController=null;busy=false;controls.forEach((element,index)=>element.disabled=disabled[index]);canvas.inert=false;
+    $('#cancel-movie').hidden=true;$('#movie-progress').hidden=true;render();
+  }
+};
 $('#play').onclick=()=>{if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
 function animate(now){
   if(!playing)return;
@@ -362,7 +513,7 @@ async function poll(){
   if(polling||busy)return;polling=true;
   try{
     const response=await fetch('/api/revision');if(!response.ok)throw new Error('Reconnecting to your print…');
-    const next=await response.json();
+    const next=await response.json();if(movieController)return;
     if(reconnecting)message('');
     if(!state||reconnecting||next.fingerprint!==state.fingerprint)await working('Loading and checking the updated print…',()=>refresh(true));
     reconnecting=false;

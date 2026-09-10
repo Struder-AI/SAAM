@@ -119,7 +119,7 @@ function createMeshGeometry(r,parameters) {
   const shell=buildShell(r,parameters),vertices=[],faces=[],labels=[],features=[];
   const append=(geometry,id,translation=[0,0,0])=>{
     const component=buildShell(r,geometry);
-    const proxy=geometry.shape==='mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
+    const proxy=component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
     const offset=vertices.length;
     for(const p of proxy.vertices)vertices.push(p.map((v,i)=>v+translation[i]));
     for(const f of proxy.faces)faces.push(f.map(v=>v+offset));

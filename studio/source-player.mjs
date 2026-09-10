@@ -1,6 +1,7 @@
 import {interpretGriffin} from '../core/export/griffin.mjs';
 import {interpretBambuSource} from '../core/export/bambu-player.mjs';
 import {interpretDobotFiles} from '../core/export/dobot-player.mjs';
+import {interpretDensoFiles} from '../core/export/denso-player.mjs';
 import {moveStore} from './move-store.mjs';
 
 // Inputs are the exact checked machine source, plus its locked machine setup.
@@ -11,6 +12,7 @@ export function decodeSource(sources,plan,machine,{compact=true}={}) {
   if(plan.output==='griffin-gcode')program=interpretGriffin(sources.program,plan,machine,options);
   else if(plan.output==='bambu-gcode')program=interpretBambuSource(sources.program,plan,machine,options);
   else if(plan.output==='dobot-lua')program=interpretDobotFiles(sources,plan,machine,options);
+  else if(plan.output==='denso-pacscript')program=interpretDensoFiles(sources,plan,machine,options);
   else throw new Error('Unsupported machine source: '+plan.output);
   delete program.code;delete program.sources;
   return program;

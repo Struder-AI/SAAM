@@ -70,9 +70,11 @@ export function validatePlan(plan, machine) {
   // The generator bounds it by the actual substrate step geometry, not an
   // unsupported assumption that nozzle diameter is a physical gap limit.
   const bounds=toolBounds(machine,s.tool);
-  number(pos.xMm, bounds.min[0]+5, bounds.max[0]-roof.runMm-5, 'Placement X');
-  number(pos.yMm, bounds.min[1]+8, bounds.max[1]-roof.widthMm-5, 'Placement Y');
-  requireThat(roof.maxHeightMm+p.liftMm < bounds.max[2], 'Wedge and travel lift exceed Z bounds.');
+  if(machine.motionChecks!=='deferred') {
+    number(pos.xMm, bounds.min[0]+5, bounds.max[0]-roof.runMm-5, 'Placement X');
+    number(pos.yMm, bounds.min[1]+8, bounds.max[1]-roof.widthMm-5, 'Placement Y');
+    requireThat(roof.maxHeightMm+p.liftMm < bounds.max[2], 'Wedge and travel lift exceed Z bounds.');
+  } else requireThat(Number.isFinite(pos.xMm)&&Number.isFinite(pos.yMm),'Placement must be finite.');
   return plan;
 }
 // Explicit conversion for old recipes; new plans store the eight source points.

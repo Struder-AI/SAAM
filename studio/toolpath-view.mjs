@@ -1,21 +1,30 @@
 // A display budget, never a modification of the interpreted or exported path.
 export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
+export const CURRENT_LAYER_GAP_MM=0.04;
+export const LAYER_FADE_MS=2000;
+// User-verified visible palette; additional colors may be used when needed.
+// Sky blue includes the user's requested slight darkening from #62a9df.
+export const TOOLPATH_COLORS={skyBlue:'#5b9fd3',orange:'#c65b19',teal:'#53b8af',lavender:'#a799dc'};
 export const layerKey=move=>move?`${move.phase}\0${move.layer}`:null;
-// Wall-clock time keeps the fade at two seconds at every playback speed.
+// Keep the normal two-second fade unless the next layer arrives sooner.
 export function createLayerFade() {
   let previous=null;
   const outgoing=new Map();
   return {
     reset(){previous=null;outgoing.clear();},
-    frame(current,now){
+    frame(current,now,remainingMs=Infinity){
       const key=layerKey(current),weights=new Map();
       if(key!==previous){
-        if(previous!==null)outgoing.set(previous,now);
+        outgoing.clear();
+        if(previous!==null)outgoing.set(previous,{start:now,progress:0});
         outgoing.delete(key);previous=key;
       }
-      for(const [id,start] of outgoing){
-        const t=Math.max(0,Math.min(1,(now-start)/2000));
+      for(const [id,transition] of outgoing){
+        const elapsed=Math.max(0,now-transition.start);
+        const duration=Math.min(LAYER_FADE_MS,elapsed+Math.max(0,remainingMs));
+        // Changing speed or pausing must not bring a faded layer back.
+        const t=transition.progress=Math.max(transition.progress,Math.min(1,duration>0?elapsed/duration:1));
         if(t===1)outgoing.delete(id);
         else weights.set(id,1-t*t*(3-2*t));
       }
@@ -25,17 +34,20 @@ export function createLayerFade() {
   };
 }
 function mixColor(from,to,t){
-  if(t===0)return from;if(t===1)return to;
   return '#'+[1,3,5].map(i=>Math.round(parseInt(from.slice(i,i+2),16)*(1-t)+parseInt(to.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
 }
-export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis) {
+export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1}={}) {
   const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
-  const skin=move.phase===skinPhase||move.phase==='vase-wall';
+  const skin=move.phase===skinPhase||move.phase==='vase-wall'||move.phase==='cladding-hoop';
   const strength=active?1:emphasis??0;
-  const foreground=move.extruding?(skin?'#c65b19':move.phase==='prime'?'#5b92a3':'#24583e'):'#657fa3';
-  const background=move.extruding?(skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#91a68a'):'#aeb8c5';
-  return {active,color:mixColor(background,foreground,strength),
-    opacity:0.65+0.35*strength,width:0.65+((move.extruding?1.35:0.85)-0.65)*strength};
+  const axial=move.phase==='cladding-axial';
+  const foreground=move.extruding?(axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue):'#657fa3';
+  const pale=move.extruding?(axial?mixColor(foreground,'#f3f1eb',.55):skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#b9d6ed'):'#aeb8c5';
+  // Inset only the current layer's display strokes to reveal adjacent tracks.
+  // This is a model-space gap, not a fixed-pixel minimum or a print change.
+  const widthMm=active?Math.max(lineWidthMm-CURRENT_LAYER_GAP_MM,lineWidthMm/2):lineWidthMm;
+  return {active,color:mixColor(foreground,pale,(1-strength)/3),opacity:0.5+0.5*strength,
+    width:move.extruding?widthMm*pixelsPerMm:0.85};
 }
 const same=(a,b)=>a.every((v,i)=>v===b[i]);
 const distance2=(p,a,b)=>{
@@ -68,6 +80,13 @@ export function buildToolpathView(moves) {
     groups.push({first,last:i,raw:null,reduced:null});i++;
   }
   return {moves,groups};
+}
+export function remainingLayerMs(view,moveIndex,seconds,speed){
+  if(!(speed>0))return Infinity;
+  let low=0,high=view.groups.length;
+  while(low<high){const mid=(low+high)>>1;if(view.groups[mid].last<moveIndex)low=mid+1;else high=mid;}
+  const next=view.groups[low+1];
+  return next?Math.max(0,(view.moves[next.first].startSeconds-seconds)/speed*1000):Infinity;
 }
 function entries(view,group,reduced) {
   if(!reduced)return group.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{

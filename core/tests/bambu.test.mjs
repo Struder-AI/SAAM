@@ -65,6 +65,35 @@ test('H2D rejects altered firmware, metadata, print commands, cold state, tool e
   const tall=structuredClone(path);tall.summary.boundsMm.max[2]=315;tall.actions.at(-1).to=[100,100,317];
   assert.throws(()=>exportProgram(tall,plan,machine,release),/shutdown clearance/);
 });
+
+test('H2D removes only initial homing H10 and retains the historical contract for saved jobs',async()=>{
+  const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
+  const current=exportProgram(path,plan,machine,release),code=unpackZip(current).get(GCODE).toString();
+  const start=code.split(';SAAM_BODY_BEGIN\n')[0];
+  assert.doesNotMatch(start,/^G28 X T300$|^G28 Z P0 T250$|^M972 S24 P0 T2000$|^G380 S2 Z30 F1200$|^M1009 Q1 L[01]$/m);
+  assert.match(start,/M982\.2 S1\nM1002 gcode_claim_action : 74\nM972 S26 P0 C0\nM972 S35 P0 C0\nM972 S41 P0 T5000\nM400\n/,'neighboring detection remains in order');
+  assert.match(start,/G29 A1 O /,'later bed leveling remains');
+  assert.match(start,/G383 O0 M2 T140/,'later Z calibration remains');
+  assert.match(start,/G1 X290 E10 F623\.623/,'front priming line remains');
+  assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
+
+  // Reconstruct the previous literal envelope. Its pinned digest verifies every
+  // start/end command, catching unintended edits outside the two H10 segments.
+  const previous=structuredClone(machine),program=previous.outputs[0].program;
+  previous.revision=3;program.contract='h2d-02.08.02.61-pla-textured-v1';
+  program.start.splice(program.start.indexOf('M1002 gcode_claim_action : 74'),0,
+    'M1002 gcode_claim_action : 13','G28 X T300','G150.1 F18000','G150.3 F18000','M400 P200','M972 S24 P0 T2000');
+  program.start.splice(program.start.indexOf('M972 S41 P0 T5000')+1,0,
+    'M1009 Q1 L1','G91','G380 S2 Z30 F1200','G90','G1 X175 Y160 F30000','G28 Z P0 T250','M1009 Q1 L0');
+  const historical=exportProgram(path,plan,previous,release);
+  assert.equal(interpretProgram(historical,plan,previous).envelope.contract,program.contract);
+  assert.deepEqual(historical,exportProgram(path,plan,previous,release),'historical snapshots retain deterministic bytes');
+  assert.equal(interpretProgram(current,plan,machine).envelope.contract,machine.outputs[0].program.contract);
+  assert.throws(()=>interpretProgram(historical,plan,machine),/artifact context/,'old export cannot masquerade as the new startup');
+  assert.throws(()=>interpretProgram(current,plan,previous),/artifact context/);
+  const mislabeled=structuredClone(machine);mislabeled.outputs[0].program.contract=program.contract;
+  assert.throws(()=>exportProgram(path,plan,mislabeled,release),/Unknown H2D firmware envelope/);
+});
 test('ZIP format rejects unsafe names, damaged directories and unreferenced bytes',()=>{
   for(const name of ['../file','/file','a//b','a/./b','a\\b'])assert.throws(()=>packZip(new Map([[name,'x']])),/name/);
   const bytes=packZip(new Map([['test','content']]));assert.equal(unpackZip(bytes).get('test').toString(),'content');

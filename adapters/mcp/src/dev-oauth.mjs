@@ -5,7 +5,7 @@ import { InvalidClientMetadataError, InvalidGrantError, InvalidRequestError,
   InvalidScopeError, InvalidTokenError, TooManyRequestsError } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 
 const secret = () => randomBytes(32).toString('base64url');
-const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+export const escape = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const equal = (a, b) => {
   const left = Buffer.from(String(a ?? '')), right = Buffer.from(String(b));
   return left.length === right.length && timingSafeEqual(left, right);

@@ -27,7 +27,7 @@ All settings and component selections are locked before generation.
 |---|---|---|
 | `enabled` | `false` | Select the pattern. |
 | `parts` | `[]` | Assembly components; empty selects all. |
-| `perimeters` | `2` | Wall loops per layer. |
+| `perimeters` | `2` | Maximum inward loops from each boundary per layer. |
 | `density` | `0.2` | Approximate interior volume fraction; spacing is line width / density. |
 | `pattern` | `rectilinear` | Sparse interior pattern, described below. |
 | `sampleStepMm` | `0.2` | Gyroid maximum sampling grid step, also limited to 1/32 of its period. |
@@ -37,6 +37,10 @@ All settings and component selections are locked before generation.
 | `minFeatureMm` | `0.4` | Smallest sampled spline section feature. |
 
 Full-fill owns `bottomLayers` and `topLayers` (three each by default).
+Walls use full-fill's shared perimeter generator, including its
+[central-loop recovery](../full-fill/SKILL.md#settings): a 2 mm circular wall
+at 0.4 mm line width and three or more perimeters has five loops and no sparse
+or solid interior strokes. Wider regions retain their selected interior pattern.
 Local solid masks compare neighboring sections, including shelves and sloping
 roofs. One skill owns walls; sparse and solid interiors use complementary masks.
 Drape's material reservation applies to both. The first solid layer over sparse

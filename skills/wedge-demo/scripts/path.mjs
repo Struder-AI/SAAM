@@ -29,7 +29,7 @@ export function generatePath(plan, machine) {
   const roof=roofGeometry(g),{slope,cosine,runMm,widthMm}=roof;
   const skinZ=p.skinNormalMm/cosine, coreBase=roof.c-p.skinLayers*skinZ, w=p.lineWidthMm;
   const partMaxZ=roof.maxHeightMm;
-  const builder=new PathBuilder({start:startupPosition(machine,plan),process:p,machine,generatorVersion:VERSION});
+  const builder=new PathBuilder({start:startupPosition(machine,plan),process:p,machine,generatorVersion:VERSION,motion:plan.setup.denso??null});
   builder.motionBounds=toolBounds(machine,s.tool);
   // A new job recovers the previous SAAM job's final retraction once.
   builder.retracted=p.startupRetracted;

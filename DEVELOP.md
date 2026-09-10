@@ -85,6 +85,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/geom/`: spline evaluation, sections, height queries, STL/mesh input | [geometry.test.mjs](core/tests/geometry.test.mjs), [mesh.test.mjs](core/tests/mesh.test.mjs), [mesh-boundary.test.mjs](core/tests/mesh-boundary.test.mjs) | Affected skill tests; pipeline and regional tests for shared query changes |
 | `core/geom/polyline.mjs`: numerical contour seams before offsets and deposition | [contour-cleanup.test.mjs](core/tests/contour-cleanup.test.mjs) | Mesh sections, full-fill and planar-infill |
 | `core/region/offset.mjs`, Clipper normalization and offset compatibility | [offset.test.mjs](core/tests/offset.test.mjs), [offset-junctions.test.mjs](core/tests/offset-junctions.test.mjs), [offset-remnants.test.mjs](core/tests/offset-remnants.test.mjs) | Fill, infill, drape, vase and wedge consumers as affected |
+| `core/region/perimeters.mjs`: coincident closed wall fronts | [perimeters.test.mjs](core/tests/perimeters.test.mjs) | [perimeter-wall.test.mjs](skills/full-fill/tests/perimeter-wall.test.mjs) covers full-fill, planar-infill, solid masks and S5/H2D export |
 | `core/region/surface-offset.mjs`, surface derivatives | [surface-offset.test.mjs](core/tests/surface-offset.test.mjs) | Experimental surface tool; no implicit skill adoption |
 | `core/region/intersection.mjs`, closed planar booleans | [intersection.test.mjs](core/tests/intersection.test.mjs) | Infill masks, reservations and regional composition |
 | `core/region/region2d.mjs`: scanline fill and stroke ordering | [scanline-cells.test.mjs](core/tests/scanline-cells.test.mjs), [geometry.test.mjs](core/tests/geometry.test.mjs) | Full-fill and planar-infill |
@@ -98,7 +99,8 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/export/bambu.mjs`, H2D profile and ZIP output | [bambu.test.mjs](core/tests/bambu.test.mjs) | [h2d.test.mjs](skills/wedge-demo/tests/h2d.test.mjs) |
 | `core/export/`: streamed G-code lines and large ZIP members | [gcode-stream.test.mjs](core/tests/gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
 | Dobot profile, Lua export/interpreter and relay behavior | [dobot.test.mjs](core/tests/dobot.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | [dobot.test.mjs](skills/wedge-demo/tests/dobot.test.mjs), vase and regional machine coverage |
-| `studio/`: camera, display detail, mesh visibility and playback | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
+| VP-6242 / RC8, oriented/rotary motion, native pipe cladding and both Studio frames | [denso.test.mjs](core/tests/denso.test.mjs) | Shared mesh/spline regional skills, wedge, composition, browser source and exact-byte lifecycle |
+| `studio/`: camera, display detail, mesh visibility, playback and offline movies | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [studio-geometry.test.mjs](core/tests/studio-geometry.test.mjs), [studio-material.test.mjs](core/tests/studio-material.test.mjs), [studio-movie.test.mjs](core/tests/studio-movie.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
 | Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs), [studio-lifetime.test.mjs](core/tests/studio-lifetime.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
 | Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](core/tests/source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
 | `adapters/mcp/`: stdio tools, shared import/setup and CLI access | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow and recipe validation |
@@ -199,6 +201,81 @@ It does not verify that a human actually approved a decision or that a part is
 printable. The subsequent Node tests check manufacturing software behavior.
 CI installs dependencies and runs the same tests. Synthetic approval tests use
 temporary bundles and never authorize the person's real print.
+
+## Studio agent permissions
+
+The checkout includes [Codex rules](.codex/rules/studio.rules) and
+[Claude Code settings](.claude/settings.json) for the same direct launcher:
+
+```sh
+node studio/server.mjs Prints/my-part
+```
+
+Run from the repository root, quote a print path containing spaces, and keep
+`node studio/server.mjs` literal. The bare command opens the existing default
+demo bundle. Use the client's managed terminal/background session so it can
+retain the process handle. The human-facing `npm run studio` alias still works,
+but the shared permission targets the direct command. Shell wrappers, different
+script spellings, inline Node code and custom development launchers are outside
+this rule. Do not replace it with a blanket Node, PowerShell, process-kill or
+all-command allowance.
+
+First-use setup is part of the agent's work; the user need not ask for it:
+
+1. **Codex:** have the person trust this checkout through Codex's project trust
+   flow. The [project config](.codex/config.toml) carries no general permission
+   overrides. Trusted project rules load at startup, so restart Codex after
+   adding or updating them. If a running session has not loaded the rule and a
+   launch needs escalation, request the specific launcher permission through
+   the client, offering the `node studio/server.mjs` prefix when supported.
+   Do not silently install a global rule. See
+   [Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules).
+2. **Claude Code:** have the person accept the workspace trust prompt. Shared
+   `permissions.allow` entries cover the direct launcher in Bash and PowerShell;
+   `sandbox.excludedCommands` runs that Bash launcher outside the sandbox so
+   local listening does not need a separate sandbox exception each time.
+   Restart the client after updating this setup. Use `/permissions` to inspect
+   the loaded rules if a prompt persists. Personal overrides belong in ignored
+   `.claude/settings.local.json`. See
+   [Claude Code settings](https://code.claude.com/docs/en/settings),
+   [permission rules](https://code.claude.com/docs/en/permissions), and
+   [sandboxing](https://code.claude.com/docs/en/sandboxing).
+3. **Browser:** open the printed `http://127.0.0.1:<port>` URL using the client's
+   browser integration. Use its site permission flow if needed; keep any request
+   scoped to Studio. Codex manages allowed sites in Settings > Browser; see
+   [browser permissions](https://learn.chatgpt.com/docs/browser). Claude browser
+   integrations have their own setup and permissions. These command rules do
+   not preauthorize browser tools. Persistence across Studio's different ports
+   is client-dependent and has not been verified; do not promise exactly one
+   prompt. Claude Desktop/web MCP connections also retain their separate
+   [connection setup](adapters/mcp/README.md); Claude Code settings do not configure them.
+
+During work, inspect geometry, source and playback and use camera/view controls
+without another conversational permission question. Keep each instance's print,
+URL and terminal handle together. To finish or restart it, close that instance's
+viewer tabs; after three seconds without a viewer its server exits. If no viewer
+was ever opened, or the server is stuck, stop only its recorded terminal task
+or send Ctrl+C through that session. A client's stop-tool permission can still
+apply. Do not scan for and kill all Node processes. Leave a viewer open while
+the person is expected to review it. Existing manufacturing approvals still
+belong to the person.
+
+These allowances trust the launcher and its imported repository code; they are
+command matches, not an OS boundary restricting the process to previews or the
+print argument to `Prints/`. They do not pin a code hash or a working directory.
+Keep the rules in the trusted project and use the repository root as instructed.
+More restrictive client or administrator policies can still block or prompt.
+No global approval mode or full-access setting is changed.
+
+To check Codex matching without launching Studio:
+
+```sh
+codex execpolicy check --rules .codex/rules/studio.rules -- node studio/server.mjs Prints/my-part
+codex execpolicy check --rules .codex/rules/studio.rules -- node --eval 1
+```
+
+The first must report an allow match; the second must have no matching rule.
+The rule file also includes positive and negative examples validated on load.
 
 ## Slicing speed benchmarks
 
@@ -321,18 +398,89 @@ benchmark.
 Studio uses a right-handed orthographic camera: top view shows +X right and
 +Y up (toward the back of the bed), with +Z toward the viewer. Orbit, side and
 top views share this projection without perspective scaling. Playback has a
-1×–30× slider, initially 10×; inactive toolpath layers draw at 65% opacity.
-Outgoing layers ease their color, opacity and line weight into that background
-style over two seconds of wall-clock time, including when paused. Rapid layer
-changes can overlap fades; scrubbing, replay and opening a print reset them.
+1×–30× slider, initially 10×; inactive toolpath layers draw at 50% opacity with
+one-third of the original color lightening. Current material uses shaded oval
+beads in WebGL2, with physical dimensions that scale with viewport zoom. Width
+comes from commanded volume per distance divided by the nominal layer thickness,
+falling back to the plan's line width. Planar and bounded wedge beads sit below
+the nozzle; pipe cladding uses radial thickness around its commanded bead center.
+Lighting distinguishes adjacent current tracks without an artificial gap.
+This is a nominal display cross-section, not measured filament spread.
+
+### Visually verified toolpath colors
+
+The user verified sky blue, orange, teal and lavender as visibly distinct with
+Studio's shaded bead rendering on 2026-09-10. These are the preferred visible
+color set; agents may use other colors when more are needed. This records visual
+feedback, not physical print validation or contributor consensus.
+
+| Color | Display value | Current assignment |
+|---|---|---|
+| Sky blue | `#5b9fd3` | Body / planar paths |
+| Orange | `#c65b19` | Circumferential / skin paths |
+| Teal | `#53b8af` | Axial cladding |
+| Lavender | `#a799dc` | Available for another operation |
+
+Sky blue was reviewed at `#62a9df`; the current value applies the user's requested
+slight darkening. Named pipe-view buttons seek to the body, axial and
+circumferential samples without changing camera or speed. The shared
+`TOOLPATH_COLORS` palette and style function apply to lines, material and movies.
+
+### Material geometry and playback
+
+Completed material uses rectangular swept sections with every source curve
+segment retained. Compact instance buffers, shared cross-section templates and
+cached geometry reduce storage and drawing cost without voxelizing curves.
+Layers and operations remain separately colored; unprinted bores remain empty.
+A depth prepass prevents hidden internal surfaces from accumulating opacity.
+Draped skin and normal rimming currently lack source surface normals and retain
+an explicitly labeled line fallback. Browsers without WebGL2 also use lines.
+Fallback line width scales with the same camera, with a 0.04 mm current-layer
+inset. Canvas device-pixel scaling applies once; travel stays a thin screen-space
+guide. Display geometry does not modify deposition spacing, volume or export.
+
+Studio displays material estimates in grams using a fixed 1.2 g/cm³ density
+for all materials. Robot relay estimates and commanded material intent remain
+separate and labeled; internal volumes and machine flow rates retain their units.
+Outgoing layers normally ease color and opacity over two seconds of wall-clock
+time, including when paused. At accelerated playback, shorten the fade only when
+the next layer begins sooner, using its source timeline and the selected speed.
+A new layer transition completes any preceding fade, so only one outgoing layer
+can fade at a time. Changing speed or pausing never reverses fade progress.
+Scrubbing, replay and opening a print reset fade history.
+**Export movie** renders the whole interpreted program into a separate canvas
+with the same renderer, selected speed, camera/zoom/framing, travel visibility,
+rotary view, display detail and layer fade. The viewer stays paused at its current
+position. Export uses 30 fps and a deterministic video clock, including two final
+seconds to finish fades; it does not wait through real-time playback. WebCodecs
+encodes VP9 with VP8 fallback into a seekable, silent WebM download. The browser
+must support one of these encoders. Render/encode time depends on the computer;
+compressed frames remain in memory until download. Progress and cancellation
+keep the page usable, while view controls are locked for consistent frames.
+Canvas dimensions and device-pixel ratio at export start determine resolution.
+The background is painted by the shared renderer so the movie keeps Studio's
+appearance. Same-tab view settings survive refresh in session storage; tabs
+opened before this feature must have their settings reselected once. Movie
+export does not generate machine code, approve a job, or modify its bundle.
+
 S5 and H2D profiles supply new shell and wedge plans with 40/20/24 mm/s
 planar/skin/first-layer targets, 120 mm/s XY travel and 10 mm/s Z travel.
 Existing locked plans, material flow limits, retraction and firmware service
 speeds are unchanged; actual deposition remains capped by flow and axis limits.
 
-Geometry view draws boundary/crease edges only. It hides edges between coplanar
-faces or face planes differing by less than 3 degrees, including coincident
-vertices in separate patch proxies. This affects display only. Toolpath view
+Geometry view uses opaque, depth-tested WebGL2 sky-blue surfaces, camera-relative
+lighting and a subtle blurred ground shadow projected from the actual mesh.
+Angle-weighted corner normals smooth curved tessellation below a 35-degree
+crease threshold; named feature boundaries and sharper corners remain crisp.
+Coincident patch vertices share display normals only within the same feature.
+Quiet depth-tested crease/rim lines replace triangle outlines. Selection adds
+a restrained tint and stronger boundary lines; pointer picking interpolates
+depth at the clicked location, leaving real holes empty. The grid retains its
+original contrast, with an orientation indicator in the corner instead of axes
+over the part.
+Geometry buffers are cached until the source changes. These operations affect
+display only: source coordinates, tessellation and manufacturing data remain
+unchanged. Without WebGL2, Studio labels its flat-surface fallback. Toolpath view
 draws no part mesh or outline; the current phase/layer is darker, opaque and
 drawn after the faded prior layers. At shutdown it retains emphasis on the last
 deposition layer. Source geometry, output and approval data are unchanged.
@@ -370,7 +518,7 @@ interpreters are shared with the browser through an explicit module allowlist.
 
 Studio computes bounds/layout/camera transforms once per frame and coalesces
 redraw requests. It preserves segment order, colour and transparency. The
-toolpath viewer has a **40,000 drawn-endpoint budget** (two endpoints per line,
+fallback line viewer has a **40,000 drawn-endpoint budget** (two endpoints per line,
 including reserved space for the active move); this is a drawing budget, not an
 input/file limit or a manufacturing-path simplification. Geometry proxy and
 camera decorations are separate. Full interpreted moves remain available for
@@ -430,7 +578,10 @@ bundles and synthetic approval fixtures outside the adapter protocol.
 connection. `adapters/mcp/src/http.mjs` forwards SDK HTTP requests over an
 in-memory transport to one existing adapter; it owns no manufacturing schema or
 approval route. `dev-oauth.mjs` adds single-installation pairing to the SDK's
-OAuth routes. `web-chat.mjs` owns the tunnel and ignored connection file.
+OAuth routes. `web-chat.mjs` owns the tunnel, the loopback pairing page and the ignored
+connection file. It starts either a quick tunnel or, given `--public-url` and a
+named-tunnel token, a stable named tunnel; the token comes from a file or the
+environment so it never appears in process arguments.
 `core/tests/mcp-http.test.mjs` exercises the HTTP/OAuth boundary and shared
 workflow with synthetic approvals. See the adapter README for startup, security,
 timeouts and same-computer review limits.
@@ -543,14 +694,14 @@ ports. Identify the current work's print and URL before restarting its viewer.
 Check the loaded geometry and export afterward.
 
 Studio tracks open pages through authenticated persistent viewer connections,
-independent of revision polling and background-tab timer throttling. It closes
-three seconds after its last viewer disconnects, allowing ordinary refreshes to
-reconnect. A launch that receives no viewer connection closes after 60 seconds,
-even if other HTTP requests arrive. An accepted bundle write finishes before
-shutdown completes. Saved bundles are retained and can be opened in a fresh
-instance later. The old `--close-when-idle` flag is accepted but no longer needed.
-The CLI process exits when its work drains. In MCP, only that Studio listener and
-session are released; the adapter and its other viewers stay available. Repeated
+independent of revision polling and background-tab timer throttling. There is no
+deadline to open the first viewer, for either CLI or MCP launches. Once opened,
+Studio closes three seconds after its last viewer disconnects, allowing ordinary
+refreshes to reconnect. An accepted bundle write finishes before shutdown
+completes. Saved bundles are retained and can be opened in a fresh instance later.
+The old `--close-when-idle` flag is accepted but no longer needed. The CLI process
+exits when its work drains. In MCP, only that Studio listener and session are
+released; the adapter and its other viewers stay available. Repeated
 review requests within the same adapter can use that print's still-open session.
 The temporary web-chat bridge shares one adapter across clients; it does not
 provide per-agent identity or locking. Independent agent ownership requires
@@ -817,6 +968,19 @@ Intermediate developer experiments belong in temporary scratch directories and
 call the same components. They must not become a second product command, artifact
 format or approval route without an explicit scope decision.
 
+For an explicitly requested historical toolpath inspection, a local scratch
+launcher may pass `resolveBundle` to `createStudio`. The resolver supplies a
+scratch adapter over `createBundleWorkflow`; Studio keeps its existing source
+playback, print picker and lifecycle. The default CLI and known adapters are
+unchanged. This is explicit development injection, not automatic discovery or
+permission to load module paths from a print. Record the original revision and
+settings, distinguish historical stroke geometry from modern export assumptions,
+and verify the interpreted deposition against the source generator.
+An adapter's optional `inspection` presentation supplies a title, description,
+facts/settings rows and note for a development tour. Studio then exposes settings
+for reading and hides its approval button; the scratch adapter must independently
+reject approval and delivery. This presentation does not grant production rights.
+
 Interoperability is a core design requirement: skills should work across machines through
 declared capabilities and shared geometry/result interfaces; other elements
 should generalize wherever practical. Keep machine behavior in machine profiles
@@ -906,6 +1070,16 @@ must not import Clipper directly. General `intersect`/`difference`/`union` use
 the [Clipper2 tool](#shared-planar-intersections), re-exported from
 `core/region/boolean.mjs`. Clipper 6's
 internal clipping needed for offset cleanup is part of the adopted offset.
+
+`perimeterLoops` in [perimeters.mjs](core/region/perimeters.mjs) is the shared
+deposition-contour wrapper used by full-fill and planar-infill. It retains a
+single central closed track when an outer/hole pair meets and material erosion
+loses that hole. Candidate fronts use the existing 0.001 mm chord target and
+are compared within the sum of their two chord tolerances. Only their boundary
+band is replaced; disconnected/nested islands and other holes remain accounted
+for. This does not change `offsetRegion`'s zero-area collapse semantics, fill
+masks, machine output interfaces or approval workflow. General medial-axis,
+open centerline and variable-width gap fill remain unimplemented.
 
 **Surface, experimental:** [offsetSurfaceRegion](core/region/surface-offset.mjs)
 takes `(patch, loopsUv, deltaMm, options)` and returns `{loopsUv, loops, report}`;
@@ -1293,6 +1467,7 @@ eight-point generator, with S5, experimental H2D and configured Dobot output.
 | UltiMaker S5 | Fill, planar-infill, drape and bounded vase-wall on mesh/splines; bounded wedge | Griffin exporter/interpreter, same-file Studio review/delivery. |
 | Bambu H2D | Fill, planar-infill, drape and bounded vase-wall on mesh/splines; bounded wedge | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
 | Dobot MG400 | Shared fill, planar-infill, drape, vase-wall and bounded wedge paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
+| DENSO VP-6242 / RC8 + rotary | Native pipe body/cladding plus fixed-orientation mesh/spline regional skills and bounded wedge, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
 
 The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
 non-planar limit. The profile records official hardware/slicer sources, separate
@@ -1305,8 +1480,10 @@ No physical H2D print has been validated.
 interpreter; it rejects unavailable outputs. SAAMpath is an interoperability
 boundary, not an automatic translator to every machine language. Current actions
 are XYZ moves with deposition volume, retraction/recovery, fan and dwell for one
-selected tool. New dialects need adapters; rotary orientation, in-program tool
-changes or other unsupported semantics need explicit representation extensions.
+selected tool, plus optional part-frame tool orientation and an unwrapped rotary
+angle. Existing XYZ-only adapters reject pose-bearing paths rather than discard
+their orientation. New dialects need adapters; in-program tool changes and other
+unsupported semantics need explicit representation extensions.
 Preserve units, transforms, feature identity and material ownership across every
 boundary. A common extension or file suffix alone does not establish compatibility.
 
@@ -1482,7 +1659,16 @@ heater selectors 1/0. Logical material `T0 H-1` remains the same under Bambu's
 remapping. Do not replace all T numbers to select a nozzle. Package structure
 also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
 
-The pinned start/end arrays come from the reference's executable blocks.
+The pinned start/end arrays originate in the reference's executable blocks.
+On 2026-09-10 the user requested removal of startup triage item H10: initial X
+homing, the early wiping-area moves and `M972 S24`, then the `M1009`-bracketed
+Z-clearance/center-positioning/Z-homing sequence. Machine revision 4 uses
+`h2d-02.08.02.61-pla-textured-v2` with exactly those 13 lines removed. Adjacent
+object/bin checks and all later probing, calibration and priming remain; this
+is not a no-probing startup. The revised sequence requires physical testing.
+The adapter still recognizes the pinned v1 envelope in existing snapshots;
+upgrade and regenerate a chosen bundle to use v2, with normal plan/toolpath
+review invalidation. Existing exports and delivery files are not rewritten.
 Allowed substitutions are planned temperatures, selected physical heater,
 placed geometry's probe rectangle and whole-plan shutdown/parking clearance.
 The reference PLA purge recipe uses 240 °C and up to 25 mm³/s independently of
@@ -1543,6 +1729,13 @@ under-extrusion; the wedge recipe now accounts for its terminal retraction on th
 next start. These are scoped observations, not a claim of complete physical print
 validation. Never treat an earlier export revision as the reported working one.
 
+On 2026-09-10 the user reported that their observed S5 startup differs from the
+listed template behavior; the exact file and extra actions are not yet identified.
+Absence of explicit leveling or unused-heater commands is not proof that the
+Griffin firmware skips those actions. Retained bundle snapshots and delivered
+bytes can also predate the current profile. Diagnose the actual file and printer
+behavior before claiming that the earlier observation applies to this run.
+
 ### Dobot output contract
 
 `machines/dobot-mg400.json` declares experimental `dobot-lua` output through
@@ -1585,6 +1778,98 @@ Targeted software checks cover Lua execution and rejection, transformed workspac
 and motion limits, shared skill and wedge outputs, synthetic three-stage review,
 changed helper/archive rejection, MCP access and exact-byte ZIP delivery.
 Use the same native geometry, locked plan, Studio and delivery on every profile.
+
+### DENSO RC8 output contract
+
+The user authorized the [pipe-cladding implementation](skills/pipe-cladding/SKILL.md)
+and confirmed RC8. The [VP-6242 profile](machines/denso-vp6242-rc8.json) represents
+a six-joint arm plus one external rotary; the printing task's position/direction
+control is not a claim that the robot has only five joints. Ceiling mounting
+with J1 coaxial with the rotary is provisional. At a chosen outward radius the
+robot reaches down from its base, bends its elbow and tilts its wrist to bring
+the nozzle to the wall. The rotary can bring every azimuth to that working side,
+reducing the arm's need to sweep around the pipe. Small radii near the base axis,
+large radial/vertical distances and extreme wrist orientations can still be
+inaccessible or singular. No single cylindrical reach envelope establishes
+feasibility. Operator judgment and the configured RC8 handle these limitations
+for now; SAAM does not solve IK, check reach/joint/motion limits or avoid collisions.
+Profile bounds are display/design coordinates, not enforced robot reach.
+
+The shared motion representation has optional `initialPose` and per-move `pose`:
+`rotaryDeg` is unwrapped, `toolAxis` is tool Z toward extrusion, and `toolUp` is
+tool Y. Unit/perpendicular vectors define orientation without Euler ambiguity.
+Points and directions are in part coordinates; rotation about `rotaryCenterMm`
+maps them into the stationary room. Installation translation/yaw maps that room
+to a calibrated RC8 Work frame with Z parallel to the bed axis. Ceiling mounting
+belongs in the controller's calibrated frames; no guessed base height or arm
+geometry is inserted. Machine setup owns start pose, transforms, IO and controller
+selectors. The first implementation wires this through `setup.denso`; a second
+oriented machine should extract that configuration mapping behind the existing
+profile interface rather than fork skills or the workflow.
+
+The existing composer receives point-aligned `poses`, preserves their authored
+order and passes them to the shared builder. Nearest-stroke reordering currently
+rejects oriented strokes because arbitrary reversal/closed-loop rotation would
+also have to transform pose and winding data. The scheduler itself is unchanged:
+explicit predecessor edges order the complete substrate and each radial shell.
+Fixed-axis skills imply the downward pose and zero bed angle; their existing
+process slope limits still apply. Pose-only motion survives emission and oriented
+moves are not coalesced. Prescribed tool retreat, reorientation, relocation and
+approach are shared transitions, with nonextruding on-surface indexing between
+adjacent axial tracks. These are authored travel policies, not solved clear routes.
+
+The `denso-pacscript` output is a ZIP of `main.pcs`, included helper `.pcs` sources
+and a machine/setup identity manifest. It is not a complete WINCAPS project.
+The exporter uses literal `Move L, @0 T(x,y,z,ox,oy,oz,ax,ay,az,figure)` with
+relative `EX((axis,delta))` and requested `Time` milliseconds. `TakeArm`,
+`ChangeTool`, `ChangeWork`, `Set/Reset IO` and off-state `Delay` form the rest of
+the bounded source subset. Helpers cap source blocks at 2,000 statements;
+installed compiler/project limits are not verified. The source must be added
+to a correctly configured WINCAPS III RC8 project and compiled/transferred there.
+RC8 solves Cartesian IK using its installed tool/work definitions and figure.
+
+All installation selectors start unresolved. The implemented rotary interface
+is explicitly `rc8-relative-ex`, requiring a configured RC8 extended joint.
+Axis 7 is a provisional slot, not evidence the user's bed is installed there.
+An independent rotary controller needs an execution adapter with synchronization.
+Start position/pose and rotary zero must already match the manifest/setup; the
+program does not home or position the system before printing. Heating is external.
+The relay model matches Dobot's distinction between commanded material intent
+and duration-times-rate estimates. No metered E axis, retract, fan or temperature
+control is invented. Constant relay flow cannot guarantee the intended varying
+bead volume, particularly near tapered ends, speed changes and endpoint stops.
+
+The same browser-safe interpreter reads the actual T, EX, TIME and IO commands
+from the checked ZIP. Comments supply process identity and volume intent only,
+never playback coordinates. It reconstructs deposition relative to the bed,
+including a fixed-room TCP tracing a curve during multiple rotary revolutions.
+Studio defaults to a rotating bed/material view; **Follow build plate** uses
+the same data with a stationary part. The nozzle is shown without invented
+joint animation. Playback assumes synchronized linear Cartesian/rotary progress
+at external speed 100%; actual interpolation, acceleration, override, endpoint
+stops and IO latency are unverified. `@0` makes this an experimental segmented
+execution model, even where planned geometry is continuous. Software checks
+report that bounded source contract and do not claim axis-feed, reach or
+collision validation. Vendor compilation, coordinated execution and physical
+printing remain open commissioning work.
+
+Interoperability is shared at geometry storage, ordinary section/offset/boolean
+tools, full-fill/concentric substrate generation, operations, motion, output
+registry, exact-source Studio, approvals, cold reopening and delivery. The new
+radial skill is restricted to a native circular pipe aligned with the rotary;
+general CAD cylindrical recognition and radial material-region interfaces are
+not implemented. A later general cylinder query or radial region descriptor can
+replace that bounded recipe check without introducing another composer.
+Tests include the existing mesh/spline base-vase-cap-infill-drape stack at fixed
+orientation on RC8, bounded wedge and ordinary pipe geometry on S5.
+
+Primary technical references used for this experimental command contract:
+
+- [DENSO VP specifications](https://www.denso-wave.com/en/robot/product/five-six/vp.html).
+- [RC8 Provider Guide: position types and motion options](https://www.fa-manuals.denso-wave.com/subfolder/en/usermanuals/img/001511/RC8_ProvGuide_en.pdf).
+- [DENSO TIME motion lesson](https://www.denso-wave.com/ja/robot/support/learning/d-learning/lesson3/l3-1/modals.html).
+- [DENSO RC8 extended-joint option](https://support.densorobotics.com/en/support/solutions/articles/60000698512-extended-joint-option-for-rc8-rc8a).
+- [DENSO RC8 source extension guidance](https://www.denso-wave.com/ja/robot/support/learning/d-learning/faq/ja/Robot_Controller/RC8/faq005.html).
 
 ## Legacy reference
 
