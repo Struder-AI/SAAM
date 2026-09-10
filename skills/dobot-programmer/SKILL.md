@@ -16,12 +16,12 @@ Turn operator intent into an exact approved motion plan, DobotStudio Pro Lua, an
 
 Read these before planning or editing robot motion:
 
-1. `docs/ROBOT_KNOWLEDGE.md`
-2. `docs/PROGRAM_CREATION_WORKFLOW.md`
-3. `docs/PROJECT_STATE.md`
-4. The relevant firmware snapshot README and Lua tabs
+1. `references/ROBOT_KNOWLEDGE.md`
+2. `references/PROGRAM_CREATION_WORKFLOW.md`
+3. `references/PROJECT_STATE.md`
+4. The relevant bundled fixture README and Lua files under `assets/`
 
-Use evidence labels exactly as defined in `docs/ROBOT_KNOWLEDGE.md`. Treat the physical robot as ground truth. Do not promote an inference to ROBOT-CONFIRMED.
+Use evidence labels exactly as defined in `references/ROBOT_KNOWLEDGE.md`. Treat the physical robot as ground truth. Do not promote an inference to ROBOT-CONFIRMED.
 
 The OpenSauce 2026 event iteration is closed at
 `iteration-opensauce-2026`. Preserve it as a historical baseline. New projects
@@ -53,7 +53,10 @@ single-wall spiral into multiple perimeters, also use `dobot-spiral-lip`.
 
 ## Generate Lua
 
-Default to `firmware/dobotstudio/milestone_struderbot_cube_diamond_stable/` as the baseline.
+For current Online-mode work, begin with the self-contained
+`assets/online-mode-clean-baseline/` fixture. Historical Remote-I/O baselines
+mentioned in the evidence documents are provenance only and are not required
+to use this bundle.
 
 For every material-depositing program, also use `dobot-prime-lead-in`. Add its
 compact minimum-100-mm purge path before the model and continue from that path
@@ -94,7 +97,8 @@ the operator switch into Remote I/O merely to test a development program.
   enabled through the complete connected model path. Never insert intermediate
   `PenOff()`/`PenOn()` cycles to imitate slicer retractions. Connect separate
   contours with deliberate printed transitions or redesign their traversal.
-- Run `tools/validate_struder_lua.py` against every generated Struder program.
+- Run `python scripts/validate_struder_lua.py <program.lua>` from this skill's
+  directory against every generated Struder program.
   Treat any failure as blocking. Permit cycling only when the operator
   explicitly requests it and the file contains
   `-- ALLOW_EXTRUSION_CYCLING: true`.
@@ -139,12 +143,21 @@ After a physical test:
 1. record program/revision and hardware/frame/bed conditions;
 2. record measurements, successes, alarms, stalls, dragging, blobs, skew, and tuning changes;
 3. apply the correct evidence label;
-4. update `docs/ROBOT_KNOWLEDGE.md` with durable conclusions;
-5. update `docs/PROJECT_STATE.md` with current status and next action; and
-6. preserve successful code in a named milestone directory.
+4. update `references/ROBOT_KNOWLEDGE.md` with durable conclusions;
+5. update `references/PROJECT_STATE.md` with current status and next action; and
+6. preserve successful code in a named asset or project milestone directory.
 
 When the operator says **save progress**, complete the knowledge updates and checks before synchronizing the project.
 
-When the operator closes an iteration, add a summary under `docs/iterations/`,
-update all durable project guidance, preserve uncertain work with its evidence
-labels, and create an annotated `iteration-*` tag for future branching.
+When the operator closes an iteration, add a durable iteration summary to the
+owning repository, update all project guidance, preserve uncertain work with
+its evidence labels, and create an annotated `iteration-*` tag when that
+repository uses iteration tags.
+
+## Portable bundle requirements
+
+This skill is the required robot-policy dependency for the other executable
+StruderBot manuals. Install the complete suite listed in
+`../STRUDERBOT_SUITE.json`; do not copy this directory alone for a depositing
+workflow. Its bundled Python validator uses Python 3.10 or newer and only the
+standard library. No pip packages are required.

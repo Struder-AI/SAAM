@@ -61,3 +61,10 @@ part slope.
 - No machine executability is inferred from a valid preview.
 
 Label all output **EXPERIMENTAL MULTI-AXIS CONCEPT · PREVIEW ONLY**.
+
+## Portable dependencies
+
+This manual has no executable helper or runtime dependency. Install it with
+the complete suite in `../STRUDERBOT_SUITE.json` so its status and future
+integration relationship remain discoverable. It is intentionally not a
+machine-code generator.

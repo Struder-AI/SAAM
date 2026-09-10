@@ -98,3 +98,10 @@ Never introduce either behavior silently.
   `BED_ZERO_Z + 0.55 mm` was not dense enough. Do not promote it as a new
   default. Preserve the slow/lowered-Z adhesion hypothesis, but test tighter
   spacing separately before reusing it on a cosmetic first layer.
+
+## Portable dependencies
+
+Install this as part of the complete suite in `../STRUDERBOT_SUITE.json`.
+It requires `dobot-programmer` for robot policy and `dobot-prime-lead-in` for
+the mandatory continuous purge-to-support entry. The planner requires Python
+3.10 or newer and has no third-party Python dependencies.
