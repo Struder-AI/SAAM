@@ -14,9 +14,10 @@
 import { composeResults } from '../../../core/path/compose.mjs';
 import { sectionGeometry as sectionShell } from '../../../core/geom/query.mjs';
 import { offsetRegion, scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
-import { intersect, levelSetRegion, levelSetCoverage } from '../../../core/region/boolean.mjs';
+import { difference } from '../../../core/region/boolean.mjs';
 import { planarPolicy } from '../../../core/path/builder.mjs';
 import { requireThat, distance2 } from '../../../core/geom/tolerance.mjs';
+import {clipReservedRegion,clipAboveSurface,surfaceStroke} from '../../../core/region/reservation.mjs';
 
 export const FULL_FILL_DEFAULTS = {
   mode: 'body',
@@ -40,17 +41,19 @@ export function layerHeights(process, fromMm, toMm) {
   return heights;
 }
 
-export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null }) {
+export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, zStartMm=null, zEndMm=null, lowerSurface=null }) {
   const operations=[];
   let previous=[];
   const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'],...overrides };
   const width = process.lineWidthMm;
-  const top = reserve ? reserve.maxMm : shell.bounds.max[2];
-  const heights = layerHeights(process, shell.bounds.min[2], top);
+  const top = Math.min(shell.bounds.max[2],zEndMm??Infinity);
+  const heights = layerHeights(process, shell.bounds.min[2], top).filter(z=>z>(zStartMm??-Infinity)+1e-9);
+  const reserves=Array.isArray(reserve)?reserve:[reserve].filter(Boolean);
   requireThat(heights.length > 0, 'No planar layers fit below the reserved surface; the part is thinner than one layer.');
 
   const report = { layers: 0, skippedLayers: 0, unclippedLayers: 0, areaMm2: 0, perimeterLoops: 0, fillRows: 0, nudgedLayers: 0 };
-  for (const [index, z] of heights.entries()) {
+  for (const z of heights) {
+    const index=Math.round((z-shell.bounds.min[2]-process.firstLayerMm)/process.layerMm);
     const height = index === 0 ? process.firstLayerMm : process.layerMm;
     const speed = index === 0 ? process.firstLayerSpeedMmS : process.planarSpeedMmS;
     const section = sectionShell(shell, z, { minFeatureMm: settings.minFeatureMm });
@@ -59,12 +62,9 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     // claimed the material, the body stops. A layer entirely below the reserve
     // needs no clipping at all, which is the common case low down in the part.
     let region = section.loops;
-    if (reserve) {
-      const coverage = levelSetCoverage(reserve.field, z);
-      if (coverage === 'none') { report.skippedLayers++; continue; }
-      if (coverage === 'partial') region = intersect(section.loops, levelSetRegion(reserve.field, z));
-      else report.unclippedLayers++;
-    }
+    if(lowerSurface)region=clipAboveSurface(region,z,lowerSurface);
+    for(const reservation of reserves)region=clipReservedRegion(region,z,reservation);
+    if(reserves.length&&Math.abs(regionArea(region)-regionArea(section.loops))<1e-8)report.unclippedLayers++;
     if (!region.length || regionArea(region) < width * width) { report.skippedLayers++; continue; }
 
 
@@ -100,13 +100,16 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     });
     const current=[];
     for(const [role,closed] of [['walls',true],['fill',false]]) {
-      const selected=strokes.filter(stroke=>stroke.closed===closed).map(stroke=>({
-        ...stroke,points:stroke.points.map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:width*height
-      }));
+      const selected=strokes.filter(stroke=>stroke.closed===closed).map(stroke=>lowerSurface?{
+        ...stroke,...surfaceStroke({points2d:stroke.points,z,nominalHeightMm:height,widthMm:width,surface:lowerSurface,closed:stroke.closed,maxStepMm:Math.min(0.2,settings.minFeatureMm/2)}),speedMmS:speed
+      }:{...stroke,points:stroke.points.map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:width*height});
       if(!selected.length)continue;
       const operationId=id+':'+index+':'+role;
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
-        after:[...previous,...current],strokes:selected,order:closed?'nearest':'given',region,
+        after:[...previous,...current],strokes:selected,order:closed&&!lowerSurface?'nearest':'given',region,
+        materialRegion:closed?difference(region,offsetRegion(region,-width*settings.perimeters)):
+          (fillRegion.length?offsetRegion(fillRegion,width/2):[]),
+        materialCoverage:!closed&&(spacingMm??width)>width+1e-8?'sparse':'area',
         travelPolicy:policy,clearanceZ:z+process.liftMm,
         ...(index===1?{fanPercent:process.fanPercent}:{})});
       current.push(operationId);
@@ -115,6 +118,8 @@ export function fullFillResult({ shell, plan, reserve = null, id = 'full-fill', 
     report.layers++;
     report.areaMm2 += regionArea(region);
   }
+  requireThat(!reserves.length || report.layers > 0,
+    'No planar layers fit below the reserved surface; the reserved skin leaves no printable body.');
   return {id,operations,report};
 }
 

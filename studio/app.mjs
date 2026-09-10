@@ -1,6 +1,9 @@
 import { advancePlayback, frameAtTime } from './playback.mjs';
+import {hasSkill,regionRows,recipeRows,robotRows} from './settings.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
+const exportedThisSession=new Set();
+const exportKey=()=>state?.printId+':'+state?.exportHash;
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas'),ctx=canvas.getContext('2d');
 let polygons=[],drag=null,moved=false;
@@ -8,7 +11,40 @@ const message=(text,error=false)=>{$('#message').textContent=text;$('#message').
 const duration=()=>state?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
+const materialFact=program=>program.summary.materialModel==='relay-estimate'
+  ? ['Material estimate',round2(program.summary.estimatedRelayVolumeMm3)+' mm³ from relay timing; unverified']
+  : [program.envelope?'Part material':'Material',round2(program.summary.filamentMm/1000)+' m of filament'];
+const materialSetup=state=>state.plan.setup.dobot
+  ? ['Extrusion','External relay control · '+state.plan.setup.material]
+  : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'];
+const vaseSettings=state=>{
+  if(state.plan.composition?.regions?.length)return [];
+  const vase=state.plan.skills?.['vase-wall'];
+  return vase?.enabled?[
+    ['Vase wall','One continuous spiral; '+(vase.endTransition==='level'?'level rim':'spiral rim')],
+    ['Vase component',vase.part??'Part'],
+    ['Vase height range',vase.zStartMm+'–'+(vase.zEndMm??'geometry top')+' mm above component base'],
+    ['Spiral sampling',vase.sampleStepMm+' mm maximum step · '+vase.toleranceMm+' mm tolerance']
+  ]:[];
+};
+function machineSettings(state,rows){
+  const d=state.plan.setup.dobot;
+  if(!d)return rows;
+  const omitted=new Set(['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']);
+  return [...rows.filter(([name])=>!omitted.has(name)),...robotRows(state.plan)];
+}
 function stop(){playing=false;lastFrame=0;cancelAnimationFrame(frame);$('#play').textContent='Play';}
+function activity(text=''){
+  $('#activity').hidden=!text;$('#activity-label').textContent=text;
+  $('main').setAttribute('aria-busy',String(!!text));
+}
+async function working(text,task){
+  if(busy)return;busy=true;stop();activity(text);if(state)render();$('#open-print').disabled=true;
+  // Paint the indicator before local parsing/drawing can occupy the UI thread.
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  try{return await task();}
+  finally{busy=false;activity();$('#open-print').disabled=false;if(state)render();}
+}
 
 // Studio reviews more than one kind of print. Everything that depends on which
 // package produced the bundle lives here; the viewer, approvals and playback
@@ -16,14 +52,22 @@ function stop(){playing=false;lastFrame=0;cancelAnimationFrame(frame);$('#play')
 const views={
   wedge:{
     eyebrow:'WEDGE DEMO',skinPhase:'inclined',skinLabel:'Sloped layers',exportName:'wedge.gcode',
-    names:{'sloping-face':'Sloped face',base:'Bottom','front-side':'Front','back-side':'Back','high-end':'Tall end','low-end':'Low end'},
+    names:{'sloping-face':'Roof',base:'Bottom','front-side':'Front','back-side':'Back','right-side':'Right','left-side':'Left','high-end':'Tall end','low-end':'Low end'},
     facts(state,tab) {
-      const {geometry:g,setup:s,process:p}=state.plan,high=g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
-      if(tab==='geometry')return [['Size',g.shape==='assembly'?g.parts.length+' components':g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
-      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
+      const {geometry:g,setup:s,process:p}=state.plan,roof=state.geometry.roof;
+      const high=roof?.maxHeightMm??g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
+      if(tab==='geometry') {
+        if(!roof)return [['Size',g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
+        const bounds=state.geometry.boundsMm,directions=[];
+        if(Math.abs(roof.a)>1e-10)directions.push(roof.a>0?'right':'left');
+        if(Math.abs(roof.b)>1e-10)directions.push(roof.b>0?'back':'front');
+        return [['Size',round2(bounds.max[0])+' × '+round2(bounds.max[1])+' mm'],['Height',round2(roof.minHeightMm)+'–'+round2(high)+' mm'],
+          ['Roof slope',round2(roof.angleDeg)+'°'],['Rises toward',directions.join(' + ')||'Level']];
+      }
+      if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Sloped layers',p.skinLayers+' × '+p.skinNormalMm+' mm'],['Travel height',high.toFixed(2)+' + '+p.liftMm+' mm']];
       return state.program?[['Layers',state.pathSummary.planarLayers+' flat + '+p.skinLayers+' sloped'],
-        ['Estimated motion',Math.round(duration()/60)+' min'],['Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']]:[];
+        [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)]:[];
     },
     settings(state) {
       const {setup:s,process:p}=state.plan;
@@ -54,14 +98,18 @@ const views={
         if(g.shape==='assembly')for(const part of g.parts)rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);
         return rows;
       }
-      if(tab==='plan')return [['Material',s.material+' · '+s.nozzleC+'°C'],['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],
+      if(tab==='plan'&&state.plan.composition?.regions?.length)return [materialSetup(state),
+        ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
+      if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
+        ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
         ['Solid surfaces',normal?.enabled&&fill.enabled?fill.bottomLayers+' bottom / '+fill.topLayers+' top layers':'—'],
         ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None'],['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All'],['Roof component',skin.part??'Part roof']];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const rows=[['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
-        [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],[state.program.envelope?'Part material':'Material',(state.program.summary.filamentMm/1000).toFixed(2)+' m of PLA']];
+        [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
+      if(hasSkill(state.plan,'vase-wall'))rows.push(['Vase wall','Continuous spiral within its assigned region']);
+      if(state.plan.composition?.regions?.length)rows.push(...regionRows(state.plan));
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
         if(limit.experimentalOverride)rows.push(['Experimental override',limit.effectiveMaxAngleDeg+'° versus the profile’s '+limit.machineMaxAngleDeg+'°']);
@@ -79,10 +127,7 @@ const views={
         ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
         ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],['Material flow limit',p.maxFlowMm3S+' mm³/s'],
         ['Filament diameter',s.filamentMm+' mm'],['Placement','X '+state.plan.placement.xMm+' / Y '+state.plan.placement.yMm+' mm'],
-        ['Fill directions',fill.fillAnglesDeg.join('° / ')+'°, cycled by layer'],['Fill overlap',Math.round(fill.fillOverlap*100)+'% of a bead'],
-        ['Smallest section feature',fill.minFeatureMm+' mm'],
-        ['Skin strokes',skin.strokeAngleDeg+'°, sampled every '+skin.sampleStepMm+' mm'],['Surface survey',skin.surveyStepMm+' mm grid'],
-        ['Non-planar limit',(effectiveLimit??'—')+'°'+(skin.maxAngleDegOverride===null?' (profile declaration)':' experimental override; profile declares '+declaredLimit+'°')],
+        ['Machine non-planar limit',(declaredLimit??'—')+'° (profile declaration)'],
         ['Travel','Comb up to '+p.maxCombMm+' mm; otherwise clear the whole plan by '+p.liftMm+' mm'],
         ['Startup',state.setupBasis]];
     }
@@ -100,19 +145,21 @@ function partBounds() {
 }
 
 async function api(route,data) {
-  const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(data)});
+  const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify({...data,printId:state?.printId})});
   if(!response.ok)throw new Error((await response.json()).error);
   return response;
 }
-async function refresh(follow=false) {
+async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
-  const next=await response.json(),previous=state;state=next;
+  const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;state=next;
   if(previous?.exportHash!==next.exportHash){stop();seconds=duration();fitBounds=null;}
   if(!previous) {
-    tab=state.geometryApproved?(state.planApproved?'toolpath':'plan'):'geometry';
-    $('#kind-label').textContent=view().eyebrow;
+    stop();selected=null;fitBounds=null;zoom=1;seconds=duration();
+    tab=state.program?'toolpath':state.geometryApproved?'plan':'geometry';
+    $('#kind-label').textContent=view().eyebrow+' · '+state.machine.name;
     $('#skin-label').textContent=view().skinLabel;
-    document.title='SAAM Studio · '+(state.kind==='shell'?'Print':'Wedge');
+    document.title='SAAM Studio · '+state.printName;
+    $('#open-print').title='Open print: '+state.printName;
   }
   else if(follow&&previous.planHash!==state.planHash){tab=state.geometryApproved?'plan':'geometry';message('Updated from chat.');}
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
@@ -133,14 +180,15 @@ function render() {
   $('#guidance').textContent={geometry:'Check the shape and size before continuing.',plan:'Confirm how this part will be printed.',toolpath:'Play it through, then confirm and export.'}[tab];
   $('#facts').replaceChildren(table(view().facts(state,tab)));
   $('#more-settings').hidden=tab!=='plan';
-  $('#settings-detail').replaceChildren(table(view().settings(state)));
+  $('#settings-detail').replaceChildren(table([...machineSettings(state,view().settings(state)),...recipeRows(state.plan)]));
+  $('#skin-label').textContent=hasSkill(state.plan,'vase-wall')?'Skin / spiral':view().skinLabel;
   const ready=tab==='geometry'||(tab==='plan'&&state.geometryApproved)||(tab==='toolpath'&&state.planApproved&&state.program&&state.review.generation?.mode==='production');
   $('#confirm').disabled=!ready||busy;
-  $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?'Export G-code':'Confirm & export';
-  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':state.program.envelope?.notice??'Clearance is your check for this demo.')):'');
+  $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm & export';
+  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':state.program.notice??state.program.envelope?.notice??'Clearance is your check for this demo.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#scrub').max=duration();$('#scrub').value=seconds;
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
+  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
   draw();
 }
 function selectFeature(id){selected=id;$('#selection').textContent=label(id);draw();}
@@ -175,8 +223,9 @@ function draw() {
     const local=p=>[p[0]-placement.xMm,p[1]-placement.yMm,p[2]];
     for(let i=0;i<count;i++) {
       const move=moves[i];if(!move.extruding&&!$('#travel').checked)continue;
-      const color=move.extruding?(move.phase===skinPhase?'#d97735':move.phase==='prime'?'#5b92a3':'#80977788'):'#8795ab66';
-      segment(project(local(move.from)),project(local(move.to)),color,move.phase===skinPhase?1.25:.7);
+      const highlighted=move.phase===skinPhase||move.phase==='vase-wall';
+      const color=move.extruding?(highlighted?'#d97735':move.phase==='prime'?'#5b92a3':'#80977788'):'#8795ab66';
+      segment(project(local(move.from)),project(local(move.to)),color,highlighted?1.25:.7);
     }
     const current=moves[at.active];
     if(current&&at.fraction<1&&(current.extruding||$('#travel').checked))segment(project(local(current.from)),project(local(at.point)),current.phase===skinPhase?'#d97735':'#809777',1.25);
@@ -214,21 +263,41 @@ $('#fit-program').onclick=()=>{
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 async function approval(stage){await api('approve',{stage,actor:'Local user',revision:state.revision});await refresh();}
 async function download(){
-  const response=await fetch('/api/deliver',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:'{}'});
+  const response=await api('deliver',{});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
   const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');
   a.href=url;a.download=state.exportName??view().exportName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  exportedThisSession.add(exportKey());
 }
 $('#confirm').onclick=async()=>{
-  if(busy||!state)return;busy=true;render();message('');
+  if(busy||!state)return;message('');
   try{
+    await working(tab==='toolpath'?'Checking and exporting your print…':tab==='plan'?'Saving settings and preparing your toolpath…':'Saving geometry confirmation…',async()=>{
     if(tab==='geometry'){if(!state.geometryApproved)await approval('geometry');tab='plan';}
-    else if(tab==='plan'){if(!state.planApproved)await approval('plan');if(!state.program||state.review.generation?.mode!=='production'){message('Preparing your toolpath…');await api('generate',{development:false});await refresh();}tab='toolpath';}
+    else if(tab==='plan'){if(!state.planApproved)await approval('plan');if(!state.program||state.review.generation?.mode!=='production'){activity('Generating and checking your toolpath…');await api('generate',{development:false});activity('Loading the checked toolpath…');await refresh();}tab='toolpath';}
     else {if(!state.toolpathApproved)await approval('toolpath');await download();}
     message('');
+    });
   }catch(e){message(e.message,true);}
-  finally{busy=false;render();}
 };
+async function openPrint(path){
+  if(busy)return;
+  $('#picker-message').textContent='';$('#print-picker').close();
+  try{await working('Opening and checking your saved print…',async()=>{await api('open',{path});await refresh(false,true);message('');});}
+  catch(error){message(error.message,true);$('#picker-message').textContent=error.message;$('#print-picker').showModal();}
+}
+$('#open-print').onclick=async()=>{
+  if(busy)return;$('#print-picker').showModal();$('#picker-message').textContent='Loading saved prints…';$('#print-list').replaceChildren();
+  try{
+    const response=await fetch('/api/prints');if(!response.ok)throw new Error('Could not list local prints.');
+    const {prints}=await response.json();
+    for(const print of prints){const button=document.createElement('button'),name=document.createElement('strong'),detail=document.createElement('span');
+      name.textContent=print.name;detail.textContent=print.machine;button.append(name,detail);button.title=print.path;button.onclick=()=>openPrint(print.path);$('#print-list').append(button);}
+    $('#picker-message').textContent=prints.length?'':'No saved prints found here. Enter a local print folder below.';
+  }catch(error){$('#picker-message').textContent=error.message;}
+};
+$('#close-picker').onclick=()=>$('#print-picker').close();
+$('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=draw;
 $('#scrub').oninput=()=>{stop();seconds=Number($('#scrub').value);draw();};
 $('#play').onclick=()=>{if(playing){stop();return;}if(seconds>=duration())seconds=0;playing=true;lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
@@ -244,10 +313,10 @@ async function poll(){
     const response=await fetch('/api/revision');if(!response.ok)throw new Error('Reconnecting to your print…');
     const next=await response.json();
     if(reconnecting)message('');
-    if(!state||reconnecting||next.fingerprint!==state.fingerprint)await refresh(true);
+    if(!state||reconnecting||next.fingerprint!==state.fingerprint)await working('Loading and checking the updated print…',()=>refresh(true));
     reconnecting=false;
   }catch(e){reconnecting=true;$('#confirm').disabled=true;message('Your print is updating. Reconnecting…');}
   finally{polling=false;}
 }
-refresh().catch(e=>message(e.message,true));
+working('Loading and checking your print…',()=>refresh()).catch(e=>message(e.message,true));
 setInterval(poll,1000);

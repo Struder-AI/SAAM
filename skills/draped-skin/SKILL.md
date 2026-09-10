@@ -35,6 +35,26 @@ for the shared composer. `generateDrapedSkin(builder, options)` uses the same
 implementation for a single instance. Use all results together when composing a
 plan, so whole-plan travel accounts for every component and operation.
 
+Shared `composition.regions` assigns skins to the actual roof of a selected
+component alongside or after its body regions. Its emitted stack must fit the
+assigned bounds; a region is not permission to replace that roof with a clipped
+flat plane. Same-region sparse walls and solid masks reserve the roof's actual
+thickness. Spatial reservation affects only its footprint, including supporting
+components under a spanning roof, and preserves unrelated taller components.
+
+First-skin volumes use the emitted supporting layer heights, with each
+component's translated layer grid. Missing support requires an explicit
+experimental bridge policy in regional recipes. After deposition the skinned
+footprint publishes its native material top as a shared surface interface;
+another region may consume it through `lowerSurfaceFrom`. For example full-fill
+can deposit horizontal layers above this wavy bottom, with variable initial
+gaps and the same shared composer. That consumer must have complete footprint
+coverage; excluded steep or absent roof areas are not invented as support.
+See [full-fill composition](../full-fill/SKILL.md#composition-and-limits) and the
+[synthetic full-stack example](../../core/tests/fixtures/regional-stack.mjs).
+Bead coverage and bridging remain numerical approximations without physical
+validation; the fixture's robot setup is explicitly synthetic.
+
 ## Settings
 
 | Setting | Default | Meaning |

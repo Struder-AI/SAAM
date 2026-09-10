@@ -65,12 +65,14 @@ locked shared process settings, validated against the selected machine and tool.
 
 ## Travel
 
-Alternating fill strokes and nearest wall starts reduce travel. Verified combing
-stays inside the allowed region at print height, with routes around holes when
-possible within `maxCombMm`. Other traverses clear the maximum of the entire
-placed plan plus `liftMm`, including other skills and later operations. Cooling
-uses the same bound; an out-of-bounds clearance is rejected. This is not a full
-head collision model. See [shared travel](../../DEVELOP.md#whole-plan-travel-requirement).
+Alternating fill strokes and nearest wall starts reduce travel. Disconnected
+material regions are filled in separate groups, completing one region before
+traveling to the next; scanline fill does not bounce across a gap. Verified
+combing stays inside the allowed region at print height, with routes around
+holes when possible within `maxCombMm`. Other traverses clear the maximum of
+the entire placed plan plus `liftMm`, including other skills and later
+operations. Cooling uses the same bound; an out-of-bounds clearance is rejected.
+This is not a full head collision model. See [shared travel](../../DEVELOP.md#whole-plan-travel-requirement).
 
 ## Composition and limits
 
@@ -78,9 +80,36 @@ head collision model. See [shared travel](../../DEVELOP.md#whole-plan-travel-req
 `generateFullFill(builder, options)` uses the same result/composer for a single
 instance. General composition uses all results together, with one travel state
 and one whole-plan clearance. Assemblies can alternate or batch compatible layers;
-body operations precede draped skins. A drape reserve removes its material from
-planar sections. Whole-body full-fill and sparse infill on the same component
-are rejected instead of double-printing.
+body operations precede their draped skins. A drape reserve removes only its
+owned footprint from planar sections, including separate components supporting
+a spanning roof. It cannot truncate an unrelated component elsewhere.
+
+Shared `composition.regions` can assign this skill repeatedly on one part, for
+example base, cap, and solid material above a draped roof. Each region has an ID,
+selected component, component-relative Z bounds, skill setting overrides and a
+support policy. Layer intervals are open at the start and closed at the end on
+the component's shared layer grid. Sparse and solid masks can share one region;
+two complete body owners cannot overlap the same material. See the
+[shared contract](../../DEVELOP.md#skill-result-composition).
+
+An optional `lowerSurfaceFrom` references another region's published material
+top. Full-fill keeps horizontal layers, clips them above that actual lower
+surface and samples the local first-layer gap for each segment's volume. Valleys
+start receiving material before the layer reaches higher peaks; later layers
+use normal thickness. The consumer's start cannot skip those lower partial
+layers. The supplied interface must cover the requested footprint. Missing
+coverage, an unresolvable sampled boundary or an exhausted sampling budget is
+rejected. Traverses use the clipped region rather than the unprinted envelope.
+Variable-gap strokes keep their order so volumes remain attached to their
+original segments.
+
+A cap above a hollow wall needs a level wall ending and explicit experimental
+bridging policy. Full-fill above a draped surface consumes its published area
+interface through the same generator. The
+[synthetic stack fixture](../../core/tests/fixtures/regional-stack.mjs) exercises
+base, vase, cap, sparse walls, drape and horizontal fill over the wavy lower
+surface. Its invented robot configuration is software-test data, not a usable
+hardware setup. Region settings and source references are part of plan approval.
 
 The [geometry contract](../../DEVELOP.md#geometry-interoperability-for-skill-authors)
 owns validation and backend limits. Mesh normals are faceted; spline contour

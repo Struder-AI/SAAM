@@ -67,7 +67,11 @@ export function translateMesh(mesh,dx,dy,dz=0) {
 
 export function sectionMesh(mesh,z) {
   requireThat(Number.isFinite(z),'Section height must be finite.');
-  if(z<mesh.bounds.min[2]||z>mesh.bounds.max[2])return {loops:[],requestedZ:z,nudgedByMm:0};
+  // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
+  // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
+  // geometric nudge below; genuinely outside layers must still be empty.
+  const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(z),Math.abs(mesh.bounds.min[2]),Math.abs(mesh.bounds.max[2]));
+  if(z<mesh.bounds.min[2]-roundoff||z>mesh.bounds.max[2]+roundoff)return {loops:[],requestedZ:z,nudgedByMm:0};
   // Move a cut off vertices/edges; prefer the interior side at the top bound.
   for(const nudge of [0,-1e-6,1e-6,-1e-5,1e-5]) {
     const cut=z+nudge;

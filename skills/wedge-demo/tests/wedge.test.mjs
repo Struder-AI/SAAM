@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { defaults, hash, distance, validatePlan, clone } from '../scripts/model.mjs';
-import { createGeometry, rhino, verifyGeometry } from '../scripts/geometry.mjs';
+import { defaults, hash, distance, validatePlan, clone, legacyPoints } from '../scripts/model.mjs';
+import { createGeometry, verifyGeometry } from '../scripts/geometry.mjs';
 import { generatePath } from '../scripts/path.mjs';
 import { exportGcode, interpretGcode } from '../scripts/gcode.mjs';
 import { initBundle, generateBundle, loadBundle, updatePlan, approve, deliver, root, adjustBundle, rememberSetup, bundleFingerprint, upgradeBundle } from '../scripts/bundle.mjs';
@@ -17,23 +17,23 @@ const path=generatePath(plan,machine),code=exportGcode(path,plan,machine);
 async function fixture(t) {
   const dir=await mkdtemp(resolve(tmpdir(),'saam-synthetic-test-'));
   t.after(()=>rm(dir,{recursive:true,force:true}));
-  const p=defaults();p.geometry={runMm:8,widthMm:8,baseMm:1,angleDeg:15};
+  const p=defaults();p.geometry={points:legacyPoints({runMm:8,widthMm:8,baseMm:1,angleDeg:15})};
   await initBundle(dir,p);return dir;
 }
-test('Rhino native solid and named face geometry survive a 3DM round trip',async()=>{
+test('native eight-point mesh and named faces survive round trip and detect edits',async()=>{
   const {bytes,descriptor}=await createGeometry(plan.geometry);
   await verifyGeometry(bytes,descriptor);
-  const r=await rhino(),doc=r.File3dm.fromByteArray(bytes),solid=doc.objects().get(0).geometry();
-  assert.equal(solid.isSolid,true);assert.equal(doc.settings().modelUnitSystem.value,r.UnitSystem.Millimeters.value);
-  const box=solid.getBoundingBox();
+  const native=JSON.parse(bytes);assert.equal(native.units,'mm');assert.equal(native.geometry.vertices.length,8);assert.equal(native.geometry.triangles.length,12);
+  const box=descriptor.boundsMm;
   assert.ok(box.min.every(v=>Math.abs(v)<1e-10));
   const expected=[30,20,2+30*Math.tan(Math.PI/12)];
   assert.ok(box.max.every((v,i)=>Math.abs(v-expected[i])<1e-9));
   assert.equal(descriptor.features.length,6);
-  const slope=doc.objects().get(6).geometry();
-  const p=slope.pointAt(.5,.5);assert.ok(Math.abs(p[2]-(2+p[0]*Math.tan(Math.PI/12)))<1e-8);
+  for(const p of native.geometry.vertices.slice(4))assert.ok(Math.abs(p[2]-(2+p[0]*Math.tan(Math.PI/12)))<1e-8);
   const changed=Uint8Array.from(bytes);changed[changed.length-20]^=1;
-  await assert.rejects(verifyGeometry(changed,descriptor),/Geometry file changed/);doc.destroy();
+  await assert.rejects(verifyGeometry(changed,descriptor),/Geometry file changed/);
+  const changedDisplay=clone(descriptor);changedDisplay.vertices[4][2]++;
+  await assert.rejects(verifyGeometry(bytes,changedDisplay),/display\/identity/);
 });
 test('flat layers precede 15 degree skin strokes that always alternate direction',()=>{
   let pos=path.initialPosition,skinStarted=false,skinCount=0;
@@ -67,7 +67,7 @@ test('nearby starts comb directly while longer transitions use the locked cleara
 test('deterministic Griffin export uses T1, explicit filament advance, 215 C and complete modal interpretation',()=>{
   assert.equal(exportGcode(generatePath(plan,machine),plan,machine),code);
   assert.match(code,/\nT1\n/);assert.doesNotMatch(code,/\nT0\n/);assert.match(code,/M109 T1 S215/);
-  assert.match(code,/;GENERATOR.NAME:SAAM/);assert.match(code,/;GENERATOR.VERSION:4\.4\.0/);assert.match(code,/;SAAM\.GENERATOR\.VERSION:0\.2\.4/);
+  assert.match(code,/;GENERATOR.NAME:SAAM/);assert.match(code,/;GENERATOR.VERSION:4\.4\.0/);assert.match(code,/;SAAM\.GENERATOR\.VERSION:0\.3\.0/);
   assert.doesNotMatch(code,/^G280\b/m,'Routine leveling must not be requested by each job.');
   const program=interpretGcode(code,plan,machine),native=path.actions.filter(a=>a.kind==='move');
   assert.equal(program.moves.length,native.length);
@@ -145,7 +145,7 @@ test('older print bundles and remembered setups gain explicit S5 metadata withou
 });
 test('valid parameter changes propagate while unsupported settings fail before generation',()=>{
   for(const angle of [1,5,15]) {
-    const p=clone(plan);p.geometry.angleDeg=angle;p.geometry.runMm=12;p.setup.tool=0;
+    const p=clone(plan);p.geometry.points=legacyPoints({runMm:12,widthMm:20,baseMm:2,angleDeg:angle});p.setup.tool=0;
     const native=generatePath(p,machine),exported=exportGcode(native,p,machine);
     assert.match(exported,/\nT0\n/);interpretGcode(exported,p,machine);
   }
@@ -193,7 +193,7 @@ test('chat adjustments update snapshots, allow sloped-layer count changes, and r
   await assert.rejects(adjustBundle(dir,{process:{nonexistent:1}}),/Unknown setting/);
 });
 test('a thin base clips the earliest tilted layers instead of rejecting a twenty-layer stack',()=>{
-  const dense=clone(defaults());dense.geometry={runMm:40,widthMm:20,baseMm:2,angleDeg:15};dense.process.skinLayers=20;
+  const dense=clone(defaults());dense.geometry={points:legacyPoints({runMm:40,widthMm:20,baseMm:2,angleDeg:15})};dense.process.skinLayers=20;
   validatePlan(dense,machine);const densePath=generatePath(dense,machine),firstX=[];
   for(let k=0;k<dense.process.skinLayers;k++) {
     const moves=densePath.actions.filter(a=>a.kind==='move'&&a.phase==='inclined'&&a.volumeMm3>0&&Math.floor(a.stroke/densePath.summary.skinRows)===k);
@@ -225,7 +225,7 @@ test('geometry and process edits invalidate the correct approvals and reject sta
   const old=s.revision,p=clone(s.plan);p.process.skinSpeedMmS=8;await updatePlan(dir,p,s.revision);
   s=await loadBundle(dir);assert.equal(s.geometryApproved,true);assert.equal(s.planApproved,false);
   await assert.rejects(updatePlan(dir,p,old),/stale/);
-  p.geometry.runMm=9;await updatePlan(dir,p,s.revision);s=await loadBundle(dir);assert.equal(s.geometryApproved,false);
+  p.geometry.points=p.geometry.points.map(([x,y,z])=>[x*9/8,y,z]);await updatePlan(dir,p,s.revision);s=await loadBundle(dir);assert.equal(s.geometryApproved,false);
 });
 test('Studio serves the exact export and rejects cross-origin or stale mutations',async t=>{
   const dir=await fixture(t);await generateBundle(dir,{development:true});

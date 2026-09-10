@@ -27,6 +27,12 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
     const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes),program=interpretProgram(bytes,plan,machine);
     assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'archive bytes are deterministic');
     const code=entries.get(GCODE).toString();
+    const body=code.split(';SAAM_BODY_BEGIN\n')[1].split(';SAAM_BODY_END\n')[0];
+    assert.match(body,/^G90\nG21\nM83\nG92 E0\n/,'H2D print body uses the reference firmware relative-extrusion mode');
+    assert.doesNotMatch(body,/^M82$/m,'H2D body must not switch back to cumulative extrusion');
+    const layerTwo=body.split(';LAYER:1\n')[1].split(';SAAM_PHASE:')[0];
+    const layerTwoE=[...layerTwo.matchAll(/^G1 .* E(-?\d+(?:\.\d+)?)/gm)].map(match=>Number(match[1]));
+    assert.ok(layerTwoE.length>1&&Math.max(...layerTwoE)<10,'second-layer E words are per-move amounts, not cumulative filament totals');
     assert.match(code,new RegExp(`M104 S215 T${1-tool}\\nG151 P${1-tool} M`));
     assert.ok(code.includes('T0 H-1\n'),'logical material stays zero with remapping enabled');
     assert.match(entries.get('Metadata/model_settings.config').toString(),new RegExp(`key="filament_maps" value="${tool+1}"`));

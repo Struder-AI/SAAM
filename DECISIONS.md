@@ -224,3 +224,12 @@ will be useful.” Source R8: remettub clarified the destination is directly
 - Replaces on contributor attribution/approval: D-020's native-format choice. Its earlier approval record is preserved; no second-contributor agreement is inferred.
 - Scope: Design and requirements for review only. No runtime migration, new mesh encoding, or legacy adoption is approved by this record. The sections/SAAMpath distinction is an agent recommendation for review.
 - Clarification, 2026-09-09: user confirmed “Yes—support both backends” to retaining direct spline slicing and adding mesh behind the shared skill interface, with mesh as the default imported-part format. This replaces the earlier suggestion that every spline must be converted before geometry approval. Existing spline native storage remains supported; the contributor attribution caveat above is unchanged.
+
+## D-022 — Defer automatic capability discovery
+
+- Decision: Defer automatic machine/skill discovery and extensible catalog or registration infrastructure. During development at the current single location, MCP uses the fixed supported machines and skills and exposes the existing print workflow. Keep validation of a selected plan's geometry, skill and machine combination; a fixed list is not proof of compatibility.
+- Status: proposed
+- Recorded: 2026-09-10T00:01:30Z
+- Approvals: Current user explicitly directed the deferral and its recording; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in the legacy-adoption session, 2026-09-09 local time: “We are in development, running at one location, all machines are available here.” Follow-up: “Record the deferred discovery decision.”
+- Scope: Active instruction for this implementation. Automatic discovery can be reconsidered when multiple installations or independently installed capabilities create a need. No contributor consensus is inferred.

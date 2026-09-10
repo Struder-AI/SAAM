@@ -17,7 +17,10 @@ This file consolidates developer-agent rules and development documentation.
   project detail only when the human specifically asks for or approves that
   source.
 - The old runtime is preserved in Git history and a local archive, outside the
-  active tree. No source code has been migrated into the refresh.
+  active tree. The user authorized selective MCP, Dobot machine/Lua and vase-wall
+  adoption on 2026-09-09. Their current implementations use the shared bundle
+  lifecycle; see [the adoption record](build_request.md#br-021--selective-local-mcp-dobot-and-vase-wall-adoption).
+  Other archived source remains reference material pending specific authorization.
 - Record approvals exactly as stated. A contributor can authorize work while
   its project decision remains provisional pending the other contributor.
 - Staging, committing, and publishing require explicit authorization. Honor
@@ -45,8 +48,8 @@ as a shortcut to testing. Report software and physical validation separately.
 
 Run `npm test` at the repository root before and after changes. It checks the
 documentation, decision metadata, private-file exclusions, wedge and shell
-generation, Rhino file round trips, Griffin interpretation and review/delivery
-behavior for both kinds of print.
+generation, Rhino file round trips, Griffin/H2D/Dobot interpretation and
+review/delivery behavior for both kinds of print, plus SDK stdio integrations.
 Add meaningful implementation checks as runtime capabilities are introduced.
 
 ## Developer documentation outside skills
@@ -62,7 +65,7 @@ checked examples into `examples/prints/` for sharing.
 
 ## Setup and checks
 
-Use Node.js 22+ and Git. `npm ci` installs the pinned rhino3dm dependency;
+Use Node.js 22+ and Git. `npm ci` installs pinned rhino3dm, MCP SDK and Zod dependencies;
 no Rhino desktop installation or Compute server is needed for the wedge.
 
 `node_modules/` is the conventional installation folder for packages used by
@@ -84,7 +87,7 @@ Both print adapters use one lifecycle in `core/print/workflow.mjs`.
 `npm run shell -- <command> <directory>` exposes `init`, `demo`, `adjust`,
 `generate`, `check`, `upgrade`, `remember-setup`, and `deliver` for shell
 plans; the wedge CLI exposes the same lifecycle for its bounded recipe.
-`npm run studio -- <directory>` opens either kind. Studio's G-code viewer is
+`npm run studio -- <directory>` opens either kind. Studio's program viewer is
 the toolpath preview. There is no standalone shell-preview command or artifact
 format. Development generation uses the same bundle and checks with no approvals.
 
@@ -101,6 +104,66 @@ printable. The subsequent Node tests check manufacturing software behavior.
 CI installs dependencies and runs the same tests. Synthetic approval tests use
 temporary bundles and never authorize the person's real print.
 
+## Local MCP access
+
+[The MCP adapter](adapters/mcp/README.md) provides stdio tools for a compatible
+local chat client. Launch `node adapters/mcp/src/server.mjs` from the client's
+configuration; its README gives an absolute-path example and environment options.
+No client configuration is edited automatically. This is local access to this
+development checkout, not an arbitrary browser-chat or hosted connector.
+
+The adapter reads fixed known machine IDs and skill manuals, creates and reopens
+named Prints bundles, applies revision-checked chat adjustments, checks current
+artifacts, starts/reuses the shared Studio, reads approvals, generates the approved
+plan and delivers its exact reviewed bytes. It has no approval tool, development
+generation bypass, compiler, or private HTTP review implementation. Studio retains
+the three human approvals. Default remembered setup is shared with the CLI;
+custom test Prints roots isolate setup and job records. Large geometry is omitted
+from `get_print` unless explicitly requested, with incomplete recipes marked.
+
+Automatic discovery and extensible registration are deferred by
+[D-022](DECISIONS.md#d-022--defer-automatic-capability-discovery). A known profile
+or manual is not proof that the selected geometry, settings and output will pass.
+`core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
+bundles and synthetic approval fixtures outside the adapter protocol.
+
+## Web-agent runtime probe
+
+[The standalone probe](scripts/web-agent-probe.mjs) tests whether a maker can
+interact with a server in a web agent's temporary execution environment.
+It is a transport experiment, not another manufacturing pipeline. Upload the
+script and [experiment prompt](scripts/web-agent-probe-prompt.txt) to the target
+web chat; no repository access or npm installation is required. Use Node.js 22+.
+
+```sh
+node scripts/web-agent-probe.mjs serve --host 127.0.0.1 --port 4321
+node scripts/web-agent-probe.mjs status --url SESSION_URL
+node scripts/web-agent-probe.mjs update --url SESSION_URL --control CONTROL_TOKEN --message "Updated through chat"
+```
+
+The server prints the session URL, instance ID, control token and fixture SHA-256.
+In an isolated cloud environment, use `--host 0.0.0.0` if required by the
+platform's native forwarding mechanism. Preserve the random session path and
+trailing slash in the maker's preview URL. The probe uses relative client routes
+and allows preview framing; its random path limits access to this non-sensitive
+test session. It is not the authentication model for a production service.
+
+The maker enters a phrase in the live page, the agent reads it from server state,
+and an agent update appears through polling. The maker then confirms a receipt
+download and repeats a check after completed chat turns and an idle interval.
+Compare instance IDs to detect restarts. Browser endpoint logs identify the
+request path, not a verified human, and a download request is not proof that a
+file reached the person's device. Automated tests use explicitly synthetic input.
+
+Report shell reachability, cloud-browser reachability, maker interaction,
+message round trips, download and session lifetime separately. A static artifact,
+screenshot or shell HTTP request does not establish live maker access. Do not
+substitute deployment, an external tunnel or a local companion for the platform
+capability being tested. Vendor web-session results remain untested until a
+person performs the protocol on that surface. Stop only the probe process owned
+by the experiment when finished. The probe stores state in memory and creates no
+print files, job approvals or machine programs.
+
 ## Current organization
 
 | Location | Purpose |
@@ -109,12 +172,15 @@ temporary bundles and never authorize the person's real print.
 | GLOSSARY.md | User-accessible meanings |
 | DECISIONS.md | Contributor choices and recorded approvals |
 | build_request.md | This cycle's scope and deferred implementation |
-| core/ | Shared slicing core: patch geometry, sectioning, planar regions, travel planning, SAAMpath, Griffin export, native 3DM geometry, print bundle and review workflow, plan and print CLI |
+| core/ | Shared geometry queries, planar regions, composition/travel, SAAMpath, S5/H2D/Dobot export and interpretation, native geometry, print bundles and lifecycle, plan and print CLI |
+| adapters/mcp/ | Local stdio tools over the shared bundles and Studio; launch documentation |
 | skills/full-fill/ | Solid planar layers for any closed shell: manual, generator and tests |
+| skills/planar-infill/ | Sparse planar interiors and shared solid-surface composition |
 | skills/draped-skin/ | Surface-following skins under the machine's non-planar angle limit: manual, generator and tests |
+| skills/vase-wall/ | Continuous rising wall on supported convex sections, optional full-fill base |
 | skills/wedge-demo/ | Bounded wedge demo manual, geometry/generation tools and shared-workflow adapter, references and tests |
-| machines/ | S5 and H2D capability/setup definitions and output availability |
-| studio/ | Local geometry and G-code viewer, review UI and loopback server, for either kind of print bundle |
+| machines/ | S5, H2D and Dobot capability/setup definitions and output availability |
+| studio/ | Local geometry and interpreted-program viewer, review UI and loopback server, for either kind of print bundle |
 | examples/prints/ | Specifically curated public examples |
 | Prints/ | Ignored local print bundles |
 
@@ -139,9 +205,10 @@ there is no mandatory seed field or randomized skill in this foundation.
 The spline backend uses Rhino and native 3DM files. Imported meshes use
 [native indexed geometry](#geometry-interoperability-for-skill-authors), with
 the user-confirmed shared interface preserving direct spline slicing.
-The wedge uses pinned rhino3dm 8.32.2 to create a capped extrusion and six named
-NURBS reference surfaces, then tests the saved 3DM by reopening it. The exact
-planar faces also supply a small display proxy. General edited-3DM import,
+New wedges use eight-point indexed meshes with six named planar faces, an
+axis-aligned rectangular base and vertical sides. The planar roof may slope in
+any direction. Their native file is `geometry/model.mesh.json`; the wedge uses
+rhino3dm only to verify older 3DM files during explicit upgrade. General edited-3DM import,
 spline-surface intersections and full Rhino computation remain deferred.
 rhino3dm is a geometry/file library, not the complete Rhino computation engine.
 
@@ -184,7 +251,7 @@ verification is explicitly supplied. Setup reuse does not create job approvals.
 ### Geometry and program views
 
 The wedge viewer provides click-to-select faces and matching feature buttons.
-Features identify the geometry version and native object UUID. Geometry edits
+Features identify the geometry version and native object UUID or mesh face identity. Geometry edits
 recreate those identifiers and invalidate geometry, plan and toolpath approvals.
 Generic edge/object selection and freeform geometry editing remain deferred.
 
@@ -206,7 +273,7 @@ The shared workflow stores one directory per print (wedge filenames shown):
 Prints/<name>/
   plan.json
   machine.json
-  geometry/model.3dm
+  geometry/model.mesh.json
   geometry/model.json
   path.saampath
   exports/griffin-gcode/wedge.gcode
@@ -220,10 +287,10 @@ Prints/<name>/
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
   and the declared firmware startup contract. Output options carry program
   header, start and end templates; these are part of the locked machine snapshot.
-- `saam-wedge-plan/1`: geometry parameters, placement, setup, complete process
+- `saam-wedge-plan/1`: eight source points in `geometry.points`, placement, setup, complete process
   settings, generator version and selected output. Its lock hash also includes
   the native geometry, machine snapshot and generating runtime source hash.
-- `saam-wedge-geometry/1`: native file hash, parameters, display proxy and
+- `saam-wedge-geometry/1`: native mesh file hash, source points, roof coefficients, mesh display and
   geometry-version-specific face references.
 - `saampath/1`: JSON in a `.saampath` file. Moves carry absolute XYZ millimeters,
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
@@ -348,8 +415,7 @@ lift to the part maximum plus clearance. Both use the shared export and checks.
 ### Print bundle and review
 
 `core/print/geometry.mjs` writes the shell as its named untrimmed NURBS surfaces
-in a 3DM. rhino3dm builds no general solid from a set of patches, so there is no
-capped extrusion to store as the wedge does; instead the file is accepted only
+in a 3DM. rhino3dm builds no general solid from a set of patches; the file is accepted only
 once it reopens, rebuilds the same patches, passes the closure check and matches
 the reviewed control nets. That check runs again on every load, so an edited or
 substituted file stops the print rather than being sliced as something else. The
@@ -415,11 +481,25 @@ Intermediate developer experiments belong in temporary scratch directories and
 call the same components. They must not become a second product command, artifact
 format or approval route without an explicit scope decision.
 
-Interoperability is a design ideal: skills should work across machines through
+Interoperability is a core design requirement: skills should work across machines through
 declared capabilities and shared geometry/result interfaces; other elements
 should generalize wherever practical. Keep machine behavior in machine profiles
 and output adapters, not in pattern skills. Exceptions will be necessary; keep
 them narrow, explain their reason and limits, and test the shared boundary.
+This includes **skill composability on the same part**, as clarified by the user:
+for example, full-fill base, vase-wall body and full-fill top cap. Shared output
+and machine portability alone do not satisfy this requirement. Composition must
+assign material regions, order operations and handle their transitions without
+duplicate deposition. Report a specific unsupported transition, support need or
+geometry constraint rather than treating skill identities as incompatible.
+Every skill change must assess compatibility with existing geometry backends,
+machines, other skills as predecessors/successors, and the public CLI/MCP/Studio
+workflow. A shared exporter alone does not establish ecosystem interoperability.
+A cap needs an accounted-for spiral-to-cap transition and support/bridging
+assessment; simply lifting an exclusion is insufficient. The user's acceptance
+example is a flat base and vase wall, flat cap, normal walls/infill under a wavy
+roof, draped roof, and horizontal full fill above that roof with a wavy bottom.
+Region boundaries must support such nonflat interfaces, not only height bands.
 The bounded S5 wedge is one such exception in geometry and generation. It uses
 the common exporter and print lifecycle. Mesh and NURBS backends should share
 downstream regions, composition, SAAMpath, export and review; neither is a reason
@@ -448,7 +528,9 @@ required before SAAMpath generation.
 Native mesh assets use `geometry/model.mesh.json` with `saam-native-geometry/1`,
 millimeter indexed triangles, original source provenance and shape parameters.
 Mixed assemblies retain spline recipes for spline components. Existing spline
-and wedge bundles continue using `geometry/model.3dm`; no silent migration occurs.
+bundles continue using `geometry/model.3dm`. New wedges store indexed meshes;
+explicit wedge upgrade converts the former four-parameter/3DM recipe and
+invalidates all three approvals while preserving old artifacts. No silent migration occurs.
 STL import accepts ASCII and binary with explicit mm/inch units, indexes exact
 shared vertices, records translation onto the bed, and retains `geometry/source.stl`
 and its hash. File changes invalidate review. STL does not supply semantic CAD
@@ -467,7 +549,9 @@ segments above its angle limit are rejected. Sampling and bead-width limits rema
 Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
 regions, machine checks, native-file integrity, approvals and exact-byte S5
 export delivery. Add equivalent backend tests for each general skill. The
-bounded eight-point S5 wedge remains an explicit geometry/machine exception.
+bounded eight-point wedge remains an explicit geometry/generation exception:
+its planar roof is derived directly from validated corner points, with shared
+mesh validation, scanline fill, export and review.
 
 ## Whole-plan travel requirement
 
@@ -508,14 +592,16 @@ an approximate deposition model, not validated physical bridges.
 material temperatures, flow/retraction and required skill capabilities. Profiles
 own setup defaults; remembered setup is separate per machine. Skills target
 compatible XYZ extrusion machines through this interface. Planar skills require
-`planar`; drape additionally requires `nonplanar` and a declared angle limit.
+`planar`; drape and vase-wall additionally require `nonplanar` and a declared angle limit.
 `checkMachinePath` checks geometry-independent SAAMpath bounds, axis and extrusion
-feeds before export. Wedge explicitly rejects machines other than the S5.
+feeds before export. Wedge uses the same profile validation and its bounded
+eight-point generator, with S5, experimental H2D and configured Dobot output.
 
-| Profile | Skill checks | Runnable output |
+| Profile | Skill checks | Declared export and review |
 |---|---|---|
-| UltiMaker S5 | Fill, planar-infill, drape on mesh/splines; bounded wedge | Griffin exporter/interpreter, same-file Studio review/delivery. |
-| Bambu H2D | Fill, planar-infill, drape on mesh/splines | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
+| UltiMaker S5 | Fill, planar-infill, drape and bounded vase-wall on mesh/splines; bounded wedge | Griffin exporter/interpreter, same-file Studio review/delivery. |
+| Bambu H2D | Fill, planar-infill, drape and bounded vase-wall on mesh/splines; bounded wedge | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
+| Dobot MG400 | Shared fill, planar-infill, drape, vase-wall and bounded wedge paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
 
 The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
 non-planar limit. The profile records official hardware/slicer sources, separate
@@ -565,7 +651,7 @@ format. Travel policies may contain geometry-query callbacks.
 rejects duplicate IDs, missing dependencies and cycles, and uses stable result
 order to break ties. Plan `composition` contains `batchLayers` (1–20), `order`
 (an optional ordered subsequence of operation IDs), and `dependencies` (additional
-`{before, after}` edges). Batch size 1 alternates compatible results at each
+`{before, after}` edges), plus optional material `regions` described below. Batch size 1 alternates compatible results at each
 rank; size 2 gives AA–BB for two results with matching layers. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
 skill's prerequisites. The agent proposes these choices before plan approval;
@@ -594,6 +680,61 @@ columns may alternate or batch before a spanning roof. The current skin bead
 model is approximate and does not prove that an unsupported span will print.
 Future skills use the same operation/dependency boundary; do not add a new
 composer for each skill pair.
+
+[Vase-wall](skills/vase-wall/SKILL.md) is one atomic continuous operation with
+actual changing-Z section queries. It accepts one supported convex outer section
+with a common interior point and no holes or islands; mesh and restricted spline
+backends remain behind the shared queries. Its locked `endTransition` can leave
+a spiral rim or complete a level rim with a final turn whose material thickness
+tapers to zero. A planar successor needs that level boundary. The continuous
+stroke cannot weave turn by turn with infill occupying the same height band;
+different regions of the same part can use the other skills. The manual owns
+standoff, sampling, bead overlap and point-budget limits.
+
+### Material regions and shared interfaces
+
+`composition.regions` assigns skills to regions of native geometry. An empty
+array retains the original whole-component recipe. Each assignment carries
+`id`, `part` (null for a single component), `zStartMm`, nullable `zEndMm`,
+`skills`, `supportPolicy` and nullable `lowerSurfaceFrom`. Heights are relative
+to the component's minimum Z. The skill map selects the skills and holds partial
+setting overrides; it resolves against the other settings locked in that plan.
+It supersedes global enabled flags. Regions own selection and height bounds;
+overrides cannot independently change those fields.
+
+`core/print/regions.mjs` resolves those assignments through the existing skill
+generators. Full-fill can own separate base and cap regions; planar-infill and
+full-fill solid-surfaces can share complementary material in another region.
+Assignments retain their component layer grid and dependencies. Conflicting
+ownership, gaps in required support, unknown references and cycles are rejected.
+An explicit `bridge-experimental` support policy permits the planned transition
+over hollow or sparse material; it is recorded in Studio and is not a bridge
+optimizer or evidence that a physical span will print.
+
+`lowerSurfaceFrom` consumes a preceding region's published material top. It can
+bound horizontal full fill above a nonflat draped surface without changing those
+paths into curved layers. The producer supplies a footprint, surface query,
+sampled field and operation dependencies. The selected consumer geometry supplies
+the other boundaries. A referenced surface must cover the requested region;
+unknown areas are rejected instead of silently omitted. Published sparse or rim
+support is distinguished from area support. Native components can describe the
+intermediate roof and enclosing upper volume of the same manufactured part.
+
+`core/region/reservation.mjs` clips only material inside a roof's actual footprint,
+preserving other components. It also clips sections above consumed surfaces and
+subdivides horizontal strokes to integrate their locally changing initial bead
+gap. Sampling is bounded by spatial step, observed interpolation error and point
+budgets; it is not a proof about arbitrary features between samples. The process
+still approximates bead shape and overlap. Surface boundaries must be representable
+as supported single-valued height fields; arbitrary undercuts and swept-head
+clearance are outside this contract.
+
+The synthetic [regional stack fixture](core/tests/fixtures/regional-stack.mjs)
+exercises base, vase wall, cap, sparse/solid body, wavy draped roof, and horizontal
+full fill above the roof through the shared pipeline. Regional settings, surface
+references and runtime helpers participate in the existing approval hashes;
+they introduce no new approval or artifact format. Studio shows effective regional
+settings and support choices. Tests and fixture calibration never authorize hardware.
 
 ## Machine program templates and S5 observations
 
@@ -646,6 +787,15 @@ feeds, flow and temperature state. Studio displays this print body and states
 the simulation boundary. Its time and material totals exclude service routines.
 Envelope matching is not a proof of their physical motion or clearance.
 
+The H2D print body uses `M83` relative extrusion, matching the supplied Bambu
+Studio reference. On 2026-09-09 the first physical SAAM H2D attempt reached the
+part successfully, but the user reported severe over-extrusion beginning on the
+second flat layer while the first looked correct. Inspection found that the
+then-delivered body incorrectly selected `M82` and emitted cumulative E values;
+that artifact is unsafe to reuse. The exporter was corrected to emit relative E
+amounts and covered by a second-layer regression, but the corrected output still
+requires physical retesting. S5 remains on its separate Griffin `M82` contract.
+
 `bambu-gcode` produces `exports/bambu-gcode/part.gcode.3mf`. The output registry
 accepts text or binary artifacts; the shared lifecycle hashes, regenerates and
 compares the complete artifact. ZIP entries have deterministic bytes/dates,
@@ -675,6 +825,49 @@ under-extrusion; the wedge recipe now accounts for its terminal retraction on th
 next start. These are scoped observations, not a claim of complete physical print
 validation. Never treat an earlier export revision as the reported working one.
 
+### Dobot output contract
+
+`machines/dobot-mg400.json` declares experimental `dobot-lua` output through
+`core/export/dobot.mjs`. `core/export/dobot-lua-subset.mjs` adopts the selected
+legacy Lua runtime; export, inspection, hashing, approvals and delivery use the
+existing SAAMpath and print lifecycle. Geometry can be reviewed with the default
+profile, but its installation fields are null and generation refuses an
+unconfigured installation. The locked setup must supply frame IDs, XY calibration
+and offsets, bed Z, fixed orientation, initial position, Cartesian workspace,
+motion limits, relay output/rate/policy and external temperature-control basis.
+Never substitute synthetic fixture numbers for actual installation values.
+
+The ZIP contains `global.lua`, `src1.lua`, `src0.lua` and `manifest.json`.
+It is a transport package for Lua source, not a verified DobotStudio project
+import format. Vendor importer acceptance, controller execution and physical
+printing remain unvalidated. Studio interprets the actual delivered entry,
+helper and motion files, transforms their fixed-orientation Cartesian commands
+back to the design frame and rejects missing/altered helpers, unsupported Lua
+or motion semantics, incompatible setup and stale artifact hashes.
+
+Only bounded linear `MovL` at `CP=0`, explicit fixed frames/orientation, `DO`,
+`Sync` and relay-off `Wait` are supported. The selected
+`stroke-stop-start-unblended` policy keeps the relay on through consecutive
+deposition moves and switches it off for travel and dwell. Each motion segment
+uses a modeled rest-to-rest acceleration profile. This differs from the legacy
+continuous-through-travel reference and must be explicitly selected in setup.
+No startup positioning, heating commands or priming wait are inserted. External
+positioning and temperature control must already be established. Retraction,
+fan control, arcs, joint moves, rotation changes and tool changes are rejected.
+
+SAAMpath bead volume is process intent; relay material is a separate estimate
+from the configured rate and modeled motion time. Checks and Studio expose that
+distinction and do not claim metered flow or simulated temperature state. A
+continuous vase stroke does not establish smooth deposition when this output
+stops at every segment. Actual acceleration, relay lag and controller queue
+timing can alter the result. Cartesian workspace checks are not inverse
+kinematics, robot reachability, singularity or link/fixture collision checks.
+
+Targeted software checks cover Lua execution and rejection, transformed workspace
+and motion limits, shared skill and wedge outputs, synthetic three-stage review,
+changed helper/archive rejection, MCP access and exact-byte ZIP delivery.
+Use the same native geometry, locked plan, Studio and delivery on every profile.
+
 ## Legacy reference
 
 The old implementation is outside the active tree. Its source remains in commit
@@ -682,6 +875,177 @@ The old implementation is outside the active tree. Its source remains in commit
 folders are also hash-verified in the sibling archive
 `../SAAM-legacy-20260908/legacy-reference/54093cadbe870/`. Old dependencies and
 the earlier fill-review workspace are preserved beside that reference,
-outside SAAM. Only the new architecture map remains under `.local/`.
-No old runtime component is adopted by this refresh. Inspect or import individual
-components only when separately requested and approved.
+outside SAAM. Current private development artifacts remain ignored under `.local/`.
+The 2026-09-09 comparison verified remote `main` and `refresh` at `b3302de`.
+The user subsequently authorized restoring MCP, Dobot machine/Lua support and
+vase-wall through the local reset's shared pipeline. The comparison and its
+isolated legacy source are ignored under `.local/comparison-2026-09-09/`.
+Other components still require a specific adoption request. These runtime
+instructions supersede legacy workflow/approval instructions; do not import the
+old plan approval gate or a parallel preview/delivery pipeline.
+
+Automatic capability discovery and extensible registration are deferred by
+[D-022](DECISIONS.md#d-022--defer-automatic-capability-discovery). This is one
+development installation with known machines. Fixed lists are sufficient for
+MCP access; geometry/skill/machine compatibility checks remain necessary when
+using a plan.
+
+The user excluded legacy gusset and layer-filling adoption. They also requested
+recovery of the earlier twisted cellular annular print and tilted-loop wall.
+The available Git refs and unreachable commits were searched without locating
+either source. An earlier private repository is a lead for the user's follow-up
+with the other developer. These descriptions do not establish component names
+or implemented patterns. No additional pattern roadmap is implied.
+
+## Opening local prints in Studio
+
+**Open print** lists saved bundles below `Prints/` (up to three directory levels).
+It also accepts a local bundle folder, `plan.json`, or an export/delivery file
+inside the bundle. It opens the owning bundle through the same adapter and
+integrity checks; standalone machine-program import is not implemented.
+Selecting another bundle updates this Studio server's active print, including
+other tabs attached to that server. The client sends the current print identity
+with mutations, so an old tab cannot approve, generate or deliver the new print.
+
+Opening does not regenerate stored files or write approvals. Unchanged approvals
+retain their existing version binding: geometry-only confirmation resumes at
+settings, and a current export opens directly in the toolpath viewer. A development
+export can be viewed but cannot authorize delivery. A stale or edited program
+stays unavailable for approval. Failed opening retains the previous print.
+
+An accessible, animated busy banner covers initial loading, reopening, changed
+bundle validation, toolpath/export generation and delivery. It remains visible
+through checks and playback loading, disables duplicate actions, and clears on
+success or error. Settings confirmation says saving/preparing/checking the toolpath; it does not expose the internal export step. After a successful download, that exact print/export shows "Export again" for the current page session, including after switching away and reopening it. Animation respects reduced-motion preferences. It represents
+indeterminate work, not a fabricated percentage or hardware status.
+## General collision avoidance — options for review
+
+Proposed 2026-09-09 at the user's request. No implementation or contributor
+approval is implied. Recommendation: own one small SAAM contract for machine
+motion and clearance, implement its XYZ case first, and evaluate Tesseract as
+the first robot-arm backend. Keep the same skills, composition, print bundle,
+three approvals and exact-export Studio review.
+
+### Three implementation options
+
+| Option | What SAAM would own | Advantages | Cost and limits |
+|---|---|---|---|
+| A. Small in-house motion layer plus a collision library | Scene, travel search, kinematics integration, process constraints and validation; a library supplies distance/contact queries. | Lightest initial XYZ integration; full control of the contract and deployment. | Robot reachability, continuous joint solutions, singularities and trajectory optimization become substantial SAAM work. A collision library alone cannot plan a robot print. |
+| B. Shared SAAM contract with a Tesseract backend — recommended for evaluation | Process intent, deposited-material history, locked policies, export and review; Tesseract supplies robot scene/kinematics/planning and contact queries. | Fits surface-following manufacturing; core can run without ROS. Keeps robotics details out of slicing skills. | Native C++/Python dependency and packaging work; additive occupancy and controller verification remain ours. Validate Windows deployment and the first actual robot before choosing it. |
+| C. Shared SAAM contract with a MoveIt 2 backend | Same SAAM-facing interface, with a ROS robot/planning scene integration. | Attractive when the robot cells already use ROS 2 and MoveIt. Reuses their robot configuration and surrounding tooling. | Larger runtime integration for a local printer app; deposition constraints and exact controller replay still need SAAM adapters. Choose it when the existing robot ecosystem justifies it. |
+
+These are alternative backends, not separate printing workflows. FCL supplies
+collision, distance and continuous-motion queries but does not supply our
+manufacturing planner ([FCL project](https://github.com/flexible-collision-library/fcl)).
+Tesseract documents process trajectories, URDF/SRDF models and a ROS-independent
+core ([Tesseract](https://tesseract-robotics.github.io/tesseract/why_tesseract.html));
+its contact-manager interface separates geometry/transform queries from robot
+connectivity and supports discrete and swept checks
+([collision API](https://tesseract-robotics.github.io/tesseract/collision.html)).
+MoveIt's planning scene combines robot state, robot model and environment for
+kinematics, constraints and collision checks
+([MoveIt planning scene](https://moveit.picknik.ai/main/api/html/planning_scene_overview.html)).
+The recommendation is an architectural assessment, not a benchmark result or
+an endorsement of vendor performance comparisons.
+
+### The shared contract
+
+**Describe the whole moving system.** Extend machine definitions with a link/joint
+model, tool center point and calibrated frames, joint limits, collision shapes,
+parking/start state and a declared controller interpolation model. Include both
+nozzles, carriage and moving bed on printers; include every arm link, extruder,
+mount, positioner and conservative cable/hose envelope on robot cells. A printable
+XYZ box is not a collision model. Store fixture/table/clamp geometry and placement
+in the local job setup, separate from reusable machine geometry. Unknown geometry
+must remain explicitly unchecked. Account for model, calibration, deflection and
+bead uncertainty with declared clearance margins, without inventing measured values.
+
+**Keep process intent separate from the solved machine configuration.** Skills
+produce deposition curves, volumes, feature/operation IDs and tool-orientation
+constraints through one common result interface. Existing XYZ skills imply a
+fixed nozzle orientation. Robot support needs a versioned SAAMpath extension
+for tool pose (position and orientation), frame identity, coordinated external
+axes, motion/interpolation semantics and a resolved joint trajectory or bound
+companion data in the same bundle. Preserve units explicitly: SAAM uses mm;
+robot libraries commonly use meters and radians. Do not force every slicing
+skill to solve inverse kinematics or adopt robot-library objects.
+
+**Track material as the print progresses.** Test against existing stock, fixtures
+and beads already deposited at that point in the composed sequence. The final
+CAD solid alone both over-restricts future empty space and misses real bead,
+prime and support geometry. Start with conservative bead volumes or chunked
+voxels with a locked tolerance. Keep direct spline slicing; a bounded conservative
+collision proxy does not replace native geometry. A coarse height field is an
+XYZ optimization, not the contract for overhangs or arbitrary orientations.
+
+**Check more than endpoints.** A nozzle can have clear endpoints while its body
+hits a wall between them, and an elbow can collide while the nozzle clears.
+Validate the swept geometry of all relevant links under the actual interpolation.
+For articulated motion, simply interpolating endpoint link poses is not generally
+the same as interpolating joints and applying forward kinematics. Use a supported
+continuous method or conservative subdivision with explicit error bounds; report
+unsupported cases instead of calling sparse sampling a proof. Also reject
+unreachable poses, joint-limit violations, branch jumps and configured singularity
+or motion-limit violations. These are related feasibility checks, distinct from
+collision detection.
+
+**Allow only the intended printing contact.** The depositing tip/bead region needs
+a narrow, operation-specific contact allowance. Do not disable collision checking
+between the entire head and the entire printed object. Nearby shrouds, an inactive
+nozzle and robot links still need clearance.
+
+### Where it belongs in the current pipeline
+
+The composer owns chronology and calls one machine-motion interface for joins,
+travels, cooling and parking. Collision queries answer whether a candidate
+motion clears the scene; a planner searches alternative motions using those
+queries. Start by checking/reporting; automatic travel repair comes afterward.
+Deposition is checked too, not just non-extruding travel. Existing wedge travel
+remains its documented bounded policy until a separate change adopts the shared
+planner; it can still feed the common validator.
+
+The approved process plan locks clearance margins, allowed contact, orientation
+freedom, motion limits, planner/version, search budget and any seed, and permitted
+travel/reordering rules. Generation solves those choices directly. If a valid
+solution requires changing deposition geometry, exceeding allowed tilt or changing
+operation dependencies, return to settings review. Do not silently distort a
+printing stroke or add a fourth approval stage. Persist the resolved trajectory;
+reopening must not pick a different robot configuration through a fresh random
+search. Reuse exact stored trajectories with integrity and validity checks.
+
+After timing, smoothing and export, reconstruct and validate the commanded
+trajectory again. Controller blending and Cartesian versus joint interpolation
+can change the swept motion. MoveIt's documentation explicitly notes that its
+time-optimal parameterization can change a path within tolerance and may require
+another collision check
+([trajectory processing](https://moveit.picknik.ai/main/doc/examples/time_parameterization/time_parameterization_tutorial.html)).
+Joint timing must remain synchronized with deposition volume and process speed.
+Unknown firmware/service routines stay outside a claimed complete collision pass;
+this is already relevant to the H2D startup envelope.
+
+Studio should play the interpreted export with the machine geometry and deposited
+material, highlight the first conflicting bodies and operation, show the required
+versus achieved clearance, and state any unchecked portions. Bind the report to
+geometry, scene, calibration, machine model, solver settings and exact export
+hashes. Changes invalidate the affected settings/toolpath approvals. This remains
+software validation; cell interlocks and personnel protection are separate systems.
+
+### Suggested evaluation sequence
+
+1. Agree on the shared data and query boundary. Model measured S5/H2D head geometry,
+   both nozzles and fixtures; validate existing paths without altering deposition.
+2. Add deterministic XYZ travel repair, then prove it across mixed skill operations,
+   clamps, nearby walls, rising deposited material, cooling and parking. Missing
+   geometry must fail coverage reporting rather than produce an all-clear result.
+3. Use one real arm/end-effector/positioner model to compare the Tesseract and,
+   if relevant, MoveIt adapter. Test two joint solutions for one nozzle pose,
+   mid-motion link collisions, singularities, an unreachable stroke, a tilted
+   nozzle near a wall, units/transforms and export blending. Measure runtime and
+   packaging cost on our supported platforms before selecting a backend.
+4. Add independent controller/offline-simulator comparison for that machine,
+   then physical validation under its normal cell commissioning procedure.
+
+The review choices are the backend direction (A/B/C), the first robot/controller
+and external axes, and how much orientation freedom a deposition skill may offer.
+A lean first implementation can establish the common contract without making a
+robotics framework mandatory for S5/H2D users.

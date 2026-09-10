@@ -1,6 +1,6 @@
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
-// The wedge demo writes a capped Rhino extrusion. That is not available here:
+// Spline shells require a different representation from the mesh wedge:
 // rhino3dm builds no general solid from a set of patches, so a shell is stored
 // as its named untrimmed surfaces and its closure is verified numerically by
 // the same check the slicer relies on. Reopening the file and rebuilding the

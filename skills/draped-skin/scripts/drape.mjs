@@ -135,7 +135,7 @@ function extrapolate(values, sentinel) {
   return filled;
 }
 
-export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-skin', after = [] }) {
+export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-skin', after = [], supportTopAt=null }) {
   const operations=[];
   let previous=after;
   const process = plan.process, settings = { ...DRAPED_SKIN_DEFAULTS, ...plan.skills['draped-skin'] };
@@ -159,7 +159,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     const sequence = skin % 2 ? rows : [...rows].reverse();
     const strokes = sequence.map((row, position) => {
       const [from, to] = position % 2 ? [row.to, row.from] : [row.from, row.to];
-      return { role: 'skin', closed: false, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count,survey.limitDeg) };
+      return { role: 'skin', closed: false, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count,survey.limitDeg,supportTopAt) };
     }).filter(stroke => stroke.points.length > 1);
 
     // The surface this skin lies on, for both clearance and direct travel.
@@ -197,7 +197,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
 }
 
 // Sample a straight bed-plane run, lifting each sample onto the skin surface.
-function samplePath(shell, from, to, stepMm, below, thickness, process, count,limitDeg) {
+function samplePath(shell, from, to, stepMm, below, thickness, process, count,limitDeg,supportTopAt=null) {
   const span = distance2(from, to);
   const steps = Math.max(1, Math.ceil(span / stepMm));
   const points = [];
@@ -214,15 +214,15 @@ function samplePath(shell, from, to, stepMm, below, thickness, process, count,li
     // The first skin bridges the body's stepped top, so its gap is measured to
     // the actual layer below rather than assumed equal to the skin thickness.
     const gap = below === count - 1
-      ? z - bodyTopAt(top.zMm - count * thickness / cos, process)
+      ? z - (supportTopAt?supportTopAt(x,y,top.zMm-count*thickness/cos):bodyTopAt(top.zMm - count * thickness / cos, process,shell.bounds.min[2]))
       : thickness / cos;
     points.push({ point: [x, y, z], gapMm: gap, slopeDeg: top.slopeDeg });
   }
   return points;
 }
 
-const bodyTopAt = (reserveZ, process) =>
-  process.firstLayerMm + Math.max(0, Math.floor((reserveZ - process.firstLayerMm + 1e-9) / process.layerMm)) * process.layerMm;
+export const bodyTopAt = (reserveZ, process,originZ=0) =>
+  originZ+process.firstLayerMm + Math.max(0, Math.floor((reserveZ-originZ - process.firstLayerMm + 1e-9) / process.layerMm)) * process.layerMm;
 
 // Travel over a curved surface cannot use one flat clearance height. Each hop
 // clears the surface it actually crosses, and a short hop between neighbouring

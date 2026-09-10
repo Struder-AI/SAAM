@@ -15,8 +15,10 @@ import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS 
 import { validatePlan, VERSION } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
-import {checkMachinePath,toolFor,toolBounds} from '../machine/profile.mjs';
+import {checkMachinePath,toolBounds,startupPosition} from '../machine/profile.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
+import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
+import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
 
 export const hasMesh=geometry=>geometry.shape==='mesh'||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
@@ -82,17 +84,25 @@ export function generatePath(plan, machine, rhino) {
   const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(placed.bounds.min.every((v,i)=>v>=bounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=bounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
   const fill = plan.skills['full-fill'], skin = plan.skills['draped-skin'],normal=plan.skills['planar-infill'];
+  const vase=plan.skills['vase-wall'];
+  requireThat(plan.composition.regions.length||!vase.enabled||!skin.enabled||(componentShells&&vase.part!==skin.part),'Vase wall and draped skin overlap on the same component.');
 
   const builder = new PathBuilder({
-    start: [...toolFor(machine,plan.setup.tool).startupXY, (machine.startup.zAfterStartupMm ?? machine.startup.zAfterPrimeMm)],
+    start: startupPosition(machine,plan),
     process, machine, generatorVersion: VERSION
   });
   builder.setContext('start', 0);
   builder.motionBounds=bounds;
   builder.fan(0);
 
-  const skinShell=componentShells&&skin.part ? componentShells.get(skin.part):placed;
+  const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
+  const results=[];
   let survey = null;
+  if(plan.composition.regions.length) {
+    const regional=generateRegionResults({plan,machine,placed,componentShells});
+    results.push(...regional.results);Object.assign(summary,regional.summary);
+  } else {
+  const skinShell=componentShells&&skin.part ? componentShells.get(skin.part):placed;
   if (skin.enabled) {
     const declaredLimitDeg = machineMaxAngle(machine);
     const effectiveLimitDeg = skin.maxAngleDegOverride ?? declaredLimitDeg;
@@ -102,29 +112,49 @@ export function generatePath(plan, machine, rhino) {
     requireThat(Number.isFinite(survey.maxMm), 'The top surface survey found no surface to skin.');
   }
 
-  const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
-  const results=[];
   const fillResults=[],normalResults=[];
+  const planarSupports=[];
+  let vaseShell=null;
   for(const [id,shell] of componentShells??[['full-fill',placed]]) {
     const selected=settings=>settings.enabled&&(!componentShells||!settings.parts.length||settings.parts.includes(id));
     const useFill=selected(fill),useNormal=selected(normal);
+    if(useFill||useNormal)planarSupports.push({shell});
+    const useVase=vase.enabled&&(!componentShells||vase.part===id);
+    let baseTop=null;
+    if(useVase) {
+      vaseShell=shell;
+      requireThat(!useNormal,'Vase wall and planar-infill overlap on the same component.');
+      if(useFill) {
+        requireThat(fill.mode==='body'&&vase.zStartMm>=process.firstLayerMm,'Full-fill below a vase requires body mode and an explicit positive vase zStartMm for its base.');
+        const baseLayers=(vase.zStartMm-process.firstLayerMm)/process.layerMm;
+        requireThat(Math.abs(baseLayers-Math.round(baseLayers))<1e-8,'Vase base height must align with the full-fill layer grid.');
+        baseTop=shell.bounds.min[2]+vase.zStartMm;
+      } else requireThat(vase.zStartMm===0,'A raised vase wall requires full-fill on the same component for its base.');
+    }
     requireThat(!(useFill&&useNormal&&fill.mode==='body'),'Full-fill body and planar-infill overlap; select full-fill solid-surfaces mode or separate components.');
     requireThat(!(useFill&&fill.mode==='solid-surfaces'&&!useNormal),'Solid-surface selection requires planar-infill on the same component.');
     if(useNormal){
       const [sparse,solid]=planarInfillResults({shell,plan,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
       results.push(sparse);normalResults.push(sparse);
       if(solid){results.push(solid);fillResults.push(solid);}
-    } else if(useFill){const result=fullFillResult({id,shell,plan,reserve:survey});results.push(result);fillResults.push(result);}
+    } else if(useFill){const result=fullFillResult({id,shell,plan,reserve:useVase?null:survey,zEndMm:baseTop});results.push(result);fillResults.push(result);}
   }
   if(fillResults.length){
     summary.fullFill=Object.fromEntries(Object.keys(fillResults[0].report).map(key=>[key,fillResults.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
     summary.fullFill.instances=fillResults.map(r=>({id:r.id,...r.report}));
   }
   if(normalResults.length)summary.planarInfill={instances:normalResults.map(r=>({id:r.id,...r.report}))};
+  if(vase.enabled) {
+    requireThat(vaseShell,'No component selected for vase wall.');
+    const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id))});
+    results.push(result);summary.vaseWall=result.report;
+  }
   if(skin.enabled){
     // Every skin operation depends transitively on the ENTIRE supporting body.
-    const result=drapedSkinResult({shell:skinShell,plan,machine,survey,after:results.flatMap(r=>r.operations.map(op=>op.id))});
+    const result=drapedSkinResult({shell:skinShell,plan,machine,survey,after:results.flatMap(r=>r.operations.map(op=>op.id)),
+      supportTopAt:planarSupports.length?planarSupportTopAt(planarSupports,process,{allowBridge:true}):null});
     results.push(result);summary.drapedSkin=result.report;
+  }
   }
   builder.planMaxZ=placed.bounds.max[2];
   summary.composition=composeResults(builder,results,plan.composition);

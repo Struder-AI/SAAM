@@ -181,3 +181,12 @@ test('scanline fill covers the region it is given', () => {
     Math.abs(row.from[1] - 10) < 0.3 && row.from[0] < 15 && row.to[0] > 15);
   assert.ok(!throughHole, 'fill does not cross a hole');
 });
+
+test('scanline fill completes disconnected components before crossing a gap', () => {
+  const rows = scanlineFill([rectangle(0, 0, 8, 8), rectangle(20, 0, 8, 8)], 1, 0);
+  const sides = rows.map(row => row.from[0] < 10 ? 'left' : 'right');
+  const firstRight = sides.indexOf('right');
+  assert.ok(firstRight > 0, 'both disconnected components receive fill rows');
+  assert.ok(sides.slice(0, firstRight).every(side => side === 'left'), 'left component is completed first');
+  assert.ok(sides.slice(firstRight).every(side => side === 'right'), 'right component starts after the left');
+});

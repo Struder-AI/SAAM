@@ -13,6 +13,7 @@ import { requireThat } from '../geom/tolerance.mjs';
 import {loadMachine,validateSetup,toolBounds,requireMachine} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
+import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -47,9 +48,10 @@ export function defaults(machine=loadMachine()) {
     skills: {
       'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
+      'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'draped-skin': { enabled: true, part: null, ...DRAPED_SKIN_DEFAULTS }
     },
-    composition: { order: [], dependencies: [], batchLayers: 1 },
+    composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
     output: 'griffin-gcode'
   };
   Object.assign(plan.process,machine.defaultProcess??{});
@@ -96,12 +98,17 @@ export function validatePlan(plan, machine) {
   plan.skills['full-fill'].parts ??= [];
   for(const field of ['mode','bottomLayers','topLayers'])plan.skills['full-fill'][field]??=FULL_FILL_DEFAULTS[field];
   plan.skills['planar-infill']??={enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS};
+  plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
+  plan.skills['vase-wall'].endTransition??='spiral';
   plan.skills['draped-skin'].part ??= null;
   plan.composition ??= { order: [], dependencies: [], batchLayers: 1 };
   plan.composition.batchLayers ??= 1;
+  plan.composition.regions ??= [];
+  requireThat(Array.isArray(plan.composition.regions)&&plan.composition.regions.length<=80,'Composition regions must be an array of at most 80 assignments.');
+  const regional=plan.composition.regions.length>0;
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
-  const expected = { ...defaults(), geometry: geometryTemplate(plan.geometry.shape) };
+  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape) };
   keys(plan, expected);
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
 
@@ -146,10 +153,18 @@ export function validatePlan(plan, machine) {
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
   const fill = skills['full-fill'], skin = skills['draped-skin'],normal=skills['planar-infill'];
+  const vase=skills['vase-wall'];
+  requireThat(['spiral','level'].includes(vase.endTransition),'Vase ending transition must be spiral or level.');
+  requireThat(typeof vase.enabled==='boolean'&&(vase.part===null||typeof vase.part==='string'),'Invalid vase-wall selection.');
+  number(vase.zStartMm,0,200,'Vase start height');
+  requireThat(vase.zEndMm===null||(Number.isFinite(vase.zEndMm)&&vase.zEndMm>vase.zStartMm&&vase.zEndMm<=200),'Vase end height must be null or greater than its start, up to 200 mm.');
+  number(vase.sampleStepMm,0.1,5,'Vase sampling step');number(vase.toleranceMm,0.002,0.05,'Vase chord tolerance');
+  number(vase.minFeatureMm,0.05,5,'Vase minimum section feature');
+  requireThat(Number.isInteger(vase.maxPoints)&&vase.maxPoints>=100&&vase.maxPoints<=200000,'Vase maxPoints must be 100–200000.');
   requireThat(typeof normal.enabled==='boolean'&&Array.isArray(normal.parts)&&new Set(normal.parts).size===normal.parts.length&&normal.parts.every(id=>typeof id==='string'),'Invalid planar-infill selection.');
   requireThat(['body','solid-surfaces'].includes(fill.mode),'Invalid full-fill mode.');
   for(const key of ['bottomLayers','topLayers'])requireThat(Number.isInteger(fill[key])&&fill[key]>=0&&fill[key]<=20,`${key} must be 0–20.`);
-  requireThat(!fill.enabled||fill.mode!=='solid-surfaces'||normal.enabled,'Solid surface masks require planar-infill.');
+  requireThat(regional||!fill.enabled||fill.mode!=='solid-surfaces'||normal.enabled,'Solid surface masks require planar-infill.');
   requireThat(Array.isArray(fill.parts)&&new Set(fill.parts).size===fill.parts.length&&fill.parts.every(id=>typeof id==='string'),'Invalid full-fill component selection.');
   requireThat(skin.part===null||typeof skin.part==='string','Invalid draped surface component.');
   if(geometry.shape==='assembly') {
@@ -164,17 +179,22 @@ export function validatePlan(plan, machine) {
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
       child.skills['full-fill'].parts=[];child.skills['draped-skin'].part=null;
       child.skills['planar-infill'].parts=[];
+      child.skills['vase-wall'].part=null;
+      child.composition.regions=[];
+      if(regional){for(const settings of Object.values(child.skills))settings.enabled=false;child.skills['full-fill'].enabled=true;child.skills['full-fill'].mode='body';}
       validatePlan(child,machine);
     }
     requireThat(fill.parts.every(id=>ids.has(id))&&(skin.part===null||ids.has(skin.part)),'Unknown selected component.');
     requireThat(normal.parts.every(id=>ids.has(id)),'Unknown planar-infill component.');
-    requireThat(!skin.enabled||skin.part!==null,'An assembly must select the component whose roof is draped.');
-  } else requireThat(fill.parts.length===0&&normal.parts.length===0&&skin.part===null,'Component selection requires assembly geometry.');
+    requireThat(regional||!skin.enabled||skin.part!==null,'An assembly must select the component whose roof is draped.');
+    requireThat((vase.part===null||ids.has(vase.part))&&(regional||!vase.enabled||vase.part!==null),'An assembly must select a known vase-wall component.');
+  } else requireThat(fill.parts.length===0&&normal.parts.length===0&&skin.part===null&&vase.part===null,'Component selection requires assembly geometry.');
   requireThat(typeof fill.enabled === 'boolean' && typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
-  requireThat(fill.enabled || skin.enabled || normal.enabled, 'Select at least one pattern skill.');
-  if(normal.enabled)requireMachine(machine,['xyz-extrusion','planar'],'planar-infill');
-  if(fill.enabled)requireMachine(machine,['xyz-extrusion','planar'],'full-fill');
-  if(skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
+  requireThat(regional||fill.enabled || skin.enabled || normal.enabled || vase.enabled, 'Select at least one pattern skill.');
+  if(!regional&&vase.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'vase-wall');
+  if(!regional&&normal.enabled)requireMachine(machine,['xyz-extrusion','planar'],'planar-infill');
+  if(!regional&&fill.enabled)requireMachine(machine,['xyz-extrusion','planar'],'full-fill');
+  if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
   number(fill.perimeters, 0, 8, 'perimeters');
   requireThat(Number.isInteger(fill.perimeters), 'perimeters must be an integer.');
   requireThat(Array.isArray(fill.fillAnglesDeg) && fill.fillAnglesDeg.length >= 1 && fill.fillAnglesDeg.every(angle => typeof angle === 'number' && angle >= -180 && angle <= 180), 'Invalid fill angles.');
@@ -195,13 +215,37 @@ export function validatePlan(plan, machine) {
   'Experimental non-planar override must be null or an angle between 0 and 90 degrees.');
 
   requireThat(machine.schema === 'saam-machine/1' && machine.outputs.some(option => option.id === plan.output), 'Unsupported machine or output.');
-  if (skin.enabled) requireThat(Number.isFinite(machine.nonplanar?.maxAngleDeg), 'The machine file must declare nonplanar.maxAngleDeg.');
+  if (!regional&&skin.enabled) requireThat(Number.isFinite(machine.nonplanar?.maxAngleDeg), 'The machine file must declare nonplanar.maxAngleDeg.');
   const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
     : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
   const bounds=toolBounds(machine,setup.tool);
   if(!['assembly','mesh'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
   if(!['assembly','mesh'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
+  const regionIds=new Set();
+  for(const region of plan.composition.regions) {
+    if(region&&typeof region==='object')region.lowerSurfaceFrom??=null;
+    requireThat(region&&Object.keys(region).sort().join()==='id,lowerSurfaceFrom,part,skills,supportPolicy,zEndMm,zStartMm','Invalid region assignment fields.');
+    requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
+    const part=geometry.shape==='assembly'?geometry.parts.find(p=>p.id===region.part):null;
+    requireThat(geometry.shape==='assembly'?Boolean(part):region.part===null,'Region must select its geometry component.');
+    number(region.zStartMm,0,1000,'Region start');
+    requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm&&region.zEndMm<=1000),'Region end must exceed its start or be null.');
+    requireThat(['supported','bridge-experimental'].includes(region.supportPolicy),'Invalid region support policy.');
+    requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
+    requireThat(region.skills&&typeof region.skills==='object'&&!Array.isArray(region.skills)&&Object.keys(region.skills).length>0,'A region needs selected skills.');
+    const child=structuredClone(plan);child.composition.regions=[];
+    if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
+    for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
+    for(const [name,overrides] of Object.entries(region.skills)) {
+      const settings=child.skills[name];
+      requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
+      requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');
+      Object.assign(settings,overrides);
+    }
+    validatePlan(child,machine);
+  }
+  for(const region of plan.composition.regions)requireThat(region.lowerSurfaceFrom===null||(region.lowerSurfaceFrom!==region.id&&regionIds.has(region.lowerSurfaceFrom)),'Unknown or self-referenced region lower surface.');
   return plan;
 }
 

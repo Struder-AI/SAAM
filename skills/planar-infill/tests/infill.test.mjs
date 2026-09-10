@@ -40,6 +40,21 @@ test('local sloping roofs receive solid masks below their local tops',async()=>{
   assert.ok(path.actions.some(a=>a.role==='fill'&&a.layer>3&&a.layer<16),'solid region appears below a local roof, before the final three global layers');
 });
 
+test('sparse infill completes disconnected regions per layer instead of bouncing across the gap',async()=>{
+  const left=boxMesh(8,8,4),right=boxMesh(8,8,4);
+  const geometry={shape:'mesh',vertices:[...left.vertices,...right.vertices.map(p=>[p[0]+20,p[1],p[2]])],
+    triangles:[...left.triangles,...right.triangles.map(triangle=>triangle.map(index=>index+left.vertices.length))],source:null};
+  const plan=defaults();plan.geometry=geometry;plan.process.minimumLayerSeconds=0;
+  plan.skills['draped-skin'].enabled=false;plan.skills['planar-infill'].enabled=true;plan.skills['full-fill'].mode='solid-surfaces';
+  const path=generatePath(plan,loadMachine(),await rhino());
+  const moves=path.actions.filter(action=>action.operation==='planar-infill:5:fill'&&action.volumeMm3>0);
+  const sides=moves.map(move=>move.to[0]<plan.placement.xMm+14?'left':'right');
+  const firstRight=sides.indexOf('right');
+  assert.ok(firstRight>0&&firstRight<sides.length,'both disconnected regions receive sparse fill');
+  assert.ok(sides.slice(0,firstRight).every(side=>side==='left'),'left region is filled first on the layer');
+  assert.ok(sides.slice(firstRight).every(side=>side==='right'),'right region follows without interleaving');
+});
+
 test('sparse body, solid surface masks and drape compose without overlap or reversed support order',async()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']){
     const machine=loadMachine(id),plan=defaults(machine);plan.geometry=boxMesh(16,12,4);plan.process.minimumLayerSeconds=0;

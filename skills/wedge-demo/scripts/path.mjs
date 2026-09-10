@@ -1,4 +1,20 @@
-import { VERSION, distance, requireThat, validatePlan, wedgeMesh } from './model.mjs';
+import { VERSION, distance, requireThat, validatePlan, roofGeometry } from './model.mjs';
+import { scanlineFill, loopArea } from '../../../core/region/region2d.mjs';
+import { startupPosition } from '../../../core/machine/profile.mjs';
+
+// Intersect the axis-aligned footprint with one roof half-plane. Offsetting
+// each boundary analytically also handles triangular and pentagonal courses.
+function course(roof,coreC,z,inset) {
+  const {runMm:x,widthMm:y,a,b,slope}=roof;
+  const input=[[inset,inset],[x-inset,inset],[x-inset,y-inset],[inset,y-inset]],out=[];
+  const f=p=>coreC+a*p[0]+b*p[1]-z-inset*slope;
+  for(let i=0;i<input.length;i++) {
+    const p=input[i],q=input[(i+1)%input.length],fp=f(p),fq=f(q);
+    if(fp>=0)out.push(p);
+    if((fp<0)!==(fq<0)) {const t=fp/(fp-fq);out.push(p.map((v,k)=>v+t*(q[k]-v)));}
+  }
+  return out.length>=3&&Math.abs(loopArea(out))>1e-8?out:[];
+}
 
 export function generatePath(plan, machine) {
   validatePlan(plan, machine);
@@ -8,21 +24,21 @@ export function generatePath(plan, machine) {
   // levels as part of every job.
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
-  const angle = g.angleDeg*Math.PI/180, slope=Math.tan(angle), cosine=Math.cos(angle);
-  const skinZ=p.skinNormalMm/cosine, coreBase=g.baseMm-p.skinLayers*skinZ, w=p.lineWidthMm;
-  const partMaxZ=wedgeMesh(g).vertices.reduce((z,v)=>Math.max(z,v[2]),0);
+  const roof=roofGeometry(g),{slope,cosine,runMm,widthMm}=roof;
+  const skinZ=p.skinNormalMm/cosine, coreBase=roof.c-p.skinLayers*skinZ, w=p.lineWidthMm;
+  const partMaxZ=roof.maxHeightMm;
   const clearanceZ=partMaxZ+p.liftMm;
   const actions=[];
   // A completed SAAM wedge leaves this amount retracted.  Begin the next job
   // from that state, so its first recovery cancels it instead of retracting a
   // second time before the first deposited line.
-  let position=[...machine.tools[s.tool].startupXY, startupZ], high=0, retracted=p.startupRetracted;
+  let position=startupPosition(machine,plan), high=0, retracted=p.startupRetracted;
   const start=[...position];
   const world=q=>[o.xMm+q[0],o.yMm+q[1],q[2]];
   let phase='prime', layer=0, layerSeconds=0;
   function move(to, speed, volume=0, extra={}) {
     const length=distance(position,to);
-    if (length<1e-8) return;
+    if (length<1e-4) return;
     if (volume>0) speed=Math.min(speed, p.maxFlowMm3S*length/volume);
     const dz=Math.abs(to[2]-position[2]);
     if (dz>0) speed=Math.min(speed,p.zSpeedMmS*length/dz);
@@ -63,29 +79,25 @@ export function generatePath(plan, machine) {
     layerSeconds=0;
   }
   actions.push({kind:'fan',percent:0,phase,layer});
-  line([[0,-4,p.firstLayerMm],[g.runMm,-4,p.firstLayerMm]],p.firstLayerMm,p.firstLayerSpeedMmS);
+  line([[0,-4,p.firstLayerMm],[runMm,-4,p.firstLayerMm]],p.firstLayerMm,p.firstLayerSpeedMmS);
   phase='planar';
   const zs=[];
   for(let i=0;;i++) {
     const z=p.firstLayerMm+i*p.layerMm;
-    if(z>coreBase+(g.runMm-w)*slope+1e-9) break;
+    if(z>partMaxZ-p.skinLayers*skinZ+1e-9) break;
+    if(!course(roof,coreBase,z,w/2).length)break;
     zs.push(z);
   }
   for(const [index,z] of zs.entries()) {
     layer=index; const h=index===0?p.firstLayerMm:p.layerMm;
     const speed=index===0?p.firstLayerSpeedMmS:p.planarSpeedMmS;
     if(index===1) actions.push({kind:'fan',percent:p.fanPercent,phase,layer});
-    const left=Math.max(0,(z-coreBase)/slope), a=left+w/2, b=g.runMm-w/2, low=w/2, top=g.widthMm-w/2;
-    if(b-a<1e-8) {const points=[[a,low,z],[a,top,z]];line(index%2?points.reverse():points,h,speed);finishLayer();continue;}
-    const strokes=[{role:'perimeter',points:[[a,low,z],[b,low,z],[b,top,z],[a,top,z],[a,low,z]]}];
-    const insideA=a+w, insideB=b-w, y0=low+w, y1=top-w;
-    if(insideB>=insideA) {
-      const intervals=Math.max(1,Math.ceil((insideB-insideA)/w)), points=[];
-      for(let j=0;j<=intervals;j++) {
-        const x=insideA+(insideB-insideA)*j/intervals;
-        points.push([x,j%2?y1:y0,z],[x,j%2?y0:y1,z]);
-      }
-      strokes.push({role:'fill',points});
+    const perimeter=course(roof,coreBase,z,w/2),inside=course(roof,coreBase,z,1.5*w);
+    const strokes=[{role:'perimeter',points:[...perimeter,perimeter[0]].map(q=>[...q,z])}];
+    if(inside.length) {
+      const fill=scanlineFill([inside],w,90,{originMm:[w/2,0]}),points=[];
+      for(const [i,row] of fill.entries())for(const q of i%2?[row.to,row.from]:[row.from,row.to])points.push([...q,z]);
+      if(points.length)strokes.push({role:'fill',points});
     }
     // Reverse the complete course on odd layers: start near the previous
     // course's end, reverse fill traversal and reverse perimeter winding.
@@ -93,65 +105,77 @@ export function generatePath(plan, machine) {
     for(const stroke of strokes)line(stroke.points,h,speed,stroke.role);
     finishLayer();
   }
-  const substrateHeight=x=>{
+  const substrateHeight=(x,y)=>{
     // Use the downhill bead edge to account for finite-width perimeter support.
-    const target=coreBase+Math.max(0,x-w/2)*slope;
+    const target=coreBase+roof.a*x+roof.b*y-w*slope/2;
     if(target<p.firstLayerMm) return 0;
-    return p.firstLayerMm+Math.floor((target-p.firstLayerMm+1e-9)/p.layerMm)*p.layerMm;
+    if(!zs.length)return 0;
+    return Math.min(zs.at(-1),p.firstLayerMm+Math.floor((target-p.firstLayerMm+1e-9)/p.layerMm)*p.layerMm);
   };
   const transitionGaps=[];
   phase='inclined';
-  const rows=Math.max(2,Math.round(g.widthMm/w));
-  const spacing=g.widthMm/rows;
-  // Include every substrate step in the first skin's extrusion integration.
-  const x0=w/2, x1=g.runMm-w/2;
-  const breaks=[x0,x1];
-  for(const z of zs) {
-    const x=(z-coreBase)/slope+w/2;
-    if(x>x0+1e-8 && x<x1-1e-8) breaks.push(x);
+  // Raster along the roof's steepest direction. A horizontal roof uses +X.
+  const along=slope>1e-12?[roof.a/slope,roof.b/slope]:[1,0],across=[-along[1],along[0]];
+  const footprint=[[0,0],[runMm,0],[runMm,widthMm],[0,widthMm]];
+  const projected=footprint.map(q=>q[0]*across[0]+q[1]*across[1]);
+  const minV=Math.min(...projected),span=Math.max(...projected)-minV;
+  const rows=Math.max(2,Math.ceil(span/w)),spacing=span/rows;
+  const xy=(u,v)=>[along[0]*u+across[0]*v,along[1]*u+across[1]*v];
+  const ranges=[];
+  for(let row=0;row<rows;row++) {
+    const v=minV+(row+.5)*spacing;let lo=-Infinity,hi=Infinity,valid=true;
+    for(let axis=0;axis<2;axis++) {
+      const low=w/2,high=[runMm,widthMm][axis]-w/2,offset=across[axis]*v,dir=along[axis];
+      if(Math.abs(dir)<1e-12){if(offset<low-1e-9||offset>high+1e-9)valid=false;}
+      else {const a=(low-offset)/dir,b=(high-offset)/dir;lo=Math.max(lo,Math.min(a,b));hi=Math.min(hi,Math.max(a,b));}
+    }
+    if(valid&&hi-lo>1e-4)ranges.push({row,v,lo,hi});
   }
-  breaks.sort((a,b)=>a-b);
-  function sampledXs(start) {
-    const nodes=[start,...breaks.filter(x=>x>start+1e-8&&x<x1-1e-8),x1].sort((a,b)=>a-b);
-    const xs=[];
+  function sampledUs(start,end) {
+    const nodes=[start,end];
+    // Include every substrate step, then subdivide to at most 0.5 mm.
+    if(slope>1e-12)for(const z of zs){const u=(z-coreBase+w*slope/2)/slope;if(u>start+1e-8&&u<end-1e-8)nodes.push(u);}
+    nodes.sort((a,b)=>a-b);const us=[];
     for(let i=0;i<nodes.length-1;i++) {
       const count=Math.max(1,Math.ceil((nodes[i+1]-nodes[i])/0.5));
-      for(let j=0;j<count;j++) xs.push(nodes[i]+(nodes[i+1]-nodes[i])*j/count);
+      for(let j=0;j<count;j++)us.push(nodes[i]+(nodes[i+1]-nodes[i])*j/count);
     }
-    xs.push(x1);return xs;
+    us.push(end);return us;
   }
+  if(zs.length<2)actions.push({kind:'fan',percent:p.fanPercent,phase,layer});
+  let strokeCount=0;
   for(let k=1;k<=p.skinLayers;k++) {
     layer=zs.length+k-1;
-    const zAt=x=>coreBase+k*skinZ+x*slope;
+    const zAt=u=>coreBase+k*skinZ+u*slope;
     // A thin downhill end cannot hold every inner skin below the final
     // surface. Start each skin where it reaches first-layer height; later
     // skins therefore extend farther downhill than the earliest ones.
-    const startX=Math.max(x0,(p.firstLayerMm-coreBase-k*skinZ)/slope);
-    if(startX>=x1-1e-8) continue;
-    const xs=sampledXs(startX);
-    for(let row=0;row<rows;row++) {
-      const y=spacing*((k%2?row:rows-1-row)+0.5);
-      const stroke=(k-1)*rows+row;
-      const rowXs=stroke%2?[...xs].reverse():xs;
-      travel([rowXs[0],y,zAt(rowXs[0])]);
-      for(let i=1;i<rowXs.length;i++) {
-        const mid=(rowXs[i-1]+rowXs[i])/2;
-        const gap=k===1?zAt(mid)-substrateHeight(mid):skinZ;
+    let deposited=0;
+    for(const [order,{v,lo,hi}] of (k%2?ranges:[...ranges].reverse()).entries()) {
+      const start=slope>1e-12?Math.max(lo,(p.firstLayerMm-coreBase-k*skinZ)/slope):lo;
+      if(start>=hi-1e-4||zAt(start)<p.firstLayerMm-1e-8)continue;
+      const stroke=(k-1)*rows+order,us=sampledUs(start,hi),rowUs=strokeCount++%2?[...us].reverse():us;
+      travel([...xy(rowUs[0],v),zAt(rowUs[0])]);
+      for(let i=1;i<rowUs.length;i++) {
+        const mid=(rowUs[i-1]+rowUs[i])/2,[x,y]=xy(mid,v);
+        const gap=k===1?zAt(mid)-substrateHeight(x,y):skinZ;
         requireThat(gap>0 && gap<=skinZ+p.layerMm+w*slope/2+1e-6, 'Transition gap exceeds the substrate model.');
         if(k===1) transitionGaps.push(gap);
-        const to=world([rowXs[i],y,zAt(rowXs[i])]);
+        const to=world([...xy(rowUs[i],v),zAt(rowUs[i])]);
         // Rectangular bead approximation: true 3D length times normal gap.
         // The first gap varies above the stairs; later skins are parallel.
         const volume=distance(position,to)*spacing*gap*cosine;
         move(to,p.skinSpeedMmS,volume,{gapMm:gap,normalHeightMm:gap*cosine,stroke});
+        deposited++;
       }
     }
+    requireThat(deposited>0,`Sloped layer ${k} has no printable extent at the locked bead spacing.`);
     finishLayer();
   }
   phase='finish';retract();move([position[0],position[1],clearanceZ],p.zSpeedMmS);
   actions.push({kind:'fan',percent:0,phase,layer});
   return {schema:'saampath/1',generatorVersion:VERSION,units:'mm',materialUnits:'mm3',initialPosition:start,
-    actions,summary:{planarLayers:zs.length,skinLayers:p.skinLayers,skinRows:rows,clearanceZMm:clearanceZ,
+    actions,summary:{boundsMm:{min:[o.xMm,o.yMm,0],max:[o.xMm+runMm,o.yMm+widthMm,partMaxZ]},planarLayers:zs.length,skinLayers:p.skinLayers,skinRows:rows,clearanceZMm:clearanceZ,
       minTransitionGapMm:transitionGaps.reduce((a,b)=>Math.min(a,b),Infinity),maxTransitionGapMm:transitionGaps.reduce((a,b)=>Math.max(a,b),-Infinity),
       clearance:'operator responsibility; not checked',physicalValidation:'not performed'}};
 }

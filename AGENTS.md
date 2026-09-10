@@ -42,22 +42,36 @@ geometry, machine interoperability and whole-plan travel requirements.
 
 ## Restart state
 
-The restart includes a bounded S5 wedge development demo with Rhino geometry,
+The restart includes an eight-point wedge development demo with native mesh geometry,
 SAAMpath, Griffin export, software checks, and a local Studio review workflow.
 Read [the wedge skill](skills/wedge-demo/SKILL.md) when working on that demo.
 No physical print has been validated. The local architecture map is a development
-aid. No legacy component has been approved for adoption.
+aid. The user authorized selective restoration of MCP, Dobot machine/Lua support
+and vase-wall on 2026-09-09; see the current skill manuals and DEVELOP.md for
+implemented scope. Automatic capability discovery is deferred by D-022.
 The old source is preserved in Git history and a separate local archive,
-outside the active tree. The wedge uses rhino3dm; full Rhino computation and
+outside the active tree. New wedges use native indexed meshes; full Rhino computation and
 general surface slicing remain deferred.
 
-The [full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md) and
-[draped-skin](skills/draped-skin/SKILL.md) manuals own their current shape and
+The [full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md),
+[draped-skin](skills/draped-skin/SKILL.md) and [vase-wall](skills/vase-wall/SKILL.md) manuals own their current shape and
 process limits. They share operation composition, export, Studio review and
 bundle delivery. They accept validated STL/mesh input and supported spline shells
-through shared queries. S5 and H2D have skill/SAAMpath software checks and shared
-review/delivery; H2D output is experimental with a fixed firmware-service contract.
+through shared queries. Vase-wall is limited to one convex outer section with
+no holes or islands. [Material regions](DEVELOP.md#material-regions-and-shared-interfaces)
+compose skills on one part, including a level-ended vase, cap, infill/draped roof,
+and horizontal fill above a consumed nonflat surface. Interoperability across
+skills, geometry, machines and public workflow is a core requirement; assess
+existing boundaries when changing a component and report concrete remaining limits.
+S5, H2D and configured Dobot have software checks through the
+shared lifecycle; H2D output is experimental with a fixed firmware-service contract.
 See [H2D output scope](DEVELOP.md#h2d-output-contract). Arbitrary trimmed CAD import remains unimplemented.
+The [Dobot output](DEVELOP.md#dobot-output-contract) requires installation setup
+and interprets the delivered Lua source ZIP; robot reachability, continuous
+relay deposition and vendor project-import acceptance are not established.
+The [local MCP adapter](adapters/mcp/README.md) exposes this same workflow to a
+compatible local chat client, with fixed known profiles/manuals and no approval
+tool. It does not connect an arbitrary browser chat to the local machine.
 See [the developer guide](DEVELOP.md#skill-result-composition) for weaving and
 [machine observations](DEVELOP.md#machine-program-templates-and-s5-observations)
 for the user's scoped S5 startup report; complete physical validation remains open.
@@ -69,8 +83,9 @@ Developer rules, setup, organization and open design proposals live together
 in [DEVELOP.md](DEVELOP.md). There is no separate docs folder.
 Do not load the old architecture or operation instructions as always-on context.
 
-For the bounded S5 wedge, retain `skills/wedge-demo/` and its eight-point
-geometry/generator. Use the shared export and bundle lifecycle; do not substitute
+For the bounded wedge, retain `skills/wedge-demo/` and its eight-point
+mesh geometry/generator: axis-aligned rectangular base, vertical corner pairs,
+and a planar roof sloping in any direction. Use the shared export and bundle lifecycle; do not substitute
 the shell slicer for its bounded geometry.
 
 Prefer shared interfaces and one pipeline. Skills should aspire to work across

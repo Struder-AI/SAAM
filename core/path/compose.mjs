@@ -79,13 +79,13 @@ export function composeResults(builder, results, rules = {}) {
           : distance(stroke.points[i - 1], stroke.points[i]) * stroke.beadAreaMm2;
         requireThat(Number.isFinite(volume) && volume >= 0, 'Invalid operation deposition volume.');
         builder.move(stroke.points[i], stroke.speedMmS, volume,
-          { role: stroke.role, ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
+          { role: stroke.role, ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
       }
     }
     deposited.push(op);
     elapsed.set(op.layerId, builder.layerSeconds);
     remaining.set(op.layerId, remaining.get(op.layerId) - 1);
-    if (remaining.get(op.layerId) === 0) builder.finishLayer(Math.max(builder.planClearanceZ,op.clearanceZ, builder.position[2]));
+    if (remaining.get(op.layerId) === 0 && !op.continuous) builder.finishLayer(Math.max(builder.planClearanceZ,op.clearanceZ, builder.position[2]));
   }
   builder.operationId = undefined;
   return { operationOrder: operations.map(op => op.id), layers: remaining.size,clearanceZ:builder.planClearanceZ };

@@ -1,8 +1,8 @@
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { resolve, dirname, basename } from 'node:path';
+import { readFile, readdir, stat, realpath } from 'node:fs/promises';
+import { resolve, dirname, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
@@ -20,12 +20,45 @@ export async function bundleFor(directory) {
   if(!load)throw new Error(`This print uses ${plan.schema??'an unknown plan format'}, which Studio cannot review.`);
   return load();
 }
-export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000}={}) {
-  const dir=resolve(directory),token=randomBytes(24).toString('hex');
+// A selected plan, export or delivery file reopens its owning print bundle.
+// Standalone foreign programs need an interpreter contract before review.
+export async function printDirectory(input) {
+  if(typeof input!=='string'||!input.trim()||input.length>4096)throw new Error('Choose a saved print folder or a file inside it.');
+  let dir=await realpath(isAbsolute(input)?input:resolve(root,input));
+  if(!(await stat(dir)).isDirectory())dir=dirname(dir);
+  for(let depth=0;depth<4;depth++){
+    try{await bundleFor(dir);return dir;}catch(error){if(error.code!=='ENOENT')throw error;}
+    const parent=dirname(dir);if(parent===dir)break;dir=parent;
+  }
+  throw new Error('No SAAM print bundle found. Open the saved print folder containing plan.json, geometry and machine.json. Standalone G-code/3MF import is not supported.');
+}
+export async function listPrints(libraryRoot) {
+  const prints=[];
+  async function walk(dir,depth){
+    let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return;throw error;}
+    if(entries.some(e=>e.name==='plan.json'&&e.isFile())){
+      try{const plan=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),machine=JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
+        if(bundles[plan.schema])prints.push({path:dir,name:basename(dir),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
+      }catch{/* One damaged bundle must not hide the other prints. */}
+      return;
+    }
+    if(depth<3)for(const entry of entries)if(entry.isDirectory()&&!entry.name.startsWith('.'))await walk(resolve(dir,entry.name),depth+1);
+  }
+  await walk(resolve(libraryRoot),0);return prints.sort((a,b)=>b.modified.localeCompare(a.modified));
+}
+export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000,libraryRoot=resolve(root,'Prints')}={}) {
+  let dir=resolve(directory);
+  const token=randomBytes(24).toString('hex');
+  const printId=()=>createHash('sha256').update(dir).digest('hex');
   // Resolved on the first request; the no-op catch keeps an unopened print
   // from raising an unhandled rejection before a request reports it.
-  const opened=bundleFor(dir);opened.catch(()=>{});
+  let opened=bundleFor(dir);opened.catch(()=>{});
   let queue=Promise.resolve();
+  const openPrint=async input=>{
+    const next=await printDirectory(input),adapter=await bundleFor(next);
+    await adapter.loadBundle(next,{program:false});
+    dir=next;opened=Promise.resolve(adapter);
+  };
   let idleTimer;
   function noteClientActivity() {
     if(!closeWhenIdle)return;
@@ -46,18 +79,22 @@ export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000}={}) {
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/app.mjs','/playback.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/app.mjs','/playback.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
+      if(req.method==='GET'&&url.pathname==='/api/prints'){send({prints:await listPrints(libraryRoot)});return;}
+      await queue;
+      const readDir=dir,readId=printId();
       const bundle=await opened;
       if(req.method==='GET'&&url.pathname==='/api/state') {
-        await queue;const fingerprint=await bundle.bundleFingerprint(dir);const state=await bundle.loadBundle(dir);
-        if(fingerprint!==await bundle.bundleFingerprint(dir))throw new Error('The print is being updated.');
-        delete state.code;delete state.dir;state.fingerprint=fingerprint;send(state);return;
+        const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir);
+        if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
+        delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;send(state);return;
       }
-      if(req.method==='GET'&&url.pathname==='/api/revision'){await queue;send({fingerprint:await bundle.bundleFingerprint(dir)});return;}
-      if(req.method==='GET'&&url.pathname==='/api/gcode') {
-        await queue;const state=await bundle.loadBundle(dir);
+      if(req.method==='GET'&&url.pathname==='/api/revision'){send({fingerprint:readId+await bundle.bundleFingerprint(readDir)});return;}
+      if(req.method==='GET'&&['/api/program','/api/gcode'].includes(url.pathname)) {
+        const state=await bundle.loadBundle(readDir);
+        if(readDir!==dir)throw new Error('The open print changed. Reload before continuing.');
         if(!state.program)throw new Error(state.programError??'Generate the program first.');
         res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end(state.code);return;
       }
@@ -66,18 +103,30 @@ export function createStudio(directory,{closeWhenIdle=false,idleMs=10_000}={}) {
       let body='';for await(const chunk of req){body+=chunk; if(body.length>64_000)throw new Error('Request too large.');}
       const data=JSON.parse(body||'{}');
       const run=queue.then(async()=>{
-        if(url.pathname==='/api/plan')await bundle.updatePlan(dir,data.plan,data.revision);
-        else if(url.pathname==='/api/approve')await bundle.approve(dir,data);
-        else if(url.pathname==='/api/generate')await bundle.generateBundle(dir,{development:data.development===true});
+        if(data.printId&&data.printId!==printId())throw new Error('The open print changed. Reload before continuing.');
+        const current=await opened;
+        if(url.pathname==='/api/open'){
+          await openPrint(data.path);
+        }
+        else if(url.pathname==='/api/plan')await current.updatePlan(dir,data.plan,data.revision);
+        else if(url.pathname==='/api/approve')await current.approve(dir,data);
+        else if(url.pathname==='/api/generate')await current.generateBundle(dir,{development:data.development===true});
         else if(url.pathname==='/api/deliver') {
-          const file=await bundle.deliver(dir),name=basename(file);
-          res.writeHead(200,{'Content-Type':name.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':'text/plain','Content-Disposition':`attachment; filename="${name}"`});res.end(await readFile(file));return;
+          const file=await current.deliver(dir),name=basename(file);
+          const contentType=name.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':name.endsWith('.zip')?'application/zip':'text/plain';
+          res.writeHead(200,{'Content-Type':contentType,'Content-Disposition':`attachment; filename="${name}"`});res.end(await readFile(file));return;
         } else throw new Error('Unknown operation.');
         send({ok:true});
       });
       queue=run.catch(()=>{});await run;
     } catch(error){if(!res.headersSent)send({error:error.message},400);else res.end();}
   });
+  // Local adapters reopen through the same serialized and validated operation
+  // as the picker, including when the person changed this viewer's print.
+  server.openPrint=input=>{
+    const run=queue.then(()=>openPrint(input));
+    queue=run.catch(()=>{});return run;
+  };
   server.on('close',()=>clearTimeout(idleTimer));
   return server;
 }

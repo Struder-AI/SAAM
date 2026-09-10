@@ -93,12 +93,29 @@ export function offsetRegion(loops, delta, { arcToleranceMm = 0.02 } = {}) {
   if (shrink < 1e-9) return loops.map(loop => [...loop]);
   const index = new SegmentIndex(loops, Math.max(shrink, 0.5));
   const out = [];
+  const bounds=region=>{
+    const box={min:[Infinity,Infinity],max:[-Infinity,-Infinity]};
+    for(const loop of region)for(const p of loop)for(let i=0;i<2;i++){box.min[i]=Math.min(box.min[i],p[i]);box.max[i]=Math.max(box.max[i],p[i]);}
+    return box;
+  };
+  const sourceBounds=delta<0?bounds(loops):null;
   for (const loop of loops) {
     const clean = dedupe(loop);
     if (clean.length < 3) continue;
     const sign = Math.sign(loopArea(clean));
-    for (const piece of splitSelfIntersections(rawOffset(clean, delta, arcToleranceMm))) {
-      const kept = dedupe(piece).filter(point => index.distanceTo(point, shrink * 3) >= shrink - TOLERANCE.chord);
+    // An inward offset cannot contain a radius-r disk when even its outer
+    // loop has less area than that disk. Narrow reservation remnants collapse
+    // instead of turning an acute miter into a new, much larger polygon.
+    if(delta<0&&sign>0&&Math.abs(loopArea(clean))<Math.PI*shrink*shrink)continue;
+    let raw=rawOffset(clean, delta, arcToleranceMm);
+    // Inward material stays inside its original outer-loop bounds. Clip the
+    // raw construction before spatial indexing: nearly reversing edges can
+    // otherwise create arbitrarily distant line intersections. Box edges are
+    // construction-only and the containment/standoff filter below removes
+    // them; this does not clamp a delivered toolpath into machine bounds.
+    if(delta<0)raw=clipToBounds(raw,sign>0?bounds([clean]):sourceBounds);
+    for (const piece of splitSelfIntersections(raw)) {
+      const kept = dedupe(piece).filter(point => (delta>=0||pointInRegion(point,loops))&&index.distanceTo(point, shrink * 3) >= shrink - TOLERANCE.chord);
       if (kept.length < 3) continue;
       const area = loopArea(kept);
       // Keep only pieces whose winding still matches the parent loop: the
@@ -108,6 +125,24 @@ export function offsetRegion(loops, delta, { arcToleranceMm = 0.02 } = {}) {
     }
   }
   return out;
+}
+
+function clipToBounds(points,bounds){
+  let result=points;
+  for(const axis of [0,1])for(const side of ['min','max']){
+    const limit=bounds[side][axis],inside=p=>side==='min'?p[axis]>=limit:p[axis]<=limit;
+    const next=[];
+    for(let i=0;i<result.length;i++){
+      const a=result[i],b=result[(i+1)%result.length],aInside=inside(a),bInside=inside(b);
+      if(aInside)next.push(a);
+      if(aInside!==bInside){
+        const t=(limit-a[axis])/(b[axis]-a[axis]);
+        const point=a.map((value,k)=>t<=0.5?value+(b[k]-value)*t:b[k]+(value-b[k])*(1-t));point[axis]=limit;next.push(point);
+      }
+    }
+    result=dedupe(next);
+  }
+  return result;
 }
 
 function rawOffset(loop, delta, arcToleranceMm) {
@@ -215,10 +250,58 @@ export function segmentIntersection(a, b, c, d) {
   return [a[0] + r[0] * t, a[1] + r[1] * t];
 }
 
+// Split a region into printable connected components. Positive loops are solid
+// boundaries and negative loops are holes. A positive island inside a hole is
+// a new component; a hole stays with the solid boundary that contains it.
+// Keeping this grouping here gives every scanline-based skill the same
+// no-cross-gap ordering instead of making each skill rediscover it.
+export function regionComponents(loops) {
+  const nodes = loops.map(loop => ({ loop, area: loopArea(loop), parent: null, children: [] }));
+  for (const node of nodes) {
+    const containing = nodes.filter(other => other !== node && Math.abs(other.area) > Math.abs(node.area)
+      && pointInRegion(node.loop[0], [other.loop]));
+    node.parent = containing.sort((a, b) => Math.abs(a.area) - Math.abs(b.area))[0] ?? null;
+    node.parent?.children.push(node);
+  }
+  const roots = nodes.filter(node => node.area > 0 && (!node.parent || node.parent.area < 0));
+  if (!roots.length) return loops.length ? [loops] : [];
+  const components = roots.map(root => {
+    const component = [];
+    const collect = node => {
+      component.push(node.loop);
+      // A positive child of a positive boundary is part of the same material
+      // component. A positive child of a hole is a separate island/root.
+      for (const child of node.children)
+        if (child.area < 0 || node.area > 0) collect(child);
+    };
+    collect(root);
+    return component;
+  });
+  return components.sort((a, b) => {
+    const [ax, ay] = componentKey(a), [bx, by] = componentKey(b);
+    return ax - bx || ay - by;
+  });
+}
+
+function componentKey(component) {
+  let minX = Infinity, minY = Infinity;
+  for (const loop of component) for (const point of loop) {
+    minX = Math.min(minX, point[0]);
+    minY = Math.min(minY, point[1]);
+  }
+  return [minX, minY];
+}
+
 // Scanline fill: parallel lines at the given spacing and angle, clipped to the
-// region by the nonzero winding rule. Returns rows in scan order; the travel
-// planner decides how they are strung together.
-export function scanlineFill(loops, spacingMm, angleDeg, { originMm = [0, 0] } = {}) {
+// region by the nonzero winding rule. Disconnected components are filled in a
+// stable order, with each component's rows completed before the next starts.
+// This prevents a gap between sides/islands from becoming a repeated
+// left-right-left-right travel pattern.
+export function scanlineFill(loops, spacingMm, angleDeg, options = {}) {
+  return regionComponents(loops).flatMap(component => scanlineFillComponent(component, spacingMm, angleDeg, options));
+}
+
+function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] } = {}) {
   requireThat(spacingMm > 0, 'Fill spacing must be positive.');
   const angle = angleDeg * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
   const toScan = p => {

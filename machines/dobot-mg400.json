@@ -1,0 +1,21 @@
+{
+  "schema":"saam-machine/1", "id":"dobot-mg400", "name":"Dobot MG400 · fixed-nozzle relay extrusion", "revision":1, "units":"mm",
+  "kinematics":"robot-fixed-orientation-xyz-command-space-only",
+  "bounds":{"min":[0,0,0],"max":[330,240,200]},
+  "boundsBasis":"Proposed software design envelope only; configured instance workspace required for export. Not robot reachability.",
+  "maxFeedMmS":{"x":100,"y":100,"z":20,"e":45},
+  "temperatureLimitsC":{"nozzle":[0,280],"bed":[0,120],"chamberMax":0},
+  "filamentDiameterMm":1.75,
+  "tools":[{"index":0,"label":"Fixed external relay extruder (proposed 0.4 mm setup)","cores":["external 0.4"],"nozzleDiametersMm":[0.4],"layerHeightMm":[0.06,0.3],"startupXY":[200,180]}],
+  "capabilities":["xyz-extrusion","planar","nonplanar","relay-extrusion"],
+  "materials":{"PLA":{"maxFlowMm3S":4,"maxRetractMm":0,"nozzleC":[0,230],"bedC":[0,70]}},
+  "outputs":[{"id":"dobot-lua","extension":".zip","flavor":"DobotStudio Pro bounded Lua","implemented":true,"extrusionUnits":"relay-on-off; commanded volume is intent only","experimental":true}],
+  "defaultSetup":{"tool":0,"core":"external 0.4","nozzleMm":0.4,"material":"PLA","filamentMm":1.75,"nozzleC":0,"bedC":0,"buildVolumeC":0,"materialGuid":null,"firmwareVersion":"","startupVerified":false,
+    "dobot":{"configurationSource":null,"toolFrame":null,"userFrame":null,"scaleX":null,"scaleY":null,"offsetXMm":null,"offsetYMm":null,"bedZMm":null,"rDeg":null,"extrusionOutput":null,"maxLinearSpeedMmS":null,"maxLinearAccelMmS2":null,"accelerationPercent":null,"extrusionRateMm3S":null,"relayPolicy":null,"temperatureControl":null,"initialPositionMm":null,"workspaceMinMm":null,"workspaceMaxMm":null}},
+  "defaultProcess":{"retractMm":0,"fanPercent":0},
+  "startup":{"protocol":"externally-positioned-and-heated","zAfterStartupMm":20,"validation":"Unconfigured installation: frame, calibration, workspace, initial pose, controller limits, relay rate/policy and external temperature control must be supplied before export."},
+  "nonplanar":{"maxAngleDeg":15,"basis":"Proposed software limit for fixed-orientation XYZ skills; not a measured clearance rating.","validation":"No physical validation of this adapter."},
+  "clearance":{"model":null,"validatedInclinationDeg":null},
+  "validation":"Software adoption of selected legacy Lua runtime and installation concepts. No real instance calibration supplied; no hardware run or physical validation. Bounds/feed/nozzle/material defaults are proposals, not measured machine specifications.",
+  "exportGuidance":{"contract":"ZIP contains global.lua helpers, src1.lua RunPlan, src0.lua entry and manifest.json. Experimental stroke-stop-start-unblended policy must be explicitly selected. Relay remains on through consecutive deposition moves, switches off for travel and dwell. CP=0, no startup move, no priming dwell. External temperature control and initial positioning are prerequisites. Joint motion, rotation changes, arcs, tool changes, retraction, fan control and kinematics/collision validation are unsupported.","legacyDifference":"The legacy reference kept the relay on through travel and inserted priming waits. This bounded adapter deliberately requires a separately selected stroke switching policy; it does not reproduce that reference behavior."}
+}

@@ -16,19 +16,23 @@ specification merely to show a first geometry.
 
 ## Current availability
 
-The [S5 wedge skill](skills/wedge-demo/SKILL.md) implements a bounded wedge demo:
-Rhino geometry, horizontal body layers, inclined skin, SAAMpath, Griffin export,
+The [wedge skill](skills/wedge-demo/SKILL.md) implements a bounded wedge demo:
+Eight-point mesh geometry, horizontal body layers, inclined skin, SAAMpath, S5 Griffin, experimental H2D or configured Dobot export,
 software checks and a local Studio review workflow. It is the most exercised
-package, so prefer it when the request is a wedge on an S5. Physical printing has
+package, so prefer it when the request is a bounded wedge on an S5 or H2D.
+Its rectangular base stays aligned with the print axes; its planar roof can rise
+left, right, front, back or diagonally. Adjust the eight points through the skill's
+public tool; Studio shows the rise direction. New wedges do not require 3DM. Physical printing has
 not been validated. Do not present the legacy runtime as the restarted product.
 
-[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md)
-and [draped-skin](skills/draped-skin/SKILL.md) share geometry queries, composition
+[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md),
+[draped-skin](skills/draped-skin/SKILL.md) and [vase-wall](skills/vase-wall/SKILL.md) share geometry queries, composition
 and the print workflow. Their manuals own settings and limits. They support
 validated STL/mesh inputs and the existing untrimmed spline shape builders,
 including mixed assemblies. General edited/trimmed CAD import is not implemented.
 
-The three skills share export/review/delivery on S5 and experimental H2D output.
+These skills share export/review/delivery on S5, experimental H2D output and
+the configured experimental Dobot output described below.
 The H2D defaults to the user's left 0.4 mm nozzle, PLA and experimental 15°
 draping. Its output currently assumes Textured PEI, no chamber heating and the
 supplied Bambu Studio firmware routines. Explain that playback covers printing
@@ -44,6 +48,35 @@ Drape follows a selected continuous roof and excludes steep area; its angle
 limit is a software declaration, not measured head clearance. All supporting
 body operations precede the draped skin. Compatible component layers can be
 woven or batched under the locked composition rules.
+
+For an open single-wall vessel or tube, vase-wall follows one convex outer
+section without holes or islands on supported mesh or spline geometry. It can
+follow a full-fill base and finish with a level rim for a later cap. Assign other
+skills to later material regions of the same part, including infill, a draped
+roof, and horizontal full fill whose bottom follows that roof. The native
+geometry remains the reference; show the recipe's actual hollow and solid regions
+during review. A cap over a hollow region needs an explicit experimental bridge
+choice in the locked plan; do not imply that software checks establish printability.
+Read [material regions](DEVELOP.md#material-regions-and-shared-interfaces) and
+the skill manuals before choosing settings. Describe geometry, boundaries and
+process choices in ordinary language; the agent manages the recipe fields.
+
+Dobot MG400 setup starts unconfigured. Reuse supplied installation values or
+collect them through chat before generation: frames, calibration, starting pose,
+workspace, motion limits, relay behavior and external temperature control.
+Do not turn example or synthetic test values into a person's machine setup.
+The experimental output stops at each motion segment and estimates relay
+material; a continuous planned wall does not establish smooth robot deposition.
+The delivered ZIP contains Lua source files, with no verified vendor project
+import workflow. See the [Dobot contract](DEVELOP.md#dobot-output-contract).
+
+With a compatible local MCP chat client, use the
+[MCP tools](adapters/mcp/README.md) for the same workflow: read the chosen manual,
+create the bundle and request Studio review, then apply chat adjustments using
+the current revision. The person gives all three approvals in Studio. MCP can
+read their status, generate from the approved plan and deliver the reviewed
+bytes. Its fixed local lists do not prove every recipe compatible. This access
+does not work automatically from an arbitrary browser chat.
 
 Import STL with explicit units and show the translated geometry in Studio before
 approval. Unknown units require clarification because scale changes the part.
@@ -117,6 +150,6 @@ next time. Do not label an assumption as verification.
   curated examples require an explicit selection for sharing.
 
 Follow the chosen skill's installation and tool instructions: the wedge demo for
-a wedge on an S5, the shell skills for the shapes their plan expresses. Reuse
-confirmed setup values; the remembered S5 setup is shared between them. A
+a supported bounded wedge, the shell skills for the shapes their plan expresses. Reuse
+confirmed setup values; remembered setup is shared between them per machine. A
 development preview is identified as such and does not authorize a real job.

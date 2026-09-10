@@ -17,7 +17,8 @@ import {createStudio} from '../../studio/server.mjs';
 test('machine validation respects selected tool, filament, material and skill capabilities',async()=>{
   const s5=loadMachine(),h2d=loadMachine('bambu-h2d'),plan=defaults(h2d);
   assert.throws(()=>validatePlan(defaults(s5),h2d),/Nozzle|Filament/);
-  assert.throws(()=>validateWedge(wedgeDefaults(),h2d),/Unsupported machine/);
+  assert.throws(()=>validateWedge(wedgeDefaults(),h2d),/Nozzle|Filament/);
+  validateWedge(wedgeDefaults(h2d),h2d);
   const flatOnly=structuredClone(h2d);flatOnly.capabilities=['xyz-extrusion','planar'];
   assert.throws(()=>validatePlan(plan,flatOnly),/nonplanar/);
   plan.skills['draped-skin'].enabled=false;validatePlan(plan,flatOnly);
@@ -51,7 +52,7 @@ test('combing routes around a hole and falls back when the route exceeds the loc
   short.planClearanceZ=20;assert.equal(short.travelTo([15,10,1],policy),'hopped');assert.ok(short.actions.some(a=>a.to?.[2]===20));
 });
 test('H2D setup and development output use the shared bundle without creating approvals',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'saam-h2d-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'saam-h2d-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
   const setupFile=join(root,'h2d-setup.json'),dir=join(root,'print'),machine=loadMachine('bambu-h2d'),plan=defaults(machine);
   plan.geometry={shape:'box',runMm:12,widthMm:10,heightMm:2};plan.process.minimumLayerSeconds=0;
   await initBundle(dir,plan,{machineId:machine.id});await rememberSetup(dir,{setupFile});

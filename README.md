@@ -44,22 +44,42 @@ SAAMpath, and its export together locally.
 
 ## What works today
 
-The first development demo is an UltiMaker S5 wedge with horizontal body layers
-and a 15° inclined skin. It includes native Rhino geometry, SAAMpath, Griffin
-G-code, automated checks, and a local SAAM Studio viewer.
+The bounded development demo supports an UltiMaker S5 or experimental Bambu H2D wedge with horizontal body layers
+and a planar roof up to 15° in any direction. It includes native eight-point mesh geometry, SAAMpath, machine-specific
+export, automated checks, and a local SAAM Studio viewer. The same bounded wedge
+also has configured Dobot software export/review/delivery checks.
 
-[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md)
-and [draped-skin](skills/draped-skin/SKILL.md)
+[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md),
+[draped-skin](skills/draped-skin/SKILL.md) and [vase-wall](skills/vase-wall/SKILL.md)
 share operation composition, export and the Studio approval/delivery workflow.
 Their manuals own their current shapes and limitations. STL/mesh input and
-restricted spline shapes are supported. All three have software checks against
-S5 and H2D profiles. H2D has experimental sliced-3MF export through the same
+restricted spline shapes are supported. Vase-wall prints a continuous rising
+outer wall from a single supported convex section. Skills can be assigned to
+different material regions of the same part: for example, a solid base, vase
+wall with a level ending, flat cap, infill beneath a draped roof, then horizontal
+full fill above that wavy surface. Shared boundaries account for material and
+printing order; experimental bridging and geometry limits remain explicit.
+See [material regions](DEVELOP.md#material-regions-and-shared-interfaces).
+These skills have software checks against S5, H2D and configured Dobot profiles.
+H2D has experimental sliced-3MF export through the same
 review/delivery workflow; its firmware service routines are not simulated.
 See the [H2D output scope](DEVELOP.md#h2d-output-contract). General trimmed CAD import is not implemented.
 Software checks do not establish physical
 print success. The user has reported that the latest S5 wedge startup avoids bed
 leveling and unused-nozzle heating; complete print validation remains open.
 See [implementation and observations](DEVELOP.md).
+
+The experimental [Dobot MG400 output](DEVELOP.md#dobot-output-contract) uses the
+same bundles, three approvals and exact-byte delivery. It requires supplied
+installation settings and exports a Lua source ZIP. Playback covers a bounded
+fixed-orientation command model; robot clearance, actual relay deposition and
+vendor project-import acceptance remain unvalidated.
+
+The [local MCP adapter](adapters/mcp/README.md) lets a compatible local chat
+client create and adjust prints, open Studio, generate approved plans and deliver
+reviewed files. Its small fixed lists cover this development checkout; automatic
+discovery is [deferred](DECISIONS.md#d-022--defer-automatic-capability-discovery).
+No MCP tool approves a job. Arbitrary browser-chat access is not implemented.
 
 ## Try the development demo
 
@@ -103,8 +123,9 @@ the maker workflow in development tests.
 - [build_request.md](build_request.md): requested work and dated implementation history.
 
 This is a clean restart with selective adoption. The previous runtime remains
-recoverable from Git history; no legacy component has been adopted. Adopting an
-old component or concept requires explicit human approval.
+recoverable from Git history. The user authorized restoration of MCP access,
+Dobot machine/Lua support and vase-wall on 2026-09-09 through the shared pipeline.
+Further legacy components require explicit human approval before adoption.
 See [legacy reference](DEVELOP.md#legacy-reference).
 
 The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).

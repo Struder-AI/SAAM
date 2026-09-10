@@ -4,7 +4,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { exportProgram, interpretProgram } from '../export/registry.mjs';
-import { loadMachine } from '../machine/profile.mjs';
+import { loadMachine, validateDobotConfiguration } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -38,9 +38,17 @@ export function createBundleWorkflow(adapter) {
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
+      new URL('../export/dobot.mjs',import.meta.url),new URL('../export/dobot-lua-subset.mjs',import.meta.url),
       new URL('../geom/tolerance.mjs',import.meta.url), ...adapter.runtimeFiles
     ].map(async file=>[fileURLToPath(file).slice(root.length).replaceAll('\\','/'),await readFile(file,'utf8')])));
   }
+async function proposedPlan(machineId, { setupFile } = {}) {
+  const machine = machineId ? loadMachine(machineId) : await json(machineFile);
+  const plan = defaults(machine);
+  const remembered = await rememberedSetup(setupFile ?? setupFor(machine), machine);
+  if (remembered) plan.setup = { ...plan.setup, ...remembered, materialGuid: remembered.materialGuid || plan.setup.materialGuid };
+  return plan;
+}
 async function initBundle(directory, plan, { setupFile, machineId, sourceBytes } = {}) {
   const dir = resolve(directory);
   try {
@@ -50,11 +58,7 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes }
 
   const machine = machineId?loadMachine(machineId):await json(machineFile);
   setupFile??=setupFor(machine);
-  if (!plan) {
-    plan = defaults(machine);
-    const remembered = await rememberedSetup(setupFile, machine);
-    if (remembered) plan.setup = { ...plan.setup, ...remembered, materialGuid: remembered.materialGuid || plan.setup.materialGuid };
-  }
+  if (!plan) plan = await proposedPlan(machine.id, { setupFile });
   validatePlan(plan, machine);
   const geometry = await createGeometry(plan.geometry);
   if(plan.geometry.source){
@@ -75,7 +79,7 @@ async function rememberedSetup(setupFile, machine) {
   let saved;
   try { saved = await json(setupFile); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
   requireThat(saved.schema === 'saam-machine-setup/1' && saved.machineId === machine.id, 'Saved machine setup is incompatible.');
-  const known = defaults().setup;
+  const known = defaults(machine).setup;
   return Object.fromEntries(Object.entries(saved.setup ?? {}).filter(([key]) => Object.hasOwn(known, key)));
 }
 
@@ -97,11 +101,17 @@ async function loadBundle(directory, { program = true } = {}) {
     kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime,
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
-    skills: plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : ['wedge-demo'],
+    skills: plan.composition?.regions?.length
+      ? [...new Set(plan.composition.regions.flatMap(region=>Object.keys(region.skills)))]
+      : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : ['wedge-demo'],
     geometryApproved: review.approvals.geometry?.hash === geometryHash,
     planApproved: review.approvals.plan?.hash === planHash
   };
   state.planApproved &&= state.geometryApproved;
+  if(machine.id==='dobot-mg400'){
+    state.machineConfiguration=validateDobotConfiguration(plan,machine);
+    if(!state.machineConfiguration.configured)state.outputAvailability='Dobot installation is unconfigured; geometry can be reviewed. Supply frame, calibration, workspace, initial pose, controller limits and relay/thermal setup before generation.';
+  }
   state.toolpathApproved = false;
   state.revision = hash({ geometryHash, planHash, review });
   state.setupBasis = plan.setup.startupVerified
@@ -119,6 +129,7 @@ async function loadBundle(directory, { program = true } = {}) {
       requireThat(code.equals(Buffer.from(exportProgram(regenerated, plan, machine, { generatorVersion: VERSION, buildDate: BUILD_DATE }))),
         'Export does not match SAAMpath.');
       state.program = interpretProgram(code, plan, machine);
+      state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
       state.pathSummary = path.summary;
       state.exportHash = hash(code);
       state.code = state.program.code??code.toString('utf8');
@@ -154,11 +165,20 @@ async function rememberSetup(directory, { setupFile, source = 'User setup suppli
   return setupFile;
 }
 
+// Feasibility inspection through the same generator, without persisted output
+// or approval. The approved generation/export step remains the delivery gate.
+async function checkPathBundle(directory) {
+  const state = await loadBundle(directory, { program: false });
+  const path = await generatePath(state.plan, state.machine);
+  return { mode: 'development-check-only', revision: state.revision, ...path.summary };
+}
+
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
 // and the affected approvals fall away. An unknown key is refused here as well
 // as in the plan check, so a misspelled setting never silently does nothing.
-async function adjustBundle(directory, patch, { setupFile } = {}) {
+async function adjustBundle(directory, patch, { setupFile, expectedRevision } = {}) {
   const state = await loadBundle(directory, { program: false });
+  if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
   const plan = structuredClone(state.plan);
   merge(plan, patch);
   if (patch.setup?.firmwareVersion !== undefined
@@ -239,12 +259,13 @@ async function generateBundle(directory, { development = false } = {}) {
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
     travel: path.summary.travel,
     nonplanarLimit: path.summary.nonplanarLimit ?? null,
-    checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation']),
-      'xyz-bounds', 'axis-feed', 'extrusion-flow', 'temperature-state', 'saampath-export-round-trip'],
+    checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
+      'xyz-bounds', 'axis-feed', ...(program.language==='dobot-lua'?['commanded-flow-intent']:['extrusion-flow','temperature-state']), 'saampath-export-round-trip'],
     clearance: 'operator responsibility; no collision model implemented',
     physicalValidation: 'not performed',
     firmwareEnvelope: program.envelope??null,
-    limitations: limitationsFor(state.plan, state.machine)
+    limitations: [...limitationsFor(state.plan, state.machine),...(program.limitations??[])],
+    ...(program.summary.materialModel==='relay-estimate'?{materialModel:'relay-estimate',commandedVolumeMm3:program.summary.commandedVolumeMm3,estimatedRelayVolumeMm3:program.summary.estimatedRelayVolumeMm3,relayEstimateDifferenceMm3:program.summary.relayEstimateDifferenceMm3}:{})
   };
   await save(resolve(state.dir, 'path.saampath'), path);
   await save(resolve(state.dir, exportPath(state.plan,state.machine)), code);
@@ -292,17 +313,27 @@ async function deliver(directory) {
 
 async function upgradeBundle(directory) {
   const plan=await json(resolve(directory,'plan.json'));
+  const oldGeometry=canonical(plan.geometry);
+  const geometry=await json(resolve(directory,'geometry/model.json'));
+  await verifyGeometry(await readFile(resolve(directory,nativeFile(geometry))),geometry);
+  requireThat(canonical(geometry.parameters)===oldGeometry,'Plan and geometry disagree; cannot upgrade.');
   const review=await json(resolve(directory,'review.json'));
   const previous=await json(resolve(directory,'machine.json'));
   const machine=loadMachine(previous.id);
   requireThat(previous.id===machine.id,'Cannot upgrade to a different machine.');
-  if(adapter.upgradePlan) adapter.upgradePlan(plan);
+  if(adapter.upgradePlan) adapter.upgradePlan(plan,machine);
   validatePlan(plan,machine);
+  if(canonical(plan.geometry)!==oldGeometry) {
+    const next=await createGeometry(plan.geometry);
+    await save(resolve(directory,nativeFile(next.descriptor)),next.bytes);
+    await save(resolve(directory,'geometry/model.json'),next.descriptor);
+    delete review.approvals.geometry;
+  }
   delete review.approvals.plan; delete review.approvals.toolpath; review.generation=null;
   review.history.push({event:'generator-upgraded',version:VERSION,machineRevision:machine.revision,time:new Date().toISOString()});
   await save(resolve(directory,'plan.json'),plan);
   await save(resolve(directory,'machine.json'),machine);
   await save(resolve(directory,'review.json'),review);
 }
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,initBundle,loadBundle,bundleFingerprint,rememberSetup,adjustBundle,updatePlan,generateBundle,approve,deliver,upgradeBundle};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,upgradeBundle};
 }

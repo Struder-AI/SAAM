@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { requireThat,distance } from '../geom/tolerance.mjs';
 
-export const MACHINE_IDS=['ultimaker-s5','bambu-h2d'];
+export const MACHINE_IDS=['ultimaker-s5','bambu-h2d','dobot-mg400'];
 export function loadMachine(id='ultimaker-s5') {
   requireThat(MACHINE_IDS.includes(id),'Unknown machine profile.');
   return JSON.parse(readFileSync(new URL(`../../machines/${id}.json`,import.meta.url),'utf8'));
@@ -32,7 +32,37 @@ export function validateSetup(plan,machine) {
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
   if(plan.output==='griffin-gcode')requireThat(/^[a-f0-9-]{36}$/i.test(s.materialGuid),'A material GUID is required for Griffin.');
   else requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
+  if(machine.id==='dobot-mg400'){
+    validateDobotConfiguration(plan,machine);
+    requireThat(p.retractMm===0&&p.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');
+  }
 }
+
+// Machine-instance values are locked by the same setup/plan hash as the recipe.
+// Null means unresolved, permitting geometry review but never machine export.
+export function validateDobotConfiguration(plan,machine,{required=false}={}){
+  const c=plan.setup.dobot,template=machine.defaultSetup.dobot;
+  requireThat(c&&Object.keys(c).sort().join()===Object.keys(template).sort().join(),'Invalid Dobot instance configuration fields.');
+  const missing=Object.keys(template).filter(k=>c[k]===null);
+  for(const key of ['toolFrame','userFrame'])if(c[key]!==null)requireThat(Number.isInteger(c[key])&&c[key]>=0&&c[key]<=50,`Invalid Dobot ${key}.`);
+  for(const key of ['scaleX','scaleY','maxLinearSpeedMmS','maxLinearAccelMmS2','accelerationPercent','extrusionRateMm3S'])if(c[key]!==null)requireThat(Number.isFinite(c[key])&&c[key]>0,`Invalid Dobot ${key}.`);
+  if(c.accelerationPercent!==null)requireThat(c.accelerationPercent<=100,'Dobot acceleration percent exceeds 100.');
+  for(const key of ['offsetXMm','offsetYMm','bedZMm','rDeg'])if(c[key]!==null)requireThat(Number.isFinite(c[key]),`Invalid Dobot ${key}.`);
+  for(const key of ['initialPositionMm','workspaceMinMm','workspaceMaxMm'])if(c[key]!==null)requireThat(Array.isArray(c[key])&&c[key].length===3&&c[key].every(Number.isFinite),`Invalid Dobot ${key}.`);
+  if(c.workspaceMinMm&&c.workspaceMaxMm)requireThat(c.workspaceMinMm.every((v,i)=>v<c.workspaceMaxMm[i]),'Invalid Dobot configured workspace.');
+  if(c.configurationSource!==null)requireThat(typeof c.configurationSource==='string'&&c.configurationSource.trim().length>0&&c.configurationSource.length<=1000,'Dobot configuration needs its source.');
+  if(c.extrusionOutput!==null)requireThat(typeof c.extrusionOutput==='string'&&/^[A-Za-z0-9_]{1,40}$/.test(c.extrusionOutput),'Invalid Dobot relay output.');
+  if(c.relayPolicy!==null)requireThat(c.relayPolicy==='stroke-stop-start-unblended','Unsupported Dobot relay policy. Explicitly select experimental stroke-stop-start-unblended.');
+  if(c.temperatureControl!==null)requireThat(c.temperatureControl==='external-preheated','Dobot requires explicit external-preheated temperature control.');
+  if(required){
+    requireThat(missing.length===0,`Dobot installation is unconfigured; supply ${missing.join(', ')} before export.`);
+    requireThat(plan.setup.nozzleC>0,'Supply the externally controlled Dobot nozzle temperature before export.');
+    requireThat(c.extrusionRateMm3S<=plan.process.maxFlowMm3S,'Dobot configured relay rate exceeds the locked material flow limit.');
+  }
+  return {configured:missing.length===0,missing};
+}
+
+export const startupPosition=(machine,plan)=>plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,(machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm)];
 
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);
@@ -49,9 +79,10 @@ export function checkMachinePath(path,plan,machine) {
       point(action.to);const length=distance(from,action.to),seconds=length/action.speedMmS;
       requireThat(seconds>0&&Number.isFinite(seconds)&&Number.isFinite(action.volumeMm3)&&action.volumeMm3>=0,'Invalid machine motion.');
       for(let i=0;i<3;i++)requireThat(Math.abs(action.to[i]-from[i])/seconds<=machine.maxFeedMmS['xyz'[i]]+1e-7,'Machine axis feed exceeded.');
-      requireThat(action.volumeMm3/seconds<=plan.process.maxFlowMm3S+1e-7&&action.volumeMm3/area/seconds<=machine.maxFeedMmS.e+1e-7,'Machine/material extrusion feed exceeded.');
+      requireThat(action.volumeMm3/seconds<=plan.process.maxFlowMm3S+1e-7&&(machine.id==='dobot-mg400'||action.volumeMm3/area/seconds<=machine.maxFeedMmS.e+1e-7),'Machine/material extrusion feed exceeded.');
       from=action.to;
-    } else if(['retract','recover'].includes(action.kind))requireThat(action.speedMmS<=machine.maxFeedMmS.e,'Machine extruder feed exceeded.');
+    } else if(['retract','recover'].includes(action.kind))requireThat(action.speedMmS<=machine.maxFeedMmS.e&&(machine.id!=='dobot-mg400'||action.filamentMm===0),'Machine extruder feed exceeded or relay retraction unsupported.');
+    else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
   }
-  return {machine:machine.id,tool:plan.setup.tool,bounds,checks:['tool-bounds','axis-feed','material-flow']};
+  return {machine:machine.id,tool:plan.setup.tool,bounds,checks:['tool-bounds','axis-feed','material-flow'],...(machine.id==='dobot-mg400'?{configuration:validateDobotConfiguration(plan,machine),coverage:'Proposed design envelope and commanded volume only; robot kinematics, measured extrusion and collision clearance are unchecked.'}:{})};
 }

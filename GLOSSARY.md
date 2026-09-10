@@ -15,7 +15,9 @@ starting vocabulary for the ontology we develop together.
 | Feature | A meaningful part of a shape, such as a hole, rim, face or edge, that people and agents can refer to. |
 | Skill | A packaged capability with its own text instruction manual and tools. |
 | Skill result | Operations returned by a skill for shared composition into one toolpath. |
-| Composition / weaving | Ordering compatible skill operations across layers or within a layer, preserving their dependencies. |
+| Interoperability | Components work together across geometry, printing skills, machines and the shared workflow wherever their actual requirements allow. |
+| Skill composition | Combining skills in one part, assigning material regions, connecting their boundaries and preserving printing order. |
+| Weaving | Interleaving compatible skill operations across layers or within a layer while preserving their dependencies. |
 | Tool | A callable script or function supplied by a skill. |
 | Process plan | The recipe for making a part: geometry reference, selected skills, their settings, and machine/setup choices. |
 | Locked process plan | The complete version of the recipe submitted for approval; generation introduces no further process choices. |

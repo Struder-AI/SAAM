@@ -30,14 +30,17 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
     }));
   };
   const lines=[...render(envelope.header),...render(envelope.start)];
-  lines.push(...exportMotion(path,plan));
-  lines.push(...render(envelope.end));
+  // Large paths exceed the engine's argument limit when spread into push().
+  for(const line of exportMotion(path,plan))lines.push(line);
+  for(const line of render(envelope.end))lines.push(line);
   return lines.join('\n')+'\n';
 }
 
 // The same volumetric SAAMpath actions and rounding rules feed every dialect.
-export function exportMotion(path,plan) {
+export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
   validatePath(path);
+  requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
+  const relativeE=extrusionMode==='relative';
   const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2;
   let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition];
   for(const a of path.actions) {
@@ -47,24 +50,26 @@ export function exportMotion(path,plan) {
     if(a.kind==='move') {
       const xyz=a.to.map((v,i)=>`${'XYZ'[i]}${fmt(v)}`).join(' ');
       if(a.volumeMm3>0){
-        e+=a.volumeMm3/area;
-        const target=a.to.map(v=>Number(fmt(v))),nextE=Number(fmt(e));
-        const length=distance(writtenPosition,target),de=nextE-writtenE;
+        const filamentMm=a.volumeMm3/area;
+        if(!relativeE)e+=filamentMm;
+        const target=a.to.map(v=>Number(fmt(v))),nextE=Number(fmt(relativeE?filamentMm:e));
+        const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
         requireThat(length>0, 'A deposition move collapsed at export precision.');
         // Quantized E and XYZ must still obey the locked flow limit, including
         // very short section segments. Check the actual written command.
         const speed=Math.min(a.speedMmS,de>0?plan.process.maxFlowMm3S*length/(de*area):a.speedMmS);
         const feed=Math.floor(speed*60*1000)/1000;
         requireThat(feed>0,'Deposition feed collapsed at export precision.');
-        lines.push(`G1 ${xyz} E${fmt(e)} F${fmt(feed,3)}`);
-        writtenE=nextE;
+        lines.push(`G1 ${xyz} E${fmt(relativeE?filamentMm:e)} F${fmt(feed,3)}`);
+        if(!relativeE)writtenE=nextE;
       }
       else lines.push(`G0 ${xyz} F${fmt(a.speedMmS*60,3)}`);
       writtenPosition=a.to.map(v=>Number(fmt(v)));
     } else if(a.kind==='retract'||a.kind==='recover') {
-      e+=(a.kind==='retract'?-1:1)*a.filamentMm;
-      lines.push(`G1 E${fmt(e)} F${fmt(a.speedMmS*60,3)}`);
-      writtenE=Number(fmt(e));
+      const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
+      if(!relativeE)e+=filamentMm;
+      lines.push(`G1 E${fmt(relativeE?filamentMm:e)} F${fmt(a.speedMmS*60,3)}`);
+      if(!relativeE)writtenE=Number(fmt(e));
     } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);
     else if(a.kind==='dwell') lines.push(`G4 P${Math.ceil(a.seconds*1000)}`);
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
@@ -78,9 +83,10 @@ export const interpretGriffin=(text,plan,machine)=>interpretGcode(text,plan,mach
 // Body-only interpretation starts after a dialect's checked firmware envelope.
 // It still requires explicit units, modes, tool and temperature waits. This is
 // the same modal engine as Griffin, without inventing a Griffin header.
-export const interpretMotion=(text,plan,machine)=>interpretGcode(text,plan,machine,true);
-function interpretGcode(text,plan,machine,bodyOnly=false) {
+export const interpretMotion=(text,plan,machine,{extrusionMode='absolute'}={})=>interpretGcode(text,plan,machine,true,extrusionMode);
+function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute') {
   requireThat(typeof text==='string'&&text.length<25_000_000,'Invalid/oversized G-code.');
+  requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
@@ -177,7 +183,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false) {
     requireThat(moves.every(m=>m.to[i]>=lo-1e-4&&m.to[i]<=hi+1e-4&&m.from[i]>=lo-1e-4&&m.from[i]<=hi+1e-4),'Moves exceed header bounds.');
   }
   requireThat(Math.abs(Number(header[`EXTRUDER_TRAIN.${s.tool}.MATERIAL.VOLUME_USED`])-volume)<1.1,'Header material volume mismatch.');
-  } else requireThat(moves.some(m=>m.extruding)&&metric&&absolute===true&&absE===true&&hot&&bedReady&&nozzle===s.nozzleC&&bed===s.bedC,'Invalid body or terminal machine state.');
+  } else requireThat(moves.some(m=>m.extruding)&&metric&&absolute===true&&absE===(extrusionMode==='absolute')&&hot&&bedReady&&nozzle===s.nozzleC&&bed===s.bedC,'Invalid body or terminal machine state.');
   return {moves,events,header,seconds:time,volumeMm3:volume,finalPosition:pos,summary:{moves:moves.length,extrusionMoves:moves.filter(m=>m.extruding).length,
     volumeMm3:volume,filamentMm:volume/area,motionSeconds:time,
     startup:'Firmware startup and heating time are not simulated; this export does not request routine bed leveling.',clearance:'Operator responsibility; not checked.'}};

@@ -16,12 +16,16 @@ const emit=(m=machine,p=path)=>exportGriffin(p,plan,m,{generatorVersion:VERSION,
 test('machine templates preserve the last working S5 envelope',()=>{
   // Compare against the checkpoint the user identified as the working behavior.
   const before=JSON.parse(readFileSync(new URL('./fixtures/last-working-s5-envelope.json',import.meta.url),'utf8')),after=emit();
-  const start=code=>code.slice(0,code.indexOf(';SAAM_PHASE:'));
-  assert.equal(start(after),before.start);
+  // Runtime release, estimates and material usage change with the recipe.
+  // Keep comparing every machine/startup contract field to the historical bytes.
+  const start=code=>(code.includes(';SAAM_PHASE:')?code.slice(0,code.indexOf(';SAAM_PHASE:')):code).split('\n').filter(line=>!/^;(SAAM\.GENERATOR\.VERSION|GENERATOR\.BUILD_DATE|PRINT\.TIME|EXTRUDER_TRAIN\.\d+\.MATERIAL\.VOLUME_USED):/.test(line)).join('\n');
+  assert.equal(start(after),start(before.start));
   assert.equal(after.slice(after.lastIndexOf('M400')),before.end);
   assert.ok(!/^G280|^M10[49] T0/m.test(after));
   assert.match(after,/;GENERATOR.VERSION:4.4.0/);
   assert.match(after,/M109 T1 S215/);
+  assert.match(after,/^M82$/m,'S5 retains absolute extrusion mode');
+  assert.doesNotMatch(after,/^M83$/m,'the H2D relative-extrusion fix does not alter S5 output');
   const revised=structuredClone(machine);revised.outputs[0].program.header.splice(4,0,';PROFILE.TEST:from-machine');
   assert.match(emit(revised),/;PROFILE.TEST:from-machine/);
 });
@@ -70,5 +74,5 @@ for(const kind of ['shell','wedge']) test(`${kind} upgrade retains geometry appr
     assert.equal(await readFile(delivered,'utf8'),bytes);
     assert.equal(await readFile(join(directory,adapter.EXPORT_PATH),'utf8'),bytes);
     await assert.rejects(()=>adapter.deliver(directory),/approval/);
-  } finally {await rm(directory,{recursive:true,force:true});}
+  } finally {await rm(directory,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
 });
