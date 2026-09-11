@@ -15,36 +15,6 @@ limits in the owning manual:
 | [draped-skin](draped-skin/SKILL.md) | Continuous accessible roof on either backend | Declared non-planar capability/limit; S5, experimental H2D and configured Dobot checks. |
 | [vase-wall](vase-wall/SKILL.md) | One supported convex outer section on mesh or untrimmed splines, no holes/islands | Continuous rising wall with optional level ending for successors; S5, experimental H2D and configured Dobot software checks. |
 
-## Imported StruderBot manuals
-
-The following manuals were recovered on 2026-09-10 from the historical
-`tkeller-inventopia/ai-native-3d-printer` workflow. They preserve physical
-Dobot observations, process rules, geometry derivations, references and helper
-scripts that had not been migrated to SAAM. They are discoverable source
-material, **not callable SAAM operations**. Their individual manuals state the
-integration work still required.
-
-| Imported manual | Preserved capability | Current SAAM status |
-|---|---|---|
-| [dobot-patterned-wall](dobot-patterned-wall/SKILL.md) | Triangular touchback, walled truss, touchback loops, trochoids, omega/ribbon and sine walls | Highest-priority new operation family; manuals and evidence imported, generator integration pending. |
-| [dobot-dog-ears](dobot-dog-ears/SKILL.md) | Clipped mouse ears, separated skirt and localized ties | Import complete; support/composer integration pending. |
-| [dobot-prime-lead-in](dobot-prime-lead-in/SKILL.md) | Compact minimum-length purge and continuous entry | Import complete; whole-plan/machine-policy integration pending. |
-| [dobot-layer-filling](dobot-layer-filling/SKILL.md) | Measured Struder fill spacing, overlap and region-first ordering | Evidence source for implemented `full-fill` and `planar-infill`; reconciliation pending. |
-| [dobot-non-planar-cladding](dobot-non-planar-cladding/SKILL.md) | Robot-tested coupons and transition failures | Evidence source for implemented `draped-skin`; reconciliation pending. |
-| [dobot-spiral-lip](dobot-spiral-lip/SKILL.md) | Width-driven supported rounded lips | Proposed successor/modifier for `vase-wall`; implementation pending. |
-| [dobot-reference-to-print](dobot-reference-to-print/SKILL.md) | Source and dimension provenance for reconstructed parts | Reconcile with the current maker workflow. |
-| [dobot-programmer](dobot-programmer/SKILL.md) | Historical Online-mode Dobot workflow and controller rules | Evidence/provenance only; current SAAM approvals and export supersede it. |
-| [multiaxis-cross-layer-cylinder-cladding](multiaxis-cross-layer-cylinder-cladding/SKILL.md) | Preview-only cross-layer cylindrical cladding | Concept only; orientation/collision/machine implementation pending. |
-| [multiaxis-diagonal-rib-growth](multiaxis-diagonal-rib-growth/SKILL.md) | Preview-only diagonal rib growth | Concept only; orientation/collision/machine implementation pending. |
-
-See [the import manifest](STRUDERBOT_SKILL_MIGRATION.md) for source provenance,
-evidence boundaries and migration priorities.
-Install and validate the imported manuals as one transitional bundle using the
-[portable suite guide](STRUDERBOT_SUITE.md) and its machine-readable
-[`STRUDERBOT_SUITE.json`](STRUDERBOT_SUITE.json) manifest. The bundled Python
-helpers are executable migration specifications; all callable functionality
-still needs conversion into SAAM's JavaScript skill-result architecture.
-
 S5 has the complete export, Studio toolpath review and delivery workflow.
 H2D has experimental sliced-3MF output through the same review/delivery workflow.
 Its [firmware-service contract](../DEVELOP.md#h2d-output-contract) is checked but not motion-simulated.

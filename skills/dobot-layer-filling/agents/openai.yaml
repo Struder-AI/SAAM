@@ -1,6 +1,0 @@
-interface:
-  display_name: "Dobot Layer Filling"
-  short_description: "Plan calibrated filled layers for StruderBot"
-  default_prompt: "Use $dobot-layer-filling to plan a filled layer with calibrated spacing, wall overlap, and efficient region ordering."
-policy:
-  allow_implicit_invocation: true

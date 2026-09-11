@@ -127,14 +127,6 @@ Developer rules, setup, organization and open design proposals live together
 in [DEVELOP.md](DEVELOP.md). There is no separate docs folder.
 Do not load the old architecture or operation instructions as always-on context.
 
-The historical StruderBot skill manuals were explicitly authorized for import
-on 2026-09-10 and are preserved under `skills/dobot-*` and
-`skills/multiaxis-*`. They are discoverable migration sources, not registered
-SAAM operations. Read `skills/STRUDERBOT_SKILL_MIGRATION.md` and the relevant
-manual before porting one. Preserve its evidence labels, but use the current
-shared geometry, composition, machine export, Studio review and approval
-pipeline; do not revive the older parallel preview-to-Lua workflow.
-
 For the bounded wedge, retain `skills/wedge-demo/` and its eight-point
 mesh geometry/generator: axis-aligned rectangular base, vertical corner pairs,
 and a planar roof sloping in any direction. Use the shared export and bundle lifecycle; do not substitute

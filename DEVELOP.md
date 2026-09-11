@@ -1936,22 +1936,6 @@ development installation with known machines. Fixed lists are sufficient for
 MCP access; geometry/skill/machine compatibility checks remain necessary when
 using a plan.
 
-Earlier in the restart, the user excluded legacy gusset and layer-filling
-adoption. On 2026-09-10 they explicitly superseded that limitation by directing
-that every locally developed skill, including skills present only in the old
-repository, be synchronized into SAAM. The recovered manuals, references and
-helper scripts are preserved under `skills/dobot-*` and `skills/multiaxis-*`;
-see `skills/STRUDERBOT_SKILL_MIGRATION.md`.
-
-This import restores discoverable source knowledge and physical evidence. It
-does not register callable operations or prove compatibility with the current
-composer, geometry core, machine exports, Studio review or approval lifecycle.
-Port each capability through those shared interfaces and add equivalent tests
-before listing it as implemented. In particular, the recovered patterned-wall
-manual now identifies the earlier triangular-touchback, walled-truss,
-touchback-loop, trochoid and omega/ribbon families that were absent from both
-current SAAM branches.
-
 ## Opening local prints in Studio
 
 **Open print** lists saved bundles below `Prints/` (up to three directory levels).

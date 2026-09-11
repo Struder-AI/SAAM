@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dobot Spiral Lip"
-  short_description: "Build rounded lips on spiral vase walls"
-  default_prompt: "Use $dobot-spiral-lip to add a width-driven rounded lip to this single-wall spiral print."

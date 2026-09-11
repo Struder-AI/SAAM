@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dobot Patterned Wall"
-  short_description: "Build continuous thick patterned extrusion walls"
-  default_prompt: "Use $dobot-patterned-wall to turn this 2D guide path into a semi-continuous thick wall."

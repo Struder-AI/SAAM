@@ -1,4 +1,0 @@
-interface:
-  display_name: "Multi-Axis Cylinder Cladding"
-  short_description: "Clad cylinders with preview-only axial beads"
-  default_prompt: "Use $multiaxis-cross-layer-cylinder-cladding to generate supported axial cylinder cladding for a conceptual multi-axis preview."

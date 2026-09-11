@@ -1,4 +1,0 @@
-interface:
-  display_name: "Multi-Axis Diagonal Rib Growth"
-  short_description: "Grow preview-only ribs from deposited corners"
-  default_prompt: "Use $multiaxis-diagonal-rib-growth to generate supported diagonal rib loops for a conceptual multi-axis deposition preview."

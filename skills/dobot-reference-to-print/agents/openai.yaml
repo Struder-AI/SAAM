@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dobot Reference to Print"
-  short_description: "Turn references into approved Dobot print programs"
-  default_prompt: "Use $dobot-reference-to-print to research and turn a described part into an approved Dobot Lua print program."

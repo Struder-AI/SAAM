@@ -1,4 +1,0 @@
-interface:
-  display_name: "Dobot Programmer"
-  short_description: "Preview and generate verified Dobot MG400 Lua"
-  default_prompt: "Use $dobot-programmer to turn my requested robot feature into an approved motion preview and DobotStudio Pro Lua."
