@@ -146,6 +146,17 @@ Features identify the geometry version and native object UUID or mesh face ident
 recreate those identifiers and invalidate geometry, plan and toolpath approvals.
 Generic edge/object selection and freeform geometry editing remain deferred.
 
+Geometry review shows the native target mesh and a separate **Material intent
+preview**. The target mesh remains the supplied geometry, including explicitly
+modeled cavities and through-holes. Blue callouts identify structured modeled
+voids when their native geometry exposes that meaning. Stacked process bands
+show solid, sparse, perimeter-only/hollow, empty and surface-only regions from
+the proposed plan; for example, solid bottom layers remain visibly distinct
+from perimeter-only upper walls. These bands are explanatory plan projections,
+not substituted geometry, bead simulation or a toolpath. Geometry confirmation
+therefore confirms the target only. Settings still owns process-plan approval,
+and Toolpath still owns approval of generated motion.
+
 For toolpath review, the interpreter must support the selected export language
 and required machine state. Unsupported commands, missing helper files, or
 incompatible setup must be resolved before production review. The S5 subset
