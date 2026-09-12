@@ -2,8 +2,9 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 5,
+  "revision": 6,
   "units": "mm",
+  "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "bounds": {
     "min": [

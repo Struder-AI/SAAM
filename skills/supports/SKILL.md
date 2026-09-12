@@ -5,9 +5,9 @@ description: Generate conventional or tree supports in explicitly assigned areas
 
 # Assigned supports
 
-Read [MAKERS.md](../../MAKERS.md) before helping a maker. Developers also read
-[DEVELOP.md](../../DEVELOP.md). Use the [shared shell commands](../full-fill/SKILL.md#setup-and-tools)
-or MCP `get_plan_template`, `create_print`, `adjust_print`, and `request_review`.
+For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+Use the [shared print tools](../../core/print/USAGE.md).
 Enable `skills.supports.enabled` and supply `assignments` before plan approval.
 The same export, three approvals and delivery workflow applies. No hardware is run.
 
@@ -114,7 +114,10 @@ multi-extruder supports.
 ## Composition and verification
 
 `supportResults({plan, shells, modelResults})` returns operations through the
-existing full-fill producer and composer. Shared Clipper union removes overlap
+existing full-fill producer and composer. It consumes the plan already checked
+by shared `validatePlan`; standalone developer callers validate their inputs at
+that boundary (or with `validateSupports`) before invoking the producer. It does
+not repeat settings validation while slicing. Shared Clipper union removes overlap
 between assignments. Sparse and interface interiors are complementary; one owner
 prints their walls. Supports use whole-plan travel and layer cooling, and required
 support layers precede part operations even with layer batching. Supports are

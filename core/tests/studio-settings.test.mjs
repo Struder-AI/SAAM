@@ -4,6 +4,21 @@ import {recipeRows,regionRows,robotRows,hasSkill} from '../../studio/settings.mj
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
+import {validateSetup,planarWallTolerance} from '../machine/rules.mjs';
+
+test('machine wall precision is reviewable, defaults old snapshots without mutation, and preserves explicit zero',()=>{
+  for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8'])assert.equal(loadMachine(id).planarWallToleranceMm,.01);
+  const machine=loadMachine(),plan=defaults(machine);delete machine.planarWallToleranceMm;
+  const before=structuredClone(machine);validateSetup(plan,machine);
+  assert.deepEqual(machine,before);assert.equal(planarWallTolerance(machine),.01);
+  assert.equal(new Map(recipeRows(plan,machine)).get('Machine · Planar wall tolerance'),'0.01 mm');
+  machine.planarWallToleranceMm=0;validateSetup(plan,machine);
+  assert.equal(new Map(recipeRows(plan,machine)).get('Machine · Planar wall tolerance'),'0 mm');
+  for(const invalid of [null,-.01,NaN,Infinity,'0.01']){
+    machine.planarWallToleranceMm=invalid;
+    assert.throws(()=>validateSetup(plan,machine),/wall tolerance must be finite and nonnegative/);
+  }
+});
 
 test('Studio reviews region selections and effective overrides rather than inactive global skill flags',()=>{
   const plan=defaults();

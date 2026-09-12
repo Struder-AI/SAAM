@@ -1,0 +1,238 @@
+{
+  "provenance": "Captured from the existing shared exporter before the 2026-09-11 formatting optimization. Contains writer edge cases as well as machine moves; use round-trip integration tests for complete machine programs.",
+  "plan": {
+    "setup": {
+      "filamentMm": 1.75
+    },
+    "process": {
+      "maxFlowMm3S": 0.9
+    }
+  },
+  "path": {
+    "schema": "saampath/1",
+    "initialPosition": [
+      -0.0000049,
+      2.1234549,
+      0.2000049
+    ],
+    "actions": [
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "to": [
+          -0.0000051,
+          2.1234551,
+          0.2
+        ],
+        "speedMmS": 0.01,
+        "volumeMm3": 0.00001
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "to": [
+          0.0500051,
+          2.1234551,
+          0.2
+        ],
+        "speedMmS": 40,
+        "volumeMm3": 0.00401
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "to": [
+          1.234565,
+          2.1234551,
+          0.2
+        ],
+        "speedMmS": 50,
+        "volumeMm3": 0
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "to": [
+          1.234565,
+          3.1234551,
+          0.2
+        ],
+        "speedMmS": 50,
+        "volumeMm3": 0
+      },
+      {
+        "kind": "retract",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "filamentMm": 0.80000513,
+        "speedMmS": 25
+      },
+      {
+        "kind": "recover",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "filamentMm": 0.80000513,
+        "speedMmS": 25
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "to": [
+          1.33456512,
+          3.1234551,
+          0.2
+        ],
+        "speedMmS": 40,
+        "volumeMm3": 0.0000149
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "to": [
+          1.43456512,
+          3.1234551,
+          0.2
+        ],
+        "speedMmS": 40,
+        "volumeMm3": 0.0000151
+      },
+      {
+        "kind": "fan",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "percent": 50
+      },
+      {
+        "kind": "fan",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "percent": 0
+      },
+      {
+        "kind": "dwell",
+        "phase": "planar",
+        "layer": 0,
+        "operation": "walls:0",
+        "seconds": 0.01234
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 1,
+        "operation": "walls:1",
+        "to": [
+          1.43456512,
+          3.1234551,
+          0.4000001
+        ],
+        "speedMmS": 12,
+        "volumeMm3": 0
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 1,
+        "operation": "walls:1",
+        "to": [
+          1.43456512,
+          3.1234551,
+          0.4000001
+        ],
+        "speedMmS": 12,
+        "volumeMm3": 0
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 1,
+        "operation": "",
+        "to": [
+          -0.0000049,
+          3.1234551,
+          0.4000001
+        ],
+        "speedMmS": 12,
+        "volumeMm3": 0
+      },
+      {
+        "kind": "move",
+        "phase": "planar",
+        "layer": 1,
+        "operation": "",
+        "to": [
+          0,
+          3.1234551,
+          0.4000001
+        ],
+        "speedMmS": 12,
+        "volumeMm3": 0
+      }
+    ]
+  },
+  "expected": {
+    "absolute": [
+      ";SAAM_OPERATION:walls:0",
+      ";SAAM_PHASE:planar",
+      ";LAYER:0",
+      "G1 X-0.00001 Y2.12346 Z0.2 E0 F0.6",
+      "G1 X0.05001 E0.00167 F672.442",
+      "G0 X1.23456 F3000",
+      "G0 Y3.12346",
+      "G1 E-0.79833 F1500",
+      "G1 E0.00167",
+      "G1 X1.33457 E0.00168 F2400",
+      "G1 X1.43457 E0.00168",
+      "M106 S128",
+      "M107",
+      "G4 P13",
+      ";SAAM_OPERATION:walls:1",
+      ";SAAM_PHASE:planar",
+      ";LAYER:1",
+      "G0 Z0.4 F720",
+      "G0",
+      ";SAAM_OPERATION:",
+      "G0 X0",
+      "G0"
+    ],
+    "relative": [
+      ";SAAM_OPERATION:walls:0",
+      ";SAAM_PHASE:planar",
+      ";LAYER:0",
+      "G1 X-0.00001 Y2.12346 Z0.2 E0 F0.6",
+      "G1 X0.05001 E0.00167 F672.442",
+      "G0 X1.23456 F3000",
+      "G0 Y3.12346",
+      "G1 E-0.80001 F1500",
+      "G1 E0.80001",
+      "G1 X1.33457 E0.00001 F2400",
+      "G1 X1.43457 E0.00001",
+      "M106 S128",
+      "M107",
+      "G4 P13",
+      ";SAAM_OPERATION:walls:1",
+      ";SAAM_PHASE:planar",
+      ";LAYER:1",
+      "G0 Z0.4 F720",
+      "G0",
+      ";SAAM_OPERATION:",
+      "G0 X0",
+      "G0"
+    ]
+  }
+}

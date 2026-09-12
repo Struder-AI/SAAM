@@ -5,8 +5,8 @@ description: Create an eight-point mesh wedge with an axis-aligned rectangular b
 
 # Wedge demo
 
-Read the applicable root context: developer agents read both
-[DEVELOP.md](../../DEVELOP.md) and [MAKERS.md](../../MAKERS.md).
+For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
 
 This package creates the bounded eight-vertex wedge as a native triangle mesh
 with six named planar faces,
@@ -24,32 +24,31 @@ substitute shell geometry or the full-fill/draped-skin generators for this demo.
 
 ## Setup and tools
 
-From the repository root, install with `npm ci` (Node.js 22+).
+This bounded demo uses `node skills/wedge-demo/scripts/cli.mjs` instead of the
+shell CLI. Initialize its eight-point recipe with:
 
-- `node skills/wedge-demo/scripts/cli.mjs init Prints/<name>` creates an unapproved geometry and process plan.
-- `npm run studio -- Prints/<name>` serves that bundle at its own local URL,
-  printed by the command. Open it whenever you are ready. Closing the last viewer tab
-  shuts down that instance; rerun the command to resume the saved bundle.
-- `node skills/wedge-demo/scripts/cli.mjs generate Prints/<name>` generates directly from an approved plan and completes checks.
-- `node skills/wedge-demo/scripts/cli.mjs check Prints/<name>` reopens and verifies the current bundle and exact export.
-- `node skills/wedge-demo/scripts/cli.mjs deliver Prints/<name>` copies the approved export byte-for-byte into `delivery/`, retaining the selected output's filename and extension.
-- `node skills/wedge-demo/scripts/cli.mjs adjust Prints/<name> <patch.json>` applies a chat-requested geometry, process or setup adjustment.
-- `node skills/wedge-demo/scripts/cli.mjs remember-setup Prints/<name>` saves setup for subsequent prints.
-- `node skills/wedge-demo/scripts/cli.mjs upgrade Prints/<name>` upgrades an older demo and its machine snapshot. Pre-0.3 geometry becomes an eight-point mesh and requires fresh geometry, settings and toolpath review. Existing export/delivery and old 3DM bytes are preserved. Upgrading an unchanged mesh retains geometry approval.
+```sh
+node skills/wedge-demo/scripts/cli.mjs init Prints/my-wedge --machine ultimaker-s5
+```
 
-For a maker's first geometry review, do not wait for all process details. Once
-their request reasonably identifies this supported wedge, run `init` for a new
-local `Prints/<name>` bundle and open it with Studio. A request for a wedge on
-an S5 is sufficient to preview the default wedge; clearly identify the default
-geometry and setup as proposed, then invite chat revisions. Ask before creating
-the bundle only when the requested feature cannot be represented by the bounded
-wedge or is ambiguous in a way its defaults cannot resolve.
+The [shared print-tool manual](../../core/print/USAGE.md) owns review, adjustment,
+checks, generation, setup reuse and delivery. For this demo, replace the shell
+CLI path in those commands with `skills/wedge-demo/scripts/cli.mjs`. Its `init`
+accepts a machine selection but no recipe file; apply changes with `adjust`.
+It has no STL importer. MCP selects this adapter with `kind: "wedge"` and routes
+later operations from the saved bundle.
 
-Make parameter changes through chat only: write a JSON patch and run `adjust`.
-For example, `{"process":{"skinLayers":3}}` requests three sloped layers;
-replace `geometry.points` to change dimensions or roof direction (example below). Studio automatically
-displays updates and returns to the affected approval step. Do not require the
-person to handle these files. Camera and playback controls remain in the viewer.
+Wedge `upgrade` also migrates pre-0.3 geometry to an eight-point mesh, requiring
+fresh geometry, settings and toolpath review. Existing export/delivery and old
+3DM bytes remain intact. Upgrading an unchanged mesh retains geometry approval.
+
+For a request that identifies this supported wedge, its default geometry can
+provide the first proposed preview. Identify the dimensions and assumptions so
+the maker can revise them through chat.
+
+For example, an `adjust` patch of `{"process":{"skinLayers":3}}` requests three
+sloped layers; replace `geometry.points` to change dimensions or roof direction
+(example below).
 Face names are geometry-version-specific. A change made externally
 that breaks bundle consistency is rejected; restore the original file or
 initialize a new print. The tool does not import arbitrary edited Rhino files.
@@ -117,32 +116,13 @@ move directly; that includes nearby loops, fill strokes and adjacent sloped
 strokes. All motion uses the shared PathBuilder. Longer moves retract, lift above
 the highest material deposited so far plus `liftMm` (default 1 mm; zero allowed),
 traverse, descend and recover. Cooling and final parking use that same height.
-See the [shared travel rule](../../DEVELOP.md#whole-plan-travel-requirement). A new job assumes the prior SAAM
+See the [shared travel rule](../../core/path/README.md#whole-plan-travel-requirement). A new job assumes the prior SAAM
 wedge ended with its terminal retraction, so its first recovery cancels that
 retraction rather than backing filament up a second time.
 
-Setup changes are remembered in ignored `.local/machine-setups/ultimaker-s5.json`
-with source and update time; `init` reuses this setup for a new print unless an
-explicit plan is supplied. Reuse does not confer approval. Firmware version is
-optional: assume standard S5 Griffin startup, retaining `startupVerified:false`
-until the user actually reports verification. Resolve specific incompatibilities
-through chat as described in [MAKERS.md](../../MAKERS.md#printer-setup-and-assumptions).
-
-## Human workflow
-
-1. Initialize and open the first reasonable geometry in Studio as soon as the
-   maker's request supports it; revise through chat and show it again until the
-   person confirms that geometry version.
-2. Show the complete proposed settings; revise through chat and show them again
-   until the person confirms the locked plan. Firmware version is not required.
-3. Generate the declared machine export directly. Automated export checks
-   must pass before production toolpath review. The person reviews and approves
-   the exact exported program, then confirms and exports. Revisions return to
-   the affected earlier review. Delivery adds no fourth approval.
-
-Only the human enters their approval. Agents must not use Studio's approval
-buttons or the approval function to manufacture agreement. No tool here sends
-a job to hardware. Keep the bundle in ignored `Prints/`.
+Machine setup reuse and the three human review stages follow the
+[shared workflow](../../core/print/USAGE.md). For S5 startup assumptions and
+reported incompatibilities, use the [S5 setup guidance](../../core/export/griffin.md#s5-setup-and-troubleshooting).
 
 ## Development preview
 
@@ -179,7 +159,7 @@ this package.
 The user reported on 2026-09-08 that the final wedge change achieved the requested
 no-bed-leveling and no-unused-nozzle-heating behavior. The shared exporter uses
 the machine profile's preserved header/start/end templates. See
-[the scoped observation](../../DEVELOP.md#machine-program-templates-and-s5-observations);
+[the scoped observation](../../core/export/griffin.md#machine-program-templates-and-s5-observations);
 this is not a claim of complete print quality or clearance validation.
 
 ## Dobot output
@@ -189,7 +169,7 @@ horizontal body and inclined-roof generator produce SAAMpath; export uses the
 shared Dobot Lua interpreter and the same three approvals. Geometry can be
 reviewed before installation configuration is supplied. Export requires the
 locked frame, calibration, workspace, external initial pose and relay/thermal
-settings described in the [Dobot contract](../../DEVELOP.md#dobot-output-contract).
+settings described in the [Dobot contract](../../core/export/dobot.md#dobot-output-contract).
 
 Output is `exports/dobot-lua/wedge.zip`, delivered unchanged as
 `delivery/wedge.zip`. This is a Lua transport bundle, not a verified vendor
@@ -219,12 +199,7 @@ as `delivery/wedge.gcode.3mf`. Review checks the packaged print body through the
 shared interpreter. Startup probing, wiping, purge, calibration and unloading
 follow the fixed firmware contract and are not simulated. These routines may
 use both nozzles; printing time/material exclude them. No H2D physical print
-has been validated. See the [H2D contract](../../DEVELOP.md#h2d-output-contract).
+has been validated. See the [H2D contract](../../core/export/bambu.md#h2d-output-contract).
 Remembered setup is separate in `.local/machine-setups/bambu-h2d.json`.
 
-Studio's **Open print** lists local bundles. A folder or a file inside a bundle
-also opens that bundle. Unchanged geometry approval carries forward; confirmed
-settings with a current export reopen in toolpath playback. Opening writes no
-approval and regenerates no saved file. Stale or edited output requires generation
-and review again. Busy indicators cover loading, toolpath/export generation,
-checks and delivery. Standalone G-code/3MF import is outside this feature.
+For saved bundles, use [opening and resuming review](../../core/print/USAGE.md#open-and-resume-review).

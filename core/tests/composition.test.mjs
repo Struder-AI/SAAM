@@ -58,6 +58,40 @@ test('ready skills weave by actual deposition height while prerequisites take pr
   assert.deepEqual(scheduleOperations(results).map(op=>op.id),['middle','high','low']);
 });
 
+test('large dependency schedules preserve stable priority, including newly unblocked earlier work',()=>{
+  // Independent, deliberately simple reference: repeatedly choose the first
+  // eligible operation from a globally sorted priority list.
+  const reference=(results,rules)=>{
+    const all=results.flatMap(r=>r.operations),indices=new Map(all.map((op,i)=>[op.id,i]));
+    const resultOf=new Map(results.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
+    const z=op=>Math.max(...op.strokes.flatMap(s=>s.points.map(p=>p[2])));
+    const heights=[...new Set(all.map(z))].sort((a,b)=>a-b);
+    const after=new Map(all.map(op=>[op.id,new Set(op.after)]));
+    for(const edge of rules.dependencies)after.get(edge.after).add(edge.before);
+    for(let i=1;i<rules.order.length;i++)after.get(rules.order[i]).add(rules.order[i-1]);
+    const pending=[...all].sort((a,b)=>Math.floor(heights.indexOf(z(a))/rules.batchLayers)-Math.floor(heights.indexOf(z(b))/rules.batchLayers)
+      ||resultOf.get(a.id)-resultOf.get(b.id)||a.rank-b.rank||indices.get(a.id)-indices.get(b.id));
+    const done=new Set(),out=[];
+    while(pending.length){
+      const i=pending.findIndex(op=>[...after.get(op.id)].every(id=>done.has(id)));
+      assert.ok(i>=0);const [op]=pending.splice(i,1);done.add(op.id);out.push(op.id);
+    }
+    return out;
+  };
+  for(const batchLayers of [1,2,7,20]){
+    const results=Array.from({length:4},()=>({operations:[]}));
+    for(let i=0;i<120;i++){
+      const op=operation('op'+i,(i*31)%13,i?[`op${Math.floor((i-1)/3)}`]:[]);
+      op.rank=(i*17)%5;results[i%4].operations.push(op);
+    }
+    const rules={batchLayers,order:['op2','op20','op70'],dependencies:[{before:'op7',after:'op110'},{before:'op7',after:'op110'}]};
+    assert.deepEqual(scheduleOperations(results,rules).map(op=>op.id),reference(results,rules));
+  }
+  const chain=Array.from({length:5000},(_,i)=>operation(String(i),i,i?[String(i-1)]:[]));
+  assert.deepEqual(scheduleOperations([{operations:chain}]),chain);
+  chain[0].after=['4999'];assert.throws(()=>scheduleOperations([{operations:chain}]),/cycle/);
+});
+
 function columns(batchLayers=1){
   const plan=defaults();
   plan.geometry={shape:'assembly',parts:[

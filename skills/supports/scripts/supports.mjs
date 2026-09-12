@@ -1,6 +1,6 @@
 // Explicitly assigned sacrificial material. No overhang/angle area discovery.
 import {fullFillResult,layerHeights} from '../../full-fill/scripts/fill.mjs';
-import {sectionGeometry} from '../../../core/geom/query.mjs';
+import {createSectionQuery} from '../../../core/geom/query.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {union,intersect,difference} from '../../../core/region/intersection.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
@@ -56,10 +56,20 @@ function circle(x,y,r,chord){
 
 export function assignedSupportSection(a,z,settings,placement={xMm:0,yMm:0}) {
   if(z>a.contactZMm-settings.topGapMm+1e-8)return [];
+  return supportSectionQuery(a,settings,placement)(z);
+}
+
+function supportSectionQuery(a,settings,placement) {
   const move=loops=>loops.map(loop=>loop.map(p=>[p[0]+placement.xMm,p[1]+placement.yMm]));
-  if(a.style==='standard')return move(union(a.footprint,[]));
-  let region=[];
+  const top=a.contactZMm-settings.topGapMm+1e-8;
+  if(a.style==='standard'){
+    const region=move(union(a.footprint,[]));
+    return z=>z>top?[]:region;
+  }
   const nodes=new Map(a.treeNodes.map(n=>[n.id,n]));
+  return z=>{
+  if(z>top)return [];
+  let region=[];
   for(const n of a.treeNodes){
     const p=nodes.get(n.parent);
     if(!p||z<p.point[2]-1e-8||z>n.point[2]+1e-8)continue;
@@ -68,55 +78,67 @@ export function assignedSupportSection(a,z,settings,placement={xMm:0,yMm:0}) {
     region=union(region,[circle(x,y,r,settings.treeChordMm)]);
   }
   return move(region);
+  };
 }
 
-export function supportResults({plan,shells,modelResults}) {
+export function supportResults({plan,machine,shells,modelResults}) {
   const settings=plan.skills.supports,process=plan.process;
   if(!settings?.enabled)return [];
-  validateSupports(settings,process);
+  // The shared plan boundary already ran validateSupports. This producer owns
+  // checks on newly derived support/part sections, not another settings pass.
   const top=Math.max(...settings.assignments.map(a=>a.contactZMm-settings.topGapMm));
   const heights=layerHeights(process,0,top),cache=new Map();
   const lastLayer=a=>Math.floor((a.contactZMm-settings.topGapMm-process.firstLayerMm+1e-8)/process.layerMm);
+  const assigned=settings.assignments.map(a=>({sectionAt:supportSectionQuery(a,settings,plan.placement),lastLayer:lastLayer(a)}));
+  const obstacles=shells.map(shell=>({shell,sectionAt:createSectionQuery(shell,{minFeatureMm:0.4})}));
   for(let index=0;index<heights.length;index++){
     const z=heights[index];let region=[],interfaceRegion=[];
-    for(const a of settings.assignments){
-      const area=assignedSupportSection(a,z,settings,plan.placement);
+    for(const a of assigned){
+      const area=a.sectionAt(z);
       region=union(region,area);
-      if(index>lastLayer(a)-settings.interfaceLayers)interfaceRegion=union(interfaceRegion,area);
+      if(index>a.lastLayer-settings.interfaceLayers)interfaceRegion=union(interfaceRegion,area);
     }
     // This checks only assigned material at slicing planes. It does not scan
     // normals or create support areas, silently trim branches, or reroute them.
-    for(const shell of shells){
+    for(const {shell,sectionAt} of obstacles){
       if(z<shell.bounds.min[2]-1e-8||z>shell.bounds.max[2]+1e-8)continue;
-      const obstacle=offsetRegion(sectionGeometry(shell,z,{minFeatureMm:0.4}).loops,settings.xyGapMm);
+      const obstacle=offsetRegion(sectionAt(z).loops,settings.xyGapMm);
       requireThat(regionArea(intersect(region,obstacle))<1e-8,`Assigned support intersects part clearance at Z ${z.toFixed(3)} mm; revise its footprint or branches.`);
     }
     cache.set(index,{region,interfaceRegion});
   }
   const shell={bounds:{min:[0,0,0],max:[0,0,top]}};
   const indexAt=z=>Math.round((z-process.firstLayerMm)/process.layerMm);
-  const shared={shell,plan,sectionAt:z=>({loops:cache.get(indexAt(z)).region}),settings:{...settings,minFeatureMm:0.4,fillOverlap:0.15}};
+  const shared={shell,plan,machine,sectionAt:z=>({loops:cache.get(indexAt(z)).region}),settings:{...settings,minFeatureMm:0.4,fillOverlap:0.15}};
+  const interiors=new Map();
   const body=fullFillResult({...shared,id:'supports',spacingMm:process.lineWidthMm/settings.density,
-    interiorRegion:(region,i)=>difference(region,cache.get(i).interfaceRegion)});
+    interiorRegion:(region,i)=>{interiors.set(i,region);return difference(region,cache.get(i).interfaceRegion);}});
   const surface=fullFillResult({...shared,id:'supports:interface',settings:{...shared.settings,perimeters:0},spacingMm:process.lineWidthMm/settings.interfaceDensity,
-    interiorRegion:(_region,i,_z,whole)=>intersect(offsetRegion(whole,-process.lineWidthMm*(settings.perimeters?settings.perimeters+0.5-0.15:0.5)),cache.get(i).interfaceRegion)});
+    fillRegionAt:(_region,i)=>cache.get(i).interfaceRegion.length?intersect(interiors.get(i),cache.get(i).interfaceRegion):[]});
   const all=[...body.operations,...surface.operations];
+  const byLayer=new Map(),wallsByLayer=new Map(),byRank=new Map();
+  for(const op of all){
+    if(!byLayer.has(op.layer))byLayer.set(op.layer,[]);byLayer.get(op.layer).push(op);
+    if(!byRank.has(op.rank))byRank.set(op.rank,[]);byRank.get(op.rank).push(op.id);
+    if(op.id.endsWith(':walls'))wallsByLayer.set(op.layer,op);
+  }
   for(const op of all){
     op.phase='supports';
     for(const stroke of op.strokes)stroke.role=op.id.startsWith('supports:interface')?'support-interface':stroke.role==='fill'?'support':'support-wall';
-    const walls=body.operations.find(o=>o.layer===op.layer&&o.id.endsWith(':walls'));
+    const walls=wallsByLayer.get(op.layer);
     if(walls&&walls!==op&&!op.after.includes(walls.id))op.after.push(walls.id);
-    const lower=all.filter(o=>o.layer===op.layer-1);
+    const lower=byLayer.get(op.layer-1)??[];
     for(const p of lower)if(!op.after.includes(p.id))op.after.push(p.id);
   }
   // Preserve support-before-part even when the locked composer batches layers.
   // For continuous/nonplanar operations use their highest deposition point,
   // rather than treating scheduling rank as physical height.
+  const ranks=[...byRank.keys()].sort((a,b)=>a-b);
   for(const result of modelResults)for(const op of result.operations){
     const high=op.strokes.reduce((z,s)=>s.points.reduce((v,p)=>Math.max(v,p[2]),z),-Infinity);
-    const ready=all.filter(s=>s.rank<=high+1e-8);
-    const rank=ready.reduce((z,s)=>Math.max(z,s.rank),-Infinity);
-    op.after.push(...ready.filter(s=>s.rank===rank).map(s=>s.id));
+    let low=0,end=ranks.length;
+    while(low<end){const mid=(low+end)>>>1;if(ranks[mid]<=high+1e-8)low=mid+1;else end=mid;}
+    if(low)op.after.push(...byRank.get(ranks[low-1]));
   }
   body.report.assignments=settings.assignments.map(a=>({id:a.id,style:a.style,reason:a.reason,
     contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)}));

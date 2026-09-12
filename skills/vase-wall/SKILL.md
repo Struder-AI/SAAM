@@ -6,8 +6,9 @@ description: Generate one continuous rising outer wall from supported convex mes
 # Vase wall
 
 Use for an open, single-wall vessel or tube with a continuous spiral above a
-foundation ring. Read [MAKERS.md](../../MAKERS.md); developers also read
-[DEVELOP.md](../../DEVELOP.md). This skill adopts the legacy vase-wall concept
+foundation ring. For maker work, read [MAKERS.md](../../MAKERS.md). For development,
+start with the [developer orientation](../../DEVELOP.md) and follow its
+task-specific references. This skill adopts the legacy vase-wall concept
 through the current shared pipeline. Geometry comes from actual sections of the
 selected part, including tapered noncircular shapes; no diameter-only substitute
 or separate preview/export workflow is used.
@@ -27,7 +28,7 @@ path export and Lua interpretation. Compatible machine
 profiles must declare XYZ extrusion, nonplanar motion and an angle limit. Use
 the selected profile's available output through the shared workflow, including
 the experimental H2D and configured Dobot outputs. Machine-specific constraints
-remain in the machine profile and [developer guide](../../DEVELOP.md#machine-interoperability-design).
+remain in the machine profile and [developer guide](../../core/export/README.md#machine-interoperability-design).
 No physical vase print has been validated.
 
 Dobot's bounded relay output uses unblended moves that stop at each segment.
@@ -38,20 +39,9 @@ and relay calibration remain unvalidated.
 
 ## Tools and workflow
 
-Install with `npm ci` on Node.js 22+. Use the same shell CLI as
-[full-fill](../full-fill/SKILL.md):
-
-- `node core/print/cli.mjs init Prints/<name> plan.json --machine <machine-id>`
-  stores unapproved geometry and the proposed process plan.
-- `node core/print/cli.mjs import-stl Prints/<name> source.stl <mm|inch> [machine-id]`
-  preserves source units and geometry before review; adjust the skill selection
-  in chat afterward.
-- `npm run studio -- Prints/<name>` opens geometry, settings and toolpath review.
-- `node core/print/cli.mjs adjust Prints/<name> patch.json` applies chat changes.
-- `node core/print/cli.mjs generate Prints/<name>` generates after geometry and
-  plan approval. `demo` generates a development preview without approvals.
-- `node core/print/cli.mjs check Prints/<name>` verifies the locked recipe and
-  saved export. `deliver` copies the exact toolpath-approved bytes.
+Use the [shared print tools](../../core/print/USAGE.md) for shell creation, STL
+import, recipe adjustment, review and delivery. After import, select the vase
+wall and its intended base in the proposed recipe.
 
 For the simple recipe with no explicit regions, set `skills.vase-wall.enabled`
 to `true` and select only its wall and optional base. For a tube without a solid base, disable full-fill and
@@ -66,7 +56,7 @@ region selects a component, height bounds and a map of skills with local setting
 overrides. Assign full-fill to the base and cap, vase-wall to the intervening
 wall, and other skills to their subsequent material regions. Region selection
 supersedes the global enabled flags; global settings remain inherited defaults.
-See [shared composition](../../DEVELOP.md#skill-result-composition) and the
+See [shared composition](../../core/path/README.md#skill-result-composition) and the
 [synthetic full-stack fixture](../../core/tests/fixtures/regional-stack.mjs).
 That software fixture includes all six requested stages and uses invented Dobot
 configuration solely for testing; it must not be run on hardware.
@@ -124,10 +114,9 @@ Every sampled point queries its actual Z section, offsets by half the bead width
 and checks boundary standoff. Repeated mesh cuts use a generation-local Z index
 to skip triangles outside the section; they preserve the direct cut's ordering,
 vertex nudges and topology checks. Spline inputs keep the shared spline sectioner.
-Vase offsets use the shared Clipper tool with a **0.00001 mm integer grid**,
-independent of contour and boundary tolerances. This vase-only precision avoids
-expensive large-integer arithmetic for ordinary part sizes; larger coordinate
-spans still use the kernel's full-range arithmetic. Source sections must be
+Vase offsets use the shared Clipper2 tool with a **0.00001 mm integer grid**,
+independent of contour and boundary tolerances. This is also the shared planar
+offset default; coordinate precision does not specify curve deviation. Source sections must be
 convex. Since erosion preserves convexity, the inset does not repeat that test
 on corners perturbed by integer rounding. Collapse, common interior origin and
 sampled boundary standoff remain checked. The report includes offset precision.

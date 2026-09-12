@@ -2,7 +2,7 @@
 // Every region boolean uses the shared Clipper2 implementation. Level-set
 // extraction below is a separate construction and retains its current scope.
 
-import { TOLERANCE, requireThat, distance2 } from '../geom/tolerance.mjs';
+import { requireThat, distance2 } from '../geom/tolerance.mjs';
 import { loopArea, dedupe } from './region2d.mjs';
 
 export { union, intersect, difference } from './intersection.mjs';
@@ -42,7 +42,9 @@ function chain(pieces) {
     }
     requireThat(distance2(current[0],current[current.length-1])<=CHAIN_TOLERANCE,'Region operation produced an open contour.');
     const closed = dedupe(current);
-    if (closed.length >= 3 && Math.abs(loopArea(closed)) > TOLERANCE.chord) loops.push(closed);
+    // Area is mm², so a chord tolerance in mm cannot decide whether material
+    // exists. Retain every nonzero loop assembled on the endpoint grid.
+    if (closed.length >= 3 && Math.abs(loopArea(closed)) > 0) loops.push(closed);
   }
   return loops;
 }

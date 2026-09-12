@@ -69,7 +69,10 @@ for(const [name,a,b] of [['right',.15,0],['left',-.15,0],['back',0,.15],['front'
             } else {assert.equal(skinStarted,false);assert.ok(q[2]<=top-6*.2/roof.cosine+1e-7);}
           }
         }
-        if(move.volumeMm3===0&&Math.abs(move.to[0]-pos[0])+Math.abs(move.to[1]-pos[1])>1e-6&&move.travel!=='combed') {
+        // A sub-grid XY adjustment can share the same written coordinates as
+        // the preceding point. Only actual exported XY travel needs clearance.
+        const writtenXYChanges = [0,1].some(k => Number(move.to[k].toFixed(5)) !== Number(pos[k].toFixed(5)));
+        if(move.volumeMm3===0&&writtenXYChanges&&move.travel!=='combed') {
           assert.ok(Math.abs(pos[2]-move.to[2])<1e-7&&move.to[2]>=high+plan.process.liftMm-1e-7);
         }
         if(move.volumeMm3>0)high=Math.max(high,pos[2],move.to[2]);

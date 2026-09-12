@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs';
 import { importSTLBundle } from '../../../core/print/import-stl.mjs';
+import { readGuidance } from './manuals.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const idSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/).refine(id => !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i.test(id), 'Reserved filename.');
@@ -22,12 +23,7 @@ const printIdSchema = z.string().min(1).max(384).refine(id => {
     && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part));
 }, 'Invalid print name: use up to three relative folder names, without traversal, reserved names or Windows path characters.');
 const kindSchema = z.enum(['shell', 'wedge']);
-const skillIds = ['draped-skin', 'full-fill', 'pipe-cladding', 'planar-infill', 'rimming-normal', 'rimming-planar', 'supports', 'vase-wall', 'wedge-demo'];
-const guidanceFiles = {
-  makers: 'MAKERS.md', development: 'DEVELOP.md', glossary: 'GLOSSARY.md',
-  mcp: 'adapters/mcp/README.md', 'wedge-generation': 'skills/wedge-demo/references/generation.md',
-  'wedge-s5-export': 'skills/wedge-demo/references/s5-export.md'
-};
+const skillIds = ['draped-skin', 'full-fill', 'mesh-tools', 'pipe-cladding', 'planar-infill', 'rimming-normal', 'rimming-planar', 'supports', 'vase-wall', 'wedge-demo'];
 const objectSchema = z.record(z.string(), z.unknown());
 const bundles = {
   shell: () => import('../../../core/print/bundle.mjs'),
@@ -86,7 +82,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   const studioSessions = new Map();
   let queue = Promise.resolve();
   const server = new McpServer({ name: 'saam', version: '0.2.0' }, {
-    instructions: 'Read read_guidance("makers") and the chosen skill manual. Shared instructions are available through read_guidance IDs makers, development, glossary, mcp, wedge-generation and wedge-s5-export. Create an unapproved print and request_review for the first geometry. Revisions happen through chat using adjust_print and expectedRevision. Only the human approves geometry, locked settings and the exact toolpath in Studio. generate_print uses the approved plan; deliver_print copies the reviewed bytes. No tool approves or runs hardware.'
+    instructions: 'Start with read_guidance using guidanceId "makers", then the skill for the requested task. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create an unapproved print and request_review for the first geometry. Revisions happen through chat using adjust_print and expectedRevision. Only the human approves geometry, locked settings and the exact toolpath in Studio. generate_print uses the approved plan; deliver_print copies the reviewed bytes. No tool approves or runs hardware.'
   });
 
   async function directory(printId, { create = false } = {}) {
@@ -132,8 +128,11 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     const found = [];
     for (const id of skillIds) {
       try {
-        const manual = await readFile(resolve(root, 'skills', id, 'SKILL.md'), 'utf8');
-        found.push({ id, description: manual.match(/^description:\s*(.*)$/m)?.[1] ?? '', manualTool: 'read_skill' });
+        const { text: manual } = await readGuidance(root, `skills/${id}/SKILL.md`);
+        const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(manual)?.[1] ?? '';
+        const metadata = /^metadata:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/m.exec(frontmatter)?.[1] ?? '';
+        found.push({ id, kind: /^[ \t]+saam-kind:[ \t]*task[ \t]*$/m.test(metadata) ? 'task' : 'printing',
+          description: frontmatter.match(/^description:[ \t]*(.*)$/m)?.[1] ?? '', manualTool: 'read_skill' });
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
     return found.sort((a, b) => a.id.localeCompare(b.id));
@@ -158,14 +157,14 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List the known local skill manuals. This fixed list does not establish recipe compatibility. Read the relevant manual before preparing a recipe.', {}, skills);
-  tool('read_skill', 'Read a known skill manual by ID. Root and required wedge reference instructions are available through read_guidance.', { skillId: idSchema }, async ({ skillId }) => {
+  tool('list_skills', 'List the known local printing and task skill manuals. This fixed list does not establish recipe compatibility; task skills are not deposition operations. Select the manual relevant to the requested task.', {}, skills);
+  tool('read_skill', 'Read a known skill manual by ID. Follow its relevant documentation links with read_guidance.', { skillId: idSchema }, async ({ skillId }) => {
     if (!(await skills()).some(skill => skill.id === skillId)) throw new Error('Unknown skill ID. Use list_skills.');
-    return { skillId, manual: await readFile(resolve(root, 'skills', skillId, 'SKILL.md'), 'utf8'), guidanceIds: Object.keys(guidanceFiles) };
+    const { text: manual, ...reference } = await readGuidance(root, `skills/${skillId}/SKILL.md`);
+    return { skillId, manual, ...reference };
   });
-  tool('read_guidance', 'Read fixed shared instructions: makers, development, glossary, mcp, wedge-generation or wedge-s5-export. This is a bounded manual reader, not filesystem access or capability discovery.',
-    { guidanceId: z.enum(Object.keys(guidanceFiles)) }, async ({ guidanceId }) => ({ guidanceId,
-      text: await readFile(resolve(root, guidanceFiles[guidanceId]), 'utf8'), guidanceIds: Object.keys(guidanceFiles) }));
+  tool('read_guidance', 'Read published repository Markdown by relative path, optionally with #heading for one section. Results include resolved documentation links and headings. Short IDs: makers, development, glossary, mcp, print-tools. This reader does not expose private files, source code or register capabilities.',
+    { guidanceId: z.string().min(1).max(1024) }, async ({ guidanceId }) => readGuidance(root, guidanceId));
   tool('get_plan_template', 'Get the current complete proposed recipe for a bundle kind and machine, including remembered setup when available. Defaults and remembered setup never confer job approval.',
     { kind: kindSchema, machineId: z.string() }, async ({ kind, machineId }) => ({ kind, machineId,
       plan: await (await bundles[kind]()).proposedPlan(machineId, { setupFile: await setupFile(machineId) }) }));

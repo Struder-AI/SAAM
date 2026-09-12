@@ -15,7 +15,7 @@ import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS 
 import { validatePlan, VERSION } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
-import {toolBounds,startupPosition} from '../machine/profile.mjs';
+import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
@@ -102,6 +102,7 @@ export function generatePath(plan, machine, rhino) {
   });
   builder.setContext('start', 0);
   builder.motionBounds=bounds;
+  builder.retracted=startupRetracted(machine,plan);
   builder.fan(0);
 
   const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
@@ -143,10 +144,10 @@ export function generatePath(plan, machine, rhino) {
     requireThat(!(useFill&&useNormal&&fill.mode==='body'),'Full-fill body and planar-infill overlap; select full-fill solid-surfaces mode or separate components.');
     requireThat(!(useFill&&fill.mode==='solid-surfaces'&&!useNormal),'Solid-surface selection requires planar-infill on the same component.');
     if(useNormal){
-      const [sparse,solid]=planarInfillResults({shell,plan,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
+      const [sparse,solid]=planarInfillResults({shell,plan,machine,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
       results.push(sparse);normalResults.push(sparse);
       if(solid){results.push(solid);fillResults.push(solid);}
-    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,reserve:useVase?null:survey,zEndMm:baseTop,
+    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,
       ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1})}:{})});results.push(result);fillResults.push(result);}
   }
   if(fillResults.length){
@@ -169,7 +170,7 @@ export function generatePath(plan, machine, rhino) {
   if(plan.skills['pipe-cladding'].enabled){const result=pipeCladdingResult({plan,shell:placed,after:results.flatMap(r=>r.operations.map(op=>op.id))});results.push(result);summary.pipeCladding=result.report;}
   const rims=[...rimmingPlanarResults({plan,modelResults:results}),...rimmingNormalResults({plan,modelResults:results})];
   if(rims.length){results.unshift(...rims);summary.rimming=rims.map(r=>r.report);}
-  const supports=supportResults({plan,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});
+  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});
   if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
   summary.composition=composeResults(builder,results,plan.composition);
 

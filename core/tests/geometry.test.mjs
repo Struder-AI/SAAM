@@ -16,6 +16,13 @@ const circle = (cx, cy, r, n = 240) => Array.from({ length: n }, (_, i) => {
   return [cx + r * Math.cos(t), cy + r * Math.sin(t)];
 });
 
+test('level-set material does not disappear under a linear chord threshold',()=>{
+  const field={xs:[0,1],ys:[0,0.0005],values:[[1,1],[-1,-1]]};
+  const loops=levelSetRegion(field,0);
+  assert.equal(loops.length,1);
+  assert.ok(Math.abs(area(loops)-0.00025)<1e-12);
+});
+
 test('our NURBS evaluation agrees with rhino3dm on rational and polynomial surfaces', () => {
   const cases = [
     ['sphere', rhino.NurbsSurface.createFromSphere(new rhino.Sphere([1, 2, 3], 5))],

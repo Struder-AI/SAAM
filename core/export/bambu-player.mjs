@@ -7,9 +7,11 @@ export function interpretBody(body,plan,machine,options={}){
   requireThat(body.startsWith(prelude(plan)),'H2D body is missing its explicit modal/temperature state.');
   // Physical T selectors and firmware macros belong only to the pinned envelope.
   for(const line of gcodeLines(body))requireThat(!/^T\d/.test(line.trim()),'H2D body cannot change the selected tool.');
-  const program=interpretMotion(body,plan,machine,{...options,extrusionMode:'relative'}),bounds=toolBounds(machine,plan.setup.tool);
-  requireThat(program.moves.every(m=>[m.from,m.to].every(p=>p.every((v,i)=>v>=bounds.min[i]-1e-5&&v<=bounds.max[i]+1e-5))),'H2D body exceeds selected nozzle area.');
-  return program;
+  const bounds=toolBounds(machine,plan.setup.tool),start=[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm];
+  requireThat(start.every((v,i)=>v>=bounds.min[i]-1e-5&&v<=bounds.max[i]+1e-5),'H2D body exceeds selected nozzle area.');
+  // interpretMotion checks each decoded endpoint against these same bounds;
+  // each following segment starts at the preceding checked endpoint.
+  return interpretMotion(body,plan,machine,{...options,extrusionMode:'relative'});
 }
 
 export function interpretBambuSource(code,plan,machine,options={}) {

@@ -1,6 +1,6 @@
 import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {circlePoints,cylindricalPoint,cylindricalPose} from '../../../core/geom/cylinder.mjs';
-import {sectionGeometry} from '../../../core/geom/query.mjs';
+import {createSectionQuery} from '../../../core/geom/query.mjs';
 import {intersect} from '../../../core/region/intersection.mjs';
 import {validateSurfaceSelection} from '../../../core/geom/surface-region.mjs';
 import {surfaceCladdingResult} from './surface-clad.mjs';
@@ -29,7 +29,8 @@ export function validateCladding(plan,machine){
 export function substrateSection(shell,plan){
   const radius=plan.geometry.outerRadiusMm-plan.skills['pipe-cladding'].shells*plan.skills['pipe-cladding'].normalMm;
   const mask=[circlePoints(radius,[plan.placement.xMm,plan.placement.yMm],plan.geometry.toleranceMm)];
-  return z=>{const section=sectionGeometry(shell,z,{minFeatureMm:plan.skills['full-fill'].minFeatureMm});return {...section,loops:intersect(section.loops,mask)};};
+  const sectionAt=createSectionQuery(shell,{minFeatureMm:plan.skills['full-fill'].minFeatureMm});
+  return z=>{const section=sectionAt(z);return {...section,loops:intersect(section.loops,mask)};};
 }
 
 // With no separate perimeter bands, sample this native pipe's radial chart

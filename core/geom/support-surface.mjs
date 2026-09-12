@@ -4,8 +4,14 @@ import {evaluate} from './nurbs.mjs';
 import {sectionPatch} from './section.mjs';
 import {requireThat} from './tolerance.mjs';
 
+// Plan validation and placement both need this native surface. Reuse validity
+// by exact control-net content, never object identity or caller assertion.
+const validatedControlNets=new Set();
+
 export function supportSurface(spec,placement={xMm:0,yMm:0}) {
   const {degreeU,degreeV,controlPoints}=spec;
+  const key=JSON.stringify([degreeU,degreeV,controlPoints]);
+  if(!validatedControlNets.has(key)){
   requireThat(Array.isArray(controlPoints)&&controlPoints.length>=2,'Rimming surface needs a control net.');
   const nu=controlPoints.length,nv=controlPoints[0]?.length;
   for(const [degree,count] of [[degreeU,nu],[degreeV,nv]])requireThat(Number.isInteger(degree)&&degree>=1&&degree<=3&&count>degree,'Rimming spline degrees must be 1–3 with enough control points.');
@@ -13,6 +19,10 @@ export function supportSurface(spec,placement={xMm:0,yMm:0}) {
   // Positive V height derivatives make horizontal sections single-valued in U,
   // needed by offset refinement. This is not an overhang-angle restriction.
   requireThat(controlPoints.every(row=>row.every((p,j)=>p[2]>=0&&(j===0||p[2]>row[j-1][2]))),'Rimming surface must rise monotonically from its base along V, above the bed.');
+  validatedControlNets.add(key);
+  if(validatedControlNets.size>16)validatedControlNets.delete(validatedControlNets.values().next().value);
+  }
+  const nu=controlPoints.length,nv=controlPoints[0].length;
   const knots=(count,degree)=>Float64Array.from(Array.from({length:count+degree+1},(_,i)=>i<=degree?0:i>=count?1:(i-degree)/(count-degree)));
   const cp=new Float64Array(nu*nv*4),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   controlPoints.forEach((row,i)=>row.forEach((p,j)=>{

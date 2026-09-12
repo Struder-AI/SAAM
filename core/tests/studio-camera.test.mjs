@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProjection} from '../../studio/camera.mjs';
 import {toolpathStyle,CURRENT_LAYER_GAP_MM} from '../../studio/toolpath-view.mjs';
+test('pan translates screen positions without changing depth or scale at every camera angle',()=>{
+  for(const [yaw,tilt] of [[-.78,.62],[0,0],[0,Math.PI/2]])for(const zoom of [.08,1,4]){
+    const bounds={min:[-4,2,0],max:[40,60,100]},base=createProjection(bounds,600,400,yaw,tilt,zoom);
+    const panned=createProjection(bounds,600,400,yaw,tilt,zoom,[120,-85]);
+    assert.equal(base.pixelsPerMm,panned.pixelsPerMm);
+    for(const p of [bounds.min,bounds.max,[0,0,0]]){
+      const a=base(p),b=panned(p);assert.ok(Math.abs(b[0]-a[0]-120)<1e-9);assert.ok(Math.abs(b[1]-a[1]+85)<1e-9);assert.equal(b[2],a[2]);
+    }
+  }
+});
 test('deposited stroke width uses the same millimeter scale as positions at every zoom and viewport size',()=>{
   const bounds={min:[0,0,0],max:[20,20,12]},current={layer:1,phase:'planar',extruding:true};
   for(const [width,height] of [[527,401],[1054,802]])for(const zoom of [.08,1,2,4])for(const lineWidthMm of [.3,.4,.8]){

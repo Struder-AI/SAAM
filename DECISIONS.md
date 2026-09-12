@@ -12,6 +12,13 @@ remettub. Other entries record only the approvals stated in their metadata.
 The timestamp is when the instructions were recorded; the conversation does not
 expose an exact timestamp for the human's message.
 
+Contributor status and current work authorization are distinct. Entries D-021
+onward record explicit user direction whose contributor identity was not
+attributed; `proposed` does not negate that authorization. Follow their stated
+scope for implementation. Earlier attributed approvals remain historical
+records and are not extended to later wording. In particular, [D-027](#d-027--export-only-print-persistence)
+owns current print persistence; D-015 and D-019 preserve the earlier wording.
+
 ## Statuses
 
 | Status | Meaning |
@@ -167,6 +174,8 @@ will be useful.” Source R8: remettub clarified the destination is directly
 
 ## D-015 — Local print bundles
 
+Historical approved wording; current persistence direction is [D-027](#d-027--export-only-print-persistence).
+
 - Decision: Keep prints in a local Prints folder; a print bundles its process plan, native path and output toolpath. Share only specifically curated examples.
 - Status: provisional
 - Recorded: 2026-09-08T22:28:14Z
@@ -198,6 +207,8 @@ will be useful.” Source R8: remettub clarified the destination is directly
 - Source: R5, “Let's use SAAMpath”.
 
 ## D-019 — A print includes SAAMpath and its export
+
+Historical approved wording; current persistence direction is [D-027](#d-027--export-only-print-persistence).
 
 - Decision: Bundle SAAMpath and the export produced from it; the export must match an output option declared by the machine file.
 - Status: provisional
@@ -261,9 +272,7 @@ will be useful.” Source R8: remettub clarified the destination is directly
 - Recorded: 2026-09-10T08:39:05Z
 - Approvals: Current user explicitly directed this behavior and requested its recording; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in the infill/support task: “I do NOT like how deterministic slicers automatically scan the whole part and assign support area based on angle, so we will not be doing that.” Follow-up in the same message: “Record the decision. We will be using judgement to assign support areas.”
-- Scope: Active implementation instruction. Local geometry queries may construct assigned supports and their clearances; they do not decide where support is needed. Existing geometry, locked-plan and toolpath approvals remain unchanged. Rimming support behavior awaits the user's description; its name does not define an algorithm. Contributor status remains proposed until attribution is provided; no contributor consensus is inferred.
-- Subsequent clarification, 2026-09-10: the user defined edge-based bivariate spline rimming supports with two outward bead paths, bed/edge bases and a 45-degree lean preference that is guidance only. They requested separate horizontal-offset and surface-normal-offset skills for comparison. See the [rimming specification](DEVELOP.md#rimming-support-specification); no automatic support-area assignment or contributor attribution is added by this clarification.
-- Ordering clarification, 2026-09-10: both rimming skills wait until every part of the base edge has printed, then finish completely before anything they support starts printing. Among operations whose dependencies are satisfied, try to keep heights similar across all skills in the mix. Planar cases use the same rules, with horizontal boundaries as the degenerate case. This is the user's active implementation instruction; contributor attribution remains unchanged.
+- Scope: Active implementation instruction, including the user's 2026-09-10 rimming and ordering clarifications. Local geometry queries construct assigned supports and clearances; they do not decide where support is needed. Rimming uses assigned bivariate spline surfaces, two outward bead paths and bed/edge bases, with separate horizontal-offset and surface-normal-offset skills for comparison. The 45-degree lean preference is guidance. Both skills wait for the entire base edge, then finish before anything they support starts; among ready operations, prefer similar printing heights across skills. Planar boundaries are the horizontal case of these rules. The [rimming specification](skills/rimming-planar/DEVELOP.md#rimming-support-specification) owns the construction details. The three job approvals remain unchanged.
 
 ## D-026 — Closest region entry first; defer heat considerations
 
@@ -272,5 +281,14 @@ will be useful.” Source R8: remettub clarified the destination is directly
 - Recorded: 2026-09-10T19:08:43Z
 - Approvals: Current user explicitly requested implementation and recording of the heat deferral; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in the region-ordering task, 2026-09-10: “We don't need to consider heat (yet - record this decision to defer these considerations).” Follow-up in the same message: “Just a simple \"jump to closest entry point\" would be a massive improvement already. Let's implement that first, show it to me on the flange part, and then we will see if a more complex algorithm is justified.”
-- Scope: Active implementation instruction. Compare the two endpoints of each existing region zigzag by straight-line XYZ distance, allowing whole-region reversal. Keep operation/support dependencies and shared travel handling. Lookahead, travel-time scoring and heat balancing are deferred; existing layer cooling remains unchanged. Contributor consensus and manufacturing approval are not inferred.
-- Implementation correction, 2026-09-10: the user observed that the flange did not appear to choose the nearest endpoint, pointing to playback near 5:08. The initial implementation coupled reversal of row order and stroke direction, omitting two valid entries. Consider both endpoints of both end rows (up to four entries), choosing row order and stroke direction independently. This corrects the nearest-entry scope above and retains the same heat/lookahead deferrals.
+- Scope: Active implementation instruction, including the 2026-09-10 endpoint correction. Compare both endpoints of both end rows (up to four entries) by straight-line XYZ distance; choose row order and stroke direction independently. Keep operation/support dependencies, shared travel handling and existing layer cooling. Lookahead, travel-time scoring and heat balancing are deferred.
+- Correction source: the user observed missed nearest entries in flange playback near 5:08. The initial two-entry implementation and subsequent comparison measurements are retained in [BR-036](build_request.md#br-036--closest-entry-ordering-for-segmented-fill).
+
+## D-027 — Export-only print persistence
+
+- Decision: Persist the checked machine export, plan, geometry and review records in local print bundles. SAAMpath motion is transient during generation; do not require a saved intermediate path or regenerate an unchanged export when reopening. Review and delivery use the saved export, in an output option declared by the machine file.
+- Status: proposed
+- Recorded: 2026-09-11T21:41:51Z
+- Approvals: Current user explicitly requested the persistence change; remettub — not attributed in the source record; tkeller — not recorded.
+- Source: User instruction recorded 2026-09-10 in [BR-030](build_request.md#br-030--export-only-bundles-and-measured-flange-speed): remove mandatory saved SAAMpath and regeneration on Studio reopen. This is a summary of the preserved request, not a verbatim quotation.
+- Scope: Current implementation direction replaces the saved-path requirement in D-015/D-019. Their attributed approval metadata is preserved; formal contributor supersession remains unresolved. Local-only storage, curated sharing, machine-declared outputs and the three job approvals are unchanged.

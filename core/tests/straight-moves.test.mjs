@@ -5,6 +5,22 @@ import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 
 function builder(){const machine=loadMachine(),plan=defaults(machine);return new PathBuilder({start:[10,10,1],process:plan.process,machine,generatorVersion:'test'});}
+test('short representable segments retain the start used by the next variable-volume move',()=>{
+  const b=builder(),first=[10.00002,10.00001,1],second=[10.05,10.04,1];
+  const length=(a,c)=>Math.hypot(...a.map((v,i)=>v-c[i]));
+  const width=.4,gap=.03;
+  b.move(first,10,length(b.position,first)*width*gap,{gapMm:gap});
+  b.move(second,10,length(first,second)*width*gap,{gapMm:gap});
+  assert.equal(b.actions.length,2,'a short corner survives the five-decimal coordinate grid');
+  let previous=b.start;
+  for(const action of b.actions){
+    assert.ok(Math.abs(action.volumeMm3-length(previous,action.to)*width*action.gapMm)<1e-12);
+    previous=action.to;
+  }
+  const crossing=builder();crossing.position=[10.0000049,10,1];crossing.start=[...crossing.position];
+  crossing.move([10.0000051,10,1],10,0);
+  assert.equal(crossing.actions.length,1,'even a sub-grid distance can cross a rounding boundary');
+});
 test('all skill writers coalesce a straight run while preserving volume and endpoints',()=>{
   for(const phase of ['planar','draped-skin','vase-wall','inclined']) {
     const b=builder();b.setContext(phase,1);b.operationId=phase+':test';

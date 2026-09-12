@@ -6,47 +6,29 @@ description: Generate solid planar layers or selected solid surface regions on c
 # Full fill
 
 Use for a solid planar body or for solid top/bottom regions alongside
-[planar-infill](../planar-infill/SKILL.md). Read [MAKERS.md](../../MAKERS.md);
-developers also read [DEVELOP.md](../../DEVELOP.md).
+[planar-infill](../planar-infill/SKILL.md). For maker work, read
+[MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
 
 Supported geometry: validated indexed triangle meshes (including STL import),
 closed untrimmed spline shells from the existing shape builders, and assemblies
 of those components. Arbitrary edited 3DM and trimmed CAD import are unsupported.
 The shared geometry interface supplies each layer's real cross section.
 Closed planar masks and material reservations use the
-[shared Clipper2 region tool](../../DEVELOP.md#shared-planar-intersections).
+[shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections).
 This does not add new input geometry types.
 
 Software checks exercise this skill on both S5 and H2D profiles and both geometry
 backends, including the shared export, toolpath review and delivery workflow.
-H2D output is experimental; read its [machine contract](../../DEVELOP.md#h2d-output-contract)
+H2D output is experimental; read its [machine contract](../../core/export/bambu.md#h2d-output-contract)
 before use. Firmware service routines are not simulated by playback.
 No physical print from this skill has been validated.
 
 ## Setup and tools
 
-Install with `npm ci` using Node.js 22+. From the repository root:
-
-- `node core/print/cli.mjs init Prints/<name> [plan.json] [--machine <machine-id>]`
-  creates unapproved geometry and settings. Machine IDs are `ultimaker-s5`
-  (default) and `bambu-h2d`. Remembered setup is kept separately per machine.
-- `node core/print/cli.mjs import-stl Prints/<name> <source.stl> <mm|inch> [machine-id]`
-  imports ASCII/binary STL. Explicit units, source bytes/hash and the translation
-  onto the bed are saved before geometry review. Review size and placement.
-- `npm run studio -- Prints/<name>` opens the shared three-approval workflow.
-- `node core/print/cli.mjs adjust Prints/<name> patch.json` applies chat changes.
-  Geometry edits invalidate all approvals; settings edits preserve geometry approval.
-- `node core/print/cli.mjs demo Prints/<name>` generates a development bundle
-  without approvals on a machine with an implemented exporter/interpreter.
-- `node core/print/cli.mjs check-path Prints/<name>` runs the same generator and
-  machine checks without producing or approving a machine file. This supports
-  profile development, including H2D; it is not a second viewer or delivery path.
-- `node core/print/cli.mjs check Prints/<name>` verifies saved geometry and any
-  generated export against the locked plan.
-- `node core/print/cli.mjs remember-setup Prints/<name>` remembers setup for that machine.
-- `node core/print/cli.mjs upgrade Prints/<name>` upgrades its machine snapshot
-  and invalidates plan/toolpath approvals. Existing delivery bytes stay unchanged.
-- `node core/print/cli.mjs deliver Prints/<name>` delivers only the exact approved export.
+Use the [shared print tools](../../core/print/USAGE.md) to create or import a
+shell print, adjust its recipe, and complete review and delivery. This manual
+owns the full-fill settings and composition choices below.
 
 ## Settings
 
@@ -94,7 +76,7 @@ combing stays inside the allowed region at print height, with routes around
 holes when possible within `maxCombMm`. Other traverses clear the highest material
 deposited so far across all skills plus `liftMm` (default 1 mm; zero allowed).
 Cooling uses the same height; an out-of-bounds clearance is rejected.
-This is not a full head collision model. See [shared travel](../../DEVELOP.md#whole-plan-travel-requirement).
+This is not a full head collision model. See [shared travel](../../core/path/README.md#whole-plan-travel-requirement).
 
 ## Composition and limits
 
@@ -112,7 +94,7 @@ selected component, component-relative Z bounds and skill setting overrides.
 Layer intervals are open at the start and closed at the end on
 the component's shared layer grid. Sparse and solid masks can share one region;
 two complete body owners cannot overlap the same material. See the
-[shared contract](../../DEVELOP.md#skill-result-composition).
+[shared contract](../../core/path/README.md#skill-result-composition).
 
 An optional `lowerSurfaceFrom` references another region's published material
 top. Full-fill keeps horizontal layers, clips them above that actual lower
@@ -135,7 +117,7 @@ base, vase, cap, sparse walls, drape and horizontal fill over the wavy lower
 surface. Its invented robot configuration is software-test data, not a usable
 hardware setup. Region settings and source references are part of plan approval.
 
-The [geometry contract](../../DEVELOP.md#geometry-interoperability-for-skill-authors)
+The [geometry contract](../../core/geom/README.md#geometry-interoperability-for-skill-authors)
 owns validation and backend limits. Mesh normals are faceted; spline contour
 sampling may miss features below `minFeatureMm`. Thin regions may disappear under
 bead-width offsets. Rectangular beads and overlap are approximations. Automatic

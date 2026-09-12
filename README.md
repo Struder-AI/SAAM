@@ -9,17 +9,14 @@ to your experience, without needing to learn CAD, slicing, or programming first.
 
 ## How it works
 
-1. Describe your part. Your agent prepares geometry for you to inspect in
-   **SAAM Studio**, and revises it with you until you approve it.
-2. Agree on the process plan: how the part will be printed, with which machine,
-   material, patterns, and settings.
-3. Inspect the generated toolpath in Studio and approve it. SAAM delivers the
-   same machine-program bytes you reviewed.
+Describe your part in chat. Your agent prepares a shape to inspect in **SAAM
+Studio**, works out the printing settings with you, and generates the toolpath
+for review. You approve the geometry, the process plan and the toolpath. SAAM
+then delivers the same machine-program bytes you reviewed.
 
-The locked process plan generates an export supported by the machine. Automated
-checks interpret that export before Studio displays it. Intermediate motion is
-kept only during generation; reopening reads the saved export without slicing
-again. Delivery adds no fourth approval.
+Your agent handles the tools and settings; you guide the result. See the
+[maker workflow](MAKERS.md#maker-interaction-flow) for how revisions and approvals
+work.
 
 ## Project direction
 
@@ -31,127 +28,46 @@ through one generation, review, and delivery workflow.
 The intended scope includes spline curves and surfaces, mesh geometry,
 3D printers, robot arms with printing end effectors, rotaries, and multi-axis
 setups. Output adapters can target G-code, Lua, or other machine languages.
-This is the product direction, not a list of implemented capabilities.
-Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md);
-the direction remains provisional where only one approval is recorded.
+This is the product direction; the references below describe implemented scope.
+Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md).
 
-Mesh imports use native indexed triangles. Existing spline geometry keeps direct
-spline slicing and Rhino/3DM storage; both backends serve the same skill queries.
-See [geometry interoperability](DEVELOP.md#geometry-interoperability-for-skill-authors)
-and the requested direction in [D-021](DECISIONS.md#d-021--native-mesh-geometry).
 Skills should work across geometry types and machines through shared interfaces,
 with explicit, narrow exceptions. Prints keep geometry, the process plan,
-the checked export, and review records together locally.
+the checked export, and review records together locally. The
+[developer principles](core/README.md#interoperability-and-one-workflow) explain
+how changes extend this shared system.
 
 ## What works today
 
-The bounded development demo supports an UltiMaker S5 or experimental Bambu H2D wedge with horizontal body layers
-and a planar roof up to 15° in any direction. It includes native eight-point mesh geometry, SAAMpath, machine-specific
-export, automated checks, and a local SAAM Studio viewer. The same bounded wedge
-also has configured Dobot software export/review/delivery checks.
+This is a development checkout. Choose a pattern through the [skill
+index](skills/README.md); each manual owns its current shapes, settings and limits.
+[Machine support and output contracts](core/export/README.md#machine-interoperability-design)
+describe what each machine's export and playback cover, including the scope of
+reported physical observations. Software checks do not establish physical print
+success.
 
-[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md),
-[draped-skin](skills/draped-skin/SKILL.md) and [vase-wall](skills/vase-wall/SKILL.md)
-share operation composition, export and the Studio approval/delivery workflow.
-Their manuals own their current shapes and limitations. STL/mesh input and
-five planar infill options are available. [Assigned supports](skills/supports/SKILL.md)
-adds conventional bed-rooted footprints and explicit tree skeletons through the
-same workflow; the agent and maker choose the support areas using judgment.
-Automatic angle-based assignment and branch routing are not implemented.
-Edge-based spline supports have [horizontal-offset](skills/rimming-planar/SKILL.md)
-and experimental [normal-offset](skills/rimming-normal/SKILL.md) rimming skills
-for comparison. Mesh and
-restricted spline shapes are supported. Vase-wall prints a continuous rising
-outer wall from a single supported convex section. Skills can be assigned to
-different material regions of the same part: for example, a solid base, vase
-wall with a level ending, flat cap, infill beneath a draped roof, then horizontal
-full fill above that wavy surface. Shared boundaries account for material and
-printing order; experimental bridging and geometry limits remain explicit.
-See [material regions](DEVELOP.md#material-regions-and-shared-interfaces).
-These skills have software checks against S5, H2D and configured Dobot profiles.
-H2D has experimental sliced-3MF export through the same
-review/delivery workflow; its firmware service routines are not simulated.
-See the [H2D output scope](DEVELOP.md#h2d-output-contract). General trimmed CAD import is not implemented.
-Software checks do not establish physical
-print success. The user has reported that the latest S5 wedge startup avoids bed
-leveling and unused-nozzle heating; complete print validation remains open.
-See [implementation and observations](DEVELOP.md).
+The [MCP adapter](adapters/mcp/README.md) connects compatible chat clients to the
+same local workflow. Its manual covers available tools, local connections and
+the temporary web-chat bridge.
 
-The experimental [Dobot MG400 output](DEVELOP.md#dobot-output-contract) uses the
-same bundles, three approvals and exact-byte delivery. It requires supplied
-installation settings and exports a Lua source ZIP. Playback covers a bounded
-fixed-orientation command model; robot clearance, actual relay deposition and
-vendor project-import acceptance remain unvalidated.
+## Get started
 
-The experimental [pipe-cladding demo](skills/pipe-cladding/SKILL.md) targets the
-user's DENSO VP-6242 / RC8 with an external rotary. It prints concentric substrate
-loops followed by alternating axial and helical radial shells with a tilted
-nozzle. The same composer, bundles and Studio play exported PacScript source,
-with rotating-bed and part-following views. Calibration and the actual rotary
-interface remain unresolved; robot feasibility and physical deposition are unchecked.
+Give your agent this repository and describe what you want to make. Agents start
+at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
-The [local MCP adapter](adapters/mcp/README.md) lets a compatible local chat
-client create and adjust prints, open Studio, generate approved plans and deliver
-reviewed files. Its small fixed lists cover this development checkout; automatic
-discovery is [deferred](DECISIONS.md#d-022--defer-automatic-capability-discovery).
-No MCP tool approves a job. A [temporary web-chat connection](adapters/mcp/README.md#temporary-web-chat-connection)
-adds OAuth-protected HTTP access through an outbound HTTPS tunnel, using the
-same local tools and Studio. Vendor-account compatibility must be verified
-separately; a packaged Windows/Mac application remains a future direction.
+For a manual development trial, follow [setup and checks](CONTRIBUTING.md#setup-and-checks)
+and the [wedge demo manual](skills/wedge-demo/SKILL.md). The demo produces a
+development preview; human job approval remains separate.
 
-## Try the development demo
-
-Codex and Claude Code users get shared Studio launcher permissions with this
-checkout after trusting the project. Your agent handles the
-[initial Studio permission setup](DEVELOP.md#studio-agent-permissions) as needed;
-browser access may require a separate initial allowance.
-
-With Node.js 22+ and Git:
-
-```sh
-npm ci
-npm test
-npm run demo
-npm run studio
-```
-
-Open the local Studio URL printed by the command whenever you are ready. Each
-launch gets its own free port and closes after its last viewer tab closes; the
-saved print remains available to restart. The demo uses right nozzle #2,
-AA 0.4 and PLA at 215°C. Standard S5 startup is assumed; installed firmware
-information is optional. Its development preview creates no human approvals.
-Physical clearance is the operator's responsibility for this demo.
-Read the [wedge skill](skills/wedge-demo/SKILL.md) for the three-approval
-workflow, or [full-fill](skills/full-fill/SKILL.md) for the shared-core workflow:
-
-```sh
-npm run shell -- init Prints/my-part
-npm run studio -- Prints/my-part
-```
-
-Local print bundles belong in ignored `Prints/`; curated examples belong in
-`examples/prints/`. A personal architecture map may live in ignored
-`.local/architecture-map/`; it is optional and is not shipped in the repository.
+Personal prints stay local in ignored `Prints/`. Selected shared examples belong
+in `examples/prints/`.
 
 ## Reading and contributing
 
-This README introduces the project to people and agents. Agents can use it for
-product context. [AGENTS.md](AGENTS.md) routes agents to the instructions for
-their task: maker agents use SAAM, and developer agents build it and exercise
-the maker workflow in development tests.
-
-- [MAKERS.md](MAKERS.md): guidance for helping a person make a part.
-- [DEVELOP.md](DEVELOP.md): developer rules, setup, shared formats and organization.
-- [skills/README.md](skills/README.md): available printing skills and their manuals.
-- [GLOSSARY.md](GLOSSARY.md): shared terms.
-- [DECISIONS.md](DECISIONS.md): contributor choices and approval status.
-- [build_request.md](build_request.md): requested work and dated implementation history.
-
-This is a clean restart with selective adoption. The previous runtime remains
-recoverable from Git history. The user authorized restoration of MCP access,
-Dobot machine/Lua support and vase-wall on 2026-09-09 through the shared pipeline.
-Further legacy components require explicit human approval before adoption.
-See [legacy reference](DEVELOP.md#legacy-reference).
+Start with the [developer orientation](DEVELOP.md) for code or documentation
+work. Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
+contributor choices, and the [outstanding work index](build_request.md#outstanding-work)
+for requested work and dated implementation history.
 
 The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).
 Licensing remains in [LICENSE](LICENSE).

@@ -57,11 +57,16 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok((await call('list_skills')).some(skill => skill.id === 'full-fill'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'pipe-cladding'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'task'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   assert.match((await call('read_skill', { skillId: 'wedge-demo' })).manual, /eight-point/i);
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
-  assert.match(guidance.text, /three human approval/i);
-  assert.ok(guidance.guidanceIds.includes('wedge-generation'));
+  assert.equal(guidance.text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
+  assert.equal(guidance.path, 'MAKERS.md');
+  assert.ok(guidance.links.some(link => link.guidanceId.startsWith('skills/')));
+  assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
+  const section = await call('read_guidance', { guidanceId: 'core/export/griffin.md#s5-startup-observations' });
+  assert.match(section.text, /^### S5 startup observations/);
   assert.match((await call('read_guidance', { guidanceId: 'wedge-s5-export' })).text, /Griffin/);
   await call('read_guidance', { guidanceId: '../package.json' }, /validation|Invalid/i);
   const machines = await call('list_machines');
@@ -223,6 +228,7 @@ test('MCP STL import preserves source/units and remembered setup across native b
   await call('import_stl_print', { printId: 'Projects/Inch Part', sourcePath, units: 'unknown', machineId: 'ultimaker-s5' }, /validation|Invalid/i);
   await call('import_stl_print', { printId: 'Projects/Inch Part', sourcePath: 'relative.stl', units: 'inch', machineId: 'ultimaker-s5' }, /absolute path/);
   const created = await call('import_stl_print', { printId: 'Projects/Inch Part', sourcePath, units: 'inch', machineId: 'ultimaker-s5' });
+  assert.doesNotMatch(JSON.stringify(created), /mesh-tools/);
   const dir = resolve(printsRoot, 'Projects/Inch Part');
   assert.deepEqual(created.approvals, { geometry: false, plan: false, toolpath: false });
   assert.deepEqual(await readFile(resolve(dir, 'geometry/source.stl')), source);
@@ -242,6 +248,22 @@ test('MCP STL import preserves source/units and remembered setup across native b
   assert.equal((await again.call('get_print', { printId: 'Projects/Inch Part' })).revision, state.revision);
   await writeFile(resolve(dir, 'geometry/source.stl'), Buffer.from('changed source'));
   await call('check_print', { printId: 'Projects/Inch Part' }, /source changed/);
+});
+
+test('MCP rejected mesh import retains its diagnostic and routes to a readable task manual', async t => {
+  const { call, printsRoot } = await fixture(t);
+  const mesh = boxMesh();
+  mesh.triangles.pop();
+  const sourcePath = resolve(printsRoot, 'SYNTHETIC open mesh.stl');
+  await writeFile(sourcePath, asciiSTL(mesh));
+  await call('import_stl_print', { printId: 'Open mesh', sourcePath, units: 'mm', machineId: 'ultimaker-s5' },
+    /closed, manifold.*read_skill.*mesh-tools/s);
+  const manual = await call('read_skill', { skillId: 'mesh-tools' });
+  assert.equal(manual.path, 'skills/mesh-tools/SKILL.md');
+  assert.match(manual.manual, /repair-stl/);
+  const reference = manual.links.find(link => link.guidanceId.startsWith('core/geom/README.md'));
+  assert.ok(reference);
+  assert.equal((await call('read_guidance', { guidanceId: reference.guidanceId })).path, 'core/geom/README.md');
 });
 
 test('MCP reopens shared nested names, rejects ancestor junctions and migrates old versions without overwriting delivery', async t => {

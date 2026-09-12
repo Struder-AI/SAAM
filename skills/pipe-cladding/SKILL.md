@@ -5,7 +5,8 @@ description: Print a full-fill substrate and alternate axial/helical cladding on
 
 # Pipe cladding
 
-Read [MAKERS.md](../../MAKERS.md); developers also read [DEVELOP.md](../../DEVELOP.md).
+For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
 This is a bounded development implementation for the DENSO VP-6242 with RC8 and
 an external rotary. RC8 is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
@@ -75,7 +76,7 @@ existing fixed-orientation scope.
 
 ## Machine setup and source output
 
-Read the [RC8 output contract](../../DEVELOP.md#denso-rc8-output-contract).
+Read the [RC8 output contract](../../core/export/denso.md#denso-rc8-output-contract).
 The profile is unconfigured by default. Record the actual tool/work frames,
 arm group and figure, rotary interface/axis/sign/zero, bed center, frame offset/yaw,
 initial position/orientation, relay IO and measured relay rate in `setup.denso`.
@@ -132,8 +133,8 @@ Select **Follow build plate** to inspect stationary part coordinates. Both views
 use one source interpreter and timeline. The nozzle direction is shown; robot
 joint/arm animation is intentionally absent because no joint solutions were computed.
 
-Normal use follows the same `init`, `adjust`, `check`, generation, Studio approvals
-and exact-byte `deliver` lifecycle as [full-fill](../full-fill/SKILL.md). The fixed
+Normal use follows the [shared print tools](../../core/print/USAGE.md) for recipe
+adjustment, Studio review and delivery. The fixed
 MCP catalog includes this manual and machine. Do not reuse synthetic fixture
 calibration for an actual installation.
 

@@ -1,45 +1,57 @@
 # Build requests
 
-Track concrete development work here. Decisions belong in [DECISIONS.md](DECISIONS.md);
-terms belong in [GLOSSARY.md](GLOSSARY.md). Implementation status is not approval status.
+Start with [outstanding work](#outstanding-work), then read the request relevant
+to the task. The records below preserve request sources and development evidence;
+they are not a current capability catalog. The [component references](core/README.md)
+and skill manuals describe the implementation. [DECISIONS.md](DECISIONS.md) owns direction
+and contributor approval; implementation status is not approval status.
 
-## BR-034 — Shared Studio permissions for Codex and Claude Code
+## Outstanding work
 
-- Source: user requested repo-shared permission scope for agents to open, use and close their Studio instances without repeated prompts, then authorized implementation for Codex and Claude on 2026-09-10.
-- Implemented: a trusted-project Codex rule and shared Claude Code Bash/PowerShell rules for `node studio/server.mjs`, with a matching Claude Bash sandbox exclusion. Shared agent instructions cover first-use setup, the direct launcher, browser review and ownership-preserving closure through the existing viewer lifetime. README links the setup; personal Claude overrides are ignored.
-- Scope: project trust and browser permissions remain client-owned; restrictive policies still apply. Rules trust the script and its imports and do not create an OS-level Studio-only boundary. Claude Desktop/web MCP setup and the three human manufacturing approvals remain separate.
-- Verification: the installed Codex CLI accepts the rule's positive/negative examples, allows the Studio launch and leaves inline Node execution unmatched. Claude settings parse as JSON and use documented rule forms; Claude Code is not installed here, so live Claude behavior and browser permission persistence across ports are unverified.
+The relevant records own each item's remaining work and evidence:
+
+- Slicing performance and repeated validation: [BR-039](#br-039--remove-repeated-validation-and-make-slicing-progress-truthful), with subsequent measurements in [BR-041](#br-041--complete-shared-clipper2-integration).
+- Precision audit follow-through: [BR-040](#br-040--dimension-aware-precision-audit-and-developer-guidance).
+- Matched slicer/public-workflow comparison: [BR-023](#br-023--slicing-performance-baseline).
+- Novice workflow evaluation and a validated complete print: [BR-005](#br-005--first-complete-print), [BR-006](#br-006--saam-studio-interaction-and-export-interpretation) and [evaluation direction](#what-should-earn-adoption-next).
+- H2D reference acceptance and corrected physical retest: [BR-018](#br-018--h2d-output-from-the-supplied-nozzle-references) and [BR-019](#br-019--h2d-wedge-and-studio-reopenactivity).
+- Actual web-client pairing and Claude plugin acceptance: [BR-026](#br-026--temporary-web-chat-connection).
+- Live Claude Code permission behavior: [BR-034](#br-034--shared-studio-permissions-for-codex-and-claude-code).
+
+These links select unfinished requests or checks; current task instructions
+determine what to take up. A limitation in a completed request is not
+automatically another implementation request. Deferred direction belongs to
+[DECISIONS.md](DECISIONS.md), including discovery (D-022), packaged deployment
+(D-023) and more complex region ordering (D-026).
+
+## Request records
+
+Completed implementation descriptions and test counts below describe their
+recorded checkpoints. Later requests may replace them. Read the linked current
+manual for present behavior; retained measurements and external observations
+apply only to their stated fixture and scope.
 
 ## Initial refresh scope — historical snapshot, 2026-09-08
 
 Authorized by remettub on 2026-09-08: finish a clean refreshed repository, commit,
 and push a new `refresh` branch directly to `Struder-AI/SAAM`.
 
-| Build now | Document now | Defer |
-|---|---|---|
-| New local map viewer and source-anchor checks | Maker/developer routing and glossary | Rhino runtime integration |
-| Dependency-free repository checks and CI | Decisions and three-approval workflow | SAAMpath encoding and generation |
-| Clean repository skeleton and local Prints exclusion | Skill-package guidance and machine-output vocabulary | Process-plan schema and manufacturing skills |
-| Preserve legacy working files locally; remove them from the active tree | Rhino/3DM direction and print-bundle contents | Studio's geometry/program viewers and a real print |
+The initial delivery was a clean skeleton, local architecture map, repository
+checks/CI, maker/developer routing and decision/vocabulary records. Runtime
+geometry, toolpath generation and Studio were deferred at that checkpoint and
+implemented in subsequent requests.
 
 Legacy reference: commit `54093cadbe87020836916d53dd29a45a06bf5528`.
 Working-folder archive destination: `../SAAM-legacy-20260908/legacy-reference/54093cadbe870/`.
-Archive scope: old adapters, interfaces, machines, operations, registry, schemas,
-tests, examples, docs/architecture, docs/authoring, ROADMAP.md, package.json and
-package-lock.json. Preserve all contents by moving those named paths; do not
-touch personal `Prints/` or `.saam/`. Following remettub's clean-folder
-clarification, the archive, old `node_modules/` and earlier `.local/fill-review/`
-work are preserved outside SAAM in the sibling archive directory. Keep
-licenses/notices and update developer entry documents. No legacy runtime is adopted.
+Old source, dependency and local fill-review work were preserved outside SAAM;
+personal `Prints/` and `.saam/` were excluded from that move. Licenses/notices
+were retained. This restart did not authorize adoption of the legacy runtime.
 
 ## BR-001 — Local architecture map
 
 - Status: complete locally
 - Requested by: remettub, 2026-09-08, restart conversation R3
-- Build: A new local map viewer with a maker-flow view and a project view; selection details, source links, drag/pin layout, and a focus view.
-- Verify: Real document anchors, clearly labelled proposed/unimplemented nodes, saved layout, working navigation, no legacy runtime adoption.
-- Location: `.local/architecture-map/` (ignored by Git).
-- Verified: Two views, 16 source anchors, node selection, cross-view navigation, search, focus, light/dark themes, and dragged positions surviving browser reload.
+- Result: ignored `.local/architecture-map/`, with maker/project views, 16 source anchors, selection/navigation, search/focus, themes and persistent dragged positions checked locally. No legacy runtime adopted.
 
 ## BR-002 — Simplify restart terminology and guidance
 
@@ -50,11 +62,10 @@ licenses/notices and update developer entry documents. No legacy runtime is adop
 
 ## Initial foundation verification — historical snapshot
 
-The old implementation is removed from the active tree. All 114 archived files
-were checked against their original SHA-256 hashes. No legacy runtime was adopted.
-The new `npm test` checks document links, decision metadata, and private-file
-exclusions, including that curated examples remain visible to Git. CI runs it
-on pushes and pull requests. These checks do not validate manufacturing behavior.
+All 114 archived files were checked against their original SHA-256 hashes.
+Initial checks covered document links, decision metadata and private-file
+exclusions; they did not validate manufacturing behavior. Current checks are
+described in the [check policy](CONTRIBUTING.md#checks).
 
 ## BR-003 — Resolve native path versus machine file
 
@@ -65,7 +76,7 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 ## BR-004 — Rhino geometry integration
 
 - Status: wedge integration implemented; general integration deferred
-- Direction: remettub selected Rhino; use 3DM as native geometry. The earlier kernel comparison is closed.
+- Historical direction: remettub selected Rhino/3DM; later mesh/direct-spline direction is recorded in [D-021](DECISIONS.md#d-021--native-mesh-geometry).
 - Result needed: Choose and test the Rhino integration method, preserve spline surfaces and feature references, and establish runtime/install/licensing requirements.
 - Wedge result: pinned rhino3dm creates a capped extrusion and six named NURBS reference surfaces; 3DM round-trip tests pass. General spline intersections and edited-file import remain deferred.
 
@@ -80,7 +91,7 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 
 - Status: bounded S5 demo implemented; general interpreter deferred
 - Result needed: Shared geometry references and a viewer that interprets the actual export, including its helper files and declared machine state. Detect unsupported behavior before review; tie approval to the reviewed version and invalidate affected approvals after changes.
-- Proposed interaction: Click-to-select geometry with shared labels; compare a feature tree and screenshot markup during usability testing. See [developer proposals](DEVELOP.md#studio-feature-references).
+- Proposed interaction: Click-to-select geometry with shared labels; compare a feature tree and screenshot markup during usability testing. See [developer proposals](studio/README.md#studio-feature-references).
 - Verify: A novice can identify a feature, request an edit, approve the three stages, and reopen the print. The delivered export is byte-identical to the reviewed export.
 - Current result: named face selection, geometry/process editing, three version-bound approvals, exact Griffin export playback, save/reopen, and byte-identical delivery tests. Novice usability and physical validation remain pending.
 
@@ -88,16 +99,15 @@ on pushes and pull requests. These checks do not validate manufacturing behavior
 
 - Status: implemented locally; physical validation pending
 - Source: user in the S5 wedge conversation, 2026-09-08: "looks good, go ahead". Setup clarified as AA 0.4, right nozzle #2, PLA at 215°C.
-- Build: S5 machine definition; Rhino wedge; horizontal solid-fill body; 15° inclined skin; SAAMpath; Griffin export; software checks; local Studio and print bundle.
+- Result: the initial Rhino/S5 wedge demonstrated horizontal body fill, inclined skin and the shared review/export workflow. [BR-020](#br-020--eight-point-wedge-with-a-planar-roof) records its replacement with the bounded native-mesh geometry.
 - Clearance scope: user explicitly said "Don't worry about clearance for this one. I'll make sure it clears." Physical head collision checking is deferred for this demo; bounds, motion and extrusion checks remain.
-- Verify: generation, native geometry round trip, supported-command interpretation, temperature/flow/bounds checks, deterministic export, stale-approval invalidation and byte-identical delivery. No real approval is fabricated and no printer is started.
-- Job inputs: actual geometry, locked-plan and toolpath approvals. Bed temperature and other defaults are proposed recipe values until plan approval. Firmware identification and startup verification are optional metadata.
+- Software checks covered geometry, generation, interpreted export and the three-approval/exact-delivery lifecycle. The [wedge manual](skills/wedge-demo/SKILL.md) owns current setup and checks.
 
 ## BR-008 — Root developer and maker guidance
 
 - Status: complete locally
 - Source: user correction during the S5 wedge conversation, 2026-09-08.
-- Result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. Unspecified agents default to developer for now, and every developer reads both root files.
+- Historical result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. The instruction at this checkpoint defaulted unspecified agents to developer and required every developer to read both root files. Current context selection is in [AGENTS.md](AGENTS.md#choose-your-context) and the [developer orientation](DEVELOP.md).
 - Approval scope: this records the user's development instruction, not an inferred contributor decision approval.
 
 ## BR-009 — Accessible chat-driven review and wedge refinement
@@ -126,20 +136,10 @@ Historical result at completion; Studio/delivery limitations below were replaced
   bivariate spline surfaces. Intersections between several such solids are
   computed at the toolpath, not as boolean geometry. Running a Rhino Compute
   server was rejected.
-- Build: `core/` slicing core (patch evaluation, plane sectioning, planar regions
-  and booleans, top-surface height field, travel planning, SAAMpath, Griffin
-  export, plan and preview CLI); `skills/full-fill/`; `skills/draped-skin/`;
-  `nonplanar.maxAngleDeg` in the S5 machine file.
-- Verified in software: 29 tests covering evaluation against rhino3dm, sections
-  and offsets and booleans against analytic areas, closure rejection, degenerate
-  cuts, the surface height field, travel and lift behavior, exclusion of
-  over-limit surface, strict export interpretation, determinism, and detection of
-  an edited export.
-- Not verified: no physical print, no Studio integration, no approval or delivery
-  workflow, and no maker agent has used either skill end to end. Multi-solid
-  geometry is implemented in the region core but not reachable from a plan.
-  Contour completeness rests on a rigorous bound for cells with no sign change
-  and a sampling check elsewhere, bounded by `minFeatureMm`.
+- Result: shared geometry/region/path core and the two skill packages, checked
+  against analytical geometry and rhino3dm with software export regressions.
+  Studio and the approval/delivery workflow followed in BR-011. Current
+  numerical and shape limits belong to the skill manuals and DEVELOP.md.
 - The wedge skill was left unchanged, as requested.
 
 ## BR-011 — Make full-fill, draped-skin and the core usable
@@ -150,27 +150,13 @@ Historical result at completion; later shape additions and shared lifecycle are 
 - Requested by: remettub, 2026-09-08: "We need to be able to use the drape and
   fill skills and the geometry core." Scope confirmed in the same conversation
   as the full maker workflow, at parity with the wedge, leaving the wedge alone.
-- Build: `core/print/geometry.mjs` (native 3DM of the shell's named untrimmed
-  surfaces, verified by reopening and rebuilding the closed shell, plus a display
-  proxy); `core/print/bundle.mjs` (print bundle, plan lock over geometry/machine/
-  runtime, chat adjustment, generation modes, three approvals, delivery);
-  bundle commands in `core/print/cli.mjs`; Studio serving either kind of bundle,
-  selected by the schema in `plan.json`, with a viewer that reads the part's
-  shape from the display proxy.
-- Verified in software: `core/tests/workflow.test.mjs` — 3DM round trip and
-  rejection of a substituted file, development generation creating no approvals
-  and refusing delivery, three synthetic approvals with stale-view rejection and
-  byte-identical delivery, the approvals each edit invalidates, remembered setup
-  reuse, one-skill plans, and Studio review and delivery of a shell print. The
-  wedge's own tests, including its Studio test, still pass unchanged.
-- Not verified: no physical print, no maker agent has used either skill end to
-  end, and no usability testing. Geometry is still limited to the plan's shapes
-  (`box`, `wedge`, `spline-top`); importing or editing a 3DM remains deferred,
-  as does multi-solid input, which the region core supports but no plan can
-  express.
-- The wedge demo package was left unchanged. Studio, which is not part of that
-  package, became bundle-agnostic. The available plan shapes now include
-  `spline-shell` through BR-012.
+- Result: full-fill/drape bundles gained Studio review, chat adjustment,
+  remembered setup, three revision-bound approvals and exact-byte delivery.
+  Software tests covered native geometry identity, stale revisions and the
+  distinction between development fixtures and real approvals. The wedge
+  package remained unchanged while Studio became bundle-agnostic. Later shape,
+  import and composition requests expanded the initial bounded geometry.
+- Remaining: physical printing and novice usability were not established.
 
 ## BR-012 — Spline-sided shell plan shape
 
@@ -247,9 +233,9 @@ This is a proposed evaluation direction, not a claim of implemented advantage.
 
 ## BR-016 — Printing and geometry design for review
 
-Historical design snapshot; implementation progress and remaining work are in BR-017.
+Historical design snapshot; implementation followed in BR-017 and BR-018.
 
-- Status: design documented; implementation pending review.
+- Status: design completed; subsequent implementation recorded in BR-017 and BR-018.
 - Requested by: user, 2026-09-09, this repository task; explicitly scoped to “Design and requirements for me to review. Let's keep it lean.”
 - Documentation completed: README now owns the introduction and product direction; PROJECT_CHARTER is a compatibility pointer. Developer guidance explains node_modules and routes skill authors to shared requirements.
 - Task: Add planar-infill (suggested name): wall count, sparse alternating rectilinear infill, travel reduction and combing. Reuse full-fill for solid top/bottom masks with one layer grid and no duplicate walls/material. Include local top/bottom detection and bridging/support limits.
@@ -258,7 +244,7 @@ Historical design snapshot; implementation progress and remaining work are in BR
 - Task: Add a Bambu H2D machine profile and general machine interoperability. Move S5-specific setup validation out of shared plan code. Declare machine/tool/material capabilities and supported outputs; keep machine behavior out of pattern skills. Implement the H2D-compatible exporter/interpreter and packaging needed for the exact reviewed artifact, using verified machine documentation or a user-supplied known-good program for the intended configuration.
 - H2D scope to resolve before implementation: target nozzle/tool and material setup, firmware/output packaging, startup/shutdown behavior and machine limits. Do not copy the S5 Griffin envelope or assume an H2D profile alone enables support. No hardware execution is requested.
 - Verify: equivalent geometry across backends, material ownership, travel limits, deterministic generation, profile-specific setup rejection and supported machine-program interpretation. Exercise both machine profiles through the same skills, three approvals and exact-byte delivery. Report software checks separately from physical printing.
-- Design: [geometry](DEVELOP.md#geometry-interoperability-for-skill-authors), [travel](DEVELOP.md#whole-plan-travel-requirement), [planar-infill](DEVELOP.md#planar-infill-design), [machines](DEVELOP.md#machine-interoperability-design).
+- Design: [geometry](core/geom/README.md#geometry-interoperability-for-skill-authors), [travel](core/path/README.md#whole-plan-travel-requirement), [planar-infill](skills/planar-infill/DEVELOP.md#planar-infill-design), [machines](core/export/README.md#machine-interoperability-design).
 - Approval scope: records requested work, not contributor consensus or manufacturing-job approval. Existing runtime remains unchanged.
 
 ## BR-017 — Implement interoperability first, then planar infill and import
@@ -267,10 +253,10 @@ Historical design snapshot; implementation progress and remaining work are in BR
 - Source: user, 2026-09-09, this task: “the interoperability work should come first” and “finish out the task list”. User confirmed both geometry backends, H2D left 0.4 mm nozzle/PLA, and experimental 15° draping.
 - Completed: shared mesh/spline queries, native mesh storage and ASCII/binary STL import with explicit units/source hash; geometry validation and mixed assemblies; machine-owned defaults/capabilities and separate remembered setups; selected-tool bounds and machine-independent SAAMpath checks; H2D profile with official source references; output-adapter dispatch with explicit unsupported-output rejection.
 - Completed: whole-plan lifted travel and cooling, bounded comb routes around holes; planar-infill with walls/density; full-fill solid-surface masks and single wall ownership; local top/bottom regions, drape reservation and dependencies; common booleans handle coincident boundaries and close level sets at their domain boundary.
-- Completed: README/charter consolidation, maintained skill manuals and shared authoring guidance; Studio shows the actual machine, mesh dimensions, sparse/solid settings and unavailable output status. Wedge remains bounded and S5-only.
+- Completed at this checkpoint: README/charter consolidation, skill manuals and shared authoring guidance; Studio shows machine, mesh dimensions, sparse/solid settings and unavailable output status. Later H2D wedge support is in BR-019.
 - Software verification: both backends × S5/H2D × full-fill/drape/planar-infill, material/setup rejection, wedge exception, mesh holes/islands/invalid input, changed STL source, mixed assemblies, whole-plan clearance/cooling, comb routing, sparse density/solid-layer ownership, S5 native mesh review/delivery and preservation of the prior S5 envelope. Tests create no real approvals or hardware actions.
 - Remaining at this checkpoint: H2D exporter/interpreter plus sliced-3MF packaging; addressed in BR-018 using the supplied reference exports. A profile/SAAMpath pass alone does not claim output compatibility.
-- Physical validation remains open for every new skill/profile. General trimmed CAD import, rotary/tool-changing SAAMpath extensions, automatic supports and bridge optimization are outside this implementation.
+- Physical validation remains open. Trimmed CAD import, rotary/tool-changing extensions, automatic supports and bridge optimization were outside this request; subsequent requests and current manuals own their present scope.
 
 ## BR-018 — H2D output from the supplied nozzle references
 
@@ -278,7 +264,7 @@ Historical design snapshot; implementation progress and remaining work are in BR
 - Status: experimental H2D output implemented through the shared lifecycle. One selected 0.4 mm nozzle, PLA, Textured PEI and no chamber heat; left remains default, with both nozzle maps covered by software tests.
 - Completed: pinned firmware start/end contract, explicit print-body handoff, whole-plan shutdown clearance, shared modal interpretation, deterministic sliced-3MF packaging with fresh metadata/thumbnails/checksums, binary artifact hashing/reopening, Studio review and exact-byte delivery. No reference object or private project is copied into generated files or Git.
 - Verification: 89 passing software tests; both nozzle maps, three skills and mesh/spline paths, invalid temperatures/tool bounds, corrupt ZIP, altered envelope/metadata/body, synthetic approvals and HTTP archive delivery. Independent Python ZIP/CRC, XML, JSON and MD5 checks passed. Existing S5 behavior is retained. Bambu Studio's CLI model-import check rejected both sliced reference and generated files with -6; program-viewer import acceptance is unconfirmed.
-- Boundary: firmware service routines are matched to a fixed contract, not simulated. Print-body time/material excludes those routines. No physical validation or hardware execution. See the [H2D contract](DEVELOP.md#h2d-output-contract) for exact scope and remaining validation.
+- Boundary: firmware service routines are matched to a fixed contract, not simulated. Print-body time/material excludes those routines. No physical validation or hardware execution. See the [H2D contract](core/export/bambu.md#h2d-output-contract) for exact scope and remaining validation.
 
 ## BR-019 — H2D wedge and Studio reopen/activity
 
@@ -307,7 +293,7 @@ Historical design snapshot; implementation progress and remaining work are in BR
 
 - Source: user, 2026-09-09, legacy-adoption session. Authorized restoration of MCP access, Dobot machine/Lua support and vase-wall through the reset's interoperable shared workflow. The subsequent single-location clarification defers automatic discovery; see [D-022](DECISIONS.md#d-022--defer-automatic-capability-discovery).
 - Implemented: a local SDK stdio MCP adapter with fixed known profiles/manuals, persistent named Prints, revision-checked adjustments, shared checks and Studio review, fresh approval status, approved generation and exact-byte delivery. It has no approval tool, alternate compiler/review server or global plan overwrite. Local client setup is documented; arbitrary browser-chat access and automatic client configuration are not implemented.
-- Implemented: Dobot profile and bounded Lua export/interpreter using the same SAAMpath, native geometry, three human approvals and delivery. Installation defaults remain unconfigured. The selected CP=0 relay policy stops at each segment and reports estimated material separately from intended bead volume. Delivered ZIP packages source files; vendor project import, controller execution and physical behavior are unverified. See [Dobot scope](DEVELOP.md#dobot-output-contract).
+- Implemented: Dobot profile and bounded Lua export/interpreter using the same SAAMpath, native geometry, three human approvals and delivery. Installation defaults remain unconfigured. The selected CP=0 relay policy stops at each segment and reports estimated material separately from intended bead volume. Delivered ZIP packages source files; vendor project import, controller execution and physical behavior are unverified. See [Dobot scope](core/export/dobot.md#dobot-output-contract).
 - Implemented: [vase-wall](skills/vase-wall/SKILL.md) queries actual changing-Z sections on supported mesh/untrimmed spline geometry, optionally above a full-fill base, through the common composer and export lifecycle. It requires one supported convex outer section without holes/islands and enforces bounded standoff, overlap, angle and sampling checks. Other unsupported topology and trimmed CAD remain outside its scope.
 - Verification: final `npm test` passed all 131 software tests and repository checks. Coverage includes Lua semantics/rejection, shared skills and bounded wedge, both geometry backends, S5/H2D/configured Dobot paths, actual SDK subprocess clients, current approval binding, stale revisions/artifacts and exact reviewed-byte delivery. All approval/calibration fixtures are explicitly synthetic in temporary bundles; no physical validation is claimed.
 - Follow-up source clue: the other developer suggested “textured or patterned wall”. Searches for those terms in messages, historical diffs and archives found no implemented match. `f015cf1:ROADMAP.md` calls vase/spiral-wall strategies the private source project's most-developed pattern family, strengthening that source lead; this does not identify either sample or establish that its source was lost.
@@ -325,7 +311,7 @@ Historical design snapshot; implementation progress and remaining work are in BR
 ## BR-023 — Slicing performance baseline
 
 - Requested by: user, 2026-09-09. Start the speed cycle with equivalent spline/mesh tests, use a twisted box and multiple slicing skills, compare planar slicing with Cura/Bambu Studio, and recommend subsequent optimizations/diagnostics.
-- Implemented: opt-in reproducible developer benchmarks over shared geometry queries, full-fill, planar-infill, draped-skin, composition, machine checks and export/interpretation; analytical fixture checks, Rhino 6 exchange files, sampled mesh convergence, STL precision diagnostic, serial repeats and phase/failure reporting. Commands, boundaries and findings are in [slicing speed benchmarks](DEVELOP.md#slicing-speed-benchmarks).
+- Implemented: opt-in reproducible developer benchmarks over shared geometry queries, full-fill, planar-infill, draped-skin, composition, machine checks and export/interpretation; analytical fixture checks, Rhino 6 exchange files, sampled mesh convergence, STL precision diagnostic, serial repeats and phase/failure reporting. Commands, boundaries and findings are in [slicing speed benchmarks](scripts/bench/README.md#slicing-speed-benchmarks).
 - User reference: standard Rhino-exported STL (1078 triangles); Cura 4.12 reported 14 seconds to load and 2.3 seconds to slice with two walls and 100% infill. Loading and slicing are separate, and non-planar work is excluded from the Cura comparison.
 - Findings: direct spline section/height queries are slower than modest meshes, but complete planar full-fill can be faster because mesh contours amplify downstream region work. The supplied mesh reveals an offset/index memory blow-up and a solid-mask boolean failure. Keep failures separate from successful timings; the test does not justify switching native geometry architecture.
 - Boundary: developer measurements do not add a public twisted-box shape, create job approvals, demonstrate physical prints, or establish a controlled overall speed ranking against external slicers. Bambu Studio timing and matched public-workflow load/check/generation measurements remain next-stage work. Existing production geometry, skills and review semantics are unchanged by the benchmark additions.
@@ -347,7 +333,7 @@ Historical design snapshot; implementation progress and remaining work are in BR
 - Implemented experimentally: `offsetSurfaceRegion` generates distance-based geodesic strips/round joins from a native spline patch, then uses actual Clipper union/difference/winding code for material topology. UV and cached XYZ correspondences stay attached; no inverse mapping or global flatten/warp round trips. Surface-distance code is new SAAM implementation, not a copy of Rhino's unavailable native routine. Single regular C2 patch, closed UV loops and bounded domain are the current scope; no skill silently adopts it.
 - Evidence: the JavaScript adapter exactly matches every coordinate and loop in 90 cases generated by the unmodified plugin C# Clipper 6.4.2 kernel using the same material-region adapter options. Surface tests include analytic derivatives, flat nesting/collapse, inclined-plane UV rescaling, independent cylinder unrolling, and convergence of nested regions on a doubly curved patch. No Rhino surface-output comparison or physical validation has been performed.
 - Diagnostic: the supplied 1078-triangle Rhino STL passes every full-fill layer in the offset diagnostic. Its separate solid-mask intersection still produces an open contour; that known failure is not hidden or fixed by adopting the offset.
-- Guidance and measurements: [shared numerical foundations](DEVELOP.md#shared-numerical-foundations) and [offset contracts](DEVELOP.md#shared-offset-functions) record provenance, precision, limits, reference reproduction and opt-in timing. Baseline `npm test` passed 170 tests; final `npm test` passes all 180 tests and repository checks, including mesh/spline, S5/H2D/configured Dobot, public workflow and exact export/delivery regressions. The documented .NET reference project also builds successfully. No contributor consensus, human manufacturing approval, commit or publication is inferred.
+- Guidance and measurements: [shared numerical foundations](core/geom/README.md#shared-numerical-foundations) and [offset contracts](core/region/README.md#shared-offset-functions) record provenance, precision, limits, reference reproduction and opt-in timing. Baseline `npm test` passed 170 tests; final `npm test` passes all 180 tests and repository checks, including mesh/spline, S5/H2D/configured Dobot, public workflow and exact export/delivery regressions. The documented .NET reference project also builds successfully. No contributor consensus, human manufacturing approval, commit or publication is inferred.
 
 ## BR-026 — Temporary web-chat connection
 
@@ -366,7 +352,7 @@ Historical design snapshot; implementation progress and remaining work are in BR
 - Implemented: closed planar material-region intersection, union and difference behind one small adapter to pinned `clipper2-wasm@0.4.0` (upstream C++ Clipper2 2.0.1). Existing shared imports route full-fill, planar-infill, draped reservations and regional composition through it. The handwritten general booleans were removed; established offset kernels and sampled section/level-set constructors retain their scope. No open-path, 3D, CAD, UV intersection API or alternative backend was added.
 - Integration correction: accurate booleans exposed artificial corner gaps from coarse bead-coverage arc approximation. Coverage expansion now uses the existing 0.001 mm chord target instead of hiding gaps with area pruning. Runtime identity hashes the actual JS/WASM bytes. Tests compare decoded numeric areas within declared precision while retaining exact upstream reference comparisons.
 - Evidence: 138 cases match unmodified upstream C# results exactly, including coordinates and topology; analytic/adversarial tests and 200 seeded rectangle-set cases pass. The original 1078-triangle Rhino STL passes every offset/solid-mask diagnostic layer. Full, planar and draped benchmark modes pass for both spline and that STL. The actual public STL importer, adjustment, development generation/export and cold CLI reopen also pass, with no human approvals or delivery.
-- Guidance: [minimal component scope](DEVELOP.md#interoperability-and-one-workflow) and [intersection contract, provenance and reference reproduction](DEVELOP.md#shared-planar-intersections). No CGAL was needed, and no physical validation or contributor consensus is inferred.
+- Guidance: [minimal component scope](core/README.md#interoperability-and-one-workflow) and [intersection contract, provenance and reference reproduction](core/region/README.md#shared-planar-intersections). No CGAL was needed, and no physical validation or contributor consensus is inferred.
 - Verification: baseline `npm test` passed 182 tests; the final suite passes all 195 tests and repository checks. Includes S5/H2D/configured Dobot, both geometry backends, same-part skill composition, MCP/Studio synthetic approval workflows and exact-byte delivery. Development source changes remain uncommitted.
 
 ## BR-028 — Travel above deposited material
@@ -388,7 +374,7 @@ Historical design snapshot; implementation progress and remaining work are in BR
 
 ## BR-030 — Export-only bundles and measured flange speed
 
-- Source: user, 2026-09-10, requested implementing the Cura comparison findings and remeasuring the same flange. Scope includes shared contour cleanup, modal G-code output, removal of mandatory saved SAAMpath and regeneration on Studio reopen, and applicability across skills.
+- Source: user, 2026-09-10, requested implementing the Cura comparison findings and remeasuring the same flange. Scope includes shared contour cleanup, modal G-code output, removal of mandatory saved SAAMpath and regeneration on Studio reopen, and applicability across skills. [D-027](DECISIONS.md#d-027--export-only-print-persistence) records the persistence direction and its approval boundary.
 - Implemented: mesh sections remove numerical triangle seams before offsets with the existing 0.0000001 mm plane tolerance. Full-fill/planar-infill reuse that helper on offset deposition contours; closed-region boolean results retain the original Clipper contract. Corners, reversals, narrow features and cumulative curvature are covered by regression tests. No curve-resolution, offset precision, geometry dimension or locked process setting was relaxed.
 - Shared S5/H2D motion output omits unchanged XYZ/feed fields and retains explicit extrusion values and mode. Bounds/feed/flow checks run on interpreted export commands, including selected-tool bounds. Exporter round-trip comparisons remain regression tests. Dobot checks reconstructed Lua commands through the shared machine checker.
 - Bundles save the export, check report and small generation summary, with transient motion objects retained only while generating. No new SAAMpath file/hash is written; regeneration removes a legacy intermediate. Cold opening interprets the saved export without invoking the generator or exporter. Playback and delivery use that export. Plan/export identity still controls stale approvals; editable local hashes are not authenticated provenance signatures. A complete replacement of transient motion objects with G-code, streaming generation and paged playback are not implemented.
@@ -419,6 +405,13 @@ Historical design snapshot; implementation progress and remaining work are in BR
 - Limits: actual rotary interface/calibration and controller source compilation remain unverified. The development fixture explicitly assumes RC8 relative EX extended-joint control; a separately controlled rotary needs an execution adapter. Nominal timing assumes external speed 100% and synchronized linear command progress; @0 endpoint stops, acceleration, IO and relay deposition are not physically established. Constant relay rate and commanded bead-volume intent remain distinct. General cylindrical CAD recognition, radial material-region assignments and arbitrary oriented stroke reordering are unimplemented.
 - Development result: `Prints/development/denso-rc8-pipe` contains a 16 mm bore, 20.8 mm outside diameter, 12 mm high pipe with 1.6 mm substrate and four 0.2 mm radial shells. Current export has 56,988 interpreted moves and 27.7 minutes of requested motion. Synthetic calibration is labeled and is not retained as user setup. Studio was launched for the user and visually inspected at axial and circumferential portions and in both coordinate perspectives. No manufacturing approvals or hardware execution were performed.
 - Verification: seven focused RC8 tests pass, including mesh/spline base-vase-cap-infill-drape composition, bounded wedge, native pipe on S5, full-turn source reconstruction, orientation preservation, radial order/ownership, cold reopen and synthetic approval/exact-byte delivery. The first broad regression attempt reported an MCP test failure and stalled; that test passed immediately in isolation. The complete rerun with concurrency 2 and a 120-second test timeout passed all 261 tests in 71.2 seconds; repository documentation checks also pass. No contributor consensus, staging, commit or publication is inferred.
+## BR-034 — Shared Studio permissions for Codex and Claude Code
+
+- Source: user requested repo-shared permission scope for agents to open, use and close their Studio instances without repeated prompts, then authorized implementation for Codex and Claude on 2026-09-10.
+- Implemented: a trusted-project Codex rule and shared Claude Code Bash/PowerShell rules for `node studio/server.mjs`, with a matching Claude Bash sandbox exclusion. [Studio permissions](studio/README.md#studio-agent-permissions) owns setup, direct launch and instance closure.
+- Scope: project trust and browser permissions remain client-owned; restrictive policies still apply. Rules trust the script and its imports and do not create an OS-level Studio-only boundary. Claude Desktop/web MCP setup and the three human manufacturing approvals remain separate.
+- Verification: the installed Codex CLI accepts the rule's positive/negative examples, allows the Studio launch and leaves inline Node execution unmatched. Claude settings parse as JSON and use documented rule forms; Claude Code is not installed here, so live Claude behavior and browser permission persistence across ports are unverified.
+
 ## BR-035 — Studio movies, material rendering and color comparison
 
 - Source: user requested offline movie export matching Studio's selected speed, camera, visibility, rotary view and fade, followed by viewer material and color refinements.
@@ -431,11 +424,11 @@ Historical design snapshot; implementation progress and remaining work are in BR
 ## BR-036 — Closest-entry ordering for segmented fill
 
 - Source: user, 2026-09-10, requested a simple closest-entry implementation and review on the flange before considering more complex routing. [D-026](DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations) records the explicit deferral of heat considerations. Writing was authorized after the user's remote sync completed.
-- Implemented: shared scanline cells retain their identity through full-fill, rectilinear/grid/triangle infill and draped-skin generation. Within each operation, the composer selects the closest of the remaining cell zigzags' two endpoints from the actual nozzle position, completes that cell, then repeats. Whole-cell reversal carries stroke points and segment volumes/metadata together. Stable ties retain producer order. Existing support/layer dependencies and travel checks remain in effect.
+- Implemented: shared scanline cells retain their identity through full-fill, rectilinear/grid/triangle infill and draped-skin generation. Within each operation, the composer selects the closest endpoint of either end row (up to four entries), completes that cell, then repeats. Row order and stroke direction vary independently, preserving segment volumes/metadata. Stable ties retain producer order. Existing support/layer dependencies and travel checks remain in effect.
 - Scope: straight-line XYZ distance only, without lookahead, travel-time scoring or heat balancing. No reordering across operations. Closed concentric/gyroid paths, the bounded wedge and oriented/continuous operations retain existing behavior. The shared lifecycle and machine exporters are unchanged.
 - Flange comparison: the isolated `Prints/pipe-flange-closest-entry-review` uses the same plan and machine snapshot as `Prints/pipe-flange-speed-review`: 88.9 mm diameter, 25.4 mm height, 6.35 mm plate, four walls, 35% infill, 0.2 mm layers and five solid top/bottom layers. Current pre-change source was measured from Git HEAD through a scratch loader, without altering the checkout. Travel fell from 74,075.177 to 51,726.662 mm (30.2%); retractions fell from 1,888 to 1,587 (15.9%). Estimated export time fell from 377.3 to 366.7 minutes. Deposition length remains 386,043.527 mm and checked volume remains 30,883.482 mm³. Scratch measurements are in ignored `.local/closest-entry/`.
 - Verification: 63 focused tests pass across scanline coverage/group integrity, closest entry, reversal of variable segment data, composer constraints, travel, mesh/spline skills, material-region stacks and S5/H2D/configured Dobot exports. The flange development export passes shared checks with 422,089 interpreted moves. No human job approvals, hardware execution, physical validation, staging, commit or publication were performed by this task.
-- Endpoint correction: the user's follow-up identified missed entries in playback near 5:08. Whole-zigzag reversal coupled row order and stroke direction, leaving two valid starts unexamined. The composer now chooses either endpoint of either end row and sets those directions independently. Tests reproduce the original failure and verify all four starts for odd/even row counts, unchanged geometric coverage, segment volumes/metadata and uninterrupted zigzags. Shared full-fill also carries this behavior into conventional/tree support fill and interfaces; concentric, gyroid, vase, rimming and bounded wedge ordering remain unchanged.
+- Correction evidence: the user's follow-up identified missed entries in playback near 5:08. The initial two-entry implementation coupled row order and stroke direction, leaving two valid starts unexamined. Regression tests cover the four-entry behavior above for odd/even row counts, unchanged geometric coverage, segment volumes/metadata and uninterrupted zigzags. Shared full-fill carries it into conventional/tree support fill and interfaces; concentric, gyroid, vase, rimming and bounded wedge ordering remain unchanged.
 - Corrected flange: `Prints/pipe-flange-four-entry-review` retains byte-identical plan, machine snapshot and mesh inputs, with no approvals. Travel is 49,960.820 mm, retractions 1,437, estimated export time 364.0 minutes and interpreted moves 421,782. Deposition length and checked volume remain unchanged. All 71 focused tests pass, including support integration and the regional multi-machine/multi-backend stack; shared flange export checks pass.
 - Jump investigation: in the earlier two-entry export, the jump near 12:55 starts at about 12:52.5 and travels 31.656 mm. Eight cells remain; the nearest of all four valid entries is still 28.028 mm away. The missing entries explain only part of this jump. Avoiding that late long transfer would require different earlier choices; lookahead remains deferred. These are straight-line entry distances, separate from the shared route/clearance handling.
 
@@ -448,3 +441,40 @@ Historical design snapshot; implementation progress and remaining work are in BR
 - Supporting fixes: Studio obtains shaded bead normals from interpreted tool frames; its settings identify substrate versus finished-pipe boundaries. ZIP32 supports more than 64 source helpers. One streamed, revision-bound source inventory replaces per-helper archive reloads, retaining per-file browser hashes and exact-source interpretation. Chat adjustment can replace a null or differently typed surface selector through normal validation.
 - Scope: one periodic rectangular surface chart and one full-fill substrate. Explicit mesh mapping is required. Automatic charting, arbitrary holes/multi-patch seams, inward volume reservations, general offset self-intersection resolution and robot feasibility remain unimplemented. Coverage and normal-field interpolation are experimental and documented in the cladding manual. No physical execution or manufacturing approval by the agent.
 - Verification: full suite and focused surface/source/workflow checks; see the task report for final counts. No staging, commit or publication requested.
+
+## BR-038 — General explicit STL self-intersection repair
+
+- Source: user requested repair of a supplied spiral-vase STL before Bambu printing, confirmed millimeter units, and explicitly requested an original generalized mesh fixer rather than a vase-specific patch.
+- Implemented: [explicit repair](core/geom/README.md#explicit-mesh-repair) through the shared print CLI. Original JavaScript winding-grid reconstruction and marching tetrahedra handle intersecting closed oriented surfaces, followed when needed by quadric simplification with local topology and spatial collision checks. Import remains strict. Repair preserves original bytes and records hashes, numerical settings, bounds, sampled shape changes and validation before the normal geometry review.
+- Verification: 20 focused repair/mesh tests pass, including analytical union convergence and membership, folded connected surfaces, cavities, through-holes, disconnected components, thin material, exact cleanup, units, near-parallel adjacency, resource failures and unapproved S5/H2D imports. The supplied 8220-facet STL has 96 degenerate facets; the 2 mm trial produces 80000 triangles and passes shared mesh checks, additional adjacent-contact checks and exact-output STL reimport. It takes about 84.5 seconds in this checkout. Maximum sampled distances are 2.024 mm from source vertices to the result and 1.120 mm in the reverse direction; these are not certified surface bounds. A separate 2.2 mm trial without simplification passes at 86996 triangles in about 9.6 seconds, with larger sampled changes.
+- Limits: approximate, resolution-dependent solid reconstruction, not exact triangle splitting or a universal guarantee. Thin features/gaps can change; winding determines material. Open, inconsistently oriented and nonmanifold-edge sources remain unsupported. Allocation/import limits and failed validation return no purported repaired artifact. Per-skill shape restrictions remain, including convex sections for vase-wall. No human manufacturing approval, machine execution, physical validation, staging, commit or publication by the agent.
+- Follow-up: the finer 1.5 mm reconstruction passes at 100000 triangles; maximum sampled distances are 1.443 mm from source vertices to the result and 0.956 mm in reverse. The repair change passes all 310 repository tests. On 2026-09-11 the user explicitly authorized zero-infill support and ordinary planar printing after clarifying that the source defines a solid envelope. Planar infill now accepts zero alongside the existing positive range, preserving walls and full-fill's selected solid masks. The proposed H2D print uses two 0.4 mm walls, 0.2 mm layers, five bottom layers and no top layers. The existing three human reviews remain; no continuous vase-wall operation is selected.
+
+## BR-039 — Remove repeated validation and make slicing progress truthful
+
+- Source: user, 2026-09-11, reported minutes spent under approval-saving labels, cited an approximately eight-second Cura slice and set a 10–12 second target. Explicitly requested a delegated audit of all skills, durable guidance against unnecessary/repeated/misplaced checks, pan controls and developer awareness of avoidable travel. Travel awareness is guidance, not permission to add validation gates.
+- Implemented: exact-content mesh validity reuse; workflow reuse of matching geometry/plan verification; approval writes return the updated verified state without another bundle load; planar slicing shares prepared mesh sections. H2D returns its already interpreted emitted body with the packaged bytes through the common export-and-interpret entry point and renders each thumbnail size once. Griffin removes the duplicate input-path pass; H2D removes a second per-move bounds pass already enforced by the shared interpreter. Dobot required setup validation no longer repeats its optional pass. Support/rim producers consume the validated plan; rimming native control-net validity is reused by content. New/changed geometry, plans and external exports still enter their owning validation boundaries.
+- Guidance: [validation ownership](core/print/README.md#validate-at-the-boundary-that-owns-the-data) distinguishes input validity from conditions first knowable on a newly constructed section or machine command. [Travel guidance](core/path/README.md#whole-plan-travel-requirement) asks developers to consider endpoints, seams, wall/component order and short transitions while constructing paths, without quotas, rejection rules or another approval. Audit includes full-fill, planar-infill, drape, vase, supports, both rim modes, pipe/surface cladding and the bounded wedge.
+- Initial measurement: the isolated old zero-infill recipe measured generation about 285 seconds before and 145 seconds after geometry/section reuse; Clipper offset/normalization remained a major cost. These measurements did not meet the requested 10–12 seconds. This initial change included no Clipper replacement or new seam algorithm; the later kernel migration is recorded in BR-041. The user subsequently changed the ordinary test print to 15% rectilinear infill with five top and bottom layers; prior recipe timings are not a benchmark of that new recipe.
+- Viewer: the parent task adds pan, uses “Calculating toolpath” consistently, removes redundant status copy and keeps the busy spinner animated (with slower rotation for reduced-motion preference).
+- Remaining audit work: direct shell/wedge generation still calls plan validation after workflow loading; expensive mesh validity is reused, but smaller settings checks can repeat. Spline placement rebuilds a shell and recomputes numerical closure under rigid translation, and selected surface construction repeats the selector's field validation. These remaining sites were identified but not changed during the already approved active generation. The audit must not be described as proof that all duplication is eliminated.
+- Verification: 48 focused audit tests pass: 19 H2D/Griffin/modal/browser-source/wedge export checks and 29 support/rimming/Dobot/DENSO checks. Coverage includes fresh versus cold program equality, unchanged bytes, archive/setup tampering, changed control nets, caller mutation, skill composition and exact delivery. Repository documentation checks and whitespace checks pass. Parent workflow/mesh/section/viewer checks are reported separately with the task result. No agent-created manufacturing approval or hardware execution occurred.
+
+## BR-040 — Dimension-aware precision audit and developer guidance
+
+- Source: user, 2026-09-11, explicitly requested another audit agent to find inappropriate or mismatched precision throughout the project and write guidance preventing recurrence. The comparison target remains roughly 10 seconds in Cura, not simply fewer decimal characters in files.
+- Guidance: [precision belongs to a quantity and an operation](core/geom/README.md#precision-belongs-to-a-quantity-and-an-operation) covers coordinate grids, curve deviation, spatial sampling, repair resolution, coincidence/topology predicates, area/volume, UV parameters, angular tolerances, independent XYZ/E/feed/time/pose rounding and visual approximation. It records primary-source Cura examples as distinct quantities, suggests process-aware experiments and requires measured cost alongside shape/volume effects. This adds no production verification pass or approval.
+- Corrected: the level-set constructor no longer compares area in mm² against a linear chord tolerance or silently discards small nonzero material. PathBuilder preserves short XYZ motions that remain distinct at the actual coordinate rounding, including tiny grid-boundary crossings; this repairs the next variable-gap segment's length/volume correspondence exposed by the parent's coarser offset-grid experiment. The existing regional physical-volume assertion was retained unchanged. Tolerance-module commentary now distinguishes native parameter units from mm and avoids claiming machine accuracy from a chord target.
+- Verification: 9 focused regional/modal/straight-motion checks passed, including six-stage variable-gap composition across S5/H2D/Dobot and mesh/spline backends. After adding dedicated regressions, 25 geometry/straight-motion/draped-skin checks passed. Separate parent offset experiments and performance measurements are reported by that task; this audit does not establish the requested slicing latency.
+- Remaining priorities: polygon coordinate/vertex budgets; dimensionally inconsistent and scale-dependent determinant thresholds in repair/projectors; UV-to-physical error mapping; separate export field budgets and accumulated relative-E error; tiny-segment volume handling for actual coordinate collapse; oriented-motion small-move policy. These are concrete audit findings, not an assertion that every tolerance should be coarsened. No print approvals, server restart, hardware execution, staging or commit occurred.
+- Export follow-up: profiling found repeated formatting and modal self-parsing in the shared G-code writer. XYZ/E now quantize once for text, state and flow calculations; changed XYZ/F fields are emitted directly. A captured pre-change fixture preserves exact absolute/relative-E bytes across rounding, negative zero, modal changes, retraction and flow limiting. Nine focused modal/H2D/large-export checks pass. An isolated 20000-move benchmark retains exact bytes and measures median absolute output 167.2→82.6 ms and relative output 172.0→54.4 ms. These bounded measurements are not an end-to-end job timing; interpreter and packaging costs remain separate.
+
+## BR-041 — Complete shared Clipper2 integration
+
+- Source: user, 2026-09-11, clarified that the prior instruction applied Clipper2 to all skills and requested a timing comparison on the current vase before further integration. Investigation found that general booleans used Clipper2 while offsets and their normalization still used Clipper 6 JavaScript.
+- Implemented: one shared C++/WASM instance in `core/region/clipper2.mjs` now owns closed planar booleans, open-path clipping, polygon inflation and offset normalization. Bulk integer buffers cross the native boundary. All skill consumers use the shared adapters; experimental surface-offset swept-band cleanup does too. Clipper 6 is removed from runtime dependencies, with no fallback. Both shell and wedge bundle identities include the shared kernel and exact dependency JS/WASM bytes. The offset `1e-5` mm and boolean `1e-9` mm grids remain unchanged.
+- Scope: full-fill/perimeters, all planar-infill patterns and masks, drape, vase, supports, wedge, pipe substrate, material regions and comb travel share these planar operations. Rimming and surface cladding retain their shared 3D differential-offset algorithms; mesh/spline sectioning retains native geometry queries. CLI/MCP commands, machine output selection and human reviews use the existing workflow.
+- Independent reference: the new Clipper2 C# runner and 90-case fixture retain upstream source hashes, input hashes and construction options. Historical Clipper 6 reference data remains explicitly historical; it is not relabeled or regenerated from production WASM. Existing analytical, nesting, touching-junction, collapse, perimeter and surface-convergence cases remain relevant. Final migration test counts are reported with the implementation result.
+- Measured before integration: identical plan/machine hashes for the 15% rectilinear vase produced 38.600 s generation plus 10.581 s checked export with the optimized Clipper 6 adapter (49.181 s), versus 30.128 s plus 13.038 s in the scratch Clipper2 comparison (43.166 s). The latter exercised 5810 native offsets. Move counts differed, 1147567 versus 1201157, so this is a same-input kernel comparison rather than byte-identical output.
+- Integrated measurement: the same inputs produced 31.735 s generation plus 14.929 s export/interpretation, totaling 46.664 s after geometry load; the separate cold geometry/plan stage took 7.425 s and file reading/parsing took 0.142 s. The integrated and scratch Clipper2 runs produced the same 1201157 moves. These individual runs vary with machine load and do not establish a stable speedup percentage. None meets 10–12 seconds. The independent C# oracle matches all 90 offset cases exactly; focused offset/junction/vase tests pass after removing the redundant post-inflation union.
+- Related performance work: operation material regions are computed when consumed, comb corners/indexes and constant clearance are reused, ZIP uses compression level 1, and the G-code writer avoids repeated formatting while preserving emitted command bytes. These changes retain the shared slicing/export pipeline. The opt-in [print benchmark](scripts/bench/README.md#slicing-speed-benchmarks) records stage timings and optional CPU profiles outside the print bundle, with no production timing gate or added approval. No physical print or hardware execution is established by these measurements.

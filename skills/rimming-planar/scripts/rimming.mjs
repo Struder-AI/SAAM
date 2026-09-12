@@ -27,9 +27,14 @@ const extent=op=>op.strokes.reduce((b,s)=>{for(const p of s.points){b.min=Math.m
 // Differences are confined to the offset vector and resulting motion geometry.
 export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rimming-planar'}){
   const settings=plan.skills[skillId];if(!settings?.enabled)return [];
-  validateRimming(settings);
+  // Shared validatePlan owns the settings contract. Check derived sections and
+  // dependencies here only after they have actually been constructed.
   const results=[],process=plan.process,width=process.lineWidthMm;
   const modelOps=modelResults.flatMap(r=>r.operations);
+  const extents=new Map(),extentOf=op=>{
+    if(!extents.has(op))extents.set(op,extent(op));
+    return extents.get(op);
+  };
   const belongs=(op,part)=>part===null||op.id.startsWith(part+':')||plan.composition.regions.some(r=>r.id===op.regionId&&r.part===part);
   for(const spec of settings.surfaces){
     const patch=supportSurface(spec,plan.placement),operations=[],baseMax=Math.max(...spec.controlPoints.map(row=>row[0][2]));
@@ -37,9 +42,13 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
     // Control-edge bounds conservatively cover the entire spline boundary.
     // Include atomic operations crossing the base height, not just those ending
     // below it: the whole base edge must exist before ANY rim deposition.
-    const baseOps=spec.baseEdge==='bed'?[]:modelOps.filter(op=>belongs(op,spec.basePart)&&extent(op).min<=baseMax+1e-7);
+    const baseOps=spec.baseEdge==='bed'?[]:modelOps.filter(op=>belongs(op,spec.basePart)&&extentOf(op).min<=baseMax+1e-7);
     if(spec.baseEdge!=='bed')requireThat(baseOps.length>0,'Edge-based rim needs earlier model operations on its named base component.');
     let previous=baseOps.map(op=>op.id),pointCount=0;
+    const baseHeights=new Map(),baseHeight=u=>{
+      if(!baseHeights.has(u))baseHeights.set(u,supportBoundaryAt(patch,u,'base')[2]);
+      return baseHeights.get(u);
+    };
     const report={surface:spec.id,mode,baseEdge:spec.baseEdge,supportedEdge:spec.supportedEdge,reason:spec.reason,layers:0,points:0,
       minOffsetZMm:Infinity,maxOffsetZMm:-Infinity,referenceTopMm:patch.bounds.max[2],printedTopMm:-Infinity,
       physicalValidation:'not performed',boundaryMatching:'Agent-assigned spline boundaries; no general CAD edge-matching proof.'};
@@ -54,7 +63,7 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
         const volumes=[];
         for(let i=1;i<samples.length;i++){
           const a=samples[i-1],b=samples[i];
-          const baseA=supportBoundaryAt(patch,a.u,'base')[2],baseB=supportBoundaryAt(patch,b.u,'base')[2];
+          const baseA=baseHeight(a.u),baseB=baseHeight(b.u);
           // Partial first layers above curved base edges retain their local gap.
           // Normal-offset mode keeps this nominal bead model for comparison;
           // shifted endpoints/height are reported rather than silently corrected.
@@ -77,7 +86,7 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
     // supported edge. Never release its lower portions while the rim is pending.
     for(const op of modelOps){
       if(!belongs(op,spec.supportedPart))continue;
-      if(spec.supportedPart===null&&extent(op).max<topMin-1e-7)continue;
+      if(spec.supportedPart===null&&extentOf(op).max<topMin-1e-7)continue;
       (op.after??=[]).push(operations.at(-1).id);
     }
     report.points=pointCount;results.push({id:skillId+':'+spec.id,operations,report});

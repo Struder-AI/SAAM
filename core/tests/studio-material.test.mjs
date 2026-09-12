@@ -38,7 +38,7 @@ test('bounded wedge uses roof normal; unsupported surface frames remain explicit
   assert.equal(beadSection(move([0,0,1],[0,0,1]),plan,{}),null);
 });
 test('completed geometry reduces cross-section cost without losing curve samples or filling a bore',async()=>{
-  assert.equal(materialTemplate(true).length,3*materialTemplate(false).length);
+  assert.equal(materialTemplate(true).length,4*materialTemplate(false).length);
   const ring=[];
   for(let i=0;i<80;i++){const point=j=>[5*Math.cos(j*2*Math.PI/80),5*Math.sin(j*2*Math.PI/80),.2];ring.push(move(point(i),point(i+1)));}
   const scene=await buildMaterialScene(ring,plan,{}, {yieldTask:async()=>{}}),data=scene.groups[0].instances;
@@ -58,6 +58,32 @@ test('completed meshes stay separate per layer and operation and retain their so
   assert.equal(scene.groups.length,3);assert.equal(new Set(scene.groups.map(g=>g.key)).size,3);
   assert.notEqual(materialKey(moves[0]),materialKey(moves[1]));
   assert.deepEqual(scene.groups.map(g=>g.last),[0,1,2]);assert.deepEqual([...scene.supported],[1,1,1]);assert.deepEqual(moves,before);
+});
+
+test('material preparation retains interleaved and unsupported source records in compact buffers',async()=>{
+  const moves=[move([0,0,.2],[1,0,.2]),move([0,0,.4],[1,0,.4],{layer:1}),
+    move([1,0,.2],[1,0,.2]),move([1,0,.2],[2,0,.2]),
+    move([0,0,1],[1,0,1.1],{phase:'draped-skin'}),move([2,0,.2],[3,0,.2],{extruding:false})];
+  const scene=await buildMaterialScene(moves,plan,{}, {yieldTask:async()=>{}});
+  assert.deepEqual([...scene.supported],[1,1,0,1,0,0]);
+  assert.deepEqual(scene.unsupported,['planar','draped-skin']);
+  assert.deepEqual([...scene.groups[0].indices],[0,3]);
+  assert.deepEqual(scene.groups[0].instances,new Float32Array([
+    ...beadInstance(beadSection(moves[0],plan,{})),...beadInstance(beadSection(moves[3],plan,{}))]));
+  assert.equal(scene.groups[2].instances.length,0);
+});
+
+test('material preparation yields within a large operation without adding a timer per small operation',async t=>{
+  let now=0;t.mock.method(performance,'now',()=>now+=10);
+  for(const separate of [false,true]){
+    let yields=0;const progress=[];
+    const moves=Array.from({length:2000},(_,i)=>move([0,0,.2],[1,0,.2],{operation:separate?String(i):'fill'}));
+    await buildMaterialScene(moves,plan,{}, {yieldTask:async()=>{yields++;},onProgress:p=>progress.push(p)});
+    assert.ok(yields>1,'even a single large operation lets pending browser work run');
+    assert.ok(yields<100,'small operations share scheduling turns');
+    assert.equal(progress.at(-1),1);
+    assert.ok(progress.every((p,i)=>i===0||p>=progress[i-1]));
+  }
 });
 test('WebGL projection matches Studio screen coordinates in both rotary views and at every zoom',()=>{
   const bounds={min:[-12,-12,0],max:[12,12,14]};

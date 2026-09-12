@@ -6,8 +6,9 @@ description: Generate surface-following top skins on supported spline shells and
 # Draped skin
 
 Use for top layers that follow a surface rather than stepping across it in flat
-layers. Read [MAKERS.md](../../MAKERS.md); developers also read
-[DEVELOP.md](../../DEVELOP.md). Use the [shared tools](../full-fill/SKILL.md#setup-and-tools).
+layers. For maker work, read [MAKERS.md](../../MAKERS.md). For development, start
+with the [developer orientation](../../DEVELOP.md) and follow its task-specific
+references. Use the [shared tools](../../core/print/USAGE.md).
 
 The skill queries surface height and normals through the shared geometry
 interface. Supported inputs are the existing untrimmed spline shapes, validated
@@ -23,7 +24,7 @@ subtracted from full-fill and planar-infill. All supporting body operations must
 finish before the skins; skins remain ordered. Surface height means the highest
 exposed surface at XY, not the underside of an overhang or a general wrapped skin.
 Closed footprint/reservation booleans use the
-[shared Clipper2 region tool](../../DEVELOP.md#shared-planar-intersections);
+[shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections);
 surface sampling and level-set extraction retain their existing limits.
 
 S5 declares a 15° software limit. The user also selected **experimental 15° for
@@ -84,7 +85,7 @@ Verified short direct moves may stay down on the current skin. Lifted travel and
 cooling clear the **highest material deposited so far** across all skills plus
 the locked `liftMm` (default 1 mm; zero allowed). The local surface query still controls whether
 a short direct move is permitted. Other operations can disallow that move.
-Follow the [shared travel contract](../../DEVELOP.md#whole-plan-travel-requirement).
+Follow the [shared travel contract](../../core/path/README.md#whole-plan-travel-requirement).
 
 ## Validation status
 
@@ -92,7 +93,7 @@ Software tests exercise mesh and spline inputs against both S5 and H2D profiles.
 S5 supports checked Griffin export, Studio's three approvals and exact-byte
 delivery. H2D uses the same workflow with experimental sliced-3MF output and
 strict interpretation of the print body. Its firmware service routines are not
-simulated; read the [machine contract](../../DEVELOP.md#h2d-output-contract).
+simulated; read the [machine contract](../../core/export/bambu.md#h2d-output-contract).
 
 No physical print, head-clearance or surface-finish validation has been performed.
 Beads, skin offsets and first-skin bridging are approximate. Curvature convergence,

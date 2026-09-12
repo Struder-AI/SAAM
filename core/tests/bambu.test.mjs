@@ -8,7 +8,7 @@ import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../export/registry.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
@@ -64,6 +64,19 @@ test('H2D rejects altered firmware, metadata, print commands, cold state, tool e
   const chamber=structuredClone(plan);chamber.setup.buildVolumeC=40;assert.throws(()=>exportProgram(path,chamber,machine,release),/chamber heating/);
   const tall=structuredClone(path);tall.summary.boundsMm.max[2]=315;tall.actions.at(-1).to=[100,100,317];
   assert.throws(()=>exportProgram(tall,plan,machine,release),/shutdown clearance/);
+});
+
+test('H2D fresh export carries the same checked program as cold archive interpretation',async()=>{
+  const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
+  const {bytes,program}=exportAndInterpretProgram(path,plan,machine,release);
+  assert.deepEqual(program,interpretProgram(bytes,plan,machine),'fresh and reopened playback use the exact same emitted commands');
+  assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'reusing interpretation changes no delivered bytes');
+  const entries=unpackZip(bytes),thumbnail=entries.get('Metadata/plate_1.png');
+  for(const name of ['plate_no_light_1','top_1','pick_1'])assert.deepEqual(entries.get(`Metadata/${name}.png`),thumbnail);
+  const altered=Buffer.from(bytes);altered[80]^=1;
+  assert.throws(()=>interpretProgram(altered,plan,machine),'fresh export does not whitelist subsequently changed bytes');
+  const changed=structuredClone(plan);changed.setup.nozzleC++;
+  assert.throws(()=>interpretProgram(bytes,changed,machine),'fresh export does not whitelist changed settings');
 });
 
 test('H2D removes only initial homing H10 and retains the historical contract for saved jobs',async()=>{

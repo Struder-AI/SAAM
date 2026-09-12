@@ -1,9 +1,9 @@
 // Public CLI/shared import parity, isolated from real setup and print records.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm, mkdir, symlink, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -12,8 +12,54 @@ import { loadBundle, proposedPlan } from '../print/bundle.mjs';
 import * as wedge from '../../skills/wedge-demo/scripts/bundle.mjs';
 import { defaults } from '../../skills/wedge-demo/scripts/model.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
+import { readGuidance } from '../../adapters/mcp/src/manuals.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), run = promisify(execFile);
+
+test('published documentation links remain readable through the connector as owners split their references', async () => {
+  const pending = ['AGENTS.md'], visited = new Set();
+  while (pending.length) {
+    const id = pending.pop();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const document = await readGuidance(root, id);
+    for (const match of document.text.matchAll(/\]\(([^)]+)\)/g)) {
+      const [target, anchor] = match[1].split('#');
+      if (/^[a-z][a-z0-9+.-]*:/i.test(target) || (target && !target.endsWith('.md'))) continue;
+      const path = target ? relative(root, resolve(root, dirname(document.path), decodeURIComponent(target))).replaceAll('\\', '/') : document.path;
+      const expected = path + (anchor ? `#${anchor}` : '');
+      assert.ok(document.links.some(link => link.guidanceId === expected), `${document.path}: unreadable documentation link ${match[1]}`);
+    }
+    for (const target of document.links) if (!visited.has(target.guidanceId)) pending.push(target.guidanceId);
+  }
+  assert.ok(visited.has('core/print/USAGE.md'));
+  assert.ok(visited.has('skills/mesh-tools/SKILL.md'));
+});
+
+test('manual sections preserve duplicate heading identities and reject private or redirected paths', async t => {
+  const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-manuals-'));
+  t.after(() => rm(scratch, { recursive: true, force: true }));
+  await mkdir(resolve(scratch, 'core/ref'), { recursive: true });
+  await mkdir(resolve(scratch, 'outside'));
+  const markdown = '# Manual\n## Contract\nFirst.\n```md\n## Contract\n```\n## Contract\nSecond.\n### Detail\nKept.\n## Next\nExcluded.\n';
+  await writeFile(resolve(scratch, 'core/ref/README.md'), markdown);
+  const second = await readGuidance(scratch, 'core/ref/README.md#contract-1');
+  assert.equal(second.text, '## Contract\nSecond.\n### Detail\nKept.\n');
+  assert.equal(second.headings.filter(heading => heading.title === 'Contract').length, 2);
+  await assert.rejects(readGuidance(scratch, 'core/ref/README.md#absent'), /Unknown heading/);
+  for (const path of ['../MAKERS.md', 'core/../MAKERS.md', 'core/%2e%2e/MAKERS.md', '/MAKERS.md',
+    'C:/MAKERS.md', '.local/private.md', 'Prints/private.md', 'core/.private/secret.md',
+    'core/Prints/secret.md', 'core/node_modules/README.md', 'core/ref/source.mjs', 'private.md',
+    'core/CON.md', 'core/LPT1/README.md', 'core/ref./README.md', 'core/ref /README.md',
+    'core/r?f/README.md', 'core/r*f/README.md', 'core/r<f/README.md', 'core/r|f/README.md'])
+    await assert.rejects(readGuidance(scratch, path), /Invalid documentation path/);
+  await writeFile(resolve(scratch, 'outside/README.md'), 'Private fixture');
+  await symlink(resolve(scratch, 'outside'), resolve(scratch, 'core/redirect'), process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(readGuidance(scratch, 'core/redirect/README.md'), /symbolic links|junctions/);
+  await link(resolve(scratch, 'outside/README.md'), resolve(scratch, 'core/ref/hardlink.md'));
+  await assert.rejects(readGuidance(scratch, 'core/ref/hardlink.md'), /hard-linked/);
+});
+
 test('shared STL importer and both recipe adapters resolve the same remembered setup without recording approvals', async t => {
   const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-access-'));
   t.after(() => rm(scratch, { recursive: true, force: true }));

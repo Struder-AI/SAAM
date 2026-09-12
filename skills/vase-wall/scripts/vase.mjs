@@ -7,7 +7,7 @@ import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 
 export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'spiral',sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,maxPoints:100000};
 // Ten-nanometer integer grid: independent of contour/chord and boundary
-// tolerances, and avoids Clipper's large-integer path for ordinary part sizes.
+// tolerances; shared Clipper2 offsets use this same grid by default.
 const OFFSET_PRECISION_MM=0.00001;
 const cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
@@ -47,7 +47,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const next=Math.min(Number.MAX_SAFE_INTEGER,settings.maxPoints*2);
     throw new Error(`Vase ${kind} budget exhausted for ${id}: ${used}/${limit} at Z ${z.toFixed(6)} mm (wall ${start.toFixed(6)}–${end.toFixed(6)} mm). Increase ${budgetSetting} from ${settings.maxPoints} to ${next} or higher and retry; this changes the compute allowance, not contour quality. No complete wall was generated.`);
   }
-  const cache=new Map();let center,nudgedSections=0;
+  const cache=new Map();let center,nudgedSections=0,lastContours,lastValue;
   const sectionAt=createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
@@ -55,6 +55,13 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const cut=sectionAt(z);
     requireThat(Math.abs(cut.nudgedByMm??0)<=settings.boundaryToleranceMm,'Vase section nudge exceeds boundaryToleranceMm.');
     if(cut.nudgedByMm)nudgedSections++;
+    // Straight walls repeat the same section at many distinct heights. Reuse
+    // its construction only after comparing every coordinate exactly; changing
+    // sections still run their own topology, offset and common-origin checks.
+    if(lastContours&&cut.loops.length===lastContours.length&&cut.loops.every((loop,i)=>
+      loop.length===lastContours[i].length&&loop.every((p,j)=>p[0]===lastContours[i][j][0]&&p[1]===lastContours[i][j][1]))){
+      cache.set(key,lastValue);return lastValue;
+    }
     const outer=convexLoop(cut.loops),inset=offsetRegion([outer],-width/2,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall inward offset is empty, split or collapsed at Z ${z.toFixed(6)} mm for bead width ${width} mm.`);
     // Eroding a convex region preserves convexity. Rechecking every inset
@@ -64,7 +71,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     requireThat(loop.length>=3,'Vase wall section collapsed.');
     center??=loop.reduce((sum,p)=>[sum[0]+p[0]/loop.length,sum[1]+p[1]/loop.length],[0,0]);
     requireThat(pointInRegion(center,[loop]),'Vase sections must retain a common interior origin; section collapse, major drift or topology change is unsupported.');
-    const value={outer,loop};cache.set(key,value);return value;
+    const value={outer,loop};lastContours=cut.loops;lastValue=value;cache.set(key,value);return value;
   }
   section(start);
   // t=0..1 is a flat foundation ring; subsequent turns rise by exactly pitch.

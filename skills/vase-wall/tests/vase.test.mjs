@@ -52,17 +52,12 @@ function splittingMesh() {
   return {shape:'mesh',vertices,triangles,source:null};
 }
 
-test('convex wall survives an inset corner perturbed by the vase integer grid',async()=>{
-  // Synthetic near-straight top edge, rotated off the integer axes. Rounding
-  // makes its inset microscopically concave although the source is convex.
+test('convex wall retains the near-straight corner regression across offset kernels',async()=>{
+  // This rotated edge produced a microscopically concave Clip6 inset and a
+  // false rejection. Clip2 need not reproduce that old rounding artifact;
+  // the geometry must still generate a complete wall at the declared spacing.
   const c=Math.cos(.013),s=Math.sin(.013);
   const loop=[[0,0],[60,0],[60,40],[23,40.000001],[0,40]].map(([x,y])=>[80+x*c-y*s,50+x*s+y*c]);
-  const inset=offsetRegion([loop],-.2,{precisionMm:.00001,arcToleranceMm:.005})[0];
-  assert.ok(inset.some((p,i)=>{
-    const q=inset[(i+1)%inset.length],r=inset[(i+2)%inset.length];
-    const ax=q[0]-p[0],ay=q[1]-p[1],bx=r[0]-q[0],by=r[1]-q[1];
-    return ax*by-ay*bx < -1e-7*Math.hypot(ax,ay)*Math.hypot(bx,by);
-  }),'fixture exercises the former false rejection');
   const n=loop.length,vertices=[...loop.map(p=>[...p,0]),...loop.map(p=>[...p,.6])],triangles=[];
   for(let i=0;i<n;i++){const j=(i+1)%n;triangles.push([i,j,j+n],[i,j+n,i+n]);}
   for(let i=1;i<n-1;i++)triangles.push([0,i+1,i],[n,n+i,n+i+1]);

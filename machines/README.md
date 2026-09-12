@@ -18,7 +18,7 @@ RC8 and an external rotary for the [pipe demo](../skills/pipe-cladding/SKILL.md)
 Installation fields start unresolved. Its experimental PacScript source ZIP uses
 the shared Studio/review/delivery pipeline. The profile's display bounds are not
 robot reach limits; kinematics, motion limits and collisions remain deferred.
-See the [RC8 contract](../DEVELOP.md#denso-rc8-output-contract) for calibration,
+See the [RC8 contract](../core/export/denso.md#denso-rc8-output-contract) for calibration,
 rotary assumptions, relay behavior and unverified vendor execution.
 
 See [GLOSSARY.md](../GLOSSARY.md) and [build requests](../build_request.md).

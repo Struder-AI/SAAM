@@ -12,6 +12,7 @@ const exportKey=()=>state?.printId+':'+state?.exportHash;
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
+let pan=[0,0];
 let redrawFrame=0;
 let pathView,meshView;
 let geometryScene,geometryRenderer,geometryProject,geometryError='';
@@ -21,13 +22,14 @@ let movieController=null,movieUrl=null;
 const viewStorageKey=()=> 'saam-view:'+state?.printId;
 function saveView(){
   if(!state||movieController)return;
-  try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({exportHash:state.exportHash,yaw,tilt,zoom,fitBounds,seconds,tab,
+  try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({exportHash:state.exportHash,yaw,tilt,zoom,pan,fitBounds,seconds,tab,
     speed:Number($('#playback-speed').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked}));}catch{}
 }
 function restoreView(){
   try{
     const saved=JSON.parse(sessionStorage.getItem(viewStorageKey()));if(!saved)return;
     if([saved.yaw,saved.tilt,saved.zoom].every(Number.isFinite)){yaw=saved.yaw;tilt=saved.tilt;zoom=saved.zoom;}
+    if(Array.isArray(saved.pan)&&saved.pan.length===2&&saved.pan.every(Number.isFinite))pan=saved.pan;
     if(Number.isFinite(saved.speed))$('#playback-speed').value=saved.speed;
     $('#speed-label').value=$('#playback-speed').value+'×';
     $('#travel').checked=saved.travel===true;$('#follow-plate').checked=saved.followPlate===true;
@@ -42,6 +44,9 @@ function restoreView(){
 window.addEventListener('pagehide',saveView);
 function requestDraw(){
   if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
+}
+function clearProgramView(){
+  pathView=null;materialScene=null;materialRenderer?.dispose();materialRenderer=null;
 }
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
 const duration=()=>state?.program?.summary.motionSeconds??0;
@@ -146,9 +151,10 @@ const views={
           ['Axial passes',surface?'Local surface spacing with partial passes':'Full height'],['Between passes','Extrusion off'],...robotRows(state.plan)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Body',normal?.enabled?normal.perimeters+' walls + '+Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill':fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
-        ['Solid surfaces',normal?.enabled&&fill.enabled?fill.bottomLayers+' bottom / '+fill.topLayers+' top layers':'—'],
-        ['Draped skin',skin.enabled?skin.layers+' × '+skin.normalMm+' mm along the surface':'None'],['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All'],['Roof component',skin.part??'Part roof']];
+        ['Body',normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
+        ...(normal?.enabled&&fill.enabled?[['Solid surfaces',fill.bottomLayers+' bottom / '+fill.topLayers+' top layers']]:[]),
+        ...(skin.enabled?[['Draped skin',skin.layers+' × '+skin.normalMm+' mm along the surface'],['Roof component',skin.part??'Part roof']]:[]),
+        ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const rows=[['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
@@ -213,7 +219,8 @@ async function refresh(follow=false,reopen=false) {
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
   }
-  pathView=state.program?buildToolpathView(state.program.moves):null;
+  if(!state.program)clearProgramView();
+  else if(previous?.program?.moves!==state.program.moves)pathView=buildToolpathView(state.program.moves);
   if(state.program&&materialScene?.moves!==state.program.moves){
     materialError='';
     try{
@@ -226,9 +233,9 @@ async function refresh(follow=false,reopen=false) {
   layerFade.reset();
   if(previous?.exportHash!==next.exportHash){stop();seconds=duration();fitBounds=null;}
   if(!previous) {
-    stop();selected=null;fitBounds=null;zoom=1;seconds=duration();
+    stop();selected=null;fitBounds=null;zoom=1;pan=[0,0];seconds=duration();
     tab=state.program?'toolpath':state.geometryApproved?'plan':'geometry';
-    $('#kind-label').textContent=view().eyebrow+' · '+state.machine.name;
+    $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
     $('#skin-label').textContent=view().skinLabel;
     document.title='SAAM Studio · '+state.printName;
     $('#open-print').title='Open print: '+state.printName;
@@ -248,7 +255,7 @@ function decodeInWorker(snapshot){
       else resolve({...data.program,moves:moveStore(data.program.moves)});
     };
     worker.onerror=event=>{worker.terminate();reject(new Error(event.message||'Unable to load the machine-code player.'));};
-    worker.postMessage({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
+    worker.postMessage({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,sourceTransport:snapshot.sourceTransport,
       plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
   });
 }
@@ -258,15 +265,13 @@ function table(entries) {
   return dl;
 }
 function render() {
-  $('.machine').textContent=state.machine.name;
-  const stage={geometry:1,plan:2,toolpath:3}[tab];
-  $('#stage-label').textContent='STEP '+stage+' OF 3';
+  $('#stage-label').hidden=!state.inspection;
   $('#view-title').textContent={geometry:'Your geometry',plan:'Your geometry',toolpath:'Your toolpath'}[tab];
-  $('#prompt').textContent={geometry:'Look at the geometry.',plan:'Look at the settings.',toolpath:'Review the toolpath.'}[tab];
-  $('#guidance').textContent={geometry:'Check the shape and size before continuing.',plan:'Confirm how this part will be printed.',toolpath:'Play it through, then confirm and export.'}[tab];
+  $('#guidance').textContent={geometry:'Check the shape and dimensions.',plan:'',toolpath:'Inspect the full toolpath before exporting.'}[tab];
+  $('#guidance').hidden=!$('#guidance').textContent;
   $('#facts').replaceChildren(table(view().facts(state,tab)));
   $('#more-settings').hidden=tab!=='plan';
-  $('#settings-detail').replaceChildren(table([...machineSettings(state,view().settings(state)),...recipeRows(state.plan)]));
+  $('#settings-detail').replaceChildren(table([...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
   $('#planar-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
   $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
   const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasSkill(state.plan,'pipe-cladding')||!pathView;
@@ -307,8 +312,8 @@ function render() {
     const inspection=state.inspection;
     $('#stage-label').textContent='DEVELOPMENT INSPECTION';
     $('#view-title').textContent=inspection.title;
-    $('#prompt').textContent=tab==='toolpath'?'Explore the historical toolpath.':tab==='plan'?'Original generator settings.':'Reference geometry.';
     $('#guidance').textContent=inspection.description;
+    $('#guidance').hidden=!inspection.description;
     $('#facts').replaceChildren(table(tab==='plan'?inspection.settings:inspection.facts));
     $('#more-settings').hidden=true;
     $('#review-note').textContent=inspection.note;
@@ -332,7 +337,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   const background=ctx.createRadialGradient(0,0,0,0,0,1);background.addColorStop(0,'#f8faf1');background.addColorStop(1,'#eaf0e0');
   ctx.fillStyle=background;ctx.fillRect(-1,-1,2,2);ctx.restore();
   const bounds=partBounds(),skinPhase=view().skinPhase;
-  const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,width,height,yaw,tilt,zoom);
+  const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,width,height,yaw,tilt,zoom,pan);
   const strokeScale={lineWidthMm:state.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm};
   ctx.globalAlpha=1;
   for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(project([x,bounds.min[1]-10,0]),project([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
@@ -374,7 +379,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     const solidView=!!materialScene&&!!materialRenderer;
     const detail=!solidView||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
     if(updateUI)$('#viewer-detail').textContent=solidView
-      ?'Shaded oval beads · solid completed layers.'+(materialScene.unsupported.length?' Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':'')
+      ?(materialScene.unsupported.length?'Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':'')
       :materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
     const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[count].from}]:detail.segments;
     const current=moves[at.active];
@@ -417,14 +422,16 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
 }
 
-canvas.onpointerdown=e=>{canvas.setPointerCapture(e.pointerId);drag=[e.clientX,e.clientY];moved=false;};
-canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag[0],dy=e.clientY-drag[1];if(Math.abs(dx)+Math.abs(dy)>2)moved=true;yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));drag=[e.clientX,e.clientY];requestDraw();};
-canvas.onpointerup=e=>{drag=null;if(!moved&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top));}};
+canvas.onpointerdown=e=>{if(e.button>2)return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pan:e.shiftKey||e.button===1||e.button===2};moved=false;};
+canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>2)moved=true;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;requestDraw();};
+canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top));}};
+canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
+canvas.oncontextmenu=e=>e.preventDefault();
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
-canvas.onkeydown=e=>{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else if(e.key==='ArrowDown')tilt+=.1;else return;e.preventDefault();requestDraw();};
+canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
 $$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
-$('#reset-view').onclick=()=>{zoom=1;yaw=-.78;tilt=.62;fitBounds=null;$('#fit-program').textContent='Fit all moves';requestDraw();};
+$('#reset-view').onclick=()=>{zoom=1;pan=[0,0];yaw=-.78;tilt=.62;fitBounds=null;$('#fit-program').textContent='Fit all moves';requestDraw();};
 $('#fit-program').onclick=()=>{
   if(fitBounds){fitBounds=null;$('#fit-program').textContent='Fit all moves';}
   else {
@@ -436,10 +443,15 @@ $('#fit-program').onclick=()=>{
     }
     $('#travel').checked=true;$('#fit-program').textContent='Fit part';
   }
-  zoom=1;requestDraw();
+  zoom=1;pan=[0,0];requestDraw();
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-async function approval(stage){await api('approve',{stage,actor:'Local user',revision:state.revision});await refresh();}
+async function approval(stage){
+  const response=await api('approve',{stage,actor:'Local user',revision:state.revision});
+  const result=await response.json();
+  Object.assign(state,result.approval);
+  if(!result.approval.programAvailable){delete state.program;clearProgramView();}
+}
 async function download(){
   const response=await api('deliver',{});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
@@ -450,9 +462,9 @@ async function download(){
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
   try{
-    await working(tab==='toolpath'?'Checking and exporting your print…':tab==='plan'?'Saving settings and preparing your toolpath…':'Saving geometry confirmation…',async()=>{
+    await working(tab==='toolpath'?'Checking and exporting your print…':tab==='plan'?'Calculating toolpath':'Saving geometry confirmation…',async()=>{
     if(tab==='geometry'){if(!state.geometryApproved)await approval('geometry');tab='plan';}
-    else if(tab==='plan'){if(!state.planApproved)await approval('plan');if(!state.program||state.review.generation?.mode!=='production'){activity('Generating and checking your toolpath…');await api('generate',{development:false});activity('Loading the checked toolpath…');await refresh();}tab='toolpath';}
+    else if(tab==='plan'){if(!state.planApproved)await approval('plan');if(!state.program||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});activity('Loading toolpath…');await refresh();}tab='toolpath';}
     else {if(!state.toolpathApproved)await approval('toolpath');await download();}
     message('');
     });

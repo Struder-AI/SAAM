@@ -247,7 +247,8 @@ export function validatePlan(plan, machine) {
   requireThat(Array.isArray(fill.fillAnglesDeg) && fill.fillAnglesDeg.length >= 1 && fill.fillAnglesDeg.every(angle => typeof angle === 'number' && angle >= -180 && angle <= 180), 'Invalid fill angles.');
   number(fill.fillOverlap, 0, 0.5, 'fillOverlap');
   number(fill.minFeatureMm, 0.05, 5, 'minFeatureMm');
-  number(normal.density,0.01,1,'Infill density');
+  number(normal.density,0,1,'Infill density');
+  requireThat(normal.density===0||normal.density>=0.01,'Infill density must be zero or 0.01–1.');
   requireThat(INFILL_PATTERNS.includes(normal.pattern),'Unknown infill pattern.');
   number(normal.sampleStepMm,0.01,2,'Infill sample step');
   requireThat(Number.isSafeInteger(normal.maxPatternCells)&&normal.maxPatternCells>0,'Infill maxPatternCells must be a positive safe integer.');

@@ -1,3 +1,4 @@
+import {planarWallTolerance} from '../core/machine/rules.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
 export const skillName=name=>({'pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
@@ -58,8 +59,9 @@ export function regionRows(plan){
     ...(region.lowerSurfaceFrom?[[region.id+' · Bottom','Follows the finished surface of '+region.lowerSurfaceFrom]]:[])
   ]);
 }
-export function recipeRows(plan){
+export function recipeRows(plan,machine){
   const composition=plan.composition,regions=composition?.regions??[],rows=[];
+  rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm']);
   if(composition){
     rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],
       ['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],

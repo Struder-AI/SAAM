@@ -151,8 +151,8 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     while(source){consumed.add(source);source=byId.get(source).assignment.lowerSurfaceFrom;}
     const reserve=records.filter(r=>r.survey&&!consumed.has(r.assignment.id)&&r.end>=start-1e-8).map(r=>r.survey);
     const prefix=assignment.id;
-    if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,lowerSurface}));
-    else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,lowerSurface}));
+    if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,machine,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,lowerSurface}));
+    else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,machine,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,lowerSurface}));
     if(has(record,'vase-wall')) {
       requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
       const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,

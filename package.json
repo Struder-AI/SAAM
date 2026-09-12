@@ -19,7 +19,6 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
-    "clipper-lib": "6.4.2",
     "clipper2-wasm": "0.4.0",
     "express": "5.2.1",
     "rhino3dm": "8.32.2",

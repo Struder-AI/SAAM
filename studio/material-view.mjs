@@ -53,27 +53,45 @@ export const beadInstance=section=>new Float32Array([...section.a.center,...sect
 export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},yieldTask=()=>new Promise(r=>setTimeout(r,0))}={}){
   const groups=[],byKey=new Map(),unsupported=new Set(),supported=new Uint8Array(moves.length);
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  // Yield to input/painting by elapsed work, not once per operation. Thousands
+  // of small operations otherwise pay thousands of browser timer delays; one
+  // large operation must still yield while its beads are being prepared.
+  let lastYield=performance.now(),visited=0,beads=0;
+  const due=()=>performance.now()-lastYield>=8;
+  const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
   for(let i=0;i<moves.length;i++){
+    if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
     const move=moves[i];if(!move.extruding)continue;
+    beads++;
     for(const point of [move.from,move.to])point.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
     const key=materialKey(move);let group=byKey.get(key);
     if(!group){group={key,layerKey:layerKey(move),move,indices:[],last:i};byKey.set(key,group);groups.push(group);}
     group.indices.push(i);group.last=i;
   }
   for(let i=0;i<groups.length;i++){
-    const group=groups[i],instances=[],indices=[];
+    const group=groups[i];
+    let count=0,instances,indices;
     for(const index of group.indices){
+      if(visited++%128===0&&due())await pause(.25+.75*(visited-1)/Math.max(1,beads));
       const s=beadSection(moves[index],plan,geometry);
-      if(s){instances.push(...beadInstance(s));indices.push(index);supported[index]=1;}else unsupported.add(moves[index].phase);
+      if(s){
+        instances??=new Float32Array(group.indices.length*18);indices??=new Uint32Array(group.indices.length);
+        const offset=count*18;
+        instances.set(s.a.center,offset);instances.set(s.b.center,offset+3);
+        instances.set(s.a.wide,offset+6);instances.set(s.a.short,offset+9);
+        instances.set(s.b.wide,offset+12);instances.set(s.b.short,offset+15);
+        indices[count++]=index;supported[index]=1;
+      }else unsupported.add(moves[index].phase);
     }
-    group.instances=new Float32Array(instances);group.indices=new Uint32Array(indices);
-    onProgress((i+1)/groups.length);await yieldTask();
+    group.instances=count?instances.subarray(0,count*18):new Float32Array();
+    group.indices=count?indices.subarray(0,count):new Uint32Array();
   }
+  onProgress(1);
   return {moves,plan,geometry,groups,bounds,supported,unsupported:[...unsupported]};
 }
 
 export function materialTemplate(oval=true){
-  const sides=oval?12:4,data=[];
+  const sides=oval?16:4,data=[];
   const ring=oval?Array.from({length:sides},(_,i)=>[Math.cos(i*2*Math.PI/sides),Math.sin(i*2*Math.PI/sides)])
     :[[1,1],[-1,1],[-1,-1],[1,-1]];
   for(let i=0;i<sides;i++){
@@ -97,11 +115,11 @@ export function materialProjection(project,width,height,bounds){
   return {matrix,light};
 }
 
-// One instanced geometry buffer per layer/operation. Current layers use the
-// shared oval template, history uses the shared rectangular template. Camera,
-// rotary, scrub and fading update uniforms/counts; source curves stay cached.
+// One instanced geometry buffer per layer/operation. The active oval gradually
+// becomes the completed section during the fade, never at a discrete boundary.
+// Camera, rotary, scrub and fading update uniforms/counts; curves stay cached.
 export function createMaterialRenderer(documentApi=document){
-  const canvas=documentApi.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:true,antialias:true,preserveDrawingBuffer:true});
+  const canvas=documentApi.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:true,antialias:true,stencil:true,preserveDrawingBuffer:true});
   if(!gl)return null;
   let lost=false;canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();lost=true;});
   const vertex=`#version 300 es
@@ -112,7 +130,10 @@ export function createMaterialRenderer(documentApi=document){
     uniform mat4 projection;uniform vec3 light;uniform float detailed;out float shade;
     void main(){vec3 u=mix(u0,u1,vertex.x),v=mix(v0,v1,vertex.x);
       vec3 n=normalize(abs(vertex.w)>.5?normalize(b-a)*vertex.w:u*normalUV.x/dot(u,u)+v*normalUV.y/dot(v,v));
-      gl_Position=projection*vec4(mix(a,b,vertex.x)+u*vertex.y+v*vertex.z,1.);
+      vec2 rounded=vertex.yz;
+      vec2 square=rounded/max(1e-6,max(abs(rounded.x),abs(rounded.y)));
+      vec2 section=mix(square,rounded,detailed);
+      gl_Position=projection*vec4(mix(a,b,vertex.x)+u*section.x+v*section.y,1.);
       float diffuse=max(0.,dot(n,light));shade=mix(.75+.25*diffuse,.50+.50*diffuse,detailed);
     }`;
   const fragment=`#version 300 es
@@ -146,15 +167,19 @@ export function createMaterialRenderer(documentApi=document){
     draw(next,{at,current,fade,project,width,height,ratio,skinPhase}){
       if(lost)throw new Error('3D graphics context was lost. Refresh Studio to restore material rendering.');
       if(scene!==next)reset(next);
-      const w=Math.round(width*ratio),h=Math.round(height*ratio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-      gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+      // A fitted bead may be narrower than one screen pixel. Render enough
+      // samples across it before downsampling, instead of allowing its oval
+      // facets to alternate between visible and missing as the camera moves.
+      const sampling=Math.max(ratio,Math.min(4,2/Math.max(.01,(project.pixelsPerMm??1)*scene.plan.process.lineWidthMm)));
+      const w=Math.round(width*sampling),h=Math.round(height*sampling);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+      gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.stencilMask(0xff);gl.clearStencil(0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
       const {matrix,light}=materialProjection(project,width,height,scene.bounds),commands=[];
       for(const group of scene.groups){
         if(!group.indices.length||group.indices[0]>=at.completed)continue;
         if(!buffers.has(group))buffers.set(group,instanceBuffer(group.instances));
         let low=0,high=group.indices.length;
         while(low<high){const mid=(low+high)>>1;if(group.indices[mid]<at.completed)low=mid+1;else high=mid;}
-        commands.push({entry:buffers.get(group),count:low,detail:group.layerKey===layerKey(current)?1:0,
+        commands.push({entry:buffers.get(group),count:low,detail:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0,
           style:toolpathStyle(group.move,current,skinPhase,fade.weights.get(group.layerKey)??0)});
       }
       const move=scene.moves[at.active];
@@ -169,13 +194,18 @@ export function createMaterialRenderer(documentApi=document){
       function drawCommands(){
         for(const {entry,count,detail,style} of commands){
           const rgb=[1,3,5].map(i=>parseInt(style.color.slice(i,i+2),16)/255);gl.uniform4f(uniforms.color,...rgb,style.opacity);gl.uniform1f(uniforms.detailed,detail);
-          gl.bindVertexArray(entry.vaos[detail]);gl.drawArraysInstanced(gl.TRIANGLES,0,templates[detail].count,count);
+          const shape=detail>0?1:0;
+          gl.bindVertexArray(entry.vaos[shape]);gl.drawArraysInstanced(gl.TRIANGLES,0,templates[shape].count,count);
         }
       }
       // Resolve the nearest material surface before applying layer opacity.
       // Hidden surfaces do not accumulate darkness inside a completed block.
-      gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.colorMask(false,false,false,false);gl.depthFunc(gl.LESS);drawCommands();
+      gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.colorMask(false,false,false,false);gl.depthFunc(gl.LESS);drawCommands();
+      // Coplanar/overlapping bead faces can share the winning depth. Shade
+      // each visible sample once, avoiding repeated alpha blending stripes.
+      gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,0xff);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);
       gl.colorMask(true,true,true,true);gl.depthMask(false);gl.depthFunc(gl.EQUAL);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);drawCommands();
+      gl.disable(gl.STENCIL_TEST);
       gl.bindVertexArray(null);return {cachedGroups:buffers.size,detailedGroups:commands.filter(c=>c.detail).length};
     },
     dispose(){reset(null);if(partial)release(partial);templates.forEach(t=>gl.deleteBuffer(t.buffer));gl.deleteProgram(program);}

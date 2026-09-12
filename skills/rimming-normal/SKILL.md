@@ -45,8 +45,9 @@ deposition. That capability is not measured head clearance. The S5/H2D and
 configured Dobot software exports use the same composer and reviewed machine
 source as every other skill; normal offsets do not add a pipeline or approval.
 
-Use [MAKERS.md](../../MAKERS.md) for maker work and
-[DEVELOP.md](../../DEVELOP.md) for development. The public callable is
+For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+The public callable is
 `rimmingNormalResults({plan, modelResults})` in `scripts/rimming.mjs`, delegating
 to the shared rimming producer. The paired tests live in
 [rimming.test.mjs](../rimming-planar/tests/rimming.test.mjs). They compare offsets,

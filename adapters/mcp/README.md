@@ -50,8 +50,8 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. These small fixed lists are not an automatic discovery or installation system. |
-| `read_guidance` | Read fixed guidance IDs: `makers`, `development`, `glossary`, `mcp`, `wedge-generation`, `wedge-s5-export`. Root manuals and required wedge references are available without shell access. |
+| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish printing patterns from task skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
+| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell or wedge recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with explicit `mm`/`inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
@@ -66,7 +66,24 @@ saved IDs; there is no single global plan that overwrites another job.
 | `generate_print` | Generate and check the machine export from approved geometry and settings. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
-Read `read_guidance` with `guidanceId: "makers"` and the skill manual, create the first reasonable geometry, and call
+The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
+recipe adjustments, setup reuse, reopening and delivery. Read it through
+`read_guidance` with `guidanceId: "print-tools"`; individual pattern manuals own
+their settings and limits. Mesh diagnostics route to the
+[mesh-tools manual](../../skills/mesh-tools/SKILL.md). Mesh repair currently runs
+through the local CLI; this adapter exposes STL import, with no repair tool.
+
+Manual responses include their repository-relative `path`, available `headings`,
+and `links` whose `guidanceId` values can be passed straight to `read_guidance`.
+For example, `core/export/griffin.md#s5-startup-observations` reads that section
+and its subsections. This follows the same Markdown files as a local collaborator.
+The reader accepts public root manuals and Markdown in the component, skill,
+Studio, machine, adapter and script trees. Private/hidden paths, dependencies,
+build output, source code, traversal and filesystem links are unavailable.
+Existing `wedge-generation` and `wedge-s5-export` aliases still resolve for clients
+that saved them; the selected skill's links provide the normal reference route.
+
+Read `read_guidance` with `guidanceId: "makers"` and the relevant skill manual, create the first reasonable geometry, and call
 `request_review`. Studio opens in the default browser where available; the
 returned URL remains usable if browser launch fails. Set `SAAM_NO_AUTO_OPEN=1`
 for tests or a headless client. Studio servers are owned by the MCP process,

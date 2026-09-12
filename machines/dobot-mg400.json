@@ -1,5 +1,6 @@
 {
-  "schema":"saam-machine/1", "id":"dobot-mg400", "name":"Dobot MG400 · fixed-nozzle relay extrusion", "revision":1, "units":"mm",
+  "schema":"saam-machine/1", "id":"dobot-mg400", "name":"Dobot MG400 · fixed-nozzle relay extrusion", "revision": 2, "units":"mm",
+  "planarWallToleranceMm":0.01,
   "kinematics":"robot-fixed-orientation-xyz-command-space-only",
   "bounds":{"min":[0,0,0],"max":[330,240,200]},
   "boundsBasis":"Proposed software design envelope only; configured instance workspace required for export. Not robot reachability.",

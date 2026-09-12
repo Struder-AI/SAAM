@@ -1,51 +1,47 @@
 # Skills
 
-Skills package a manual, callable tools and tests. Discover their behavior and
-limits in the owning manual:
+Choose a manual by the operation you need. Printing skills describe deposition
+patterns; task skills operate on geometry or other preparation work. Each manual
+owns its tools, settings and supported scope.
 
-| Skill | Geometry | Machine compatibility |
-|---|---|---|
-| [pipe-cladding](pipe-cladding/SKILL.md) | Native circular pipe: planar concentric substrate plus alternating axial/helical radial shells | Experimental VP-6242 / RC8 + configured external rotary; shared composer, source playback and lifecycle. |
-| [wedge-demo](wedge-demo/SKILL.md) | Eight-point mesh, rectangular base, planar roof in any direction | S5, experimental H2D and configured Dobot software checks; shared export/review lifecycle. |
-| [full-fill](full-fill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |
-| [planar-infill](planar-infill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |
-| [supports](supports/SKILL.md) | Explicit standard footprints or tree skeletons; shared mesh/spline part-clearance queries | Bed-rooted, same-tool planar supports through the shared S5/H2D/configured Dobot lifecycle. |
-| [rimming-planar](rimming-planar/SKILL.md) | Assigned open bivariate spline surface between base and supported edges | Two outward horizontal offsets per section, shared planar pipeline; bed/edge bases. |
-| [rimming-normal](rimming-normal/SKILL.md) | Same assigned surface as rimming-planar | Experimental 3D normal offsets; shifted heights and ordering remain subjects for physical comparison. |
-| [draped-skin](draped-skin/SKILL.md) | Continuous accessible roof on either backend | Declared non-planar capability/limit; S5, experimental H2D and configured Dobot checks. |
-| [vase-wall](vase-wall/SKILL.md) | One supported convex outer section on mesh or untrimmed splines, no holes/islands | Continuous rising wall with optional level ending for successors; S5, experimental H2D and configured Dobot software checks. |
+## Printing patterns
 
-S5 has the complete export, Studio toolpath review and delivery workflow.
-H2D has experimental sliced-3MF output through the same review/delivery workflow.
-Its [firmware-service contract](../DEVELOP.md#h2d-output-contract) is checked but not motion-simulated.
-Dobot's experimental [Lua source ZIP](../DEVELOP.md#dobot-output-contract) follows
-the same approvals and delivery, with installation settings required before
-generation. Its segment-stop motion and relay estimate do not establish smooth
-vase deposition or measured extrusion. Vendor project-import acceptance is unverified.
-Software verification does not establish a physical print.
+| Operation | Manual |
+|---|---|
+| Planar walls and patterned interior fill | [planar-infill](planar-infill/SKILL.md) |
+| Solid fill and solid surface layers | [full-fill](full-fill/SKILL.md) |
+| Supports assigned to selected areas | [supports](supports/SKILL.md) |
+| Edge supports using horizontal offsets | [rimming-planar](rimming-planar/SKILL.md) |
+| Experimental edge supports using normal offsets | [rimming-normal](rimming-normal/SKILL.md) |
+| Skin following a continuous roof | [draped-skin](draped-skin/SKILL.md) |
+| A continuous rising outer wall | [vase-wall](vase-wall/SKILL.md) |
+| Pipe and selected-surface cladding | [pipe-cladding](pipe-cladding/SKILL.md) |
+| A bounded wedge with a planar sloping roof | [wedge-demo](wedge-demo/SKILL.md) |
 
-Skills also compose within one part through shared [material regions](../DEVELOP.md#material-regions-and-shared-interfaces).
-They can own different bases, walls, caps and roofs, and a later horizontal fill
-can consume an earlier nonflat surface as its bottom. The owning manuals describe
-support, transition, sampling and geometry limits. Sharing a machine exporter
-alone does not establish this broader interoperability.
+## Geometry processing
 
-The [local MCP adapter](../adapters/mcp/README.md) exposes the current workflow
-and these known manuals to a compatible client. Automatic discovery and
-registration are [deferred](../DECISIONS.md#d-022--defer-automatic-capability-discovery);
-the fixed list does not replace validation of the selected recipe.
+| Task | Manual |
+|---|---|
+| Diagnose a rejected mesh or perform requested mesh cleanup/reconstruction | [mesh-tools](mesh-tools/SKILL.md) |
 
-Shared authoring requirements live in DEVELOP.md:
+## Shared workflow and development
 
-- [Geometry queries and representation boundaries](../DEVELOP.md#geometry-interoperability-for-skill-authors).
-- [Machine capabilities and output adapters](../DEVELOP.md#machine-interoperability-design).
-- [Whole-plan travel and combing](../DEVELOP.md#whole-plan-travel-requirement).
-- [Composable operations and dependencies](../DEVELOP.md#skill-result-composition).
-- [Shared offsets and their supported scope](../DEVELOP.md#shared-offset-functions).
-- [Numerically robust, established and measured shared functions](../DEVELOP.md#shared-numerical-foundations).
+[Print tools](../core/print/USAGE.md) owns creating/importing a print, applying
+changes, reopening, setup reuse and generation/delivery. Pattern manuals add
+their own recipe settings and supported geometry.
 
-Keep pattern decisions in skills, representation-specific queries in the
-geometry core and machine behavior in profiles/output adapters. Add equivalent
-backend/machine tests for general skills; document narrow exceptions. Reuse the
-existing composer, Studio, approvals and delivery rather than creating another
-pipeline. Intermediate tests use the same components in scratch bundles.
+For a part combining patterns, read the selected manuals and their
+[material-region interface](../core/region/README.md#material-regions-and-shared-interfaces).
+For machine setup and export limitations, follow the
+[machine contracts](../core/export/README.md#machine-interoperability-design).
+
+Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
+discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).
+Developers start at [DEVELOP.md](../DEVELOP.md), whose skill-author pathway
+routes to the shared geometry, numerical, composition, travel and machine
+requirements.
+
+Package implementation notes cover [planar infill](planar-infill/DEVELOP.md),
+[assigned supports](supports/DEVELOP.md) and the shared
+[rimming design](rimming-planar/DEVELOP.md). Read these when changing the relevant
+producer or its integration with shared components.

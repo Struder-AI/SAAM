@@ -1,5 +1,5 @@
 import {LuaRuntime,LuaTable,LuaSubsetError} from './dobot-lua-subset.mjs';
-import {checkMachinePath,validateSetup,validateDobotConfiguration} from '../machine/rules.mjs';
+import {checkMachinePath,validateSetup} from '../machine/rules.mjs';
 import {requireThat,distance} from '../geom/tolerance.mjs';
 
 export const DOBOT_LIMITATIONS=[
@@ -26,7 +26,7 @@ export function motionProfile(lengthMm,speedMmS,accelMmS2){
 
 function config(plan,machine){
   requireThat(machine.id==='dobot-mg400'&&plan.output==='dobot-lua','Incompatible Dobot output.');
-  validateSetup(plan,machine);validateDobotConfiguration(plan,machine,{required:true});
+  validateSetup(plan,machine,{required:true});
   return plan.setup.dobot;
 }
 

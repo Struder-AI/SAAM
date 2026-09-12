@@ -6,7 +6,7 @@ import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
   '../geom/spline-tube.mjs','../geom/surface-region.mjs','../region/normal-surface.mjs','../../skills/pipe-cladding/scripts/surface-clad.mjs',
   '../geom/cylinder.mjs','../path/pose.mjs','../machine/denso.mjs','../export/denso.mjs','../export/denso-player.mjs','../../skills/pipe-cladding/scripts/clad.mjs',
-  '../region/offset.mjs', '../region/clipper.mjs', '../../node_modules/clipper-lib/clipper.js', '../../package-lock.json',
+  '../region/offset.mjs', '../region/clipper.mjs', '../region/clipper2.mjs', '../../package-lock.json',
   '../region/intersection.mjs', '../../node_modules/clipper2-wasm/dist/umd/clipper2z.js',
   '../../node_modules/clipper2-wasm/dist/umd/clipper2z.wasm',
   '../region/surface-offset.mjs', '../geom/surface-derivatives.mjs',

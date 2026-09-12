@@ -1,17 +1,11 @@
-// Single adapter to the pinned Clipper 6.4.2 JavaScript port. Keep the upstream
-// construction, scanbeam/winding cleanup and PolyTree logic in the dependency.
-// Surface offsets also use this adapter for their swept-region cleanup.
-// General planar booleans use Clipper2 in intersection.mjs; both adapters reuse
-// the conversion and canonical ordering below.
-import Clipper from 'clipper-lib';
+// Shared coordinate conversion and Clipper2 operations for planar offsets,
+// booleans and surface-offset swept-region cleanup.
+import {booleanPaths,inflatePaths,normalizeAndInflatePaths} from './clipper2.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 
 export const CLIPPER_PRECISION = 1e-9;
-const LIMIT = 2 ** 50; // headroom below the JS port's 2^52 coordinate limit
-
-// The upstream browser error handler catches its own exception and calls alert.
-// In Node an error must propagate, never become a partial or empty solution.
-Clipper.Error = message => { throw new Error(`Clipper: ${message}`); };
+const LIMIT = 2 ** 50; // headroom within exactly representable JS integer coordinates
+const round=value=>value<0?-Math.round(-value):Math.round(value);
 
 export function clipperContext(regions, precision = CLIPPER_PRECISION, margin = 0) {
   requireThat(Number.isFinite(precision) && precision > 0, 'Region precision must be positive and finite.');
@@ -21,8 +15,8 @@ export function clipperContext(regions, precision = CLIPPER_PRECISION, margin = 
   requireThat(points.every(p => p.every((v, k) => (Math.abs(v - origin[k]) + margin) / precision < LIMIT)),
     'Region coordinate range exceeds Clipper precision; increase precisionMm or use a smaller coordinate span.');
   const encode = loops => loops.map(loop => loop.map(p => ({
-    X: Clipper.Clipper.Round((p[0] - origin[0]) / precision),
-    Y: Clipper.Clipper.Round((p[1] - origin[1]) / precision)
+    X: round((p[0] - origin[0]) / precision),
+    Y: round((p[1] - origin[1]) / precision)
   })));
   const decode = paths => canonicalLoops(paths.map(loop => loop.map(p => [origin[0] + p.X * precision, origin[1] + p.Y * precision])));
   const decodeOpen = paths => paths.map(path => path.map(p => [origin[0] + p.X * precision, origin[1] + p.Y * precision]));
@@ -41,23 +35,16 @@ export function canonicalLoops(loops) {
 }
 
 export function clipPaths(subject, clip = [], operation = 'union', fill = 'pftNonZero') {
-  const engine = new Clipper.Clipper(), tree = new Clipper.PolyTree();
-  // Point-touching lobes must be separate simple loops for component-aware fill.
-  // Both upstream languages expose this option; it changes representation, not
-  // the filled region. Do not resolve such junctions in skill-local code.
-  engine.StrictlySimple = true;
-  const hasSubject = engine.AddPaths(subject, Clipper.PolyType.ptSubject, true);
-  const hasClip = clip.length ? engine.AddPaths(clip, Clipper.PolyType.ptClip, true) : false;
-  const kind = { union: 'ctUnion', difference: 'ctDifference', intersection: 'ctIntersection' }[operation];
+  const kind = { union: 'Union', difference: 'Difference', intersection: 'Intersection' }[operation];
   requireThat(kind, 'Unsupported offset cleanup operation.');
-  if ((!hasSubject && !hasClip) || (!hasSubject && operation !== 'union')) return [];
-  requireThat(engine.Execute(Clipper.ClipType[kind], tree, Clipper.PolyFillType[fill], Clipper.PolyFillType[fill]), 'Clipper offset cleanup failed.');
-  return Clipper.Clipper.PolyTreeToPaths(tree);
+  requireThat(fill==='pftNonZero','Unsupported offset fill rule.');
+  return booleanPaths(subject,clip,kind);
 }
 
 export function offsetPaths(paths, delta, { join, miterLimit, arcTolerance }) {
-  const engine = new Clipper.ClipperOffset(miterLimit, arcTolerance), tree = new Clipper.PolyTree();
-  engine.AddPaths(paths, Clipper.JoinType[{ round: 'jtRound', miter: 'jtMiter', square: 'jtSquare' }[join]], Clipper.EndType.etClosedPolygon);
-  engine.Execute(tree, delta);
-  return Clipper.Clipper.PolyTreeToPaths(tree);
+  return inflatePaths(paths,delta,{join,miterLimit,arcTolerance});
+}
+
+export function normalizedOffsetPaths(paths,delta,{join,miterLimit,arcTolerance}){
+  return normalizeAndInflatePaths(paths,delta,{join,miterLimit,arcTolerance});
 }
