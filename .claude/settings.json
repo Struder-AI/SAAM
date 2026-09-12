@@ -2,13 +2,18 @@
   "permissions": {
     "allow": [
       "Bash(node studio/server.mjs *)",
-      "PowerShell(node studio/server.mjs *)"
+      "PowerShell(node studio/server.mjs *)",
+      "Bash(sh saam.sh studio *)",
+      "PowerShell(.\\saam.ps1 studio *)",
+      "PowerShell(powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\saam.ps1 studio *)"
     ]
   },
   "sandbox": {
     "excludedCommands": [
       "node studio/server.mjs",
-      "node studio/server.mjs *"
+      "node studio/server.mjs *",
+      "sh saam.sh studio",
+      "sh saam.sh studio *"
     ]
   }
 }

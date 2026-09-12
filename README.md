@@ -55,6 +55,15 @@ the temporary web-chat bridge.
 Give your agent this repository and describe what you want to make. Agents start
 at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
+For the shortest first run, extract a matching prepared repository archive from
+the [packaging workflow's artifacts](https://github.com/Struder-AI/SAAM/actions/workflows/first-run.yml).
+These contain Node and installed dependencies. An ordinary source ZIP works too;
+your agent prepares the same private runtime and dependencies in one setup step.
+Open the extracted folder in Claude Code Desktop or Codex Desktop and prompt.
+No separate Node installation, MCP connection or full test run is needed to make
+your first part. [Download and setup details](scripts/FIRST-RUN.md) describe the
+platforms and the difference between prepared archives and source ZIPs.
+
 For a manual development trial, follow [setup and checks](CONTRIBUTING.md#setup-and-checks)
 and the [wedge demo manual](skills/wedge-demo/SKILL.md). The demo produces a
 development preview; human job approval remains separate.

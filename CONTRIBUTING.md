@@ -118,6 +118,7 @@ All file names in the core column below are relative to `core/tests/`.
 | Vase wall, contour correspondence, topology, offset rounding, budgets and level ending; repeated sleeve motifs, inward tilted loops, continuous/segmented mapping and bead-height integration | Regional composition, travel, Studio settings and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](skills/vase-wall/tests/paths.test.mjs) |
 | Bounded eight-point wedge geometry, generator and lifecycle | Shared travel, export and workflow tests as affected | [eight-point.test.mjs](skills/wedge-demo/tests/eight-point.test.mjs), [wedge.test.mjs](skills/wedge-demo/tests/wedge.test.mjs), H2D/Dobot wedge tests above |
 | Skill catalog, generated digest freshness and coverage | [skill-digest.test.mjs](core/tests/skill-digest.test.mjs) | MCP catalog tests when shared discovery changes |
+| First-use setup identity, cached evidence, failure recovery and concurrent setup ownership | [setup.test.mjs](core/tests/setup.test.mjs) | `node scripts/test-first-run.mjs --source` and `--archive <file>` exercise extracted downloads on each platform; see [packaging](scripts/FIRST-RUN.md) |
 | [gridfinity](skills/gridfinity/SKILL.md) | | [gridfinity](skills/gridfinity/tests/gridfinity.test.mjs), [gridfinity](skills/gridfinity/tests/access.test.mjs) |
 | Text outlines, independent references, solid modifiers and editable geometry | MCP integration for `apply_text` | [text.test.mjs](skills/text/tests/text.test.mjs): analytical material volume, counters, spline conversion, curved text, persistence and generation |
 | Documentation links, open build-request structure, devlog presence, skill digest freshness and coverage, decision metadata and private-file exclusions | `node scripts/check-repo.mjs` | No manufacturing test selection needed for prose-only edits |
@@ -155,17 +156,18 @@ geometry and quality choices explicit.
 For a checkout that has not been used yet, complete setup before either role's
 work; the person need not request it separately:
 
-1. Run `node --version`. Node.js 22+ is required. If it is missing or older,
-   direct the person to the Node.js 22+ installer for their operating system.
-2. Run `npm ci` from the repository root unless `node_modules/` is already
-   present, as in a packaged download.
-3. Run `npm run setup:check` to verify dependency loading, geometry kernels and
-   an unapproved geometry preview served by Studio. This short check needs no Git
-   metadata and creates no toolpath or manufacturing approval. Do not run the
-   full regression suite as maker onboarding.
-4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
+1. From the repository root, run `.\saam.ps1 setup` in Windows PowerShell or
+   `sh saam.sh setup` on macOS/Linux. This one operation prepares a private pinned
+   Node runtime, installs locked dependencies when needed, and checks dependency
+   loading, geometry kernels and an unapproved geometry preview through Studio.
+   Prepared downloads already contain the matching runtime and dependencies.
+   Repeated setup reuses a successful result for the same runtime, package/lock
+   identity and smoke-check version. `setup --force` reinstalls and rechecks.
+2. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
+Do not run the full regression suite as maker onboarding. The check needs no
+Git metadata, creates no toolpath and records no manufacturing approvals.
 Report a failure as a setup problem and stop there. Setup does not create a
 manufacturing approval. Git is needed only to clone; the wedge requires no
 Rhino desktop installation or Compute server. After setup, use the
@@ -175,13 +177,25 @@ Manage dependencies through `package.json`, `package-lock.json` and installation
 with `npm ci`. Installed source in `node_modules/` stays outside project edits
 and Git.
 
+The launcher runs manuals' existing commands without a system Node or npm.
+Replace the leading `node` with `.\saam.ps1 node` (Windows) or `sh saam.sh node`
+(macOS/Linux); replace `npm` with the launcher's `npm` subcommand. Use its
+dedicated `studio` subcommand for the scoped client permission. Keep commands
+in the repository root and quote paths containing spaces. PATH changes apply
+only to the launcher invocation and its child processes.
+
 ```sh
-npm ci
-npm run setup:check
-npm run demo
-npm run studio
-npm run check:print
+sh saam.sh setup
+sh saam.sh node skills/wedge-demo/scripts/cli.mjs init Prints/my-part
+sh saam.sh studio Prints/my-part
 ```
+
+Windows equivalents use `.\saam.ps1` in place of `sh saam.sh`. If Windows blocks
+a downloaded script, use the invocation-scoped
+[PowerShell form](scripts/FIRST-RUN.md#agent-commands). No MCP registration or
+hosted bridge is needed for a desktop coding agent working in this folder.
+An existing developer environment can still use Node 22+ and npm directly.
+See [prepared downloads](scripts/FIRST-RUN.md) for packaging, repair and timings.
 
 The public commands use the [shared generation/review lifecycle](core/print/README.md#generation-and-review).
 `npm run shell -- <command> <directory>` exposes `init`, `demo`, `adjust`,

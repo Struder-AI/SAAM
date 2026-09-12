@@ -19,3 +19,27 @@ prefix_rule(
         "taskkill /IM node.exe /F",
     ],
 )
+
+prefix_rule(
+    pattern = ["sh", "saam.sh", "studio"],
+    decision = "allow",
+    justification = "Open SAAM Studio with the prepared private runtime.",
+    match = ["sh saam.sh studio", 'sh saam.sh studio "Prints/my part"'],
+    not_match = ["sh saam.sh setup", "sh saam.sh node --eval 1", "sh saam.sh npm install"],
+)
+
+prefix_rule(
+    pattern = [".\\saam.ps1", "studio"],
+    decision = "allow",
+    justification = "Open SAAM Studio with the prepared private runtime.",
+    match = ['".\\saam.ps1" studio Prints/my-part'],
+    not_match = ['".\\saam.ps1" setup', '".\\saam.ps1" node --eval 1'],
+)
+
+prefix_rule(
+    pattern = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\\saam.ps1", "studio"],
+    decision = "allow",
+    justification = "Run the trusted Studio launcher with a process-only script policy override.",
+    match = ['powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\\saam.ps1" studio Prints/my-part'],
+    not_match = ['powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\\saam.ps1" setup', 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Write-Output anything"'],
+)

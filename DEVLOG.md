@@ -5,6 +5,49 @@ Completed work, development checkpoints, measurements and scoped observations.
 incomplete work; component references and skill manuals describe present behavior.
 [Decisions](DECISIONS.md) preserves contributor direction and approval provenance.
 
+## 2026-09-12 — Prepared repository downloads and consolidated setup
+
+- Added PowerShell and POSIX launchers, pinned Node 22.23.2 distributions with
+  official SHA-256 values, one dependency/setup operation, version-bound setup
+  reuse and explicit repair. Source downloads need no system Node or Git;
+  prepared archives include matching Node/npm and installed dependencies.
+- Added archive construction and a six-platform first-run workflow for Windows,
+  macOS and glibc Linux on x64/ARM64. The workflow tests OS launchers and extracted
+  downloads, without repeating the local manufacturing regression suite.
+- Windows x64 source-download integration passed with empty caches, no usable
+  system Node/npm/Git and a folder containing spaces: 41.474 seconds setup,
+  0.793 seconds cached setup, 2.242 seconds to create and serve geometry.
+  An initial 67,878,394-byte prepared ZIP passed with npm installation disabled:
+  9.211 seconds extraction, 18.461 seconds setup, 1.065 seconds cached setup and
+  2.457 seconds geometry preview. Those initial runs eagerly imported adapter
+  dependencies. The final smoke check resolves their entry points instead and
+  exercises geometry kernels/Studio; a local installed-dependency check took
+  0.36 seconds after that correction. Cold extracted-folder timings remain
+  distinct from that warm local measurement.
+- Final Windows ZIP integration used 67,881,321 bytes, with 6.397 seconds
+  extraction, 4.176 seconds first setup (2.307 seconds inside the smoke check),
+  0.818 seconds cached setup and 2.221 seconds geometry creation/HTTP preview.
+  It passed with no usable system Node/npm/Git and npm installation disabled.
+  The final source test also passed, taking 228.082 seconds including slow
+  downloads, 0.615 seconds cached setup and 1.394 seconds geometry preview;
+  its smoke check took 2.521 seconds. Network and filesystem variation make
+  these scoped observations, not guaranteed first-run durations.
+- Found and corrected PowerShell 5 module/ZIP extraction compatibility and
+  argument forwarding for Node flags. Focused tests verified cache invalidation,
+  failure recovery, install-lock ownership and preservation of Prints. Codex
+  policy checks allow the specific Studio launchers and reject arbitrary Node
+  subcommands; POSIX shell syntax checks passed.
+- The bundled Node 22 full regression run reached 424/425 passing tests and
+  failed a voxel fixture cleanup with Windows EBUSY, after its geometry assertions.
+  Added bounded filesystem retries to those temporary voxel cleanup hooks.
+  An earlier parallel run hit an unrelated Windows rename lock in source-player;
+  all five source-player tests passed on the focused rerun.
+- GitHub publication and the other platform runs require restored Git
+  authentication. The available connector lacks repository admin/workflow-write
+  access; the user was asked to remove main's required test status and restore
+  terminal sign-in. No desktop client permission UI or physical print outcome
+  is inferred from the OS/CLI/HTTP checks.
+
 ## 2026-09-12 — Lightweight first-use setup
 
 - The user rejected duplicate local/GitHub full-suite runs and clarified that

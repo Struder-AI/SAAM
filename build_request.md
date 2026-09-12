@@ -8,6 +8,13 @@ the closeout rules. An empty outstanding-work list is valid.
 
 ## Outstanding work
 
+### BR-044 — Prepared download platform and client acceptance
+
+- Status: blocked
+- Remaining: GitHub publication, native macOS/Windows ARM64/Linux matrix results and live desktop permission behavior lack verification. Publishing the workflow needs restored terminal Git authentication; removing main's remote test requirement needs repository admin access unavailable to the current connector.
+- Completion: Publish the locally checked branches after authentication is restored, remove only the required test status as authorized, run the prepared/source archive matrix and record live Claude Code Desktop/Codex Desktop first-use behavior with the supported downloads.
+- Context: [Implementation and Windows evidence](DEVLOG.md#2026-09-12--prepared-repository-downloads-and-consolidated-setup), [download procedure](scripts/FIRST-RUN.md), [Studio permissions](studio/README.md#studio-agent-permissions).
+
 These entries retain unresolved requests and acceptance checks from the existing
 records. Current task instructions determine what to take up. Lack of recorded
 acceptance is not a new report of failure or authorization for hardware execution.

@@ -24,6 +24,12 @@ SAAM itself.
 | Set up an unused checkout | Follow [setup and checks](CONTRIBUTING.md#setup-and-checks), including [Studio client permissions](studio/README.md#studio-agent-permissions), before using it. |
 
 Choose by the requested work; when unspecified, use the developer pathway.
+For a new download, run the single [setup command](CONTRIBUTING.md#setup-and-checks)
+before skill tools. It supplies Node and dependencies; do not send makers to a
+system installer or run the full regression suite as first-use setup.
+With the private runtime, translate manuals' `node`/`npm` commands through
+`.\saam.ps1 node`/`npm` on Windows or `sh saam.sh node`/`npm` on macOS/Linux.
+Launch Studio with the launcher's `studio` command.
 These are task contexts, and they do not expand the user's authorization.
 If `.local/AGENTS.md` exists, consult it when the user refers to a local experiment.
 Local capabilities are not part of shared SAAM and must not be assumed elsewhere.

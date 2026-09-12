@@ -7,6 +7,20 @@ The [shared lifecycle](../core/print/README.md) owns bundle validity and approva
 
 ## Studio agent permissions
 
+With the private runtime, run `.\saam.ps1 studio Prints/my-part` in Windows
+PowerShell or `sh saam.sh studio Prints/my-part` on macOS/Linux. Complete the
+[single setup operation](../CONTRIBUTING.md#setup-and-checks) first. These literal
+forms have scoped rules alongside the system-Node command below. Only `studio`
+is allowed: it accepts at most one print directory and performs no installation.
+The launcher retains its child until Studio exits through its viewer lifetime.
+Setup, npm and arbitrary Node subcommands have no blanket allowance. Keep the
+same trust/browser flows and instance ownership described below for either form.
+
+If downloaded-script policy blocks the PowerShell shorthand, use
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\saam.ps1 studio Prints/my-part`.
+Its rule includes that exact script and subcommand; there is no general
+PowerShell allowance or persistent execution-policy change.
+
 The checkout includes [Codex rules](../.codex/rules/studio.rules) and
 [Claude Code settings](../.claude/settings.json) for the same direct launcher:
 

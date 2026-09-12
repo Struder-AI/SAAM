@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { checkSkillDigest } from './skill-digest.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const excluded = new Set(['.git', '.local', '.saam', 'Prints', 'node_modules', 'dist', 'build']);
+const excluded = new Set(['.git', '.local', '.saam', 'Prints', 'node_modules', 'runtime', 'dist', 'build']);
 const documents = [];
 async function walk(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
