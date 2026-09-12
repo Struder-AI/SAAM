@@ -5,6 +5,20 @@ Completed work, development checkpoints, measurements and scoped observations.
 incomplete work; component references and skill manuals describe present behavior.
 [Decisions](DECISIONS.md) preserves contributor direction and approval provenance.
 
+## 2026-09-12 — Lightweight first-use setup
+
+- Replaced mandatory onboarding regression tests with `npm run setup:check`.
+  It imports declared dependencies, exercises Rhino, Clipper and installed
+  Manifold WASM, creates a temporary unapproved wedge and checks its geometry
+  through Studio HTTP. It needs no Git metadata or slicing and removes its
+  temporary print. Full checks remain a contributor and release responsibility.
+- The user authorized fast-forwarding remote main to the shared-code head and
+  adding this setup improvement there; full packaging stays on a separate branch.
+- On Windows x64 / Node 24.19.0, the main check took 0.58 seconds before the
+  shared-code update and 3.52 seconds with its additional dependencies after a
+  fresh install. These are software timings, not clean-machine download or
+  desktop client permission measurements. No real job approvals were created.
+
 ## 2026-09-12 — Shared geometry and local extension partition
 
 - The user requested keeping private experimental code, manuals, tests and UI in

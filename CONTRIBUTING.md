@@ -155,7 +155,10 @@ work; the person need not request it separately:
    direct the person to the Node.js 22+ installer for their operating system.
 2. Run `npm ci` from the repository root unless `node_modules/` is already
    present, as in a packaged download.
-3. Run `npm test` once to confirm that the checkout works.
+3. Run `npm run setup:check` to verify dependency loading, geometry kernels and
+   an unapproved geometry preview served by Studio. This short check needs no Git
+   metadata and creates no toolpath or manufacturing approval. Do not run the
+   full regression suite as maker onboarding.
 4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
@@ -170,7 +173,7 @@ and Git.
 
 ```sh
 npm ci
-npm test
+npm run setup:check
 npm run demo
 npm run studio
 npm run check:print
