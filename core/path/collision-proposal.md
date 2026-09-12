@@ -4,8 +4,8 @@ A requested design study, separate from the [implemented travel contract](README
 
 ## General collision avoidance — options for review
 
-Proposed 2026-09-09 at the user's request. No implementation or contributor
-approval is implied. Recommendation: own one small SAAM contract for machine
+Status: proposal for review under [BR-019](../../DEVLOG.md#br-019--h2d-wedge-and-studio-reopenactivity).
+Implementation and contributor approval remain unconfirmed. Recommendation: own one small SAAM contract for machine
 motion and clearance, implement its XYZ case first, and evaluate Tesseract as
 the first robot-arm backend. Keep the same skills, composition, print bundle,
 three approvals and exact-export Studio review.

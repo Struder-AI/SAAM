@@ -1,6 +1,6 @@
 ---
 name: wedge-demo
-description: Create an eight-point mesh wedge with an axis-aligned rectangular base, vertical sides and one planar roof sloping in any direction. Generate horizontal body and inclined roof layers through the shared S5, experimental H2D or configured Dobot output.
+description: Demonstrate horizontal body layers and inclined roof layers on a bounded eight-point wedge. Uses its own generator for a rectangular base, vertical sides and one planar sloping roof, providing a small example for exploring inclined deposition.
 ---
 
 # Wedge demo
@@ -156,11 +156,10 @@ Run `npm test` after changes. General freeform surface slicing, dual-material
 printing, UFP packaging, network sending and full Rhino computation are outside
 this package.
 
-The user reported on 2026-09-08 that the final wedge change achieved the requested
-no-bed-leveling and no-unused-nozzle-heating behavior. The shared exporter uses
-the machine profile's preserved header/start/end templates. See
-[the scoped observation](../../core/export/griffin.md#machine-program-templates-and-s5-observations);
-this is not a claim of complete print quality or clearance validation.
+The shared exporter uses the machine profile's header/start/end templates.
+The [S5 contract](../../core/export/griffin.md#machine-program-templates-and-s5-observations)
+defines startup assumptions and links revision-specific observations; complete
+print quality and physical clearance remain unverified.
 
 ## Dobot output
 

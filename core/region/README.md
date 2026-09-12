@@ -11,18 +11,17 @@ and travel across those regions.
 and a signed distance: positive expands material, negative erodes it. Pass the
 whole region together, including CCW outer/island loops and CW holes. Nonzero
 winding determines material; loop order and seams do not assign ownership.
-The old `region2d.mjs` export is an alias to this exact function. Full-fill,
+The `region2d.mjs` compatibility export is an alias to this exact function. Full-fill,
 planar-infill, draped-skin, vase-wall, shared rim coverage/travel and the bounded
 wedge all use it. The wedge retains its eight-point section generator and nearby-travel
-policy; only its independent boundary insets were replaced. Draped-skin retains
-its existing XY footprint inset, not an unrequested geodesic-spacing change.
+policy while using shared boundary insets. Draped-skin uses an XY footprint inset.
 
 The [adapter](clipper.mjs) uses the same pinned Clipper2 C++/WASM
 [kernel](clipper2.mjs) as general booleans. There is one initialized
 WASM instance, with bulk integer-coordinate transfer and shared native-memory
 ownership. All skills use this boundary for closed planar offsets, including
-supports, pipe substrate, material regions and comb travel. The old Clipper 6
-JavaScript dependency and runtime fallback are removed. Input normalization
+supports, pipe substrate, material regions and comb travel. There is no Clipper 6
+runtime dependency or fallback. Input normalization
 and polygon inflation use Clipper2, with nonzero winding and upstream topology
 construction. Inflation already unions its output internally; do not add a
 second output-normalization union. SAAM selects **closed material
@@ -33,7 +32,7 @@ regression coverage; their construction is owned by the shared kernel.
 Options are `join: 'round' | 'square' | 'miter'` (round by default),
 `miterLimit: 2`, `arcToleranceMm: 0.02` and `precisionMm: 1e-5`. This 0.00001 mm
 offset grid retains guard digits below the section chord tolerance while avoiding
-unneeded coordinate precision. The kernel migration does not coarsen this grid.
+unneeded coordinate precision.
 C# reference cases explicitly retain their `1e-9` grid; general Clipper2 booleans
 also retain their separate `1e-9` default. Arc tolerance is the upstream polygonal
 approximation target. Integer precision is distinct
@@ -41,7 +40,7 @@ from surface/section chord tolerance. A deterministic local origin reduces
 coordinate magnitude; range checks leave headroom for bounded miters. Invalid
 numbers/options or excessive range raise; genuine collapse returns `[]`.
 There is no per-point standoff sweep or arbitrary small-area pruning in the
-new offset. Reference tests account for integer quantization. Skill authors
+offset. Reference tests account for integer quantization. Skill authors
 must not import Clipper directly. General `intersect`/`difference`/`union` use
 the [Clipper2 tool](#shared-planar-intersections), re-exported from
 `core/region/boolean.mjs`. Both bundle adapters hash the shared kernel and exact
@@ -136,15 +135,10 @@ Historical plugin C# provenance and its runner remain in
 comparison. The original surface investigation references the public
 [Rhino wrapper](https://github.com/mcneel/rhino3dm/blob/main/src/dotnet/opennurbs/opennurbs_curve.cs).
 
-Historical Clipper 6 Windows/Node 24 measurements were about **0.67 ms** warm median for
-the 16-vertex nested planar case, **35 ms** for all 90 planar cases, and **18 ms**
-for the four-vertex cylinder offset at 0.005 mm tolerance (1287 evaluations,
-zero inverse mappings). The runner reports cold time, three warm samples,
-source/output hashes and usage. These small fixtures establish local costs,
-not a general speed ranking; complex surface offsets remain more expensive.
-The original Rhino STL now passes all full-fill layers in the offset diagnostic;
-its separate solid-mask intersection failure was subsequently resolved by the
-shared Clipper2 tool below.
+Historical costs and diagnostic outcomes are in the
+[devlog](../../DEVLOG.md#2026-09-09--clipper-6-and-surface-offset-measurements).
+The benchmark runner reports cold time, warm samples, source/output hashes and
+usage; measure the current kernel before making a current performance claim.
 
 ## Shared planar intersections
 
@@ -158,8 +152,8 @@ region using the same Clipper2 kernel, precision and allocation lifetime. Gyroid
 infill needs this to retain curved strokes while splitting at holes and solid
 masks. Open paths preserve point sequence; they are not rotated or closed by the
 closed-loop canonicalizer. There is no XOR, contact-event API, UV surface adapter, mesh booleans,
-NURBS intersections or backend-selection framework. The user selected Clipper2
-first; consider CGAL only if tests show an unmet requirement.
+NURBS intersections or backend-selection framework. Use Clipper2; consider CGAL
+only if tests show an unmet requirement.
 
 The adapter uses pinned `clipper2-wasm@0.4.0`, C++ Clipper2 2.0.1 compiled to
 WebAssembly, with upstream `Clipper64`, `NonZero`, `PreserveCollinear=false`.
@@ -183,13 +177,13 @@ guarantee about unsampled spline/mesh detail.
 Existing imports through [boolean.mjs](boolean.mjs) alias this tool:
 full-fill, planar-infill, draped reservations and regional composition, including
 vase/cap transitions. Planar offsets and experimental surface-offset swept-band
-cleanup now use this same kernel. Mesh/spline sectioning and sampled level sets
+cleanup use this same kernel. Mesh/spline sectioning and sampled level sets
 retain their separate geometry-construction roles.
 Full-fill's bead-coverage expansion uses the existing 0.001 mm `TOLERANCE.chord`
-arc target. Former 0.02 mm chords left four artificial corner gaps totaling
-about 0.000252 mm² in a rectangular solid top, hidden by the old boolean's area
-pruning. Tighter construction resolves those gaps without deleting material or
-changing deposition strokes. Runtime identity hashes exact JS/WASM bytes.
+arc target. This construction avoids artificial corner gaps without deleting
+material or changing deposition strokes; the
+[construction correction](../../DEVLOG.md#2026-09-09--intersection-construction-correction)
+records the original failure. Runtime identity hashes exact JS/WASM bytes.
 
 Tests include the captured 60-vertex STL failure, analytic nesting, contacts,
 slivers, nearly parallel crossings through coincidence, translation/scaling,
@@ -219,27 +213,16 @@ dotnet .local/intersection-reference-artifacts/bin/intersection-reference/debug/
 node scripts/bench/intersections.mjs --reference .local/intersection-reference-output.json --record
 ```
 
-A historical initial Windows/Node 24 run took about 15 ms to import/initialize the adapter,
-27 ms for the first 138-case batch and 9.3 ms warm median over seven repeats.
-The benchmark records CPU, Node, samples and source/output hashes. These are
-local software measurements, not universal speed or physical-print claims.
-
-The follow-up twisted-fixture run passes full-fill, planar-infill and draped
-generation/export/interpretation for both native splines and the user's original
-Rhino STL. Prepared-geometry warm median slice times were approximately
-0.35/0.61/17.82 s for spline full/planar/draped and 1.17/1.34/2.02 s for that STL,
-three repeats per mode. Different draped coverage remains a backend limitation,
-so these are not equal-output surface-speed claims. Results are ignored local
-data in `.local/intersection-slicing/`. The public STL import/adjust/development
-generation workflow also passes all three modes; a cold CLI reopen verifies the
-last export. No job approval or physical validation was performed.
+The [devlog](../../DEVLOG.md#2026-09-09--intersection-and-twisted-fixture-measurements)
+preserves the initial kernel timings and public-workflow observations. Current
+benchmark output records CPU, Node, samples and source/output hashes; differences
+in draped coverage limit comparisons between backends.
 
 ## Layer regions and several solids
 
 `core/region/` does the planar work: shared Clipper2 offsets for perimeters and
 coverage, scanline fill, and shared Clipper2 region boolean operations.
-The previous raw-offset, distance-pruning and handwritten self-splitting
-implementation has been removed. See [shared offsets](#shared-offset-functions).
+See [shared offsets](#shared-offset-functions) for the construction boundary.
 
 Booleans are how several solids are meant to combine: section each solid on its
 own and combine the layers, rather than building a boolean B-rep. A slicer only
@@ -247,11 +230,10 @@ needs the result one layer at a time, so surface-surface intersection curves and
 tolerance-consistent shell stitching are never posed. The same operation
 reserves material under a top surface, by intersecting a section with the level
 set of the reserve height. The [shared planar intersection tool](#shared-planar-intersections)
-replaces the handwritten region booleans and resolves the recorded Rhino STL
-solid-mask failure. Sectioning and sampled level-set extraction remain separate
+owns these combinations. Sectioning and sampled level-set extraction remain separate
 constructions; this is not a general curve/surface intersection engine.
 
-The region layer is implemented and tested. Assemblies now select separate
+The region layer is implemented and tested. Assemblies select separate
 components for fill instances and a roof for draping. Automatic solid union and
 overlap resolution in a plan remain deferred; an assembly is not a boolean union.
 

@@ -49,6 +49,38 @@ async function smallPlan(call, kind, machineId = 'ultimaker-s5') {
   return plan;
 }
 
+
+
+test('MCP voxel task discovers its manual and rebuilds field geometry through revision checks',async t=>{
+  const {call}=await fixture(t);
+  assert.equal((await call('list_skills')).find(s=>s.id==='voxel-tools').kind,'task');
+  assert.match((await call('read_skill',{skillId:'voxel-tools'})).manual,/voxel-create/);
+  const request={field:{schema:'saam-voxel-field/1',originMm:[0,0,0],sizeMm:[8,8,2],counts:[2,2,2],degrees:[1,1,1],
+    knots:[[0,0,1,1],[0,0,1,1],[0,0,1,1]],values:Array(8).fill(1),weights:null,isoValue:0.5},extraction:{edgeMm:1}};
+  let state=await call('voxel',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
+  assert.deepEqual(state.approvals,{geometry:false,plan:false,toolpath:false});
+  await call('voxel',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
+  request.field.values[0]=0;
+  state=await call('voxel',{printId:'volume',action:'update',expectedRevision:state.revision,request});
+  const saved=await call('get_print',{printId:'volume',includeGeometry:true});
+  assert.equal(saved.plan.geometry.shape,'voxel');assert.equal(saved.plan.geometry.field.values[0],0);
+  assert.deepEqual((await call('check_print',{printId:'volume'})).checked,['geometry','plan']);
+  assert.deepEqual(state.approvals,{geometry:false,plan:false,toolpath:false});
+});
+
+test('MCP text task edits actual geometry with a local font and stale-revision protection',async t=>{
+  const {call}=await fixture(t),plan=await smallPlan(call,'shell');
+  let state=await call('create_print',{printId:'text-sample',kind:'shell',machineId:'ultimaker-s5',plan});
+  const manual=await call('read_skill',{skillId:'text'});assert.match(manual.manual,/apply_text/);
+  state=await call('apply_text',{printId:'text-sample',expectedRevision:state.revision,request:{feature:{id:'label',text:'BO',fontPath:resolve(root,'skills/text/tests/fixtures/Abel-Regular.ttf'),mode:'recessed',sizeMm:5,depthMm:0.4,positionMm:[2,2],reference:{kind:'plane',origin:[0,0,1],xAxis:[1,0,0],yAxis:[0,1,0]}}}});
+  assert.equal(state.approvals.geometry,false);
+  const saved=await call('get_print',{printId:'text-sample',includeGeometry:true});
+  assert.equal(saved.plan.geometry.shape,'text');assert.ok(saved.plan.geometry.triangles.length>12);
+  await call('apply_text',{printId:'text-sample',expectedRevision:'stale',request:{remove:'label'}},/stale/);
+  await call('apply_text',{printId:'text-sample',expectedRevision:state.revision,request:{feature:{id:'label',text:'O'}}});
+  assert.equal((await call('get_print',{printId:'text-sample',includeGeometry:true})).plan.geometry.features[0].text,'O');
+});
+
 test('MCP SDK lists known manuals and profiles; creates persistent isolated bundles with strict inputs and no approval tools', async t => {
   const { call, client, printsRoot } = await fixture(t);
   const names = (await client.listTools()).tools.map(tool => tool.name);
@@ -58,12 +90,20 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'pipe-cladding'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'task'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'task'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   assert.match((await call('read_skill', { skillId: 'wedge-demo' })).manual, /eight-point/i);
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
   assert.equal(guidance.text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
   assert.equal(guidance.path, 'MAKERS.md');
   assert.ok(guidance.links.some(link => link.guidanceId.startsWith('skills/')));
+  const digestLink = guidance.links.find(link => link.guidanceId === 'skills/README.md');
+  assert.ok(digestLink);
+  const digest = await call('read_guidance', { guidanceId: digestLink.guidanceId });
+  for (const skill of await call('list_skills')) {
+    assert.ok(digest.text.includes(skill.description.replaceAll('|', '&#124;')), skill.id);
+    assert.ok(digest.links.some(link => link.guidanceId === `skills/${skill.id}/SKILL.md`), skill.id);
+  }
   assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
   const section = await call('read_guidance', { guidanceId: 'core/export/griffin.md#s5-startup-observations' });
   assert.match(section.text, /^### S5 startup observations/);

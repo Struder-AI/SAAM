@@ -71,8 +71,9 @@ Future skills use the same operation/dependency boundary; do not add a new
 composer for each skill pair.
 
 [Vase-wall](../../skills/vase-wall/SKILL.md) is one atomic continuous operation with
-actual changing-Z section queries. It accepts one supported convex outer section
-with a common interior point and no holes or islands; mesh and restricted spline
+actual changing-Z section queries. It accepts one outer section, including
+concavity, while its inset remains one loop without holes or islands. Arc-length
+traversal uses a fixed projected seam rather than a common interior point; mesh and restricted spline
 backends remain behind the shared queries. Its locked `endTransition` can leave
 a spiral rim or complete a level rim with a final turn whose material thickness
 tapers to zero. A planar successor needs that level boundary. The continuous
@@ -80,6 +81,73 @@ stroke cannot weave turn by turn with infill occupying the same height band;
 different regions of the same part can use the other skills. The manual owns
 standoff, sampling and point-budget limits. Turn-to-turn bead overlap is a
 geometry/process judgment for the agent and maker, not a generation gate.
+
+The same package also accepts [sleeve motifs](../../skills/vase-wall/SKILL.md#sleeve-patterns).
+Ordered [perimeter turns, height] paths repeat around a required solid or closed
+sleeve through the same actual-Z contour query. Optional signed contour offsets
+give a motif depth relative to the wall; inward tilted loops can retain the
+host's exterior. The host is only a mapping reference: no guide wall, foundation
+ring or lead-in is deposited in patterned mode. Pattern tilt and overlap remain recipe judgments. Continuous mode joins mapped
+endpoints, including the periodic seam and repetition boundaries; explicit
+segmented mode permits shared travel. Motifs contain deposition only and are
+never independent XYZ shapes. [deposition.mjs](deposition.mjs) constructs volumes
+for plain spirals and motifs; [contour-path.mjs](../geom/contour-path.mjs) owns
+arc-length traversal. Motifs publish no assumed area, rim or finished side surface.
+
+## Finished surfaces
+
+[finished-surface.mjs](finished-surface.mjs) connects surface consumers to
+material producers without a skill-name allowlist in the consumer. A result's
+`finishedSurfaces` entries carry its native shell identity, material height
+extent, coverage description, a boundary-membership query and source operation
+IDs. `publishFinishedBoundary` provides shell, side and top boundary adapters,
+or accepts a producer's own membership query. These are nominal design
+boundaries, not reconstructed bead textures or measured physical surfaces.
+
+The shared whole-component and regional adapters publish ordinary fill/infill,
+automatic vase walls and draped roofs. Vase side queries exclude the hollow
+center and cap; an unfinished spiral rim reduces the fully supplied side height.
+Mapped motifs retain their no-implicit-surface contract. Top queries
+respect the producing roof's slope limit. Sparse material retains its coverage
+classification and does not become a verified continuous support surface.
+
+`consumeFinishedSurface` binds a selected native spline or mesh chart to the
+matching component's published boundaries. Chart samples must lie within a
+published extent and boundary, and the consumer inherits source operation
+dependencies. Current cladding needs a rectangular periodic chart and adds
+outward normal shells; it accepts a finished boundary regardless of which
+producer supplies it. This interface does not add chart unwrapping, arbitrary
+multi-patch routing, physical contact verification or a second scheduler.
+
+## Line spacing
+
+[spacing.mjs](spacing.mjs) derives nominal centerline pitch from bead width and
+one optional per-skill `spacingFactor`: a finite number at least `1`, defaulting
+to `1`. Producers use that pitch for course placement and the actual bead width
+for cross section and segment volume. Agents never need to match independent
+pitch and extrusion settings. Plan validation normalizes older recipes and
+validates regional overrides through the same contract.
+
+Full-fill, planar-infill, draped-skin, supports, both rimming modes and
+pipe-cladding implement it. Existing infill and support density divides the
+derived pitch as before. Full-fill walls retain the exterior contacting bead
+and space successive walls inward; rimming retains its contacting bead and
+separates the paired bead. Planar infill's complementary solid masks use the
+full-fill factor. Cladding uses its own factor for axial cells and helix pitch,
+while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
+unchanged. Vase-wall's vertical spiral progression and the bounded wedge's
+separate recipe are outside this interface.
+
+Circular track counts and native surface metrics still fit local bead widths;
+course-cell width is divided by the factor before computing extrusion. Edge
+tapers use bead width, not widened pitch. Surface spacing remains sampled, with
+the cladding producer's existing metric and fixed-relay flow limitations.
+The setting does not add a material profile or establish physical printability.
+
+Spaced planar interiors publish sparse coverage; spaced walls publish their
+individual bands. A spaced draped skin publishes only its final bead strips,
+so a successor cannot consume its gaps as a continuous material surface.
+Ordinary factor-1 recipes retain their existing deposition behavior.
 
 ## Whole-plan travel requirement
 

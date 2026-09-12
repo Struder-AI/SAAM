@@ -6,9 +6,11 @@ import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {attachCheckedProgramWorker} from '../core/print/program-handoff.mjs';
 import { viewerLifetime } from './lifetime.mjs';
+import {loadLocalExtension} from '../core/local-extension.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
+const installedExtension=await loadLocalExtension(root);
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
@@ -56,7 +58,7 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
 }
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
-export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor}={}) {
+export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,localExtension=installedExtension}={}) {
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
   const printId=()=>createHash('sha256').update(dir).digest('hex');
@@ -137,6 +139,7 @@ export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(r
       await queue;
       const readDir=dir,readId=printId();
       const bundle=await opened;
+      if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir,{program:'source'});
         if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
@@ -180,6 +183,7 @@ export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(r
         if(url.pathname==='/api/open'){
           await openPrint(data.path);
         }
+        else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan')await current.updatePlan(dir,data.plan,data.revision);
         else if(url.pathname==='/api/approve'){
           const state=await current.approve(dir,{...data,program:'source'});

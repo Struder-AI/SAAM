@@ -1,6 +1,6 @@
 ---
 name: full-fill
-description: Generate solid planar layers or selected solid surface regions on closed meshes and supported spline shells, using compatible machine profiles and the shared SAAM Studio review workflow.
+description: Fill an entire body with solid planar layers, or add solid bases, caps and surface regions around sparse infill. Works on closed meshes and supported spline shells, providing solid material where the part needs it.
 ---
 
 # Full fill
@@ -14,6 +14,8 @@ Supported geometry: validated indexed triangle meshes (including STL import),
 closed untrimmed spline shells from the existing shape builders, and assemblies
 of those components. Arbitrary edited 3DM and trimmed CAD import are unsupported.
 The shared geometry interface supplies each layer's real cross section.
+Volumetric fields prepared by [voxel tools](../voxel-tools/SKILL.md) use their
+explicitly extracted manufacturing mesh through the same sections.
 Closed planar masks and material reservations use the
 [shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections).
 This does not add new input geometry types.

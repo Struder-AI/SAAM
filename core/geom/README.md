@@ -76,15 +76,11 @@ predicate can be justified even when a coarser contour approximation is adequate
 Do not pay for sub-process detail at every offset and emitted move without
 measuring its benefit.
 
-As a comparison, CuraEngine documents integer coordinates in micrometres
-([coordinate concepts](https://github.com/Ultimaker/CuraEngine/wiki/Concepts)).
-Cura's base definition inspected on 2026-09-11 separately sets a `0.5` mm segment
-resolution target, `0.025` mm maximum deviation and `50000` µm² (`0.05` mm²)
-extrusion-area deviation; machine/quality profiles may override them
-([base settings](https://github.com/Ultimaker/Cura/blob/main/resources/definitions/fdmprinter.def.json)).
-The deviation constraint limits simplification even when short segments remain.
-These numbers describe different quantities and do not establish this user's
-effective Cura settings or guarantee the same speed in SAAM.
+The [external precision reference inspection](../../DEVLOG.md#2026-09-11--external-precision-reference-inspection)
+illustrates distinct coordinate, segment-resolution, curve-deviation and
+extrusion-area budgets. Its dated values do not establish the user's effective
+settings or a speed guarantee. A deviation constraint can limit simplification
+even when short segments remain.
 
 During development, measure elapsed time, input/output point counts and geometric
 change together on the same recipe. Include translated/scaled geometry, sharp
@@ -95,9 +91,9 @@ over-precise output. Fix a physical-invariant failure rather than loosening its
 assertion to accommodate an unexplained error. This is design/review guidance,
 not another runtime precision sweep, validation gate or approval stage.
 
-The [precision audit](../../build_request.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
-records corrected mismatches and remaining work, including collapsed-segment
-volume handling and the oriented-motion cutoff. Current XYZ behavior is specified
+The [precision audit history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
+records corrections; [open follow-through](../../build_request.md#br-040--precision-audit-follow-through)
+covers remaining findings, including collapsed-segment volume and oriented motion. Current XYZ behavior is specified
 under [formats](../print/README.md#formats).
 
 ### Geometry query boundary
@@ -108,12 +104,13 @@ supports the existing closed untrimmed spline shells and validated indexed
 triangle meshes. Full-fill, planar-infill and draped-skin use these queries;
 pattern code must not branch on triangle versus spline internals. Declare new
 capabilities here and provide a backend implementation or an explicit rejection.
-The user confirmed retaining both backends on 2026-09-09. Mesh conversion is not
-required before SAAMpath generation.
+Both backends are supported under [D-021](../../DECISIONS.md#d-021--native-mesh-geometry).
+Mesh conversion is not required before SAAMpath generation.
 
 | Representation | Role |
 |---|---|
 | Spline shell / triangle mesh | Part geometry behind common queries. |
+| [Volumetric scalar field](VOXEL.md) | Editable voxel samples or rational B-spline controls; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
 | Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
 | Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
 | Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
@@ -164,8 +161,8 @@ in this build. A trimmed face therefore cannot be classified, and is rejected.
 
 Closure is verified numerically: every non-degenerate patch boundary must be
 matched by another patch's boundary, compared geometrically by closest point
-rather than by parameter, since a ruled surface reparameterises the iso-curve it
-was built from. A degenerate boundary (a pole, as at a cap centre) closes by
+rather than by parameter, since a ruled surface reparameterises its source
+iso-curve. A degenerate boundary (a pole, as at a cap centre) closes by
 itself. A trimmed or missing face fails this check.
 
 ### Sectioning untrimmed spline shells
@@ -199,6 +196,66 @@ self-touches) or flush with a whole face is genuinely ambiguous. Both are
 resolved the way slicers resolve them, by displacing the plane by up to 0.1 um
 and re-cutting; the displacement is reported. A section that still will not
 close raises rather than returning a part with a gap in it.
+
+## Text and solid modifiers
+
+The [text task skill](../../skills/text/SKILL.md) adds font-derived material,
+removes it, or retains it as a standalone solid. Planar glyph outlines use the
+existing Clipper2 union through [shared intersections](../region/intersection.mjs).
+The [solid boundary](solid.mjs) uses pinned `manifold-3d@3.5.3` C++/WASM for 3D
+union and difference. Its internal 3D intersections are separate from planar
+Clipper2; the two backends serve different representations. No existing planar
+consumer is switched to Manifold.
+
+[Font outline extraction](text-outline.mjs) uses pinned `fontkit@2.0.4` for glyph
+selection, positioning and vector paths. Bezier subdivision bounds control-point
+distance to each chord in flat millimetres. The original font bytes, hash, text,
+layout and variation settings are retained. Flat baseline deformation is followed
+by planar normalization before extrusion, avoiding cap diagonals that cross newly
+curved letter boundaries. The volume is subdivided, then mapped to the reference
+surface along its normal. Mid-edge and triangle-centroid deviations drive further
+subdivision; these samples are not a global error certificate. Reversed reference
+normals retain outward solid winding.
+
+Explicit `outlineOffsetMm` uses the existing shared planar offset before layout
+to thicken or thin strokes. This changes the geometry; it is never inferred from
+bead width at generation. A curved-roof regression demonstrates that thin 6 mm
+Abel C/U outlines disappear with a 0.4 mm bead (0.2 mm first-perimeter inset),
+and verifies deposition above the source roof for all five letters after
+0.15 mm outline expansion.
+
+[Reference surfaces](reference-surface.mjs) accept an independent open rational
+B-spline control net, a plane, or a named original-part patch. A flat rectangle
+maps explicitly to a UV rectangle; local scale/distortion belongs to that mapping.
+They do not become printable material. Rigid glyph mode places each glyph on its
+local tangent plane. Spline-baseline arc length uses a subdivided Bezier chord
+table with continuous curve/tangent evaluation; it is approximate.
+
+[Target tessellation](tessellate.mjs) samples supported closed spline shells,
+matches shared boundaries geometrically despite different parameterizations,
+and propagates mesh orientation. Its dyadic grid refines against sampled chord
+deviation and rejects unmatched seams or shared mesh-validation failures. The
+1e-7 mm vertex welding grid is distinct from its 0.02 mm default approximation
+target. Manifold's JS mesh boundary stores float32 coordinates, so precision also
+depends on coordinate magnitude. Input solids must have positive material volume.
+No conversion is introduced into ordinary native spline slicing.
+
+The text result is a `shape: text` recipe inside the existing native mesh bundle:
+original base, editable features, quality controls, output vertices/triangles and
+a digest binding construction inputs to that output. The actual persisted mesh
+is the reviewed and sliced geometry; reopening validates its bytes and descriptor
+without rerunning font shaping or booleans. Text edits rebuild through
+[the preparation entry](../print/text.mjs), then the normal bundle update invalidates
+affected reviews. Text's original STL source hash remains checked. Assembly edits
+retain the selected component id and other components' representations.
+
+Upstream contracts: [Fontkit](https://github.com/foliojs/fontkit),
+[Manifold](https://manifoldcad.org/docs/jsapi/documents/Using_Manifold.html).
+SAAM tests cover analytical boolean and lettering volumes, counters, curved
+target convergence, cylindrical/doubly curved independent references, baseline
+layout, normal reversal, rigid/mirrored glyphs, persistence and shared generation.
+These do not establish universal font/script support, global mapping injectivity,
+or physical printability.
 
 ## Rhino geometry
 
@@ -260,5 +317,5 @@ fill-rule differences, exact cleanup, ray-edge ownership, adjacent contact,
 allocation/topology failures and source-preserving S5/H2D import without approvals.
 These are software checks, not universal repair or physical print validation.
 The same repaired mesh remains subject to each skill's shape limits, including
-vase-wall's convex-section restriction. Spline geometry is not resampled by this
+vase-wall's single-section/single-inset-loop restriction. Spline geometry is not resampled by this
 STL-only operation; all downstream composition and machine contracts remain shared.

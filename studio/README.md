@@ -56,8 +56,8 @@ First-use setup is part of the agent's work; the user need not ask for it:
 During work, inspect geometry, source and playback and use camera/view controls
 without another conversational permission question. Keep each instance's print,
 URL and terminal handle together. To finish or restart it, close that instance's
-viewer tabs; after three seconds without a viewer its server exits. If no viewer
-was ever opened, or the server is stuck, stop only its recorded terminal task
+viewer tabs; after three seconds without a viewer its server exits. For a server
+with no viewer connection yet, or a stuck server, stop only its recorded terminal task
 or send Ctrl+C through that session. A client's stop-tool permission can still
 apply. Do not scan for and kill all Node processes. Leave a viewer open while
 the person is expected to review it. Existing manufacturing approvals still
@@ -101,6 +101,14 @@ do not adopt another agent's viewer or terminate another agent's process. Indepe
 CLI launches and separate local MCP adapter processes use separate free loopback
 ports. Identify the current work's print and URL before restarting its viewer.
 Check the loaded geometry and export afterward.
+
+If generation reports "The prepared print changed. Reload before generating."
+after source changes, a browser refresh alone may leave an older server runtime
+active while a new preparation worker imports current code. Restart the owning
+Studio server, reconnect its viewer and check the fresh state. Geometry approval
+can remain valid when geometry is unchanged; settings approval is also bound to
+the generator runtime and may require the person to confirm settings again.
+Do not rewrite approval hashes to make an old approval match new code.
 
 Studio tracks open pages through authenticated persistent viewer connections,
 independent of revision polling and background-tab timer throttling. There is no

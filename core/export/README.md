@@ -32,7 +32,7 @@ eight-point generator, with S5, experimental H2D and configured Dobot output.
 | Dobot MG400 | Shared fill, planar-infill, drape, vase-wall and bounded wedge paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
 | DENSO VP-6242 / RC8 + rotary | Native pipe body/cladding plus fixed-orientation mesh/spline regional skills and bounded wedge, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
 
-The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
+H2D defaults to the left 0.4 mm nozzle, 1.75 mm PLA and an experimental 15°
 non-planar limit. The profile records official hardware/slicer sources, separate
 nozzle work areas and conservative PLA settings. The inherited left-tool height
 is 320 mm; the advertised overall height is 325 mm. The supplied left/right

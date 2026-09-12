@@ -1,14 +1,15 @@
 # Rimming design
 
-Shared design and request context for [planar](SKILL.md) and
+Shared construction contract for [planar](SKILL.md) and
 [normal](../rimming-normal/SKILL.md) rimming. Read the selected manual for its
 implemented limits. [Composition](../../core/path/README.md) owns cross-skill dependencies.
 
 ## Rimming support specification
 
-User description, 2026-09-10 in the infill/support task. Initial implementations:
-[rimming-planar](SKILL.md) and
-[rimming-normal](../rimming-normal/SKILL.md). Their manuals own actual limits.
+[Rimming-planar](SKILL.md) and [rimming-normal](../rimming-normal/SKILL.md)
+implement this specification within their manuals' limits. The
+[development record](../../DEVLOG.md#br-032--infill-choices-and-judgment-assigned-supports)
+preserves the request and ordering clarifications.
 A rimming support applies to a selected edge or edge portion. Its reference
 geometry is a bivariate spline surface: the top boundary matches the supported
 edge, the base boundary rests on the bed or on another selected edge, and side
@@ -26,7 +27,7 @@ vertical barbell can use an edge of its lower end as the base of a rim reaching
 the lower edge of its upper end, enabling a bridge across that upper end.
 This is the requested process behavior, not physical validation.
 
-The user chose both offset metrics as separate skills for comparison. The shared
+The two skills expose separate offset metrics for comparison. The shared
 `core/geom/support-surface.mjs` authors an open, nonrational, uniform-clamped
 bivariate spline and uses existing native sectioning. `core/region/section-offset.mjs`
 offsets its sections horizontally or along the full normal with adaptive chord
@@ -35,11 +36,10 @@ existing intrinsic/geodesic region offset on a surface. The current control net
 must rise strictly in V for the section refinement's bracketed height solves.
 No lean-angle threshold is imposed.
 
-“Reference slice” was agent shorthand, not a new geometry object: a horizontal
-intersection curve on the original unoffset surface. Using those curves as the
-starting family was an implementation choice, not required by the user's initial
-surface definition. Normal offsets can alter Z. Subsequent user instructions
-establish whole-edge dependencies for both skills: every part of the base edge
+A reference slice means a horizontal intersection curve on the original
+unoffset surface; it is not a separate geometry object. The implementation uses
+these curves as its starting family. Normal offsets can alter Z. Whole-edge
+dependencies apply to both skills: every part of the base edge
 prints before any rim starts; the whole rim finishes before anything it supports
 starts. Among ready operations, keep heights similar across all mixed skills.
 Horizontal boundaries are the degenerate case of these same rules. The shared

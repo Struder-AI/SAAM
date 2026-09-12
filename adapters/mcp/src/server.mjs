@@ -10,9 +10,15 @@ import { spawn } from 'node:child_process';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs';
 import { importSTLBundle } from '../../../core/print/import-stl.mjs';
+import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
+import { applyText } from '../../../core/print/text.mjs';
+import {createVoxelBundle,updateVoxelBundle} from '../../../core/print/voxel.mjs';
+import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import { readGuidance } from './manuals.mjs';
+import { SKILL_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
+const installedExtension=await loadLocalExtension(root);
 const idSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/).refine(id => !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i.test(id), 'Reserved filename.');
 // Human file/folder names and Studio's three-level library are supported.
 // Separators are canonical forward slashes; every ancestor is checked below.
@@ -23,7 +29,6 @@ const printIdSchema = z.string().min(1).max(384).refine(id => {
     && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part));
 }, 'Invalid print name: use up to three relative folder names, without traversal, reserved names or Windows path characters.');
 const kindSchema = z.enum(['shell', 'wedge']);
-const skillIds = ['draped-skin', 'full-fill', 'mesh-tools', 'pipe-cladding', 'planar-infill', 'rimming-normal', 'rimming-planar', 'supports', 'vase-wall', 'wedge-demo'];
 const objectSchema = z.record(z.string(), z.unknown());
 const bundles = {
   shell: () => import('../../../core/print/bundle.mjs'),
@@ -77,7 +82,7 @@ export async function openBrowser(url) {
   });
 }
 
-export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1' } = {}) {
+export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension } = {}) {
   const libraryRoot = resolve(printsRoot);
   const studioSessions = new Map();
   let queue = Promise.resolve();
@@ -126,15 +131,13 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   }
   async function skills() {
     const found = [];
-    for (const id of skillIds) {
+    for (const id of SKILL_IDS) {
       try {
         const { text: manual } = await readGuidance(root, `skills/${id}/SKILL.md`);
-        const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(manual)?.[1] ?? '';
-        const metadata = /^metadata:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/m.exec(frontmatter)?.[1] ?? '';
-        found.push({ id, kind: /^[ \t]+saam-kind:[ \t]*task[ \t]*$/m.test(metadata) ? 'task' : 'printing',
-          description: frontmatter.match(/^description:[ \t]*(.*)$/m)?.[1] ?? '', manualTool: 'read_skill' });
+        found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
+    found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
   function tool(name, description, shape, action, readOnly = true) {
@@ -160,6 +163,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   tool('list_skills', 'List the known local printing and task skill manuals. This fixed list does not establish recipe compatibility; task skills are not deposition operations. Select the manual relevant to the requested task.', {}, skills);
   tool('read_skill', 'Read a known skill manual by ID. Follow its relevant documentation links with read_guidance.', { skillId: idSchema }, async ({ skillId }) => {
     if (!(await skills()).some(skill => skill.id === skillId)) throw new Error('Unknown skill ID. Use list_skills.');
+    const local=await localExtension.readSkill?.(skillId);if(local)return local;
     const { text: manual, ...reference } = await readGuidance(root, `skills/${skillId}/SKILL.md`);
     return { skillId, manual, ...reference };
   });
@@ -209,6 +213,43 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       await importSTLBundle(dir, await readFile(sourcePath), { units, machineId, setupFile: await setupFile(machineId) });
       return summary(printId, await (await bundles.shell()).loadBundle(dir));
     }, false);
+  localExtension.registerMcp?.({tool,z,printIdSchema,objectSchema,idSchema,read,noApprovalFields});
+  tool('voxel', 'Create or update a volumetric scalar-field part. Read the voxel-tools skill for control lattices, threshold and explicit mesh resolution. Uses shared slicing and Studio review.',
+    {printId:printIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
+    async({printId,action,request,machineId,expectedRevision,part})=>{
+      noApprovalFields(request);
+      if(action==='create'){
+        if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
+        loadMachine(machineId);
+        return summary(printId,await createVoxelBundle(await directory(printId,{create:true}),request,{machineId,setupFile:await setupFile(machineId)}));
+      }
+      if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
+      const {dir,state}=await read(printId);
+      if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
+      return summary(printId,await updateVoxelBundle(dir,request,{expectedRevision,part}));
+    },false);
+  tool('gridfinity', 'gridfinity',
+    {printId:printIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
+    async({printId,action,parameters,machineId,expectedRevision,part})=>{
+      noApprovalFields(parameters);
+      if(action==='create'){
+        if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
+        loadMachine(machineId);
+        const dir=await directory(printId,{create:true});
+        return summary(printId,await createGridfinityBundle(dir,parameters,{machineId,setupFile:await setupFile(machineId)}));
+      }
+      if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
+      const {dir,state}=await read(printId);
+      if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
+      return summary(printId,await updateGridfinityBundle(dir,parameters,{expectedRevision,part}));
+    },false);
+  tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read the text skill for request fields. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
+    {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
+      noApprovalFields(request);
+      const {dir,state}=await read(printId);
+      if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints; the bounded wedge demo uses its own geometry workflow.');
+      return summary(printId,await applyText(dir,request,{expectedRevision}));
+    },false);
   tool('adjust_print', 'Apply a validated chat recipe patch at expectedRevision. Geometry edits invalidate all approvals; process edits retain geometry approval. Read fresh state if stale.',
     { printId: printIdSchema, expectedRevision: z.string().min(1), patch: objectSchema }, async ({ printId, expectedRevision, patch }) => {
       noApprovalFields(patch);
@@ -236,11 +277,12 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     return summary(printId, await bundle.loadBundle(dir));
   }, false);
   tool('get_approval_status', 'Read fresh hash-bound geometry, plan and exact-export approvals from the saved bundle. Caller-provided approvals are never accepted.', { printId: printIdSchema }, async ({ printId }) => summary(printId, (await read(printId)).state));
-  tool('request_review', 'Serve this bundle through the shared SAAM Studio and return its local review URL; request opening in the default browser. No approval or generation is performed.', { printId: printIdSchema }, async ({ printId }) => {
+  tool('request_review', 'Serve this bundle through SAAM Studio. No approval or generation is performed.', { printId: printIdSchema,...localExtension.reviewSchema?.(z) }, async ({ printId,...viewOptions }) => {
     const { dir, state } = await read(printId);
+    const viewPath=await localExtension.reviewPath?.({dir,...viewOptions})??'';
     let session = studioSessions.get(printId);
     if (!session?.server.listening) {
-      const studio = createStudio(dir, { libraryRoot });
+      const studio = createStudio(dir, { libraryRoot,localExtension });
       await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
       session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` };
       studioSessions.set(printId, session);
@@ -249,8 +291,9 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       });
     }
     await session.server.openPrint(dir);
-    const browserOpenRequested = autoOpen ? await openBrowser(session.url) : false;
-    return { ...summary(printId, state), url: session.url, browserOpenRequested };
+    const url=session.url+viewPath;
+    const browserOpenRequested = autoOpen ? await openBrowser(url) : false;
+    return { ...summary(printId, state), url, browserOpenRequested };
   }, false);
   tool('generate_print', 'Generate SAAMpath and the declared export directly from the human-approved geometry and locked plan, completing shared checks. No new settings or development bypass are accepted.', { printId: printIdSchema }, async ({ printId }) => {
     const { dir, bundle } = await read(printId);

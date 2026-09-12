@@ -1,6 +1,6 @@
 ---
 name: planar-infill
-description: Generate planar walls and rectilinear, grid, triangles, concentric or gyroid infill on closed mesh or supported spline geometry. Combine with solid surfaces, assigned supports and draped skin through the shared workflow.
+description: Print conventional flat-layer walls with a patterned interior, varying infill density to control material use or leave a hollow body. Supports closed meshes and supported spline geometry; combine with full-fill for solid tops and bases.
 ---
 
 # Planar infill
@@ -77,15 +77,15 @@ Thin strips and their roof support deserve judgment and Studio inspection.
 
 Gyroid samples the nodal field `sin(x)cos(y) + sin(y)cos(z) + sin(z)cos(x) = 0`
 in scaled millimeter coordinates, with period `2.4 * lineWidthMm / density`.
-This approximate density calibration measured 20.52% deposited line-volume
-fraction for requested 20% on a 48 mm square averaged over 16 phases, at 0.2 mm
-sampling and 0.4 mm width. It is not a certified surface or exact-volume model.
+This is an approximate density calibration, not a certified surface or
+exact-volume model; the [development measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-construction-measurement)
+records its sampled line-volume fraction.
 The existing level-set constructor extracts contours; the shared Clipper2 open
 path tool clips them at walls, holes, islands and solid masks without adding
 extrusion connections across gaps. The pattern is anchored to the shared world
 coordinate grid, including Z, so placement can change its phase within a part.
 Sample refinement tests measure field residual and contour-length convergence.
-No upstream slicer code or documentation text was copied.
+The pattern implementation is original SAAM code.
 
 `scripts/patterns.mjs` exposes `infillStrokes(region, settings)` for the owning
 generator and developer tests. Makers use the shared plan tools, not a separate

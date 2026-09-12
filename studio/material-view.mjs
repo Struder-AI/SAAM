@@ -9,7 +9,7 @@ const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=false}={}){
   if(!move.extruding||length(subtract(to,from))<1e-9)return null;
   const p=plan.process,tangent=normalize(subtract(to,from));
-  const clad=move.phase==='cladding-axial'||move.phase==='cladding-hoop';
+  const clad=['cladding-axial','cladding-hoop','cladding-helix-forward','cladding-helix-reverse'].includes(move.phase);
   let height=move.layer===0?p.firstLayerMm:p.layerMm,normal=()=>[0,0,1],centered=false;
   if(clad){
     const center=plan.setup.denso?.rotaryCenterMm??[plan.placement.xMm,plan.placement.yMm,0];

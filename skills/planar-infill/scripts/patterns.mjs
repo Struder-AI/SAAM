@@ -4,15 +4,16 @@ import {offsetRegion} from '../../../core/region/offset.mjs';
 import {clipOpenPaths} from '../../../core/region/intersection.mjs';
 import {levelSetRegion} from '../../../core/region/boolean.mjs';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {lineSpacing} from '../../../core/path/spacing.mjs';
 
 export const INFILL_PATTERNS=['rectilinear','grid','triangles','concentric','gyroid'];
 
 export function infillStrokes(region,{pattern='rectilinear',widthMm,density,angleDeg=45,zMm=0,
-  sampleStepMm=0.2,maxPatternCells=1000000}) {
+  sampleStepMm=0.2,maxPatternCells=1000000,spacingFactor=1}) {
   requireThat(INFILL_PATTERNS.includes(pattern),'Unknown infill pattern.');
   requireThat(Number.isFinite(widthMm)&&widthMm>0&&Number.isFinite(density)&&density>=0&&density<=1,'Invalid infill width/density.');
   if(!region.length||density===0)return [];
-  const spacing=widthMm/density;
+  const spacing=lineSpacing(widthMm,{spacingFactor})/density;
   if(pattern==='concentric') {
     const strokes=[];
     for(let inset=0;;inset+=spacing){

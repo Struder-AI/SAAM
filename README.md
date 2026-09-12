@@ -66,8 +66,9 @@ in `examples/prints/`.
 
 Start with the [developer orientation](DEVELOP.md) for code or documentation
 work. Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
-contributor choices, and the [outstanding work index](build_request.md#outstanding-work)
-for requested work and dated implementation history.
+contributor choices, the [build requests](build_request.md#outstanding-work)
+for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work
+and evidence.
 
 The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).
 Licensing remains in [LICENSE](LICENSE).

@@ -18,8 +18,10 @@ import { offsetRegion } from '../../../core/region/offset.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
 import { composeResults } from '../../../core/path/compose.mjs';
 import { requireThat, distance, distance2 } from '../../../core/geom/tolerance.mjs';
+import {lineSpacing} from '../../../core/path/spacing.mjs';
 
 export const DRAPED_SKIN_DEFAULTS = {
+  spacingFactor: 1,
   layers: 2,
   normalMm: 0.2,
   strokeAngleDeg: 0,
@@ -155,7 +157,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     skinAreaMm2: survey.skinAreaMm2, minGapMm: Infinity, maxGapMm: -Infinity
   };
 
-  const rows = scanlineFill(region, width, settings.strokeAngleDeg);
+  const rows = scanlineFill(region, lineSpacing(width,settings), settings.strokeAngleDeg);
   // Skin layers share XY samples. Cache exact coordinates only for this result;
   // never carry roof values into another geometry revision. Bound retained data
   // on very large roofs, where avoiding unbounded memory beats cache hit rate.
@@ -198,7 +200,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
         report.minGapMm = Math.min(report.minGapMm, gap);
         report.maxGapMm = Math.max(report.maxGapMm, gap);
         requireThat(gap > 0, 'A skin stroke would deposit into material already there; check the reserved thickness.');
-        // Rectangular bead over the sampled interval: 3D length by row spacing
+        // Rectangular bead over the sampled interval: 3D length by bead width
         // by the vertical gap, converted to the normal direction.
         const volume = length * width * gap * Math.cos(slope * Math.PI / 180);
         volumesMm3.push(volume);segmentMetadata.push({gapMm:gap,slopeDeg:slope});

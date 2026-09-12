@@ -1,6 +1,6 @@
 ---
 name: mesh-tools
-description: Diagnose mesh-validation failures and perform requested STL cleanup or solid reconstruction with SAAM's mesh-processing tools.
+description: Diagnose rejected meshes or perform requested STL cleanup and solid reconstruction so usable geometry can return to import and review. Preserves the original for comparison; reconstruction can change small features and requires closed, consistently oriented input.
 metadata:
   saam-kind: task
 ---

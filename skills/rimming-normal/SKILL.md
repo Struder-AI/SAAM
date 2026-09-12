@@ -1,6 +1,6 @@
 ---
 name: rimming-normal
-description: Experiment with two-bead rimming supports offset along the full 3D normal of an assigned bivariate spline surface. Compare against rimming-planar on the same reference surface; motion can be nonplanar.
+description: Experiment with edge-support walls whose paired beads follow 3D surface-normal offsets, allowing nonplanar paths on a curved reference surface. Compare with rimming-planar to explore how offset direction affects bead spacing and edge contact; physical behavior remains unvalidated.
 ---
 
 # Rimming with surface-normal offsets
