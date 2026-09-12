@@ -13,7 +13,7 @@ incomplete work; component references and skill manuals describe present behavio
   manual-only. The user explicitly authorized removing main's remote `test`
   requirement. First-use maker setup remains the lightweight smoke check.
 - Replaced mandatory onboarding regression tests with `npm run setup:check`.
-  It imports declared dependencies, exercises Rhino, Clipper and installed
+  It resolves declared dependency entry points, exercises Rhino, Clipper and installed
   Manifold WASM, creates a temporary unapproved wedge and checks its geometry
   through Studio HTTP. It needs no Git metadata or slicing and removes its
   temporary print. Full checks remain a contributor and release responsibility.

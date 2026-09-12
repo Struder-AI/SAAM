@@ -1,6 +1,6 @@
 // First-use runtime check. No Git, regression suite, slicing or job approvals.
 import assert from 'node:assert/strict';
-import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {readFile,mkdtemp,rm,access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -14,9 +14,11 @@ export async function checkSetup({log=console.log}={}) {
     const start=performance.now();await action();stages[name]=Math.round(performance.now()-start);
   };
   const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  await stage('dependencies',async()=>{
-    for(const name of Object.keys(manifest.dependencies))
-      await import(name==='@modelcontextprotocol/sdk'?'@modelcontextprotocol/sdk/server/index.js':name);
+  await stage('dependency entry points',async()=>{
+    for(const name of Object.keys(manifest.dependencies)){
+      const entry=import.meta.resolve(name==='@modelcontextprotocol/sdk'?'@modelcontextprotocol/sdk/server/index.js':name);
+      await access(fileURLToPath(entry));
+    }
   });
   await stage('geometry kernels',async()=>{
     const r=await (await import('rhino3dm')).default();
