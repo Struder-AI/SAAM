@@ -43,13 +43,16 @@ development, use focused tests and broaden or repeat them when a change, failure
 or unresolved concern warrants it. Documentation-only work normally needs
 `node scripts/check-repo.mjs`; discussion and read-only investigation need no tests.
 
-Before committing, run focused checks appropriate to the change and resolve
-failures. Documentation-only changes use `node scripts/check-repo.mjs`. A full
-local `npm test` is optional when broad integration risk warrants it; do not run
-it merely to satisfy a commit ritual. CI owns the required full regression run
-for each source commit. A successful run of the repository-check workflow for
-the exact same commit can be reused across branch pushes. Same-repository pull
-requests use their branch's push check; fork pull requests receive their own run.
+Every authorized commit, including documentation and checkpoint commits, requires
+a complete local `npm test` run against the final state being committed. Subsequent
+edits require a fresh run before committing. Resolve failures first unless the
+user explicitly authorizes committing that failing state. The successful run
+remains valid through staging and the commit itself. Run and fix these checks
+locally before publication. GitHub does not repeat the full suite automatically
+on pushes or pull requests, and main does not require a remote `test` status.
+The repository-check workflow is available for an explicitly requested manual
+run. Platform packaging workflows exercise first-use setup, without repeating
+the manufacturing regression suite.
 
 Add meaningful coverage for new behavior and maintain the registry associations.
 Report the checks performed and their results with their actual scope. These are
@@ -127,8 +130,8 @@ node --test skills/planar-infill/tests/infill.test.mjs
 node scripts/check-repo.mjs
 ```
 
-`npm test` remains the single full-suite command. Focused local checks do not
-change its membership; the required full run belongs to CI.
+`npm test` remains the single full-suite command; selecting focused files does
+not change its membership or replace the full local run required at commit.
 
 ### Checks must earn their place
 
@@ -200,7 +203,7 @@ coverage, decision-record structure and approval metadata, and exclusion of
 private Prints and local artifacts.
 It does not verify that a human actually approved a decision or that a part is
 printable. The subsequent Node tests check manufacturing software behavior.
-CI installs dependencies and runs the same tests. Synthetic approval tests use
+The optional manual CI run installs dependencies and runs the same tests. Synthetic approval tests use
 temporary bundles and never authorize the person's real print.
 
 ## Documentation maintenance
