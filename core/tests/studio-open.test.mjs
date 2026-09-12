@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,readFile,writeFile,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createStudio} from '../../studio/server.mjs';
@@ -14,6 +14,7 @@ import {syncBuiltinESMExports} from 'node:module';
 
 test('an explicit scratch resolver follows Studio opening and listing without changing the default registry',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-scratch-'));t.after(()=>rm(library,{recursive:true,force:true}));
+  const canonicalLibrary=await realpath(library);
   const {mkdir}=await import('node:fs/promises');
   for(const id of ['first','second']){
     await mkdir(join(library,id));
@@ -32,7 +33,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
   const response=await fetch(origin+'/api/open',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({path:join(library,'second','plan.json')})});
   assert.equal(response.status,200);
-  assert.equal((await(await fetch(origin+'/api/state')).json()).marker,join(library,'second'));
+  assert.equal((await(await fetch(origin+'/api/state')).json()).marker,join(canonicalLibrary,'second'));
   const {bundleFor,listPrints}=await import('../../studio/server.mjs');
   await assert.rejects(bundleFor(join(library,'first')),/cannot review/);
   assert.deepEqual(await listPrints(library),[]);

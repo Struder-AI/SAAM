@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { intersect, union, difference } from '../region/intersection.mjs';
 import * as compatibility from '../region/boolean.mjs';
-import { intersectionFixtures } from '../../scripts/bench/intersection-fixtures.mjs';
+import { intersectionFixtures, intersectionFixtureIdentity } from '../../scripts/bench/intersection-fixtures.mjs';
 import { createBundleWorkflow } from '../print/workflow.mjs';
 import { offsetRegion } from '../region/offset.mjs';
 import { pointInRegion } from '../region/region2d.mjs';
@@ -32,7 +32,7 @@ test('existing skill imports are aliases to the shared Clipper2 functions',()=>{
 
 test('WASM results match 138 saved unmodified upstream C# results, with exact coordinates and topology',()=>{
   const reference=JSON.parse(fs.readFileSync(new URL('./fixtures/intersection-reference.json',import.meta.url)));
-  assert.equal(createHash('sha256').update(JSON.stringify(intersectionFixtures)).digest('hex'),reference.inputSha256);
+  assert.equal(createHash('sha256').update(JSON.stringify(intersectionFixtureIdentity)).digest('hex'),reference.inputSha256);
   assert.equal(reference.expected.length,intersectionFixtures.length);
   for(const [i,f] of intersectionFixtures.entries())assert.deepEqual(
     {name:f.name,loops:operations[f.operation](f.a,f.b,{precisionMm:f.precisionMm})},reference.expected[i],f.name);

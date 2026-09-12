@@ -136,12 +136,10 @@ geometry and quality choices explicit.
 For a checkout that has not been used yet, complete setup before either role's
 work; the person need not request it separately:
 
-1. Run `node --version`. Node.js 22+ is required. If it is missing or older,
-   direct the person to the Node.js 22+ installer for their operating system.
-2. Run `npm ci` from the repository root unless `node_modules/` is already
-   present, as in a packaged download.
-3. Run `npm test` once to confirm that the checkout works.
-4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
+1. Run `npm run first-run`. It requires Node.js 22+, installs the locked
+   dependencies when necessary, and performs a lightweight runtime and Studio
+   check. It also offers the skippable [guided tour](GETTING_STARTED.md).
+2. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
 Report a failure as a setup problem and stop there. Setup does not create a
@@ -154,7 +152,7 @@ with `npm ci`. Installed source in `node_modules/` stays outside project edits
 and Git.
 
 ```sh
-npm ci
+npm run first-run
 npm test
 npm run demo
 npm run studio
