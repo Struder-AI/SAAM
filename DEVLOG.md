@@ -7,6 +7,10 @@ incomplete work; component references and skill manuals describe present behavio
 
 ## 2026-09-12 — Lightweight first-use setup
 
+- The user rejected running the full suite locally before commit and again in
+  GitHub. Updated contribution policy to use focused local checks and let CI own
+  the required full suite. The CI job reuses successful repository-workflow
+  results for the identical commit and avoids duplicate same-repository PR runs.
 - Replaced mandatory onboarding regression tests with `npm run setup:check`.
   It imports declared dependencies, exercises Rhino, Clipper and installed
   Manifold WASM, creates a temporary unapproved wedge and checks its geometry
