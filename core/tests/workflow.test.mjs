@@ -196,9 +196,12 @@ test('Studio reviews a shell print and delivers it under its own export name', a
   const origin = `http://127.0.0.1:${server.address().port}`;
 
   const html = await (await fetch(origin)).text();
+  assert.match(html,/id="setup-controls"/);assert.match(html,/id="printer"/);
   const token = html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state = await (await fetch(origin + '/api/state')).json();
   assert.equal(state.kind, 'shell');
+  assert.ok(state.machineChoices.some(machine=>machine.id==='bambu-h2d'));
+  assert.ok(state.materialProfiles.some(material=>material.id==='PETG'));
   assert.equal(state.exportName, 'part.gcode');
   assert.ok(state.program && state.geometry.faces.length > 0, 'the viewer receives a program and a display proxy');
   assert.equal(state.code, undefined, 'the export is fetched separately, never embedded in state');

@@ -20,6 +20,11 @@ that export for toolpath approval. Delivery copies those reviewed bytes unchange
 Geometry edits invalidate all approvals; process, composition, runtime or machine
 changes invalidate plan and toolpath approval. Development generation records
 `mode: development`, creates no human approvals and cannot satisfy delivery.
+Machine selection, each installed tool/core/nozzle/material record, temperatures
+and the nozzle-derived process values are part of the plan hash. Changing any
+of them discards prepared/generated output and settings/toolpath approvals while
+leaving unchanged geometry approval intact. Legacy bundles without per-tool
+records are normalized from their selected 0.4 mm setup during validation.
 
 Generation performs the calculations specified by the plan. It does not add
 another planning stage. A plan must include the choices, settings and versions

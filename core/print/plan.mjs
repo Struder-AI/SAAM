@@ -20,6 +20,7 @@ import {RIMMING_DEFAULTS,validateRimming} from '../../skills/rimming-planar/scri
 import {PIPE_CLADDING_DEFAULTS,validateCladding} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {pipeMesh} from '../geom/cylinder.mjs';
 import {validateSplineTube} from '../geom/spline-tube.mjs';
+import {normalizeSetup} from '../material/profile.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -66,6 +67,7 @@ export function defaults(machine=loadMachine()) {
   };
   Object.assign(plan.process,machine.defaultProcess??{});
   plan.output=machine.outputs[0].id;
+  normalizeSetup(plan,machine);
   return plan;
 }
 
@@ -105,6 +107,7 @@ export function validatePlan(plan, machine) {
   requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube'].includes(plan.geometry?.shape), 'Unsupported shape.');
   plan.skills['pipe-cladding']??=structuredClone(PIPE_CLADDING_DEFAULTS);
   plan.skills['pipe-cladding'].surface??=null;
+  normalizeSetup(plan,machine);
   // Shell bundles created before the experimental setting existed retain the
   // profile limit until a chat adjustment writes the explicit null value.
   if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
@@ -171,7 +174,7 @@ export function validatePlan(plan, machine) {
     number(geometry.yInsetMm, 0, (geometry.widthMm - 5) / 2, 'Y-side inset');
   }
 
-  for (const [key, min, max] of [['firstLayerMm', 0.1, 0.3], ['layerMm', 0.06, 0.3], ['lineWidthMm', 0.3, 0.8],
+  for (const [key, min, max] of [['firstLayerMm', 0.04, 0.6], ['layerMm', 0.04, 0.6], ['lineWidthMm', 0.15, 1.6],
     ['planarSpeedMmS', 2, 80], ['skinSpeedMmS', 2, 40], ['firstLayerSpeedMmS', 2, 40], ['travelSpeedMmS', 5, 200],
     ['zSpeedMmS', 1, 20], ['retractMm', 0, 10], ['retractSpeedMmS', 1, 50], ['liftMm', 0, 20],
     ['maxCombMm', 0, 100], ['fanPercent', 0, 100], ['maxFlowMm3S', 0.1, 15], ['minimumLayerSeconds', 0, 60]])

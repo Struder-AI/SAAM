@@ -6,6 +6,8 @@ import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {attachCheckedProgramWorker} from '../core/print/program-handoff.mjs';
 import { viewerLifetime } from './lifetime.mjs';
+import {MACHINE_IDS,loadMachine} from '../core/machine/profile.mjs';
+import {MATERIAL_PROFILES,applyToolSelection} from '../core/material/profile.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
@@ -140,7 +142,8 @@ export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(r
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir,{program:'source'});
         if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
-        delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;state.sourceTransport='ndjson';send(state);
+        delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;state.sourceTransport='ndjson';
+        state.machineChoices=MACHINE_IDS.map(id=>{const machine=loadMachine(id);return {id,name:machine.name};});state.materialProfiles=MATERIAL_PROFILES;send(state);
         prepare(state,readDir);return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){
@@ -179,6 +182,27 @@ export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(r
         const current=await opened;
         if(url.pathname==='/api/open'){
           await openPrint(data.path);
+        }
+        else if(url.pathname==='/api/machine'){
+          await current.selectMachine(dir,data.machineId,data.revision);
+          await current.rememberSetup(dir);
+        }
+        else if(url.pathname==='/api/configure'){
+          const state=await current.loadBundle(dir,{program:false});
+          if(data.revision!==state.revision)throw new Error('This view is stale. Reload before changing setup.');
+          const plan=structuredClone(state.plan);
+          for(const selection of data.selections)applyToolSelection(plan,state.machine,{...selection,activate:false});
+          const active=data.selections.find(selection=>selection.tool===data.activeTool);
+          if(!active)throw new Error('Choose an active nozzle.');
+          const selectionChanged=active.tool!==state.plan.setup.tool||active.core!==state.plan.setup.core||
+            Number(active.nozzleMm)!==state.plan.setup.nozzleMm||active.material!==state.plan.setup.material;
+          const overrides=selectionChanged?data.overrides:{
+            nozzleC:state.plan.setup.nozzleC,bedC:state.plan.setup.bedC,
+            maxFlowMm3S:state.plan.process.maxFlowMm3S,retractMm:state.plan.process.retractMm,
+            retractSpeedMmS:state.plan.process.retractSpeedMmS,...data.overrides
+          };
+          applyToolSelection(plan,state.machine,{...active,...overrides,activate:true});
+          await current.updatePlan(dir,plan,state.revision);await current.rememberSetup(dir);
         }
         else if(url.pathname==='/api/plan')await current.updatePlan(dir,data.plan,data.revision);
         else if(url.pathname==='/api/approve'){

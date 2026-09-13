@@ -8,6 +8,7 @@ import { resolve, dirname, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
+import {MATERIAL_PROFILES} from '../../../core/material/profile.mjs';
 import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs';
 import { importSTLBundle } from '../../../core/print/import-stl.mjs';
 import { readGuidance } from './manuals.mjs';
@@ -153,7 +154,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
 
   tool('list_machines', 'List installed machine profiles and declared outputs. Catalog presence is not proof that a particular recipe is supported.', {}, async () => MACHINE_IDS.map(id => {
     const m = loadMachine(id);
-    return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
+    return { id, name: m.name, capabilities: m.capabilities, tools: m.tools, materials: MATERIAL_PROFILES,
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));

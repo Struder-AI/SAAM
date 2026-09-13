@@ -69,7 +69,10 @@ implementation requirements.
 
 The person requests recipe adjustments in chat; apply them with the skill's
 adjustment tool and Studio updates automatically. The maker need not edit JSON
-or complete a technical form. Camera, playback speed and travel visibility are
+or complete a technical form. They may directly choose their printer, installed
+nozzle/core and generic filament in Studio Settings; explain that a nozzle change
+recomputes line width and layer height and therefore requires fresh settings and
+toolpath approval. Camera, playback speed and travel visibility are
 viewer controls; the [Studio manual](studio/README.md) describes their use.
 
 ## Printer setup and assumptions

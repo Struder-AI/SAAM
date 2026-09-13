@@ -1,5 +1,6 @@
 import {requireThat,distance} from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from './denso.mjs';
+import {hotendFor,loadMaterial,normalizeSetup} from '../material/profile.mjs';
 
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);
@@ -11,21 +12,35 @@ const range=(v,limits,name)=>requireThat(Number.isFinite(v)&&Array.isArray(limit
 export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undefined?0.01:machine.planarWallToleranceMm;
 
 export function validateSetup(plan,machine,{required=false}={}) {
+  normalizeSetup(plan,machine);
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
   requireThat(Number.isFinite(planarWallTolerance(machine))&&planarWallTolerance(machine)>=0,'Machine planar wall tolerance must be finite and nonnegative.');
-  const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool),profile=machine.materials?.[s.material];
+  const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool),material=loadMaterial(s.material),legacy=!t.hotends?machine.materials?.[s.material]:null;
+  const profile=legacy?{...material,nozzleC:legacy.nozzleC,bedC:legacy.bedC,maxFlowMm3S:legacy.maxFlowMm3S,retraction:{...material.retraction,maxMm:legacy.maxRetractMm}}:material;
+  const hotend=hotendFor(machine,s.tool,s.core,s.nozzleMm);
   if(machine.id==='denso-vp6242-rc8')validateDensoConfiguration(plan,{required});
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
-  requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');
+  requireThat(hotend.materialCategories.includes(profile.category),`${profile.label} is not supported by ${s.core}.`);
+  requireThat(s.nozzleMm>=(profile.minNozzleMm??0),`${profile.label} requires at least a ${profile.minNozzleMm} mm nozzle.`);
   requireThat(s.filamentMm===machine.filamentDiameterMm,'Filament diameter does not match the machine.');
-  requireThat(profile,'Material has no declared process profile.');
+  requireThat(profile.filamentDiametersMm.includes(s.filamentMm),'Material profile does not support this filament diameter.');
   range(s.nozzleC,profile.nozzleC,'Material nozzle temperature');range(s.bedC,profile.bedC,'Material bed temperature');
   range(s.nozzleC,machine.temperatureLimitsC.nozzle,'Machine nozzle temperature');range(s.bedC,machine.temperatureLimitsC.bed,'Machine bed temperature');
   range(s.buildVolumeC,[0,machine.temperatureLimitsC.chamberMax??50],'Build-volume temperature');
-  range(p.maxFlowMm3S,[0.1,profile.maxFlowMm3S],'Material flow');
-  range(p.retractMm,[0,profile.maxRetractMm],'Retraction');range(p.retractSpeedMmS,[1,machine.maxFeedMmS.e],'Retraction speed');
-  range(p.firstLayerMm,t.layerHeightMm,'First layer');range(p.layerMm,t.layerHeightMm,'Layer height');
+  range(p.maxFlowMm3S,[0.1,Math.min(profile.maxFlowMm3S,machine.maxVolumetricFlowMm3S??profile.maxFlowMm3S)],'Material flow');
+  range(p.retractMm,[0,Math.min(profile.retraction.maxMm,machine.maxRetractionMm??profile.retraction.maxMm)],'Retraction');range(p.retractSpeedMmS,[1,machine.maxFeedMmS.e],'Retraction speed');
+  const layerLimits=[s.nozzleMm*.2,s.nozzleMm*.75];
+  range(p.firstLayerMm,layerLimits,'First layer');range(p.layerMm,layerLimits,'Layer height');
   range(p.lineWidthMm,[s.nozzleMm*0.75,s.nozzleMm*2],'Line width');
+  requireThat(Array.isArray(s.toolSetups)&&s.toolSetups.length===machine.tools.length,'Setup must configure every declared tool.');
+  for(const configured of s.toolSetups){
+    requireThat(configured&&Object.keys(configured).sort().join()==='core,material,nozzleMm,tool','Invalid per-tool setup.');
+    const installed=hotendFor(machine,configured.tool,configured.core,configured.nozzleMm),material=loadMaterial(configured.material);
+    requireThat(installed.materialCategories.includes(material.category),`${material.label} is not supported by ${configured.core}.`);
+    requireThat(configured.nozzleMm>=(material.minNozzleMm??0),`${material.label} requires at least a ${material.minNozzleMm} mm nozzle.`);
+  }
+  const active=s.toolSetups.find(item=>item.tool===s.tool);
+  requireThat(active&&active.core===s.core&&active.nozzleMm===s.nozzleMm&&active.material===s.material,'Active setup must match the selected tool configuration.');
   requireThat(machine.outputs.some(o=>o.id===plan.output),'Output is not declared by the machine.');
   const output=machine.outputs.find(o=>o.id===plan.output);
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');

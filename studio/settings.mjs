@@ -116,4 +116,4 @@ export function robotRows(plan){
   ];
 }
 // User-selected display estimate: 1.2 g/cm³, shared by all materials/machines.
-export const materialGrams=volumeMm3=>volumeMm3*1.2/1000;
+export const materialGrams=(volumeMm3,densityGcm3=1.2)=>volumeMm3*densityGcm3/1000;
