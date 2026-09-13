@@ -11,6 +11,9 @@ apparently unreferenced repaired STL at the root, and the Tippy importer's
 missing interpolation recheck after inserting corrected poses. Its current
 coverage report therefore overstates verification of the final adapted motion.
 
+At the user's subsequent request, `npm test` passed all 465 ordinary software
+tests in 72 seconds with no failures or skips. Stress tests remain separate.
+
 ## 2026-09-13 — Tippy wavy cladding preview
 
 Renamed the machine display to Tippy while retaining profile ID `tilty` and its
