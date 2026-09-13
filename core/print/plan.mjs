@@ -25,7 +25,6 @@ import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfini
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
 import {voxelTemplate,validateVoxelRecord} from '../geom/voxel-record.mjs';
 import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
-import {normalizeSetup} from '../material/profile.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -72,7 +71,6 @@ export function defaults(machine=loadMachine()) {
   };
   Object.assign(plan.process,machine.defaultProcess??{});
   plan.output=machine.outputs[0].id;
-  normalizeSetup(plan,machine);
   return plan;
 }
 
@@ -117,7 +115,6 @@ export function validatePlan(plan, machine) {
   plan.skills['pipe-cladding'].surface??=null;
   if(plan.skills['pipe-cladding'].pattern===undefined)plan.skills['pipe-cladding'].pattern=PIPE_CLADDING_DEFAULTS.pattern;
   if(plan.skills['pipe-cladding'].part===undefined)plan.skills['pipe-cladding'].part=null;
-  normalizeSetup(plan,machine);
   // Shell bundles created before the experimental setting existed retain the
   // profile limit until a chat adjustment writes the explicit null value.
   if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
@@ -200,7 +197,7 @@ export function validatePlan(plan, machine) {
     number(geometry.yInsetMm, 0, (geometry.widthMm - 5) / 2, 'Y-side inset');
   }
 
-  for (const [key, min, max] of [['firstLayerMm', 0.04, 0.6], ['layerMm', 0.04, 0.6], ['lineWidthMm', 0.15, 1.6],
+  for (const [key, min, max] of [['firstLayerMm', 0.1, 0.3], ['layerMm', 0.06, 0.3], ['lineWidthMm', 0.3, 0.8],
     ['planarSpeedMmS', 2, 80], ['skinSpeedMmS', 2, 40], ['firstLayerSpeedMmS', 2, 40], ['travelSpeedMmS', 5, 200],
     ['zSpeedMmS', 1, 20], ['retractMm', 0, 10], ['retractSpeedMmS', 1, 50], ['liftMm', 0, 20],
     ['maxCombMm', 0, 100], ['fanPercent', 0, 100], ['maxFlowMm3S', 0.1, 15], ['minimumLayerSeconds', 0, 60]])

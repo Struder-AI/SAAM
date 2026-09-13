@@ -3,12 +3,12 @@ import { createBundleWorkflow } from '../../../core/print/workflow.mjs';
 import { defaults,validatePlan,requireThat,legacyPoints,VERSION,BUILD_DATE } from './model.mjs';
 import { createGeometry,verifyGeometry } from './geometry.mjs';
 import { generatePath } from './path.mjs';
-export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, selectMachine, generateBundle, approve, deliver, upgradeBundle}=createBundleWorkflow({
+export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, upgradeBundle}=createBundleWorkflow({
   kind:'wedge',defaults,validatePlan,createGeometry,verifyGeometry,generatePath,
   version:VERSION,buildDate:BUILD_DATE,exportName:'wedge.gcode',machineFile:'machines/ultimaker-s5.json',
-  limitations:(plan,machine)=>['Physical clearance is the operator’s responsibility for this demo.',
+  limitations:(_plan,machine)=>['Physical clearance is the operator’s responsibility for this demo.',
     ...(machine.id==='bambu-h2d'?[
-      `Experimental H2D output uses ${plan.setup.material}, a ${plan.setup.nozzleMm} mm hotend, Textured PEI and no chamber heating; non-PLA/non-0.4 output, physical printing and head clearance are unvalidated.`,
+      'Experimental H2D output uses PLA, Textured PEI and no chamber heating; physical printing and head clearance are unvalidated.',
       'Firmware probing, wiping, calibration, purge and unload are not simulated. Startup may use both nozzles; printing totals exclude firmware service routines.'
     ]:machine.id==='dobot-mg400'?[
       'Experimental Dobot relay output requires configured installation values and external heating/positioning.',
@@ -18,7 +18,6 @@ export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, pro
     'Griffin firmware startup internals are not animated.'])],
   runtimeFiles:[...['model.mjs','geometry.mjs','path.mjs','gcode.mjs','bundle.mjs'].map(file=>new URL(file,import.meta.url)),
     ...['core/path/builder.mjs','core/path/comb.mjs','core/region/offset.mjs','core/region/clipper.mjs','core/region/clipper2.mjs','node_modules/clipper2-wasm/dist/umd/clipper2z.js','node_modules/clipper2-wasm/dist/umd/clipper2z.wasm','package-lock.json'].map(file=>new URL('../../../'+file,import.meta.url)),
-    new URL('../../../core/material/profile.mjs',import.meta.url),new URL('../../../materials/generic.json',import.meta.url),
     ...['mesh.mjs','shell.mjs','nurbs.mjs','tolerance.mjs'].map(file=>new URL('../../../core/geom/'+file,import.meta.url)),
     new URL('../../../core/region/region2d.mjs',import.meta.url)],
   upgradePlan(plan,machine){

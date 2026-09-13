@@ -27,6 +27,22 @@ stages and current exceptions.
 
 ## Engineering priorities
 
+Build the smallest coherent implementation that serves current capabilities and
+the work being implemented. Keep the core compact; expand its shared interfaces
+as concrete producers and consumers need new behavior. Each abstraction,
+configuration option and dependency should earn its place through a present
+requirement or demonstrated simplification. Prefer removing duplication and
+obsolete paths over adding another layer.
+
+Consider future directions to preserve economical growth: choose clear ownership
+and boundaries that can accommodate plausible extensions without a broad rewrite.
+That consideration does not authorize future features, unused hooks, generalized
+frameworks or speculative configuration. Keep future possibilities in the design
+reasoning until implementation needs them. Minimal means completing the requested
+behavior with little machinery, not deferring required integration or building a
+throwaway shortcut. When simplifying existing code, identify the concrete cost
+and check its current consumers before removing it.
+
 Prefer designs that make consistency structural. Review and delivery consume
 the same machine-program bytes; consumers reuse the owning validation result
 for unchanged inputs. Apply the same approach to algorithms, derived data and
@@ -45,7 +61,9 @@ that identify the responsible work. Examine whether a computation is necessary,
 already available or better scheduled elsewhere. Reuse requires valid input and
 runtime identity; background work must preserve responsiveness. A production
 check likewise needs a concrete failure to detect and evidence that its cost
-and placement are justified. Distinguish algorithmic preconditions from printing
+and placement are justified. Apply that standard to agent workflows and CI under
+[check selection](CONTRIBUTING.md#checks); task boundaries and commits do not
+create verification work. Distinguish algorithmic preconditions from printing
 decisions that require domain judgment.
 
 ## Working context

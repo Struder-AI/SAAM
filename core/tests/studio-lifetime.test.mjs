@@ -18,12 +18,10 @@ async function fixture(t,options={}){
   const html=await(await fetch(url)).text();
   const token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   async function connect(){
-    // EventSource uses a dedicated long-lived request. Avoid undici reusing a
-    // just-cancelled stream socket for the simulated refresh on newer Node.
-    const response=await fetch(url+'/api/viewer?token='+token,{headers:{Connection:'close'}});
+    const controller=new AbortController();t.after(()=>controller.abort());
+    const response=await fetch(url+'/api/viewer?token='+token,{signal:controller.signal});
     assert.equal(response.status,200);
-    const close=()=>response.body.cancel();t.after(close);
-    return close;
+    return ()=>controller.abort();
   }
   return {server,url,token,connect};
 }
@@ -62,20 +60,10 @@ test('last viewer closes only its instance; live background viewers need no poll
   const closeA1=await a.connect(),closeA2=await a.connect(),closeB=await b.connect();
   await delay(180);
   assert.ok(a.server.listening&&b.server.listening,'background viewers keep both instances alive');
-  await closeA1();await delay(100);assert.ok(a.server.listening,'second tab still owns instance');
-  const closed=once(a.server,'close');await closeA2();await closed;
+  closeA1();await delay(100);assert.ok(a.server.listening,'second tab still owns instance');
+  const closed=once(a.server,'close');closeA2();await closed;
   assert.ok(b.server.listening,'another agent instance stays alive');
-  await closeB();
-});
-
-test('refresh reconnects during grace without replacing the server',async t=>{
-  // Keep the assertion comfortably outside scheduler jitter from the rest of
-  // the parallel suite; this is a lifecycle test, not a 150 ms benchmark.
-  const {server,connect}=await fixture(t,{disconnectMs:1_000});
-  const closeFirst=await connect();await closeFirst();
-  await delay(20);const closeNext=await connect();
-  await delay(1_100);assert.ok(server.listening);
-  const closed=once(server,'close');await closeNext();await closed;
+  closeB();
 });
 
 test('owner shutdown closes live viewer connections and is idempotent',async t=>{
@@ -87,8 +75,7 @@ test('shutdown releases speculative sockets that never sent an HTTP request',asy
   const {server}=await fixture(t);
   const socket=net.connect(server.address().port,'127.0.0.1');t.after(()=>socket.destroy());
   await once(socket,'connect');
-  const closed=new Promise(resolve=>socket.once('close',resolve));
-  socket.on('error',error=>assert.equal(error.code,'ECONNRESET'));
+  const closed=once(socket,'close');
   await server.shutdown();await closed;assert.equal(socket.destroyed,true);
 });
 

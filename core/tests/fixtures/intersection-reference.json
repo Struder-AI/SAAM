@@ -2,7 +2,7 @@
   "upstreamRevision": "642390d0d515cfb645d2ec4d95d218e28be645f4",
   "wasmPackage": "clipper2-wasm@0.4.0",
   "wasmRevision": "3c244f3edd0adae6c851460fc409c15f3d235395",
-  "inputSha256": "e56ae2d47b4e98d5e7c5c2cdc15f5776e4ecd60e2b6cdfcabcca1639a6ee0df7",
+  "inputSha256": "0f6b84100d75e4d3834c9fd275f60f1b378e9fc0555d6e49595b889c1a4ea96d",
   "expected": [
     {
       "name": "nested-intersect",

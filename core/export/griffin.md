@@ -4,12 +4,6 @@ The S5 output contract and current verification limits. See the [shared machine 
 
 ## S5 setup and troubleshooting
 
-The S5 tool declaration follows UltiMaker's published print-core combinations:
-AA 0.25/0.4/0.8 mm, BB 0.4/0.8 mm and CC 0.4/0.6 mm. AA is for ordinary
-non-abrasive build materials, BB for soluble support, and CC for abrasive
-composites. The selected core name, diameter and generic material GUID are
-written into and verified from the Griffin header.
-
 Use the machine profile's standard Griffin startup unless there is evidence of
 a different installation. The installed firmware version is optional; the
 profile assumption can be reviewed without claiming verified startup behavior.

@@ -5,6 +5,10 @@ prints. Rendering and playback implementation live in [RENDERING](RENDERING.md).
 The [shared lifecycle](../core/print/README.md) owns bundle validity and approval state;
 [MAKERS](../MAKERS.md) owns the interaction with the person making a part.
 
+[Machine presentation integration](KINEMATICS.md) specifies the planned complete
+ghost/Machine-view upgrade and its boundary with incrementally built kinematic
+models. It is an implementation contract, not a claim of current UI support.
+
 ## Studio agent permissions
 
 The checkout includes [Codex rules](../.codex/rules/studio.rules) and
@@ -150,15 +154,6 @@ The [shared print-tool manual](../core/print/USAGE.md#remember-machine-setup) ow
 setup persistence and reuse; [machine contracts](../core/export/README.md) own
 installation requirements. Studio displays the proposed setup with its assumption
 and verification metadata for the current job's settings review.
-
-In Settings, **Printer setup** provides a printer dropdown and one expandable
-submenu for every declared tool/head. Each submenu selects a valid core/nozzle
-pair and compatible generic filament family; a radio control selects the active
-head for this single-material path. Temperatures, maximum flow and retraction
-start from the chosen combination and remain editable. Applying setup remembers
-it locally for that printer, invalidates settings/toolpath approval and requires
-a new generated toolpath. The form is generated from `machine.tools`, so adding
-an IDEX tool changer adds records rather than special-case UI.
 
 ### Geometry and program views
 

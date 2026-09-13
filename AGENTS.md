@@ -30,14 +30,26 @@ Local capabilities are not part of shared SAAM and must not be assumed elsewhere
 Read linked reference sections when their responsibilities affect the task;
 follow their dependencies as needed rather than loading every document.
 
+## Current context boundary
+
+This checkout's current instructions and implemented shared contracts govern SAAM
+work. When arriving from an older repository or conversation, reorient here before
+editing; do not carry its component architecture, methods or workflow rules forward
+as current requirements. Prior material is reference for explicit selective adoption
+under [the contribution boundary](CONTRIBUTING.md#context-and-selective-adoption).
+The [withdrawal and deferred intents](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission)
+identify the September 12 work that must not be restored wholesale.
+
 ## First invocation
 
-Before doing maker or development work in a checkout, run `npm run first-run`.
-The idempotent command installs locked dependencies and performs a short runtime
-check only when `.saam/first-run.json` is absent, the dependency lock changed, or
-`node_modules/` is missing. If its output says the optional guided tour is still
-pending, offer the person the tour in conversation; honor a refusal and continue.
-Never treat setup or tour completion as a manufacturing approval.
+On first use of a checkout, follow [setup and checks](CONTRIBUTING.md#setup-and-checks).
+Reuse completed setup across tasks; a new agent or print does not require another
+setup or regression run. Setup creates no manufacturing approval.
+
+Development checks follow [change-based selection](CONTRIBUTING.md#checks).
+Commits and task completion add no test gate; skill manuals do not add a second
+verification pass. Run a check to resolve a concrete uncertainty, then reuse its
+result until relevant inputs change.
 
 ## Find the owning source
 

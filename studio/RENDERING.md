@@ -2,6 +2,10 @@
 
 Display geometry, material rendering, playback and performance. See [Studio](README.md) for launch and review behavior.
 
+The [machine presentation contract](KINEMATICS.md) defines the planned simple
+ghost overlay, Machine view and model-provider boundary. Existing toolpath
+presentation below remains the baseline that this upgrade preserves.
+
 ## Studio performance and display detail
 
 The optional Evolve pane can reveal enclosed cavities through a translucent shell.

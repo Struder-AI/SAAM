@@ -24,6 +24,12 @@ adapters use the same lifecycle; see [MCP implementation](../adapters/mcp/DEVELO
 The bounded wedge uses its own geometry and generator within that lifecycle,
 as described below.
 
+The planned [machine presentation boundary](../studio/KINEMATICS.md) lets the
+kinematic-model and Studio tasks work independently. Models supply resolved
+component poses and simple geometry; Studio owns their presentation alongside
+the existing source-driven toolpath. This contract does not replace machine
+output or prescribe a solver architecture.
+
 ## Interoperability and one workflow
 
 Shared geometry queries feed material regions and skill operations. Composition

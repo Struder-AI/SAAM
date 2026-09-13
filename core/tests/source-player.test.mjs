@@ -18,10 +18,11 @@ for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])test(`${id}: Studio p
   const machine=loadMachine(id),plan=defaults(machine);
   if(id==='dobot-mg400')syntheticDobotSetup(plan);
   plan.geometry={shape:'box',runMm:8,widthMm:8,heightMm:2};plan.process.minimumLayerSeconds=0;
-  const dir=await mkdtemp(join(tmpdir(),'saam-source-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const dir=await mkdtemp(join(tmpdir(),'saam-source-'));let server;
+  t.after(async()=>{await server?.shutdown();await rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100});});
   await initBundle(dir,plan,{machineId:id});await generateBundle(dir,{development:true});
-  const expected=await loadBundle(dir),server=createStudio(dir);
-  await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>{server.closeAllConnections();return new Promise(done=>server.close(done));});
+  const expected=await loadBundle(dir);server=createStudio(dir);
+  await new Promise(done=>server.listen(0,'127.0.0.1',done));
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args);
   const stateText=await(await fetcher('/api/state')).text(),state=JSON.parse(stateText);
   assert.ok(state.program);assert.equal(state.program.moves,undefined);assert.equal(state.program.events,undefined);

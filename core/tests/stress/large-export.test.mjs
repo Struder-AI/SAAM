@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
-import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
+import { exportGriffin, interpretGriffin } from '../../export/griffin.mjs';
+import { defaults, VERSION, BUILD_DATE } from '../../print/plan.mjs';
 
 test('large Griffin toolpaths export and replay every move without overflowing the call stack', () => {
   const machine=JSON.parse(readFileSync('machines/ultimaker-s5.json','utf8'));

@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { loadMachine, validateSetup, toolBounds, requireMachine } from '../../../core/machine/profile.mjs';
-import {normalizeSetup} from '../../../core/material/profile.mjs';
 
 export const VERSION = '0.3.0';
 export const GENERIC_PLA_GUID = '506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9';
@@ -36,11 +35,9 @@ export function defaults(machine=loadMachine()) {
   Object.assign(plan.process,machine.defaultProcess??{});
   plan.process.startupRetracted=machine.id==='ultimaker-s5';
   plan.output=machine.outputs[0].id;
-  normalizeSetup(plan,machine);
   return plan;
 }
 export function validatePlan(plan, machine) {
-  normalizeSetup(plan,machine);
   const d = defaults(machine);
   // Reject misspelled/unused process choices instead of silently ignoring them.
   function keys(actual, expected, path = 'plan') {
@@ -55,7 +52,7 @@ export function validatePlan(plan, machine) {
   number(roof.runMm,8,80,'Wedge X size');number(roof.widthMm,8,60,'Wedge Y size');
   const printSpeedLimit=Math.min(machine.maxFeedMmS.x,machine.maxFeedMmS.y);
   const travelSpeedLimit=Math.min(200,printSpeedLimit);
-  for (const [key,min,max] of [['firstLayerMm',0.04,0.6],['layerMm',0.04,0.6],['lineWidthMm',0.15,1.6],['skinNormalMm',0.05,0.6],['skinLayers',1,20],['planarSpeedMmS',2,printSpeedLimit],['skinSpeedMmS',2,printSpeedLimit],['firstLayerSpeedMmS',2,printSpeedLimit],['travelSpeedMmS',5,travelSpeedLimit],['zSpeedMmS',1,10],['retractMm',0,10],['retractSpeedMmS',1,50],['liftMm',0,10],['combTravelMm',0,20],['fanPercent',0,100],['maxFlowMm3S',0.1,40],['minimumLayerSeconds',0,30]]) number(p[key],min,max,key);
+  for (const [key,min,max] of [['firstLayerMm',0.15,0.25],['layerMm',0.06,0.2],['lineWidthMm',0.35,0.48],['skinNormalMm',0.12,0.22],['skinLayers',1,20],['planarSpeedMmS',2,printSpeedLimit],['skinSpeedMmS',2,printSpeedLimit],['firstLayerSpeedMmS',2,printSpeedLimit],['travelSpeedMmS',5,travelSpeedLimit],['zSpeedMmS',1,10],['retractMm',0,8],['retractSpeedMmS',1,35],['liftMm',0,10],['combTravelMm',0,20],['fanPercent',0,100],['maxFlowMm3S',0.1,8],['minimumLayerSeconds',0,30]]) number(p[key],min,max,key);
   requireThat(Number.isInteger(p.skinLayers), 'skinLayers must be an integer.');
   requireThat(typeof p.startupRetracted === 'boolean', 'startupRetracted must be true or false.');
   for (const key of ['skinDirection','substrate','transition','beadModel','clearanceResponsibility']) requireThat(p[key] === d.process[key], `Unsupported ${key}.`);
@@ -63,6 +60,7 @@ export function validatePlan(plan, machine) {
   if(plan.output==='griffin-gcode')requireThat(typeof s.materialGuid === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(s.materialGuid), 'Material GUID must be a UUID; use the Generic PLA profile when the specific material is unknown.');
   validateSetup(plan,machine);
   requireMachine(machine,['xyz-extrusion','planar','nonplanar'],'Wedge demo');
+  requireThat(s.nozzleMm===0.4&&s.material==='PLA','This bounded demo requires a 0.4 mm nozzle and PLA.');
   requireThat(roof.angleDeg<=Math.min(15,machine.nonplanar?.maxAngleDeg)+1e-9,'Wedge slope exceeds the declared machine non-planar limit.');
   if(machine.id==='bambu-h2d')requireThat(!p.startupRetracted,'H2D firmware hands off unretracted; startupRetracted must be false.');
   requireThat(typeof s.startupVerified === 'boolean' && typeof s.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(s.firmwareVersion), 'Invalid firmware setup.');

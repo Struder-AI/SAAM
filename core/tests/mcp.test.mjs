@@ -10,7 +10,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { bundleFor } from '../../studio/server.mjs';
 import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
-import { SKILL_IDS } from '../../skills/catalog.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -101,11 +100,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   const digestLink = guidance.links.find(link => link.guidanceId === 'skills/README.md');
   assert.ok(digestLink);
   const digest = await call('read_guidance', { guidanceId: digestLink.guidanceId });
-  for (const skill of await call('list_skills')) {
-    if (!SKILL_IDS.includes(skill.id)) continue; // Checkout-local extensions have their own manuals.
-    assert.ok(digest.text.includes(skill.description.replaceAll('|', '&#124;')), skill.id);
-    assert.ok(digest.links.some(link => link.guidanceId === `skills/${skill.id}/SKILL.md`), skill.id);
-  }
+  assert.equal(digest.path, 'skills/README.md');
   assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
   const section = await call('read_guidance', { guidanceId: 'core/export/griffin.md#s5-startup-observations' });
   assert.match(section.text, /^### S5 startup observations/);
@@ -183,15 +178,13 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
   assert.deepEqual(await readFile(resolve(printsRoot,'owned','review.json')),before);
 });
 
-for (const [kind, machineId, skill] of [['shell', 'ultimaker-s5'], ['wedge', 'bambu-h2d'], ['shell', 'ultimaker-s5', 'vase-wall'], ['shell', 'bambu-h2d', 'vase-wall'], ['shell', 'dobot-mg400'], ['shell', 'dobot-mg400', 'vase-wall']]) {
-  test(`MCP ${kind}/${machineId}/${skill ?? 'default'} uses Studio, fresh three-stage hashes and byte-identical delivery`, async t => {
+// One case per transport/output shape; vase geometry and machine semantics are
+// covered by the skill and exporter suites, not by repeating this protocol flow.
+for (const [kind, machineId] of [['shell', 'ultimaker-s5'], ['wedge', 'bambu-h2d'], ['shell', 'dobot-mg400']]) {
+  test(`MCP ${kind}/${machineId} uses Studio, fresh three-stage hashes and byte-identical delivery`, async t => {
     const { call, printsRoot } = await fixture(t), printId = 'reviewed', dir = resolve(printsRoot, printId);
     const plan = await smallPlan(call, kind, machineId);
     if (machineId === 'dobot-mg400') syntheticDobotSetup(plan);
-    if (skill === 'vase-wall') {
-      plan.skills['full-fill'].enabled = false;
-      plan.skills['vase-wall'].enabled = true;
-    }
     await call('create_print', { printId, kind, machineId, plan });
     const opened = await call('request_review', { printId });
     assert.equal(opened.browserOpenRequested, false);

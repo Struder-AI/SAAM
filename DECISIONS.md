@@ -294,3 +294,27 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Approvals: Current user explicitly requested the persistence change; remettub — not attributed in the source record; tkeller — not recorded.
 - Source: User instruction recorded 2026-09-10 in [BR-030](DEVLOG.md#br-030--export-only-bundles-and-measured-flange-speed): remove mandatory saved SAAMpath and regeneration on Studio reopen. This is a summary of the preserved request, not a verbatim quotation.
 - Scope: Current implementation direction replaces the saved-path requirement in D-015/D-019. Their attributed approval metadata is preserved; formal contributor supersession remains unresolved. Local-only storage, curated sharing, machine-declared outputs and the three job approvals are unchanged.
+
+## D-028 — Simple machine ghost and Machine view
+
+- Decision: Add machine context to Studio through a default ghost overlay and one Machine view switch. Preserve ordinary zoom in both modes and Studio's existing simple, carefully composed visual language. Represent links, rails and print carriages with lines and basic shapes, integrated with the existing bed/tool and detailed toolpath. Studio delivers the complete consumer as one work package while machine models develop incrementally through the shared [presentation contract](studio/KINEMATICS.md).
+- Status: proposed
+- Recorded: 2026-09-13T18:01:13Z
+- Approvals: Current user explicitly selects the presentation direction and requests the integration contract; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in the kinematic presentation task, 2026-09-13: “we definitely have to go with machine ghost + toggle switch to go to machine view”; “we can stick to lines, shapes, cones, etc.” Subsequent scope correction: “We need links and rails and a print carriage representation. YOU are not incremental! The kinematic model builder will work incrementally”.
+- Scope: The selected design and work split govern implementation. The contract is authored; runtime integration is not yet implemented. Photorealistic machine graphics, inset navigators, detail lenses and split windows are not part of this upgrade. No contributor consensus or manufacturing approval is inferred from this instruction.
+
+## D-029 — Withdraw September 12 contributions and vet readmission
+
+- Decision: Withdraw the surviving implementation and guidance from e3dc134, f2a97d8, 6e11afd and ce61c69 from the current working source while preserving independently authored work. Superseded repository context is reference material, not live design authority; components and methods require explicit selective adoption against the current shared contracts.
+- Status: proposed
+- Recorded: 2026-09-13T18:53:57Z
+- Approvals: Current user explicitly authorizes withdrawal and the context boundary; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in the contribution-withdrawal task, 2026-09-13, reports that the originating agent context began with a pre-GitHub repository and then included modern SAAM. The user requests withdrawal and says, “We must not let unvetted components into the ecosystem”; subsequently, “mark material library as definitely we will port that over - but don't do it yet.” The original repository and transcripts are unavailable.
+- Scope: This is current user-authorized implementation direction, without inferred contributor consensus. It preserves independent setup, geometry, skills, kinematics and test-policy work. The three conceptual intents below remain separate from admission of their old implementations. The material-intent feature and its revert have no net source effect.
+
+| Conceptual intent | Disposition | Admission boundary |
+|---|---|---|
+| Easier first use and onboarding, including a possible guided tour | Potential future port; no new implementation requested | Retain the independently developed lightweight setup check. Reconsider additional onboarding against the conversational workflow and current setup cost; the removed tour and its repeated prompting are not approved for restoration. |
+| Material-intent presentation during geometry review | Potential future port; no implementation requested | Assess the need and presentation against geometry, process and toolpath responsibilities. Do not restore the removed panel or duplicate the region model without a specific approved design. |
+| Printer/nozzle/material configuration and a shared material library | Material library is committed future work, deferred until the user starts it; nozzle controls and expanded hardware/output support remain potential ports | [BR-044](build_request.md#br-044--port-a-vetted-material-library) owns the deferred library. Its old data, generic compatibility fallback, process-reset behavior and expanded H2D startup contract are not admitted. Vet each consumer against current shared interfaces and the minimal-core guidance. |

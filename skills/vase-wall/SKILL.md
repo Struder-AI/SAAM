@@ -180,9 +180,9 @@ and final parking clear the highest deposited material plus `liftMm`
 collision proof. The plain spiral's declared nonplanar angle limit is not a
 measured clearance rating. Patterns report maximum slope without a tilt gate.
 
-Run `node --test skills/vase-wall/tests/vase.test.mjs` for targeted software
-checks, then the repository's `npm test` after changes. Synthetic review tests
-use temporary bundles and never authorize a real manufacturing job.
+`node --test skills/vase-wall/tests/vase.test.mjs` provides targeted software
+coverage. Synthetic review tests use temporary bundles and never authorize a
+real manufacturing job.
 
 ## Sleeve patterns
 

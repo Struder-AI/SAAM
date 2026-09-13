@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 6,
+  "revision": 5,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
@@ -41,8 +41,6 @@
     "chamberMax": 65
   },
   "filamentDiameterMm": 1.75,
-  "maxVolumetricFlowMm3S": 40,
-  "maxRetractionMm": 2,
   "tools": [
     {
       "index": 0,
@@ -64,26 +62,14 @@
         100
       ],
       "cores": [
-        "Hardened steel 0.2",
-        "Hardened steel 0.4",
-        "Hardened steel 0.6",
-        "Hardened steel 0.8"
+        "Hardened steel 0.4"
       ],
       "nozzleDiametersMm": [
-        0.2,
-        0.4,
-        0.6,
-        0.8
-      ],
-      "hotends": [
-        {"core":"Hardened steel 0.2","nozzleMm":0.2,"materialCategories":["standard","engineering","support"]},
-        {"core":"Hardened steel 0.4","nozzleMm":0.4,"materialCategories":["standard","engineering","flexible","support"]},
-        {"core":"Hardened steel 0.6","nozzleMm":0.6,"materialCategories":["standard","engineering","flexible","support","abrasive"]},
-        {"core":"Hardened steel 0.8","nozzleMm":0.8,"materialCategories":["standard","engineering","flexible","support","abrasive"]}
+        0.4
       ],
       "layerHeightMm": [
-        0.04,
-        0.6
+        0.08,
+        0.28
       ],
       "physicalExtruder": 1
     },
@@ -107,26 +93,14 @@
         100
       ],
       "cores": [
-        "Hardened steel 0.2",
-        "Hardened steel 0.4",
-        "Hardened steel 0.6",
-        "Hardened steel 0.8"
+        "Hardened steel 0.4"
       ],
       "nozzleDiametersMm": [
-        0.2,
-        0.4,
-        0.6,
-        0.8
-      ],
-      "hotends": [
-        {"core":"Hardened steel 0.2","nozzleMm":0.2,"materialCategories":["standard","engineering","support"]},
-        {"core":"Hardened steel 0.4","nozzleMm":0.4,"materialCategories":["standard","engineering","flexible","support"]},
-        {"core":"Hardened steel 0.6","nozzleMm":0.6,"materialCategories":["standard","engineering","flexible","support","abrasive"]},
-        {"core":"Hardened steel 0.8","nozzleMm":0.8,"materialCategories":["standard","engineering","flexible","support","abrasive"]}
+        0.4
       ],
       "layerHeightMm": [
-        0.04,
-        0.6
+        0.08,
+        0.28
       ],
       "physicalExtruder": 0
     }
@@ -157,10 +131,6 @@
     "materialGuid": null,
     "firmwareVersion": "",
     "startupVerified": false
-    ,"toolSetups": [
-      {"tool":0,"core":"Hardened steel 0.4","nozzleMm":0.4,"material":"PLA"},
-      {"tool":1,"core":"Hardened steel 0.4","nozzleMm":0.4,"material":"PLA"}
-    ]
   },
   "defaultProcess": {
     "planarSpeedMmS": 40,
@@ -179,7 +149,7 @@
       "implemented": true,
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "program": {
-        "contract": "h2d-02.08.02.61-generic-material-textured-v3",
+        "contract": "h2d-02.08.02.61-pla-textured-v2",
         "start": [
           "M201 X20000 Y20000 Z500 E5000",
           "M203 X1000 Y1000 Z30 E50",
@@ -229,7 +199,7 @@
           "M106 P2 S0",
           "M142 P1 R30 S40 T45 U0.3 V0.5 W0.8 O45",
           "M145.2 P0 F1",
-          "M1002 set_filament_type:{material}",
+          "M1002 set_filament_type:PLA",
           "M104 S140 A",
           "M140 S{bedC}",
           "M982.2 S1",
@@ -254,8 +224,8 @@
           "M211 X0 Y0 Z0",
           "M975 S1",
           "G29.2 S0",
-          "M620.10 A0 F498.898 H{nozzleMm} T240 P{nozzleC} S1",
-          "M620.10 A1 F498.898 H{nozzleMm} T240 P{nozzleC} S1",
+          "M620.10 A0 F498.898 H0.4 T240 P{nozzleC} S1",
+          "M620.10 A1 F498.898 H0.4 T240 P{nozzleC} S1",
           "M620.11 P0 I0 B-1 E0",
           "M620.11 K1 I0 B-1 R10 F623.623",
           "M628 S1",
@@ -270,7 +240,7 @@
           "M628 S0",
           "M629",
           "M400",
-          "M1002 set_filament_type:{material}",
+          "M1002 set_filament_type:PLA",
           "M621 S0A",
           "M104 S{nozzleC}",
           "M400",
@@ -280,15 +250,15 @@
           "M975 S1",
           "M1002 judge_flag extrude_cali_flag",
           "M622 J0",
-          "M983.3 F10.4167 A{nozzleMm}",
+          "M983.3 F10.4167 A0.4",
           "M623",
           "M622 J1",
-          "M1002 set_filament_type:{material}",
+          "M1002 set_filament_type:PLA",
           "M1002 gcode_claim_action : 8",
           "M109 S{nozzleC}",
           "G90",
           "M83",
-          "M983.3 F10.4167 A{nozzleMm}",
+          "M983.3 F10.4167 A0.4",
           "M400",
           "M106 P1 S255",
           "M400 S5",
@@ -296,12 +266,12 @@
           "G150.3",
           "M623",
           "M622 J2",
-          "M1002 set_filament_type:{material}",
+          "M1002 set_filament_type:PLA",
           "M1002 gcode_claim_action : 8",
           "M109 S{nozzleC}",
           "G90",
           "M83",
-          "M983.3 F10.4167 A{nozzleMm}",
+          "M983.3 F10.4167 A0.4",
           "M400",
           "M106 P1 S255",
           "M400 S5",
@@ -404,7 +374,7 @@
           "G91",
           "G1 Z6 F1200",
           "G90",
-          "M1002 set_filament_type:{material}",
+          "M1002 set_filament_type:PLA",
           "M620 S0A H-1",
           "M400",
           "T0 H-1",
@@ -460,7 +430,7 @@
           "M400",
           "M993 A1 B1 C1",
           "M1015.3 S0",
-          "M1015.4 S1 K1 H{nozzleMm}",
+          "M1015.4 S1 K1 H0.4",
           "M620.6 I0 H-1 W1",
           "M620 Q1",
           "M211 Z1",
@@ -555,6 +525,8 @@
         ]
       },
       "constraints": {
+        "material": "PLA",
+        "nozzleMm": 0.4,
         "filamentMm": 1.75,
         "bedType": "textured_plate",
         "chamberC": 0,
@@ -582,7 +554,7 @@
     "https://cdn1.bambulab.com/documentation/h2d/en/H2D_Laser_Full_Combo_20250305.pdf",
     "https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp"
   ],
-  "sourceChecked": "2026-09-12",
+  "sourceChecked": "2026-09-09",
   "validation": "Software profile, envelope, package and SAAMpath round-trip checks. Left printable height follows the official inherited profile: 320 mm. Experimental 15 degree draping; no physical print or firmware macro simulation.",
   "referenceExports": [
     {

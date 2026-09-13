@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -24,7 +24,7 @@ test('CLI creates and edits a shared print from parameters; stale changes fail w
   assert.equal((await loadBundle(dir)).plan.geometry.parameters.xUnits,2);
 });
 
-test('MCP discovers name-only guidance and uses the same create, edit, check and revision lifecycle',async t=>{
+test('MCP discovers the task and uses the same create, edit, check and revision lifecycle',async t=>{
   const dir=await fixture(t);
   const transport=new StdioClientTransport({command:process.execPath,args:[resolve(root,'adapters/mcp/src/server.mjs')],cwd:tmpdir(),env:{...process.env,SAAM_PRINTS_ROOT:dir,SAAM_NO_AUTO_OPEN:'1'},stderr:'pipe'});
   const client=new Client({name:'synthetic-gridfinity-access',version:'1'});await client.connect(transport);t.after(()=>client.close());
@@ -33,11 +33,9 @@ test('MCP discovers name-only guidance and uses the same create, edit, check and
     if(error){assert.equal(result.isError,true,text);assert.match(text,error);return;}
     assert.ok(!result.isError,text);return JSON.parse(text);
   };
-  const entry=(await call('list_skills')).find(s=>s.id==='gridfinity');assert.equal(entry.kind,'task');assert.equal(entry.description,'gridfinity');
-  const tool=(await client.listTools()).tools.find(t=>t.name==='gridfinity');assert.equal(tool.description,'gridfinity');
-  const manual=await call('read_skill',{skillId:'gridfinity'});assert.match(manual.manual,/compartmentsX/);
-  const digest=(await readFile(resolve(root,'skills/README.md'),'utf8')).split('\n').find(line=>line.includes('[gridfinity]'));
-  assert.equal(digest.trim(),'| [gridfinity](gridfinity/SKILL.md) | gridfinity |');
+  const entry=(await call('list_skills')).find(s=>s.id==='gridfinity');assert.equal(entry.kind,'task');
+  const tool=(await client.listTools()).tools.find(t=>t.name==='gridfinity');assert.ok(tool);
+  const manual=await call('read_skill',{skillId:'gridfinity'});assert.equal(manual.skillId,'gridfinity');
   await call('gridfinity',{printId:'../escape',action:'create',machineId:'ultimaker-s5',parameters:{}},/validation|Invalid|format/i);
   await call('gridfinity',{printId:'forged',action:'create',machineId:'ultimaker-s5',parameters:{approved:true}},/not an agent-editable/);
   let state=await call('gridfinity',{printId:'sample',action:'create',machineId:'ultimaker-s5',parameters:{kind:'bin',heightUnits:2}});

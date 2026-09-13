@@ -17,7 +17,7 @@ pending the other contributor. Human approval of a print belongs to the separate
 Staging, committing and publishing require explicit authorization, including
 authorization already given in the conversation. Once committing is authorized,
 checkpoint the existing working tree before new work so the changes remain
-separable. Choose verification from the behavior changed; commits and checkpoints do not independently require a full test run.
+separable. Checkpoints follow the same [change-based test selection](#checks).
 
 The canonical destination is Struder-AI/SAAM. Publish to the requested feature
 branch when authorized; a personal fork is optional. Pushing to main requires an
@@ -26,6 +26,32 @@ explicit request. Leave your own PRs for human review and merging.
 Prefer working into main or merging back frequently, with at most one active pending branch per account; purpose-saved side branches (such as the legacy skills library) are exempt, and discuss merging to main when the user has not mentioned it and the right action is unclear.
 
 Tasks sharing a checkout may contribute to the same commit: keep its current branch, reread affected lines before editing, preserve other tasks' changes, and coordinate Git operations through one task; create another branch only for intentional isolation and integrate it promptly.
+
+## Context and selective adoption
+
+Use the live checkout's instructions, current shared contracts and the user's
+authorization as the development context. A superseded repository, old transcript,
+saved branch or historical implementation supplies reference material; its past
+requirements do not become current requirements merely by entering an agent's
+context. On a repository/context switch, read the current entry point and owning
+contracts before choosing an implementation. Raise an unresolved conflict with
+the current task's scope instead of silently importing an older design.
+
+Before admitting a component or method from superseded work, identify its purpose
+and provenance, compare its actual producers and consumers with the current
+geometry, composition, machine and lifecycle interfaces, and obtain explicit
+human approval for that selective adoption. Approval of a conceptual capability
+does not approve its previous implementation. A commit, merge, passing test or
+catalog entry alone does not establish architectural fit or machine support.
+Ordinary development already authorized in the current context proceeds under
+that authorization; this adds no per-task approval or test gate.
+
+When integrating contributions, account for changes to behavior, defaults, shared
+interfaces and agent guidance as well as code conflicts. State which changes are
+retained, withdrawn or deferred and the evidence limits. Preserve unrelated work
+and record any remaining decision at its owner. In-progress agents must reread
+changed entry guidance after an integration; restart affected long-running
+services before relying on their behavior.
 
 ## Testing through the use context
 
@@ -45,21 +71,72 @@ any necessary setting changes there, rather than relying on the originating task
 
 ## Checks
 
-Choose verification from the changed behavior and a concrete failure it could
-introduce. Run relevant tests locally and fix failures before publication. Use the
-full `npm test` suite when broad integration risk or the user request warrants it.
-Reuse successful results while the relevant source and environment remain unchanged;
-commits, task boundaries and prose edits do not independently require test runs.
+Choose verification from the behavior being changed and a concrete failure it
+could introduce. The [test registry](#test-registry) locates existing coverage;
+run the relevant tests locally and fix failures before publication. Use the full
+`npm test` suite when broad integration risk or the user's request warrants it.
+Committing, checkpointing, staging, writing a work record and finishing a task
+do not independently require tests. Prose-only edits and read-only work need no
+software tests. Use `node scripts/check-repo.mjs` when document links, catalog
+output or repository metadata need diagnosis; it is an optional maintenance tool.
 
-GitHub main requires the `test` check from GitHub Actions. The job in
-[test.yml](.github/workflows/test.yml) runs `npm run setup:check` once on each
-fresh pull-request runner after dependency installation; manual dispatch is also
-available. The workflow uses only `contents: read`. Local first-use setup results
-remain valid until their dependencies or environment change. Regression tests
-remain available locally for the changes that warrant them.
+Reuse a successful result while its relevant source, dependencies and environment
+remain unchanged. An unrelated edit or a new agent does not invalidate it. Broaden
+or repeat verification only for a relevant change, failure or unresolved concern.
+Use existing coverage first; add a regression for a concrete defect or meaningful
+new behavior, not a test that merely repeats the implementation or checks wording.
+Skill manuals describe available coverage and do not impose additional gates.
 
-Report the actual verification scope and unresolved failures. The registry below
-locates existing coverage; it is not an automatic checklist for every change.
+First-use environment capability is checked once by [setup](#setup-and-checks).
+For a component with hardware or environment dependencies, check those capabilities
+when first used in that environment, and repeat only when the dependency changes
+or fails. A new task or print is not a new environment.
+
+GitHub main requires a `test` status. Its job in
+[test.yml](.github/workflows/test.yml) runs `npm run setup:check` on each fresh
+Linux pull-request runner after dependency installation, with manual dispatch
+available and no duplicate push run. The job name satisfies branch
+protection; its commands are ordinary repository code. Changing branch protection
+requires repository administration access. Existing successful local setup covers
+the local capability check; changes to setup itself warrant a local setup run.
+The full regression suite is available locally and is not an automatic CI gate.
+If a target branch imposes additional checks, run the same meaningful checks
+locally before publication and reuse their results; do not add a second checklist
+or rely on remote failures to discover locally detectable problems.
+
+Report verification with its actual scope and any unresolved failure. Generated
+print validation and human review retain their own workflow and evidence.
+
+### Worthwhile tests
+
+A test earns its cost by distinguishing a plausible wrong result from the intended
+behavior. Prefer an analytical answer, independently produced reference, observed
+defect, or externally visible state transition. A round trip checks agreement;
+pair it with independent evidence where both sides could share the same mistake.
+For invalidation, start from an approved state; checking that an already-false
+approval stays false proves nothing about invalidation.
+
+Keep coverage at the owning boundary. Transport tests exercise routing, isolation
+and serialization; they need not repeat every skill on every machine. Avoid
+copying the implementation into an expected-value function, freezing prose or
+cosmetic constants, asserting re-export identity, or preserving retired commands
+merely because they once existed. Remove obsolete and duplicate tests instead of
+teaching future contributors to copy them. No test-count target or coverage quota
+substitutes for this judgment.
+
+Use the smallest fixture that reaches the defect. The 200,000-move export and
+25–64 MB size-boundary regressions live in `core/tests/stress/` and run explicitly
+with `npm run test:stress` when large-program handling changes. Routine chunk
+boundaries and malformed input stay in the ordinary suite. Setup smoke checks
+belong to first use, not inside a regression test that calls setup again. Tests
+own and close their servers/workers before deleting their temporary files; use
+mocked time for timer policy instead of waiting out the same policy twice.
+
+Examples to build from: [analytical and independent geometry](core/tests/geometry.test.mjs),
+[upstream intersection references and an independent cell oracle](core/tests/intersection.test.mjs),
+[changed-input cache reuse](core/tests/program-cache.test.mjs), and
+[bounded manual-link fixtures](core/tests/mcp-access.test.mjs). Their assertions
+demonstrate the failure they protect against without requiring an extra checklist.
 
 ### Test registry
 
@@ -79,8 +156,9 @@ aid, not an automatic dependency resolver or a requirement to run every listed
 neighbor on each edit. For shared code, inspect the affected consumers and select
 their integration tests as needed. Test names and imports describe finer coverage.
 Update this table when adding, moving or removing a test file, or changing its
-responsibility. Keep new tests under the existing `core/tests/*.test.mjs` or
-`skills/*/tests/*.test.mjs` patterns so `npm test` continues to include them all.
+responsibility. Ordinary regression tests use `core/tests/*.test.mjs` or
+`skills/*/tests/*.test.mjs`; expensive size-boundary tests use `core/tests/stress/`
+and the explicit stress command.
 
 All file names in the core column below are relative to `core/tests/`.
 
@@ -99,19 +177,20 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/path/compose.mjs`: scheduling, weaving and joins | [composition.test.mjs](core/tests/composition.test.mjs) | Pipeline and regional workflow |
 | Material regions, reservations and consumed surfaces | [regions.test.mjs](core/tests/regions.test.mjs), [assembly-reservation.test.mjs](core/tests/assembly-reservation.test.mjs), [reservation-surface.test.mjs](core/tests/reservation-surface.test.mjs), [regional-workflow.test.mjs](core/tests/regional-workflow.test.mjs) | Infill, drape and vase composition |
 | `core/print/plan.mjs`, generation and machine compatibility | [pipeline.test.mjs](core/tests/pipeline.test.mjs), [interoperability.test.mjs](core/tests/interoperability.test.mjs) | Affected skill and machine tests |
-| Machine hotends, material profiles, remembered multi-tool setup and nozzle-derived process limits | [machine-selection.test.mjs](core/tests/machine-selection.test.mjs) | S5/H2D exporters, Studio settings and legacy bundle reopening |
 | `core/print/workflow.mjs`, bundles, approvals, reopening and exact delivery | [workflow.test.mjs](core/tests/workflow.test.mjs), [program-cache.test.mjs](core/tests/program-cache.test.mjs), [regional-workflow.test.mjs](core/tests/regional-workflow.test.mjs) | Wedge lifecycle, machine-specific delivery and MCP callers |
-| `core/export/griffin.mjs`: S5 templates, G-code interpretation | [export.test.mjs](core/tests/export.test.mjs), [large-export.test.mjs](core/tests/large-export.test.mjs) | Pipeline and wedge Griffin round trips |
+| `core/export/griffin.mjs`: S5 templates, G-code interpretation | [export.test.mjs](core/tests/export.test.mjs) | Pipeline and wedge Griffin round trips |
 | Shared modal G-code fields and final-export checks | [modal-export.test.mjs](core/tests/modal-export.test.mjs) | S5/H2D, wedge, cold bundle reopening |
 | `core/export/bambu.mjs`, H2D profile and ZIP output | [bambu.test.mjs](core/tests/bambu.test.mjs) | [h2d.test.mjs](skills/wedge-demo/tests/h2d.test.mjs) |
-| `core/export/`: streamed G-code lines and large ZIP members | [gcode-stream.test.mjs](core/tests/gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
+| `core/export/`: streamed G-code lines and chunk-boundary errors | [gcode-stream.test.mjs](core/tests/gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
+| Large move counts and G-code/ZIP size boundaries (explicit stress run) | [stress/large-export.test.mjs](core/tests/stress/large-export.test.mjs), [stress/large-program.test.mjs](core/tests/stress/large-program.test.mjs) | `npm run test:stress`; real former size and call-stack boundaries |
 | Dobot profile, Lua export/interpreter and relay behavior | [dobot.test.mjs](core/tests/dobot.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | [dobot.test.mjs](skills/wedge-demo/tests/dobot.test.mjs), vase and regional machine coverage |
+| Standalone split-delta kinematics, cylinder/track assessment, simulation source and nominal MG400 FK/IK | [split-delta.test.mjs](core/tests/split-delta.test.mjs), [dobot-kinematics.test.mjs](core/tests/dobot-kinematics.test.mjs) | Standalone browser inspection; existing Dobot/MCP profile checks |
 | VP-6242 / RC8, oriented/rotary motion, native pipe cladding and both Studio frames | [denso.test.mjs](core/tests/denso.test.mjs) | Shared mesh/spline regional skills, wedge, composition, browser source and exact-byte lifecycle |
 | Periodic spline tube, selected surface charts, normal-offset cladding and partial courses | [surface-cladding.test.mjs](core/tests/surface-cladding.test.mjs) | Native spline/bore, explicit mesh strips, three-perimeter interaction, RC8 lifecycle, bead orientation and ZIP32 helper counts |
 | `studio/`: camera, display detail, mesh visibility, playback and offline movies | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [studio-geometry.test.mjs](core/tests/studio-geometry.test.mjs), [studio-material.test.mjs](core/tests/studio-material.test.mjs), [studio-movie.test.mjs](core/tests/studio-movie.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
 | Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs), [studio-lifetime.test.mjs](core/tests/studio-lifetime.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
 | Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](core/tests/source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
-| `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow, recipe validation, CLI visibility of unresolved robot setup and documentation-link access |
+| `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | One lifecycle per transport/output shape; synthetic manual-link fixtures and unresolved robot setup |
 | Temporary HTTP/OAuth bridge, Claude package and web probe | [mcp-http.test.mjs](core/tests/mcp-http.test.mjs), [claude-plugin.test.mjs](core/tests/claude-plugin.test.mjs), [web-agent-probe.test.mjs](core/tests/web-agent-probe.test.mjs) | MCP stdio integration when shared tools change |
 | `scripts/bench/`: analytical fixtures and mesh convergence | [benchmark-fixtures.test.mjs](core/tests/benchmark-fixtures.test.mjs) | Performance measurements remain opt-in; see benchmark instructions |
 | Full-fill generation | Shared geometry, travel and pipeline tests as affected | [full-fill.test.mjs](skills/full-fill/tests/full-fill.test.mjs) |
@@ -134,15 +213,18 @@ node --test skills/planar-infill/tests/infill.test.mjs
 node scripts/check-repo.mjs
 ```
 
-`npm test` remains the single full-suite command; selecting focused files does
-not change its membership or replace the full local run required at commit.
+`npm test` runs ordinary software regressions. Stress tests and the optional
+repository-document check are separate; focused selection needs no subsequent
+full-suite run.
 
 ### Checks must earn their place
 
-A production check needs a concrete failure to detect and evidence that its
-placement is worthwhile. Account for compute, maintenance, false rejections and
-interruption of the maker's work. Use regression tests to establish that a known
-slicing defect stays fixed. A heuristic that cannot detect the defect adds an
+A check in production, CI or an agent workflow needs a concrete failure to detect
+and evidence that its placement is worthwhile. Account for compute, maintenance,
+false rejections and interruption of the person's work. Reuse the owning result
+for unchanged inputs rather than adding preflight, postflight or closeout checks.
+Use regression tests to establish that a known slicing defect stays fixed.
+A heuristic that cannot detect the defect adds an
 ongoing obligation; reconsider the heuristic before adding a user-facing bypass.
 
 When the value or placement of a proposed geometry, toolpathing or extrusion gate
@@ -159,12 +241,15 @@ geometry and quality choices explicit.
 For a checkout that has not been used yet, complete setup before either role's
 work; the person need not request it separately:
 
-1. Run `npm run first-run`. It requires Node.js 22+, installs the locked
-   dependencies when necessary, and performs a lightweight runtime and Studio
-   check. It also offers the skippable [guided tour](GETTING_STARTED.md).
-   This short check needs no Git metadata and creates no toolpath or manufacturing
-   approval. Do not run the full regression suite as maker onboarding.
-2. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
+1. Run `node --version`. Node.js 22+ is required. If it is missing or older,
+   direct the person to the Node.js 22+ installer for their operating system.
+2. Run `npm ci` from the repository root unless `node_modules/` is already
+   present, as in a packaged download.
+3. Run `npm run setup:check` to verify dependency loading, geometry kernels and
+   an unapproved geometry preview served by Studio. This short check needs no Git
+   metadata and creates no toolpath or manufacturing approval. Do not run the
+   full regression suite as maker onboarding.
+4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
 Report a failure as a setup problem and stop there. Setup does not create a
@@ -177,7 +262,8 @@ with `npm ci`. Installed source in `node_modules/` stays outside project edits
 and Git.
 
 ```sh
-npm run first-run
+npm ci
+npm run setup:check
 npm run demo
 npm run studio
 npm run check:print
@@ -201,9 +287,9 @@ There is no hardware connection or automatic machine execution.
 build-request structure and devlog presence, skill digest freshness and catalog
 coverage, decision-record structure and approval metadata, and exclusion of
 private Prints and local artifacts.
-It does not verify that a human actually approved a decision or that a part is
-printable. The subsequent Node tests check manufacturing software behavior.
-The optional manual CI run installs dependencies and runs the same tests. Synthetic approval tests use
+It is optional and does not verify that a human actually approved a decision or
+that a part is printable. Node regression tests check manufacturing software
+behavior. CI checks runtime setup on its fresh runner. Synthetic approval tests use
 temporary bundles and never authorize the person's real print.
 
 ## Documentation maintenance
@@ -265,11 +351,10 @@ These retain their wording and dates. Their surrounding current guidance still
 uses present tense. A development narrative or benchmark result is not an
 exception merely because it appears in a technical reference.
 
-Before finishing a task, check these owners and run the documentation check.
-`scripts/check-repo.mjs` checks the open-request structure and devlog links so
-completed statuses and work-record fields cannot quietly return to build
-requests. Semantic review still determines whether prose describes open work
-or history; a broad grammatical tense checker is not reliable for code examples
+Update affected owners as part of the edit; there is no separate documentation
+closeout gate. The optional `scripts/check-repo.mjs` diagnoses open-request
+structure and devlog links. Semantic review determines whether prose describes
+open work or history; a broad grammatical tense checker is not reliable for code examples
 and technical terms.
 
 Choose the owner by the question the material answers: operating a capability

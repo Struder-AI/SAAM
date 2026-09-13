@@ -70,3 +70,11 @@ complex region ordering.
 - Remaining: The actual export and extra firmware actions behind the reported startup discrepancy remain unidentified. Physical confirmation of the shared first-deposition recovery correction is also open.
 - Completion: Identify the delivered bytes and relevant installation behavior, diagnose the discrepancy and record the user's startup result for the correction. Do not generalize an earlier successful envelope report to another revision or installation.
 - Context: [Existing S5 reports](DEVLOG.md#2026-09-08-to-2026-09-10--s5-startup-observations), [current S5 contract](core/export/griffin.md#s5-startup-observations).
+
+### BR-044 — Port a vetted material library
+
+- Status: open
+- Remaining: Port the material-library concept to the live shared architecture when the user explicitly starts this work. The user commits to doing it, but defers implementation; do not restore the withdrawn catalog or implement it during recovery.
+- Completion: Review the selected data and interfaces against current material, machine, output and recipe consumers; preserve machine-owned compatibility and intentional process settings. Establish the concrete supported scope and relevant evidence before admitting the implementation. Catalog availability does not establish hardware or output support.
+- Context: [Withdrawal and conceptual intents](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission), [current component contracts](core/README.md#interoperability-and-one-workflow), [minimal implementation guidance](DEVELOP.md#engineering-priorities).
+- Source: Current user, 2026-09-13: “mark material library as definitely we will port that over - but don't do it yet.”

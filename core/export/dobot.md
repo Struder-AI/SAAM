@@ -2,6 +2,10 @@
 
 The configured-installation Lua output contract. See the [shared machine interface](README.md) for common motion semantics.
 
+The [standalone kinematics lab](../../tools/split-delta/README.md#dobot-and-deferred-denso-model)
+also supplies a nominal four-axis MG400 FK/IK viewer. Its uncalibrated base-frame
+model remains separate from this configured Lua output and its validation.
+
 ### Dobot output contract
 
 `machines/dobot-mg400.json` declares experimental `dobot-lua` output through

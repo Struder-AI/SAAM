@@ -103,4 +103,3 @@ Beads, skin offsets and first-skin bridging are approximate. Curvature convergen
 automatic supports, pressure/adhesion and second-nozzle collision are not modeled.
 A direct turnaround permits up to a quarter-skin thickness of surface sag (capped
 at 0.05 mm). Sampling can miss features between samples; refine deliberately.
-Run `npm test` after changes.
