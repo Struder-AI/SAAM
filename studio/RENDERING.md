@@ -2,9 +2,10 @@
 
 Display geometry, material rendering, playback and performance. See [Studio](README.md) for launch and review behavior.
 
-The [machine presentation contract](KINEMATICS.md) defines the planned simple
-ghost overlay, Machine view and model-provider boundary. Existing toolpath
-presentation below remains the baseline that this upgrade preserves.
+The [machine presentation contract](KINEMATICS.md#implemented-consumer) owns
+the simple ghost overlay, Machine view, shared depth/compositing strategy and
+model-provider boundary. Its neutral palette and assembly bounds are separate
+from toolpath colors, bead detail and default part framing described below.
 
 ## Studio performance and display detail
 

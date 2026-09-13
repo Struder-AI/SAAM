@@ -55,9 +55,9 @@ For machine setup and export limitations, follow the
 
 Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
 discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).
-Developers start at [DEVELOP.md](../DEVELOP.md), whose skill-author pathway
-routes to the shared geometry, numerical, composition, travel and machine
-requirements.
+Developers start at [DEVELOP.md](../DEVELOP.md) for shared geometry, numerical,
+composition, travel and machine requirements. [Skill development](DEVELOP.md)
+owns manual authorship and discovery metadata.
 
 Package implementation notes cover [planar infill](planar-infill/DEVELOP.md),
 [assigned supports](supports/DEVELOP.md) and the shared

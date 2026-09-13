@@ -7,13 +7,13 @@
 <dialog id="print-picker" aria-labelledby="picker-title"><div class="picker-head"><h2 id="picker-title">Open print</h2><button id="close-picker" aria-label="Close print picker">Close</button></div><div id="print-list"></div><form id="open-path"><label for="print-path">Print folder or file</label><input id="print-path" placeholder="C:\…\Prints\my-part" required><button class="primary" type="submit">Open</button></form><p id="picker-message" role="status"></p></dialog>
 <main>
   <section class="view">
-    <div class="view-head"><div><p class="eyebrow" id="kind-label">PRINT</p><h1 id="view-title">Your geometry</h1></div><div class="view-buttons"><button data-view="iso" aria-label="3D view">3D</button><button data-view="side" aria-label="Side view">Side</button><button data-view="top" aria-label="Top view">Top</button><button id="reset-view" aria-label="Reset view">Reset</button></div></div>
+    <div class="view-head"><div><p class="eyebrow" id="kind-label">PRINT</p><h1 id="view-title">Your geometry</h1></div><div class="view-buttons"><label id="machine-control" class="machine-switch" hidden><input id="machine-view" type="checkbox" role="switch" aria-describedby="machine-status" disabled> Machine view</label><button data-view="iso" aria-label="3D view">3D</button><button data-view="side" aria-label="Side view">Side</button><button data-view="top" aria-label="Top view">Top</button><button id="reset-view" aria-label="Reset view">Reset</button></div></div>
     <canvas id="canvas" tabindex="0" aria-label="Part viewer. Drag or use arrow keys to rotate; Shift-drag, right-drag, middle-drag or Shift-arrow keys to pan; scroll to zoom; click a face to select it."></canvas>
     <div class="view-foot"><span>Drag to rotate · Shift-drag to pan · scroll to zoom</span><span id="selection">Sloped face</span></div>
     <div id="playback" hidden>
       <div class="transport"><button id="play">Play</button><input id="scrub" aria-label="Playback position" type="range" min="0" max="1" step="0.01" value="1"><output id="time-label">0:00</output><label class="speed-label">Speed<input id="playback-speed" aria-label="Playback speed" type="range" min="1" max="30" step="1" value="10"><output id="speed-label" for="playback-speed">10×</output></label></div>
       <div class="legend"><span class="dot planar"></span><span id="planar-label">Flat layers</span> <span class="dot inclined"></span><span id="skin-label">Sloped layers</span> <label><input id="travel" type="checkbox"> Show travel</label><button id="fit-program">Fit all moves</button></div>
-      <label id="rotary-view" hidden><input id="follow-plate" type="checkbox"> Follow build plate</label>
+      <div class="machine-options"><label id="rotary-view" hidden><input id="follow-plate" type="checkbox" checked> Follow build plate</label><span id="machine-status" role="status"></span></div>
       <div id="axial-colors" aria-label="Inspect material layers" hidden></div>
       <p class="chat-hint">Current layer is dark; earlier layers are faded.</p>
       <p id="viewer-detail" class="chat-hint" role="status"></p>
@@ -23,7 +23,15 @@
   </section>
   <aside>
     <div><p class="eyebrow" id="stage-label" hidden></p><p id="guidance">Check the shape and dimensions.</p></div>
+    <section id="manual-position" aria-labelledby="manual-title" hidden>
+      <h2 id="manual-title">Tool position</h2>
+      <p class="chat-hint">Move the simulated machine. Coordinates follow the build plate.</p>
+      <div id="manual-sliders"></div>
+      <p id="manual-status" role="status"></p>
+      <button id="manual-reset" disabled>Return to playback</button>
+    </section>
     <div id="facts"></div>
+    <details id="machine-info" hidden><summary>Machine model</summary><p id="machine-basis"></p><ul id="machine-limitations"></ul><p id="machine-diagnostics" hidden></p></details>
     <details id="more-settings" hidden><summary>All print settings</summary><div id="settings-detail"></div></details>
     <div class="next"><p id="review-note"></p><div id="message" role="status" aria-live="polite"></div><button id="confirm" class="primary" disabled>Confirm geometry</button><p class="chat-hint">Request changes in chat.</p></div>
   </aside>

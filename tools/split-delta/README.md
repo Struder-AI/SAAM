@@ -200,8 +200,8 @@ See the official [kinematics interface](https://linuxcnc.org/docs/html/motion/ki
 and [available kinematics modules](https://linuxcnc.org/docs/html/man/man9/kins.9.html).
 This is an architecture recommendation, not implemented or selected firmware.
 
-The numerical modules have no DOM, file or server dependencies. Future Studio
-integration can consume their poses and link endpoints with a separate renderer;
+The numerical modules have no DOM, file or server dependencies. Studio
+consumes their poses and link endpoints through the shared presentation provider;
 its exact-source review contract remains the authority for manufacturing output.
 Controller implementations need golden-vector parity against this reference,
 measured geometry/tool offsets, branch continuity, actuator limits, interpolation
@@ -230,14 +230,19 @@ example bed and tool are synthetic. Serve a generated preview with
 `node tools/split-delta/server.mjs --dobot-preview preview.json` and open the
 printed Dobot URL. The same server accepts both print-preview arguments.
 
-DENSO's arm model remains unimplemented at the user's direction until controller
-redundancy and branch policy are established. The VP-6242 has six arm axes; the
+DENSO has a separate [nominal Studio model](../../core/machine/README.md#denso-vp-6242)
+with drawing-based centerlines and explicit model-angle seeds. Controller-matched
+arm motion still needs its redundancy and branch policy established. The VP-6242 has six arm axes; the
 external bed makes seven actuators. Full task pose constrains six coordinates
 and leaves one redundancy; a five-coordinate nozzle task leaves two. An explicit
 bed angle and full orientation remove continuous redundancy at a nonsingular
 pose, but discrete arm branches and wrist winding still require a deterministic
 policy matching controller behavior. The existing Cartesian/rotary source
 interpreter does not establish that policy.
+
+[Studio studies](../kinematics/README.md) reuse Splitty and Dobot models in the
+shared machine viewer and also support Tilty and nominal DENSO. Existing
+`.sdgcode` source can be opened there without rewriting its bytes.
 
 ## Exact-path scale optimization
 

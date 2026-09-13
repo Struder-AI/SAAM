@@ -1,6 +1,6 @@
 # Machine presentation integration contract
 
-**Status: implementation contract v1; runtime integration is not implemented.**
+**Status: v1 implemented in Studio and shared machine providers.**
 The user selects a machine ghost plus a Machine view toggle, with ordinary zoom
 in both modes. The visual language is Studio's simple lines, shapes and cones,
 with careful color, transparency, framing and visibility. Photorealistic machine
@@ -98,7 +98,72 @@ establishes physical clearance. The current offscreen WebGL material plus 2D
 canvas composition has no automatically shared machine depth buffer: choose
 and verify an explicit compositing strategy rather than assuming one exists.
 
+### Implemented consumer
+
+[source-worker.mjs](source-worker.mjs) decodes source once and retains compact
+motion for the provider. [machine-session.mjs](machine-session.mjs) owns bounded
+requests, cancellation, stale-response rejection and the current-time cache.
+Descriptor validation and primitive compilation happen once on receipt; poses
+are validated in the worker. Invalid or unsupported model data disables its
+overlay while preserving the decoded toolpath.
+
+[machine-view.mjs](machine-view.mjs) compiles every v1 primitive, applies resolved
+frames and supplies both WebGL and Canvas drawing. WebGL primitives share the
+material projection and depth attachment. Ghost context is composited before
+material color, with the tool depth-tested afterward; Machine mode depth-tests
+all components against deposited material. Translucent component faces/edges
+are ordered by camera depth. The Canvas fallback uses painter ordering with
+the same geometry and palette; it does not claim per-pixel occlusion.
+
+Ghost retains the existing part projection and material detail. Explicit Machine
+fitting uses the declared envelope, or the current resolved components when no
+envelope exists, with padding based on projected extents. Both modes retain
+orbit, pan and ordinary zoom. New views follow the build plate; saved reference
+preferences take precedence. Changing reference frame refits both saved camera
+bounds without changing their orbit, pan or zoom. Grid, source, tool and assemblies
+use the same part transform. Playback advances after the matching pose resolves;
+paused seeks show loading until that exact time arrives. Movies await the same
+sample and draw path for each output frame.
+
 ## Provider interface
+
+Machine view also offers manual tool-position sliders when a provider supplies
+`controls` (ordered `{label, unit, min, max, step}` records). These are model-owned
+pose coordinates, not actuator commands. Fixed ranges conservatively bound the
+model's workspace from mechanism dimensions and installation transforms; they do
+not depend on loaded motion. Values within those scalar ranges are not necessarily
+jointly reachable. `sample` accepts optional `manual: number[]` in that order and
+`jog: {axis, from}` to prioritize one coordinate from a previous valid pose. It returns
+the accepted `controlValues`, which may differ from the requested coordinates. A manual
+snapshot echoes `manual`; its `seconds` anchors the frozen source/rotary state,
+not a claim that the pose came from that source. The same solver and diagnostics
+apply. Consumers distinguish manual requests in their cache and request identity.
+
+Sliders appear only in Machine view and pause playback. Play, timeline seeks,
+Return to playback, changing mode/stage/source, and movie export clear the manual
+override. Manual posing is temporary simulation: source bytes, approvals and
+machine delivery are unchanged. Studio renders the frozen source path with the
+manually posed machine and does not add a deposition/contact marker at its tip.
+While a manual solve is pending or fails, the view retains the last complete pose
+at that source time. Diagnostics describe the requested pose; retained geometry
+does not imply it succeeded. A source/model rebind clears that retained pose.
+
+Rail endpoints are fixed working carriage limits in the machine definition
+(`railMinMm`/`railMaxMm` for the delta models, with Tilty's three tilt-rail
+starts in `tiltRailMinMm`), not a source-derived crop. They do
+not stretch during manual control. This defines working center travel, not the
+extra stock length needed to support the carriage body beyond its end position.
+
+The model's [jog controller](../core/machine/jog.mjs) follows local feasible poses,
+prioritizing the dragged coordinate and projecting small corrections to other
+coordinates against model-owned signed boundary margins. Angular displacement is
+weighted by the modeled tool/rear lever. It stops at a local boundary or solver
+failure, rather than crossing an unsupported configuration. This is local numerical
+continuation, not a globally shortest adjustment, global reach certification or
+collision-aware motion planner. The UI displays accepted coordinates, retains
+the last complete assembly while solving, and keeps source/jog cache identity
+separate. Only the existing model limits are enforced; unspecified physical joint
+and collision limits are not inferred.
 
 The following TypeScript notation specifies a JavaScript interface, not a new
 runtime dependency or persisted print format. Records use structured-cloneable
@@ -170,7 +235,10 @@ The creation boundary is
 `createMachinePresentation({ program, machine, setup, sourceIdentity, signal })`.
 It returns `Promise<Provider | null>`; `null` means no registered model.
 `program` is the existing immutable interpreted export with its move/event access,
-not generated SAAMpath or a new serialized trajectory. `machine` and `setup` are
+not generated SAAMpath or a new serialized trajectory. Explicitly read-only
+[machine studies](../tools/kinematics/README.md) also supply decoded authored
+motion or unchanged Splitty preview source; these are labeled simulation and
+cannot authorize machine delivery. `machine` and `setup` are
 the resolved existing profile and job installation. `sourceIdentity` supplies
 `printId`, `revision` and `exportHash`; the provider adds `modelKey`. The Studio
 host owns passing these existing values and any worker bridge. Creation failures

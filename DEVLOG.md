@@ -1,5 +1,218 @@
 # Development log
 
+Date entries by the work or observation when evidence supports it; cite the
+dated source or commit and distinguish request, checkpoint and completion dates.
+Preserve explicit follow-up dates and timezones. If the work date is unknown,
+say so and record the recording or migration date separately; never infer it from
+file modification time. Record actual verification scope, without copying entire
+contracts or turning test counts into claims of physical success. New entries
+need no build-request ID; preserve an existing ID when moving its work record.
+
+## 2026-09-13 — Human contributor rules and agent guidance placement
+
+At the user's direction in the contributor-guidance conversation, CONTRIBUTING
+became human-facing and left the default agent reading path. Setup and test
+references moved to focused owners. DEVELOP retained the during-work context,
+selective-adoption, shared-edit, durable-knowledge and anti-check-spiral rules;
+checkpoint and remote guidance moved to CONTRIBUTING-AGENTS for reading at that
+stage. Blanket preliminary checkpoints, an assumed Git coordinator and mandatory
+human PR review were removed. Existing authorization remained applicable.
+
+The user's follow-up established whole-checkout commits as the default for an
+authorized checkpoint: all non-ignored work, including concurrent contributions
+and unfinished increments, unless explicitly excluded. Recording shared state
+did not establish completion, review or selective-adoption approval.
+
+The verification wording reused valid evidence instead of triggering new checks
+at publication or from skill manuals. The repository document check passed for
+60 documents, 725 local links and 29 decision records, including open requests
+and skill metadata. This guidance edit changed no software behavior and ran no
+software tests; concurrent implementation work retained its own work records.
+
+## 2026-09-13 — Tilty inversion reserve
+
+At the user's request, Tilty revision 5 adds Splitty's four-degree rod
+elevation reserve and 0.02 normalized constraint singular-value ratio limit.
+The latter detects parallel loss of control using all six constraints and
+five carrier/gimbal coordinates; it is distinct from an angular reserve.
+Geometry validation keeps the tilt cone away from gimbal lock. Inverse poses
+and manual jog corrections share these boundaries.
+
+Recalculated lower working travel with the reserve: main rails start at
+78.0 mm and tilt rails at 163.2/160.7/160.7 mm, with tops still at 650 mm.
+The active study snapshot receives these limits without replacing its motion.
+All 28 focused checks passed, including poses immediately either side of the
+four-degree main-rod boundary, tilt-rod reserve witnesses, a parallel singular
+configuration with vertical rods, and existing coupled jogging behavior.
+
+## 2026-09-13 — Remove unusable lower Tilty rail travel
+
+Tilty revision 4 defines main rail starts at 53.6 mm and tilt rail starts at
+138.8/136.3/136.3 mm above the bed, retaining the 650 mm upper stops. The
+inverse solver, jog margins and displayed rails share these authored limits.
+Updated the active study's machine snapshot without replacing its motion.
+
+The authoring calculation bounds the minimum tilt carriage heights across
+the allowed gimbal range using relaxed reach-disk intersections and reachable
+witness poses. Bound gaps are below 0.02 mm; rounding lower stops down to
+0.1 mm preserves modeled above-bed reach. A near-horizontal main-rod witness
+approaches its analytical lower limit. These are nominal geometric limits,
+without new physical socket or collision claims.
+
+All 27 focused machine jog, presentation, study and Studio kinematics checks
+passed, including recalculation of the authored limits and retained reach
+near each shortened rail endpoint.
+
+## 2026-09-13 — Retain the assembly during manual pose requests
+
+Fixed manual-slider blinking by retaining the last complete model pose at the
+frozen source time while a new worker request is pending or unsuccessful. The
+exact request cache remains separate, so drawing the retained assembly does not
+suppress the new solve or claim its requested coordinates were reached. Source
+and model changes clear the retained state. The focused Studio kinematics checks
+pass, including retained geometry during a pending request and disposal cleanup.
+
+The user clarified that used rail length belongs to the machine definition and
+slider spans should cover the machine's motion independently of the source.
+Removed source-dependent rail cropping and its snapshot field. The existing
+working rail endpoints now drive both geometry and limits. Slider spans derive
+conservative bounds from mechanism dimensions and installation transforms.
+
+Implemented local constrained jogging: prioritize the selected coordinate,
+project corrections against model-owned signed boundary margins, and stop at a
+valid local boundary. Returned slider values follow the accepted pose. Tilty
+supplies rod reach, rail and gimbal margins; Splitty and Dobot expose their
+existing numeric limits. DENSO uses nominal wrist reach plus its seeded IK
+acceptance. Cartesian sliders enforce axis travel, with the bed rail geometry
+aligned to that travel. Missing physical socket/collision limits remain missing.
+This does not claim global reach optimization or hardware motion validation.
+
+Regression evidence includes analytical curved-boundary coupling, simultaneous
+rail/gimbal limits, fixed rails independent of source, source/override cache
+separation, Cartesian end stops and mechanism-derived Tilty slider bounds. The
+fresh Studio runtime shows one gimbal slider backing off as the other reaches
+its limit, with the assembly retained. Tilty height and tilt boundary probes
+remain ready instead of returning incomplete moving geometry.
+
+## 2026-09-13 — Manual machine positioning and used rail travel
+
+Added model-owned tool-position controls to Studio Machine view: XYZ for all
+aligned models, Tilty's two gimbal angles, Dobot yaw and Splitty/DENSO Euler
+orientation. Slider input pauses playback and invokes the same model solver in
+the source worker. Manual/source requests have distinct cache identity; obsolete
+requests cannot replace the displayed pose. Play, seeking, return-to-playback,
+mode/stage/source changes and movie export clear temporary manual posing.
+No source bytes, job approvals or hardware commands are changed.
+
+Rails now display sampled source carriage travel plus the exact current pose,
+with 10 mm end clearance. Optional normalized line spans crop the existing
+primitive geometry; rods retain their configured lengths. Source sampling is
+bounded, is only for display, and retains no viewing-history dependency.
+Machine fit uses the cropped assembly.
+
+Focused provider, study, session/renderer and movie checks pass. Regressions
+cover manual source preservation, invalid Tilty poses, all six model control
+sets, manual/source cache separation, rail cropping/extension/reset and fixed
+rod length. The running Tilty preview was reloaded; XYZ/tilt controls, shorter
+rails and the rendered manual pose were checked in the browser. This is software
+simulation evidence, not hardware motion validation.
+
+## 2026-09-13 — Smaller Tilty carrier and 120 mm tail
+
+The user requested a smaller horizontal plate and approximately 120 mm tail.
+Changed the carrier/anchor radius from 45 to 35 mm and rear lever from 90 to
+120 mm in model defaults and profile revision 3. The plate outline diameter
+therefore decreases from 90 to 70 mm. Main rod attachment positions follow the
+same radius; this changes the actual mechanism, not only its drawing.
+
+The unchanged 24-second motion solves at all 241 sampled times. Minimum rod
+centerline separation is 25.34 mm (previously 29.22 mm); maximum carriage height
+is 539.30 mm within 650 mm travel. Neutral fixed-carrier minimum tilt sensitivity
+is 51.05 mm/radian (previously 32.16). These remain sampled centerline and nominal
+kinematic results, excluding physical component envelopes and collisions.
+All 11 focused model/study checks pass; regenerated the Tilty study with the
+same motion and refreshed the current Studio preview.
+
+## 2026-09-13 — Longer Tilty rear lever
+
+At the user's request, doubled Tilty's pivot-to-rear-anchor length from 45 to
+90 mm in the model defaults and profile revision 2, retaining the 70 mm nozzle
+length. Compared 45/75/90/105 mm using the existing 24-second motion: all 241
+samples at each length solve within rail travel. At 90 mm, minimum pairwise rod
+centerline separation improves from 17.83 to 29.22 mm; highest carriage position
+rises from 460.81 to 508.02 mm within the 650 mm rail. The smallest singular value
+of the neutral, fixed-carrier tilt-height Jacobian rises from 3.83 to 32.16
+mm/radian. This supports the 2× choice without claiming an optimal mechanism.
+Segment distances omit rod radii, joint/socket envelopes and housings; the
+sampled study does not establish collision-free motion or the full workspace.
+The ignored comparison script is `.local/studio-machine-presentation/compare-tilty-rear.mjs`.
+All 11 model/study checks pass with the updated analytical neutral-height
+reference. Regenerated the existing Tilty study with its unchanged motion source.
+
+## 2026-09-13 — Studio machine ghost and Machine view
+
+Implemented the complete Studio consumer of the [v1 presentation contract](studio/KINEMATICS.md):
+simple links, rails, carriages, joints, bed and tool; neutral ghost composition;
+Machine view with independent saved camera; shared reference-frame transforms;
+worker sampling, unavailable-model fallback, stale-response rejection and movie
+parity. Existing material geometry, operation colors and part-fit detail remain
+the baseline. Provider geometry and kinematic equations remain in the separate
+shared-model implementation. This work followed the updated AGENTS/D-029 context
+boundary and fresh Studio sessions.
+
+Verification: 31 selected tests pass across Studio kinematics, cameras, material,
+movie export and source transport. These cover nonzero-placement/moving-bed
+contact, invalid/stale/partial poses, worker failure/disposal, camera restoration,
+projected machine fitting and asynchronous pose-before-video capture. Fresh
+browser inspection covers the actual 8,343-move development S5 wedge, Tilty and
+DENSO studies, and 48,430-move development pipe; the Tilty Machine-view movie
+completes as a 4-second, 0.7 MB WebM. No manufacturing approvals were created.
+
+Paired browser measurements at 848 × 404 compare real WebGL material rendering,
+Canvas composition and a forced pixel readback, with 60 frame pairs after 10
+warmups and alternating order. Wedge baseline/ghost median: 5.3/6.1 ms; p95:
+10.3/9.5 ms. Pipe baseline/ghost median: 4.5/5.2 ms; p95: 6.2/6.5 ms. These
+measure drawing at source time 1190 with varying orbit, excluding source decode
+and worker transport; they are not end-to-end interactive FPS guarantees. No
+toolpath simplification or detail reduction was added. The ignored local harness
+and screenshots are under `.local/studio-machine-presentation/`. Repository
+document/link checks pass. Model poses and previews remain nominal software
+evidence; collision, installation calibration and physical results are unverified.
+
+## 2026-09-13 — Shared machine providers and Tilty mechanism studies
+
+The user authorized implementation after the contract review and minimal-core
+guidance, accepted Tilty/tilt-rod naming, and requested a checkpoint. Commit
+`cf6856f` checkpoints the shared checkout before this implementation; generated
+benchmark caches and the loose STL are excluded. Reoriented to D-029 and the
+updated entry point before editing; no withdrawn component is restored.
+
+Implemented [machine providers](core/machine/README.md) for the current catalog
+and Tilty, sharing source-time evaluation with Studio. S5/H2D use schematic XY
+carriage/Z-bed motion; Splitty reuses its reference model; MG400 reuses nominal
+FK/IK with explicit alignment. The new VP-6242 model uses DENSO's dimension
+drawing and explicit seeded model angles, without claiming RC8 encoder/FIG
+parity. Tilty models a level delta carrier, two-axis gimbal, and three coordinated
+rear tilt rods; its five-coordinate forward solve rejects inconsistent redundant
+actuator positions. Dobot's standalone sampler reuses the shared acceleration
+evaluator instead of maintaining a second timing equation.
+
+Added [read-only Studio studies](tools/kinematics/README.md), including Tilty's
+gimbal-coordinate interpolation and unchanged original Splitty `.sdgcode` input.
+These use the shared viewer and hashed source transport, with no manufacturing
+approval, generation or delivery. Default robot studies explicitly use synthetic
+nominal floor installations. The separate Studio task owns consumer rendering,
+camera behavior, worker lifecycle and visual verification.
+
+Verification: analytical Tilty heights and rod lengths, nozzle-lever compensation,
+rejection of independent roll/incompatible actuators, independent DENSO drawing
+poses, complete deterministic provider samples for all six machines, source-hash
+invalidation, manufacturing-operation refusal and Splitty source/timing parity
+pass. Existing Dobot, source-player, split-delta and DENSO export/lifecycle checks
+pass. A 0.1-second sampling sweep of each 24-second Tilty, Splitty and DENSO study
+returns complete poses throughout; this is sampled nominal software evidence,
+not continuous reach, collision, calibration or physical printing evidence.
+
 ## 2026-09-13 — Withdraw September 12 contributions and establish context boundary
 
 - The user reports that the originating agent context combined a pre-GitHub repository with modern SAAM and explicitly authorizes withdrawal of e3dc134, f2a97d8, 6e11afd and ce61c69. The old repository and transcripts are unavailable; no claim is made that every changed line was copied from them. The material-intent addition and revert cancel exactly.
@@ -110,7 +323,7 @@ incomplete work; component references and skill manuals describe present behavio
   in `npm test`. This preserves defect coverage without paying its cost routinely.
 - Strengthened two approval-invalidation tests to start from an approved plan.
   Fixed source-player teardown to shut down Studio before deleting its temporary
-  bundle. Added [test-worthiness guidance and examples](CONTRIBUTING.md#worthwhile-tests)
+  bundle. Added [test-worthiness guidance and examples](core/tests/README.md#worthwhile-tests)
   and updated the test registry; no additional mandatory gate was introduced.
 - The initial full-suite run reported 446 passes and two failures. A source-player
   cleanup failed with Windows `EBUSY` and left a worker stalled; the audit's worker
@@ -442,7 +655,7 @@ were retained. This restart did not authorize adoption of the legacy runtime.
 All 114 archived files were checked against their original SHA-256 hashes.
 Initial checks covered document links, decision metadata and private-file
 exclusions; they did not validate manufacturing behavior. Current checks are
-described in the [check policy](CONTRIBUTING.md#checks).
+described in the [check policy](DEVELOP.md#avoid-check-spirals).
 
 ## BR-003 — Resolve native path versus machine file
 

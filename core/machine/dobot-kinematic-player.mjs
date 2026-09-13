@@ -1,4 +1,5 @@
 import {dobotInverse} from './dobot-kinematics.mjs';
+import {frameAtTime} from '../export/source-time.mjs';
 // Consume the interpreted Lua command positions and rest-to-rest timing.
 // Model coordinates must be deliberately aligned with the configured user/tool
 // frame by the caller; nominal demo transforms are never installation calibration.
@@ -16,9 +17,7 @@ export function sampleDobotProgram(program,g,{yawDeg=0,stepSeconds=0.05,maxSampl
     if(!from||!to||!Number.isFinite(m.accelerationMmS2)||m.accelerationMmS2<=0)throw Error('Dobot preview requires interpreted controller coordinates and acceleration');
     record(from,m.startSeconds,m,false,volume);
     for(let j=1;j<=n;j++){
-      const t=m.durationSeconds*j/n,ramp=m.peakSpeedMmS/m.accelerationMmS2,T=m.durationSeconds;
-      const distance=t<ramp ? 0.5*m.accelerationMmS2*t*t : t>T-ramp ? m.controllerLengthMm-0.5*m.accelerationMmS2*(T-t)**2 : 0.5*m.accelerationMmS2*ramp*ramp+m.peakSpeedMmS*(t-ramp);
-      const u=Math.max(0,Math.min(1,distance/m.controllerLengthMm)),tcp=from.map((v,i)=>v+(to[i]-v)*u);
+      const t=m.durationSeconds*j/n,at=frameAtTime([{...m,from,to,interpolation:'rest-to-rest-linear'}],m.startSeconds+t),u=at.fraction,tcp=at.controllerPoint;
       record(tcp,m.startSeconds+t,m,m.extruding,volume+m.commandedVolumeMm3*u);
     }
     volume+=m.commandedVolumeMm3;

@@ -69,7 +69,7 @@ export function pairedEdgeLayout(g){
 }
 // Explicit study envelope: pivot hull + 5 mm planar rim, 6 mm plate thickness.
 export function plateEnvelopeMinimumZ(points,rotation,{plateRimMm=5,plateThicknessMm=6}={}){const nz=Math.abs(rotation[2][2]);return Math.min(...points.map(p=>p[2]))-plateRimMm*Math.sqrt(Math.max(0,1-nz*nz))-plateThicknessMm/2*nz;}
-// Small symmetric Jacobi eigensolver for singular values of the normalized 6x6 constraint matrix.
+// Small symmetric Jacobi eigensolver for singular values of a constraint matrix.
 export function singularValues(a){
   const b=mm(transpose(a),a),n=b.length;
   for(let iter=0;iter<100;iter++){
@@ -103,24 +103,29 @@ export function inverse(g,pose,{ignoreTrack=false,diagnostics=true}={}){
   if(!Array.isArray(tcp)||tcp.length!==3||!tcp.every(Number.isFinite))throw Error('TCP requires three finite coordinates');
   if(!Array.isArray(R)||R.length!==3||R.some(r=>!Array.isArray(r)||r.length!==3||!r.every(Number.isFinite)))throw Error('Invalid rotation');
   const rt=mm(R,transpose(R));if(rt.some((r,i)=>r.some((v,j)=>Math.abs(v-(i===j?1:0))>1e-7))||Math.abs(determinant(R)-1)>1e-7)throw Error('Rotation must be right-handed orthonormal');
-  const platform=add(tcp,matvec(R,[0,0,g.toolLengthMm])),points=g.anchors.map(a=>add(platform,matvec(R,a))),heights=[],carriages=[],rows=[],errors=[];
+  const platform=add(tcp,matvec(R,[0,0,g.toolLengthMm])),points=g.anchors.map(a=>add(platform,matvec(R,a))),heights=[],carriages=[],rows=[],errors=[],margins=[];
   const minPlateEnvelopeZMm=plateEnvelopeMinimumZ(points,R,g);
   if(g.checkPlateBedClearance&&minPlateEnvelopeZMm<2)errors.push('Plate envelope below 2 mm bed clearance');
+  if(g.checkPlateBedClearance)margins.push(minPlateEnvelopeZMm-2);
   let minRodElevationDeg=90,maxJointDeflectionDeg=0;
   for(let i=0;i<6;i++){
     const p=points[i],rail=g.rails[i],axis=g.railDirections[i],d=sub(p,rail),v=dot(d,axis),q=g.rodLengthMm**2-dot(d,d)+v*v;
-    if(q<=0)return {valid:false,errors:[`Rod ${i+1} cannot reach (upper branch)`],tcp,rotation:R,platform,points,heights,carriages};
-    const dz=Math.sqrt(q),h=v+dz,c=carriagePoint(g,i,h),u=unit(sub(p,c)),lever=matvec(R,g.anchors[i]);
+    margins.push((q-1e-8)/g.rodLengthMm);
+    if(q<=1e-8)errors.push(`Rod ${i+1} cannot reach (upper branch)`);
+    const dz=Math.sqrt(Math.max(0,q)),h=v+dz,c=carriagePoint(g,i,h),u=unit(sub(p,c)),lever=matvec(R,g.anchors[i]);
     heights.push(h);carriages.push(c);rows.push([...u,...mul(cross(lever,u),1/g.rotationScaleMm)]);
     minRodElevationDeg=Math.min(minRodElevationDeg,Math.asin(dz/g.rodLengthMm)/RAD);
     maxJointDeflectionDeg=Math.max(maxJointDeflectionDeg,angle(u,g.rest[i]),angle(matvec(transpose(R),u),g.rest[i]));
     if(!ignoreTrack&&(h<g.railMinMm||h>g.railMaxMm))errors.push(`Carriage ${i+1} exceeds working track`);
+    if(!ignoreTrack)margins.push(h-g.railMinMm,g.railMaxMm-h);
   }
   if(minRodElevationDeg<g.marginDeg)errors.push('Rod elevation reserve below limit');
   if(maxJointDeflectionDeg>g.jointConeDeg-g.marginDeg)errors.push('Spherical joint angular reserve below limit');
   const sv=diagnostics?singularValues(rows):null,ratio=sv?sv[0]/sv[5]:null;
   if(ratio!==null&&ratio<g.minSingularRatio)errors.push('Near parallel singularity');
-  return {valid:!errors.length,errors,tcp,rotation:R,platform,points,heights,carriages,rows,minPlateEnvelopeZMm,minRodElevationDeg,maxJointDeflectionDeg,singularRatio:ratio,determinant:determinant(rows),tiltDeg:angle(matvec(R,[0,0,1]),[0,0,1])};
+  margins.push(minRodElevationDeg-g.marginDeg,g.jointConeDeg-g.marginDeg-maxJointDeflectionDeg);
+  if(ratio!==null)margins.push((ratio-g.minSingularRatio)*g.rodLengthMm);
+  return {valid:!errors.length,errors,margins,tcp,rotation:R,platform,points,heights,carriages,rows,minPlateEnvelopeZMm,minRodElevationDeg,maxJointDeflectionDeg,singularRatio:ratio,determinant:determinant(rows),tiltDeg:angle(matvec(R,[0,0,1]),[0,0,1])};
 }
 // Seeded forward solve stays local; callers must supply the preceding pose.
 // Returns failure instead of silently selecting another assembly mode.

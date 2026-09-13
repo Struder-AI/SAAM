@@ -3,8 +3,15 @@
 Only outstanding or incomplete work belongs here. Work normally proceeds
 build-first; completed work and dated evidence belong in [DEVLOG.md](DEVLOG.md).
 Current component references and skill manuals own implemented behavior.
-See [documentation maintenance](CONTRIBUTING.md#documentation-maintenance) for
+See [documentation maintenance](DEVELOP.md#documentation-maintenance) for
 the closeout rules. An empty outstanding-work list is valid.
+
+Use a `### BR-NNN — Title` heading with `Status` (`open`, `in progress` or
+`blocked`), `Remaining`, `Completion` and `Context` fields; `Source` is optional.
+On completion, update the owning manuals, move the work and verification record to
+the devlog, and remove the completed request. For partial completion, leave only
+the remainder here. Preserve request IDs and redirect evidence links when moving
+records. A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 

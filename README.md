@@ -55,7 +55,7 @@ the temporary web-chat bridge.
 Give your agent this repository and describe what you want to make. Agents start
 at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
-For a manual development trial, follow [setup and checks](CONTRIBUTING.md#setup-and-checks)
+For a manual development trial, follow [setup and checks](SETUP.md)
 and the [wedge demo manual](skills/wedge-demo/SKILL.md). The demo produces a
 development preview; human job approval remains separate.
 

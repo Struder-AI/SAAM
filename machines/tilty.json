@@ -1,0 +1,11 @@
+{
+  "schema":"saam-machine/1","id":"tilty","name":"Tilty / gimbal delta","revision":5,"units":"mm",
+  "kinematics":"three delta parallelograms plus roll-constrained two-axis gimbal and three coordinated tilt rods",
+  "kinematicModel":{"towerRadiusMm":180,"platformRadiusMm":35,"pairSpacingMm":30,"rodLengthMm":350,"tiltRodLengthMm":350,"toolLengthMm":70,"rearLengthMm":120,"rearRadiusMm":20,"railMinMm":78,"tiltRailMinMm":[163.2,160.7,160.7],"railMaxMm":650,"maxTiltDeg":40,"marginDeg":4,"minSingularRatio":0.02,"basis":"Nominal design with 35 mm carrier radius and 120 mm rear lever; lower rail stops omit travel unusable above the bed with 4 degree rod elevation reserve. Six actuators, five tool degrees of freedom. No physical geometry or controller calibration."},
+  "bounds":{"min":[-100,-100,0],"max":[100,100,200]},"boundsBasis":"Design study display area, not verified workspace",
+  "capabilities":["kinematic-preview"],
+  "outputs":[{"id":"tilty-controller","implemented":false,"reason":"Mechanism study only; controller output is unimplemented."}],
+  "tools":[{"index":0,"label":"Provisional gimballed hotend","cores":["custom 0.4"],"nozzleDiametersMm":[0.4]}],
+  "defaultSetup":{"tool":0,"core":"custom 0.4","nozzleMm":0.4,"material":"PLA","filamentMm":1.75,"nozzleC":0,"bedC":0,"buildVolumeC":0},
+  "validation":"Nominal rigid kinematics only. Three tilt actuators must satisfy gimbal compatibility; forces, collisions, joint cones, drives and printing are unverified."
+}

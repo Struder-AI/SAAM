@@ -5,9 +5,22 @@ prints. Rendering and playback implementation live in [RENDERING](RENDERING.md).
 The [shared lifecycle](../core/print/README.md) owns bundle validity and approval state;
 [MAKERS](../MAKERS.md) owns the interaction with the person making a part.
 
-[Machine presentation integration](KINEMATICS.md) specifies the planned complete
-ghost/Machine-view upgrade and its boundary with incrementally built kinematic
-models. It is an implementation contract, not a claim of current UI support.
+[Machine presentation integration](KINEMATICS.md) owns the shared provider
+contract. Toolpath preview shows available rails, links, carriages, bed and tool
+as a quiet machine ghost. **Machine view** fits the assembly and raises its
+visibility; switching back restores the part camera. Orbit, pan and zoom work in
+both modes. **Follow build plate** independently chooses the reference frame
+and is enabled for new views. The **Machine model** disclosure gives the model's
+basis and limits; missing installation data does not disable source playback.
+Playback and exported movies use the same source-time poses and rendering.
+
+In Machine view, **Tool position** sliders pause playback and pose the simulated
+machine using its supported position/orientation axes. **Return to playback**,
+Play or the timeline restores the source pose. The controls do not change the
+print or send hardware commands. Rails display fixed working carriage travel
+from the machine definition. Sliders prioritize the dragged coordinate, adjust
+the others to stay reachable, and stop at modeled boundaries. The assembly stays
+visible while solving; slider readouts show the accepted pose.
 
 ## Studio agent permissions
 

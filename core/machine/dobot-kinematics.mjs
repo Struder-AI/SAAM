@@ -37,11 +37,14 @@ export function dobotInverse(g,pose,{seed=[0,0,0,0]}={}){
   if(!pose.tcp||pose.tcp.length!==3||!pose.tcp.every(Number.isFinite)||!Number.isFinite(pose.yawDeg??0))throw Error('Invalid Dobot TCP/yaw');
   if(pose.toolAxis&&norm(pose.toolAxis.map((v,i)=>v-[0,0,-1][i]))>1e-7)throw Error('Dobot cannot tilt the tool');
   const [x,y,z]=pose.tcp.map((v,i)=>v-g.baseOriginMm[i]),rho=Math.hypot(x,y);
-  if(rho<1e-8)return {valid:false,errors:['Base-axis singularity'],tcp:pose.tcp,points:[],joints:[]};
   const q1=Math.atan2(y,x)/rad,r=rho-g.shoulderMm[0]-g.wristMm[0],h=z+g.toolLengthMm-g.shoulderMm[2]-g.wristMm[2],c=(r*r+h*h-g.l1*g.l1-g.l2*g.l2)/(2*g.l1*g.l2);
-  if(c<-1-1e-10||c>1+1e-10)return {valid:false,errors:['Outside nominal two-link reach'],tcp:pose.tcp,points:[],joints:[]};
   const delta=(g.branch==='elbow-negative'?-1:1)*Math.acos(Math.max(-1,Math.min(1,c))),a1=Math.atan2(h,r)-Math.atan2(g.l2*Math.sin(delta),g.l1+g.l2*Math.cos(delta)),a2=a1+delta;
   const q2=g.phi1-a1/rad,q3=g.phi2-a2/rad,q4=(pose.yawDeg??0)-q1;
   const windings=[-2,-1,0,1,2].map(k=>q4+360*k).filter(v=>v>=g.jointLimitsDeg[3][0]+g.marginDeg&&v<=g.jointLimitsDeg[3][1]-g.marginDeg).sort((a,b)=>Math.abs(a-seed[3])-Math.abs(b-seed[3]));
-  const result=dobotForward(g,[q1,q2,q3,windings[0]??q4]);return {...result,requestedTcp:pose.tcp};
+  const result=dobotForward(g,[q1,q2,q3,windings[0]??q4]);
+  if(rho<1e-8){result.valid=false;result.errors.push('Base-axis singularity');}
+  if(c<-1-1e-10||c>1+1e-10){result.valid=false;result.errors.push('Outside nominal two-link reach');}
+  const margins=[g.l1+g.l2-Math.hypot(r,h),Math.hypot(r,h)-Math.abs(g.l1-g.l2),rho-1e-7,result.foldMarginDeg-g.marginDeg,
+    ...result.joints.flatMap((v,i)=>[v-g.jointLimitsDeg[i][0]-g.marginDeg,g.jointLimitsDeg[i][1]-g.marginDeg-v])];
+  return {...result,margins,requestedTcp:pose.tcp};
 }

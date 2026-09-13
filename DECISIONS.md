@@ -19,7 +19,12 @@ records and are not extended to later wording. In particular, [D-027](#d-027--ex
 owns current print persistence; D-015 and D-019 preserve the earlier wording.
 Work history belongs in [DEVLOG.md](DEVLOG.md). Decision quotations, approval
 events and approved wording retain their historical tense and dates under the
-[provenance exception](CONTRIBUTING.md#documentation-maintenance).
+[provenance exception](DEVELOP.md#documentation-maintenance).
+
+Use a `## D-NNN — Title` heading and record `Status`, `Decision`, `Recorded`,
+`Approvals` and `Source`. The recording timestamp uses UTC ISO 8601 format.
+Preserve exact source quotations and approval events; surrounding prose describes
+the current decision and status. Do not extend earlier approval to changed wording.
 
 ## Statuses
 
