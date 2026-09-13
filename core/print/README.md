@@ -14,16 +14,6 @@ reopening, setup reuse, upgrades and delivery. Shell and wedge adapters supply
 their recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema.
 
-The geometry artifact and geometry revision hash describe only the supplied
-native target: its outer surfaces, modeled cavities and through-holes. Studio
-may also derive a display-only material-intent preview from the current plan so
-that consequential solid, sparse, perimeter-only and empty regions are visible
-during geometry review. That preview does not rewrite the target, enter the
-geometry hash or approve process settings. Changing material intent invalidates
-plan and toolpath approval through the existing plan revision; the exact recipe
-is still approved in Settings and its generated motion is still approved in
-Toolpath.
-
 Generate the machine-declared export directly from the approved complete plan,
 using transient motion objects. Check its actual commands before Studio plays
 that export for toolpath approval. Delivery copies those reviewed bytes unchanged.
