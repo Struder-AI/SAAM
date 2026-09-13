@@ -22,6 +22,9 @@ open sparse body. Complete solid fill and sparse fill cannot own the same
 material region; assign them separate regions or use complementary solid masks.
 All settings and component selections are locked before generation.
 
+For conventional flat-layer printing, also disable draped-skin; it is enabled
+in the shell template and otherwise reserves roof material for a separate skin.
+
 ## Settings
 
 | Setting | Default | Meaning |

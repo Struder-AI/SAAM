@@ -8,13 +8,36 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { importSTLBundle } from '../print/import-stl.mjs';
-import { loadBundle, proposedPlan } from '../print/bundle.mjs';
+import { initBundle, loadBundle, proposedPlan } from '../print/bundle.mjs';
+import { defaults as shellDefaults } from '../print/plan.mjs';
+import { loadMachine } from '../machine/profile.mjs';
 import * as wedge from '../../skills/wedge-demo/scripts/bundle.mjs';
 import { defaults } from '../../skills/wedge-demo/scripts/model.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import { readGuidance } from '../../adapters/mcp/src/manuals.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), run = promisify(execFile);
+
+test('both public CLIs expose unresolved robot setup before first generation', async t => {
+  const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-setup-status-'));
+  t.after(() => rm(scratch, { recursive: true, force: true }));
+  for (const machineId of ['denso-vp6242-rc8', 'dobot-mg400']) {
+    const machine = loadMachine(machineId);
+    for (const kind of ['shell', 'wedge']) {
+      const dir = resolve(scratch, machineId, kind);
+      const plan = kind === 'shell' ? shellDefaults(machine) : defaults(machine);
+      await (kind === 'shell' ? initBundle : wedge.initBundle)(dir, plan, { machineId });
+      const script = resolve(root, kind === 'shell' ? 'core/print/cli.mjs' : 'skills/wedge-demo/scripts/cli.mjs');
+      const checked = JSON.parse((await run(process.execPath, [script, 'check', dir])).stdout);
+      assert.match(checked.outputAvailability, /unconfigured/);
+      assert.equal(checked.machineConfiguration.configured, false);
+      assert.ok(checked.machineConfiguration.missing.includes('toolFrame'));
+      assert.equal(checked.toolpathApproved, false);
+      const state = await (kind === 'shell' ? loadBundle : wedge.loadBundle)(dir);
+      assert.equal(state.review.generation, null);
+    }
+  }
+});
 
 test('published documentation links remain readable through the connector as owners split their references', async () => {
   const pending = ['AGENTS.md'], visited = new Set();

@@ -34,6 +34,9 @@ Steep percentage and the effective limit are reported by the survey/generator.
 A sampled stroke crossing a height discontinuity, missing roof or excessive
 angle is rejected; choose a continuous roof or refine the survey.
 
+For an assembly, set `part` to the roof component's ID; the template's `null`
+selection is only for a single part, and the skin stack must fit the selected roof.
+
 `drapedSkinResult({shell, plan, machine, survey, id, after})` returns operations
 for the shared composer. `generateDrapedSkin(builder, options)` uses the same
 implementation for a single instance. Use all results together when composing a

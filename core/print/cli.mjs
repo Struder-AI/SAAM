@@ -17,6 +17,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
     print: state.dir, skills: state.skills, revision: state.revision,
     geometryApproved: state.geometryApproved, planApproved: state.planApproved, toolpathApproved: state.toolpathApproved,
     program: state.program?.summary ?? null, programError: state.programError ?? null,
+    outputAvailability: state.outputAvailability ?? null, machineConfiguration: state.machineConfiguration ?? null,
     nonplanarLimit: state.pathSummary?.nonplanarLimit ?? null, limitations: state.limitations
   }, null, 2);
 

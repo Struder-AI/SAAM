@@ -31,7 +31,7 @@ try {
   else if(command==='check') {
     const state=await loadBundle(dir);
     if(state.programError)throw new Error(state.programError);
-    console.log(JSON.stringify({revision:state.revision,summary:state.program?.summary??null,geometryApproved:state.geometryApproved,planApproved:state.planApproved,toolpathApproved:state.toolpathApproved,limitations:state.limitations},null,2));
+    console.log(JSON.stringify({revision:state.revision,summary:state.program?.summary??null,outputAvailability:state.outputAvailability??null,machineConfiguration:state.machineConfiguration??null,geometryApproved:state.geometryApproved,planApproved:state.planApproved,toolpathApproved:state.toolpathApproved,limitations:state.limitations},null,2));
   } else if(command==='deliver')console.log(await deliver(dir));
   else console.log('Usage: node skills/wedge-demo/scripts/cli.mjs init|demo [print-directory] [--machine <machine-id>]\n       node skills/wedge-demo/scripts/cli.mjs generate|check|check-path|deliver|upgrade|remember-setup [print-directory]\n       node skills/wedge-demo/scripts/cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
 } catch(error){console.error(error.message);process.exitCode=1;}

@@ -76,7 +76,13 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall inward offset is empty, split or collapsed at Z ${z} mm for bead width ${width} mm.`);
     const loop=dedupe(inset[0]);
     requireThat(loop.length>=3,'Vase wall section collapsed.');
-    const curve=contourPath(loop,seam);seam??=curve.seam;
+    const curve=contourPath(loop,seam);
+    // Keep the projection anchor outside every section. The first seam itself
+    // can lie inside later, expanding contours, where its nearest projection
+    // switches between opposite edges of a corner and makes phase discontinuous.
+    // A +X anchor preserves the initial maximum-X seam and remains exterior as
+    // the wall changes height. Offset motifs translate this same anchor below.
+    seam??=[shell.bounds.max[0]+width,curve.seam[1]];
     const holes=cut.loops.filter(loop=>loopArea(loop)<0);
     const value={outer,loop,curve,holes};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
   }

@@ -14,6 +14,7 @@ import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle,EXPORT
 import {syntheticDobotSetup} from '../../../core/tests/fixtures/dobot.mjs';
 import {exportProgram,interpretProgram} from '../../../core/export/registry.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
+import {vaseWallResult} from '../scripts/vase.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
@@ -51,6 +52,49 @@ function splittingMesh() {
   }
   return {shape:'mesh',vertices,triangles,source:null};
 }
+
+test('expanding polygonal cup keeps continuous phase when the first seam enters later sections',async()=>{
+  // Nudge Cup's 120-sided frustum. The previous nearest-point anchor flipped
+  // between the two edges at its +X corner around Z=3.119693 and could not
+  // converge, despite the actual surface being a straight conical wall.
+  const n=120,height=17.8,vertices=[],triangles=[];
+  for(const z of [0,height])for(let i=0;i<n;i++){
+    const a=i*2*Math.PI/n,r=18+4*z/18;
+    vertices.push([r*Math.cos(a),r*Math.sin(a),z]);
+  }
+  for(let i=0;i<n;i++){
+    const j=(i+1)%n;triangles.push([i,j,n+j],[i,n+j,n+i]);
+  }
+  for(let i=1;i<n-1;i++)triangles.push([0,i+1,i],[n,n+i,n+i+1]);
+  const machine=loadMachine(),geometry={shape:'mesh',vertices,triangles,source:null};
+  const plan=vasePlan(machine,geometry),r=await rhino();
+  plan.skills['vase-wall'].endTransition='level';
+  for(const [x,y] of [[0,0],[165,120]]){
+    const shell=translateShell(buildShell(r,geometry),x,y);
+    const result=vaseWallResult({shell,plan,machine,zStartMm:1.2,zEndMm:4});
+    const points=result.operations[0].strokes[0].points;
+    assert.equal(result.report.levelRimMm,4);
+    assert.equal(points.at(-1)[2],4);
+    let turns=0;
+    for(let i=1;i<points.length;i++){
+      const a=points[i-1],b=points[i];
+      const angle=p=>Math.atan2(p[1]-y,p[0]-x);
+      const delta=Math.atan2(Math.sin(angle(b)-angle(a)),Math.cos(angle(b)-angle(a)));
+      assert.ok(delta>=-1e-6,'the spiral does not reverse around its guide');
+      assert.ok(Math.hypot(...b.map((v,k)=>v-a[k]))<=plan.skills['vase-wall'].sampleStepMm+1e-9);
+      assert.ok(b[2]>=a[2]);turns+=delta/(2*Math.PI);
+      // Independent regular-polygon boundary at both the emitted endpoint and
+      // chord midpoint: the seam fix must not move the wall off its guide.
+      for(const p of [b,b.map((v,k)=>(v+a[k])/2)]){
+        const radius=18+4*p[2]/18;
+        const loop=Array.from({length:n},(_,j)=>[x+radius*Math.cos(j*2*Math.PI/n),y+radius*Math.sin(j*2*Math.PI/n)]);
+        const gap=Math.min(...loop.map((q,j)=>pointSegmentDistance(p,q,loop[(j+1)%n])));
+        assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.skills['vase-wall'].toleranceMm);
+      }
+    }
+    assert.ok(Math.abs(turns-15)<1e-5,'foundation, thirteen rising turns and level finish remain intact');
+  }
+});
 
 test('convex wall retains the near-straight corner regression across offset kernels',async()=>{
   // This rotated edge produced a microscopically concave Clip6 inset and a

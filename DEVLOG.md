@@ -5,6 +5,45 @@ Completed work, development checkpoints, measurements and scoped observations.
 incomplete work; component references and skill manuals describe present behavior.
 [Decisions](DECISIONS.md) preserves contributor direction and approval provenance.
 
+## 2026-09-12 — Preserve Studio sessions across task switches
+
+- Extended the default last-viewer disconnect grace from three seconds to
+  30 minutes. First viewing still has no deadline, connected viewers have no
+  idle deadline, and reconnecting resets the disconnect grace. Explicit owner
+  shutdown remains immediate and drains accepted work.
+- Shared one default between the server and lifetime helper, updated the CLI
+  startup message and Studio/MCP guidance. This addresses users returning to
+  previews several minutes after switching tasks or replacing browser tabs.
+- All nine focused `studio-lifetime.test.mjs` tests pass, including mocked-time
+  coverage of the full grace period, reconnection and connected-viewer lifetime.
+  No npm test was run under the user's session restriction.
+
+## 2026-09-12 — Expanding vase contour reference
+
+- Source: the user requested fixing the subdivision error encountered while
+  reopening Nudge Cup's toolpath. Reproduced it on the saved cup component at
+  Z 3.119693 mm: the fixed first-section seam lies inside the expanding inset,
+  and its nearest projection switches between the two edges beside a corner.
+  The approximately 0.020 mm phase jump cannot converge through subdivision.
+  This differs from the earlier patterned-wall triangle-seam cleanup below.
+- The vase mapper projects a fixed reference outside the geometry's maximum X
+  onto later sections. It preserves the first maximum-X seam and requested
+  settings while preventing that interior-reference switch. Pattern offsets
+  translate the same reference. Existing topology, boundary, angle and point
+  budget checks remain in place; no tolerance was relaxed.
+- Added a 120-sided expanding-frustum regression at the origin and translated
+  to the saved print placement. It checks complete turns, monotone progression,
+  maximum segment length, level ending and endpoint/midpoint distance from an
+  independently constructed polygonal boundary. The complete saved spiral also
+  generated 84 turns through Z 17.8 mm with 16010 points.
+- Verification: all 31 selected vase, motif, finished-cladding and regional
+  workflow tests passed, along with documentation and diff checks. The public
+  development workflow generated the full cup in
+  `Prints/development/nudge-cup-contour-fix`: 104593 interpreted moves, 83.1
+  estimated minutes, and passing export checks. Reopened the checked source in
+  Studio's toolpath viewer. Original print approvals remain unchanged. These
+  are software results, not physical print evidence.
+
 ## 2026-09-12 — Shared geometry and local extension partition
 
 - The user requested keeping private experimental code, manuals, tests and UI in
@@ -1029,3 +1068,33 @@ empirical default, not a universal frame-rate guarantee. Raw local results are
 in `.local/studio-fast/cap-results.json`; the original Studio baseline is in
 `.local/studio-bench/findings.md`. Keep browser drawing measurements distinct
 from server generation, cold verification, JSON transfer and UI-ready time.
+
+## 2026-09-12 — Skill audit for assumptions hidden in first demos
+
+- Source: user requested an audit of every skill for knowledge available only to
+  its first maker agent, authorizing workflow or concise manual fixes. Follow-up
+  excludes vase-wall edits while another task works there.
+- Audited all 13 cataloged manuals against their entry points, defaults, demo
+  preparation and relevant input requirements. Added guidance for complete shell
+  recipe creation, inherited draped-skin selection, assembly roof selection,
+  wedge nozzle/material restrictions and the text example's packaged font.
+- Documented existing reusable DENSO and Dobot synthetic setup helpers for new
+  provisional shapes, plus spline-tube control heights, angular/bore constraints,
+  actual UV domains and native mesh-strip indexing. No new machine requirement,
+  production validator or manufacturing approval stage was introduced.
+- Shell and wedge CLI status now expose the existing output-availability and
+  missing-configuration result before generation. Added CLI integration coverage
+  for unconfigured DENSO/Dobot on both adapters. Contribution guidance now makes
+  a demo's reusable preparation discoverable from its skill manual.
+- Verification: five MCP/CLI access tests pass, including four fresh robot
+  adapter combinations. Fresh temporary box bundles generate checked development
+  output on S5, DENSO and Dobot without approvals. A new 12-column/6-control spline
+  tube and its non-demo UV domain pass construction and surface selection.
+  Repository documentation and whitespace checks pass; no physical test occurred.
+- Vase-wall audit only: its motif demos initialize a non-null pattern directly,
+  whereas adding a pattern to a fresh bundle through `adjustBundle` fails with
+  `Cannot convert undefined or null to object` in the shared merge of a null
+  setting. Its simple recipe also leaves disabling the template's draped skin
+  implicit. These findings are reported to the user; this task makes no vase-wall
+  edits. Supports, both rimming skills, mesh-tools, voxel-tools and Gridfinity
+  have no additional hidden prerequisite identified in this audit.

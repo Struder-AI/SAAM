@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {attachCheckedProgramWorker} from '../core/print/program-handoff.mjs';
-import { viewerLifetime } from './lifetime.mjs';
+import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
 import {loadLocalExtension} from '../core/local-extension.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -58,7 +58,7 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
 }
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
-export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,localExtension=installedExtension}={}) {
+export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,localExtension=installedExtension}={}) {
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
   const printId=()=>createHash('sha256').update(dir).digest('hex');
@@ -235,7 +235,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const bundle=await bundleFor(dir);
   await bundle.loadBundle(dir,{program:false});
   const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);
-  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes 3 seconds after the last viewer disconnects.`));
+  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes ${DEFAULT_DISCONNECT_MS/60000} minutes after the last viewer disconnects.`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void server.shutdown());
   server.on('error',e=>{console.error(e.message);process.exitCode=1;});
 }

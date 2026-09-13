@@ -121,9 +121,12 @@ does not silently truncate the wall, change its topology or introduce support.
 For section-derived walls, `vaseWallResult({shell, plan, machine, id, after})`
 returns one atomic operation containing one stroke. Phase measures normalized
 arc length along the inset contour. The first seam is the point of maximum X,
-breaking ties with minimum Y. That fixed point is projected onto every later
-contour; equal-distance ties use coordinates, independent of cyclic section
-vertex ordering. This is bounded contour correspondence, not feature matching:
+breaking ties with minimum Y. A fixed anchor at that seam's Y coordinate, one
+bead width beyond the geometry's maximum X, is projected onto later contours.
+The anchor stays outside expanding sections, preventing an interior anchor from
+switching between opposite sides of a corner. Equal-distance ties use
+coordinates, independent of cyclic section vertex ordering.
+This is bounded contour correspondence, not feature matching:
 abruptly changing nearest seams or contour lengths can require finer sampling
 or fail the subdivision limit. There is one flat foundation ring at the first
 layer height (or one normal layer above the base). Its connected helical turn

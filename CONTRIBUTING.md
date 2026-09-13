@@ -35,6 +35,10 @@ Identify synthetic approvals as test data and keep them unable to authorize
 a real job. Hardware execution and human print approvals remain with the person;
 report software verification and physical results separately.
 
+A demo's setup, assets and recipe assumptions must be reachable from the skill
+manual for a fresh part; put reusable preparation in packaged tools and describe
+any necessary setting changes there, rather than relying on the originating task.
+
 ## Checks
 
 Choose verification from the behavior being changed and its affected consumers.
@@ -103,7 +107,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `studio/`: camera, display detail, mesh visibility, playback and offline movies | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [studio-geometry.test.mjs](core/tests/studio-geometry.test.mjs), [studio-material.test.mjs](core/tests/studio-material.test.mjs), [studio-movie.test.mjs](core/tests/studio-movie.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
 | Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs), [studio-lifetime.test.mjs](core/tests/studio-lifetime.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
 | Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](core/tests/source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
-| `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow, recipe validation and documentation-link access |
+| `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow, recipe validation, CLI visibility of unresolved robot setup and documentation-link access |
 | Temporary HTTP/OAuth bridge, Claude package and web probe | [mcp-http.test.mjs](core/tests/mcp-http.test.mjs), [claude-plugin.test.mjs](core/tests/claude-plugin.test.mjs), [web-agent-probe.test.mjs](core/tests/web-agent-probe.test.mjs) | MCP stdio integration when shared tools change |
 | `scripts/bench/`: analytical fixtures and mesh convergence | [benchmark-fixtures.test.mjs](core/tests/benchmark-fixtures.test.mjs) | Performance measurements remain opt-in; see benchmark instructions |
 | Full-fill generation | Shared geometry, travel and pipeline tests as affected | [full-fill.test.mjs](skills/full-fill/tests/full-fill.test.mjs) |
@@ -111,7 +115,7 @@ All file names in the core column below are relative to `core/tests/`.
 | Explicit conventional/tree supports, interfaces and support-before-part ordering | Pipeline, workflow, regional and machine tests as affected | [supports.test.mjs](skills/supports/tests/supports.test.mjs) |
 | Bivariate support surfaces, horizontal/normal section offsets and rimming composition | Shared geometry, plan, workflow and machine boundaries | [rimming.test.mjs](skills/rimming-planar/tests/rimming.test.mjs) covers both rimming skills |
 | Draped skin, normal spacing, slope exclusion and support | Shared surface/reservation and pipeline tests as affected | [draped-skin.test.mjs](skills/draped-skin/tests/draped-skin.test.mjs) |
-| Vase wall, contour correspondence, topology, offset rounding, budgets and level ending; repeated sleeve motifs, inward tilted loops, continuous/segmented mapping and bead-height integration | Regional composition, travel, Studio settings and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](skills/vase-wall/tests/paths.test.mjs) |
+| Vase wall, contour correspondence including expanding sections, topology, offset rounding, budgets and level ending; repeated sleeve motifs, inward tilted loops, continuous/segmented mapping and bead-height integration | Regional composition, travel, Studio settings and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](skills/vase-wall/tests/paths.test.mjs) |
 | Bounded eight-point wedge geometry, generator and lifecycle | Shared travel, export and workflow tests as affected | [eight-point.test.mjs](skills/wedge-demo/tests/eight-point.test.mjs), [wedge.test.mjs](skills/wedge-demo/tests/wedge.test.mjs), H2D/Dobot wedge tests above |
 | Skill catalog, generated digest freshness and coverage | [skill-digest.test.mjs](core/tests/skill-digest.test.mjs) | MCP catalog tests when shared discovery changes |
 | [gridfinity](skills/gridfinity/SKILL.md) | | [gridfinity](skills/gridfinity/tests/gridfinity.test.mjs), [gridfinity](skills/gridfinity/tests/access.test.mjs) |

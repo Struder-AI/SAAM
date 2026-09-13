@@ -10,6 +10,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { bundleFor } from '../../studio/server.mjs';
 import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
+import { SKILL_IDS } from '../../skills/catalog.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -101,6 +102,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(digestLink);
   const digest = await call('read_guidance', { guidanceId: digestLink.guidanceId });
   for (const skill of await call('list_skills')) {
+    if (!SKILL_IDS.includes(skill.id)) continue; // Checkout-local extensions have their own manuals.
     assert.ok(digest.text.includes(skill.description.replaceAll('|', '&#124;')), skill.id);
     assert.ok(digest.links.some(link => link.guidanceId === `skills/${skill.id}/SKILL.md`), skill.id);
   }
@@ -149,8 +151,8 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.equal((await again.call('get_print', { printId: 'second' })).machineId, 'bambu-h2d');
 });
 
-test('MCP Studio ownership survives one viewer closing and restarts from the saved bundle',async t=>{
-  const {call,printsRoot}=await fixture(t);
+test('MCP Studio survives a viewer disconnect and releases only the closing adapter owner',async t=>{
+  const {call,client,printsRoot}=await fixture(t);
   await call('create_print',{printId:'owned',kind:'wedge',machineId:'ultimaker-s5',plan:await smallPlan(call,'wedge')});
   const other=await clientFor(t,printsRoot);
   const a=await call('request_review',{printId:'owned'}),b=await other.call('request_review',{printId:'owned'});
@@ -158,21 +160,25 @@ test('MCP Studio ownership survives one viewer closing and restarts from the sav
   const before=await readFile(resolve(printsRoot,'owned','review.json'));
   async function view(url){
     const token=(await(await fetch(url)).text()).match(/name="saam-token" content="([^"]+)"/)[1];
-    const controller=new AbortController();t.after(()=>controller.abort());
-    assert.equal((await fetch(url+'/api/viewer?token='+token,{signal:controller.signal})).status,200);
-    return controller;
+    const response=await fetch(url+'/api/viewer?token='+token,{headers:{Connection:'close'}});
+    assert.equal(response.status,200);
+    const close=()=>response.body.cancel();t.after(close);return close;
   }
-  const first=await view(a.url);await view(b.url);first.abort();
+  const first=await view(a.url);await view(b.url);await first();
+  const reused=await call('request_review',{printId:'owned'});
+  assert.equal(reused.url,a.url,'disconnected viewers retain their server during the grace period');
+  assert.equal((await call('get_print',{printId:'owned'})).printId,'owned','MCP remains connected');
+  await client.close();
   const deadline=Date.now()+6000;
   while(true){
     try{await(await fetch(a.url)).text();}
     catch{break;}
-    assert.ok(Date.now()<deadline,'closed viewer must release its listener');
+    assert.ok(Date.now()<deadline,'closed adapter must release its listener');
     await new Promise(done=>setTimeout(done,100));
   }
   assert.equal((await fetch(b.url)).status,200);
-  assert.equal((await call('get_print',{printId:'owned'})).printId,'owned','MCP remains connected');
-  const restarted=await call('request_review',{printId:'owned'});
+  const next=await clientFor(t,printsRoot);
+  const restarted=await next.call('request_review',{printId:'owned'});
   assert.equal((await fetch(restarted.url)).status,200);
   assert.deepEqual(await readFile(resolve(printsRoot,'owned','review.json')),before);
 });

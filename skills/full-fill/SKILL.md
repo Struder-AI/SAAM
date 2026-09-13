@@ -32,6 +32,9 @@ Use the [shared print tools](../../core/print/USAGE.md) to create or import a
 shell print, adjust its recipe, and complete review and delivery. This manual
 owns the full-fill settings and composition choices below.
 
+For a wholly planar solid, keep full-fill in `body` mode and disable draped-skin
+and planar-infill; the shared shell template otherwise includes a draped roof.
+
 ## Settings
 
 | Setting | Default | Meaning |

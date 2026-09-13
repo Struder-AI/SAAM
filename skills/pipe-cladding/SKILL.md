@@ -140,6 +140,11 @@ The fixture is a 16 mm bore, 20.8 mm outside diameter, 12 mm tall pipe with
 2.4 mm walls: 1.6 mm substrate plus four 0.2 mm radial shells. Its invented
 installation values are labeled in the plan and never remembered by this script.
 It creates no human manufacturing approvals and executes no hardware.
+For any new provisional RC8 part, call `developmentPipePlan()` from
+[demo.mjs](scripts/demo.mjs), replace its geometry and selected skills, then
+`initBundle(directory, plan, {machineId:'denso-vp6242-rc8'})` and generate in
+development mode; the labeled setup is reusable across shapes and is not remembered.
+Disable pipe-cladding when selecting only ordinary fixed-orientation skills.
 For an existing development bundle, use `node core/print/cli.mjs demo <directory>`;
 use `upgrade` first if its saved machine snapshot needs the current profile.
 
@@ -222,6 +227,19 @@ Set `skills.pipe-cladding.surface` to an explicit selection:
   cell must match two existing native mesh triangles. Point evaluation stays
   on those triangles; area-weighted selected-face vertex normals are interpolated
   for an explicitly smooth offset/pose field. This does not reconstruct a CAD surface.
+
+Use the selected component's saved native vertices/triangles for mesh-strip
+indices (`get_print` with `includeGeometry:true` through MCP); rebuilding or
+reordering that mesh requires rebuilding the chart too.
+For a periodic spline, use its actual U domain rather than copying `[0,16]`;
+the `spline-tube` builder uses `[0, controlPoints.length]` and V `[0,1]`.
+
+When authoring a new `spline-tube`, use 8–64 angular columns and 4–32 vertical
+controls; with `k = clampedKnots(nv,3)` from
+[spline-tube.mjs](../../core/geom/spline-tube.mjs), set
+`z[j] = heightMm * (k[j+1] + k[j+2] + k[j+3]) / 3`, not evenly spaced control Z.
+Column `i` lies at angle `2*pi*i/nu`, and every radius must satisfy
+`radius * cos(3*pi/nu) > innerRadiusMm`; the builder repeats seam columns itself.
 
 The shared [surface-region query](../../core/geom/surface-region.mjs) retains
 native parameters. The shared [normal-surface operations](../../core/region/normal-surface.mjs)
