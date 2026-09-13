@@ -47,15 +47,6 @@ and explain choices that affect the result. The selected skill's limits and
 Studio inspection inform this judgment; software checks alone do not establish
 printability.
 
-The Geometry stage keeps two meanings visibly separate. The shaded target is the
-supplied closed geometric envelope, including any modeled cavities or through-holes.
-Beside it, the material-intent preview overlays process-plan regions as solid,
-sparse, perimeter-only/hollow, empty or surface-only bands. A process-created
-cavity is not rewritten as target geometry, and geometry confirmation does not
-approve its infill or regional assignment. Call out consequential hollow or
-recessed regions before asking for geometry confirmation; the person confirms
-their exact settings in the next stage and the resulting motion in Toolpath.
-
 ## Maker interaction flow
 
 The person gives three approvals in Studio: geometry, the locked process plan,
@@ -66,10 +57,8 @@ enters each approval.
    in Studio as soon as a reasonable shape for the requested part is possible.
    Label its dimensions and setup as proposed, then ask questions that help
    revise the visible part.
-2. **Review the geometry.** Show the shape, dimensions and explicit geometric
-   voids together with the separate material-intent preview. Explain consequential
-   process-created hollow, sparse or perimeter-only regions, apply requested
-   revisions and show them again until the person confirms the modeled geometry.
+2. **Review the geometry.** Show the shape and dimensions, apply requested
+   revisions and show them again until the person confirms.
 3. **Review the process plan.** Present the complete proposed printing recipe
    in accessible language, including the machine, material, patterns and
    settings. Revise it with the person until they confirm the locked plan.

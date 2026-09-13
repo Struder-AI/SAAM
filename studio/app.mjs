@@ -2,7 +2,6 @@ import { advancePlayback, frameAtTime, displayPoint, exportMovie } from './playb
 import { createProjection } from './camera.mjs';
 import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {buildGeometryView,createGeometryRenderer,pickGeometry} from './mesh-view.mjs';
-import {materialIntentModel,renderMaterialIntent} from './material-intent.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName} from './settings.mjs';
 import {moveStore} from './studio/move-store.mjs';
@@ -16,7 +15,7 @@ let polygons=[],drag=null,moved=false;
 let pan=[0,0];
 let redrawFrame=0;
 let pathView,meshView;
-let geometryScene,geometryRenderer,geometryProject,geometryError='',materialIntent;
+let geometryScene,geometryRenderer,geometryProject,geometryError='';
 let materialScene,materialRenderer,materialError='';
 const layerFade=createLayerFade();
 let movieController=null,movieUrl=null;
@@ -223,7 +222,7 @@ async function refresh(follow=false,reopen=false) {
       next.program={...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}};
     }catch(error){next.programError=error.message;delete next.program;next.toolpathApproved=false;}
   }
-  state=next;materialIntent=materialIntentModel(state.plan,state.geometry);
+  state=next;
   if(!geometryScene||previous?.geometry.geometryVersion!==state.geometry.geometryVersion){
     geometryScene=buildGeometryView(state.geometry);meshView=geometryScene.topology;
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
@@ -277,11 +276,9 @@ function table(entries) {
 function render() {
   $('#stage-label').hidden=!state.inspection;
   $('#view-title').textContent={geometry:'Your geometry',plan:'Your geometry',toolpath:'Your toolpath'}[tab];
-  $('#guidance').textContent={geometry:'Check the modeled shape, explicit cavities, and the separate material-intent preview.',plan:'',toolpath:'Inspect the full toolpath before exporting.'}[tab];
+  $('#guidance').textContent={geometry:'Check the shape and dimensions.',plan:'',toolpath:'Inspect the full toolpath before exporting.'}[tab];
   $('#guidance').hidden=!$('#guidance').textContent;
   $('#facts').replaceChildren(table(view().facts(state,tab)));
-  $('#material-intent').hidden=tab!=='geometry';
-  if(tab==='geometry')renderMaterialIntent($('#material-intent'),materialIntent);
   $('#more-settings').hidden=tab!=='plan';
   $('#settings-detail').replaceChildren(table([...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
   $('#planar-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
