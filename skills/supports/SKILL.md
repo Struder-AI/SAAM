@@ -1,6 +1,6 @@
 ---
 name: supports
-description: Generate conventional or tree supports in explicitly assigned areas, with shared planar deposition, interface layers and Studio review. Use judgment to place supports; there is no automatic overhang-angle assignment.
+description: Add conventional supports beneath selected areas or explicitly placed tree branches at local contacts. Choose their placement to balance support, surface contact and removal access; the agent and maker assign areas through judgment.
 ---
 
 # Assigned supports
@@ -36,7 +36,7 @@ Tree geometry consists of linearly interpolated horizontal circular sections
 between parent/child nodes, including radius changes. This is an initial SAAM
 construction, not Bambu's tree algorithm or a claim of equivalent print quality.
 [Bambu Studio](https://github.com/bambulab/BambuStudio) provides normal/tree/custom
-support features under AGPL-3.0. No Bambu/Cura source or manual text was imported.
+support features under AGPL-3.0. SAAM uses its own implementation and manual.
 
 Rimming supports are separate experimental skills:
 [rimming-planar](../rimming-planar/SKILL.md) and

@@ -3,7 +3,7 @@ import { createProjection } from './camera.mjs';
 import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {buildGeometryView,createGeometryRenderer,pickGeometry} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
-import {hasSkill,regionRows,recipeRows,robotRows,materialGrams} from './settings.mjs';
+import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName} from './settings.mjs';
 import {moveStore} from './studio/move-store.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
@@ -62,10 +62,10 @@ const vaseSettings=state=>{
   if(state.plan.composition?.regions?.length)return [];
   const vase=state.plan.skills?.['vase-wall'];
   return vase?.enabled?[
-    ['Vase wall','One continuous spiral; '+(vase.endTransition==='level'?'level rim':'spiral rim')],
-    ['Vase component',vase.part??'Part'],
-    ['Vase height range',vase.zStartMm+'–'+(vase.zEndMm??'geometry top')+' mm above component base'],
-    ['Spiral sampling',vase.sampleStepMm+' mm maximum step · '+vase.toleranceMm+' mm tolerance']
+    [vase.pathMode==='segmented'?'Segmented paths':'Vase wall',vase.pattern?(vase.pathMode==='segmented'?'Repeated sleeve motif with travel between gaps':'Continuous motif wrapped around the sleeve'):'One continuous spiral; '+(vase.endTransition==='level'?'level rim':'spiral rim')],
+    ['Path component',vase.part??'Part'],
+    ['Path height range',vase.zStartMm+'–'+(vase.zEndMm??'geometry top')+' mm above component base'],
+    ['Path sampling',vase.sampleStepMm+' mm maximum step'+(vase.pattern?'':' · '+vase.toleranceMm+' mm tolerance')]
   ]:[];
 };
 function machineSettings(state,rows){
@@ -127,7 +127,7 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'];
-      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      const shape={voxel:'Volumetric field',assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
@@ -138,7 +138,11 @@ const views={
           rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
           rows.push(['Vertical wall outline','X out '+g.xBulgeMm+' mm · Y in '+g.yInsetMm+' mm']);
         }
-        if(g.shape==='assembly')for(const part of g.parts)rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);
+        const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
+        const voxelRows=(geometry,prefix='')=>{if(geometry.shape==='voxel')rows.push([prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.isoValue)]);};
+        textRows(g);
+        voxelRows(g);
+        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');voxelRows(part.geometry,part.id+' · ');}
         if(g.shape==='spline-tube')rows.push(['Circular bore',2*g.innerRadiusMm+' mm'],['Substrate height',g.heightMm+' mm'],['Outer spline',g.controlPoints.length+' × '+g.controlPoints[0].length+' control points'],['Surface meaning','Full-fill boundary; cladding builds outward']);
         return rows;
       }
@@ -146,10 +150,10 @@ const views={
         ['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],...regionRows(state.plan)];
       if(tab==='plan'&&hasSkill(state.plan,'pipe-cladding')){
         const clad=state.plan.skills['pipe-cladding'],surface=Boolean(clad.surface);
-        return [materialSetup(state),['Body',surface?fill.perimeters+' perimeters + solid fill':'Concentric horizontal loops'],
-          ['Exterior',clad.shells+' alternating axial / circumferential shells'],[surface?'Normal thickness per shell':'Radial thickness per shell',clad.normalMm+' mm'],
+        return [materialSetup(state),['Substrate',claddingSubstrateName(state.plan)],
+          ['Exterior',clad.shells+' shells · '+claddingPatternName(clad)],[surface?'Normal thickness per shell':'Radial thickness per shell',clad.normalMm+' mm'],
           ['Nozzle tilt',clad.tiltDeg+(surface?'° from the downward surface tangent toward the surface':'° inward from downward')],
-          ['Axial passes',surface?'Local surface spacing with partial passes':'Full height'],['Between passes','Extrusion off'],...robotRows(state.plan)];
+          ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes',surface?'Local surface spacing with partial passes':'Full height']]),['Between passes','Extrusion off'],...robotRows(state.plan)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
@@ -158,12 +162,17 @@ const views={
         ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
-      const rows=[['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
+      const pathCount=state.pathSummary?.vaseWall?.paths;
+      const rows=[pathCount&&!state.pathSummary?.fullFill&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
-      if(hasSkill(state.plan,'vase-wall'))rows.push(['Vase wall','Continuous spiral within its assigned region']);
-      if(hasSkill(state.plan,'pipe-cladding'))rows.push(['Exterior shells',state.plan.skills['pipe-cladding'].shells+' · alternating axial / circumferential'],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
-      if(state.pathSummary?.pipeCladding?.partialAxialPasses!==undefined)rows.push(['Partial vertical passes',String(state.pathSummary.pipeCladding.partialAxialPasses)],['Full vertical passes',String(state.pathSummary.pipeCladding.fullAxialPasses)]);
+      if(hasSkill(state.plan,'vase-wall')){
+        const regions=state.plan.composition?.regions??[];
+        const selections=regions.length?regions.filter(r=>r.skills['vase-wall']).map(r=>({...state.plan.skills['vase-wall'],...r.skills['vase-wall']})):[state.plan.skills['vase-wall']];
+        rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous motif wrapped around the sleeve':'Continuous spiral within its assigned region']);
+      }
+      if(hasSkill(state.plan,'pipe-cladding'))rows.push(['Exterior shells',state.plan.skills['pipe-cladding'].shells+' · '+claddingPatternName(state.plan.skills['pipe-cladding'])],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
+      if(state.pathSummary?.pipeCladding?.partialAxialPasses!==undefined&&state.plan.skills['pipe-cladding'].pattern!=='crossed-helices')rows.push(['Partial vertical passes',String(state.pathSummary.pipeCladding.partialAxialPasses)],['Full vertical passes',String(state.pathSummary.pipeCladding.fullAxialPasses)]);
       if(state.plan.composition?.regions?.length)rows.push(...regionRows(state.plan));
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
@@ -299,7 +308,7 @@ function render() {
   const sampledPhases=new Set();
   if(!samples.hidden)for(const [index,group] of pathView.groups.entries()){
     const move=pathView.moves[group.first];
-    const swatch={planar:{name:'Body · Sky blue',color:TOOLPATH_COLORS.skyBlue},'cladding-axial':{name:'Axial · Teal',color:TOOLPATH_COLORS.teal},'cladding-hoop':{name:'Circumferential · Orange',color:TOOLPATH_COLORS.orange}}[move.phase];
+    const swatch={planar:{name:'Body · Sky blue',color:TOOLPATH_COLORS.skyBlue},'vase-wall':{name:'Vase substrate · Orange',color:TOOLPATH_COLORS.orange},'cladding-axial':{name:'Axial · Teal',color:TOOLPATH_COLORS.teal},'cladding-hoop':{name:'Circumferential · Orange',color:TOOLPATH_COLORS.orange},'cladding-helix-forward':{name:'Helix A · Teal',color:TOOLPATH_COLORS.teal},'cladding-helix-reverse':{name:'Helix B · Orange',color:TOOLPATH_COLORS.orange}}[move.phase];
     if(!swatch||sampledPhases.has(move.phase))continue;
     sampledPhases.add(move.phase);
     const button=document.createElement('button'),dot=document.createElement('span');
@@ -315,7 +324,7 @@ function render() {
     };
     samples.append(button);
   }
-  $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Circumferential':hasSkill(state.plan,'vase-wall')?'Skin / spiral':view().skinLabel;
+  $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
   const ready=tab==='geometry'||(tab==='plan'&&state.geometryApproved)||(tab==='toolpath'&&state.planApproved&&state.program&&state.review.generation?.mode==='production');
   $('#confirm').disabled=!ready||busy;
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm & export';

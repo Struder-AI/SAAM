@@ -16,8 +16,14 @@ to the public documentation trees and rejects private locations and filesystem
 links. Optional heading fragments select one section, including its subsections.
 The fixed skill catalog distinguishes task manuals from printing patterns;
 making a manual readable does not register a new plan operation or MCP tool.
+Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),
+which also supplies the generated maker digest.
 Task manuals identify themselves with `metadata.saam-kind: task` in their
 frontmatter; existing printing manuals retain the default `printing` kind.
+
+`apply_text` delegates to [shared text preparation](../../core/print/text.mjs),
+including local font reading, stale-revision checks and geometry updates. The
+adapter does not own a separate text schema, boolean pipeline or approval route.
 
 `core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
 bundles and synthetic approval fixtures outside the adapter protocol.

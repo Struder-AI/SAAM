@@ -14,6 +14,11 @@ and offsets, bed Z, fixed orientation, initial position, Cartesian workspace,
 motion limits, relay output/rate/policy and external temperature-control basis.
 Never substitute synthetic fixture numbers for actual installation values.
 
+For a provisional software demo of any shape, create the selected machine's
+complete plan, apply `syntheticDobotSetup(plan)` from the packaged
+[fixture](../tests/fixtures/dobot.mjs), then initialize a new bundle and use
+development generation; keep its labeled settings out of remembered setup.
+
 The ZIP contains `global.lua`, `src1.lua`, `src0.lua` and `manifest.json`.
 It is a transport package for Lua source, not a verified DobotStudio project
 import format. Vendor importer acceptance, controller execution and physical

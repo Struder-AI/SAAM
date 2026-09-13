@@ -20,5 +20,5 @@ test('guided tour covers the complete maker review flow and stays optional',()=>
 test('lightweight setup check exercises the installed runtime without approvals',async()=>{
   const result=await checkSetup({log:()=>{}});
   assert.match(result.node,/^v\d+/);assert.ok(result.totalMs>=0);
-  assert.deepEqual(Object.keys(result.stagesMs),['dependencies','geometry kernels','unapproved geometry and Studio']);
+  assert.deepEqual(Object.keys(result.stagesMs),['dependency entry points','geometry kernels','unapproved geometry and Studio']);
 });

@@ -4,6 +4,15 @@ Display geometry, material rendering, playback and performance. See [Studio](REA
 
 ## Studio performance and display detail
 
+The optional Evolve pane can reveal enclosed cavities through a translucent shell.
+It flood-fills empty cells in the saved analysis grid: regions reaching a domain
+face are exterior, while the remaining regions are enclosed cavities. It reports
+their count and total volume and colors only their bounding faces purple.
+The shell-opacity control and deformation magnification affect display only.
+Cavity classification is cached per saved candidate and uses its undeformed grid;
+open recesses and through holes retain displacement colors. Disable **Reveal
+enclosed cavities** to return to the opaque displacement view.
+
 Studio uses a right-handed orthographic camera: top view shows +X right and
 +Y up (toward the back of the bed), with +Z toward the viewer. Orbit, side and
 top views share this projection without perspective scaling. Playback has a
@@ -18,10 +27,9 @@ This is a nominal display cross-section, not measured filament spread.
 
 ### Visually verified toolpath colors
 
-The user verified sky blue, orange, teal and lavender as visibly distinct with
-Studio's shaded bead rendering on 2026-09-10. These are the preferred visible
-color set; agents may use other colors when more are needed. This records visual
-feedback, not physical print validation or contributor consensus.
+Sky blue, orange, teal and lavender form the preferred visible color set;
+agents may use other colors when more are needed. The
+[devlog](../DEVLOG.md#2026-09-10--studio-color-review) records the visual feedback.
 
 | Color | Display value | Current assignment |
 |---|---|---|
@@ -30,8 +38,7 @@ feedback, not physical print validation or contributor consensus.
 | Teal | `#53b8af` | Axial cladding |
 | Lavender | `#a799dc` | Available for another operation |
 
-Sky blue was reviewed at `#62a9df`; the current value applies the user's requested
-slight darkening. Named pipe-view buttons seek to the body, axial and
+Named pipe-view buttons seek to the body, axial and
 circumferential samples without changing camera or speed. The shared
 `TOOLPATH_COLORS` palette and style function apply to lines, material and movies.
 
@@ -136,14 +143,8 @@ Omitted edges remain omitted, never connected into invented extrusion. Studio
 labels simplified curves or a layer overview; detail follows the playback
 position. This overview does not show every older segment simultaneously.
 
-The initial browser cap sweep used 23,953 and 383,248 interpreted moves, with
-10k, 20k, 40k, 80k and 160k endpoint budgets and 15 camera frames per case.
-At 40k the larger repeated-path stress fixture drew 21,446 endpoints in about
-2.9 ms median / 4.9 ms maximum in the isolated canvas loop; whole-layer selection
-can leave the budget partly unused. Its initial detail preparation was about
-148 ms. The 160k budget drew 84,694 endpoints in 10.4 / 12.9 ms. The 40k default
-leaves room for Studio's other frame work and slower hardware; it is a local
-empirical default, not a universal frame-rate guarantee. Raw local results are
-in `.local/studio-fast/cap-results.json`; the original Studio baseline is in
-`.local/studio-bench/findings.md`. Keep browser drawing measurements distinct
-from server generation, cold verification, JSON transfer and UI-ready time.
+The 40k default is a local empirical budget, not a universal frame-rate guarantee.
+The [initial cap sweep](../DEVLOG.md#undated--studio-browser-cap-measurements)
+records the fixtures, endpoint counts and timings behind it. Keep browser drawing
+measurements distinct from server generation, cold verification, transfer and
+UI-ready time.

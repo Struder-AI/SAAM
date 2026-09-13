@@ -2,8 +2,9 @@ import {supportSurface,supportSurfaceSection,supportBoundaryAt} from '../../../c
 import {offsetSurfaceSection} from '../../../core/region/section-offset.mjs';
 import {layerHeights} from '../../full-fill/scripts/fill.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
+import {lineSpacing} from '../../../core/path/spacing.mjs';
 
-export const RIMMING_DEFAULTS={enabled:false,surfaces:[],sampleStepMm:0.5,toleranceMm:0.01,minFeatureMm:0.2,maxPoints:100000};
+export const RIMMING_DEFAULTS={enabled:false,spacingFactor:1,surfaces:[],sampleStepMm:0.5,toleranceMm:0.01,minFeatureMm:0.2,maxPoints:100000};
 export function validateRimming(settings){
   requireThat(typeof settings.enabled==='boolean'&&Array.isArray(settings.surfaces),'Invalid rimming selection.');
   for(const key of ['sampleStepMm','toleranceMm','minFeatureMm'])requireThat(Number.isFinite(settings[key])&&settings[key]>0,`Rimming ${key} must be positive.`);
@@ -56,8 +57,8 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
     for(const z of layerHeights(process,0,patch.bounds.max[2])){
       if(z<=patch.bounds.min[2]+1e-8)continue;
       const chains=supportSurfaceSection(patch,z,{minFeatureMm:settings.minFeatureMm}),strokes=[];
-      for(const chain of chains)for(const multiplier of [0.5,1.5]){
-        const samples=offsetSurfaceSection(patch,chain,width*multiplier,{mode,side:spec.outwardSide,toleranceMm:settings.toleranceMm,maxStepMm:settings.sampleStepMm,maxPoints:settings.maxPoints-pointCount});
+      for(const chain of chains)for(const [track,offset] of [width/2,width/2+lineSpacing(width,settings)].entries()){
+        const samples=offsetSurfaceSection(patch,chain,offset,{mode,side:spec.outwardSide,toleranceMm:settings.toleranceMm,maxStepMm:settings.sampleStepMm,maxPoints:settings.maxPoints-pointCount});
         if(samples.length<2)continue;
         pointCount+=samples.length;requireThat(pointCount<=settings.maxPoints,`Rim ${spec.id} exhausted maxPoints=${settings.maxPoints}; increase ${skillId}.maxPoints.`);
         const volumes=[];
@@ -72,7 +73,7 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
           volumes.push(distance(a.point,b.point)*width*height);
         }
         for(const s of samples){report.minOffsetZMm=Math.min(report.minOffsetZMm,s.point[2]-s.reference[2]);report.maxOffsetZMm=Math.max(report.maxOffsetZMm,s.point[2]-s.reference[2]);report.printedTopMm=Math.max(report.printedTopMm,s.point[2]);}
-        strokes.push({role:multiplier===0.5?'rim-inner':'rim-outer',points:samples.map(s=>s.point),volumesMm3:volumes,speedMmS:z<=process.firstLayerMm+1e-8?process.firstLayerSpeedMmS:process.planarSpeedMmS,closed:false});
+        strokes.push({role:track===0?'rim-inner':'rim-outer',points:samples.map(s=>s.point),volumesMm3:volumes,speedMmS:z<=process.firstLayerMm+1e-8?process.firstLayerSpeedMmS:process.planarSpeedMmS,closed:false});
       }
       if(!strokes.length)continue;
       const maxZ=strokes.reduce((m,s)=>s.points.reduce((v,p)=>Math.max(v,p[2]),m),z);

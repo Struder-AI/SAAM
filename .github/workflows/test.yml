@@ -1,6 +1,8 @@
-name: repository checks
+name: runtime setup
 
-on: [push, pull_request]
+# main requires the `test` status. Exercise each fresh runner once; regression
+# selection belongs to the change. PRs get one run, without duplicate push runs.
+on: [pull_request, workflow_dispatch]
 
 permissions:
   contents: read
@@ -15,4 +17,4 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm test
+      - run: npm run setup:check

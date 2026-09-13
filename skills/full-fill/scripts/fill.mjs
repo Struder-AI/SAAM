@@ -16,7 +16,8 @@ import { createSectionQuery } from '../../../core/geom/query.mjs';
 import { scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
 import { perimeterLoops } from '../../../core/region/perimeters.mjs';
-import { difference } from '../../../core/region/boolean.mjs';
+import { difference, union } from '../../../core/region/boolean.mjs';
+import {lineSpacing} from '../../../core/path/spacing.mjs';
 import { planarPolicy } from '../../../core/path/builder.mjs';
 import { requireThat, distance2, TOLERANCE } from '../../../core/geom/tolerance.mjs';
 import {clipReservedRegion,clipAboveSurface,surfaceStroke} from '../../../core/region/reservation.mjs';
@@ -24,6 +25,7 @@ import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
 import {planarWallTolerance} from '../../../core/machine/rules.mjs';
 
 export const FULL_FILL_DEFAULTS = {
+  spacingFactor: 1,
   mode: 'body',
   bottomLayers: 3,
   topLayers: 3,
@@ -51,6 +53,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
   const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'],...overrides };
   sectionAt??=createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
   const width = process.lineWidthMm,wallToleranceMm=planarWallTolerance(machine);
+  const pitch=lineSpacing(width,settings),fillSpacing=spacingMm??pitch;
   const top = Math.min(shell.bounds.max[2],zEndMm??Infinity);
   const heights = layerHeights(process, shell.bounds.min[2], top).filter(z=>z>(zStartMm??-Infinity)+1e-9);
   const reserves=Array.isArray(reserve)?reserve:[reserve].filter(Boolean);
@@ -84,7 +87,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
     if(!prepared){
       const walls=[];
       for (let ring = 0; ring < settings.perimeters; ring++) {
-        const loops = perimeterLoops(region, width / 2 + ring * width);
+        const loops = perimeterLoops(region, width / 2 + ring * pitch);
         if (!loops.length) break;
         // Simplify only the finished deposition contour to machine precision.
         // The original offset region continues to own material topology.
@@ -92,7 +95,8 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       }
       // Fill starts half a bead inside the last perimeter, less the overlap that
       // welds fill to perimeter.
-      const inset = width * (settings.perimeters + 0.5 - settings.fillOverlap) - width / 2;
+      const inset = width * (settings.perimeters + 0.5 - settings.fillOverlap) - width / 2
+        + Math.max(0,settings.perimeters-1)*(pitch-width);
       prepared={walls,interior:fillRegionAt?null:offsetRegion(region,settings.perimeters>0?-(width/2+inset):-width/2)};
       contours.set(key,prepared);
       if(contours.size>16)contours.delete(contours.keys().next().value);
@@ -102,7 +106,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
     let fillRegion = fillRegionAt ? fillRegionAt(region,index,z) : prepared.interior;
     if(interiorRegion)fillRegion=interiorRegion(fillRegion,index,z,region);
     const angle = settings.fillAnglesDeg[index % settings.fillAnglesDeg.length];
-    const rows = fillRegion.length && !interiorStrokes ? scanlineFill(fillRegion, spacingMm??width, angle) : [];
+    const rows = fillRegion.length && !interiorStrokes ? scanlineFill(fillRegion, fillSpacing, angle) : [];
     report.fillRows += rows.length;
     // Alternate direction down the rows so consecutive strokes end where the
     // next one starts; the travel planner then joins or combs instead of hopping.
@@ -136,11 +140,12 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
         after:[...previous,...current],strokes:selected,
         order:closed&&!lowerSurface?'nearest':!closed&&selected.every(s=>s.scanlineCell!==undefined)?'nearest-cells':'given',region,
-        get materialRegion(){return materialRegion??=closed?difference(region,offsetRegion(region,-width*settings.perimeters)):
+        get materialRegion(){return materialRegion??=closed?(pitch===width?difference(region,offsetRegion(region,-width*settings.perimeters)):
+          union(Array.from({length:settings.perimeters},(_,ring)=>difference(ring?offsetRegion(region,-ring*pitch):region,offsetRegion(region,-ring*pitch-width))).flat(),[])):
           // Coverage participates in booleans: a coarse round-join chord can
           // leave artificial corner gaps despite the requested wall overlap.
           (fillRegion.length?offsetRegion(fillRegion,width/2,{arcToleranceMm:TOLERANCE.chord}):[]);},
-        materialCoverage:!closed&&(spacingMm??width)>width+1e-8?'sparse':'area',
+        materialCoverage:!closed&&fillSpacing>width+1e-8?'sparse':'area',
         travelPolicy:policy,clearanceZ:z+process.liftMm,
         ...(index===1?{fanPercent:process.fanPercent}:{})});
       current.push(operationId);

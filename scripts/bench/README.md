@@ -1,8 +1,8 @@
 # Slicing benchmarks
 
-Harnesses, fixtures and recorded measurements. Results apply to their stated run
-and fixture; inspect current source and rerun the relevant harness to assess a
-new change. See [validation ownership](../../core/print/README.md#validate-at-the-boundary-that-owns-the-data)
+Harnesses, fixtures and measurement procedures. [DEVLOG.md](../../DEVLOG.md)
+owns historical results. Inspect current source and rerun the relevant harness
+to assess a new change. See [validation ownership](../../core/print/README.md#validate-at-the-boundary-that-owns-the-data)
 and [numerical precision](../../core/geom/README.md#precision-belongs-to-a-quantity-and-an-operation) for the contracts being measured.
 
 ## Slicing speed benchmarks
@@ -101,40 +101,12 @@ overwriting timed results. The optional diagnosis command intercepts an
 excessive region-index allocation in that process only and saves failing inputs;
 it is not a production safety fix.
 
-The initial 2026-09-09 run found slower direct spline queries but faster **planar
-full-fill** than the generated twisted meshes. The 24 mm spline took roughly
-0.34–0.40 s, versus 0.76 s / 2.10 s / 5.77 s for 768 / 3072 / 12288 triangles
-at the three mesh targets. The doubled fixture took 1.17 s for splines and
-14.13 s for its 12288-triangle 0.025 mm mesh. These are prepared-geometry skills
-plus composition/checks, excluding export and public workflow overhead. The
-mesh sections contain many more vertices, so downstream region work outweighs
-their cheaper intersections. Existing planar-infill/region-reservation failures
-prevent successful timings for several mesh combinations.
-
-At the finer 0.00125 mm mesh target (49152 triangles), full-fill took 22.26 s
-versus 0.39 s for splines in the same run. With the production planar-support
-callback included, the non-planar body+drape pass took 18.42 s for splines and
-5.00 s for the double-precision 3072-triangle mesh. The binary STL version
-failed region reservation. The successful drapes do not have identical coverage:
-faceted normals change the included skin area, so this is a backend diagnostic,
-not an equal-output speed claim. Earlier pilot drape data in local reports used
-the skill's default support callback and is superseded by `slicing-drape-final`.
-
-The user's normal Rhino export has 1078 triangles. It passes mesh validation
-and query checks but exposes a full-fill outward-offset/index blow-up at Z=12.2
-mm and a solid-mask intersection failure between Z=0.2 and Z=0.4 mm. Do not
-treat its failed generation as a speed measurement or disable checks to make
-the comparison succeed. The user's Cura 4.12 report is 14 s to load and 2.3 s
-to slice, two walls and 100% infill; the load boundary and layer height were
-not specified. Record load and slice separately, and compare only planar full
-fill with Cura. Non-planar measurements compare SAAM backends only.
-
-Prioritize bounded/robust offset and boolean processing, then an explicit
-error-bounded contour simplification experiment, indexed mesh Z/XY queries and
-redundant spline height-solve diagnostics. Keep native spline input while testing
-these shared-interface improvements. A language/runtime rewrite or forced mesh
-conversion is not justified by these measurements. Measure public bundle
-load/check/generate separately next, then repeat matched planar tests in Cura
-and Bambu Studio with saved profiles, exact versions, thread counts and repeated
-timings. No architecture decision or contributor approval is recorded by this
-benchmark.
+Historical results and the initial optimization hypotheses are in the
+[devlog](../../DEVLOG.md#2026-09-09--initial-slicing-benchmark-findings).
+Later [Clipper2 results](../../DEVLOG.md#2026-09-09--intersection-and-twisted-fixture-measurements)
+record successful offset/solid-mask diagnostics for the original Rhino STL.
+Use fresh runs for current performance claims. The
+[open comparison](../../build_request.md#br-023--matched-slicer-and-public-workflow-comparison)
+requires matched planar settings, separate load/slice timings, exact versions,
+saved profiles, thread counts and repeated measurements. Non-planar backend
+measurements need their own coverage comparison.

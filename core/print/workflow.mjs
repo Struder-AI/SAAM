@@ -16,6 +16,7 @@ const nativeFile=geometry=>{const name=geometry.nativeFile??'model.3dm';requireT
 const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
 const hash=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:canonical(value)).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
+const originalSource=geometry=>geometry?.source??(geometry?.shape==='text'?originalSource(geometry.base):null);
 async function save(file,value){
   await mkdir(dirname(file),{recursive:true});
   const temporary=file+'.tmp';
@@ -87,8 +88,8 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes }
   if (!plan) plan = await proposedPlan(machine.id, { setupFile });
   validatePlan(plan, machine);
   const geometry = await createGeometry(plan.geometry);
-  if(plan.geometry.source){
-    requireThat(sourceBytes&&hash(sourceBytes)===plan.geometry.source.sha256,'STL source bytes are required; use import-stl.');
+  if(originalSource(plan.geometry)){
+    requireThat(sourceBytes&&hash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');
     await save(resolve(dir,'geometry/source.stl'),sourceBytes);
   }
   await save(resolve(dir, nativeFile(geometry.descriptor)), geometry.bytes);
@@ -140,7 +141,7 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
     inputIdentity=identity;
   }
   const {geometryHash,planHash}=identity;
-  if(plan.geometry.source)requireThat(hash(await readFile(resolve(dir,'geometry/source.stl')))===plan.geometry.source.sha256,'Imported STL source changed; geometry approval is stale.');
+  if(originalSource(plan.geometry))requireThat(hash(await readFile(resolve(dir,'geometry/source.stl')))===originalSource(plan.geometry).sha256,'Imported STL source changed; geometry approval is stale.');
   const state = {
     kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime,
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),

@@ -1,6 +1,6 @@
-// Lightweight runtime check. No Git, regression suite, slicing or job approvals.
+// First-use runtime check. No Git, regression suite, slicing or job approvals.
 import assert from 'node:assert/strict';
-import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {readFile,mkdtemp,rm,access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -14,9 +14,11 @@ export async function checkSetup({log=console.log}={}) {
     const start=performance.now();await action();stages[name]=Math.round(performance.now()-start);
   };
   const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
-  await stage('dependencies',async()=>{
-    for(const name of Object.keys(manifest.dependencies))
-      await import(name==='@modelcontextprotocol/sdk'?'@modelcontextprotocol/sdk/server/index.js':name);
+  await stage('dependency entry points',async()=>{
+    for(const name of Object.keys(manifest.dependencies)){
+      const entry=import.meta.resolve(name==='@modelcontextprotocol/sdk'?'@modelcontextprotocol/sdk/server/index.js':name);
+      await access(fileURLToPath(entry));
+    }
   });
   await stage('geometry kernels',async()=>{
     const r=await (await import('rhino3dm')).default();
@@ -25,6 +27,11 @@ export async function checkSetup({log=console.log}={}) {
     const {booleanPaths}=await import('../core/region/clipper2.mjs');
     const square=[{X:0,Y:0},{X:10,Y:0},{X:10,Y:10},{X:0,Y:10}];
     assert.equal(booleanPaths([square],[],'Union').length,1);
+    if(manifest.dependencies['manifold-3d']){
+      const {solidKernel}=await import('../core/geom/solid.mjs');
+      const kernel=await solidKernel(),cube=kernel.Manifold.cube([1,1,1]);
+      try{assert.ok(Math.abs(cube.volume()-1)<1e-9);}finally{cube.delete();}
+    }
   });
   await stage('unapproved geometry and Studio',async()=>{
     const directory=await mkdtemp(join(tmpdir(),'saam-setup-'));let server;

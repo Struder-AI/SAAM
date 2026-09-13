@@ -1,6 +1,6 @@
 ---
 name: draped-skin
-description: Generate surface-following top skins on supported spline shells and closed meshes, using the selected machine's non-planar angle limit and the shared print workflow. Requires a continuous accessible roof; steep area is excluded and reported.
+description: Follow a sloping or curved roof with top-skin strokes instead of approximating it with flat-layer steps. Works on continuous accessible mesh or supported spline roofs within the machine's nonplanar angle limit; excluded steep areas are reported.
 ---
 
 # Draped skin
@@ -27,12 +27,15 @@ Closed footprint/reservation booleans use the
 [shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections);
 surface sampling and level-set extraction retain their existing limits.
 
-S5 declares a 15° software limit. The user also selected **experimental 15° for
-H2D** on 2026-09-09. Neither is a manufacturer-certified clearance rating. The
+S5 declares a 15° software limit; H2D uses an **experimental 15° limit**.
+Neither is a manufacturer-certified clearance rating. The
 machine must declare XYZ extrusion, non-planar capability and an angle limit.
 Steep percentage and the effective limit are reported by the survey/generator.
 A sampled stroke crossing a height discontinuity, missing roof or excessive
 angle is rejected; choose a continuous roof or refine the survey.
+
+For an assembly, set `part` to the roof component's ID; the template's `null`
+selection is only for a single part, and the skin stack must fit the selected roof.
 
 `drapedSkinResult({shell, plan, machine, survey, id, after})` returns operations
 for the shared composer. `generateDrapedSkin(builder, options)` uses the same

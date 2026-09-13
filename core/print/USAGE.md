@@ -33,10 +33,23 @@ selected skills. Omitting `plan.json` uses the shell adapter's proposed recipe
 and remembered machine setup. That default is a starting point to evaluate
 against the request. An explicit recipe supplies its own setup.
 
+For a complete recipe in a local authoring script, use
+`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs), then change its
+geometry and skill settings before passing it to `initBundle` or saving JSON.
+The shell template enables full-fill **and draped-skin**; explicitly disable
+unwanted patterns when choosing another recipe (STL, Gridfinity and voxel
+creation already disable draped-skin).
+
 Through MCP, get a complete editable recipe with `get_plan_template`, selecting
 `kind: "shell"` and the machine, then pass the proposed recipe to `create_print`.
 `kind: "wedge"` selects the bounded demo when that is the intended workflow.
 Creation stores unapproved geometry and settings; open Studio for review.
+
+### Create volumetric geometry
+
+For volumetric samples or B-spline control lattices, use the
+[voxel tools](../../skills/voxel-tools/SKILL.md). They retain the field and its
+explicit extraction resolution while using the shared slicing and review workflow.
 
 ### Import an STL
 
@@ -63,6 +76,13 @@ It explains how to assess the available correction tools and their effect on
 the part. Import itself preserves the supplied geometry; reconstruction is a
 separate operation whose result needs geometry review. Missing files, wrong
 units and machine incompatibility need their own corrections, not reconstruction.
+
+### Add or remove text material
+
+Use the [text skill](../../skills/text/SKILL.md) for raised or recessed lettering,
+standalone text and independent spline guides. `shell text` / MCP `apply_text`
+rebuild the selected part through the same geometry and review lifecycle. Its
+manual owns font input, placement, reference-surface and relief settings.
 
 ## Open and resume review
 
@@ -105,6 +125,24 @@ again; process and setup changes retain unchanged geometry approval and require
 plan and toolpath review. The maker requests revisions in chat; the agent handles
 the recipe files. Manual replacement of bundle internals can break consistency.
 
+### Line spacing
+
+For an intentionally open pattern, set only `skills.<skill>.spacingFactor` in
+the usual recipe patch. It defaults to `1`; `3` requests three times the nominal
+line spacing without tripling bead width or extrusion per unit length:
+
+```json
+{"skills":{"pipe-cladding":{"spacingFactor":3}}}
+```
+
+This applies to full-fill, planar-infill, draped-skin, supports, both rimming
+patterns and pipe-cladding, including regional overrides where supported.
+Single-wall vase spirals and the bounded wedge demo do not use this setting.
+Ordinary recipes need no additional setting. Studio shows a nondefault factor
+in plan review; changing it follows the existing process review lifecycle.
+See the [shared spacing contract](../path/README.md#line-spacing) for density,
+surface fitting and composition behavior.
+
 ## Check, generate and deliver
 
 | Operation | CLI suffix after `node core/print/cli.mjs` | MCP tool | Result |
@@ -126,6 +164,13 @@ existing recipe can be initialized first. Development output cannot authorize
 delivery, and MCP does not expose this mode. Follow the
 [development testing context](../../CONTRIBUTING.md#testing-through-the-use-context)
 when exercising maker tools during development.
+
+Development generation still needs explicit robot command settings; for a new
+provisional part use the reusable setup instructions for
+[DENSO](../../skills/pipe-cladding/SKILL.md#public-workflow-and-development-demo)
+or [Dobot](../export/dobot.md#dobot-output-contract), independently of its shape.
+CLI `check` reports `outputAvailability` and missing `machineConfiguration`
+fields from the saved state, without attempting generation.
 
 ## Remember machine setup
 

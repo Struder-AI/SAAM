@@ -12,11 +12,19 @@ has no reasonable supported default.
 
 ## Find the instructions for this part
 
-Choose from the [skill index](skills/README.md), then read the selected manual
-and use its packaged tools. The manuals own shape support, settings and process
-limits.
+Read the brief [capability digest](skills/README.md) before the first maker-facing
+response, then read the selected skill manual and use its packaged tools. The
+manuals own shape support, settings and process limits.
+
+Treat these capabilities as building blocks: the applications described are
+starting points, and you should consider other uses and combinations when they
+serve the person's part, checking the relevant manuals for support and limits.
 
 For ordinary planar walls, hollow vessels or patterned fill, start with [planar-infill](skills/planar-infill/SKILL.md) and its full-fill composition guidance. These skills match most closely to legacy 3d printing slicers like cura or bambu studio, and your judgement will be required as to whether it's a good opportunity to show off some of SAAM's more advanced capabilities.
+
+For continuous vase mode, normally use a solid model: the printing recipe makes
+the hollow wall, so the model needs no hole. See [vase-wall input geometry](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)
+for the distinction between the solid guide and the printed wall.
 
 Follow additional references when the part needs them:
 

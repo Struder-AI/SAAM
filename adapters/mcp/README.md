@@ -57,6 +57,8 @@ saved IDs; there is no single global plan that overwrites another job.
 | `import_stl_print` | Read an absolute local `.stl` source path with explicit `mm`/`inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
 | `list_prints`, `get_print` | Reopen saved prints and read their current state/recipe. `get_print` omits geometry and marks `planComplete:false` unless `includeGeometry:true` is supplied. |
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
+| `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
+| `voxel` | Create or rebuild a scalar-field part using [voxel tools](../../skills/voxel-tools/SKILL.md), explicit surface sampling and current `expectedRevision` for edits. |
 | `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
@@ -87,7 +89,7 @@ Read `read_guidance` with `guidanceId: "makers"` and the relevant skill manual, 
 `request_review`. Studio opens in the default browser where available; the
 returned URL remains usable if browser launch fails. Set `SAAM_NO_AUTO_OPEN=1`
 for tests or a headless client. Studio servers are owned by the MCP process,
-use free loopback ports, and close three seconds after the last viewer tab
+use free loopback ports, and close 30 minutes after the last viewer tab
 disconnects (with a grace period for refresh), or when the owning stdio client
 disconnects. There is no deadline to open the first viewer.
 Repeated review requests use the print's still-open server within this adapter;
@@ -116,17 +118,19 @@ import reads only the chosen source; it writes the new bundle inside the configu
 Prints root. `upgrade_print` remains available when current-version validation
 prevents normal reopening; it does not silently migrate on read.
 
-The legacy `compile_plan` is replaced by `create_print` / `adjust_print` followed
-by the shared approvals and `generate_print`. `validate_plan` becomes
-`check_print`; `post_process` becomes shared generation and `deliver_print`.
+Use `create_print` / `adjust_print`, the shared approvals and `generate_print`;
+`check_print` verifies the persisted print and `deliver_print` delivers its
+checked export. Legacy `compile_plan`, `validate_plan` and `post_process`
+are unsupported.
 The fixed catalog also includes `denso-vp6242-rc8` and
 [pipe-cladding](../../skills/pipe-cladding/SKILL.md). This experimental rotary
 demo uses the same tools and Studio. Actual installation setup is unresolved;
 synthetic development calibration is not a hardware configuration.
 
-`list_operations` is replaced by the small known-manual list. `request_review`
-and `get_approval_status` now accept only a persisted print ID. The legacy
-revision-only approval and global live-session plan are deliberately not adopted.
+The known-manual list supplies operation guidance; legacy `list_operations`
+is unsupported. `request_review` and `get_approval_status` accept only a
+persisted print ID. Revision-only approvals and a global live-session plan
+are unsupported.
 
 Run the SDK subprocess integration checks with:
 

@@ -4,12 +4,12 @@ The experimental H2D export contract. See the [shared machine interface](README.
 
 ### H2D output contract
 
-H2D output is **experimental**. The user supplied Bambu Studio 02.08.02.61
-right- and left-nozzle sliced exports on 2026-09-09. The machine file records
-their SHA-256 hashes. Only their machine envelope and format facts informed
-implementation; reference geometry, thumbnails and personal project settings
-are not copied into output or committed. This establishes a software reference,
-not a successful physical print or universal firmware compatibility.
+H2D output is **experimental**. Its software reference is the supplied Bambu
+Studio 02.08.02.61 right- and left-nozzle sliced exports; the machine file records
+their SHA-256 hashes. Only their envelope and format facts define the contract;
+reference geometry, thumbnails and personal settings stay outside generated
+output and Git. The [reference checks](../../DEVLOG.md#2026-09-09-to-2026-09-10--h2d-reference-and-startup-checks)
+do not establish successful physical printing or universal firmware compatibility.
 
 The H2D hardware profile follows Bambu Lab's official supported diameters:
 0.2, 0.4, 0.6 and 0.8 mm hardened-steel hotends; 0.4 mm is included by default.
@@ -21,13 +21,12 @@ remapping. Do not replace all T numbers to select a nozzle. Package structure
 also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
 
 The pinned start/end arrays originate in the reference's executable blocks.
-On 2026-09-10 the user requested removal of startup triage item H10: initial X
-homing, the early wiping-area moves and `M972 S24`, then the `M1009`-bracketed
-Z-clearance/center-positioning/Z-homing sequence. Machine revision 4 uses
-`h2d-02.08.02.61-pla-textured-v2` with exactly those 13 lines removed. Machine
-revision 6 adds `h2d-02.08.02.61-generic-material-textured-v3`, parameterizing
-the declared nozzle diameter and generic material in calibration and package
-metadata while retaining the same command order. Adjacent
+Machine revision 4 uses `h2d-02.08.02.61-pla-textured-v2`, which omits startup
+triage item H10: initial X homing, early wiping-area moves, `M972 S24` and the
+`M1009`-bracketed Z-clearance/center-positioning/Z-homing sequence (13 lines). Machine revision 6 adds
+`h2d-02.08.02.61-generic-material-textured-v3`, parameterizing the declared nozzle
+diameter and generic material in calibration and package metadata while retaining
+the same command order. Adjacent
 object/bin checks and all later probing, calibration and priming remain; this
 is not a no-probing startup. The revised sequence requires physical testing.
 The adapter still recognizes the pinned v1/v2 envelopes in existing snapshots;
@@ -57,13 +56,10 @@ the simulation boundary. Its time and material totals exclude service routines.
 Envelope matching is not a proof of their physical motion or clearance.
 
 The H2D print body uses `M83` relative extrusion, matching the supplied Bambu
-Studio reference. On 2026-09-09 the first physical SAAM H2D attempt reached the
-part successfully, but the user reported severe over-extrusion beginning on the
-second flat layer while the first looked correct. Inspection found that the
-then-delivered body incorrectly selected `M82` and emitted cumulative E values;
-that artifact is unsafe to reuse. The exporter was corrected to emit relative E
-amounts and covered by a second-layer regression, but the corrected output still
-requires physical retesting. S5 remains on its separate Griffin `M82` contract.
+Studio reference. Older H2D artifacts using cumulative `M82` extrusion are unsafe
+to reuse. The [physical failure and correction](../../DEVLOG.md#br-019--h2d-wedge-and-studio-reopenactivity)
+explain the second-layer regression; corrected output still requires a physical
+retest. S5 uses its separate Griffin `M82` contract.
 
 `bambu-gcode` produces `exports/bambu-gcode/part.gcode.3mf`. The output registry
 accepts text or binary artifacts; the shared lifecycle hashes and checks the
@@ -75,12 +71,10 @@ reads the archive's G-code; toolpath approval binds the complete archive hash,
 and delivery copies the original archive unchanged. Unsupported ZIP features,
 unknown envelopes and edited files fail closed.
 
-Software tests cover both nozzle maps, both geometry backends, all three skills,
-malformed/tampered output and the shared approval/HTTP delivery path. The installed
-Bambu Studio CLI's model-import (`--info`) check reported -6, "The input model
-file to the slicer can not be parsed," for both the user's sliced reference and
-the generated archive, including a retry outside the sandbox. This does not
-check the program-viewer route. Independent Bambu Studio program-viewer import
-and physical validation therefore remain unconfirmed. No printer
-was connected or run. Older H2D bundles must explicitly set `buildVolumeC: 0`
+Software tests cover both nozzle maps, both geometry backends, supported skill
+integration, malformed/tampered output and the shared approval/HTTP delivery path.
+Independent Bambu Studio program-viewer import and physical validation remain
+[open acceptance checks](../../build_request.md#br-018--h2d-acceptance-and-physical-retest).
+Model-import CLI checks do not verify the program-viewer route.
+Older H2D bundles must explicitly set `buildVolumeC: 0`
 with `adjust` before `upgrade`; plan/toolpath approvals are invalidated normally.

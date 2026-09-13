@@ -1,6 +1,6 @@
 ---
 name: rimming-planar
-description: Support a selected edge with a two-bead bivariate spline wall, using horizontal offsets of each planar section. The base can rest on the bed or another selected edge. Assign surfaces through judgment.
+description: Experiment with thin walls that support selected edges so a planned bridge can span the area between them. A maker-assigned spline surface connects the bed or another edge to the supported edge; paired beads use horizontal offsets.
 ---
 
 # Rimming with horizontal offsets

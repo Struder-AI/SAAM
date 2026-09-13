@@ -61,6 +61,12 @@ exploratory conversation into precise current guidance, stated once at its owner
 Correct that account when understanding changes. References should resolve
 conveniently to source using ordinary repository tools.
 
+Keep that guidance in present tense. [DEVLOG.md](DEVLOG.md) owns completed work
+and dated evidence; [build requests](build_request.md#outstanding-work) contains
+only outstanding or incomplete work. Build-first work needs no request record
+once complete. The [maintenance rules](CONTRIBUTING.md#documentation-maintenance)
+define the closeout workflow and provenance exceptions.
+
 ## Collaboration
 
 Work within the requested scope and carry authorized implementation through to a
@@ -89,4 +95,4 @@ specific scope; reading neighboring material depends on the change.
 | Performance measurement | [Benchmarks](scripts/bench/README.md) and the owning component |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](CONTRIBUTING.md#testing-through-the-use-context) |
 | Documentation | [Ownership and maintenance](CONTRIBUTING.md#documentation-maintenance) |
-| Project direction, outstanding work or terminology | Relevant [decisions](DECISIONS.md), [requests](build_request.md#outstanding-work) or [terms](GLOSSARY.md) |
+| Project direction, outstanding work, history or terminology | Relevant [decisions](DECISIONS.md), [requests](build_request.md#outstanding-work), [devlog](DEVLOG.md) or [terms](GLOSSARY.md) |

@@ -19,6 +19,7 @@ starting vocabulary for the ontology we develop together.
 | Skill composition | Combining skills in one part, assigning material regions, connecting their boundaries and preserving printing order. |
 | Weaving | Interleaving compatible skill operations across layers or within a layer while preserving their dependencies. |
 | Tool | A callable script or function supplied by a skill. |
+| Motif | A small repeated curve, such as a loop or zigzag. A pattern arranges and connects motifs along its path; see [vase motifs](skills/vase-wall/SKILL.md#motifs-host-shape-and-exterior-finish). |
 | Process plan | The recipe for making a part: geometry reference, selected skills, their settings, and machine/setup choices. |
 | Locked process plan | The complete version of the recipe submitted for approval; generation introduces no further process choices. |
 | Toolpath | The route and associated printing actions the machine will follow. |

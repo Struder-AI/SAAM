@@ -25,6 +25,8 @@ SAAM itself.
 
 Choose by the requested work; when unspecified, use the developer pathway.
 These are task contexts, and they do not expand the user's authorization.
+If `.local/AGENTS.md` exists, consult it when the user refers to a local experiment.
+Local capabilities are not part of shared SAAM and must not be assumed elsewhere.
 Read linked reference sections when their responsibilities affect the task;
 follow their dependencies as needed rather than loading every document.
 
@@ -47,7 +49,14 @@ Never treat setup or tour completion as a manufacturing approval.
 - [The MCP adapter manual](adapters/mcp/README.md) owns chat-client connection and tool use.
 - [GLOSSARY.md](GLOSSARY.md) owns shared terms.
 - [DECISIONS.md](DECISIONS.md) owns contributor decisions and their approval status.
-- [build_request.md](build_request.md#outstanding-work) routes outstanding work to its request and implementation records.
+- [build_request.md](build_request.md#outstanding-work) owns outstanding or incomplete work only.
+- [DEVLOG.md](DEVLOG.md) owns dated work records, measurements and development history.
+
+Write current guidance in present tense. Work build-first within the user's
+authorization; a build request is useful only for work that remains outstanding
+or incomplete. Record completed work in the devlog and remove completed requests
+from the open list. Follow [documentation maintenance](CONTRIBUTING.md#documentation-maintenance)
+for dates, evidence and the limited historical-provenance exceptions.
 
 Use implemented behavior and recorded evidence when describing SAAM. A software
 check or preview is evidence about software; a physical result needs physical

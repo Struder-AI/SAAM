@@ -17,11 +17,15 @@ pending the other contributor. Human approval of a print belongs to the separate
 Staging, committing and publishing require explicit authorization, including
 authorization already given in the conversation. Once committing is authorized,
 checkpoint the existing working tree before new work so the changes remain
-separable. The [commit test requirement](#checks) applies to that checkpoint too.
+separable. Choose verification from the behavior changed; commits and checkpoints do not independently require a full test run.
 
 The canonical destination is Struder-AI/SAAM. Publish to the requested feature
 branch when authorized; a personal fork is optional. Pushing to main requires an
 explicit request. Leave your own PRs for human review and merging.
+
+Prefer working into main or merging back frequently, with at most one active pending branch per account; purpose-saved side branches (such as the legacy skills library) are exempt, and discuss merging to main when the user has not mentioned it and the right action is unclear.
+
+Tasks sharing a checkout may contribute to the same commit: keep its current branch, reread affected lines before editing, preserve other tasks' changes, and coordinate Git operations through one task; create another branch only for intentional isolation and integrate it promptly.
 
 ## Testing through the use context
 
@@ -35,26 +39,40 @@ Identify synthetic approvals as test data and keep them unable to authorize
 a real job. Hardware execution and human print approvals remain with the person;
 report software verification and physical results separately.
 
+A demo's setup, assets and recipe assumptions must be reachable from the skill
+manual for a fresh part; put reusable preparation in packaged tools and describe
+any necessary setting changes there, rather than relying on the originating task.
+
 ## Checks
 
-Choose verification from the behavior being changed and its affected consumers.
-The [test registry](#test-registry) helps locate existing coverage. During
-development, use focused tests and broaden or repeat them when a change, failure
-or unresolved concern warrants it. Documentation-only work normally needs
-`node scripts/check-repo.mjs`; discussion and read-only investigation need no tests.
+Choose verification from the changed behavior and a concrete failure it could
+introduce. Run relevant tests locally and fix failures before publication. Use the
+full `npm test` suite when broad integration risk or the user request warrants it.
+Reuse successful results while the relevant source and environment remain unchanged;
+commits, task boundaries and prose edits do not independently require test runs.
 
-Every authorized commit, including documentation and checkpoint commits, requires
-a complete `npm test` run against the final state being committed. Subsequent
-edits require a fresh run before committing. Resolve failures first unless the
-user explicitly authorizes committing that failing state. The successful run
-remains valid through staging and the commit itself. CI runs the full suite on
-push and pull requests.
+GitHub main requires the `test` check from GitHub Actions. The job in
+[test.yml](.github/workflows/test.yml) runs `npm run setup:check` once on each
+fresh pull-request runner after dependency installation; manual dispatch is also
+available. The workflow uses only `contents: read`. Local first-use setup results
+remain valid until their dependencies or environment change. Regression tests
+remain available locally for the changes that warrant them.
 
-Add meaningful coverage for new behavior and maintain the registry associations.
-Report the checks performed and their results with their actual scope. These are
-repository checks; generated-print validation has its own workflow and evidence.
+Report the actual verification scope and unresolved failures. The registry below
+locates existing coverage; it is not an automatic checklist for every change.
 
 ### Test registry
+
+Shared line spacing is covered by [spacing.test.mjs](core/tests/spacing.test.mjs):
+all seven producers, density and solid-mask independence, sparse surface
+composition, curved and mesh cladding, plan review and exact-byte delivery.
+Opposite-handed cladding is covered by
+[crossed-cladding.test.mjs](core/tests/crossed-cladding.test.mjs), including
+surface charts, rotary direction, export/review and material preview.
+Finished-boundary interoperability is covered by
+[finished-cladding.test.mjs](core/tests/finished-cladding.test.mjs): unchanged
+vase deposition, fill/infill sources, regional and assembly selection, published
+extents, producer-independent dependencies and checked reopening.
 
 This table maps implementation areas to existing test files. It is a selection
 aid, not an automatic dependency resolver or a requirement to run every listed
@@ -70,6 +88,7 @@ All file names in the core column below are relative to `core/tests/`.
 |---|---|---|
 | `core/geom/`: spline evaluation, sections, prepared mesh section index, height queries, STL/mesh input | [geometry.test.mjs](core/tests/geometry.test.mjs), [mesh.test.mjs](core/tests/mesh.test.mjs), [mesh-boundary.test.mjs](core/tests/mesh-boundary.test.mjs) | Affected skill tests; pipeline and regional tests for shared query changes |
 | Explicit STL repair, winding reconstruction, spatial queries and collision-checked simplification | [mesh-repair.test.mjs](core/tests/mesh-repair.test.mjs), [mesh.test.mjs](core/tests/mesh.test.mjs) | Shared STL import and unapproved S5/H2D bundles |
+| Volumetric fields, rational controls, local refinement, explicit extraction and persisted identity | [voxel.test.mjs](core/tests/voxel.test.mjs), [voxel-refine.test.mjs](core/tests/voxel-refine.test.mjs), [mcp.test.mjs](core/tests/mcp.test.mjs) | Voxel task demo, shared slicing, mixed spline/field assembly and exact-byte lifecycle |
 | `core/geom/polyline.mjs`: numerical contour seams before offsets and deposition | [contour-cleanup.test.mjs](core/tests/contour-cleanup.test.mjs) | Mesh sections, full-fill and planar-infill |
 | `core/region/offset.mjs`, Clipper normalization and offset compatibility | [offset.test.mjs](core/tests/offset.test.mjs), [offset-junctions.test.mjs](core/tests/offset-junctions.test.mjs), [offset-remnants.test.mjs](core/tests/offset-remnants.test.mjs) | Fill, infill, drape, vase and wedge consumers as affected |
 | `core/region/perimeters.mjs`: coincident closed wall fronts | [perimeters.test.mjs](core/tests/perimeters.test.mjs) | [perimeter-wall.test.mjs](skills/full-fill/tests/perimeter-wall.test.mjs) covers full-fill, planar-infill, solid masks and S5/H2D export |
@@ -92,7 +111,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `studio/`: camera, display detail, mesh visibility, playback and offline movies | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [studio-geometry.test.mjs](core/tests/studio-geometry.test.mjs), [studio-material.test.mjs](core/tests/studio-material.test.mjs), [studio-movie.test.mjs](core/tests/studio-movie.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
 | Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs), [studio-lifetime.test.mjs](core/tests/studio-lifetime.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
 | Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](core/tests/source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
-| `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow, recipe validation and documentation-link access |
+| `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow, recipe validation, CLI visibility of unresolved robot setup and documentation-link access |
 | Temporary HTTP/OAuth bridge, Claude package and web probe | [mcp-http.test.mjs](core/tests/mcp-http.test.mjs), [claude-plugin.test.mjs](core/tests/claude-plugin.test.mjs), [web-agent-probe.test.mjs](core/tests/web-agent-probe.test.mjs) | MCP stdio integration when shared tools change |
 | `scripts/bench/`: analytical fixtures and mesh convergence | [benchmark-fixtures.test.mjs](core/tests/benchmark-fixtures.test.mjs) | Performance measurements remain opt-in; see benchmark instructions |
 | Full-fill generation | Shared geometry, travel and pipeline tests as affected | [full-fill.test.mjs](skills/full-fill/tests/full-fill.test.mjs) |
@@ -100,9 +119,12 @@ All file names in the core column below are relative to `core/tests/`.
 | Explicit conventional/tree supports, interfaces and support-before-part ordering | Pipeline, workflow, regional and machine tests as affected | [supports.test.mjs](skills/supports/tests/supports.test.mjs) |
 | Bivariate support surfaces, horizontal/normal section offsets and rimming composition | Shared geometry, plan, workflow and machine boundaries | [rimming.test.mjs](skills/rimming-planar/tests/rimming.test.mjs) covers both rimming skills |
 | Draped skin, normal spacing, slope exclusion and support | Shared surface/reservation and pipeline tests as affected | [draped-skin.test.mjs](skills/draped-skin/tests/draped-skin.test.mjs) |
-| Vase wall, topology, offset rounding, budgets and level ending | Regional composition and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs) |
+| Vase wall, contour correspondence including expanding sections, topology, offset rounding, budgets and level ending; repeated sleeve motifs, inward tilted loops, continuous/segmented mapping and bead-height integration | Regional composition, travel, Studio settings and machine tests as affected | [vase.test.mjs](skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](skills/vase-wall/tests/paths.test.mjs) |
 | Bounded eight-point wedge geometry, generator and lifecycle | Shared travel, export and workflow tests as affected | [eight-point.test.mjs](skills/wedge-demo/tests/eight-point.test.mjs), [wedge.test.mjs](skills/wedge-demo/tests/wedge.test.mjs), H2D/Dobot wedge tests above |
-| Documentation links, decision metadata and private-file exclusions | `node scripts/check-repo.mjs` | No manufacturing test selection needed for prose-only edits |
+| Skill catalog, generated digest freshness and coverage | [skill-digest.test.mjs](core/tests/skill-digest.test.mjs) | MCP catalog tests when shared discovery changes |
+| [gridfinity](skills/gridfinity/SKILL.md) | | [gridfinity](skills/gridfinity/tests/gridfinity.test.mjs), [gridfinity](skills/gridfinity/tests/access.test.mjs) |
+| Text outlines, independent references, solid modifiers and editable geometry | MCP integration for `apply_text` | [text.test.mjs](skills/text/tests/text.test.mjs): analytical material volume, counters, spline conversion, curved text, persistence and generation |
+| Documentation links, open build-request structure, devlog presence, skill digest freshness and coverage, decision metadata and private-file exclusions | `node scripts/check-repo.mjs` | No manufacturing test selection needed for prose-only edits |
 
 Run selected files directly, for example:
 
@@ -113,7 +135,7 @@ node scripts/check-repo.mjs
 ```
 
 `npm test` remains the single full-suite command; selecting focused files does
-not change its membership or replace the full run required at commit.
+not change its membership or replace the full local run required at commit.
 
 ### Checks must earn their place
 
@@ -140,6 +162,8 @@ work; the person need not request it separately:
 1. Run `npm run first-run`. It requires Node.js 22+, installs the locked
    dependencies when necessary, and performs a lightweight runtime and Studio
    check. It also offers the skippable [guided tour](GETTING_STARTED.md).
+   This short check needs no Git metadata and creates no toolpath or manufacturing
+   approval. Do not run the full regression suite as maker onboarding.
 2. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
@@ -154,7 +178,6 @@ and Git.
 
 ```sh
 npm run first-run
-npm test
 npm run demo
 npm run studio
 npm run check:print
@@ -174,11 +197,13 @@ an explicit port. Each launch is independent. Pass a
 print directory after `--` to the Studio script to open another bundle.
 There is no hardware connection or automatic machine execution.
 
-`scripts/check-repo.mjs` checks local document links and heading anchors, decision-record structure
-and approval metadata, and exclusion of private Prints and local artifacts.
+`scripts/check-repo.mjs` checks local document links and heading anchors, open
+build-request structure and devlog presence, skill digest freshness and catalog
+coverage, decision-record structure and approval metadata, and exclusion of
+private Prints and local artifacts.
 It does not verify that a human actually approved a decision or that a part is
 printable. The subsequent Node tests check manufacturing software behavior.
-CI installs dependencies and runs the same tests. Synthetic approval tests use
+The optional manual CI run installs dependencies and runs the same tests. Synthetic approval tests use
 temporary bundles and never authorize the person's real print.
 
 ## Documentation maintenance
@@ -198,13 +223,54 @@ what knowledge a change needs to leave behind. The document owners are:
 | Pattern or preparation-task tools, settings and limits | The relevant [skill manual](skills/README.md) |
 | Shared terms | [GLOSSARY.md](GLOSSARY.md) |
 | Contributor decisions and approval status | [DECISIONS.md](DECISIONS.md) |
-| Requested work and implementation records | [build_request.md](build_request.md) |
+| Outstanding or incomplete work | [build_request.md](build_request.md#outstanding-work) |
+| Dated work records, measurements and observations | [DEVLOG.md](DEVLOG.md) |
 
 Update the owning account alongside a change and link to it from the entry
-points that need it. Describe the present system in current guidance. Dated
-decisions, requested proposals, measurements and external observations retain
-their scope and status; link them when they explain a live constraint or question.
-History remains available for investigating superseded details.
+points that need it. Write current contracts, manuals, proposals and open work
+in present tense (or imperatives for instructions). State a proposal's status
+explicitly; conditional wording describes proposed behavior without presenting
+it as implemented. Move change narratives, completed-work summaries, dated test
+results, benchmark runs and external observations to the devlog. Keep current
+limits and reproducible procedures at their owner, with links to historical
+evidence when it explains a live constraint. Git retains superseded source.
+
+Work normally proceeds build-first within the user's authorization. Do not create
+a build request just to document work that can be completed in the current task.
+Use the open list for an explicit outstanding request, incomplete implementation
+or unresolved acceptance check. Use a `### BR-NNN — Title` heading with `Status`
+(`open`, `in progress` or `blocked`), `Remaining`, `Completion` and `Context`
+fields; `Source` is optional. An unsupported capability or deferred
+idea is not automatically a request; deferred direction belongs in decisions or
+a clearly labeled proposal. An empty open list is valid.
+
+On completion, update the current manuals, add a dated devlog entry with the work
+and actual verification scope, and remove the request from the open list. If
+only part is complete, move that part's work record to the devlog and leave only
+the remainder in the request. Preserve request IDs for continuity; new devlog
+entries need no request ID. Redirect evidence links to the devlog when moving
+records. Do not copy entire contracts into the log or turn test counts into
+claims of present coverage or physical success.
+
+Date devlog entries by the work or observation when evidence supports it. Cite
+the dated source or commit; distinguish a request date or commit checkpoint from
+an exact completion date. Preserve explicit follow-up dates and timezone
+conventions. Mark an unknown work date as unknown and record the migration or
+recording date separately. Never backdate from file modification time alone.
+
+The present-tense rule has narrow provenance exceptions: decision source quotes,
+approval/status events and preserved approved wording in [DECISIONS.md](DECISIONS.md);
+exact quotations; and license, third-party source or fixture provenance notices.
+These retain their wording and dates. Their surrounding current guidance still
+uses present tense. A development narrative or benchmark result is not an
+exception merely because it appears in a technical reference.
+
+Before finishing a task, check these owners and run the documentation check.
+`scripts/check-repo.mjs` checks the open-request structure and devlog links so
+completed statuses and work-record fields cannot quietly return to build
+requests. Semantic review still determines whether prose describes open work
+or history; a broad grammatical tense checker is not reliable for code examples
+and technical terms.
 
 Choose the owner by the question the material answers: operating a capability
 belongs in its task manual; its algorithms and implementation contracts belong
@@ -215,8 +281,17 @@ cover preparation and recovery as well as deposition patterns. Document the
 operations that actually exist as the capability develops.
 
 Task manuals declare `metadata.saam-kind: task` in their skill frontmatter so
-the connector can distinguish them from printing patterns. Its known skill list
-controls registration; the manual owns its description and classification.
+the connector can distinguish them from printing patterns. The explicit
+[skill catalog](skills/catalog.mjs) controls discovery and digest ordering;
+the manual owns its description and classification.
+
+Each skill's frontmatter description explains its capability, value and essential
+selection boundaries. The [maker digest](skills/README.md) and MCP catalog reuse
+that description. After changing it or catalog membership, run
+`node scripts/skill-digest.mjs` to refresh the Markdown table. The repository
+check detects stale output and manuals missing from the catalog. Keep these
+descriptions accurate as behavior changes; generated agreement cannot establish
+that a capability claim is true.
 
 Place specialized guidance where it becomes useful. Ordinary import leads to
 the import instructions; a rejected mesh points to diagnosis and processing.

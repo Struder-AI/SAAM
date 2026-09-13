@@ -14,6 +14,12 @@ reopening, setup reuse, upgrades and delivery. Shell and wedge adapters supply
 their recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema.
 
+The [text preparation entry](text.mjs) compiles editable font/surface features
+into the same native mesh geometry used by Studio and slicing, then calls
+`updatePlan`. It retains the original target and exact font bytes in the geometry
+recipe. Reopening checks the saved result without rerunning its construction;
+text edits reconstruct from the retained source and invalidate geometry review.
+
 Generate the machine-declared export directly from the approved complete plan,
 using transient motion objects. Check its actual commands before Studio plays
 that export for toolpath approval. Delivery copies those reviewed bytes unchanged.
@@ -84,9 +90,15 @@ and renders each distinct thumbnail size once. Griffin validates the input path
 through its motion writer; Dobot setup checks installation fields in one pass.
 Derived-section topology, material/support intersections, dependency cycles,
 numerical budgets and machine commands are checked where those inputs first
-exist. See the [validation audit and remaining work](../../build_request.md#br-039--remove-repeated-validation-and-make-slicing-progress-truthful).
+exist. See the [remaining validation work](../../build_request.md#br-039--slicing-latency-and-remaining-validation-duplication).
 
 ## Print bundle and current formats
+
+[Volumetric fields](../geom/VOXEL.md) use `shape: "voxel"` records with the field,
+extraction settings and checked manufacturing mesh retained together in the
+native JSON asset. Shared generation sections that mesh; Studio displays it.
+Field edits explicitly rebuild the mesh through the [voxel task](../../skills/voxel-tools/SKILL.md)
+and invalidate geometry, plan and toolpath approvals through this same lifecycle.
 
 The shared workflow stores one directory per print (wedge filenames shown):
 

@@ -4,8 +4,9 @@ The experimental PacScript output contract and unresolved installation requireme
 
 ### DENSO RC8 output contract
 
-The user authorized the [pipe-cladding implementation](../../skills/pipe-cladding/SKILL.md)
-and confirmed RC8. The [VP-6242 profile](../../machines/denso-vp6242-rc8.json) represents
+The [pipe-cladding implementation](../../skills/pipe-cladding/SKILL.md) targets RC8;
+[BR-033](../../DEVLOG.md#br-033--denso-rc8-rotary-pipe-demo) records the user's scope.
+The [VP-6242 profile](../../machines/denso-vp6242-rc8.json) represents
 a six-joint arm plus one external rotary; the printing task's position/direction
 control is not a claim that the robot has only five joints. Ceiling mounting
 with J1 coaxial with the rotary is provisional. At a chosen outward radius the
@@ -78,10 +79,10 @@ printing remain open commissioning work.
 
 Interoperability is shared at geometry storage, ordinary section/offset/boolean
 tools, full-fill/concentric substrate generation, operations, motion, output
-registry, exact-source Studio, approvals, cold reopening and delivery. The new
+registry, exact-source Studio, approvals, cold reopening and delivery. The circular
 radial skill is restricted to a native circular pipe aligned with the rotary;
 general CAD cylindrical recognition and inward radial material-region interfaces are
-not implemented. Explicit surface cladding now also accepts a periodic native
+not implemented. Explicit surface cladding also accepts a periodic native
 spline patch or mapped native triangle strip through
 [surface-region](../geom/surface-region.mjs). Shared
 [normal-surface](../region/normal-surface.mjs) operations evaluate outward normal
@@ -98,7 +99,7 @@ cladding remain unimplemented.
 Tests include the existing mesh/spline base-vase-cap-infill-drape stack at fixed
 orientation on RC8, bounded wedge and ordinary pipe geometry on S5.
 
-Large RC8 programs can exceed 64 helper files. Shared ZIP output now uses the
+Large RC8 programs can exceed 64 helper files. Shared ZIP output uses the
 ZIP32 non-sentinel entry limit of 65,534 while retaining CRC, path, size, overlap
 and inventory checks. Studio streams the exact checked source inventory in one
 NDJSON response instead of reloading the archive per helper. The browser still

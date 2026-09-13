@@ -3,7 +3,7 @@ import { lstat, readFile } from 'node:fs/promises';
 import { resolve, posix } from 'node:path';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'DEVELOP.md',
-  'CONTRIBUTING.md', 'GETTING_STARTED.md', 'GLOSSARY.md', 'DECISIONS.md', 'build_request.md', 'CLAUDE.md']);
+  'CONTRIBUTING.md', 'GETTING_STARTED.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md']);
 const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'materials', 'adapters', 'scripts']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {

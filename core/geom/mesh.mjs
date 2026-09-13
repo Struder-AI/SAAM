@@ -80,7 +80,10 @@ function rejectIntersections(vertices,triangles,normals) {
     if(ta.some(v=>tb.includes(v)))continue;
     requireMeshInput(++checks<=2000000,'Mesh intersection check limit exceeded; simplify the mesh explicitly.');
     const separated=separatedTriangles(ta.map(v=>vertices[v]),tb.map(v=>vertices[v]),normals[a.i],normals[b.i]);
-    requireMeshInput(separated,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');
+    if(!separated){
+      try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}
+      catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[a.i,b.i],points:[ta,tb].map(t=>t.map(v=>vertices[v]))};throw error;}
+    }
   }
 }
 

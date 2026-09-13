@@ -9,15 +9,17 @@ authorship, silence, agent work, or agreement on a different decision.
 
 SAAM Studio has approval from both contributors as explicitly reported by
 remettub. Other entries record only the approvals stated in their metadata.
-The timestamp is when the instructions were recorded; the conversation does not
+The timestamp identifies instruction recording; the conversation does not
 expose an exact timestamp for the human's message.
 
 Contributor status and current work authorization are distinct. Entries D-021
-onward record explicit user direction whose contributor identity was not
-attributed; `proposed` does not negate that authorization. Follow their stated
+onward record explicit user direction without attributed contributor identity; `proposed` does not negate that authorization. Follow their stated
 scope for implementation. Earlier attributed approvals remain historical
 records and are not extended to later wording. In particular, [D-027](#d-027--export-only-print-persistence)
 owns current print persistence; D-015 and D-019 preserve the earlier wording.
+Work history belongs in [DEVLOG.md](DEVLOG.md). Decision quotations, approval
+events and approved wording retain their historical tense and dates under the
+[provenance exception](CONTRIBUTING.md#documentation-maintenance).
 
 ## Statuses
 
@@ -282,7 +284,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Approvals: Current user explicitly requested implementation and recording of the heat deferral; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in the region-ordering task, 2026-09-10: “We don't need to consider heat (yet - record this decision to defer these considerations).” Follow-up in the same message: “Just a simple \"jump to closest entry point\" would be a massive improvement already. Let's implement that first, show it to me on the flange part, and then we will see if a more complex algorithm is justified.”
 - Scope: Active implementation instruction, including the 2026-09-10 endpoint correction. Compare both endpoints of both end rows (up to four entries) by straight-line XYZ distance; choose row order and stroke direction independently. Keep operation/support dependencies, shared travel handling and existing layer cooling. Lookahead, travel-time scoring and heat balancing are deferred.
-- Correction source: the user observed missed nearest entries in flange playback near 5:08. The initial two-entry implementation and subsequent comparison measurements are retained in [BR-036](build_request.md#br-036--closest-entry-ordering-for-segmented-fill).
+- Correction source: the user observed missed nearest entries in flange playback near 5:08. The initial two-entry implementation and subsequent comparison measurements are retained in [BR-036](DEVLOG.md#br-036--closest-entry-ordering-for-segmented-fill).
 
 ## D-027 — Export-only print persistence
 
@@ -290,5 +292,5 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Status: proposed
 - Recorded: 2026-09-11T21:41:51Z
 - Approvals: Current user explicitly requested the persistence change; remettub — not attributed in the source record; tkeller — not recorded.
-- Source: User instruction recorded 2026-09-10 in [BR-030](build_request.md#br-030--export-only-bundles-and-measured-flange-speed): remove mandatory saved SAAMpath and regeneration on Studio reopen. This is a summary of the preserved request, not a verbatim quotation.
+- Source: User instruction recorded 2026-09-10 in [BR-030](DEVLOG.md#br-030--export-only-bundles-and-measured-flange-speed): remove mandatory saved SAAMpath and regeneration on Studio reopen. This is a summary of the preserved request, not a verbatim quotation.
 - Scope: Current implementation direction replaces the saved-path requirement in D-015/D-019. Their attributed approval metadata is preserved; formal contributor supersession remains unresolved. Local-only storage, curated sharing, machine-declared outputs and the three job approvals are unchanged.

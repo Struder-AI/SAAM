@@ -5,8 +5,9 @@ import {offsetRegion} from '../../../core/region/offset.mjs';
 import {union,intersect,difference} from '../../../core/region/intersection.mjs';
 import {regionArea} from '../../../core/region/region2d.mjs';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {lineSpacing} from '../../../core/path/spacing.mjs';
 
-export const SUPPORT_DEFAULTS={enabled:false,assignments:[],density:0.15,interfaceDensity:0.8,
+export const SUPPORT_DEFAULTS={enabled:false,spacingFactor:1,assignments:[],density:0.15,interfaceDensity:0.8,
   interfaceLayers:2,topGapMm:0.2,xyGapMm:0.3,perimeters:1,fillAnglesDeg:[0,90],treeChordMm:0.02};
 
 const exact=(value,fields)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).sort().join()===fields.split(',').sort().join();
@@ -109,11 +110,11 @@ export function supportResults({plan,machine,shells,modelResults}) {
   }
   const shell={bounds:{min:[0,0,0],max:[0,0,top]}};
   const indexAt=z=>Math.round((z-process.firstLayerMm)/process.layerMm);
-  const shared={shell,plan,machine,sectionAt:z=>({loops:cache.get(indexAt(z)).region}),settings:{...settings,minFeatureMm:0.4,fillOverlap:0.15}};
+  const shared={shell,plan,machine,sectionAt:z=>({loops:cache.get(indexAt(z)).region}),settings:{...settings,spacingFactor:settings.spacingFactor??1,minFeatureMm:0.4,fillOverlap:0.15}};
   const interiors=new Map();
-  const body=fullFillResult({...shared,id:'supports',spacingMm:process.lineWidthMm/settings.density,
+  const body=fullFillResult({...shared,id:'supports',spacingMm:lineSpacing(process.lineWidthMm,settings)/settings.density,
     interiorRegion:(region,i)=>{interiors.set(i,region);return difference(region,cache.get(i).interfaceRegion);}});
-  const surface=fullFillResult({...shared,id:'supports:interface',settings:{...shared.settings,perimeters:0},spacingMm:process.lineWidthMm/settings.interfaceDensity,
+  const surface=fullFillResult({...shared,id:'supports:interface',settings:{...shared.settings,perimeters:0},spacingMm:lineSpacing(process.lineWidthMm,settings)/settings.interfaceDensity,
     fillRegionAt:(_region,i)=>cache.get(i).interfaceRegion.length?intersect(interiors.get(i),cache.get(i).interfaceRegion):[]});
   const all=[...body.operations,...surface.operations];
   const byLayer=new Map(),wallsByLayer=new Map(),byRank=new Map();

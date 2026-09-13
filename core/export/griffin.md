@@ -1,6 +1,6 @@
-# Griffin output and S5 observations
+# Griffin output
 
-The S5 output contract and scoped machine observations. See the [shared machine interface](README.md) for common motion semantics.
+The S5 output contract and current verification limits. See the [shared machine interface](README.md) for common motion semantics.
 
 ## S5 setup and troubleshooting
 
@@ -19,8 +19,8 @@ useful when it resolves a concrete compatibility question.
 
 Record user-reported findings separately from assumptions and physical
 verification, and [remember the setup](../print/USAGE.md#remember-machine-setup)
-for subsequent jobs. The observations below identify which export and behavior
-have been reported; they do not establish the behavior of every S5 installation.
+for subsequent jobs. The linked devlog observations identify their export and
+behavior; they do not establish the behavior of every S5 installation.
 
 ## Machine program templates and S5 observations
 
@@ -38,12 +38,12 @@ The Griffin/H2D modal reader has no arbitrary program-size cutoff. It walks
 lines incrementally rather than splitting the entire program into a line array;
 the shared reader also accepts an iterable of text chunks and preserves machine
 state, CRLF handling and source line numbers across chunk boundaries. Every
-command still passes the same checks, including commands after the former
-25-million-character boundary. This is incremental parsing, not a fully streamed
+command passes the same checks regardless of position in the file.
+This is incremental parsing, not a fully streamed
 bundle: generation, retained playback moves and
 browser transfer still use memory proportional to the job.
 
-The former 64 MB ZIP policy is also removed. H2D and Dobot keep the declared
+H2D and Dobot have no arbitrary archive-size cutoff. They keep the declared
 ZIP32 container and integrity checks (CRC, member ranges, declared decompression
 length, names and exact expected package contents). Its actual 32-bit member
 size/offset boundary remains: a member or offset requiring ZIP64 is unsupported
@@ -54,26 +54,18 @@ them, rather than a reason to force smaller parts or lower print quality.
 
 ### S5 startup observations
 
-On 2026-09-08 the user reported that the **last wedge change** achieved no routine
-bed leveling and no heating of the unused nozzle. The reported envelope used
-Griffin compatibility `4.4.0`, SAAM's own version field, build date, material GUID,
-build-volume metadata, active-tool temperature commands, no G280, and shutdown.
-The default recipe uses nozzle #2/T1. Earlier that day the user reported initial
-under-extrusion; the wedge recipe then accounted for its terminal retraction on
-the next start. These observations apply to that export revision, not every S5 run.
+The [devlog](../../DEVLOG.md#2026-09-08-to-2026-09-10--s5-startup-observations)
+preserves the revision-specific reports of leveling, unused-nozzle heating and
+initial under-extrusion. They do not establish behavior on every S5 installation.
 
-The user subsequently reported having to push filament to compensate on every
-start. The shell generator had treated the S5 handoff as unretracted, leaving
-the preceding job's withdrawal outstanding after its initial retract/recover
-pair. Shell and wedge generation now share the interpreter's S5 startup-state
-rule: recover the configured retraction once at the first deposition location,
-without another initial withdrawal. H2D retains its unretracted handoff; zero
-retraction and relay output add no recovery. The emitted commands are corrected;
-physical startup with the correction has not yet been reported.
+Shell and wedge generation share the interpreter's S5 startup-state rule:
+recover the configured retraction once at the first deposition location without
+another initial withdrawal. H2D uses an unretracted handoff; zero retraction and
+relay output add no recovery. Physical confirmation of this correction is open.
 
-On 2026-09-10 the user reported that their observed S5 startup differs from the
-listed template behavior; the exact file and extra actions are not yet identified.
+The actual export and extra firmware actions for the reported startup discrepancy
+remain unidentified; see [open diagnosis](../../build_request.md#br-043--s5-startup-diagnosis).
 Absence of explicit leveling or unused-heater commands does not establish that
 Griffin firmware skips those actions. Retained snapshots and delivered bytes can
 predate the current profile. Diagnose the actual file and printer behavior before
-applying the earlier observation. Complete physical print validation remains open.
+applying an earlier observation. Complete physical print validation remains open.
