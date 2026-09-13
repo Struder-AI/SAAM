@@ -1,5 +1,60 @@
 # Development log
 
+## 2026-09-13 — Publication review before fork transition
+
+Reconciled GitHub's PR #4 merge through local merge `f4ea2d8`; its tree and
+the existing uncommitted diff were unchanged. Reused the focused verification
+recorded below; the whitespace diff check passed without another software run.
+The user requested publication before creating a fork. Review observations
+remain unresolved: tracked .NET build artifacts in `scripts/bench/obj/`, an
+apparently unreferenced repaired STL at the root, and the Tippy importer's
+missing interpolation recheck after inserting corrected poses. Its current
+coverage report therefore overstates verification of the final adapted motion.
+
+## 2026-09-13 — Tippy wavy cladding preview
+
+Renamed the machine display to Tippy while retaining profile ID `tilty` and its
+existing model parameters. Adapted the early DENSO bumpy spline demo, including
+its six alternating axial/helical cladding shells, into a stationary-bed study
+at 2× scale, selected for the user's requested quick preview. Its deposited
+extent is approximately 62.5 × 65.3 × 64 mm.
+
+The importer compacts short recorded paths, aggregates time/material, scales
+bead dimensions, removes rotary/tool roll and adapts inclination to Tippy.
+Cladding keeps at least 20° where the source permits, with at most 5° further
+reduction from the original-size Tippy adaptation. That initial adaptation is
+larger than five degrees at steep source patches and was explained separately.
+Intermediate tilt poses handle transitions that cross the main-arm envelope.
+The study retains source phase, operation and layer labels for Studio display.
+
+The saved report records 887,228 model pose checks and source identity. Six
+focused study checks pass, including preservation of the cladding phase/layer
+metadata. This is a scaled recorded-path preview for parameter tuning, not a
+regenerated nozzle-specific slice, global maximum or executable Tippy program.
+
+## 2026-09-13 — Tilty containment and main-arm envelope
+
+Added the requested rail-radius boundaries for the nozzle, circular carrier
+plate and triangular rear tilt plate. Defined the main-arm envelope as the
+three inward side planes containing the paired main rods, extended upward.
+Every tilt-rod endpoint must lie inside every plane, containing the full rods
+and tilt triangle by convexity. The same signed margins drive inverse validity
+and manual slider coupling. Physical thickness and contact clearance remain
+outside this nominal geometric model.
+
+Revision 6 shortens the lower main rails to 249.5 mm and tilt rails to
+284.3/287.4/287.4 mm. Upper limits remain 650 mm. Offline interval subdivision
+and full-model reachable witnesses bounded all six minima to within 1 mm;
+rounding lower stops down preserves modeled reach. X/Y sliders now span the
+180 mm rail radius and Studio draws its circular footprint. The height span
+is conservatively bounded from the contained carrier geometry. Existing study
+motion is retained while its machine snapshot receives the new definition.
+
+All 29 focused machine and Studio checks passed. Evidence includes independent
+radius and envelope rejection, valid poses at all four radial slider extremes,
+near-bottom rail witnesses, interval bounds at those poses, and combined rail,
+tilt, envelope and radial jogging with the assembly remaining ready.
+
 Date entries by the work or observation when evidence supports it; cite the
 dated source or commit and distinguish request, checkpoint and completion dates.
 Preserve explicit follow-up dates and timezones. If the work date is unknown,
@@ -22,6 +77,11 @@ The user's follow-up established whole-checkout commits as the default for an
 authorized checkpoint: all non-ignored work, including concurrent contributions
 and unfinished increments, unless explicitly excluded. Recording shared state
 did not establish completion, review or selective-adoption approval.
+
+The user also distinguished local checkpoints from remote publication: the
+pre-push guidance favored a complete result at the outgoing branch head while
+allowing intentional work-in-progress pushes with their purpose and remaining
+work stated. This added no hard gate, approval requirement or verification pass.
 
 The verification wording reused valid evidence instead of triggering new checks
 at publication or from skill manuals. The repository document check passed for

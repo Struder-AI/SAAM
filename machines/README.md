@@ -38,7 +38,7 @@ cylinder/track assessment and a simulation-only source interpreter; production
 controller output is unavailable. The same lab exposes a nominal MG400 linkage
 model without changing the configured Dobot Lua output or claiming calibration.
 
-[tilty.json](tilty.json) describes a horizontal-carrier delta with a two-axis
+[tilty.json](tilty.json) defines Tippy, a horizontal-carrier delta with a two-axis
 gimballed hotend and three rear tilt rods. Six actuators control five tool
 coordinates. It is available for mechanism studies only; no printing output or
 physical workspace is claimed.

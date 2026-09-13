@@ -13,6 +13,24 @@ Supported IDs are `tilty`, `split-delta`, `dobot-mg400`, `denso-vp6242-rc8`,
 the default study's non-depositing path. Geometry and process approval are
 unavailable; this source is not a machine program.
 
+Tippy's existing profile ID is `tilty`. To adapt a saved DENSO source into a
+Tippy study at an explicit uniform scale:
+
+```sh
+node tools/kinematics/fit-denso-tippy.mjs Prints/development/denso-bumpy-spline Prints/development/tippy-wavy-cladding 2
+node studio/server.mjs Prints/development/tippy-wavy-cladding
+```
+
+The importer compacts short recorded part-relative paths into preview chords,
+retains phase/layer order and aggregates duration/material. It scales bead
+dimensions and volume and removes the rotary. It changes
+tool inclination to fit Tippy while retaining its azimuth; the report records
+that adaptation and the checked motion. Cladding retains at least 20° (or its
+smaller original inclination), with at most 5° further reduction from Tippy's
+original-size adapted approach. This is a scaled recorded-path study, not a
+new slice for the configured nozzle or a controller program. Omitting scale
+searches a centered uniform fit under that policy; it is not a global optimum.
+
 In Machine view, **Tool position** sliders move the simulated tool in XYZ and
 the model's supported orientation axes. Moving a slider pauses playback. Use
 **Return to playback**, Play or the timeline to resume source positioning.
@@ -77,9 +95,14 @@ node tools/kinematics/rail-limits.mjs
 ```
 
 This authoring calculation reads the Tilty profile and reports lower carriage
-limits for nozzle positions at or above the bed. It bounds tilt-rail minima
-over the allowed gimbal range to 0.02 mm, includes reachable witness poses,
-and rounds lower stops down to 0.1 mm. It does not edit the profile or run
-during playback. Recalculate after changing mechanism dimensions or the tilt
-cone or rod angular reserve, then put the reported `railMinMm` and `tiltRailMinMm` in the machine
-definition and refresh existing study snapshots.
+limits for nozzle positions at or above the bed. Interval subdivision over
+carrier XY and gimbal angles includes the rail cylinder, main-arm envelope,
+rod reserve and upper travel. Full-model reachable witnesses bound the minima
+from above; the interval relaxation bounds them from below to within 1 mm.
+Lower stops are rounded down to 0.1 mm. The command fails if it cannot close
+that gap. This offline calculation can take a few minutes; it does not edit
+the profile or run during playback. Recalculate after changing dimensions,
+containment boundaries, tilt cone or rod reserve, then put the reported
+`railMinMm` and `tiltRailMinMm` in the machine definition and refresh study
+snapshots. Retained witness and interval checks cover ordinary regressions
+without repeating the global search.

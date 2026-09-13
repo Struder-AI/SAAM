@@ -18,12 +18,28 @@ test('Tilty enforces four degrees before rod inversion and rejects a parallel si
   const g=tiltyGeometry({railMinMm:0,tiltRailMinMm:[0,0,0]}),a=g.maxTiltDeg*Math.PI/180,R=gimbalRotation(0,a);
   const atElevation=degrees=>tiltyInverse(g,{tcp:[g.towerRadiusMm-g.platformRadiusMm-g.rodLengthMm*Math.cos(degrees*Math.PI/180)-g.toolLengthMm*Math.sin(a),0,0],rotation:R});
   const safe=atElevation(4.01),unsafe=atElevation(3.99);
-  assert.ok(safe.valid,safe.errors.join());near(safe.minRodElevationDeg,4.01);
+  assert.doesNotMatch(safe.errors.join(),/elevation reserve/);near(safe.minRodElevationDeg,4.01);
   assert.equal(unsafe.valid,false);assert.match(unsafe.errors.join(),/elevation reserve/);
   const singular=tiltyInverse(tiltyGeometry({towerRadiusMm:35,platformRadiusMm:35,rearRadiusMm:35}),{tcp:[0,0,0],rotation:identity()});
   near(singular.minRodElevationDeg,90);assert.equal(singular.valid,false);
   assert.match(singular.errors.join(),/parallel singularity/);assert.ok(singular.singularRatio<.02);
   assert.throws(()=>tiltyGeometry({marginDeg:-1}),/singularity reserve/);
+});
+test('Tilty contains the nozzle, complete carrier and tilt triangle in the rail cylinder and rods in the main-arm envelope',()=>{
+  const g=tiltyGeometry(),solve=(tcp,a=0,b=0)=>tiltyInverse(g,{tcp,rotation:gimbalRotation(a*Math.PI/180,b*Math.PI/180)});
+  assert.ok(solve([0,0,0]).valid);
+  assert.match(solve([181,0,0]).errors.join(),/Nozzle exceeds rail radius/);
+  assert.match(solve([146,0,0]).errors.join(),/Carrier plate exceeds rail radius/);
+  assert.match(solve([100,0,0],0,40).errors.join(),/Tilt plate exceeds rail radius/);
+  const envelope=solve([0,0,0],0,40);
+  assert.match(envelope.errors.join(),/main-arm envelope/);
+  assert.doesNotMatch(envelope.errors.join(),/exceeds rail radius/,'envelope is an independent boundary');
+  for(const [tcp,a,b] of [[[180,0,0],0,-30],[[-180,0,0],0,30],[[0,180,0],30,0],[[0,-180,0],-30,0]]){
+    const s=solve(tcp,a,b);assert.ok(s.valid,s.errors.join());
+    for(const rod of s.rods.filter(r=>r.kind==='tilt'))for(const t of [0,.25,.5,.75,1]){
+      const p=rod.from.map((v,i)=>v+(rod.to[i]-v)*t);assert.ok(Math.hypot(p[0],p[1])<=g.towerRadiusMm+1e-7);
+    }
+  }
 });
 test('Tilty compensates nozzle lever, keeps carrier level and rejects independent roll/inconsistent actuators',()=>{
   const g=tiltyGeometry(),tcp=[5,8,25],R=gimbalRotation(.2,-.25),s=tiltyInverse(g,{tcp,rotation:R});assert.ok(s.valid);

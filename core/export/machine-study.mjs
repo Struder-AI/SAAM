@@ -27,8 +27,8 @@ export function interpretMachineStudy(source,{moves=[]}={}){
     if(s.orientation==='gimbal-rx-ry'&&(anglesFrom[2]!==0||anglesTo[2]!==0))throw Error('Two-axis gimbal has no independent roll coordinate');
     const length=Math.hypot(...to.map((v,j)=>v-from[j]));
     moves.push({from,to,anglesFrom,anglesTo,interpolation:s.orientation,startSeconds:seconds,durationSeconds:dt,
-      line:i+1,file:'motion.json',extruding:amount>0,volumeMm3:amount,commandedVolumeMm3:amount,phase:amount>0?'study':'travel',
-      operation:'mechanism-study',layer:0,fan:0,speedMmS:length/dt});
+      line:i+1,file:'motion.json',extruding:amount>0,volumeMm3:amount,commandedVolumeMm3:amount,phase:typeof command.phase==='string'?command.phase:amount>0?'study':'travel',
+      operation:typeof command.operation==='string'?command.operation:'mechanism-study',layer:Number.isInteger(command.layer)?command.layer:0,fan:0,speedMmS:length/dt});
     seconds+=dt;volume+=amount;from=to;anglesFrom=anglesTo;
   }
   return {moves,events:[],seconds,volumeMm3:volume,language:'machine-study',notice:'Mechanism study only. Authored motion and nominal kinematics; no machine program or print approval.',

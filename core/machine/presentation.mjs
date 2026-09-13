@@ -48,6 +48,9 @@ export async function createMachinePresentation({program,machine,setup={},source
     coordinateBounds.min[2]=0; // Study bed plane; no nozzle below the bed.
     if(tilty)coordinateBounds=tiltyBounds(g);
     if(tilty){
+      const bedComponent=components.find(c=>c.id==='bed');bedComponent.label='Rail-radius footprint';
+      bedComponent.shape.pointsMm=Array.from({length:64},(_,i)=>[g.towerRadiusMm*Math.cos(i*Math.PI/32),g.towerRadiusMm*Math.sin(i*Math.PI/32),0]);
+      limits.push(`Nozzle, carrier plate and tilt plate stay within the ${g.towerRadiusMm} mm rail radius. Tilt rods and their triangular plate stay inside the main-arm envelope, defined by the three paired-arm side planes.`);
       for(let i=0;i<3;i++){const e=g.towers[i],t=[-e[1],e[0],0],base=scale(e,g.towerRadiusMm);
         for(const side of [-1,0,1])line(`rail-${i}-${side}`,'rail',add(base,add(scale(t,side*g.pairSpacingMm/2),[0,0,side===0?g.tiltRailMinMm[i]:g.railMinMm])),add(base,add(scale(t,side*g.pairSpacingMm/2),[0,0,g.railMaxMm])));
         box('main-carriage-'+i,'carriage',[16,g.pairSpacingMm+12,12]);box('tilt-carriage-'+i,'carriage',[12,12,12]);

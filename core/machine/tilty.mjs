@@ -5,7 +5,7 @@ import {singularValues} from './split-delta.mjs';
 // the carrier level; Rx(pitch) Ry(tilt) is a two-axis, roll-constrained gimbal.
 export const TILTY_DEFAULTS=Object.freeze({towerRadiusMm:180,platformRadiusMm:35,pairSpacingMm:30,
   rodLengthMm:350,tiltRodLengthMm:350,toolLengthMm:70,rearLengthMm:120,rearRadiusMm:20,
-  railMinMm:78,tiltRailMinMm:[163.2,160.7,160.7],railMaxMm:650,maxTiltDeg:40,marginDeg:4,minSingularRatio:.02});
+  railMinMm:249.5,tiltRailMinMm:[284.3,287.4,287.4],railMaxMm:650,maxTiltDeg:40,marginDeg:4,minSingularRatio:.02});
 export function tiltyGeometry(config={}){
   const g={...TILTY_DEFAULTS,...config};
   for(const key of Object.keys(TILTY_DEFAULTS))if(key!=='tiltRailMinMm'&&!Number.isFinite(g[key]))throw Error('Invalid Tilty '+key);
@@ -17,26 +17,13 @@ export function tiltyGeometry(config={}){
   g.towers=Array.from({length:3},(_,i)=>{const a=i*2*Math.PI/3;return [Math.cos(a),Math.sin(a),0];});return g;
 }
 export const gimbalRotation=(pitch,tilt)=>mm(rotation([1,0,0],pitch),rotation([0,1,0],tilt));
-// Bound carrier travel by the intersection of its three main-rod reach disks.
-// Circle extrema/intersections bound XY; Voronoi-edge endpoints bound the longest
-// unavoidable vertical rod projection and therefore the highest possible TCP.
+// The tip stays in the rail cylinder. The carrier center stays in a concentric
+// disk of radius towerRadius-platformRadius. Within that disk at least one of
+// the three main reach centers is no farther than that radius from the carrier.
+// This bounds height conservatively; the solver owns the coupled boundaries.
 export function tiltyBounds(g){
-  const centers=g.towers.map(e=>scale(e,g.towerRadiusMm-g.platformRadiusMm)),L=g.rodLengthMm*Math.cos(g.marginDeg*Math.PI/180),candidates=[];
-  const inside=p=>centers.every(c=>Math.hypot(p[0]-c[0],p[1]-c[1])<=L+1e-7);
-  const addPoint=p=>{if(inside(p))candidates.push(p);};addPoint([0,0]);
-  for(const c of centers)for(const [x,y] of [[L,0],[-L,0],[0,L],[0,-L]])addPoint([c[0]+x,c[1]+y]);
-  for(let i=0;i<3;i++)for(let j=i+1;j<3;j++){
-    const a=centers[i],b=centers[j],d=Math.hypot(b[0]-a[0],b[1]-a[1]);if(d<1e-9)continue;
-    const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2],u=[-(b[1]-a[1])/d,(b[0]-a[0])/d];
-    for(const c of centers){const x=mid[0]-c[0],y=mid[1]-c[1],v=x*u[0]+y*u[1],q=L*L-x*x-y*y+v*v;if(q<0)continue;
-      for(const t of [-v-Math.sqrt(q),-v+Math.sqrt(q)])addPoint([mid[0]+t*u[0],mid[1]+t*u[1]]);
-    }
-  }
-  if(!candidates.length)throw Error('Tilty main rods have no common working area');
-  const side=g.toolLengthMm*Math.sin(g.maxTiltDeg*Math.PI/180),vertical=g.toolLengthMm*Math.cos(g.maxTiltDeg*Math.PI/180);
-  const farthest=Math.max(...candidates.map(p=>Math.min(...centers.map(c=>Math.hypot(p[0]-c[0],p[1]-c[1])))));
-  return {min:[Math.min(...candidates.map(p=>p[0]))-side,Math.min(...candidates.map(p=>p[1]))-side,0],
-    max:[Math.max(...candidates.map(p=>p[0]))+side,Math.max(...candidates.map(p=>p[1]))+side,g.railMaxMm-Math.sqrt(Math.max(0,g.rodLengthMm**2-farthest*farthest))-vertical]};
+  const r=g.towerRadiusMm-g.platformRadiusMm,vertical=g.toolLengthMm*Math.cos(g.maxTiltDeg*Math.PI/180);
+  return {min:[-g.towerRadiusMm,-g.towerRadiusMm,0],max:[g.towerRadiusMm,g.towerRadiusMm,g.railMaxMm-Math.sqrt(Math.max(0,g.rodLengthMm**2-r*r))-vertical]};
 }
 export function tiltyInverse(g,{tcp,rotation:R}){
   validateRigid(rigid(tcp,R));
@@ -72,14 +59,14 @@ export function tiltyInverse(g,{tcp,rotation:R}){
   contain(g.towerRadiusMm-g.platformRadiusMm-Math.hypot(platform[0],platform[1]),'Carrier plate exceeds rail radius');
   const tiltRods=rods.filter(r=>r.kind==='tilt');
   // The modeled tilt plate is the triangle joining its three ball joints.
-  // A cylinder and each cone half-space are convex: endpoint checks contain
+  // A cylinder and each envelope half-space are convex: endpoint checks contain
   // the complete triangular plate and straight rods, not just sampled points.
   for(const rod of tiltRods)contain(g.towerRadiusMm-Math.hypot(rod.to[0],rod.to[1]),'Tilt plate exceeds rail radius');
   for(let i=0;i<3;i++){
-    // Each paired main arm lies in one side plane of the skewed cone. Extend
+    // Each paired main arm defines one side of the main-arm envelope. Extend
     // those side planes upward because tilt carriages sit above the main ones.
     const e=g.towers[i],dz=mainHeights[i]-platform[2],out=g.towerRadiusMm-g.platformRadiusMm-dot(e,platform),normal=[dz*e[0],dz*e[1],-out],length=Math.hypot(dz,out);
-    for(const rod of tiltRods)for(const p of [rod.from,rod.to])contain((dz*g.platformRadiusMm-dot(normal,sub(p,platform)))/Math.max(1e-9,length),'Tilt assembly crosses main-rod cone');
+    for(const rod of tiltRods)for(const p of [rod.from,rod.to])contain((dz*g.platformRadiusMm-dot(normal,sub(p,platform)))/Math.max(1e-9,length),'Tilt assembly crosses main-arm envelope');
   }
   const sv=singularValues(rows),singularRatio=sv[0]/sv[4];margins.push((singularRatio-g.minSingularRatio)*g.rodLengthMm);
   if(!Number.isFinite(singularRatio)||singularRatio<g.minSingularRatio)errors.push('Near parallel singularity');

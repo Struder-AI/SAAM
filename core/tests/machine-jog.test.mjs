@@ -4,28 +4,30 @@ import {constrainedJog} from '../machine/jog.mjs';
 import {createMachinePresentation} from '../machine/presentation.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {tiltyBounds,tiltyGeometry,tiltyInverse,gimbalRotation} from '../machine/tilty.mjs';
-import {lowerRailLimits} from '../../tools/kinematics/rail-limits.mjs';
+import {railBoxLowerBound} from '../../tools/kinematics/rail-limits.mjs';
 const binding={printId:'jog',revision:'1',exportHash:'unchanged'};
 
 test('authored lower rail stops remove only unusable below-bed travel and retain near-limit poses',()=>{
-  const profile=loadMachine('tilty'),g=tiltyGeometry(profile.kinematicModel),limits=lowerRailLimits(profile.kinematicModel);
-  assert.equal(g.railMinMm,limits.railMinMm);assert.deepEqual(g.tiltRailMinMm,limits.tiltRailMinMm);
-  for(const [i,r] of limits.rails.entries()){
-    assert.ok(r.gapMm<=.02);assert.ok(g.tiltRailMinMm[i]<=r.tiltLowerBoundMm);
-    const w=r.witness,s=tiltyInverse(g,{tcp:w.tcp,rotation:gimbalRotation(w.pitchDeg*Math.PI/180,w.tiltDeg*Math.PI/180)});
-    assert.ok(s.valid,s.errors.join());assert.ok(s.tiltHeights[i]-g.tiltRailMinMm[i]<.12);
-    assert.ok(s.minRodElevationDeg>=g.marginDeg-1e-7);
-    assert.match(tiltyInverse(tiltyGeometry({...profile.kinematicModel,marginDeg:4.1}),{tcp:w.tcp,rotation:s.rotation}).errors.join(),/elevation reserve/);
+  const g=tiltyGeometry(loadMachine('tilty').kinematicModel),rad=Math.PI/180;
+  // Independent retained poses at each rail's new lower end; do not rerun the
+  // offline global authoring search as part of every interactive-model check.
+  const witnesses=[[-168.4665493743925,-42.804974258113496,-35.56640625,19.6484375],
+    [116.94142932264688,-132.99895524315565,-7.9296875,-39.3359375],[116.94142932264688,132.99895524315565,7.9296875,-39.3359375],
+    [-71.19680780181746,-113.77057367407193,-26.2890625,-28.4765625],
+    [77.07740389860821,-63.457251947854516,27.578125,.078125],[77.07740389860821,63.457251947854516,-27.578125,.078125]];
+  for(const [i,[x,y,a,b]] of witnesses.entries()){
+    const s=tiltyInverse(g,{tcp:[x,y,0],rotation:gimbalRotation(a*rad,b*rad)}),height=[...s.mainHeights,...s.tiltHeights][i],minimum=i<3?g.railMinMm:g.tiltRailMinMm[i-3];
+    assert.ok(s.valid,s.errors.join());assert.ok(height-minimum<1.2);
+    const center=[...s.platform.slice(0,2),a*rad,b*rad],box=center.map(v=>[v,v]);
+    assert.ok(Math.abs(railBoxLowerBound(g,box,i)-height)<1e-5);
+    assert.ok(railBoxLowerBound(g,center.map((v,j)=>[v-(j<2?1:.01),v+(j<2?1:.01)]),i)<=height);
   }
-  const a=g.maxTiltDeg*Math.PI/180,R=gimbalRotation(0,a),carrierX=g.towerRadiusMm-g.platformRadiusMm-g.rodLengthMm*Math.cos(g.marginDeg*Math.PI/180)+1e-7;
-  const edge=tiltyInverse(g,{tcp:[carrierX-g.toolLengthMm*Math.sin(a),0,0],rotation:R});
-  assert.ok(edge.valid,edge.errors.join());assert.ok(edge.mainHeights[0]-g.railMinMm<.1);
 });
 
-test('Tilty slider bounds use the main-rod disk intersections and the nozzle tilt lever',()=>{
-  const g=tiltyGeometry(),b=tiltyBounds(g),r=g.towerRadiusMm-g.platformRadiusMm,L=g.rodLengthMm*Math.cos(g.marginDeg*Math.PI/180),side=g.toolLengthMm*Math.sin(g.maxTiltDeg*Math.PI/180);
-  assert.ok(Math.abs(b.min[0]-(r-L-side))<1e-6);
-  assert.ok(Math.abs(b.max[0]-(Math.sqrt(L*L-3*r*r/4)-r/2+side))<1e-6);
+test('Tilty slider bounds respect the rail cylinder and conservatively cover height',()=>{
+  const g=tiltyGeometry(),b=tiltyBounds(g);
+  assert.deepEqual(b.min.slice(0,2),[-g.towerRadiusMm,-g.towerRadiusMm]);
+  assert.deepEqual(b.max.slice(0,2),[g.towerRadiusMm,g.towerRadiusMm]);
   assert.equal(b.min[2],0);assert.ok(b.max[2]<g.railMaxMm-g.toolLengthMm,'vertical rod projection tightens height span');
 });
 
@@ -54,11 +56,18 @@ test('Tilty gains height by moving XY and tilt within fixed rail limits; further
   assert.deepEqual(program,original);p.dispose();
 });
 
-test('a rail correction respects an already-active tilt boundary instead of stalling between the two',async()=>{
-  const machine=loadMachine('tilty'),from=[8,0,177,40,0],program={seconds:1,moves:[{from:from.slice(0,3),to:from.slice(0,3),startSeconds:0,durationSeconds:1}]};
+test('jog couples rail, tilt and main-arm envelope limits, then follows the radial boundary',async()=>{
+  const machine=loadMachine('tilty'),program={seconds:1,moves:[{from:[0,0,25],to:[0,0,25],startSeconds:0,durationSeconds:1}]};
   const p=await createMachinePresentation({machine,program,sourceIdentity:binding});
-  const s=await p.sample({requestId:1,seconds:0,manual:[8,0,185,40,0],jog:{axis:2,from}});
-  assert.equal(s.status,'ready');assert.equal(s.controlValues[2],185);assert.ok(s.controlValues[0]>8);p.dispose();
+  let s=await p.sample({requestId:1,seconds:0});
+  for(const [axis,value] of [[3,40],[2,200],[0,180],[1,180]]){
+    const from=s.controlValues,manual=[...from];manual[axis]=value;s=await p.sample({requestId:2,seconds:0,manual,jog:{axis,from}});
+    assert.equal(s.status,'ready',JSON.stringify(s.diagnostics));
+    assert.ok(Math.hypot(...s.controlValues.slice(0,2))<=180+1e-5);
+    if(axis===2)assert.ok(s.controlValues[2]<200);
+    else assert.ok(Math.abs(s.controlValues[axis]-value)<.001);
+  }
+  assert.ok(Math.abs(s.controlValues[0])<.01,'Y at the radial limit bumps X to zero');p.dispose();
 });
 
 test('Cartesian jog stops at the physical axis endpoint without moving unrelated axes',async()=>{

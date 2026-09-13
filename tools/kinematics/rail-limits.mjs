@@ -1,77 +1,69 @@
-// Conservative lower rail limits for the current Tilty geometry. This is an
-// authoring calculation, not a renderer or per-frame workspace sampler.
+// Offline authoring: bound rail minima over carrier XY and gimbal angles.
+// Translation in Z raises all carriages equally, so minima occur at tip Z=0.
 import {tiltyGeometry,gimbalRotation,tiltyInverse} from '../../core/machine/tilty.mjs';
-import {mv} from '../../core/machine/rigid.mjs';
+import {constrainedJog} from '../../core/machine/jog.mjs';
 import {loadMachine} from '../../core/machine/profile.mjs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-
-// Extrema of distance from a disk center over an intersection of disks occur
-// at boundary intersections or at a radial extremum on an exposed circle arc.
-function diskCandidates(disks){
-  const points=[],inside=p=>disks.every(c=>(p[0]-c[0])**2+(p[1]-c[1])**2<=c[2]**2+1e-7);
-  const add=p=>{if(inside(p))points.push(p);};
-  for(const c of disks)for(const [x,y] of [[c[2],0],[-c[2],0],[0,c[2]],[0,-c[2]]])add([c[0]+x,c[1]+y]);
-  for(let i=0;i<disks.length;i++)for(let j=i+1;j<disks.length;j++){
-    const a=disks[i],b=disks[j],dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy);
-    if(d<1e-9||d>a[2]+b[2]||d<Math.abs(a[2]-b[2]))continue;
-    const t=(a[2]**2-b[2]**2+d*d)/(2*d),h=Math.sqrt(Math.max(0,a[2]**2-t*t)),x=a[0]+dx*t/d,y=a[1]+dy*t/d;
-    for(const s of [-1,1])add([x-s*dy*h/d,y+s*dx*h/d]);
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1]],neg=a=>[-a[1],-a[0]],sub=(a,b)=>add(a,neg(b));
+const mul=(a,b)=>{const p=[a[0]*b[0],a[0]*b[1],a[1]*b[0],a[1]*b[1]];return [Math.min(...p),Math.max(...p)];};
+const scale=(a,b)=>mul(a,[b,b]),sq=a=>[a[0]<=0&&a[1]>=0?0:Math.min(a[0]**2,a[1]**2),Math.max(a[0]**2,a[1]**2)];
+const sin=a=>[Math.sin(a[0]),Math.sin(a[1])],cos=a=>[Math.min(Math.cos(a[0]),Math.cos(a[1])),a[0]<=0&&a[1]>=0?1:Math.max(Math.cos(a[0]),Math.cos(a[1]))];
+const dot=(e,p)=>add(scale(p[0],e[0]),scale(p[1],e[1])),radius2=p=>add(sq(p[0]),sq(p[1]));
+// Every pose in a box is contained by this interval relaxation. Omitting the
+// Jacobian enlarges the domain; witnesses still pass the complete owning model.
+export function railBoxLowerBound(g,box,index){
+  const [x,y,a,b]=box,C=[x,y],sa=sin(a),ca=cos(a),sb=sin(b),cb=cos(b),one=v=>[v,v];
+  const tool=[scale(sb,g.toolLengthMm),scale(mul(sa,cb),-g.toolLengthMm),scale(mul(ca,cb),g.toolLengthMm)];
+  if(tool[2][1]<g.toolLengthMm*Math.cos(g.maxTiltDeg*Math.PI/180)-1e-9)return Infinity;
+  if(radius2(C)[0]>(g.towerRadiusMm-g.platformRadiusMm)**2+1e-8||radius2([sub(x,tool[0]),sub(y,tool[1])])[0]>g.towerRadiusMm**2+1e-8)return Infinity;
+  const rear=g.towers.map(e=>{const u=e[0]*g.rearRadiusMm,v=e[1]*g.rearRadiusMm,l=g.rearLengthMm;
+    return [add(scale(cb,u),scale(sb,l)),add(add(scale(mul(sa,sb),u),scale(ca,v)),scale(mul(sa,cb),-l)),add(add(scale(mul(ca,sb),-u),scale(sa,v)),scale(mul(ca,cb),l))];});
+  const dz=[],ht=[],out=[];
+  const vertical=(p,L)=>{const q=sub(one(L*L),radius2(p)),reserve=L*Math.sin(g.marginDeg*Math.PI/180);if(q[1]<reserve**2-1e-8)return null;return [Math.sqrt(Math.max(reserve**2,q[0])),Math.sqrt(Math.max(0,q[1]))];};
+  for(let i=0;i<3;i++){
+    const e=g.towers[i],r=g.towerRadiusMm-g.platformRadiusMm,main=vertical([sub(x,one(e[0]*r)),sub(y,one(e[1]*r))],g.rodLengthMm);if(!main)return Infinity;dz.push(main);out.push(sub(one(r),dot(e,C)));
+    const p=[add(x,rear[i][0]),add(y,rear[i][1])];if(radius2(p)[0]>g.towerRadiusMm**2+1e-8)return Infinity;
+    const tilt=vertical([sub(p[0],one(e[0]*g.towerRadiusMm)),sub(p[1],one(e[1]*g.towerRadiusMm))],g.tiltRodLengthMm);if(!tilt)return Infinity;ht.push(add(rear[i][2],tilt));
+    if(add(tool[2],main)[0]>g.railMaxMm||add(tool[2],ht[i])[0]>g.railMaxMm)return Infinity;
   }
-  for(const a of disks)for(const b of disks){const dx=a[0]-b[0],dy=a[1]-b[1],d=Math.hypot(dx,dy);if(d>1e-9)add([a[0]+dx*a[2]/d,a[1]+dy*a[2]/d]);}
-  return points;
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++){
+    const plate=sub(mul(out[i],rear[j][2]),mul(dz[i],sub(dot(g.towers[i],rear[j]),one(g.platformRadiusMm))));
+    const railOffset=sub(one(g.towerRadiusMm*(g.towers[i][0]*g.towers[j][0]+g.towers[i][1]*g.towers[j][1])-g.platformRadiusMm),dot(g.towers[i],C));
+    const carriage=sub(mul(out[i],ht[j]),mul(dz[i],railOffset));
+    if(plate[1]<-1e-4||carriage[1]<-1e-4)return Infinity;
+  }
+  // Inside its own arm plane, a tilt carriage cannot be below its main one.
+  const mainFloor=g.toolLengthMm*Math.cos(g.maxTiltDeg*Math.PI/180)+Math.sqrt(Math.max(0,g.rodLengthMm**2-4*(g.towerRadiusMm-g.platformRadiusMm)**2));
+  return Math.max(mainFloor,tool[2][0]+(index<3?dz[index][0]:Math.max(dz[index-3][0],ht[index-3][0])))-1e-6;
 }
-
-function railMinimum(config,tiltIndex,{toleranceMm=.02,maxCells=100000}={}){
-  // Remove old lower stops while deriving what travel the mechanism can use.
-  const g=tiltyGeometry({...config,railMinMm:0,tiltRailMinMm:[0,0,0]}),rad=Math.PI/180,cone=Math.cos(g.maxTiltDeg*rad);
-  const reserve=g.marginDeg*rad,mainRadius=g.rodLengthMm*Math.cos(reserve),tiltRadius=g.tiltRodLengthMm*Math.cos(reserve);
-  const mainLowerBoundMm=g.toolLengthMm*cone+g.rodLengthMm*Math.sin(reserve);
-  const tiltFloor=(g.toolLengthMm+g.rearLengthMm)*cone-g.rearRadiusMm*Math.sin(g.maxTiltDeg*rad);
-  const rearNorm=Math.hypot(g.rearLengthMm,g.rearRadiusMm),tipRearNorm=Math.hypot(g.toolLengthMm+g.rearLengthMm,g.rearRadiusMm);
-  let upper=Infinity,witness=null,cells=0;
+function railMinimum(g,index,{toleranceMm=1,maxCells=500000}={}){
+  const rad=Math.PI/180,r=g.towerRadiusMm-g.platformRadiusMm,limit=g.maxTiltDeg*rad;
+  const pose=x=>{const R=gimbalRotation(x[2],x[3]);return tiltyInverse(g,{tcp:[x[0]-g.toolLengthMm*R[0][2],x[1]-g.toolLengthMm*R[1][2],0],rotation:R});};
+  const height=s=>[...s.mainHeights,...s.tiltHeights][index];let upper=Infinity,witness=null,cells=0;
+  const consider=x=>{const s=pose(x);if(s.valid&&height(s)<upper){upper=height(s);witness={tcp:s.tcp,pitchDeg:x[2]/rad,tiltDeg:x[3]/rad,mainHeights:s.mainHeights,tiltHeights:s.tiltHeights};}return s;};
+  // The existing jog controller supplies feasible upper bounds; interval
+  // subdivision supplies conservative lower bounds, independent of sampling.
+  const seeds=[[0,0,0,0]];for(let i=0;i<6;i++){const a=i*Math.PI/3;seeds.push([100*Math.cos(a),100*Math.sin(a),0,0]);}
+  for(const seed of seeds){const s=consider(seed);if(!s.valid)continue;
+    const evaluate=x=>{const p=pose(x.slice(1)),margins=[...p.margins,x[0]-height(p)];return {valid:p.valid&&margins.at(-1)>=-1e-7,margins};};
+    const from=[height(s),...seed],result=constrainedJog({from,target:[0,...seed],axis:0,scales:[1,1,1,g.toolLengthMm+g.rearLengthMm,g.toolLengthMm+g.rearLengthMm],evaluate});consider(result.values.slice(1));
+  }
   const heap=[];
   const push=n=>{let i=heap.length;heap.push(n);while(i){const p=(i-1)>>1;if(heap[p].lower<=n.lower)break;heap[i]=heap[p];i=p;}heap[i]=n;};
   const pop=()=>{const first=heap[0],last=heap.pop();if(heap.length){let i=0;while(2*i+1<heap.length){let j=2*i+1;if(j+1<heap.length&&heap[j+1].lower<heap[j].lower)j++;if(heap[j].lower>=last.lower)break;heap[i]=heap[j];i=j;}heap[i]=last;}return first;};
-  function inspect(lo,hi){
-    cells++;
-    const leastAbs=i=>lo[i]<=0&&hi[i]>=0?0:Math.min(Math.abs(lo[i]),Math.abs(hi[i]));
-    if(Math.cos(leastAbs(0))*Math.cos(leastAbs(1))<cone)return;
-    const a=(lo[0]+hi[0])/2,b=(lo[1]+hi[1])/2,R=gimbalRotation(a,b),delta=(hi[0]-lo[0]+hi[1]-lo[1])/2;
-    // ||Rx(a)Ry(b)-Rx(a0)Ry(b0)|| <= |a-a0|+|b-b0|.
-    // Inflate each moving-anchor disk by the corresponding center uncertainty.
-    const uncertainty=rearNorm*delta,rear=g.towers.map(e=>mv(R,[e[0]*g.rearRadiusMm,e[1]*g.rearRadiusMm,g.rearLengthMm]));
-    const disks=inflate=>[...g.towers.map(e=>[e[0]*(g.towerRadiusMm-g.platformRadiusMm),e[1]*(g.towerRadiusMm-g.platformRadiusMm),mainRadius]),
-      ...g.towers.map((e,i)=>[e[0]*g.towerRadiusMm-rear[i][0],e[1]*g.towerRadiusMm-rear[i][1],tiltRadius+inflate])];
-    const expanded=disks(uncertainty),points=diskCandidates(expanded);if(!points.length)return;
-    let lower=Infinity;
-    for(const i of [tiltIndex]){
-      const center=expanded[i+3],distance=Math.max(...points.map(p=>Math.hypot(p[0]-center[0],p[1]-center[1])))+uncertainty;
-      const z=Math.max(tiltFloor,g.toolLengthMm*R[2][2]+rear[i][2]-tipRearNorm*delta);
-      lower=Math.min(lower,z+Math.sqrt(Math.max((g.tiltRodLengthMm*Math.sin(reserve))**2,g.tiltRodLengthMm**2-distance**2)));
-    }
-    if(R[2][2]>=cone-1e-12){
-      const candidates=diskCandidates(disks(0));
-      if(candidates.length){const mean=[0,1].map(i=>candidates.reduce((sum,p)=>sum+p[i],0)/candidates.length);
-        for(const p of candidates){const xy=p.map((v,i)=>v+(mean[i]-v)*1e-9),tcp=[xy[0]-g.toolLengthMm*R[0][2],xy[1]-g.toolLengthMm*R[1][2],0];
-          const s=tiltyInverse(g,{tcp,rotation:R});if(!s.valid)continue;
-          const h=s.tiltHeights[tiltIndex];if(h<upper){upper=h;witness={tcp,pitchDeg:a/rad,tiltDeg:b/rad,tiltHeights:s.tiltHeights};}
-        }
-      }
-    }
-    if(lower<upper)push({lo,hi,lower});
+  const inspect=box=>{cells++;const lower=railBoxLowerBound(g,box,index);if(lower>=upper)return;consider(box.map(v=>(v[0]+v[1])/2));if(lower<upper)push({box,lower});};
+  inspect([[-r,r],[-r,r],[-limit,limit],[-limit,limit]]);
+  while(heap.length&&upper-heap[0].lower>toleranceMm&&cells<maxCells){
+    const {box}=pop(),widths=box.map((v,i)=>(v[1]-v[0])*(i<2?1:g.toolLengthMm+g.rearLengthMm)),i=widths.indexOf(Math.max(...widths)),mid=(box[i][0]+box[i][1])/2;
+    for(const range of [[box[i][0],mid],[mid,box[i][1]]]){const next=[...box];next[i]=range;inspect(next);}
   }
-  const limit=g.maxTiltDeg*rad;inspect([-limit,-limit],[limit,limit]);
-  while(heap.length&&upper-heap[0].lower>toleranceMm&&cells<maxCells){const n=pop(),i=n.hi[0]-n.lo[0]>=n.hi[1]-n.lo[1]?0:1,m=(n.lo[i]+n.hi[i])/2,hi=[...n.hi],lo=[...n.lo];hi[i]=m;lo[i]=m;inspect(n.lo,hi);inspect(lo,n.hi);}
   const lower=Math.min(upper,heap[0]?.lower??upper);
-  return {mainLowerBoundMm,tiltLowerBoundMm:lower,tiltReachableMm:upper,gapMm:upper-lower,cells,witness,
-    railMinMm:Math.floor(mainLowerBoundMm*10)/10,tiltRailMinMm:Math.floor(lower*10)/10};
+  return {lowerBoundMm:lower,reachableMm:upper,gapMm:upper-lower,cells,witness,minimumMm:Math.floor(lower*10)/10};
 }
-
 export function lowerRailLimits(config,options){
-  const rails=[0,1,2].map(i=>railMinimum(config,i,options));
-  if(rails.some(r=>!Number.isFinite(r.tiltLowerBoundMm)||!Number.isFinite(r.tiltReachableMm)||r.gapMm>(options?.toleranceMm??.02)))throw Error('Could not bound Tilty lower travel to the requested tolerance');
-  return {mainLowerBoundMm:rails[0].mainLowerBoundMm,railMinMm:rails[0].railMinMm,tiltRailMinMm:rails.map(r=>r.tiltRailMinMm),rails};
+  const g=tiltyGeometry({...config,railMinMm:0,tiltRailMinMm:[0,0,0]}),rails=[0,1,2,3,4,5].map(i=>railMinimum(g,i,options));
+  if(rails.some(r=>!Number.isFinite(r.lowerBoundMm)||!Number.isFinite(r.reachableMm)||r.gapMm>(options?.toleranceMm??1)))throw Error('Rail bounds did not converge to the requested tolerance');
+  return {railMinMm:Math.min(...rails.slice(0,3).map(r=>r.minimumMm)),tiltRailMinMm:rails.slice(3).map(r=>r.minimumMm),rails};
 }
-
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))console.log(JSON.stringify(lowerRailLimits(loadMachine('tilty').kinematicModel),null,2));

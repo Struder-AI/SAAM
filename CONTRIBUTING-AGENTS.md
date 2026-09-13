@@ -41,6 +41,14 @@ Reuse the evidence selected under [Avoid check spirals](DEVELOP.md#avoid-check-s
 Obtain only missing, applicable evidence for the change or required branch checks;
 checkpointing, publication and rereading guidance do not invalidate valid results.
 
+Before pushing, consider whether the resulting remote branch will be complete
+for its intended scope, including concurrent work carried by local checkpoints.
+Prefer publishing a complete result at the pushed head; intermediate checkpoint
+commits can contain unfinished work. Intentional work-in-progress pushes are
+appropriate when useful for collaboration or another stated purpose; identify
+what remains unfinished. This is a judgment reminder, not a hard publication gate,
+an additional approval requirement or another test pass.
+
 Staging, committing and publishing require explicit authorization, including
 authorization already given in the conversation. Carry out that authorization
 without asking again. The canonical destination is Struder-AI/SAAM; use the

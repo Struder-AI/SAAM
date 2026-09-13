@@ -50,6 +50,12 @@ test('study source rejects malformed poses, duration and unsupported roll',()=>{
   const source={schema:'saam-machine-study-source/1',orientation:'gimbal-rx-ry',initial:{tcp:[0,0,20],anglesDeg:[0,0,0]},moves:[{tcp:[1,1,20],anglesDeg:[10,10,1],seconds:1}]};
   assert.throws(()=>interpretMachineStudy(source),/roll/);source.moves[0].anglesDeg[2]=0;source.moves[0].seconds=0;assert.throws(()=>interpretMachineStudy(source),/duration/);
 });
+test('adapted studies preserve deposition phases and layers for Studio',()=>{
+  const program=interpretMachineStudy({schema:'saam-machine-study-source/1',orientation:'gimbal-rx-ry',initial:{tcp:[0,0,1],anglesDeg:[0,0,0]},moves:[
+    {tcp:[1,0,1],anglesDeg:[0,0,0],seconds:1,volumeMm3:.1,phase:'cladding-axial',operation:'shell-0',layer:3},
+    {tcp:[1,1,1],anglesDeg:[0,0,0],seconds:1,volumeMm3:.1,phase:'cladding-hoop',operation:'shell-1',layer:4}]});
+  assert.deepEqual(program.moves.map(m=>[m.phase,m.operation,m.layer]),[['cladding-axial','shell-0',3],['cladding-hoop','shell-1',4]]);
+});
 test('study creation refuses to overwrite an ordinary print',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-study-protection-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const original=JSON.stringify({schema:'saam-shell-plan/1'});await writeFile(join(dir,'plan.json'),original);
