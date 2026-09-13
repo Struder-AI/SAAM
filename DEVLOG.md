@@ -5,6 +5,18 @@ Completed work, development checkpoints, measurements and scoped observations.
 incomplete work; component references and skill manuals describe present behavior.
 [Decisions](DECISIONS.md) preserves contributor direction and approval provenance.
 
+## 2026-09-12 — Consolidate shared work toward main
+
+- The user requested frequent returns to main, at most one active pending branch
+  per account, and discussion when an unmentioned merge has no clear answer;
+  purpose-saved side branches are exempt. Added one line at the contribution owner.
+- Removed the checkout's uncommitted Codex approval override as requested.
+  Shared MCP tests distinguish installed local extensions from cataloged manuals
+  and exercise viewer reconnection plus adapter-owned shutdown under the longer
+  Studio grace period. All 427 tests passed before the shared-work checkpoint.
+- Integrated the existing local main setup work while preserving its local-test
+  policy. Saved experiments and generated local artifacts stay outside publication.
+
 ## 2026-09-12 — Preserve Studio sessions across task switches
 
 - Extended the default last-viewer disconnect grace from three seconds to
@@ -43,6 +55,25 @@ incomplete work; component references and skill manuals describe present behavio
   estimated minutes, and passing export checks. Reopened the checked source in
   Studio's toolpath viewer. Original print approvals remain unchanged. These
   are software results, not physical print evidence.
+
+## 2026-09-12 — Lightweight first-use setup
+
+- The user rejected duplicate local/GitHub full-suite runs and clarified that
+  checks belong locally, where failures can be fixed before committing. Kept
+  the local pre-commit full-suite requirement and made the GitHub workflow
+  manual-only. The user explicitly authorized removing main's remote `test`
+  requirement. First-use maker setup remains the lightweight smoke check.
+- Replaced mandatory onboarding regression tests with `npm run setup:check`.
+  It resolves declared dependency entry points, exercises Rhino, Clipper and installed
+  Manifold WASM, creates a temporary unapproved wedge and checks its geometry
+  through Studio HTTP. It needs no Git metadata or slicing and removes its
+  temporary print. Full checks remain a contributor and release responsibility.
+- The user authorized fast-forwarding remote main to the shared-code head and
+  adding this setup improvement there; full packaging stays on a separate branch.
+- On Windows x64 / Node 24.19.0, the main check took 0.58 seconds before the
+  shared-code update and 3.52 seconds with its additional dependencies after a
+  fresh install. These are software timings, not clean-machine download or
+  desktop client permission measurements. No real job approvals were created.
 
 ## 2026-09-12 — Shared geometry and local extension partition
 

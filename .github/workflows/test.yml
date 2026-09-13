@@ -1,6 +1,7 @@
 name: repository checks
 
-on: [push, pull_request]
+# Full checks run locally before commits. Remote runs are explicitly requested.
+on: workflow_dispatch
 
 permissions:
   contents: read

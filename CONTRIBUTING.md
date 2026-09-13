@@ -23,6 +23,8 @@ The canonical destination is Struder-AI/SAAM. Publish to the requested feature
 branch when authorized; a personal fork is optional. Pushing to main requires an
 explicit request. Leave your own PRs for human review and merging.
 
+Prefer working into main or merging back frequently, with at most one active pending branch per account; purpose-saved side branches (such as the legacy skills library) are exempt, and discuss merging to main when the user has not mentioned it and the right action is unclear.
+
 ## Testing through the use context
 
 Develop and exercise maker-facing changes through [MAKERS.md](MAKERS.md), the
@@ -48,11 +50,15 @@ or unresolved concern warrants it. Documentation-only work normally needs
 `node scripts/check-repo.mjs`; discussion and read-only investigation need no tests.
 
 Every authorized commit, including documentation and checkpoint commits, requires
-a complete `npm test` run against the final state being committed. Subsequent
+a complete local `npm test` run against the final state being committed. Subsequent
 edits require a fresh run before committing. Resolve failures first unless the
 user explicitly authorizes committing that failing state. The successful run
-remains valid through staging and the commit itself. CI runs the full suite on
-push and pull requests.
+remains valid through staging and the commit itself. Run and fix these checks
+locally before publication. GitHub does not repeat the full suite automatically
+on pushes or pull requests, and main does not require a remote `test` status.
+The repository-check workflow is available for an explicitly requested manual
+run. Platform packaging workflows exercise first-use setup, without repeating
+the manufacturing regression suite.
 
 Add meaningful coverage for new behavior and maintain the registry associations.
 Report the checks performed and their results with their actual scope. These are
@@ -131,7 +137,7 @@ node scripts/check-repo.mjs
 ```
 
 `npm test` remains the single full-suite command; selecting focused files does
-not change its membership or replace the full run required at commit.
+not change its membership or replace the full local run required at commit.
 
 ### Checks must earn their place
 
@@ -159,7 +165,10 @@ work; the person need not request it separately:
    direct the person to the Node.js 22+ installer for their operating system.
 2. Run `npm ci` from the repository root unless `node_modules/` is already
    present, as in a packaged download.
-3. Run `npm test` once to confirm that the checkout works.
+3. Run `npm run setup:check` to verify dependency loading, geometry kernels and
+   an unapproved geometry preview served by Studio. This short check needs no Git
+   metadata and creates no toolpath or manufacturing approval. Do not run the
+   full regression suite as maker onboarding.
 4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
@@ -174,7 +183,7 @@ and Git.
 
 ```sh
 npm ci
-npm test
+npm run setup:check
 npm run demo
 npm run studio
 npm run check:print
@@ -200,7 +209,7 @@ coverage, decision-record structure and approval metadata, and exclusion of
 private Prints and local artifacts.
 It does not verify that a human actually approved a decision or that a part is
 printable. The subsequent Node tests check manufacturing software behavior.
-CI installs dependencies and runs the same tests. Synthetic approval tests use
+The optional manual CI run installs dependencies and runs the same tests. Synthetic approval tests use
 temporary bundles and never authorize the person's real print.
 
 ## Documentation maintenance
