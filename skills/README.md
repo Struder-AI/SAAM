@@ -29,6 +29,7 @@ settings and supported scope.
 | [voxel-tools](voxel-tools/SKILL.md) | Create and edit volumetric parts from scalar voxel samples or smooth B-spline control lattices. Extract at an explicit resolution for shared planar slicing and Studio review; no optimization or physical solver is included. |
 | [text](text/SKILL.md) | Add raised or recessed lettering to a part, or create standalone text, using a supplied outline font. Lay out lettering flat, optionally along a spline baseline, then bend its solid onto a part surface or an independent spline guide. The resulting mesh goes through the shared printing and Studio review workflow. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
+| [stained-glass-deposition](stained-glass-deposition/SKILL.md) | Plan stained-glass-style artwork where continuous dark leading/caming lines define cells on a bed or placed substrate. Preserves connected line networks, uses contour/offset fill for thick lead, and treats machine export as future work until a deterministic generator exists. |
 
 <!-- END GENERATED SKILL DIGEST -->
 

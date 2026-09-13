@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-13 — Stained-glass deposition workflow stub
+
+Added a shared `stained-glass-deposition` task skill for planning artwork where
+continuous dark lead/caming lines define closed cells on a bed or placed
+substrate. The manual records the current workflow intent: preserve connected
+line networks even through narrow regions, use contour and inward-offset fills
+for thick black areas, treat raster as optional interior texture only, and use
+small lifted dry returns over taped substrates. It is explicitly a concept and
+planning skill, not a deterministic generator or machine export.
+
+Verification: `npm run first-run`, `node scripts/check-repo.mjs`,
+`node --test core/tests/skill-digest.test.mjs`, `git diff --check`, and the full
+`npm test` suite passed locally. The first full-suite attempt without elevated
+local networking failed only because sandboxed tests could not bind
+`127.0.0.1`; the rerun with local test-server permission passed all 434 tests.
+
 ## 2026-09-12 — Reconcile shared branches and restore normal PR checks
 
 Integrated the new remote nozzle/material selection work with the pending shared
