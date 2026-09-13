@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { intersectionFixtures } from './intersection-fixtures.mjs';
+import { intersectionFixtures, intersectionFixtureIdentity } from './intersection-fixtures.mjs';
 import { canonicalLoops } from '../../core/region/clipper.mjs';
 
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -23,7 +23,7 @@ if(args.includes('--inputs')) {
     if(args.includes('--record'))save(new URL('../../core/tests/fixtures/intersection-reference.json',import.meta.url),{
       upstreamRevision:'642390d0d515cfb645d2ec4d95d218e28be645f4',
       wasmPackage:'clipper2-wasm@0.4.0',wasmRevision:'3c244f3edd0adae6c851460fc409c15f3d235395',
-      inputSha256:hash(JSON.stringify(intersectionFixtures)),expected
+      inputSha256:hash(JSON.stringify(intersectionFixtureIdentity)),expected
     });
   }
   const samplesMs=[];

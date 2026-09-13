@@ -5,6 +5,7 @@
   "type": "module",
   "description": "SAAM S5 development demos: inclined wedge, plus full-fill and draped-skin shell slicing.",
   "scripts": {
+    "first-run": "node scripts/first-run.mjs",
     "setup:check": "node scripts/setup-check.mjs",
     "test": "node scripts/check-repo.mjs && node --test core/tests/*.test.mjs skills/*/tests/*.test.mjs",
     "demo": "node skills/wedge-demo/scripts/cli.mjs demo",

@@ -30,6 +30,15 @@ Local capabilities are not part of shared SAAM and must not be assumed elsewhere
 Read linked reference sections when their responsibilities affect the task;
 follow their dependencies as needed rather than loading every document.
 
+## First invocation
+
+Before doing maker or development work in a checkout, run `npm run first-run`.
+The idempotent command installs locked dependencies and performs a short runtime
+check only when `.saam/first-run.json` is absent, the dependency lock changed, or
+`node_modules/` is missing. If its output says the optional guided tour is still
+pending, offer the person the tour in conversation; honor a refusal and continue.
+Never treat setup or tour completion as a manufacturing approval.
+
 ## Find the owning source
 
 - [MAKERS.md](MAKERS.md) owns guidance for helping a person make a part.

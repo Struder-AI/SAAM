@@ -52,8 +52,12 @@ the temporary web-chat bridge.
 
 ## Get started
 
-Give your agent this repository and describe what you want to make. Agents start
-at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
+Run `npm run first-run`, or give your agent this repository and describe what you
+want to make. The first-run command installs locked dependencies, checks the
+runtime, and offers a skippable five-step tour. It runs the substantive setup
+only once and repeats it when dependencies change. See
+[Getting started with SAAM](GETTING_STARTED.md) for the complete flow. Agents
+start at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
 For a manual development trial, follow [setup and checks](CONTRIBUTING.md#setup-and-checks)
 and the [wedge demo manual](skills/wedge-demo/SKILL.md). The demo produces a

@@ -255,6 +255,11 @@ Assignments retain their component layer grid and dependencies. Conflicting
 ownership, unassigned height boundaries, unknown references and cycles are rejected.
 Bridging over hollow or sparse material is a process choice assessed in the
 recipe and Studio, without a permission flag or automated span-support gate.
+Studio projects these assignments into display-only material-intent bands during
+geometry review so a closed target does not conceal a consequential planned
+hollow or recess. Explicit cavities remain properties of native geometry;
+perimeter-only, sparse and empty bands remain process-plan properties and do not
+alter the geometry artifact or its approval identity.
 The retired `supportPolicy` field is accepted but ignored in older recipes;
 new recipes omit it. Where a drape crosses a void, its initial volume uses the
 assigned supporting components' layer grid, as in whole-component composition;
@@ -283,4 +288,5 @@ exercises base, vase wall, cap, sparse/solid body, wavy draped roof, and horizon
 full fill above the roof through the shared pipeline. Regional settings, surface
 references and runtime helpers participate in the existing approval hashes;
 they introduce no new approval or artifact format. Studio shows effective regional
-settings and surface references. Tests and fixture calibration never authorize hardware.
+settings, surface references and the material-intent review projection. Tests and
+fixture calibration never authorize hardware.

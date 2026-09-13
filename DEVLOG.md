@@ -16,6 +16,10 @@ incomplete work; component references and skill manuals describe present behavio
   Studio grace period. All 427 tests passed before the shared-work checkpoint.
 - Integrated the existing local main setup work while preserving its local-test
   policy. Saved experiments and generated local artifacts stay outside publication.
+- Combined remote main's cached first-run command, Node 26 test compatibility
+  and geometry material-intent display with the shared text and field workflows.
+  Kept the faster dependency-entry checks and installed Manifold smoke check;
+  the MCP guidance reader exposes both the devlog and first-use guide.
 
 ## 2026-09-12 — Preserve Studio sessions across task switches
 

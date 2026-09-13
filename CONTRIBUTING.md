@@ -111,6 +111,7 @@ All file names in the core column below are relative to `core/tests/`.
 | VP-6242 / RC8, oriented/rotary motion, native pipe cladding and both Studio frames | [denso.test.mjs](core/tests/denso.test.mjs) | Shared mesh/spline regional skills, wedge, composition, browser source and exact-byte lifecycle |
 | Periodic spline tube, selected surface charts, normal-offset cladding and partial courses | [surface-cladding.test.mjs](core/tests/surface-cladding.test.mjs) | Native spline/bore, explicit mesh strips, three-perimeter interaction, RC8 lifecycle, bead orientation and ZIP32 helper counts |
 | `studio/`: camera, display detail, mesh visibility, playback and offline movies | [studio-camera.test.mjs](core/tests/studio-camera.test.mjs), [studio-detail.test.mjs](core/tests/studio-detail.test.mjs), [studio-visibility.test.mjs](core/tests/studio-visibility.test.mjs), [studio-geometry.test.mjs](core/tests/studio-geometry.test.mjs), [studio-material.test.mjs](core/tests/studio-material.test.mjs), [studio-movie.test.mjs](core/tests/studio-movie.test.mjs), [robot-playback.test.mjs](core/tests/robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
+| Studio geometry target/material-intent distinction | [studio-material-intent.test.mjs](core/tests/studio-material-intent.test.mjs) | Hollow vessel, layered panel and explicit modeled-cavity review |
 | Studio settings, server and saved-print opening | [studio-settings.test.mjs](core/tests/studio-settings.test.mjs), [studio-open.test.mjs](core/tests/studio-open.test.mjs), [studio-lifetime.test.mjs](core/tests/studio-lifetime.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
 | Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](core/tests/source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
 | `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](core/tests/mcp.test.mjs), [mcp-access.test.mjs](core/tests/mcp-access.test.mjs) | Shared workflow, recipe validation, CLI visibility of unresolved robot setup and documentation-link access |
@@ -161,15 +162,12 @@ geometry and quality choices explicit.
 For a checkout that has not been used yet, complete setup before either role's
 work; the person need not request it separately:
 
-1. Run `node --version`. Node.js 22+ is required. If it is missing or older,
-   direct the person to the Node.js 22+ installer for their operating system.
-2. Run `npm ci` from the repository root unless `node_modules/` is already
-   present, as in a packaged download.
-3. Run `npm run setup:check` to verify dependency loading, geometry kernels and
-   an unapproved geometry preview served by Studio. This short check needs no Git
-   metadata and creates no toolpath or manufacturing approval. Do not run the
-   full regression suite as maker onboarding.
-4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
+1. Run `npm run first-run`. It requires Node.js 22+, installs the locked
+   dependencies when necessary, and performs a lightweight runtime and Studio
+   check. It also offers the skippable [guided tour](GETTING_STARTED.md).
+   This short check needs no Git metadata and creates no toolpath or manufacturing
+   approval. Do not run the full regression suite as maker onboarding.
+2. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
 Report a failure as a setup problem and stop there. Setup does not create a
@@ -182,8 +180,7 @@ with `npm ci`. Installed source in `node_modules/` stays outside project edits
 and Git.
 
 ```sh
-npm ci
-npm run setup:check
+npm run first-run
 npm run demo
 npm run studio
 npm run check:print
