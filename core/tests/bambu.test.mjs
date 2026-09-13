@@ -13,6 +13,7 @@ import {packZip,unpackZip} from '../export/zip.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
+import {applyToolSelection} from '../material/profile.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-09'},GCODE='Metadata/plate_1.gcode';
 const actor='SYNTHETIC H2D TEST — not a real approval';
 function fixture(tool=0){
@@ -78,6 +79,15 @@ test('H2D fresh export carries the same checked program as cold archive interpre
   const changed=structuredClone(plan);changed.setup.nozzleC++;
   assert.throws(()=>interpretProgram(bytes,changed,machine),'fresh export does not whitelist changed settings');
 });
+test('H2D export carries selected 0.8 mm PETG setup through firmware and package metadata',async()=>{
+  const {machine,plan}=fixture();applyToolSelection(plan,machine,{tool:0,core:'Hardened steel 0.8',nozzleMm:.8,material:'PETG'});
+  const path=generatePath(plan,machine,await rhino()),bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
+  assert.doesNotThrow(()=>interpretProgram(bytes,plan,machine));
+  const gcode=entries.get(GCODE).toString(),project=JSON.parse(entries.get('Metadata/project_settings.config'));
+  assert.match(gcode,/set_filament_type:PETG/);assert.match(gcode,/M983\.3 F10\.4167 A0\.8/);
+  assert.deepEqual(project.nozzle_diameter,['0.8','0.4']);assert.deepEqual(project.filament_type,['PETG']);
+  assert.equal(project.layer_height,'0.4');
+});
 
 test('H2D removes only initial homing H10 and retains the historical contract for saved jobs',async()=>{
   const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
@@ -94,6 +104,7 @@ test('H2D removes only initial homing H10 and retains the historical contract fo
   // start/end command, catching unintended edits outside the two H10 segments.
   const previous=structuredClone(machine),program=previous.outputs[0].program;
   previous.revision=3;program.contract='h2d-02.08.02.61-pla-textured-v1';
+  program.start=program.start.map(line=>line.replaceAll('{material}','PLA').replaceAll('{nozzleMm}','0.4'));
   program.start.splice(program.start.indexOf('M1002 gcode_claim_action : 74'),0,
     'M1002 gcode_claim_action : 13','G28 X T300','G150.1 F18000','G150.3 F18000','M400 P200','M972 S24 P0 T2000');
   program.start.splice(program.start.indexOf('M972 S41 P0 T5000')+1,0,

@@ -4,7 +4,7 @@ import { resolve, posix } from 'node:path';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'DEVELOP.md',
   'CONTRIBUTING.md', 'GETTING_STARTED.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md']);
-const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'adapters', 'scripts']);
+const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'materials', 'adapters', 'scripts']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
   makers: 'MAKERS.md', development: 'DEVELOP.md', 'getting-started': 'GETTING_STARTED.md', glossary: 'GLOSSARY.md',

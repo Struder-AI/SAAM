@@ -15,9 +15,12 @@ Read the contract for the output being changed:
 
 ## Machine interoperability design
 
-`core/machine/profile.mjs` validates selected tool bounds, nozzle/core, filament,
-material temperatures, flow/retraction and required skill capabilities. Profiles
-own setup defaults; remembered setup is separate per machine. Skills target
+`core/machine/profile.mjs` validates selected tool bounds and every installed
+core/nozzle pair. [Generic material profiles](../../materials/README.md) own
+filament diameter support, temperatures, flow, retraction and export identity.
+The combined validator checks machine, active tool, nozzle, material, temperature,
+flow, line width and layer height. Machine profiles own shipped setup defaults;
+remembered setup is separate per machine and includes all tool slots. Skills target
 compatible XYZ extrusion machines through this interface. Planar skills require
 `planar`; drape and vase-wall additionally require `nonplanar` and a declared angle limit.
 `checkMachinePath` remains available to developer tests; production checks run
@@ -32,9 +35,10 @@ eight-point generator, with S5, experimental H2D and configured Dobot output.
 | Dobot MG400 | Shared fill, planar-infill, drape, vase-wall and bounded wedge paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
 | DENSO VP-6242 / RC8 + rotary | Native pipe body/cladding plus fixed-orientation mesh/spline regional skills and bounded wedge, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
 
-H2D defaults to the left 0.4 mm nozzle, 1.75 mm PLA and an experimental 15°
-non-planar limit. The profile records official hardware/slicer sources, separate
-nozzle work areas and conservative PLA settings. The inherited left-tool height
+The H2D ships with a left 0.4 mm nozzle, 1.75 mm PLA proposal and experimental
+15° non-planar limit, while Studio can select either head and any declared
+0.2/0.4/0.6/0.8 mm hotend. The profile records official hardware/slicer sources,
+separate nozzle work areas and conservative generic-material settings. The inherited left-tool height
 is 320 mm; the advertised overall height is 325 mm. The supplied left/right
 Bambu Studio exports establish the bounded [H2D output contract](bambu.md#h2d-output-contract).
 No physical H2D print has been validated.

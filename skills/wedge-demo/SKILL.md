@@ -189,7 +189,9 @@ The eight-point mesh geometry and bounded wedge generator are shared across
 S5 and H2D. Machine profiles supply setup, nozzle bounds, material limits and
 output. A wedge on either supported machine is sufficient for an initial preview.
 
-H2D defaults to left hardened 0.4 mm nozzle, 1.75 mm PLA at 215 C, 60 C bed,
+H2D ships with left hardened 0.4 mm nozzle and 1.75 mm PLA selected; Studio can
+choose either head and a declared 0.2/0.4/0.6/0.8 mm hotend/material combination.
+The original proposal uses 215 C nozzle and 60 C bed,
 Textured PEI, no chamber heat and 0.8 mm retraction at 30 mm/s. Its firmware
 hands off unretracted, so `startupRetracted` must be false. The same 0–15 degree
 bounded geometry applies; H2D's limit is experimental, with no measured head

@@ -151,6 +151,15 @@ setup persistence and reuse; [machine contracts](../core/export/README.md) own
 installation requirements. Studio displays the proposed setup with its assumption
 and verification metadata for the current job's settings review.
 
+In Settings, **Printer setup** provides a printer dropdown and one expandable
+submenu for every declared tool/head. Each submenu selects a valid core/nozzle
+pair and compatible generic filament family; a radio control selects the active
+head for this single-material path. Temperatures, maximum flow and retraction
+start from the chosen combination and remain editable. Applying setup remembers
+it locally for that printer, invalidates settings/toolpath approval and requires
+a new generated toolpath. The form is generated from `machine.tools`, so adding
+an IDEX tool changer adds records rather than special-case UI.
+
 ### Geometry and program views
 
 The wedge viewer provides click-to-select faces and matching feature buttons.

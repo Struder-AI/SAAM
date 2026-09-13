@@ -11,9 +11,11 @@ reference geometry, thumbnails and personal settings stay outside generated
 output and Git. The [reference checks](../../DEVLOG.md#2026-09-09-to-2026-09-10--h2d-reference-and-startup-checks)
 do not establish successful physical printing or universal firmware compatibility.
 
-The contract supports one selected standard hardened 0.4 mm nozzle,
-1.75 mm PLA, Textured PEI and **no chamber heating** (`buildVolumeC: 0`). Left
-is the default. Left/right package maps are 1/2, nozzle IDs 0/1, and physical
+The H2D hardware profile follows Bambu Lab's official supported diameters:
+0.2, 0.4, 0.6 and 0.8 mm hardened-steel hotends; 0.4 mm is included by default.
+The current path uses one selected nozzle, a compatible generic 1.75 mm material,
+Textured PEI and **no chamber heating** (`buildVolumeC: 0`). Left is the shipped
+default. Left/right package maps are 1/2, nozzle IDs 0/1, and physical
 heater selectors 1/0. Logical material `T0 H-1` remains the same under Bambu's
 remapping. Do not replace all T numbers to select a nozzle. Package structure
 also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
@@ -21,13 +23,17 @@ also follows [Bambu Studio's format implementation](https://github.com/bambulab/
 The pinned start/end arrays originate in the reference's executable blocks.
 Machine revision 4 uses `h2d-02.08.02.61-pla-textured-v2`, which omits startup
 triage item H10: initial X homing, early wiping-area moves, `M972 S24` and the
-`M1009`-bracketed Z-clearance/center-positioning/Z-homing sequence (13 lines). Adjacent
+`M1009`-bracketed Z-clearance/center-positioning/Z-homing sequence (13 lines). Machine revision 6 adds
+`h2d-02.08.02.61-generic-material-textured-v3`, parameterizing the declared nozzle
+diameter and generic material in calibration and package metadata while retaining
+the same command order. Adjacent
 object/bin checks and all later probing, calibration and priming remain; this
 is not a no-probing startup. The revised sequence requires physical testing.
-The adapter still recognizes the pinned v1 envelope in existing snapshots;
+The adapter still recognizes the pinned v1/v2 envelopes in existing snapshots;
 upgrade and regenerate a chosen bundle to use v2, with normal plan/toolpath
 review invalidation. Existing exports and delivery files are not rewritten.
 Allowed substitutions are planned temperatures, selected physical heater,
+declared nozzle diameter and generic material identifier,
 placed geometry's probe rectangle and whole-plan shutdown/parking clearance.
 The reference PLA purge recipe uses 240 °C and up to 25 mm³/s independently of
 the conservative print-body flow limit. The startup explicitly establishes

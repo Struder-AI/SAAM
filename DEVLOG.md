@@ -1,5 +1,17 @@
 # Development log
 
+## 2026-09-12 — Reconcile shared branches and restore normal PR checks
+
+Integrated the new remote nozzle/material selection work with the pending shared
+geometry, skill and Studio changes, preserving both sides of overlapping imports,
+routes and documentation. The six older local tasks share one recorded branch;
+they do not own six separate feature branches. Contributor guidance permits tasks
+to share a commit while coordinating changes to shared lines and Git operations.
+The normal pull-request `test` job checks fresh-runner setup using read-only source
+permissions; no commit-status write permission is added. Local setup passed in
+0.27 seconds; the combined source passed all 434 regression tests.
+
+
 Completed work, development checkpoints, measurements and scoped observations.
 [Build requests](build_request.md#outstanding-work) contains only outstanding or
 incomplete work; component references and skill manuals describe present behavior.

@@ -9,6 +9,7 @@ import {gcodeLines} from './gcode-lines.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {validateSetup,toolFor,toolBounds} from '../machine/profile.mjs';
+import {loadMaterial} from '../material/profile.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
 const fmt=(n,d=5)=>Number(n.toFixed(d));
 const json=value=>JSON.stringify(value)+'\n';
@@ -20,13 +21,15 @@ const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.
 const ENVELOPE_HASHES={
   'h2d-02.08.02.61-pla-textured-v1':'8fdee627792030a4f8b614752257b7b2756df1ba2693d5087997084ac4970807',
   'h2d-02.08.02.61-pla-textured-v2':'94568f3e3c38e4e0ff75de653e8b973cdce7fd9f63b5b688a294a55fe1fa48a0',
+  'h2d-02.08.02.61-generic-material-textured-v3':'db12856bbd6914e8dfc09c84f21ad64187bd129dc9034c01a9258cf377168b99',
 };
 function configuration(plan,machine){
   validateSetup(plan,machine);
   const output=machine.outputs.find(o=>o.id===plan.output),t=toolFor(machine,plan.setup.tool),s=plan.setup;
   requireThat(machine.id==='bambu-h2d'&&plan.output==='bambu-gcode'&&Object.hasOwn(ENVELOPE_HASHES,output?.program?.contract),'Unsupported H2D output contract.');
   requireThat(digest(JSON.stringify([output.program.start,output.program.end]))===ENVELOPE_HASHES[output.program.contract],'Unknown H2D firmware envelope; an interpreter update is required.');
-  requireThat(s.material==='PLA'&&s.nozzleMm===0.4&&s.filamentMm===1.75&&s.buildVolumeC===0,'H2D output requires 0.4 mm PLA, 1.75 mm filament and no chamber heating.');
+  requireThat(s.filamentMm===1.75&&s.buildVolumeC===0,'H2D output requires 1.75 mm filament and no chamber heating.');
+  if(output.program.contract!=='h2d-02.08.02.61-generic-material-textured-v3')requireThat(s.material==='PLA'&&s.nozzleMm===.4,'This saved H2D firmware envelope supports only its original 0.4 mm PLA setup.');
   requireThat(t.physicalExtruder===1-s.tool&&JSON.stringify(t.startupXY)==='[100,100]'&&machine.startup.zAfterStartupMm===20,'H2D tool/startup contract mismatch.');
   return output;
 }
@@ -56,7 +59,7 @@ function sections(c,plan,machine,output){
     minX:fmt(c.bounds.min[0]),minY:fmt(c.bounds.min[1]),sizeX:fmt(c.bounds.max[0]-c.bounds.min[0]),sizeY:fmt(c.bounds.max[1]-c.bounds.min[1]),
     endClearanceZ,parkZ:fmt(Math.max(endClearanceZ,Math.min(320,100+c.bounds.max[2]/2)))};
   const render=lines=>lines.map(line=>line.replace(/\{([A-Za-z]+)\}/g,(_,key)=>{
-    requireThat(Number.isFinite(values[key]),'Unknown H2D template value.');return values[key];
+    requireThat(Object.hasOwn(values,key)&&/^[A-Za-z0-9_.+-]+$/.test(String(values[key])),'Unknown H2D template value.');return values[key];
   })).join('\n')+'\n';
   return {start:render(output.program.start),end:render(output.program.end),endClearanceZ};
 }
@@ -112,10 +115,12 @@ function completeProgram(program,code,c,s){
 }
 
 function packageEntries(code,c,program,plan){
-  const tool=plan.setup.tool,map=tool+1,volume=program.volumeMm3,filament=program.summary.filamentMm,weight=volume/1000*1.26;
+  const tool=plan.setup.tool,map=tool+1,volume=program.volumeMm3,filament=program.summary.filamentMm,material=loadMaterial(plan.setup.material),modern=c.contract==='h2d-02.08.02.61-generic-material-textured-v3';
+  const density=modern?material.densityGcm3:1.26,weight=volume/1000*density;
+  const nozzles=modern?[...plan.setup.toolSetups].sort((a,b)=>a.tool-b.tool).map(item=>String(item.nozzleMm)):['0.4','0.4'];
   const seconds=Math.ceil(program.seconds),bbox=[c.bounds.min[0],c.bounds.min[1],c.bounds.max[0],c.bounds.max[1]];
   const plate={bbox_all:bbox,bbox_objects:[{area:(bbox[2]-bbox[0])*(bbox[3]-bbox[1]),bbox,id:1,layer_height:plan.process.layerMm,name:'SAAM part'}],
-    bed_type:'textured_plate',filament_colors:['#28A090'],filament_ids:[0],first_extruder:0,first_layer_time:0,is_seq_print:false,nozzle_diameter:0.4,version:2};
+    bed_type:'textured_plate',filament_colors:['#28A090'],filament_ids:[0],first_extruder:0,first_layer_time:0,is_seq_print:false,nozzle_diameter:modern?plan.setup.nozzleMm:.4,version:2};
   const entries=new Map([
     [GCODE,code],[GCODE+'.md5',digest(code,'md5')],['Metadata/saam.json',json(c)],
     ['Metadata/plate_1.json',json(plate)],
@@ -124,9 +129,9 @@ function packageEntries(code,c,program,plan){
     ['_rels/.rels','<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/><Relationship Target="/Metadata/plate_1.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/><Relationship Target="/Metadata/plate_1.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/><Relationship Target="/Metadata/plate_1_small.png" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/></Relationships>\n'],
     ['Metadata/_rels/model_settings.config.rels','<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/Metadata/plate_1.gcode" Id="rel-1" Type="http://schemas.bambulab.com/package/2021/gcode"/></Relationships>\n'],
     ['Metadata/model_settings.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><plate>\n${meta({plater_id:1,plater_name:'SAAM',locked:false,filament_map_mode:'Manual',filament_maps:map,filament_volume_maps:0,gcode_file:GCODE,thumbnail_file:'Metadata/plate_1.png',thumbnail_no_light_file:'Metadata/plate_no_light_1.png',top_file:'Metadata/top_1.png',pick_file:'Metadata/pick_1.png',pattern_bbox_file:'Metadata/plate_1.json'})}\n</plate></config>\n`],
-    ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><header><header_item key="X-BBL-Client-Type" value="slicer"/><header_item key="X-BBL-Client-Version" value="SAAM-${xml(c.release.generatorVersion)}"/></header><plate>\n${meta({index:1,extruder_type:'0 0',nozzle_volume_type:'0 0',printer_model_id:'O1D',nozzle_diameters:'0.4,0.4',timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:map,limit_filament_maps:0})}\n<object identify_id="1" name="SAAM part" skipped="false"/><filament id="1" tray_info_idx="GFA00" type="PLA" color="#28A090" used_m="${fmt(filament/1000,4)}" used_g="${fmt(weight,3)}" group_id="${tool}" nozzle_diameter="0.40" volume_type="Standard" used_for_object="true" used_for_support="false" total_load_time="26.00" total_unload_time="0.00"/><nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="0.4" volume_type="Standard"/><layer_filament_lists><layer_filament_list filament_list="0" layer_ranges="0 ${c.layers-1}"/></layer_filament_lists></plate></config>\n`],
+    ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><header><header_item key="X-BBL-Client-Type" value="slicer"/><header_item key="X-BBL-Client-Version" value="SAAM-${xml(c.release.generatorVersion)}"/></header><plate>\n${meta({index:1,extruder_type:'0 0',nozzle_volume_type:'0 0',printer_model_id:'O1D',nozzle_diameters:nozzles.join(','),timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:map,limit_filament_maps:0})}\n<object identify_id="1" name="SAAM part" skipped="false"/><filament id="1" tray_info_idx="${material.export.bambuId}" type="${xml(material.id)}" color="#28A090" used_m="${fmt(filament/1000,4)}" used_g="${fmt(weight,3)}" group_id="${tool}" nozzle_diameter="${plan.setup.nozzleMm.toFixed(2)}" volume_type="Standard" used_for_object="true" used_for_support="false" total_load_time="26.00" total_unload_time="0.00"/><nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="${plan.setup.nozzleMm}" volume_type="Standard"/><layer_filament_lists><layer_filament_list filament_list="0" layer_ranges="0 ${c.layers-1}"/></layer_filament_lists></plate></config>\n`],
     ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:[tool],optimal_assignment:[0],sequence:[1]}})],
-    ['Metadata/project_settings.config',json({printer_model:'Bambu Lab H2D',printer_settings_id:'Bambu Lab H2D 0.4 nozzle',gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:['1','0'],filament_map:[String(map)],filament_map_mode:'Manual',filament_nozzle_map:[String(tool)],nozzle_diameter:['0.4','0.4'],nozzle_volume_type:['Standard','Standard'],filament_diameter:['1.75'],filament_type:['PLA'],filament_ids:['GFA00'],filament_colour:['#28A090'],filament_density:['1.26'],filament_flow_ratio:['1'],nozzle_temperature:[String(plan.setup.nozzleC)],nozzle_temperature_initial_layer:[String(plan.setup.nozzleC)],hot_plate_temp:[String(plan.setup.bedC)],hot_plate_temp_initial_layer:[String(plan.setup.bedC)],chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0'})]
+    ['Metadata/project_settings.config',json({printer_model:'Bambu Lab H2D',printer_settings_id:`Bambu Lab H2D ${modern?plan.setup.nozzleMm:.4} nozzle`,gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:['1','0'],filament_map:[String(map)],filament_map_mode:'Manual',filament_nozzle_map:[String(tool)],nozzle_diameter:nozzles,nozzle_volume_type:['Standard','Standard'],filament_diameter:['1.75'],filament_type:[material.id],filament_ids:[material.export.bambuId],filament_colour:['#28A090'],filament_density:[String(density)],filament_flow_ratio:['1'],nozzle_temperature:[String(plan.setup.nozzleC)],nozzle_temperature_initial_layer:[String(plan.setup.nozzleC)],hot_plate_temp:[String(plan.setup.bedC)],hot_plate_temp_initial_layer:[String(plan.setup.bedC)],chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0'})]
   ]);
   const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){

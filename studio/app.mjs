@@ -53,11 +53,11 @@ const duration=()=>state?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
 const materialFact=program=>program.summary.materialModel==='relay-estimate'
-  ? ['Material estimate',round2(materialGrams(program.summary.estimatedRelayVolumeMm3))+' g from relay timing; unverified']
-  : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.summary.volumeMm3??program.volumeMm3))+' g'];
+  ? ['Material estimate',round2(materialGrams(program.summary.estimatedRelayVolumeMm3,state.materialProfiles?.find(item=>item.id===state.plan.setup.material)?.densityGcm3))+' g from relay timing; unverified']
+  : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.summary.volumeMm3??program.volumeMm3,state.materialProfiles?.find(item=>item.id===state.plan.setup.material)?.densityGcm3))+' g'];
 const materialSetup=state=>state.plan.setup.dobot||state.plan.setup.denso
   ? ['Extrusion','External relay control · '+state.plan.setup.material]
-  : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'];
+  : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C · '+state.plan.setup.nozzleMm+' mm nozzle'];
 const vaseSettings=state=>{
   if(state.plan.composition?.regions?.length)return [];
   const vase=state.plan.skills?.['vase-wall'];
@@ -70,7 +70,8 @@ const vaseSettings=state=>{
 };
 function machineSettings(state,rows){
   const d=state.plan.setup.dobot??state.plan.setup.denso;
-  if(!d)return rows;
+  if(!d)return [['Printer',state.machine.name],['Active nozzle',state.machine.tools.find(tool=>tool.index===state.plan.setup.tool)?.label??String(state.plan.setup.tool)],
+    ...state.plan.setup.toolSetups.map(item=>[(state.machine.tools.find(tool=>tool.index===item.tool)?.label??`Tool ${item.tool}`)+' setup',`${item.core} · ${item.nozzleMm} mm · ${item.material}`]),...rows];
   const omitted=new Set(['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']);
   return [...rows.filter(([name])=>!omitted.has(name)),...robotRows(state.plan)];
 }
@@ -273,12 +274,32 @@ function table(entries) {
   for(const [key,value]of entries){const row=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value;row.append(dt,dd);dl.append(row);}
   return dl;
 }
+function option(value,text,selected=false){const item=document.createElement('option');item.value=value;item.textContent=text;item.selected=selected;return item;}
+function renderSetupControls(){
+  const form=$('#setup-controls');form.hidden=tab!=='plan'||Boolean(state.inspection);if(form.hidden)return;
+  const printer=$('#printer');printer.replaceChildren(...state.machineChoices.map(machine=>option(machine.id,machine.name,machine.id===state.machine.id)));
+  const host=$('#tool-setups');host.replaceChildren();
+  for(const tool of state.machine.tools){
+    const configured=state.plan.setup.toolSetups.find(item=>item.tool===tool.index),details=document.createElement('details');details.open=tool.index===state.plan.setup.tool;
+    const summary=document.createElement('summary'),active=document.createElement('input');active.type='radio';active.name='active-tool';active.value=tool.index;active.checked=tool.index===state.plan.setup.tool;
+    summary.append(active,' '+tool.label);details.append(summary);
+    const grid=document.createElement('div');grid.className='tool-grid';
+    const hotendLabel=document.createElement('label'),hotend=document.createElement('select');hotend.dataset.tool=tool.index;hotend.className='hotend-choice';
+    for(const item of tool.hotends??tool.cores.map((core,index)=>({core,nozzleMm:tool.nozzleDiametersMm[index]??tool.nozzleDiametersMm[0]})))hotend.append(option(JSON.stringify([item.core,item.nozzleMm]),`${item.core} · ${item.nozzleMm} mm`,item.core===configured.core&&item.nozzleMm===configured.nozzleMm));
+    hotendLabel.append('Print core / nozzle',hotend);
+    const materialLabel=document.createElement('label'),material=document.createElement('select');material.dataset.tool=tool.index;material.className='material-choice';
+    const fillMaterials=()=>{const [core,nozzleMm]=JSON.parse(hotend.value),declaration=(tool.hotends??[]).find(item=>item.core===core&&item.nozzleMm===nozzleMm),prior=material.value||configured.material;material.replaceChildren();for(const profile of state.materialProfiles)if((!declaration||declaration.materialCategories.includes(profile.category))&&nozzleMm>=(profile.minNozzleMm??0))material.append(option(profile.id,profile.label,profile.id===prior));};
+    hotend.onchange=fillMaterials;fillMaterials();materialLabel.append('Material',material);grid.append(hotendLabel,materialLabel);details.append(grid);host.append(details);
+  }
+  for(const [id,value] of [['#nozzle-temperature',state.plan.setup.nozzleC],['#bed-temperature',state.plan.setup.bedC],['#maximum-flow',state.plan.process.maxFlowMm3S],['#retraction',state.plan.process.retractMm],['#retraction-speed',state.plan.process.retractSpeedMmS]]){$(id).value=value;$(id).dataset.original=value;}
+}
 function render() {
   $('#stage-label').hidden=!state.inspection;
   $('#view-title').textContent={geometry:'Your geometry',plan:'Your geometry',toolpath:'Your toolpath'}[tab];
   $('#guidance').textContent={geometry:'Check the shape and dimensions.',plan:'',toolpath:'Inspect the full toolpath before exporting.'}[tab];
   $('#guidance').hidden=!$('#guidance').textContent;
   $('#facts').replaceChildren(table(view().facts(state,tab)));
+  renderSetupControls();
   $('#more-settings').hidden=tab!=='plan';
   $('#settings-detail').replaceChildren(table([...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
   $('#planar-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
@@ -498,6 +519,18 @@ $('#open-print').onclick=async()=>{
 };
 $('#close-picker').onclick=()=>$('#print-picker').close();
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
+$('#printer').onchange=async()=>{
+  if($('#printer').value===state.machine.id)return;
+  try{await working('Changing printer and loading its remembered setup…',async()=>{await api('machine',{machineId:$('#printer').value,revision:state.revision});await refresh(true);});}
+  catch(error){message(error.message,true);await refresh();}
+};
+$('#setup-controls').onsubmit=async event=>{
+  event.preventDefault();$('#setup-message').textContent='';
+  const selections=$$('.hotend-choice').map(select=>{const [core,nozzleMm]=JSON.parse(select.value),tool=Number(select.dataset.tool),material=$(`.material-choice[data-tool="${tool}"]`).value;return {tool,core,nozzleMm,material};});
+  const activeTool=Number($('input[name="active-tool"]:checked').value),changed=id=>$(id).value===$(id).dataset.original?undefined:Number($(id).value);
+  try{await working('Updating setup and recalculating dependent defaults…',async()=>{await api('configure',{revision:state.revision,selections,activeTool,overrides:{nozzleC:changed('#nozzle-temperature'),bedC:changed('#bed-temperature'),maxFlowMm3S:changed('#maximum-flow'),retractMm:changed('#retraction'),retractSpeedMmS:changed('#retraction-speed') }});await refresh(true);});}
+  catch(error){$('#setup-message').textContent=error.message;await refresh();}
+};
 $('#travel').onchange=requestDraw;
 $('#follow-plate').onchange=requestDraw;
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};

@@ -17,13 +17,15 @@ pending the other contributor. Human approval of a print belongs to the separate
 Staging, committing and publishing require explicit authorization, including
 authorization already given in the conversation. Once committing is authorized,
 checkpoint the existing working tree before new work so the changes remain
-separable. The [commit test requirement](#checks) applies to that checkpoint too.
+separable. Choose verification from the behavior changed; commits and checkpoints do not independently require a full test run.
 
 The canonical destination is Struder-AI/SAAM. Publish to the requested feature
 branch when authorized; a personal fork is optional. Pushing to main requires an
 explicit request. Leave your own PRs for human review and merging.
 
 Prefer working into main or merging back frequently, with at most one active pending branch per account; purpose-saved side branches (such as the legacy skills library) are exempt, and discuss merging to main when the user has not mentioned it and the right action is unclear.
+
+Tasks sharing a checkout may contribute to the same commit: keep its current branch, reread affected lines before editing, preserve other tasks' changes, and coordinate Git operations through one task; create another branch only for intentional isolation and integrate it promptly.
 
 ## Testing through the use context
 
@@ -43,26 +45,21 @@ any necessary setting changes there, rather than relying on the originating task
 
 ## Checks
 
-Choose verification from the behavior being changed and its affected consumers.
-The [test registry](#test-registry) helps locate existing coverage. During
-development, use focused tests and broaden or repeat them when a change, failure
-or unresolved concern warrants it. Documentation-only work normally needs
-`node scripts/check-repo.mjs`; discussion and read-only investigation need no tests.
+Choose verification from the changed behavior and a concrete failure it could
+introduce. Run relevant tests locally and fix failures before publication. Use the
+full `npm test` suite when broad integration risk or the user request warrants it.
+Reuse successful results while the relevant source and environment remain unchanged;
+commits, task boundaries and prose edits do not independently require test runs.
 
-Every authorized commit, including documentation and checkpoint commits, requires
-a complete local `npm test` run against the final state being committed. Subsequent
-edits require a fresh run before committing. Resolve failures first unless the
-user explicitly authorizes committing that failing state. The successful run
-remains valid through staging and the commit itself. Run and fix these checks
-locally before publication. GitHub does not repeat the full suite automatically
-on pushes or pull requests, and main does not require a remote `test` status.
-The repository-check workflow is available for an explicitly requested manual
-run. Platform packaging workflows exercise first-use setup, without repeating
-the manufacturing regression suite.
+GitHub main requires the `test` check from GitHub Actions. The job in
+[test.yml](.github/workflows/test.yml) runs `npm run setup:check` once on each
+fresh pull-request runner after dependency installation; manual dispatch is also
+available. The workflow uses only `contents: read`. Local first-use setup results
+remain valid until their dependencies or environment change. Regression tests
+remain available locally for the changes that warrant them.
 
-Add meaningful coverage for new behavior and maintain the registry associations.
-Report the checks performed and their results with their actual scope. These are
-repository checks; generated-print validation has its own workflow and evidence.
+Report the actual verification scope and unresolved failures. The registry below
+locates existing coverage; it is not an automatic checklist for every change.
 
 ### Test registry
 
@@ -102,6 +99,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/path/compose.mjs`: scheduling, weaving and joins | [composition.test.mjs](core/tests/composition.test.mjs) | Pipeline and regional workflow |
 | Material regions, reservations and consumed surfaces | [regions.test.mjs](core/tests/regions.test.mjs), [assembly-reservation.test.mjs](core/tests/assembly-reservation.test.mjs), [reservation-surface.test.mjs](core/tests/reservation-surface.test.mjs), [regional-workflow.test.mjs](core/tests/regional-workflow.test.mjs) | Infill, drape and vase composition |
 | `core/print/plan.mjs`, generation and machine compatibility | [pipeline.test.mjs](core/tests/pipeline.test.mjs), [interoperability.test.mjs](core/tests/interoperability.test.mjs) | Affected skill and machine tests |
+| Machine hotends, material profiles, remembered multi-tool setup and nozzle-derived process limits | [machine-selection.test.mjs](core/tests/machine-selection.test.mjs) | S5/H2D exporters, Studio settings and legacy bundle reopening |
 | `core/print/workflow.mjs`, bundles, approvals, reopening and exact delivery | [workflow.test.mjs](core/tests/workflow.test.mjs), [program-cache.test.mjs](core/tests/program-cache.test.mjs), [regional-workflow.test.mjs](core/tests/regional-workflow.test.mjs) | Wedge lifecycle, machine-specific delivery and MCP callers |
 | `core/export/griffin.mjs`: S5 templates, G-code interpretation | [export.test.mjs](core/tests/export.test.mjs), [large-export.test.mjs](core/tests/large-export.test.mjs) | Pipeline and wedge Griffin round trips |
 | Shared modal G-code fields and final-export checks | [modal-export.test.mjs](core/tests/modal-export.test.mjs) | S5/H2D, wedge, cold bundle reopening |
