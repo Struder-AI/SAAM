@@ -16,7 +16,11 @@ reducing the arm's need to sweep around the pipe. Small radii near the base axis
 large radial/vertical distances and extreme wrist orientations can still be
 inaccessible or singular. No single cylindrical reach envelope establishes
 feasibility. Operator judgment and the configured RC8 handle these limitations
-for now; SAAM does not solve IK, check reach/joint/motion limits or avoid collisions.
+for production output; SAAM does not use IK to validate export, check
+reach/joint/motion limits or avoid collisions. A separate
+[nominal presentation model](../machine/README.md#denso-vp-6242) supplies
+drawing-based FK/seeded IK when its display installation is explicit; it does
+not establish the RC8 encoder/FIG mapping or authorize output.
 Profile bounds are display/design coordinates, not enforced robot reach.
 
 The shared motion representation has optional `initialPose` and per-move `pose`:

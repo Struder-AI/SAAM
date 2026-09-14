@@ -7,7 +7,7 @@ The [lifecycle reference](README.md) explains implementation contracts.
 
 ## Choose the tool entry point
 
-Run CLI examples from the repository root after [checkout setup](../../CONTRIBUTING.md#setup-and-checks).
+Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
 Use a named directory under ignored `Prints/`; quote paths containing spaces.
 The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns. The
 [bounded wedge demo](../../skills/wedge-demo/SKILL.md#setup-and-tools) has its own
@@ -162,7 +162,7 @@ For an explicitly developmental preview, `demo Prints/development/my-part`
 creates or reopens a shell bundle and generates without human approvals. An
 existing recipe can be initialized first. Development output cannot authorize
 delivery, and MCP does not expose this mode. Follow the
-[development testing context](../../CONTRIBUTING.md#testing-through-the-use-context)
+[development testing context](../../DEVELOP.md#testing-through-the-use-context)
 when exercising maker tools during development.
 
 Development generation still needs explicit robot command settings; for a new

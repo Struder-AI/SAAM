@@ -133,6 +133,9 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   const fingerprint = await bundleFingerprint(dir);
   await approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision });
   state = await loadBundle(dir);
+  await approve(dir, { stage: 'plan', actor: ACTOR, revision: state.revision });
+  state = await loadBundle(dir);
+  assert.equal(state.planApproved, true, 'the edit must invalidate an existing approval');
   const stale = state.revision;
 
   // A settings change keeps geometry approval and drops the plan approval.
@@ -196,12 +199,9 @@ test('Studio reviews a shell print and delivers it under its own export name', a
   const origin = `http://127.0.0.1:${server.address().port}`;
 
   const html = await (await fetch(origin)).text();
-  assert.match(html,/id="setup-controls"/);assert.match(html,/id="printer"/);
   const token = html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state = await (await fetch(origin + '/api/state')).json();
   assert.equal(state.kind, 'shell');
-  assert.ok(state.machineChoices.some(machine=>machine.id==='bambu-h2d'));
-  assert.ok(state.materialProfiles.some(material=>material.id==='PETG'));
   assert.equal(state.exportName, 'part.gcode');
   assert.ok(state.program && state.geometry.faces.length > 0, 'the viewer receives a program and a display proxy');
   assert.equal(state.code, undefined, 'the export is fetched separately, never embedded in state');

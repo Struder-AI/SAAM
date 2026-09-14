@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 7,
+  "revision": 6,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
@@ -35,8 +35,6 @@
     ]
   },
   "filamentDiameterMm": 2.85,
-  "maxVolumetricFlowMm3S": 15,
-  "maxRetractionMm": 10,
   "tools": [
     {
       "index": 0,
@@ -50,23 +48,14 @@
         237
       ],
       "cores": [
-        "AA 0.25", "AA 0.4", "AA 0.8", "BB 0.4", "BB 0.8", "CC 0.4", "CC 0.6"
+        "AA 0.4"
       ],
       "nozzleDiametersMm": [
-        0.25, 0.4, 0.6, 0.8
-      ],
-      "hotends": [
-        {"core":"AA 0.25","nozzleMm":0.25,"materialCategories":["standard","engineering"]},
-        {"core":"AA 0.4","nozzleMm":0.4,"materialCategories":["standard","engineering","flexible"]},
-        {"core":"AA 0.8","nozzleMm":0.8,"materialCategories":["standard","engineering","flexible"]},
-        {"core":"BB 0.4","nozzleMm":0.4,"materialCategories":["support"]},
-        {"core":"BB 0.8","nozzleMm":0.8,"materialCategories":["support"]},
-        {"core":"CC 0.4","nozzleMm":0.4,"materialCategories":["abrasive"]},
-        {"core":"CC 0.6","nozzleMm":0.6,"materialCategories":["abrasive"]}
+        0.4
       ],
       "layerHeightMm": [
-        0.04,
-        0.6
+        0.06,
+        0.3
       ]
     },
     {
@@ -81,23 +70,14 @@
         219
       ],
       "cores": [
-        "AA 0.25", "AA 0.4", "AA 0.8", "BB 0.4", "BB 0.8", "CC 0.4", "CC 0.6"
+        "AA 0.4"
       ],
       "nozzleDiametersMm": [
-        0.25, 0.4, 0.6, 0.8
-      ],
-      "hotends": [
-        {"core":"AA 0.25","nozzleMm":0.25,"materialCategories":["standard","engineering"]},
-        {"core":"AA 0.4","nozzleMm":0.4,"materialCategories":["standard","engineering","flexible"]},
-        {"core":"AA 0.8","nozzleMm":0.8,"materialCategories":["standard","engineering","flexible"]},
-        {"core":"BB 0.4","nozzleMm":0.4,"materialCategories":["support"]},
-        {"core":"BB 0.8","nozzleMm":0.8,"materialCategories":["support"]},
-        {"core":"CC 0.4","nozzleMm":0.4,"materialCategories":["abrasive"]},
-        {"core":"CC 0.6","nozzleMm":0.6,"materialCategories":["abrasive"]}
+        0.4
       ],
       "layerHeightMm": [
-        0.04,
-        0.6
+        0.06,
+        0.3
       ]
     }
   ],
@@ -181,11 +161,9 @@
     "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker_s5.def.json",
     "https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker.def.json",
     "https://github.com/Ultimaker/Cura/blob/main/resources/extruders/ultimaker_s5_extruder_right.def.json",
-    "https://ultimaker.com/3d-printers/s-series/ultimaker-s5/",
-    "https://um-support-files.ultimaker.com/Product-datasheet/parts/Product-data-sheet-Print-core-DD.pdf",
-    "https://github.com/Ultimaker/fdm_materials"
+    "https://ultimaker.com/3d-printers/s-series/ultimaker-s5/"
   ],
-  "sourceChecked": "2026-09-12",
+  "sourceChecked": "2026-09-08",
   "validation": "software definition; no physical print validation",
   "capabilities": [
     "xyz-extrusion",
@@ -225,9 +203,5 @@
     "materialGuid": "506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9",
     "firmwareVersion": "",
     "startupVerified": false
-    ,"toolSetups": [
-      {"tool":0,"core":"AA 0.4","nozzleMm":0.4,"material":"PLA"},
-      {"tool":1,"core":"AA 0.4","nozzleMm":0.4,"material":"PLA"}
-    ]
   }
 }

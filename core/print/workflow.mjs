@@ -58,7 +58,6 @@ export function createBundleWorkflow(adapter) {
     return runtimeCache??=hash(await Promise.all([
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
       new URL('./program-handoff.mjs',import.meta.url),
-      new URL('../material/profile.mjs',import.meta.url),new URL('../../materials/generic.json',import.meta.url),
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
       new URL('../export/gcode-lines.mjs',import.meta.url),
@@ -326,21 +325,6 @@ async function updatePlan(directory, plan, revision) {
   return loadBundle(directory);
 }
 
-async function selectMachine(directory,machineId,revision){
-  const state=await loadBundle(directory,{program:false});
-  requireThat(revision===state.revision,'This view is stale. Reload before changing the printer.');
-  if(machineId===state.machine.id)return state;
-  const machine=loadMachine(machineId),fresh=await proposedPlan(machineId);
-  const plan={...state.plan,setup:fresh.setup,process:fresh.process,output:fresh.output};
-  validatePlan(plan,machine);
-  const review=state.review;
-  delete review.approvals.plan;delete review.approvals.toolpath;review.generation=null;
-  review.history.push({event:'machine-changed',from:state.machine.id,to:machine.id,time:new Date().toISOString(),invalidated:['plan','toolpath']});
-  await save(resolve(state.dir,'machine.json'),machine);await save(resolve(state.dir,'plan.json'),plan);await save(resolve(state.dir,'review.json'),review);
-  inputIdentity=null;validatedPlanHash=null;preparedProgram=null;
-  return loadBundle(directory,{program:false});
-}
-
 // Generation performs the calculations the locked plan specifies. Production
 // generation requires the geometry and plan approvals; development generation
 // is a preview and is recorded as one, so it can never satisfy delivery.
@@ -442,5 +426,5 @@ async function upgradeBundle(directory) {
   await save(resolve(directory,'machine.json'),machine);
   await save(resolve(directory,'review.json'),review);
 }
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,selectMachine,generateBundle,approve,deliver,upgradeBundle};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,upgradeBundle};
 }

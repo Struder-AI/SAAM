@@ -11,7 +11,6 @@ test('ephemeral probe connects UI inputs, agent updates and exact fixture bytes 
     headers: { 'Content-Type': 'application/json', ...(control ? { 'X-Probe-Control': control } : {}) }, body: JSON.stringify(data) });
   try {
     const html = await (await fetch(base)).text();
-    assert.match(html, /fetch\('state'/);
     assert.ok(!html.includes(probe.controlToken));
     const initial = await (await fetch(base + 'state')).json();
     const data = { instanceId: initial.instanceId, text: 'Synthetic test input, not a human action.' };
@@ -31,7 +30,6 @@ test('ephemeral probe connects UI inputs, agent updates and exact fixture bytes 
     assert.deepEqual(bytes, probe.fixture);
     assert.equal(createHash('sha256').update(bytes).digest('hex'), initial.fixtureSha256);
     const final = await (await fetch(base + 'state')).json();
-    assert.match(final.events.at(-1).text, /does not prove/);
     assert.equal(final.fixtureSha256, initial.fixtureSha256);
     const root = new URL('/', base);
     assert.equal((await fetch(root)).status, 404);

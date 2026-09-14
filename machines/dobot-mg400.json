@@ -1,7 +1,8 @@
 {
   "schema":"saam-machine/1", "id":"dobot-mg400", "name":"Dobot MG400 · fixed-nozzle relay extrusion", "revision": 2, "units":"mm",
   "planarWallToleranceMm":0.01,
-  "kinematics":"robot-fixed-orientation-xyz-command-space-only",
+  "kinematics":"fixed-orientation XYZ export; separate nominal four-axis linkage preview",
+  "kinematicModel":{"module":"core/machine/dobot-kinematics.mjs","toolLengthMm":100,"branch":"elbow-negative","marginDeg":4,"basis":"Official Dobot MG400 ROS URDF nominal linkage in base_link coordinates. Tool length is provisional; not calibrated or connected to production export validation.","source":"https://github.com/Dobot-Arm/MG400_ROS/blob/main/mg400_description/urdf/mg400_description.urdf"},
   "bounds":{"min":[0,0,0],"max":[330,240,200]},
   "boundsBasis":"Proposed software design envelope only; configured instance workspace required for export. Not robot reachability.",
   "maxFeedMmS":{"x":100,"y":100,"z":20,"e":45},

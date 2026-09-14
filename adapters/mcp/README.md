@@ -132,7 +132,9 @@ is unsupported. `request_review` and `get_approval_status` accept only a
 persisted print ID. Revision-only approvals and a global live-session plan
 are unsupported.
 
-Run the SDK subprocess integration checks with:
+SDK subprocess integration coverage is available below. Select checks under
+[Avoid check spirals](../../DEVELOP.md#avoid-check-spirals); these commands add no
+separate verification pass.
 
 ```sh
 node --test core/tests/mcp.test.mjs core/tests/mcp-access.test.mjs
@@ -294,6 +296,6 @@ tunnels do not; this bridge still uses stateless JSON responses.
   computer for the complete review/delivery flow. A phone or different computer
   cannot open those local URLs or retrieve local files through this bridge.
 
-Run `node --test core/tests/mcp-http.test.mjs` for OAuth rejection/rotation/
+`node --test core/tests/mcp-http.test.mjs` provides coverage for OAuth rejection/rotation/
 revocation, two-client state, preserved Studio lifetime, synthetic approval gates
 and exact-export delivery. No test authorizes a real print or starts hardware.

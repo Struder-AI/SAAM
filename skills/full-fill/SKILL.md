@@ -129,5 +129,5 @@ bead-width offsets. Rectangular beads and overlap are approximations. Automatic
 support, geometric overlap resolution between arbitrary components and physical
 clearance validation are not implemented.
 
-Run `npm test` after changes. Tests cover shape/volume, travel, geometry and
+Available tests cover shape/volume, travel, geometry and
 machine interoperability, source changes, approvals and exact-byte S5/H2D delivery.

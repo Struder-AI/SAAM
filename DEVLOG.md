@@ -1,5 +1,353 @@
 # Development log
 
+## 2026-09-13 — Publication review before fork transition
+
+Reconciled GitHub's PR #4 merge through local merge `f4ea2d8`; its tree and
+the existing uncommitted diff were unchanged. Reused the focused verification
+recorded below; the whitespace diff check passed without another software run.
+The user requested publication before creating a fork. Review observations
+remain unresolved: tracked .NET build artifacts in `scripts/bench/obj/`, an
+apparently unreferenced repaired STL at the root, and the Tippy importer's
+missing interpolation recheck after inserting corrected poses. Its current
+coverage report therefore overstates verification of the final adapted motion.
+
+At the user's subsequent request, `npm test` passed all 465 ordinary software
+tests in 72 seconds with no failures or skips. Stress tests remain separate.
+
+## 2026-09-13 — Tippy wavy cladding preview
+
+Renamed the machine display to Tippy while retaining profile ID `tilty` and its
+existing model parameters. Adapted the early DENSO bumpy spline demo, including
+its six alternating axial/helical cladding shells, into a stationary-bed study
+at 2× scale, selected for the user's requested quick preview. Its deposited
+extent is approximately 62.5 × 65.3 × 64 mm.
+
+The importer compacts short recorded paths, aggregates time/material, scales
+bead dimensions, removes rotary/tool roll and adapts inclination to Tippy.
+Cladding keeps at least 20° where the source permits, with at most 5° further
+reduction from the original-size Tippy adaptation. That initial adaptation is
+larger than five degrees at steep source patches and was explained separately.
+Intermediate tilt poses handle transitions that cross the main-arm envelope.
+The study retains source phase, operation and layer labels for Studio display.
+
+The saved report records 887,228 model pose checks and source identity. Six
+focused study checks pass, including preservation of the cladding phase/layer
+metadata. This is a scaled recorded-path preview for parameter tuning, not a
+regenerated nozzle-specific slice, global maximum or executable Tippy program.
+
+## 2026-09-13 — Tilty containment and main-arm envelope
+
+Added the requested rail-radius boundaries for the nozzle, circular carrier
+plate and triangular rear tilt plate. Defined the main-arm envelope as the
+three inward side planes containing the paired main rods, extended upward.
+Every tilt-rod endpoint must lie inside every plane, containing the full rods
+and tilt triangle by convexity. The same signed margins drive inverse validity
+and manual slider coupling. Physical thickness and contact clearance remain
+outside this nominal geometric model.
+
+Revision 6 shortens the lower main rails to 249.5 mm and tilt rails to
+284.3/287.4/287.4 mm. Upper limits remain 650 mm. Offline interval subdivision
+and full-model reachable witnesses bounded all six minima to within 1 mm;
+rounding lower stops down preserves modeled reach. X/Y sliders now span the
+180 mm rail radius and Studio draws its circular footprint. The height span
+is conservatively bounded from the contained carrier geometry. Existing study
+motion is retained while its machine snapshot receives the new definition.
+
+All 29 focused machine and Studio checks passed. Evidence includes independent
+radius and envelope rejection, valid poses at all four radial slider extremes,
+near-bottom rail witnesses, interval bounds at those poses, and combined rail,
+tilt, envelope and radial jogging with the assembly remaining ready.
+
+Date entries by the work or observation when evidence supports it; cite the
+dated source or commit and distinguish request, checkpoint and completion dates.
+Preserve explicit follow-up dates and timezones. If the work date is unknown,
+say so and record the recording or migration date separately; never infer it from
+file modification time. Record actual verification scope, without copying entire
+contracts or turning test counts into claims of physical success. New entries
+need no build-request ID; preserve an existing ID when moving its work record.
+
+## 2026-09-13 — Human contributor rules and agent guidance placement
+
+At the user's direction in the contributor-guidance conversation, CONTRIBUTING
+became human-facing and left the default agent reading path. Setup and test
+references moved to focused owners. DEVELOP retained the during-work context,
+selective-adoption, shared-edit, durable-knowledge and anti-check-spiral rules;
+checkpoint and remote guidance moved to CONTRIBUTING-AGENTS for reading at that
+stage. Blanket preliminary checkpoints, an assumed Git coordinator and mandatory
+human PR review were removed. Existing authorization remained applicable.
+
+The user's follow-up established whole-checkout commits as the default for an
+authorized checkpoint: all non-ignored work, including concurrent contributions
+and unfinished increments, unless explicitly excluded. Recording shared state
+did not establish completion, review or selective-adoption approval.
+
+The user also distinguished local checkpoints from remote publication: the
+pre-push guidance favored a complete result at the outgoing branch head while
+allowing intentional work-in-progress pushes with their purpose and remaining
+work stated. This added no hard gate, approval requirement or verification pass.
+
+The verification wording reused valid evidence instead of triggering new checks
+at publication or from skill manuals. The repository document check passed for
+60 documents, 725 local links and 29 decision records, including open requests
+and skill metadata. This guidance edit changed no software behavior and ran no
+software tests; concurrent implementation work retained its own work records.
+
+## 2026-09-13 — Tilty inversion reserve
+
+At the user's request, Tilty revision 5 adds Splitty's four-degree rod
+elevation reserve and 0.02 normalized constraint singular-value ratio limit.
+The latter detects parallel loss of control using all six constraints and
+five carrier/gimbal coordinates; it is distinct from an angular reserve.
+Geometry validation keeps the tilt cone away from gimbal lock. Inverse poses
+and manual jog corrections share these boundaries.
+
+Recalculated lower working travel with the reserve: main rails start at
+78.0 mm and tilt rails at 163.2/160.7/160.7 mm, with tops still at 650 mm.
+The active study snapshot receives these limits without replacing its motion.
+All 28 focused checks passed, including poses immediately either side of the
+four-degree main-rod boundary, tilt-rod reserve witnesses, a parallel singular
+configuration with vertical rods, and existing coupled jogging behavior.
+
+## 2026-09-13 — Remove unusable lower Tilty rail travel
+
+Tilty revision 4 defines main rail starts at 53.6 mm and tilt rail starts at
+138.8/136.3/136.3 mm above the bed, retaining the 650 mm upper stops. The
+inverse solver, jog margins and displayed rails share these authored limits.
+Updated the active study's machine snapshot without replacing its motion.
+
+The authoring calculation bounds the minimum tilt carriage heights across
+the allowed gimbal range using relaxed reach-disk intersections and reachable
+witness poses. Bound gaps are below 0.02 mm; rounding lower stops down to
+0.1 mm preserves modeled above-bed reach. A near-horizontal main-rod witness
+approaches its analytical lower limit. These are nominal geometric limits,
+without new physical socket or collision claims.
+
+All 27 focused machine jog, presentation, study and Studio kinematics checks
+passed, including recalculation of the authored limits and retained reach
+near each shortened rail endpoint.
+
+## 2026-09-13 — Retain the assembly during manual pose requests
+
+Fixed manual-slider blinking by retaining the last complete model pose at the
+frozen source time while a new worker request is pending or unsuccessful. The
+exact request cache remains separate, so drawing the retained assembly does not
+suppress the new solve or claim its requested coordinates were reached. Source
+and model changes clear the retained state. The focused Studio kinematics checks
+pass, including retained geometry during a pending request and disposal cleanup.
+
+The user clarified that used rail length belongs to the machine definition and
+slider spans should cover the machine's motion independently of the source.
+Removed source-dependent rail cropping and its snapshot field. The existing
+working rail endpoints now drive both geometry and limits. Slider spans derive
+conservative bounds from mechanism dimensions and installation transforms.
+
+Implemented local constrained jogging: prioritize the selected coordinate,
+project corrections against model-owned signed boundary margins, and stop at a
+valid local boundary. Returned slider values follow the accepted pose. Tilty
+supplies rod reach, rail and gimbal margins; Splitty and Dobot expose their
+existing numeric limits. DENSO uses nominal wrist reach plus its seeded IK
+acceptance. Cartesian sliders enforce axis travel, with the bed rail geometry
+aligned to that travel. Missing physical socket/collision limits remain missing.
+This does not claim global reach optimization or hardware motion validation.
+
+Regression evidence includes analytical curved-boundary coupling, simultaneous
+rail/gimbal limits, fixed rails independent of source, source/override cache
+separation, Cartesian end stops and mechanism-derived Tilty slider bounds. The
+fresh Studio runtime shows one gimbal slider backing off as the other reaches
+its limit, with the assembly retained. Tilty height and tilt boundary probes
+remain ready instead of returning incomplete moving geometry.
+
+## 2026-09-13 — Manual machine positioning and used rail travel
+
+Added model-owned tool-position controls to Studio Machine view: XYZ for all
+aligned models, Tilty's two gimbal angles, Dobot yaw and Splitty/DENSO Euler
+orientation. Slider input pauses playback and invokes the same model solver in
+the source worker. Manual/source requests have distinct cache identity; obsolete
+requests cannot replace the displayed pose. Play, seeking, return-to-playback,
+mode/stage/source changes and movie export clear temporary manual posing.
+No source bytes, job approvals or hardware commands are changed.
+
+Rails now display sampled source carriage travel plus the exact current pose,
+with 10 mm end clearance. Optional normalized line spans crop the existing
+primitive geometry; rods retain their configured lengths. Source sampling is
+bounded, is only for display, and retains no viewing-history dependency.
+Machine fit uses the cropped assembly.
+
+Focused provider, study, session/renderer and movie checks pass. Regressions
+cover manual source preservation, invalid Tilty poses, all six model control
+sets, manual/source cache separation, rail cropping/extension/reset and fixed
+rod length. The running Tilty preview was reloaded; XYZ/tilt controls, shorter
+rails and the rendered manual pose were checked in the browser. This is software
+simulation evidence, not hardware motion validation.
+
+## 2026-09-13 — Smaller Tilty carrier and 120 mm tail
+
+The user requested a smaller horizontal plate and approximately 120 mm tail.
+Changed the carrier/anchor radius from 45 to 35 mm and rear lever from 90 to
+120 mm in model defaults and profile revision 3. The plate outline diameter
+therefore decreases from 90 to 70 mm. Main rod attachment positions follow the
+same radius; this changes the actual mechanism, not only its drawing.
+
+The unchanged 24-second motion solves at all 241 sampled times. Minimum rod
+centerline separation is 25.34 mm (previously 29.22 mm); maximum carriage height
+is 539.30 mm within 650 mm travel. Neutral fixed-carrier minimum tilt sensitivity
+is 51.05 mm/radian (previously 32.16). These remain sampled centerline and nominal
+kinematic results, excluding physical component envelopes and collisions.
+All 11 focused model/study checks pass; regenerated the Tilty study with the
+same motion and refreshed the current Studio preview.
+
+## 2026-09-13 — Longer Tilty rear lever
+
+At the user's request, doubled Tilty's pivot-to-rear-anchor length from 45 to
+90 mm in the model defaults and profile revision 2, retaining the 70 mm nozzle
+length. Compared 45/75/90/105 mm using the existing 24-second motion: all 241
+samples at each length solve within rail travel. At 90 mm, minimum pairwise rod
+centerline separation improves from 17.83 to 29.22 mm; highest carriage position
+rises from 460.81 to 508.02 mm within the 650 mm rail. The smallest singular value
+of the neutral, fixed-carrier tilt-height Jacobian rises from 3.83 to 32.16
+mm/radian. This supports the 2× choice without claiming an optimal mechanism.
+Segment distances omit rod radii, joint/socket envelopes and housings; the
+sampled study does not establish collision-free motion or the full workspace.
+The ignored comparison script is `.local/studio-machine-presentation/compare-tilty-rear.mjs`.
+All 11 model/study checks pass with the updated analytical neutral-height
+reference. Regenerated the existing Tilty study with its unchanged motion source.
+
+## 2026-09-13 — Studio machine ghost and Machine view
+
+Implemented the complete Studio consumer of the [v1 presentation contract](studio/KINEMATICS.md):
+simple links, rails, carriages, joints, bed and tool; neutral ghost composition;
+Machine view with independent saved camera; shared reference-frame transforms;
+worker sampling, unavailable-model fallback, stale-response rejection and movie
+parity. Existing material geometry, operation colors and part-fit detail remain
+the baseline. Provider geometry and kinematic equations remain in the separate
+shared-model implementation. This work followed the updated AGENTS/D-029 context
+boundary and fresh Studio sessions.
+
+Verification: 31 selected tests pass across Studio kinematics, cameras, material,
+movie export and source transport. These cover nonzero-placement/moving-bed
+contact, invalid/stale/partial poses, worker failure/disposal, camera restoration,
+projected machine fitting and asynchronous pose-before-video capture. Fresh
+browser inspection covers the actual 8,343-move development S5 wedge, Tilty and
+DENSO studies, and 48,430-move development pipe; the Tilty Machine-view movie
+completes as a 4-second, 0.7 MB WebM. No manufacturing approvals were created.
+
+Paired browser measurements at 848 × 404 compare real WebGL material rendering,
+Canvas composition and a forced pixel readback, with 60 frame pairs after 10
+warmups and alternating order. Wedge baseline/ghost median: 5.3/6.1 ms; p95:
+10.3/9.5 ms. Pipe baseline/ghost median: 4.5/5.2 ms; p95: 6.2/6.5 ms. These
+measure drawing at source time 1190 with varying orbit, excluding source decode
+and worker transport; they are not end-to-end interactive FPS guarantees. No
+toolpath simplification or detail reduction was added. The ignored local harness
+and screenshots are under `.local/studio-machine-presentation/`. Repository
+document/link checks pass. Model poses and previews remain nominal software
+evidence; collision, installation calibration and physical results are unverified.
+
+## 2026-09-13 — Shared machine providers and Tilty mechanism studies
+
+The user authorized implementation after the contract review and minimal-core
+guidance, accepted Tilty/tilt-rod naming, and requested a checkpoint. Commit
+`cf6856f` checkpoints the shared checkout before this implementation; generated
+benchmark caches and the loose STL are excluded. Reoriented to D-029 and the
+updated entry point before editing; no withdrawn component is restored.
+
+Implemented [machine providers](core/machine/README.md) for the current catalog
+and Tilty, sharing source-time evaluation with Studio. S5/H2D use schematic XY
+carriage/Z-bed motion; Splitty reuses its reference model; MG400 reuses nominal
+FK/IK with explicit alignment. The new VP-6242 model uses DENSO's dimension
+drawing and explicit seeded model angles, without claiming RC8 encoder/FIG
+parity. Tilty models a level delta carrier, two-axis gimbal, and three coordinated
+rear tilt rods; its five-coordinate forward solve rejects inconsistent redundant
+actuator positions. Dobot's standalone sampler reuses the shared acceleration
+evaluator instead of maintaining a second timing equation.
+
+Added [read-only Studio studies](tools/kinematics/README.md), including Tilty's
+gimbal-coordinate interpolation and unchanged original Splitty `.sdgcode` input.
+These use the shared viewer and hashed source transport, with no manufacturing
+approval, generation or delivery. Default robot studies explicitly use synthetic
+nominal floor installations. The separate Studio task owns consumer rendering,
+camera behavior, worker lifecycle and visual verification.
+
+Verification: analytical Tilty heights and rod lengths, nozzle-lever compensation,
+rejection of independent roll/incompatible actuators, independent DENSO drawing
+poses, complete deterministic provider samples for all six machines, source-hash
+invalidation, manufacturing-operation refusal and Splitty source/timing parity
+pass. Existing Dobot, source-player, split-delta and DENSO export/lifecycle checks
+pass. A 0.1-second sampling sweep of each 24-second Tilty, Splitty and DENSO study
+returns complete poses throughout; this is sampled nominal software evidence,
+not continuous reach, collision, calibration or physical printing evidence.
+
+## 2026-09-13 — Withdraw September 12 contributions and establish context boundary
+
+- The user reports that the originating agent context combined a pre-GitHub repository with modern SAAM and explicitly authorizes withdrawal of e3dc134, f2a97d8, 6e11afd and ce61c69. The old repository and transcripts are unavailable; no claim is made that every changed line was copied from them. The material-intent addition and revert cancel exactly.
+- Withdraws the net incoming setup/tour, material catalog, nozzle-selection UI, generic compatibility/default changes, expanded H2D output and related portability changes. Retains the independently authored lightweight setup check, shared geometry/skills, kinematics, local-extension boundary, Studio lifetime work, test-worthiness changes and September 13 minimal-core guidance. No repository reset, history rewrite or blanket file restoration is used.
+- Resolves the 44-path incoming footprint in an isolated copy of 357 tracked/nonignored working paths. Seven incoming-only files are removed; the independent setup-check implementation is retained. Existing missing tracked files remain missing. The recovery directory under ignored .local/contribution-withdrawal-20260913 contains the source snapshot, original working patch, path dispositions and verification record; ignored personal experiments, Prints and installed dependencies remain in place.
+- Entry and contribution guidance require reorientation to live contracts when arriving from superseded repositories or transcripts, and explicit selective adoption before old components or methods enter the ecosystem. Routine authorized development gains no additional approval or test gate. [D-029](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission) records three conceptual intents; [BR-044](build_request.md#br-044--port-a-vetted-material-library) records the committed but explicitly deferred material-library port. No port is implemented.
+- Verification: the recovered candidate passes the lightweight runtime/geometry/Studio setup check and all 72 selected tests covering shared lifecycle, both recipe adapters, S5/H2D/configured-Dobot MCP workflows, actual-source review/delivery, setup persistence, malformed outputs, Studio lifetime and independent intersection references. The first candidate run failed because its explicit dependency-hash paths lacked node_modules; linking the installed dependencies resolved that isolated-environment problem. These are software checks, not physical printing evidence.
+
+## 2026-09-13 — Studio and kinematic-model presentation contract
+
+The user selected a machine ghost plus Machine view toggle, retaining manual
+zoom and Studio's simple lines/shapes/cones with careful visual hierarchy.
+They clarified that Studio needs the complete links/rails/print-carriage
+presentation integrated with its existing bed/tool; only the model builder
+works incrementally. Recorded the direction in D-028 and authored the shared
+[integration contract](studio/KINEMATICS.md), reachable from Studio, rendering,
+core architecture and machine references.
+
+The contract specifies primitive geometry, component roles, resolved frames,
+source-time poses, identity, partial/unavailable data, asynchronous responses,
+camera/visibility behavior, movie parity and task ownership. It preserves the
+existing toolpath renderer and exact-source review boundary. Synthetic providers
+support complete Studio development while actual model components arrive.
+The earlier generated-image concepts are presentation illustrations, not graphics
+requirements. No runtime integration, new model or machine execution is included
+in this documentation work. Verification is source/document inspection and
+focused local-link checking; no software regressions are needed for these edits.
+
+## 2026-09-12 — Fixed150 mm rods, maximize unchanged wavy-part scale
+
+The user replaced the rod-minimization objective with fixed150 mm rods and maximum
+part size. First showed a normalized regular six-anchor plate at the previous
+66.7 mm pivot diameter. Then searched other physical dimensions with paired-edge
+ordering enforced and the existing source unchanged except uniform XYZ scale.
+Rail placement is free within the recorded symmetric-family bounds. Neutral
+feasible mutations can replace equal-score candidates so geometry can change before
+scale improves. Two2200-candidate passes found scale2.107361: diameter51.419 mm,
+top Z63.221 mm, tool offset55.550 mm, paired plate center radius32.547 mm and pair
+spacing16 mm. Operating rail travel is152.419 mm; minimum sampled assembly surface
+gap3.365 mm. The standalone and machine profile revision5 show this candidate.
+
+Evidence:64,833 operating samples pass modeled assembly and progressive rod/part
+checks;45,225 cladding endpoints pass rod/plate checks;70 operating poses plus1820
+raw angular probes pass kinematics. Rods remain exactly150 mm, paired-edge ordering
+passes, and non-XYZ source words are identical. Results and search bounds are in
+`Prints/development/splitty-fixed-150-rods/search.json`. This is the best found by a
+bounded search, not proof of a global maximum. Previous unmodeled-body and physical
+validation limitations remain.
+
+
+## 2026-09-12 — Reject interleaved Splitty plate attachments
+
+The user identified that the optimized plate had collapsed toward a triangle. Its perimeter order was C1,B2,A1,C2,B1,A2, violating the intended three paired edges. Added a design-family constraint requiring each pair to stay in its tower sector and a convex A1,A2,B1,B2,C1,C2 perimeter. The optimizer rejects this layout; the viewer flags it instead of falsely saying all pairs occupy their own edges. Three focused analytical/layout tests pass. The recorded full-rod and half-rod comparisons retain this rejected plate arrangement; no replacement physical search has been performed after this correction.
+
+## 2026-09-12 — Splitty assembly clearance and angular-margin correction
+
+- Corrected double application of the angular reserve: operating tilt stays 40 degrees; rod/joint margins apply once at operating poses, and separate probes test raw kinematic boundaries without another margin or collision requirement. Operating motion determines rail travel. Cylinder assessment follows the same distinction; finite probe directions do not prove distance to every parallel singularity.
+- Added finite-segment rod/rail and rod/rod checks, rod/bed and physical rail/rail clearance. Rails retain their full configured extent for checks and the objective. The assumed physical rail bodies are 20 mm diameter with spherical pivots on 25 mm inward mounts; entire rods are checked against their own rails. No near-joint rod segment is exempted. Mount brackets, carriage/joint bodies, frame beams and drives remain unmodeled; nozzle is excluded by user direction.
+- Reused the fixed source with XYZ scaling only. Rod/part travel checks use progressively deposited height; startup is not compared against a finished part. Plate/part checks remain at cladding endpoints. The earlier skinny candidate is superseded because it omitted rod/rail collision checks.
+- Selected the candidate in `Prints/development/splitty-assembly-search/search.json`: scale 5.23524, deposited centerline diameter 127.739 mm, top Z157.057 mm, rods544.502 mm, tool107.118 mm, frame height958.720 mm, average physical envelope diameter285.904 mm. Operating carriage interval589.471–851.661 mm, travel262.189 mm. Updated the standalone and machine profile revision4; no Studio integration or hardware program was built.
+- Evidence: 81,453 operating interpolation samples pass modeled assembly and progressive rod/part checks; minimum assembly surface gap1.777 mm. All45,225 cladding endpoints pass rod/plate checks. Angular checks cover70 operating poses and1,820 raw limit probes. Source non-XYZ words are identical. Nineteen focused kinematics/interpreter tests and two analytical assembly-clearance tests pass. These are sampled geometry results, not full mechanical certification or a global optimum.
+
+
+## 2026-09-12 — Splitty standalone kinematics and profile clearance
+
+- Added shared six-carriage fixed-rod inverse/seeded-forward kinematics, nominal Dobot MG400 kinematics and standalone source playback. DENSO joint modeling remains deferred at the user’s direction. No Studio integration or hardware firmware was built. The preview interpreter samples TCP/Euler motion before IK and does not produce steps or thermal/IO control.
+- Adapted the local wavy DENSO source to a stationary bed with an explicit tilt cap. Added a Dobot vase-wall simulation with synthetic placement. The user selected 40° head tilt, at most two joint layers with one effective pivot center, and a 4° angular reserve.
+- Explored smaller plate/nozzle dimensions and outward rail inclinations. Then fixed the top endpoints and widened the base for inward 5° rails: top radius 180 mm at Z=900 mm, base radius 258.7398 mm, rail coordinate 903.4379 mm. Selected plate pair-center radius 34 mm, pair spacing 86 mm, rods 450 mm, tool offset 64 mm.
+- Built the requested lightweight part-profile check: 41 circular profiles, analytical rod/frustum intersections and plate horizontal cuts. On the 235.2 mm wavy path, full-height cladding collides. The unchanged approach passes at 61.5 mm diameter / 75.6 mm height at all 45,225 source cladding endpoints. Rods alone limit the coarse study to about 64.3 mm diameter. Constant radial 40° approach gives about 63.2 mm; ±15°/30° side approaches slightly reduce capacity.
+- The 235.2 mm path passes the same endpoint/profile check with hypothetical 50 or 60 mm build/clad stages; 70 mm stages fail. Stage ordering and between-stage transitions have not been generated. The standalone now displays the smaller full-height cladding example, with the machine dimensions retained.
+- Evidence: 23 focused kinematics/interpreter tests passed before the profile collision addition; five direct analytical collision cases passed for rod intersections, stage clipping, plate intersections and separated bodies. The full selected operating preview was sampled once; finite 4° reserve directions were checked separately. Collision assumptions are 6 mm rods, 1 mm clearance, 5 mm plate rim, 6 mm plate thickness and all-shell radial inflation. Hotend checking is intentionally excluded. These are mathematical/sampled studies, not physical printing evidence or a continuously certified collision envelope.
+
 ## 2026-09-12 — Reconcile shared branches and restore normal PR checks
 
 Integrated the new remote nozzle/material selection work with the pending shared
@@ -16,6 +364,68 @@ Completed work, development checkpoints, measurements and scoped observations.
 [Build requests](build_request.md#outstanding-work) contains only outstanding or
 incomplete work; component references and skill manuals describe present behavior.
 [Decisions](DECISIONS.md) preserves contributor direction and approval provenance.
+
+## 2026-09-12 — Sweep test worthiness and establish useful examples
+
+- The user requested evaluating the existing suite as an example for future
+  builders. Surveyed the 74 test files present at the start, including two files
+  from concurrent kinematics work that were left unchanged. Retained analytical
+  geometry, upstream references, malformed-program cases, changed-input cache
+  behavior, and distinct transport/output boundaries.
+- Removed 15 tests or repeated matrix cases: tour wording and repeated setup,
+  a retired command, copied camera and former offset implementations, function
+  alias identity, duplicated bundle and viewer lifecycles, a generic boolean case
+  in the infill suite, a recursive live-document crawl, and three repeated MCP
+  vase lifecycles. Removed incidental wording, markup and cosmetic assertions.
+  Input preservation remains in the independent offset-reference test; bounded
+  synthetic fixtures cover the manual reader's relative links and private paths.
+- Moved four real size-boundary regressions to `core/tests/stress/`, selected by
+  `npm run test:stress`: 200,000 moves, Griffin/H2D bodies above 25 MB and a ZIP
+  member above 64 MB. The stress command runs them sequentially to limit concurrent
+  large allocations. Ordinary chunk-boundary and invalid-command tests remain
+  in `npm test`. This preserves defect coverage without paying its cost routinely.
+- Strengthened two approval-invalidation tests to start from an approved plan.
+  Fixed source-player teardown to shut down Studio before deleting its temporary
+  bundle. Added [test-worthiness guidance and examples](core/tests/README.md#worthwhile-tests)
+  and updated the test registry; no additional mandatory gate was introduced.
+- The initial full-suite run reported 446 passes and two failures. A source-player
+  cleanup failed with Windows `EBUSY` and left a worker stalled; the audit's worker
+  was stopped after identifying it. The document crawl also found the concurrent
+  split-delta link in `core/export/README.md` outside the MCP reader's allowed
+  documentation roots. Removing the crawl does not make that link available through
+  MCP; the unrelated manual-access issue was left unchanged. The stalled run is
+  not a useful performance baseline.
+- Verification after edits: 105 focused ordinary tests passed, including all 12
+  MCP tests, and all four stress cases passed across the stress run and a focused
+  rerun. The first stress run exposed an erroneous corruption offset introduced
+  while moving the ZIP case; restored corruption of the compressed payload and
+  reran that case successfully. No full-suite speedup is claimed. Changes remain
+  local and uncommitted.
+
+## 2026-09-12 — Remove blanket agent verification gates
+
+- The user authorized removing purposeless and repeated agent checks, keeping
+  first-use environment checks and locally resolving checks required for publication.
+- Live GitHub inspection found main protected by the GitHub Actions `test` status;
+  the connected account had write access but no admin access. Remote main still
+  ran the full suite on pushes and pull requests, despite local guidance claiming
+  the status was not required. Sources: [main branch metadata](https://api.github.com/repos/Struder-AI/SAAM/branches/main)
+  and [remote workflow at the inspected main commit](https://github.com/Struder-AI/SAAM/blob/6e11afd8718182ebecadc4373e226ae4378c9d50/.github/workflows/test.yml).
+- Changed the local workflow to preserve `test` and run the existing runtime
+  setup smoke check on fresh pull-request runners, with optional manual dispatch
+  and no duplicate push run. This edits the check's implementation without
+  altering branch protection. These changes have not been published.
+- Removed full-suite requirements for commits, checkpoints and skill edits,
+  the task-completion documentation gate, and the document-check prefix from
+  `npm test`. Setup results carry across agent tasks. Focused verification follows
+  relevant changes and concrete failure cases; the full suite and document checker
+  remain available when useful. Removed the redundant print-check command from
+  the setup example.
+- Verification: the replacement CI command, `npm run setup:check`, passed locally
+  on Windows in 0.40 seconds for dependency entry points, geometry kernels and an
+  unapproved Studio preview. Reviewed the workflow and affected guidance. No full
+  regression suite, documentation checker or physical test was run for these edits;
+  the Linux runner result remains for publication.
 
 ## 2026-09-12 — Consolidate shared work toward main
 
@@ -308,7 +718,7 @@ were retained. This restart did not authorize adoption of the legacy runtime.
 All 114 archived files were checked against their original SHA-256 hashes.
 Initial checks covered document links, decision metadata and private-file
 exclusions; they did not validate manufacturing behavior. Current checks are
-described in the [check policy](CONTRIBUTING.md#checks).
+described in the [check policy](DEVELOP.md#avoid-check-spirals).
 
 ## BR-003 — Resolve native path versus machine file
 

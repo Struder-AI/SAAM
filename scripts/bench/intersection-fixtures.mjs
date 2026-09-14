@@ -18,14 +18,3 @@ const pairs=[
 export const intersectionFixtures=pairs.flatMap(({name,a,b})=>['intersect','union','difference'].map(operation=>({
   name:`${name}-${operation}`,a,b,operation,precisionMm:1e-9
 })));
-
-// Fixture provenance follows the coordinates the operation can actually
-// distinguish.  Hashing JSON.stringify(intersectionFixtures) directly makes
-// the identity depend on V8's last-bit Math.sin/Math.cos results even though
-// Clipper quantizes those values to precisionMm before using them.
-export const intersectionFixtureIdentity=intersectionFixtures.map(({name,a,b,operation,precisionMm})=>{
-  const integerRegion=region=>region.map(loop=>loop.map(([x,y])=>[
-    Math.round(x/precisionMm),Math.round(y/precisionMm)
-  ]));
-  return {name,a:integerRegion(a),b:integerRegion(b),operation,precisionMm};
-});

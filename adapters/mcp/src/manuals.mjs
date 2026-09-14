@@ -3,11 +3,11 @@ import { lstat, readFile } from 'node:fs/promises';
 import { resolve, posix } from 'node:path';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'DEVELOP.md',
-  'CONTRIBUTING.md', 'GETTING_STARTED.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md']);
-const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'materials', 'adapters', 'scripts']);
+  'CONTRIBUTING.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md']);
+const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'adapters', 'scripts']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
-  makers: 'MAKERS.md', development: 'DEVELOP.md', 'getting-started': 'GETTING_STARTED.md', glossary: 'GLOSSARY.md',
+  makers: 'MAKERS.md', development: 'DEVELOP.md', glossary: 'GLOSSARY.md',
   mcp: 'adapters/mcp/README.md', 'print-tools': 'core/print/USAGE.md',
   // Existing clients may retain these IDs; normal navigation follows file links.
   'wedge-generation': 'skills/wedge-demo/references/generation.md',

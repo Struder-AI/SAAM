@@ -87,6 +87,13 @@ test('cancel interrupts offline rendering and closes the encoder without a parti
   assert.ok(codecs.frames.length<movieTimeline(100,1).count);assert.equal(codecs.encoders[0].state,'closed');
   assert.ok(codecs.frames.every(frame=>frame.closed));
 });
+test('movie waits for an asynchronous machine pose before capturing each frame',async()=>{
+  const codecs=fakeCodecs();let drawn=0;
+  class Frame extends codecs.VideoFrame {constructor(canvas,metadata){assert.equal(drawn,codecs.frames.length+1);super(canvas,metadata);}}
+  await exportMovie({canvas:{width:640,height:480},duration:.1,speed:10,...codecs,VideoFrame:Frame,
+    draw:async()=>{await Promise.resolve();drawn++;},yieldTask:async()=>{}});
+  assert.equal(drawn,codecs.frames.length);
+});
 test('unsupported codecs and encoder errors are actionable and release frames',async()=>{
   for(const options of [{supported:false},{failConfigure:true},{failEncode:true}]){
     const codecs=fakeCodecs(options);

@@ -1,6 +1,7 @@
 // Display-only material geometry, derived from interpreted moves. No slicing,
 // machine commands, approval data or reference part mesh is changed here.
 import {add,subtract,scale,dot,cross,length,normalize} from '../core/geom/tolerance.mjs';
+import {createMachineLayer} from './machine-view.mjs';
 import {CURRENT_LAYER_GAP_MM,layerKey,toolpathStyle} from './toolpath-view.mjs';
 
 export const materialKey=move=>layerKey(move)+'\0'+(move.operation??'');
@@ -148,7 +149,7 @@ export function createMaterialRenderer(documentApi=document){
   const uniforms=Object.fromEntries(['projection','light','color','detailed'].map(name=>[name,gl.getUniformLocation(program,name)]));
   function template(oval){const data=materialTemplate(oval),buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);return {buffer,count:data.length/6};}
   const templates=[template(false),template(true)];
-  let scene=null,partial=null;const buffers=new Map();
+  let scene=null,partial=null,machineLayer=null;const buffers=new Map();
   function release(entry){gl.deleteBuffer(entry.buffer);for(const vao of entry.vaos)gl.deleteVertexArray(vao);}
   function reset(next){for(const entry of buffers.values())release(entry);buffers.clear();scene=next;}
   function instanceBuffer(data,usage=gl.STATIC_DRAW){
@@ -164,7 +165,7 @@ export function createMaterialRenderer(documentApi=document){
   }
   return {
     canvas,
-    draw(next,{at,current,fade,project,width,height,ratio,skinPhase}){
+    draw(next,{at,current,fade,project,width,height,ratio,skinPhase,machine=null,machineMode='ghost',machinePalette}){
       if(lost)throw new Error('3D graphics context was lost. Refresh Studio to restore material rendering.');
       if(scene!==next)reset(next);
       // A fitted bead may be narrower than one screen pixel. Render enough
@@ -173,7 +174,8 @@ export function createMaterialRenderer(documentApi=document){
       const sampling=Math.max(ratio,Math.min(4,2/Math.max(.01,(project.pixelsPerMm??1)*scene.plan.process.lineWidthMm)));
       const w=Math.round(width*sampling),h=Math.round(height*sampling);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
       gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.stencilMask(0xff);gl.clearStencil(0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
-      const {matrix,light}=materialProjection(project,width,height,scene.bounds),commands=[];
+      const depthBounds=machine?{min:scene.bounds.min.map((v,i)=>Math.min(v,machine.bounds.min[i])),max:scene.bounds.max.map((v,i)=>Math.max(v,machine.bounds.max[i]))}:scene.bounds;
+      const {matrix,light}=materialProjection(project,width,height,depthBounds),commands=[];
       for(const group of scene.groups){
         if(!group.indices.length||group.indices[0]>=at.completed)continue;
         if(!buffers.has(group))buffers.set(group,instanceBuffer(group.instances));
@@ -201,13 +203,22 @@ export function createMaterialRenderer(documentApi=document){
       // Resolve the nearest material surface before applying layer opacity.
       // Hidden surfaces do not accumulate darkness inside a completed block.
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.colorMask(false,false,false,false);gl.depthFunc(gl.LESS);drawCommands();
+      if(machine&&machineMode==='ghost'){
+        machineLayer??=createMachineLayer(gl);
+        machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:c=>c.role!=='tool',depth:false});
+        gl.useProgram(program);gl.enable(gl.DEPTH_TEST);
+      }
       // Coplanar/overlapping bead faces can share the winning depth. Shade
       // each visible sample once, avoiding repeated alpha blending stripes.
       gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,0xff);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);
       gl.colorMask(true,true,true,true);gl.depthMask(false);gl.depthFunc(gl.EQUAL);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);drawCommands();
       gl.disable(gl.STENCIL_TEST);
+      if(machine){
+        machineLayer??=createMachineLayer(gl);
+        machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:machineMode==='ghost'?c=>c.role==='tool':null});
+      }
       gl.bindVertexArray(null);return {cachedGroups:buffers.size,detailedGroups:commands.filter(c=>c.detail).length};
     },
-    dispose(){reset(null);if(partial)release(partial);templates.forEach(t=>gl.deleteBuffer(t.buffer));gl.deleteProgram(program);}
+    dispose(){reset(null);if(partial)release(partial);machineLayer?.dispose();templates.forEach(t=>gl.deleteBuffer(t.buffer));gl.deleteProgram(program);}
   };
 }

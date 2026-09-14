@@ -7,14 +7,15 @@ import { Worker } from 'node:worker_threads';
 import {attachCheckedProgramWorker} from '../core/print/program-handoff.mjs';
 import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
 import {loadLocalExtension} from '../core/local-extension.mjs';
-import {MACHINE_IDS,loadMachine} from '../core/machine/profile.mjs';
-import {MATERIAL_PROFILES,applyToolSelection} from '../core/material/profile.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
 const installedExtension=await loadLocalExtension(root);
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
+  'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs','core/export/split-delta-player.mjs',
+  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs','core/machine/tilty.mjs','core/machine/split-delta.mjs',
+  'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
   'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs']);
@@ -23,6 +24,7 @@ const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mj
 // and that selects its geometry/recipe adapter. Both adapters use the single
 // workflow implementation in core/print/workflow.mjs.
 const bundles={
+  'saam-machine-study/1':()=>import('./machine-study.mjs'),
   'saam-wedge-plan/1':()=>import('../skills/wedge-demo/scripts/bundle.mjs'),
   'saam-shell-plan/1':()=>import('../core/print/bundle.mjs')
 };
@@ -131,7 +133,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
@@ -145,8 +147,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir,{program:'source'});
         if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
-        delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;state.sourceTransport='ndjson';
-        state.machineChoices=MACHINE_IDS.map(id=>{const machine=loadMachine(id);return {id,name:machine.name};});state.materialProfiles=MATERIAL_PROFILES;send(state);
+        delete state.code;delete state.dir;state.printName=basename(readDir);state.printId=readId;state.fingerprint=readId+fingerprint;state.sourceTransport='ndjson';send(state);
         prepare(state,readDir);return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){
@@ -187,27 +188,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           await openPrint(data.path);
         }
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
-        else if(url.pathname==='/api/machine'){
-          await current.selectMachine(dir,data.machineId,data.revision);
-          await current.rememberSetup(dir);
-        }
-        else if(url.pathname==='/api/configure'){
-          const state=await current.loadBundle(dir,{program:false});
-          if(data.revision!==state.revision)throw new Error('This view is stale. Reload before changing setup.');
-          const plan=structuredClone(state.plan);
-          for(const selection of data.selections)applyToolSelection(plan,state.machine,{...selection,activate:false});
-          const active=data.selections.find(selection=>selection.tool===data.activeTool);
-          if(!active)throw new Error('Choose an active nozzle.');
-          const selectionChanged=active.tool!==state.plan.setup.tool||active.core!==state.plan.setup.core||
-            Number(active.nozzleMm)!==state.plan.setup.nozzleMm||active.material!==state.plan.setup.material;
-          const overrides=selectionChanged?data.overrides:{
-            nozzleC:state.plan.setup.nozzleC,bedC:state.plan.setup.bedC,
-            maxFlowMm3S:state.plan.process.maxFlowMm3S,retractMm:state.plan.process.retractMm,
-            retractSpeedMmS:state.plan.process.retractSpeedMmS,...data.overrides
-          };
-          applyToolSelection(plan,state.machine,{...active,...overrides,activate:true});
-          await current.updatePlan(dir,plan,state.revision);await current.rememberSetup(dir);
-        }
         else if(url.pathname==='/api/plan')await current.updatePlan(dir,data.plan,data.revision);
         else if(url.pathname==='/api/approve'){
           const state=await current.approve(dir,{...data,program:'source'});

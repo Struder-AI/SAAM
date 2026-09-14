@@ -99,7 +99,9 @@ initial position/orientation, relay IO and measured relay rate in `setup.denso`.
 Work coordinates must be defined with Z parallel to the bed axis; the calibrated
 RC8 Work definition accounts for the ceiling installation. The SAAM transform
 currently supports translation and yaw between that frame and the displayed room.
-The robot's joint geometry is not modeled in SAAM.
+The optional [nominal presentation model](../../core/machine/README.md) requires
+separate explicit base/tool alignment and model seed; it does not establish
+controller joint or FIG parity.
 
 The implemented rotary interface is `rc8-relative-ex`: a configured RC8 extended
 joint commanded through `EX`. An independently controlled rotary needs another
@@ -148,10 +150,12 @@ Disable pipe-cladding when selecting only ordinary fixed-orientation skills.
 For an existing development bundle, use `node core/print/cli.mjs demo <directory>`;
 use `upgrade` first if its saved machine snapshot needs the current profile.
 
-Studio defaults to the room perspective, with bed and deposited material rotating.
-Select **Follow build plate** to inspect stationary part coordinates. Both views
-use one source interpreter and timeline. The nozzle direction is shown; robot
-joint/arm animation is absent because SAAM computes no joint solutions.
+Studio defaults to **Follow build plate**, retaining stationary part coordinates;
+clear it to inspect bed and material rotation in the room frame. **Machine view**
+independently switches from faint context to assembly framing. Both modes use
+one source interpreter and timeline. The nominal arm is shown only when its
+installation/model inputs are supplied; otherwise bed and tool remain visible
+with an explanation in **Machine model**.
 
 Normal use follows the [shared print tools](../../core/print/USAGE.md) for recipe
 adjustment, Studio review and delivery. The fixed
