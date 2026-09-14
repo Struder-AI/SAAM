@@ -8,6 +8,30 @@ file modification time. Record actual verification scope, without copying entire
 contracts or turning test counts into claims of physical success. New entries
 need no build-request ID; preserve an existing ID when moving its work record.
 
+## 2026-09-14 — Remove obsolete root files
+
+Removed `CONTRIBUTORS.txt` and `sotvl_Spiral-Vase_repaired.stl` at the user's
+request. A checkout search found no references to either filename. Current
+contributor guidance remains in DEVELOP.md and CONTRIBUTING-AGENTS.md. No
+software tests were needed for removing these unreferenced files.
+
+## 2026-09-14 — Windows checkout ownership recovery
+
+Diagnosed shell and Node REPL startup failures in a copied Windows checkout.
+The Codex sandbox log showed `SetNamedSecurityInfoW` error 5 while applying a
+protective deny access rule to `.git`; its owner was `CodexSandboxOffline`.
+Git also rejected the checkout as owned by another account. The system and
+bundled Node executables ran successfully outside the sandbox.
+
+Restored the user's ownership of `.git` and its contents and granted that user
+Full Control through an administrator-approved repair, preserving existing
+access rules. Ownership repair processed 124 entries without failures. Normal
+sandboxed shell execution and a minimal Node REPL call then succeeded; Git
+status also succeeded under the user's account. Added prevention and diagnostic
+guidance to SETUP.md. No source, remote, or runtime installation change was
+needed, and no application regression tests were run for this permissions and
+documentation work.
+
 ## 2026-09-14 — Remove private machine integration
 
 Removed the private machine profile, model, study tools, associated coverage and
