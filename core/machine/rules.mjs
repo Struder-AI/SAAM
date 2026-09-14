@@ -7,11 +7,14 @@ export const toolFor=(machine,index)=>{
 };
 export const toolBounds=(machine,index)=>toolFor(machine,index).bounds??machine.bounds;
 const range=(v,limits,name)=>requireThat(Number.isFinite(v)&&Array.isArray(limits)&&v>=limits[0]&&v<=limits[1],`${name} outside profile limits.`);
+// Read the approved default without changing saved machine snapshot identity.
+export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undefined?0.01:machine.planarWallToleranceMm;
 
-export function validateSetup(plan,machine) {
+export function validateSetup(plan,machine,{required=false}={}) {
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
+  requireThat(Number.isFinite(planarWallTolerance(machine))&&planarWallTolerance(machine)>=0,'Machine planar wall tolerance must be finite and nonnegative.');
   const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool),profile=machine.materials?.[s.material];
-  if(machine.id==='denso-vp6242-rc8')validateDensoConfiguration(plan);
+  if(machine.id==='denso-vp6242-rc8')validateDensoConfiguration(plan,{required});
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
   requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');
   requireThat(s.filamentMm===machine.filamentDiameterMm,'Filament diameter does not match the machine.');
@@ -29,7 +32,7 @@ export function validateSetup(plan,machine) {
   if(plan.output==='griffin-gcode')requireThat(/^[a-f0-9-]{36}$/i.test(s.materialGuid),'A material GUID is required for Griffin.');
   else requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
   if(machine.id==='dobot-mg400'){
-    validateDobotConfiguration(plan,machine);
+    validateDobotConfiguration(plan,machine,{required});
     requireThat(p.retractMm===0&&p.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');
   }
 }
@@ -59,6 +62,12 @@ export function validateDobotConfiguration(plan,machine,{required=false}={}){
 }
 
 export const startupPosition=(machine,plan)=>plan.setup.denso?.initialPositionMm??plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,(machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm)];
+
+// S5 jobs resume with the preceding job's final withdrawal still outstanding.
+// The wedge can explicitly override that assumption; shell plans use the same
+// S5 handoff. H2D hands off unretracted and relay machines have no filament axis.
+export const startupRetracted=(machine,plan)=>plan.process.retractMm>0
+  && (plan.process.startupRetracted??machine.id==='ultimaker-s5');
 
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);

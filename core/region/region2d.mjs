@@ -33,6 +33,7 @@ export class SegmentIndex {
   constructor(loops, cellSize = 1) {
     this.cell = Math.max(cellSize, 1e-3);
     this.buckets = new Map();
+    this.rows = new Map();
     this.segments = [];
     for (const loop of loops)
       for (let i = 0, j = loop.length - 1; i < loop.length; j = i++) this.add([loop[j], loop[i]]);
@@ -42,6 +43,10 @@ export class SegmentIndex {
     const [a, b] = segment;
     const x0 = Math.floor(Math.min(a[0], b[0]) / this.cell), x1 = Math.floor(Math.max(a[0], b[0]) / this.cell);
     const y0 = Math.floor(Math.min(a[1], b[1]) / this.cell), y1 = Math.floor(Math.max(a[1], b[1]) / this.cell);
+    for (let y = y0; y <= y1; y++) {
+      const row = this.rows.get(y);
+      if (row) row.push(index); else this.rows.set(y, [index]);
+    }
     for (let x = x0; x <= x1; x++)
       for (let y = y0; y <= y1; y++) {
         const key = x + '|' + y;
@@ -50,13 +55,26 @@ export class SegmentIndex {
       }
   }
   near(point, radius) {
-    const x0 = Math.floor((point[0] - radius) / this.cell), x1 = Math.floor((point[0] + radius) / this.cell);
-    const y0 = Math.floor((point[1] - radius) / this.cell), y1 = Math.floor((point[1] + radius) / this.cell);
+    return this.inBox([point[0]-radius,point[1]-radius],[point[0]+radius,point[1]+radius]);
+  }
+  inBox(min,max) {
+    const x0 = Math.floor(min[0] / this.cell), x1 = Math.floor(max[0] / this.cell);
+    const y0 = Math.floor(min[1] / this.cell), y1 = Math.floor(max[1] / this.cell);
     const seen = new Set();
     for (let x = x0; x <= x1; x++)
       for (let y = y0; y <= y1; y++)
         for (const index of this.buckets.get(x + '|' + y) ?? []) seen.add(index);
     return [...seen].map(index => this.segments[index]);
+  }
+  contains(point) {
+    let winding=0;
+    for(const index of this.rows.get(Math.floor(point[1]/this.cell))??[]) {
+      const [[xj,yj],[xi,yi]]=this.segments[index];
+      if(yj<=point[1]) {
+        if(yi>point[1]&&(xi-xj)*(point[1]-yj)-(point[0]-xj)*(yi-yj)>0)winding++;
+      } else if(yi<=point[1]&&(xi-xj)*(point[1]-yj)-(point[0]-xj)*(yi-yj)<0)winding--;
+    }
+    return winding!==0;
   }
   distanceTo(point, radius) {
     let best = Infinity;

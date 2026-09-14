@@ -15,7 +15,7 @@ import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS 
 import { validatePlan, VERSION } from './plan.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
-import {toolBounds,startupPosition} from '../machine/profile.mjs';
+import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {generateRegionResults,planarSupportTopAt} from './regions.mjs';
@@ -26,13 +26,14 @@ import {pipeMesh} from '../geom/cylinder.mjs';
 import {pipeCladdingResult,substrateSection,substrateLoops} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {infillStrokes} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {splineTubeShell} from '../geom/spline-tube.mjs';
+import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
 
-export const hasMesh=geometry=>['mesh','pipe'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','voxel'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
   if(geometry.shape==='pipe')return pipeMesh(geometry);
-  if(geometry.shape==='mesh')return makeMesh(geometry.vertices,geometry.triangles);
+  if(['mesh','text','gridfinity','voxel'].includes(geometry.shape))return makeMesh(geometry.vertices,geometry.triangles);
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {
     const components=geometry.parts.map(part=>translateShell(buildShell(rhino,part.geometry),part.xMm,part.yMm,part.zMm));
     return {kind:'assembly',components,bounds:{min:[0,1,2].map(i=>Math.min(...components.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...components.map(c=>c.bounds.max[i])))}};
@@ -102,6 +103,7 @@ export function generatePath(plan, machine, rhino) {
   });
   builder.setContext('start', 0);
   builder.motionBounds=bounds;
+  builder.retracted=startupRetracted(machine,plan);
   builder.fan(0);
 
   const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
@@ -144,11 +146,15 @@ export function generatePath(plan, machine, rhino) {
     requireThat(!(useFill&&useNormal&&fill.mode==='body'),'Full-fill body and planar-infill overlap; select full-fill solid-surfaces mode or separate components.');
     requireThat(!(useFill&&fill.mode==='solid-surfaces'&&!useNormal),'Solid-surface selection requires planar-infill on the same component.');
     if(useNormal){
-      const [sparse,solid]=planarInfillResults({shell,plan,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
+      const [sparse,solid]=planarInfillResults({shell,plan,machine,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
+      publishFinishedBoundary(sparse,{shell,coverage:normal.perimeters?'nominal':'sparse'});
+      if(solid)publishFinishedBoundary(solid,{shell});
       results.push(sparse);normalResults.push(sparse);
       if(solid){results.push(solid);fillResults.push(solid);}
-    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,reserve:useVase?null:survey,zEndMm:baseTop,
-      ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1})}:{})});results.push(result);fillResults.push(result);}
+    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,
+      ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1,spacingFactor:fill.spacingFactor})}:{})});
+      publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor===1?'nominal':'sparse'});
+      results.push(result);fillResults.push(result);}
   }
   if(fillResults.length){
     summary.fullFill=Object.fromEntries(Object.keys(fillResults[0].report).map(key=>[key,fillResults.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
@@ -158,19 +164,27 @@ export function generatePath(plan, machine, rhino) {
   if(vase.enabled) {
     requireThat(vaseShell,'No component selected for vase wall.');
     const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id))});
+    if(vase.pattern==null)publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
+      endMm:result.report.endMm-(vase.endTransition==='level'?0:process.layerMm),toleranceMm:vase.boundaryToleranceMm});
     results.push(result);summary.vaseWall=result.report;
   }
   if(skin.enabled){
     // Every skin operation depends transitively on the ENTIRE supporting body.
     const result=drapedSkinResult({shell:skinShell,plan,machine,survey,after:results.flatMap(r=>r.operations.map(op=>op.id)),
       supportTopAt:planarSupports.length?planarSupportTopAt(planarSupports,process):null});
+    publishFinishedBoundary(result,{shell:skinShell,boundary:'top',maxSlopeDeg:survey.limitDeg,coverage:skin.spacingFactor>1?'sparse':'nominal'});
     results.push(result);summary.drapedSkin=result.report;
   }
   }
-  if(plan.skills['pipe-cladding'].enabled){const result=pipeCladdingResult({plan,shell:placed,after:results.flatMap(r=>r.operations.map(op=>op.id))});results.push(result);summary.pipeCladding=result.report;}
+  if(plan.skills['pipe-cladding'].enabled){
+    const settings=plan.skills['pipe-cladding'],shell=componentShells?componentShells.get(settings.part):placed;
+    const finishedSurface=settings.surface?consumeFinishedSurface({shell,selection:settings.surface,results}):null;
+    const result=pipeCladdingResult({plan,shell,finishedSurface,after:finishedSurface?[]:results.flatMap(r=>r.operations.map(op=>op.id))});
+    results.push(result);summary.pipeCladding=result.report;
+  }
   const rims=[...rimmingPlanarResults({plan,modelResults:results}),...rimmingNormalResults({plan,modelResults:results})];
   if(rims.length){results.unshift(...rims);summary.rimming=rims.map(r=>r.report);}
-  const supports=supportResults({plan,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});
+  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});
   if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
   summary.composition=composeResults(builder,results,plan.composition);
 

@@ -4,15 +4,16 @@ import {offsetRegion} from '../../../core/region/offset.mjs';
 import {clipOpenPaths} from '../../../core/region/intersection.mjs';
 import {levelSetRegion} from '../../../core/region/boolean.mjs';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
+import {lineSpacing} from '../../../core/path/spacing.mjs';
 
 export const INFILL_PATTERNS=['rectilinear','grid','triangles','concentric','gyroid'];
 
 export function infillStrokes(region,{pattern='rectilinear',widthMm,density,angleDeg=45,zMm=0,
-  sampleStepMm=0.2,maxPatternCells=1000000}) {
+  sampleStepMm=0.2,maxPatternCells=1000000,spacingFactor=1}) {
   requireThat(INFILL_PATTERNS.includes(pattern),'Unknown infill pattern.');
-  requireThat(Number.isFinite(widthMm)&&widthMm>0&&Number.isFinite(density)&&density>0&&density<=1,'Invalid infill width/density.');
-  if(!region.length)return [];
-  const spacing=widthMm/density;
+  requireThat(Number.isFinite(widthMm)&&widthMm>0&&Number.isFinite(density)&&density>=0&&density<=1,'Invalid infill width/density.');
+  if(!region.length||density===0)return [];
+  const spacing=lineSpacing(widthMm,{spacingFactor})/density;
   if(pattern==='concentric') {
     const strokes=[];
     for(let inset=0;;inset+=spacing){
@@ -43,7 +44,11 @@ function gyroid(region,{periodMm,zMm,sampleStepMm,maxPatternCells}) {
   const xs=Array.from({length:nx+1},(_,i)=>min[0]+(max[0]-min[0])*i/nx),
     ys=Array.from({length:ny+1},(_,i)=>min[1]+(max[1]-min[1])*i/ny),k=2*Math.PI/periodMm;
   const sz=Math.sin(k*zMm),cz=Math.cos(k*zMm);
-  const values=xs.map(x=>ys.map(y=>Math.sin(k*x)*Math.cos(k*y)+Math.sin(k*y)*cz+sz*Math.cos(k*x)));
+  const sinY=ys.map(y=>Math.sin(k*y)),cosY=ys.map(y=>Math.cos(k*y));
+  const values=xs.map(x=>{
+    const sinX=Math.sin(k*x),cosX=Math.cos(k*x);
+    return ys.map((_,j)=>sinX*cosY[j]+sinY[j]*cz+sz*cosX);
+  });
   const loops=levelSetRegion({xs,ys,values},0),paths=[];
   const border=(a,b)=>[0,1].some(i=>[min[i],max[i]].some(v=>Math.abs(a[i]-v)<1e-8&&Math.abs(b[i]-v)<1e-8));
   for(const loop of loops){

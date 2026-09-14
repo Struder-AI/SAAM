@@ -1,11 +1,11 @@
 import { distance, requireThat } from '../geom/tolerance.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
-import {toolBounds} from '../machine/rules.mjs';
+import {toolBounds,startupRetracted} from '../machine/rules.mjs';
 const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
-  validatePath(path);
+  const motionLines=exportMotion(path,plan);
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
@@ -33,7 +33,7 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
   };
   const lines=[...render(envelope.header),...render(envelope.start)];
   // Large paths exceed the engine's argument limit when spread into push().
-  for(const line of exportMotion(path,plan))lines.push(line);
+  for(const line of motionLines)lines.push(line);
   for(const line of render(envelope.end))lines.push(line);
   return lines.join('\n')+'\n';
 }
@@ -48,21 +48,32 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
   // This body is also embedded in machine templates. Establish XYZ and feed on
   // its first use, then rely only on modal state written by this exporter.
   const modal={};
-  const motion=line=>line.split(' ').filter(token=>{
-    if(!/^[XYZF][-\d.]+$/.test(token))return true;
-    const key=token[0],value=Number(token.slice(1)),same=modal[key]===value;
-    modal[key]=value;return !same;
-  }).join(' ');
+  const field=(key,value)=>{
+    // Preserve the old writer's treatment of non-decimal representations.
+    // Supported machine coordinates/feed use ordinary decimal notation.
+    if(!Number.isFinite(value)||Math.abs(value)>=1e21)return ` ${key}${value}`;
+    if(modal[key]===value)return '';
+    modal[key]=value;return ` ${key}${value}`;
+  };
+  const motion=(command,target,extrusion,feed)=>{
+    let line=command;
+    if(target)for(let i=0;i<3;i++)line+=field('XYZ'[i],target[i]);
+    if(extrusion!==undefined)line+=` E${extrusion}`;
+    line+=field('F',Number(feed.toFixed(3)));
+    lines.push(line);
+  };
   for(const a of path.actions) {
     if((a.operation??'')!==operation){operation=a.operation??'';requireThat(!/[\r\n]/.test(operation),'Invalid operation label.');lines.push(`;SAAM_OPERATION:${operation}`);}
     const nextTag=`${a.phase}:${a.layer}`;
     if(tag!==nextTag){lines.push(`;SAAM_PHASE:${a.phase}`,`;LAYER:${a.layer}`);tag=nextTag;}
     if(a.kind==='move') {
-      const xyz=a.to.map((v,i)=>`${'XYZ'[i]}${fmt(v)}`).join(' ');
+      // Quantize once: command text, flow calculation and following position
+      // must all use these same written coordinates and extrusion value.
+      const target=a.to.map(v=>Number(v.toFixed(5)));
       if(a.volumeMm3>0){
         const filamentMm=a.volumeMm3/area;
         if(!relativeE)e+=filamentMm;
-        const target=a.to.map(v=>Number(fmt(v))),nextE=Number(fmt(relativeE?filamentMm:e));
+        const nextE=Number((relativeE?filamentMm:e).toFixed(5));
         const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
         requireThat(length>0, 'A deposition move collapsed at export precision.');
         // Quantized E and XYZ must still obey the locked flow limit, including
@@ -70,16 +81,17 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
         const speed=Math.min(a.speedMmS,de>0?plan.process.maxFlowMm3S*length/(de*area):a.speedMmS);
         const feed=Math.floor(speed*60*1000)/1000;
         requireThat(feed>0,'Deposition feed collapsed at export precision.');
-        lines.push(motion(`G1 ${xyz} E${fmt(relativeE?filamentMm:e)} F${fmt(feed,3)}`));
+        motion('G1',target,nextE,feed);
         if(!relativeE)writtenE=nextE;
       }
-      else lines.push(motion(`G0 ${xyz} F${fmt(a.speedMmS*60,3)}`));
-      writtenPosition=a.to.map(v=>Number(fmt(v)));
+      else motion('G0',target,undefined,a.speedMmS*60);
+      writtenPosition=target;
     } else if(a.kind==='retract'||a.kind==='recover') {
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
       if(!relativeE)e+=filamentMm;
-      lines.push(motion(`G1 E${fmt(relativeE?filamentMm:e)} F${fmt(a.speedMmS*60,3)}`));
-      if(!relativeE)writtenE=Number(fmt(e));
+      const nextE=Number((relativeE?filamentMm:e).toFixed(5));
+      motion('G1',null,nextE,a.speedMmS*60);
+      if(!relativeE)writtenE=nextE;
     } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);
     else if(a.kind==='dwell') lines.push(`G4 P${Math.ceil(a.seconds*1000)}`);
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
@@ -101,7 +113,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   let pos=[...machine.tools[s.tool].startupXY,startupZ],e=0,feed=0,absolute=null,absE=null,metric=false;
-  let tool=bodyOnly?s.tool:null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=plan.process.startupRetracted,phase='startup',layer=-1,time=0,volume=0,operation='';
+  let tool=bodyOnly?s.tool:null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=startupRetracted(machine,plan),phase='startup',layer=-1,time=0,volume=0,operation='';
   const events=[],header={};
   let extrusionMoves=0;
   const motionMin=[Infinity,Infinity,Infinity],motionMax=[-Infinity,-Infinity,-Infinity];
@@ -119,12 +131,20 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
     if(trim.startsWith(';SAAM_PHASE:'))phase=trim.slice(12);
     if(trim.startsWith(';LAYER:'))layer=Number(trim.slice(7));
     if(trim.startsWith(';SAAM_OPERATION:'))operation=trim.slice(16);
-    const code=raw.split(';')[0].trim();if(!code)continue;
+    const comment=trim.indexOf(';'),code=comment<0?trim:trim.slice(0,comment).trim();if(!code)continue;
     requireThat(endedHeader,`Command before Griffin header at line ${line}.`);
-    const parts=[...code.matchAll(tokens)];
-    requireThat(parts.length&&code.replace(tokens,'').trim()==='',`Malformed command at line ${line}.`);
-    const command=parts[0][1]+parts[0][2],args={};
-    for(const m of parts.slice(1)){requireThat(!Object.hasOwn(args,m[1]),`Duplicate argument at line ${line}.`);args[m[1]]=Number(m[2]);}
+    // Parse once, checking the gaps as we go. Collecting all regex matches and
+    // stripping them in a second pass allocated several arrays per move.
+    tokens.lastIndex=0;
+    let token=tokens.exec(code);
+    requireThat(token&&code.slice(0,token.index).trim()==='',`Malformed command at line ${line}.`);
+    const command=token[1]+token[2],args={};let end=tokens.lastIndex;
+    while((token=tokens.exec(code))){
+      requireThat(code.slice(end,token.index).trim()==='',`Malformed command at line ${line}.`);
+      requireThat(!Object.hasOwn(args,token[1]),`Duplicate argument at line ${line}.`);
+      args[token[1]]=Number(token[2]);end=tokens.lastIndex;
+    }
+    requireThat(code.slice(end).trim()==='',`Malformed command at line ${line}.`);
     const only=(allowed,required='')=>{
       requireThat(Object.keys(args).every(k=>allowed.includes(k))&&[...required].every(k=>Object.hasOwn(args,k)),`Unsupported arguments for ${command} at line ${line}.`);
       requireThat(Object.values(args).every(Number.isFinite),`Nonfinite argument at line ${line}.`);

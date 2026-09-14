@@ -2,7 +2,7 @@
 // the native geometry and one shared operation/dependency/approval pipeline.
 import {requireThat} from '../geom/tolerance.mjs';
 import {sectionGeometry,topAt} from '../geom/query.mjs';
-import {pointInRegion,pointSegmentDistance,regionArea} from '../region/region2d.mjs';
+import {pointInRegion,pointSegmentDistance,regionArea,loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 import {difference,union,intersect} from '../region/boolean.mjs';
 import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
@@ -10,6 +10,8 @@ import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {thickLipResult} from '../../skills/thick-lip/scripts/lip.mjs';
 import {drapedSkinResult,surveySurface,machineMaxAngle,bodyTopAt} from '../../skills/draped-skin/scripts/drape.mjs';
+import {spacingFactor} from '../path/spacing.mjs';
+import {publishFinishedBoundary} from '../path/finished-surface.mjs';
 
 const has=(record,name)=>Object.hasOwn(record.assignment.skills,name);
 const planar=record=>has(record,'full-fill')||has(record,'planar-infill');
@@ -67,10 +69,26 @@ function surfaceField(shell,query,step=0.5) {
 function publishSurface(record,results) {
   const {shell,start,end,plan,survey}=record;let footprint,query,kind,solidFootprint=null;
   if(has(record,'draped-skin')) {
-    footprint=survey.skinRegion;query=(x,y)=>{const top=topAt(shell,x,y);return top&&top.patch!=='bottom'&&top.slopeDeg<=survey.limitDeg+1e-8?top.zMm:null;};kind='area';
+    const spaced=spacingFactor(plan.skills['draped-skin'])>1;
+    footprint=survey.skinRegion;
+    if(spaced){
+      // A spaced skin publishes its actual projected bead strips, not a filled
+      // roof over the gaps. XY skin scanlines are straight even on a curved roof.
+      const last=results.flatMap(r=>r.operations).filter(op=>op.phase==='draped-skin').at(-1),half=plan.process.lineWidthMm/2;
+      const strips=last.strokes.map(stroke=>{
+        const a=stroke.points[0],b=stroke.points.at(-1),length=Math.hypot(b[0]-a[0],b[1]-a[1]);
+        if(length<1e-9)return null;
+        const dx=-(b[1]-a[1])*half/length,dy=(b[0]-a[0])*half/length;
+        return [[a[0]-dx,a[1]-dy],[b[0]-dx,b[1]-dy],[b[0]+dx,b[1]+dy],[a[0]+dx,a[1]+dy]];
+      }).filter(Boolean);
+      footprint=intersect(footprint,union(strips,[]));
+    }
+    query=(x,y)=>{if(spaced&&!covered(x,y,footprint))return null;const top=topAt(shell,x,y);return top&&top.patch!=='bottom'&&top.slopeDeg<=survey.limitDeg+1e-8?top.zMm:null;};kind=spaced?'sparse':'area';
   } else if(has(record,'vase-wall')) {
+    if(plan.skills['vase-wall'].pattern!==null)return null;
     if(plan.skills['vase-wall'].endTransition!=='level')return null;
-    const section=sectionGeometry(shell,end).loops;footprint=difference(section,offsetRegion(section,-plan.process.lineWidthMm));
+    const section=sectionGeometry(shell,end).loops,outer=section.filter(loop=>loopArea(loop)>0);
+    footprint=intersect(section,difference(outer,offsetRegion(outer,-plan.process.lineWidthMm)));
     query=(x,y)=>pointInRegion([x,y],footprint)?end:null;kind='rim';
   } else if(has(record,'thick-lip')) {
     // A rolled/thickened rim is a terminal finish: nothing is expected to
@@ -165,8 +183,8 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     while(source){consumed.add(source);source=byId.get(source).assignment.lowerSurfaceFrom;}
     const reserve=records.filter(r=>r.survey&&!consumed.has(r.assignment.id)&&r.end>=start-1e-8).map(r=>r.survey);
     const prefix=assignment.id;
-    if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,lowerSurface}));
-    else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,lowerSurface}));
+    if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,machine,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,lowerSurface}));
+    else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,machine,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,lowerSurface}));
     if(has(record,'vase-wall')) {
       requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
       const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,
@@ -189,6 +207,13 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
       record.results.push(skin);
     }
     requireThat(record.results.some(result=>result.operations.some(op=>op.strokes.length)),'Assigned region produced no material.');
+    for(const result of record.results){
+      const wall=has(record,'vase-wall'),roof=result.operations.some(op=>op.phase==='draped-skin');
+      if(wall&&localPlan.skills['vase-wall'].pattern!=null)continue;
+      publishFinishedBoundary(result,{shell,startMm:start,endMm:end-(wall&&localPlan.skills['vase-wall'].endTransition!=='level'?plan.process.layerMm:0),
+        boundary:wall?'side':roof?'top':'shell',maxSlopeDeg:record.survey?.limitDeg??90,
+        coverage:result.operations.some(op=>op.materialCoverage==='sparse')||(roof&&localPlan.skills['draped-skin'].spacingFactor>1)?'sparse':'nominal'});
+    }
     const prerequisiteIds=ids(predecessors.flatMap(p=>p.results));
     for(const result of record.results)for(const op of result.operations){op.regionId=assignment.id;op.after=[...new Set([...(op.after??[]),...prerequisiteIds])];}
     record.surface=publishSurface(record,record.results);results.push(...record.results);ordered.push(record);completed.add(assignment.id);

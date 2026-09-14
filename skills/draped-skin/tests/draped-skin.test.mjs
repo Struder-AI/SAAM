@@ -7,6 +7,7 @@ import { buildShell, translateShell, generatePath } from '../../../core/print/ge
 import { PathBuilder } from '../../../core/path/builder.mjs';
 import { generateDrapedSkin, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../scripts/drape.mjs';
 import { topAt } from '../../../core/geom/field.mjs';
+import { sampleTopSurface } from '../../../core/geom/query.mjs';
 
 const rhino = await rhino3dm();
 const machine = JSON.parse(readFileSync('machines/ultimaker-s5.json', 'utf8'));
@@ -34,6 +35,17 @@ function run(plan) {
   const report = generateDrapedSkin(builder, { shell, plan, machine, survey });
   return { shell, survey, builder, report, path: builder.toPath({}), settings };
 }
+
+test('reserve survey reports the complete roof slope without a separate surface pass',()=>{
+  const plan=planFor(steep,{surveyStepMm:1.3});
+  const shell=translateShell(buildShell(rhino,plan.geometry),81.125,43.375);
+  const settings=plan.skills['draped-skin'];
+  const survey=surveySurface(shell,settings,machineMaxAngle(machine));
+  const reference=sampleTopSurface(shell,{stepMm:settings.surveyStepMm});
+  assert.ok(Math.abs(survey.maxSlopeDeg-reference.maxSlopeDeg)<1e-9);
+  assert.ok(survey.steepFraction>0);
+  assert.throws(()=>surveySurface(shell,{...settings,surveyStepMm:0},15),/Sampling step/);
+});
 
 test('skin strokes lie on the surface, not on flat layers', () => {
   const plan = planFor(gentle);

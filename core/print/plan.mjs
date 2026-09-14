@@ -16,11 +16,16 @@ import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
 import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
+import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
 import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
 import {RIMMING_DEFAULTS,validateRimming} from '../../skills/rimming-planar/scripts/rimming.mjs';
 import {PIPE_CLADDING_DEFAULTS,validateCladding} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {pipeMesh} from '../geom/cylinder.mjs';
 import {validateSplineTube} from '../geom/spline-tube.mjs';
+import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
+import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
+import {voxelTemplate,validateVoxelRecord} from '../geom/voxel-record.mjs';
+import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -86,6 +91,9 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape) {
+  if(shape==='voxel')return voxelTemplate();
+  if(shape==='gridfinity')return gridfinityTemplate();
+  if(shape==='text')return textTemplate();
   if(shape==='spline-tube')return {shape,innerRadiusMm:8,heightMm:24,controlPoints:[]};
   if(shape==='pipe')return {shape:'pipe',innerRadiusMm:8,outerRadiusMm:10.4,heightMm:12,toleranceMm:0.01};
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
@@ -104,9 +112,11 @@ export function geometryTemplate(shape) {
 }
 
 export function validatePlan(plan, machine) {
-  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(plan.geometry?.shape), 'Unsupported shape.');
   plan.skills['pipe-cladding']??=structuredClone(PIPE_CLADDING_DEFAULTS);
   plan.skills['pipe-cladding'].surface??=null;
+  if(plan.skills['pipe-cladding'].pattern===undefined)plan.skills['pipe-cladding'].pattern=PIPE_CLADDING_DEFAULTS.pattern;
+  if(plan.skills['pipe-cladding'].part===undefined)plan.skills['pipe-cladding'].part=null;
   // Shell bundles created before the experimental setting existed retain the
   // profile limit until a chat adjustment writes the explicit null value.
   if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
@@ -120,6 +130,12 @@ export function validatePlan(plan, machine) {
   plan.skills.supports??=structuredClone(SUPPORT_DEFAULTS);
   for(const name of ['rimming-planar','rimming-normal'])plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);
   plan.skills['vase-wall'].endTransition??='spiral';
+  if(Object.hasOwn(plan.skills['vase-wall'],'paths')){
+    requireThat(plan.skills['vase-wall'].paths===null,'Standalone XYZ vase paths are retired. Recreate this recipe as a repeated sleeve pattern; XYZ paths are not reinterpreted.');
+    delete plan.skills['vase-wall'].paths;
+  }
+  plan.skills['vase-wall'].pattern??=null;
+  plan.skills['vase-wall'].pathMode??='continuous';
   // Preserve the old numerical boundary allowance when opening older recipes.
   // New plans lock this independently from contour subdivision tolerance.
   if(!Object.hasOwn(plan.skills['vase-wall'],'boundaryToleranceMm')) {
@@ -136,21 +152,31 @@ export function validatePlan(plan, machine) {
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
   const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape) };
+  // Older recipes retain their original spacing. Regional overrides use these
+  // same settings through the ordinary child-plan validation below.
+  for(const name of SPACING_SKILLS){
+    const settings=plan.skills[name];
+    if(settings.spacingFactor===undefined)settings.spacingFactor=1;
+    lineSpacing(plan.process.lineWidthMm,settings);
+  }
   keys(plan, expected);
   requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
 
   const { geometry, placement, process, setup, skills } = plan;
   if(geometry.shape==='spline-tube')validateSplineTube(geometry);
-  if(!['assembly','mesh','pipe','spline-tube'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
+  if(geometry.shape==='text')validateTextRecord(geometry);
+  if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
+  if(geometry.shape==='voxel')validateVoxelRecord(geometry);
+  if(!['assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
   if(geometry.shape==='pipe'){
     for(const key of ['innerRadiusMm','outerRadiusMm','heightMm','toleranceMm'])requireThat(Number.isFinite(geometry[key])&&geometry[key]>0,'Invalid pipe '+key+'.');
     requireThat(geometry.toleranceMm<geometry.innerRadiusMm/4,'Pipe mesh tolerance exceeds its bore radius.');pipeMesh(geometry);
   }
   validateCladding(plan,machine);
-  if(geometry.shape==='mesh') {
+  if(['mesh','text','gridfinity','voxel'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
     requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
-    requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
+    if(geometry.shape==='mesh')requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
   }
   if (geometry.shape === 'box') number(geometry.heightMm, 0.5, 200, 'heightMm');
   if (geometry.shape === 'wedge') {
@@ -202,6 +228,10 @@ export function validatePlan(plan, machine) {
 
   const fill = skills['full-fill'], skin = skills['draped-skin'],normal=skills['planar-infill'];
   const vase=skills['vase-wall'];
+  requireThat(['continuous','segmented'].includes(vase.pathMode),'Path mode must be continuous or segmented.');
+  validateVasePattern(vase.pattern,vase.pathMode);
+  requireThat(vase.pattern!==null||vase.pathMode==='continuous','Segmented mode requires a sleeve pattern; ordinary vase walls are continuous.');
+  requireThat(vase.pattern===null||vase.endTransition==='spiral','Sleeve motifs define their own ending; use endTransition spiral. Automatic level rims apply only to plain spirals.');
   requireThat(['spiral','level'].includes(vase.endTransition),'Vase ending transition must be spiral or level.');
   requireThat(typeof vase.enabled==='boolean'&&(vase.part===null||typeof vase.part==='string'),'Invalid vase-wall selection.');
   number(vase.zStartMm,0,200,'Vase start height');
@@ -234,6 +264,7 @@ export function validatePlan(plan, machine) {
       child.skills['planar-infill'].parts=[];
       child.skills['vase-wall'].part=null;
       child.skills['thick-lip'].part=null;
+      child.skills['pipe-cladding'].enabled=false;child.skills['pipe-cladding'].part=null;
       for(const name of ['rimming-planar','rimming-normal'])child.skills[name].enabled=false;
       child.composition.regions=[];
       if(regional){for(const settings of Object.values(child.skills))settings.enabled=false;child.skills['full-fill'].enabled=true;child.skills['full-fill'].mode='body';}
@@ -257,7 +288,8 @@ export function validatePlan(plan, machine) {
   requireThat(Array.isArray(fill.fillAnglesDeg) && fill.fillAnglesDeg.length >= 1 && fill.fillAnglesDeg.every(angle => typeof angle === 'number' && angle >= -180 && angle <= 180), 'Invalid fill angles.');
   number(fill.fillOverlap, 0, 0.5, 'fillOverlap');
   number(fill.minFeatureMm, 0.05, 5, 'minFeatureMm');
-  number(normal.density,0.01,1,'Infill density');
+  number(normal.density,0,1,'Infill density');
+  requireThat(normal.density===0||normal.density>=0.01,'Infill density must be zero or 0.01–1.');
   requireThat(INFILL_PATTERNS.includes(normal.pattern),'Unknown infill pattern.');
   number(normal.sampleStepMm,0.01,2,'Infill sample step');
   requireThat(Number.isSafeInteger(normal.maxPatternCells)&&normal.maxPatternCells>0,'Infill maxPatternCells must be a positive safe integer.');
@@ -279,8 +311,8 @@ export function validatePlan(plan, machine) {
   const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
     : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
   const bounds=toolBounds(machine,setup.tool);
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   const regionIds=new Set();
   for(const region of plan.composition.regions) {
@@ -298,7 +330,7 @@ export function validatePlan(plan, machine) {
     if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
     for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
     for(const [name,overrides] of Object.entries(region.skills)) {
-      requireThat(!['supports','rimming-planar','rimming-normal'].includes(name),'Assign sacrificial supports through their global skill settings, outside part material regions.');
+      requireThat(!['supports','rimming-planar','rimming-normal','pipe-cladding'].includes(name),'Assign supports and exterior cladding through their global skill settings, outside part material regions.');
       const settings=child.skills[name];
       requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
       requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');

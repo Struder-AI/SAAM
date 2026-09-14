@@ -44,7 +44,9 @@ test('inclined surface offset preserves physical spacing under UV rescaling',()=
     const p=plane(1,...scale),source=[rectangle(4*scale[0],4*scale[1],8*scale[0],8*scale[1])];
     const result=offsetSurfaceRegion(p,source,-0.4,{maxStepMm:2});
     const developed=result.loops.map(loop=>loop.map(([x,y])=>[x*Math.SQRT2,y]));
-    const expected=offsetRegion([rectangle(4*Math.SQRT2,4,8*Math.SQRT2,8)],-0.4);
+    // Compare intrinsic geometry at the same fine reference scale; the
+    // printing grid's 1e-5 mm quantization exceeds this 1e-7 mm assertion.
+    const expected=offsetRegion([rectangle(4*Math.SQRT2,4,8*Math.SQRT2,8)],-0.4,{precisionMm:1e-9});
     assert.ok(deviation(developed,expected)<1e-7);
     assert.ok(deviation(expected,developed)<1e-7);
   }

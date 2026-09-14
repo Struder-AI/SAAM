@@ -38,16 +38,40 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   // Explicit order is an additional precedence constraint, never permission to
   // bypass geometry/support dependencies. Omitted operations remain schedulable.
   for (let i = 1; i < order.length; i++) prerequisites.get(order[i]).add(order[i - 1]);
-  const pending = [...operations], completed = new Set(), scheduled = [];
-  while (pending.length) {
-    const ready = pending.filter(op => [...prerequisites.get(op.id)].every(id => completed.has(id)));
-    requireThat(ready.length > 0, 'Composition dependencies contain a cycle.');
-    ready.sort((a, b) => bands.get(heights.get(a.id))-bands.get(heights.get(b.id))
-      || resultIndex.get(a.id)-resultIndex.get(b.id) || a.rank-b.rank || operations.indexOf(a)-operations.indexOf(b));
-    const next = ready[0];
-    pending.splice(pending.indexOf(next), 1);
-    scheduled.push(next); completed.add(next.id);
+  // Kahn's topological ordering with the same stable priority as the former
+  // ready-list sort. Each dependency is visited once; unrelated ready work
+  // stays in a heap instead of being rescanned and resorted after every layer.
+  const nodes=operations.map((op,index)=>({op,index,band:bands.get(heights.get(op.id)),result:resultIndex.get(op.id),
+    remaining:prerequisites.get(op.id).size,following:[]}));
+  const nodesById=new Map(nodes.map(node=>[node.op.id,node]));
+  for(const node of nodes)for(const id of prerequisites.get(node.op.id))nodesById.get(id).following.push(node);
+  const compare=(a,b)=>a.band-b.band||a.result-b.result||a.op.rank-b.op.rank||a.index-b.index;
+  const ready=[],scheduled=[];
+  const push=node=>{
+    let i=ready.length;ready.push(node);
+    while(i){const parent=(i-1)>>1;if(compare(ready[parent],node)<=0)break;ready[i]=ready[parent];i=parent;}
+    ready[i]=node;
+  };
+  const pop=()=>{
+    const first=ready[0],last=ready.pop();
+    if(ready.length){
+      let i=0;
+      while(i*2+1<ready.length){
+        let child=i*2+1;
+        if(child+1<ready.length&&compare(ready[child+1],ready[child])<0)child++;
+        if(compare(last,ready[child])<=0)break;
+        ready[i]=ready[child];i=child;
+      }
+      ready[i]=last;
+    }
+    return first;
+  };
+  for(const node of nodes)if(node.remaining===0)push(node);
+  while(ready.length){
+    const next=pop();scheduled.push(next.op);
+    for(const node of next.following)if(--node.remaining===0)push(node);
   }
+  requireThat(scheduled.length===operations.length,'Composition dependencies contain a cycle.');
   return scheduled;
 }
 
@@ -55,6 +79,7 @@ export function composeResults(builder, results, rules = {}) {
   const operations = scheduleOperations(results, rules);
   const remaining = new Map(), elapsed = new Map();
   const deposited=[];
+  let constantClearance=-Infinity;
   for (const op of operations) remaining.set(op.layerId, (remaining.get(op.layerId) ?? 0) + 1);
   for (const op of operations) {
     builder.setContext(op.phase, op.layer);
@@ -72,7 +97,7 @@ export function composeResults(builder, results, rules = {}) {
       // Geometry queries, not the scheduling rank, decide whether an earlier
       // operation blocks direct travel. Rank need not mean physical height.
       const destinationClearance=op.travelPolicy.clearanceFor(builder.position,stroke.points[0]);
-      if(deposited.some(previous=>previous.travelPolicy.clearanceFor(builder.position,stroke.points[0])>destinationClearance+1e-9)) {
+      if(constantClearance>destinationClearance+1e-9||deposited.some(previous=>previous.travelPolicy.clearanceFor(builder.position,stroke.points[0])>destinationClearance+1e-9)) {
         policy.canTravelDirect=()=>false; policy.maxCombMm=0;
       }
       builder.travelTo(stroke.points[0], policy,stroke.poses?.[0]);
@@ -84,7 +109,8 @@ export function composeResults(builder, results, rules = {}) {
           { role: stroke.role, ...(stroke.poses?{pose:stroke.poses[i]}:{}), ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
       }
     }
-    deposited.push(op);
+    if(op.travelPolicy.constantClearanceZ!==undefined)constantClearance=Math.max(constantClearance,op.travelPolicy.constantClearanceZ);
+    else deposited.push(op);
     elapsed.set(op.layerId, builder.layerSeconds);
     remaining.set(op.layerId, remaining.get(op.layerId) - 1);
     if (remaining.get(op.layerId) === 0 && !op.continuous) builder.finishLayer();

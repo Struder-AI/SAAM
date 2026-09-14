@@ -1,6 +1,6 @@
 ---
 name: rimming-planar
-description: Support a selected edge with a two-bead bivariate spline wall, using horizontal offsets of each planar section. The base can rest on the bed or another selected edge. Assign surfaces through judgment.
+description: Experiment with thin walls that support selected edges so a planned bridge can span the area between them. A maker-assigned spline surface connects the bed or another edge to the supported edge; paired beads use horizontal offsets.
 ---
 
 # Rimming with horizontal offsets
@@ -15,12 +15,13 @@ vertical is guidance only, not a check or rejection rule.
 
 The maker and agent assign the edges and reference surface through judgment,
 following [D-025](../../DECISIONS.md#d-025--support-areas-assigned-through-judgment).
-No overhang-angle scan assigns support. Read [MAKERS.md](../../MAKERS.md);
-developers also read [DEVELOP.md](../../DEVELOP.md).
+No overhang-angle scan assigns support. For maker work, read
+[MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
 
 ## Process and tools
 
-Enable `skills.rimming-planar` in the [shared shell plan tools](../full-fill/SKILL.md#setup-and-tools).
+Enable `skills.rimming-planar` in the [shared shell plan tools](../../core/print/USAGE.md).
 MCP exposes the same plan template, adjustment, manual and review tools. Supply
 `surfaces` before the existing locked-plan approval. Generate through the same
 composer and machine exporter; Studio reviews that export, which is delivered
@@ -110,6 +111,11 @@ skill does not silently add a nonplanar finishing pass to force exact top contac
 The reference boundary matches the assigned edge, while sampled deposition and
 rectangular bead modeling are approximations. That distinction matters when
 judging whether the next operation can bridge.
+
+The shared plan boundary validates assigned settings once. The internal
+`rimmingResults` producer consumes that validated plan; standalone developer
+callers first use `validatePlan` or `validateRimming`. Generation checks newly
+constructed sections and operation dependencies at their point of use.
 
 Both rimming skills obey the same ordering rules:
 

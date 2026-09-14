@@ -14,7 +14,9 @@ export function packZip(entries){
   requireThat(entries instanceof Map&&entries.size>0&&entries.size<=MAX_ENTRIES,'ZIP32 requires 1–65534 entries; ZIP64 is not supported.');
   const local=[],central=[];let offset=0;
   for(const [name,value] of [...entries].sort(([a],[b])=>a<b?-1:a>b?1:0)){
-    validName(name);const bytes=Buffer.from(value),filename=Buffer.from(name),compressed=deflateRawSync(bytes,{level:9}),crc=crc32(bytes);
+    // Level 1 preserves every source byte; level 9 spent seconds saving only
+    // about 12% on the measured print body. Container hashes remain exact.
+    validName(name);const bytes=Buffer.from(value),filename=Buffer.from(name),compressed=deflateRawSync(bytes,{level:1}),crc=crc32(bytes);
     requireThat(bytes.length<MAX&&compressed.length<MAX,'ZIP member requires ZIP64; this exporter supports ZIP32.');
     const h=Buffer.alloc(30);h.writeUInt32LE(0x04034b50);h.writeUInt16LE(20,4);h.writeUInt16LE(0x800,6);h.writeUInt16LE(8,8);h.writeUInt16LE(33,12);
     h.writeUInt32LE(crc,14);h.writeUInt32LE(compressed.length,18);h.writeUInt32LE(bytes.length,22);h.writeUInt16LE(filename.length,26);

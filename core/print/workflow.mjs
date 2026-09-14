@@ -1,12 +1,13 @@
 // One print lifecycle for every geometry/generator adapter.
-import { readFile, writeFile, mkdir, rename, access, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, access, rm, stat } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { exportProgram, interpretProgram } from '../export/registry.mjs';
+import { exportAndInterpretProgram, interpretProgram } from '../export/registry.mjs';
 import { loadMachine, validateDobotConfiguration } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
+import {checkedSourceFor} from './program-handoff.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const defaultSetupFile=resolve(root,'.local/machine-setups/ultimaker-s5.json');
@@ -15,6 +16,7 @@ const nativeFile=geometry=>{const name=geometry.nativeFile??'model.3dm';requireT
 const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
 const hash=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:canonical(value)).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
+const originalSource=geometry=>geometry?.source??(geometry?.shape==='text'?originalSource(geometry.base):null);
 async function save(file,value){
   await mkdir(dirname(file),{recursive:true});
   const temporary=file+'.tmp';
@@ -38,6 +40,10 @@ export function createBundleWorkflow(adapter) {
   // actual file bytes, not mtimes or editable review claims. Approval state is
   // always read afresh; callers receive copies so they cannot alter this cache.
   let verifiedProgram;
+  let verifiedGeometryHash,validatedPlanHash,validatedPlanText;
+  let inputIdentity;
+  let preparedProgram;
+  const fingerprintFiles=new Map();
   const programKey=(planHash,exportHash)=>hash([planHash,exportHash]);
   function rememberProgram(key,program,code) {
     // The interpreter result is owned here and has not escaped to a caller.
@@ -51,6 +57,7 @@ export function createBundleWorkflow(adapter) {
   async function runtimeHash(){
     return runtimeCache??=hash(await Promise.all([
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
+      new URL('./program-handoff.mjs',import.meta.url),
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
       new URL('../export/gcode-lines.mjs',import.meta.url),
@@ -80,8 +87,8 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes }
   if (!plan) plan = await proposedPlan(machine.id, { setupFile });
   validatePlan(plan, machine);
   const geometry = await createGeometry(plan.geometry);
-  if(plan.geometry.source){
-    requireThat(sourceBytes&&hash(sourceBytes)===plan.geometry.source.sha256,'STL source bytes are required; use import-stl.');
+  if(originalSource(plan.geometry)){
+    requireThat(sourceBytes&&hash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');
     await save(resolve(dir,'geometry/source.stl'),sourceBytes);
   }
   await save(resolve(dir, nativeFile(geometry.descriptor)), geometry.bytes);
@@ -104,18 +111,36 @@ async function rememberedSetup(setupFile, machine) {
 
 async function loadBundle(directory, { program = true, sourceFile, allSources=false } = {}) {
   const dir = resolve(directory);
-  const [plan, machine, geometry, review, runtime] = await Promise.all([
-    json(resolve(dir, 'plan.json')), json(resolve(dir, 'machine.json')), json(resolve(dir, 'geometry/model.json')),
+  const [planText, machineText, geometryText, review, runtime] = await Promise.all([
+    readFile(resolve(dir, 'plan.json'),'utf8'), readFile(resolve(dir, 'machine.json'),'utf8'), readFile(resolve(dir, 'geometry/model.json'),'utf8'),
     json(resolve(dir, 'review.json')), runtimeHash()]);
+  const machine=JSON.parse(machineText),geometry=JSON.parse(geometryText);
   const bytes=await readFile(resolve(dir,nativeFile(geometry)));
-  if(plan.geometry.source)requireThat(hash(await readFile(resolve(dir,'geometry/source.stl')))===plan.geometry.source.sha256,'Imported STL source changed; geometry approval is stale.');
-  validatePlan(plan, machine);
-  await verifyGeometry(bytes, geometry);
-  requireThat(canonical(plan.geometry) === canonical(geometry.parameters),
-    'Plan and geometry disagree. Ask the agent to recreate the geometry.');
-
-  const geometryHash = hash({ file: hash(bytes), descriptor: geometry });
-  const planHash = hash({ plan, machine, geometryHash, runtime });
+  // Read current bytes at every boundary, but canonicalize large mesh/plan
+  // trees only when those bytes change. Keep the established semantic hashes
+  // so formatting alone does not invalidate a person's recorded approval.
+  const fileHash=hash(bytes),identityKey=hash([hash(planText),hash(machineText),hash(geometryText),fileHash,runtime]);
+  let identity=inputIdentity;
+  let plan=JSON.parse(identity?.key===identityKey?identity.planText:planText);
+  if(identity?.key!==identityKey){
+    const geometryHash=hash({file:fileHash,descriptor:geometry});
+    const inputsHash=hash({plan,machine});
+    if(verifiedGeometryHash!==geometryHash){
+      await verifyGeometry(bytes,geometry);
+      verifiedGeometryHash=geometryHash;
+    }
+    if(validatedPlanHash!==inputsHash){
+      validatePlan(plan,machine);
+      validatedPlanHash=inputsHash;
+      validatedPlanText=JSON.stringify(plan);
+    }else plan=JSON.parse(validatedPlanText);
+    requireThat(canonical(plan.geometry)===canonical(geometry.parameters),
+      'Plan and geometry disagree. Ask the agent to recreate the geometry.');
+    identity={key:identityKey,geometryHash,planHash:hash({plan,machine,geometryHash,runtime}),planText:validatedPlanText};
+    inputIdentity=identity;
+  }
+  const {geometryHash,planHash}=identity;
+  if(originalSource(plan.geometry))requireThat(hash(await readFile(resolve(dir,'geometry/source.stl')))===originalSource(plan.geometry).sha256,'Imported STL source changed; geometry approval is stale.');
   const state = {
     kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime,
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
@@ -148,10 +173,14 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
       const exportHash=hash(code),key=programKey(planHash,exportHash);
       requireThat(exportHash === review.generation.exportHash,
         'Generated files changed; regenerate and review again.');
-      if(verifiedProgram?.key!==key) {
+      if(verifiedProgram?.key!==key||(program!=='source'&&!verifiedProgram.program)) {
         // Reopen the saved machine program. Interpretation checks the actual
-        // commands; reopening never invokes a slicing skill or exporter.
-        rememberProgram(key,interpretProgram(code, plan, machine),code);
+        // commands; reopening never invokes a slicing skill or exporter. Source
+        // requests can reuse our worker's checked result after the current-byte
+        // hash above matches. Full-motion and cold callers still interpret.
+        const source=program==='source'?checkedSourceFor(planHash,exportHash):null;
+        if(source)verifiedProgram={key,...source,program:null};
+        else rememberProgram(key,interpretProgram(code, plan, machine),code);
       }
       state.program = structuredClone(program==='source'?verifiedProgram.metadata:verifiedProgram.program);
       state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
@@ -172,14 +201,31 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
   return state;
 }
 
-// A cheap liveness fingerprint for automatic viewer updates. Full validation
-// still runs on every changed snapshot and immediately before approval.
+// A content fingerprint for automatic viewer updates. Changed geometry or plan
+// inputs invalidate their checks; an approval-only change does not.
 async function bundleFingerprint(directory) {
-  const [plan,geometry,machine]=await Promise.all([json(resolve(directory,'plan.json')),json(resolve(directory,'geometry/model.json')),json(resolve(directory,'machine.json'))]);
+  // Polling is a change notification, not a validity boundary. Reuse the file
+  // digest while filesystem metadata is unchanged. loadBundle still reads
+  // and hashes current bytes before review, approval, generation or delivery.
+  async function snapshot(name,parse=false){
+    const file=resolve(directory,name);
+    try{
+      const info=await stat(file,{bigint:true});
+      const key=[info.dev,info.ino,info.size,info.mtimeNs,info.ctimeNs].join(':');
+      let entry=fingerprintFiles.get(file);
+      if(entry?.key!==key){
+        const bytes=await readFile(file);entry={key,digest:hash(bytes),bytes};
+        if(fingerprintFiles.size>=32)fingerprintFiles.clear();
+        fingerprintFiles.set(file,entry);
+      }
+      if(parse&&!entry.value)entry.value=JSON.parse(entry.bytes.toString('utf8'));
+      return parse?entry.value:entry.digest;
+    }catch(error){if(error.code==='ENOENT'){fingerprintFiles.delete(file);return null;}throw error;}
+  }
+  const [plan,geometry,machine]=await Promise.all([snapshot('plan.json',true),snapshot('geometry/model.json',true),snapshot('machine.json',true)]);
   const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl','review.json', exportPath(plan,machine)];
   const values = await Promise.all(names.map(async name => {
-    try { return [name, hash(await readFile(resolve(directory, name)))]; }
-    catch (error) { if (error.code === 'ENOENT') return [name, null]; throw error; }
+    return [name,await snapshot(name)];
   }));
   return hash(values);
 }
@@ -198,10 +244,18 @@ async function rememberSetup(directory, { setupFile, source = 'User setup suppli
 // or approval. The approved generation/export step remains the delivery gate.
 async function checkPathBundle(directory) {
   const state = await loadBundle(directory, { program: false });
-  const path = await generatePath(state.plan, state.machine);
-  const code=exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
-  const program=interpretProgram(code,state.plan,state.machine);
-  return { mode: 'development-check-only', revision: state.revision, ...path.summary, exportSummary:program.summary };
+  const prepared=await prepareProgram(state);
+  return { mode: 'development-check-only', revision: state.revision, ...structuredClone(prepared.summary), exportSummary:structuredClone(prepared.program.summary) };
+}
+
+async function prepareProgram(state){
+  if(preparedProgram?.planHash===state.planHash)return preparedProgram;
+  // One candidate per adapter. No approvals, files, or full producer path are
+  // retained; the checked commands are committed only by generateBundle.
+  preparedProgram=null;
+  const path=await generatePath(state.plan,state.machine);
+  const {bytes,program}=exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
+  return preparedProgram={planHash:state.planHash,summary:path.summary,bytes,program};
 }
 
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
@@ -277,17 +331,16 @@ async function updatePlan(directory, plan, revision) {
 async function generateBundle(directory, { development = false } = {}) {
   const state = await loadBundle(directory, { program: false });
   requireThat(development || state.planApproved, 'Approve the geometry and locked plan before production generation.');
-  const path = await generatePath(state.plan, state.machine);
-  const code = exportProgram(path, state.plan, state.machine, { generatorVersion: VERSION, buildDate: BUILD_DATE });
-  const program = interpretProgram(code, state.plan, state.machine);
+  const prepared=await prepareProgram(state);
+  const {bytes:code,program,summary}=prepared;
   const checks = {
     schema: 'saam-checks/1', result: 'pass', mode: development ? 'development' : 'production',
     generatorVersion: VERSION, planHash: state.planHash, exportHash: hash(code),
     moves: program.moves.length,
     volumeMm3: Number(program.volumeMm3.toFixed(3)),
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
-    travel: path.summary.travel,
-    nonplanarLimit: path.summary.nonplanarLimit ?? null,
+    travel: summary.travel,
+    nonplanarLimit: summary.nonplanarLimit ?? null,
     checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
       ...(state.machine.motionChecks==='deferred'?[]:['xyz-bounds','axis-feed']), ...(program.summary.materialModel==='relay-estimate'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
     clearance: 'operator responsibility; no collision model implemented',
@@ -300,19 +353,20 @@ async function generateBundle(directory, { development = false } = {}) {
   await save(resolve(state.dir, 'checks.json'), checks);
   const review = state.review;
   delete review.approvals.toolpath;
-  review.generation = { mode: checks.mode, planHash: state.planHash, exportHash: checks.exportHash, summary: path.summary, version: VERSION };
+  review.generation = { mode: checks.mode, planHash: state.planHash, exportHash: checks.exportHash, summary, version: VERSION };
   review.history.push({ event: 'generated', mode: checks.mode, time: new Date().toISOString(), exportHash: checks.exportHash });
   await save(resolve(state.dir, 'review.json'), review);
   // Remove an obsolete intermediate when regenerating an older bundle.
   await rm(resolve(state.dir,'path.saampath'),{force:true});
   rememberProgram(programKey(state.planHash,checks.exportHash),program,code);
+  preparedProgram=null;
   return checks;
 }
 
-async function approve(directory, { stage, actor, revision }) {
+async function approve(directory, { stage, actor, revision, program = true }) {
   requireThat(['geometry', 'plan', 'toolpath'].includes(stage), 'Unknown approval stage.');
   requireThat(typeof actor === 'string' && actor.trim().length >= 2 && actor.length <= 100, 'Enter the human reviewer’s name.');
-  const state = await loadBundle(directory);
+  const state = await loadBundle(directory,{program});
   requireThat(revision === state.revision, 'This review is stale. Reload before approving.');
   if (stage === 'plan') requireThat(state.geometryApproved, 'Approve geometry first.');
   if (stage === 'toolpath') requireThat(state.planApproved && state.program && !state.programError
@@ -326,13 +380,19 @@ async function approve(directory, { stage, actor, revision }) {
   state.review.approvals[stage] = record;
   state.review.history.push({ event: 'human-approval', stage, ...record });
   await save(resolve(state.dir, 'review.json'), state.review);
-  return loadBundle(directory);
+  state.geometryApproved=state.review.approvals.geometry?.hash===state.geometryHash;
+  state.planApproved=state.geometryApproved&&state.review.approvals.plan?.hash===state.planHash;
+  state.toolpathApproved=state.planApproved&&Boolean(state.program)&&!state.programError
+    &&state.review.generation?.mode==='production'&&state.review.approvals.toolpath?.hash===state.exportHash
+    &&state.review.approvals.toolpath?.planHash===state.planHash;
+  state.revision=hash({geometryHash:state.geometryHash,planHash:state.planHash,review:state.review});
+  return state;
 }
 
 // Delivery copies the bytes that were reviewed. It re-reads and re-hashes them
 // rather than regenerating, so nothing new can appear between review and file.
 async function deliver(directory) {
-  const state = await loadBundle(directory);
+  const state = await loadBundle(directory,{program:'source'});
   requireThat(state.toolpathApproved, 'Delivery requires approval of the exact current export.');
   const bytes = await readFile(resolve(state.dir, exportPath(state.plan,state.machine)));
   requireThat(hash(bytes) === state.exportHash, 'Export changed during delivery.');

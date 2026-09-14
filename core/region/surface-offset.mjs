@@ -2,7 +2,7 @@
 // C2 NURBS patch. Positive expands, negative erodes. Input boundaries are UV
 // polylines on this patch. Rhino is a behavioural reference, NOT copied source.
 //
-// SAAM generates geodesic boundary strips and vertex disks. Clipper 6.4.2's
+// SAAM generates geodesic boundary strips and vertex disks. Clipper2's
 // unchanged winding/union/difference machinery resolves overlaps, holes and
 // collapse. This is not a constant UV offset. UV is retained throughout; there
 // are no closest-point searches, global flattening or inverse remapping passes.
@@ -144,7 +144,7 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
   const region=context.encode(source), buffer=clipPaths(context.encode(bands));
   const result=radius===0?source:context.decode(deltaMm>0?clipPaths([...region,...buffer]):clipPaths(region,buffer,'difference'));
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
-  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper-6.4.2',
+  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',
     toleranceMm,precisionUv,evaluations,maxEvaluations,integrationSteps:integrations,subdivisions,
     inverseMappings:0,bandTriangles:bands.length}};
 }

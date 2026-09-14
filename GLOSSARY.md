@@ -19,13 +19,14 @@ starting vocabulary for the ontology we develop together.
 | Skill composition | Combining skills in one part, assigning material regions, connecting their boundaries and preserving printing order. |
 | Weaving | Interleaving compatible skill operations across layers or within a layer while preserving their dependencies. |
 | Tool | A callable script or function supplied by a skill. |
+| Motif | A small repeated curve, such as a loop or zigzag. A pattern arranges and connects motifs along its path; see [vase motifs](skills/vase-wall/SKILL.md#motifs-host-shape-and-exterior-finish). |
 | Process plan | The recipe for making a part: geometry reference, selected skills, their settings, and machine/setup choices. |
 | Locked process plan | The complete version of the recipe submitted for approval; generation introduces no further process choices. |
 | Toolpath | The route and associated printing actions the machine will follow. |
-| SAAMpath | The current transient motion objects used during generation and export: XYZ motion, deposited volume and printing actions, with optional part-frame tool orientation and unwrapped rotary angle. No separate path file is required or saved in new print bundles. |
+| SAAMpath | SAAM's internal motion and printing actions, used transiently during generation and export. Print persistence follows [D-027](DECISIONS.md#d-027--export-only-print-persistence). |
 | Machine file | The definition of a machine, including its supported output options. |
 | Export | The machine-ready file or file bundle produced from SAAMpath, using an output option declared by the machine file. Studio runs the same export the machine receives. |
-| Print | A local bundle containing geometry, a process plan, its checked machine export and review records. Specific curated examples may be shared. |
+| Print | A local bundle containing geometry, a process plan and review records, plus the checked machine export once generated. Specific curated examples may be shared. |
 | Approval | A human's agreement to one specific version of the geometry, locked process plan, or toolpath. |
 
 Project decision statuses live in [DECISIONS.md](DECISIONS.md); they are separate
@@ -33,16 +34,20 @@ from the three approvals within a print.
 
 ## Proposed terms and open meanings
 
+These names remain open vocabulary. Their use below does not imply that the
+corresponding implemented capability is awaiting approval or implementation;
+linked manuals own its current limits.
+
 | Term | Proposed meaning | Open choice |
 |---|---|---|
-| Design file | The saved geometry, and editable design information where available. | Mesh imports use indexed triangles; the user confirmed preserving direct spline input and Rhino/3DM storage too (D-021 clarification). |
-| Shell | A closed surface made of untrimmed spline patches, describing one solid. | The current geometry input for the full-fill and draped-skin skills; the general geometry contract is still open. |
-| Spline shell | A current plan shape with a domed spline roof, long sides drawn inward and short sides pushed outward from its rectangular base. | It exposes one symmetric taper for each pair of sides; arbitrary side-surface editing is not implemented. |
-| Vertical spline shell | A current plan shape with a domed spline roof over a bulged spline footprint, copied unchanged from the base to the roof. | The walls are vertical; it exposes symmetric X-outward and Y-inward bulges, not arbitrary side editing. |
-| Full fill | Filling a layer solid: an outline, then material across the whole inside. | Named after the skill; the wider fill vocabulary (sparse infill, densities) is not settled. |
-| Planar infill | Flat layers with walls and a sparse interior pattern. | Implemented as `planar-infill`; solid regions reuse full-fill. |
-| Draped skin | Top layers that follow the shape of the surface instead of stepping across it in flat slices. | Proposed user-facing name for non-planar surface layers. |
-| Non-planar angle limit | How steep a surface the machine can lay material along, given a nozzle that always points straight down. | Declared per machine (15 degrees for the S5). A software limit, not a measured or validated clearance rating. |
-| Layer | A surface on which a portion of the print is laid down; it may be flat, tilted or curved. | Surface representation and boundaries remain to be specified. |
+| Design file | The saved geometry, and editable design information where available. | [Geometry storage](core/geom/README.md#geometry-query-boundary) supports native meshes and direct spline inputs; a universal editable design format is not defined. |
+| Shell | A closed surface describing a solid's boundary. | Shared geometry queries accept supported spline shells and validated meshes; see [geometry inputs](core/geom/README.md#geometry-query-boundary). This does not mean a hollow print or a perimeter. |
+| Spline shell | In current recipe names, a domed spline roof with tapered spline sides over a rectangular base. | The `spline-shell` builder is a bounded shape, not arbitrary spline-side editing; see [full-fill geometry](skills/full-fill/SKILL.md). |
+| Vertical spline shell | A domed spline roof over a bulged footprint whose walls remain vertical. | The `vertical-spline-shell` builder exposes symmetric bulges; see [full-fill geometry](skills/full-fill/SKILL.md). |
+| Full fill | Filling a selected region solid with outlines and interior material. | The [full-fill skill](skills/full-fill/SKILL.md) also supplies selected solid top/bottom regions alongside infill. |
+| Planar infill | Flat layers with walls and an interior pattern, or no interior fill when selected. | The [planar-infill skill](skills/planar-infill/SKILL.md) owns supported patterns and densities; solid regions reuse full-fill. |
+| Draped skin | Top layers that follow the surface instead of stepping across it in flat slices. | The [draped-skin skill](skills/draped-skin/SKILL.md) owns surface and process limits. |
+| Non-planar angle limit | A declared limit on surface steepness for deposition with a downward-pointing nozzle. | It is a software setting, not measured machine clearance or a validated printing capability; see [draped-skin](skills/draped-skin/SKILL.md). |
+| Layer | A flat, tilted or curved surface on which a portion of a print is laid down. | Current operation layers and dependencies are described in [skill composition](core/path/README.md#skill-result-composition); this is not a universal surface format. |
 
 Proposed names do not commit us to an extra processing stage or file format.

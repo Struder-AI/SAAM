@@ -5,8 +5,8 @@ core and PLA. Right nozzle #2 is `T1`; left nozzle #1 is `T0`. Coordinates use
 the active nozzle's build coordinate system. Firmware owns the calibrated tool
 offset; do not subtract the nominal 22 mm right-core offset again.
 
-The adapter is independently implemented. The following upstream sources were
-consulted on 2026-09-08; no legacy SAAM component or Cura source was imported:
+The adapter is an independent implementation. Upstream source references
+(provenance: consultation on 2026-09-08):
 
 - [Official S5 definition](https://github.com/Ultimaker/Cura/blob/main/resources/definitions/ultimaker_s5.def.json): build dimensions, Griffin output, nominal axis limits.
 - [Official right extruder definition](https://github.com/Ultimaker/Cura/blob/main/resources/extruders/ultimaker_s5_extruder_right.def.json): tool index, nominal offset, and start coordinates.
@@ -18,11 +18,11 @@ consulted on 2026-09-08; no legacy SAAM component or Cura source was imported:
 
 The current machine output owns `program.header`, `program.start` and
 `program.end`; the shared emitter uses those templates for both print adapters.
-On 2026-09-08 the user specifically reported that the **last wedge change**
-achieved no bed leveling and no heating of the unused nozzle. The regression
-fixture preserves that envelope. Earlier observations below describe earlier
-revisions; they must not be substituted for this final behavior. This does not
-establish complete print quality or physical clearance.
+The regression fixture preserves the declared envelope. The
+[S5 startup contract](../../../core/export/griffin.md#s5-startup-observations)
+distinguishes current assumptions from revision-specific physical reports.
+Template agreement does not establish complete print quality, firmware behavior
+or physical clearance.
 
 S5 firmware handles Griffin job preflight, including machine preparation. The
 export selects the tool, millimeters, absolute XYZ and absolute E, then waits
@@ -59,35 +59,15 @@ minimum Griffin compatibility level so the S5 does not mislabel the program as
 an export from an older Cura release. SAAM's actual generator release remains
 in the locked plan and `SAAM.GENERATOR.VERSION`. UltiMaker's [libCharon reader](https://github.com/Ultimaker/libCharon/blob/main/Charon/filetypes/GCodeFile.py)
 requires all three; a missing build date rejects the file before motion is
-executed. The exporter and checker now enforce these fields and a nonnegative
+executed. The exporter and checker enforce these fields and a nonnegative
 integer print time. The build date is release metadata, not the current clock,
 so regenerated files remain deterministic. S5-specific checks also require the
 active material GUID and build-volume temperature to match the locked setup.
 
-On 2026-09-08 the user reported firmware 8.3.1 rejecting the 0.2.0 file while
-selecting it from USB. That export omitted the required build date. Version
-0.2.1 adds it without changing executable commands. Reader compatibility checks
-do not establish acceptance by that physical printer or successful printing.
-The public libCharon reader was run locally against both files: it rejected
-the original with `GENERATOR.BUILD_DATE must be set` and accepted the correction.
-All bytes after `END_OF_HEADER` matched the previously reviewed export.
-At the user's explicit request, the corrected file was copied to the S5
-removable drive and its SHA-256 verified. The printer then reported "does not
-contain the necessary data" for the corrected file. Passing libCharon alone is
-therefore insufficient to establish S5 firmware 8.3.1 compatibility.
-
-The user's Cura 4.12.0 reference (`wedge.ufp`, also supplied as
-`wedgeCURA.gcode`) contains `BUILD_VOLUME.TEMPERATURE:28` and Generic PLA's
-material GUID; both were missing from 0.2.1. Version 0.2.2 adds these to the
-locked setup and export, and checks their presence. All reference header keys
-are now present for the active tool. The reference uses both extruders; this
-demo still declares only the requested right nozzle. No slice UUID was present
-in that reference, so one was not invented to address this error. The user
-subsequently confirmed that firmware 8.3.1 accepted the 0.2.2 file. That result
-applies to the then-current command body, not the later no-routine-leveling
-startup or Griffin-4.4 compatibility declaration. Those changes have software
-checks only and do not establish a completed physical print. Brief guidance is
-recorded in the S5 machine file.
+The [historical metadata/firmware checks](../../../DEVLOG.md#2026-09-08--s5-metadata-and-firmware-acceptance)
+apply to specific export revisions. libCharon acceptance alone does not establish
+physical S5 compatibility. The active material GUID and build-volume temperature
+are required by this contract, independent of the reader's narrower checks.
 
 UFP files are ZIP containers; their embedded `/3D/model.gcode` can be inspected
 without importing their geometry or running commands. The user's reference
@@ -110,8 +90,8 @@ explicit first recovery, avoiding a second initial retraction and the resulting
 first-layer under-extrusion. Nearby starts move directly without retracting or
 lifting; only longer transitions use a hop.
 The header describes the selected tool, target temperatures, nozzle, estimated
-material/motion time, and program bounds. All executable moves are regenerated
-and compared on reopening. Any altered export or outdated plan blocks approval
-and delivery until regenerated.
+material/motion time, and program bounds. Reopening interprets the saved export
+without regeneration under the [shared lifecycle](../../../core/print/README.md#generation-and-review).
+An altered export or outdated plan blocks approval and delivery until regeneration.
 
 No UFP archive, printer connection or automatic hardware execution is included.

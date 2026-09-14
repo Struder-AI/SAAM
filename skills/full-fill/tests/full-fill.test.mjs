@@ -5,12 +5,57 @@ import rhino3dm from 'rhino3dm';
 import { defaults } from '../../../core/print/plan.mjs';
 import { buildShell, translateShell } from '../../../core/print/generate.mjs';
 import { PathBuilder } from '../../../core/path/builder.mjs';
-import { generateFullFill } from '../scripts/fill.mjs';
+import { generateFullFill,fullFillResult } from '../scripts/fill.mjs';
 import { sectionShell } from '../../../core/geom/shell.mjs';
 import { regionArea } from '../../../core/region/region2d.mjs';
 
+test('machine wall precision changes deposition only and rebuilds variable-gap metadata on retained chords',()=>{
+  const plan=defaults();plan.skills['full-fill'].perimeters=2;
+  const circle=Array.from({length:360},(_,i)=>[20+10*Math.cos(i*Math.PI/180),20+10*Math.sin(i*Math.PI/180)]);
+  const shell={bounds:{min:[10,10,0],max:[30,30,.4]}},sectionAt=()=>({loops:[circle]});
+  const lowerSurface={footprint:[[[0,0],[40,0],[40,40],[0,40]]],field:{xs:[0,40],ys:[0,40],values:[[.05,.05],[.13,.13]]},topAt:(x,y)=>.05+.002*x};
+  const options={shell,plan,sectionAt};
+  const exact=fullFillResult({...options,machine:{planarWallToleranceMm:0}});
+  const reduced=fullFillResult({...options,machine:{planarWallToleranceMm:.01}});
+  const count=result=>result.operations.flatMap(op=>op.strokes.filter(s=>s.closed)).reduce((n,s)=>n+s.points.length,0);
+  assert.ok(count(reduced)<count(exact)/2);
+  assert.deepEqual(reduced.operations.map(op=>op.materialRegion),exact.operations.map(op=>op.materialRegion));
+  assert.deepEqual(reduced.operations.filter(op=>op.id.endsWith(':fill')).map(op=>op.strokes),exact.operations.filter(op=>op.id.endsWith(':fill')).map(op=>op.strokes));
+  assert.deepEqual(fullFillResult(options).operations.map(op=>op.strokes),reduced.operations.map(op=>op.strokes),'old snapshots and standalone callers use the approved default');
+  const surfaced=fullFillResult({...options,machine:{planarWallToleranceMm:.01},lowerSurface});
+  for(const op of surfaced.operations)for(const stroke of op.strokes)for(let i=1;i<stroke.points.length;i++){
+    const a=stroke.points[i-1],b=stroke.points[i],height=op.layer===0?plan.process.firstLayerMm:plan.process.layerMm;
+    const ga=Math.min(height,a[2]-lowerSurface.topAt(a[0],a[1])),gb=Math.min(height,b[2]-lowerSurface.topAt(b[0],b[1]));
+    const expected=Math.hypot(...b.map((v,k)=>v-a[k]))*plan.process.lineWidthMm*(ga+gb)/2;
+    assert.ok(Math.abs(stroke.volumesMm3[i-1]-expected)<1e-10);
+    assert.ok(Math.abs(stroke.segmentMetadata[i-1].gapMm-(ga+gb)/2)<1e-10);
+  }
+});
+
 const rhino = await rhino3dm();
 const machine = JSON.parse(readFileSync('machines/ultimaker-s5.json', 'utf8'));
+
+test('repeated contour reuse preserves changed coordinates, holes, settings and independent layer output',()=>{
+  const outer=[[0,0],[12,0],[12,12],[0,12]],hole=[[2,2],[2,10],[10,10],[10,2]];
+  const regions=Array.from({length:20},(_,i)=>[outer,hole].map(loop=>loop.map(([x,y])=>[x+i*0.00001,y])));
+  // Revisit an evicted entry, then repeat it; use one mutable section container
+  // so object identity cannot stand in for the content of each queried layer.
+  const sequence=[...regions,regions[0],regions[0],regions[7]],active=[];
+  for(const [width,perimeters] of [[0.4,2],[0.42,3]]){
+    const plan=defaults();plan.process.lineWidthMm=width;plan.skills['full-fill'].perimeters=perimeters;
+    const heights=sequence.map((_,i)=>plan.process.firstLayerMm+i*plan.process.layerMm);
+    const shell={bounds:{min:[0,0,0],max:[13,13,heights.at(-1)]}};
+    const sectionAt=z=>{const i=Math.round((z-plan.process.firstLayerMm)/plan.process.layerMm);active.splice(0,active.length,...structuredClone(sequence[i]));return {loops:active};};
+    const together=fullFillResult({shell,plan,sectionAt});
+    for(const [i,z] of heights.entries()){
+      const alone=fullFillResult({shell,plan,sectionAt:()=>({loops:structuredClone(sequence[i])}),zStartMm:z-plan.process.layerMm/2,zEndMm:z});
+      assert.deepEqual(together.operations.filter(op=>op.layer===i).map(op=>op.strokes),alone.operations.map(op=>op.strokes));
+    }
+    const first=together.operations[0].strokes[0].points;
+    const last=together.operations.filter(op=>op.layer===heights.length-1)[0].strokes[0].points;
+    assert.notDeepEqual(first,last,'micrometre changes do not reuse a different contour');
+  }
+});
 
 function planFor(geometry, overrides = {}) {
   const plan = defaults();

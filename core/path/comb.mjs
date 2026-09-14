@@ -2,14 +2,25 @@ import {pointInRegion,pointSegmentDistance,segmentIntersection} from '../region/
 import {offsetRegion} from '../region/offset.mjs';
 import {TOLERANCE} from '../geom/tolerance.mjs';
 const span=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+
+// Prepared for one fixed layer, like its segment index. Share the closure when
+// the composer copies a policy for individual travels; build only if needed.
+export function prepareCombCorners(loops,clearance) {
+  let corners;
+  return ()=>corners??=offsetRegion(loops,-(clearance+0.05)).flat();
+}
 export function combSegment(a,b,policy) {
   const loops=policy.combRegion,clear=policy.combClearanceMm??0;
-  if(!loops||!pointInRegion(a,loops)||!pointInRegion(b,loops)||!pointInRegion([(a[0]+b[0])/2,(a[1]+b[1])/2],loops))return false;
-  for(const loop of loops)for(let i=0;i<loop.length;i++){
-    const c=loop[i],d=loop[(i+1)%loop.length];
+  const index=policy.combIndex,inside=p=>index?index.contains(p):pointInRegion(p,loops);
+  if(!loops||!inside(a)||!inside(b)||!inside([(a[0]+b[0])/2,(a[1]+b[1])/2]))return false;
+  const threshold=Math.max(clear,1e-8)-Math.min(clear/2,TOLERANCE.plane);
+  // Only boundary segments in the swept travel box can cross or approach it.
+  const edges=index?index.inBox([Math.min(a[0],b[0])-threshold,Math.min(a[1],b[1])-threshold],
+    [Math.max(a[0],b[0])+threshold,Math.max(a[1],b[1])+threshold]):loops.flatMap(loop=>loop.map((c,i)=>[c,loop[(i+1)%loop.length]]));
+  for(const [c,d] of edges){
     if(segmentIntersection(a,b,c,d))return false;
     const distance=Math.min(pointSegmentDistance(a,c,d),pointSegmentDistance(b,c,d),pointSegmentDistance(c,a,b),pointSegmentDistance(d,a,b));
-    if(distance<Math.max(clear,1e-8)-Math.min(clear/2,TOLERANCE.plane))return false;
+    if(distance<threshold)return false;
   }
   return true;
 }
@@ -20,7 +31,7 @@ export function combRoute(from,to,policy) {
   const a=from.slice(0,2),b=to.slice(0,2);
   if(combSegment(a,b,policy))return [to];
   // Leave margin for the offset routine's 0.02 mm arc chord approximation.
-  const corners=offsetRegion(policy.combRegion,-((policy.combClearanceMm??0)+0.05)).flat();
+  const corners=policy.combCorners?policy.combCorners():offsetRegion(policy.combRegion,-((policy.combClearanceMm??0)+0.05)).flat();
   if(corners.length>256)return null;
   const nodes=[a,b,...corners],cost=nodes.map(()=>Infinity),previous=nodes.map(()=>-1),visited=new Set();cost[0]=0;
   for(let step=0;step<nodes.length;step++){

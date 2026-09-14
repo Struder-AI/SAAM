@@ -13,10 +13,12 @@
 // operation. Geometry policies only decide whether a move can stay down.
 
 import { requireThat, distance, TOLERANCE } from '../geom/tolerance.mjs';
-import {combRoute,combSegment} from './comb.mjs';
+import {combRoute,combSegment,prepareCombCorners} from './comb.mjs';
 import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
 
-// Griffin coordinates are written with five decimals.
+// Candidate distance for checking whether XYZ output collapses. This is not a
+// minimum printable segment length: five-decimal output can retain much shorter
+// moves, and deleting them changes the start of the next volume-bearing move.
 export const MINIMUM_MOVE_MM = 1e-4;
 export const NEARBY_MOVE_MM = 1;
 import { pointInRegion, pointSegmentDistance, SegmentIndex } from '../region/region2d.mjs';
@@ -61,11 +63,12 @@ export class PathBuilder {
       this.position=[...to];this.pose=structuredClone(pose);return;
     }
     requireThat(!extra.pose,'Machine cannot represent oriented/rotary motion.');
-    // Below the export's coordinate resolution a move cannot be written down:
-    // it would round to the position the nozzle is already at, and SAAMpath and
-    // the exported program would then disagree about how many moves exist.
-    // A tenth of a micron is far below anything the process resolves.
-    if (length < MINIMUM_MOVE_MM) return;
+    // S5/H2D XYZ output uses five decimals. Decide representability from the
+    // rounded coordinates, not Euclidean length: short segments can cross a
+    // grid boundary. Robot Cartesian output retains still more decimals.
+    const coordinateDecimals=this.machine.id==='dobot-mg400'?10:5;
+    if (length < MINIMUM_MOVE_MM && this.position.every((v,i)=>
+      Number(v.toFixed(coordinateDecimals))===Number(to[i].toFixed(coordinateDecimals)))) return;
     let limited = speed;
     if (volumeMm3 > 0) limited = Math.min(limited, this.process.maxFlowMm3S * length / volumeMm3);
     const dz = Math.abs(to[2] - this.position[2]);
@@ -233,7 +236,9 @@ export function planarPolicy(loops, { layerZ, liftMm, maxCombMm, lineWidthMm }) 
     combRegion: loops,
     combIndex: new SegmentIndex(loops, Math.max(lineWidthMm, 0.5)),
     combClearanceMm: lineWidthMm / 2,
+    combCorners: prepareCombCorners(loops,lineWidthMm/2),
     maxCombMm,
+    constantClearanceZ: layerZ + liftMm,
     clearanceFor: () => layerZ + liftMm
   };
 }

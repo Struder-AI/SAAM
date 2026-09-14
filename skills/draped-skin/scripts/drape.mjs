@@ -12,14 +12,16 @@
 // area is excluded from the skin and reported, so the person sees what is not
 // covered before approving the plan; it is not silently printed flat.
 
-import { topAt, sampleTopSurface } from '../../../core/geom/query.mjs';
+import { topAt } from '../../../core/geom/query.mjs';
 import { scanlineFill, regionArea, loopArea } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
 import { composeResults } from '../../../core/path/compose.mjs';
 import { requireThat, distance, distance2 } from '../../../core/geom/tolerance.mjs';
+import {lineSpacing} from '../../../core/path/spacing.mjs';
 
 export const DRAPED_SKIN_DEFAULTS = {
+  spacingFactor: 1,
   layers: 2,
   normalMm: 0.2,
   strokeAngleDeg: 0,
@@ -40,7 +42,7 @@ export const machineMaxAngle = machine => {
 // Survey the top surface once: the reserve height the body must stay under, and
 // the area the angle limit allows to be skinned.
 export function surveySurface(shell, { layers, normalMm, surveyStepMm }, maxAngleDeg) {
-  const survey = sampleTopSurface(shell, { stepMm: surveyStepMm, maxSlopeDeg: maxAngleDeg });
+  requireThat(Number.isFinite(surveyStepMm)&&surveyStepMm>0,'Sampling step must be positive.');
   const [minX, minY] = shell.bounds.min, [maxX, maxY] = shell.bounds.max;
   const columns = Math.max(2, Math.ceil((maxX - minX) / surveyStepMm));
   const rows = Math.max(2, Math.ceil((maxY - minY) / surveyStepMm));
@@ -50,12 +52,16 @@ export function surveySurface(shell, { layers, normalMm, surveyStepMm }, maxAngl
   const xs = [], ys = [], reserve = [], allowed = [];
   for (let i = -1; i <= columns + 1; i++) xs.push(minX + stepX * i);
   for (let j = -1; j <= rows + 1; j++) ys.push(minY + stepY * j);
-  let maxReserve = -Infinity, insideCount = 0, steepCount = 0;
+  let maxReserve = -Infinity, insideCount = 0, steepCount = 0, maxSlopeDeg = 0;
   for (let i = 0; i < xs.length; i++) {
     reserve.push(new Float64Array(ys.length));
     allowed.push(new Float64Array(ys.length));
     for (let j = 0; j < ys.length; j++) {
       const top = topAt(shell, xs[i], ys[j]);
+      // The reserve survey already covers the report's complete interior grid.
+      // Include bottom hits in this statistic, matching the top-surface survey,
+      // but keep the outside padding out of the reported slope range.
+      if(top&&i>0&&j>0&&i<xs.length-1&&j<ys.length-1)maxSlopeDeg=Math.max(maxSlopeDeg,top.slopeDeg);
       // The named base patch closes the shell but is never a roof. At a side
       // boundary its upward-flipped normal can otherwise look like a zero-height
       // top hit and carve an accidental hole in the body's reserve field.
@@ -97,7 +103,7 @@ export function surveySurface(shell, { layers, normalMm, surveyStepMm }, maxAngl
     field: { xs, ys, values: extrapolate(reserve, SENTINEL) },
     maxMm: maxReserve,
     skinRegion,
-    maxSlopeDeg: survey.maxSlopeDeg,
+    maxSlopeDeg,
     limitDeg: maxAngleDeg,
     steepFraction: insideCount ? steepCount / insideCount : 0,
     skinAreaMm2: Math.abs(regionArea(skinRegion)),
@@ -151,16 +157,29 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     skinAreaMm2: survey.skinAreaMm2, minGapMm: Infinity, maxGapMm: -Infinity
   };
 
+  const rows = scanlineFill(region, lineSpacing(width,settings), settings.strokeAngleDeg);
+  // Skin layers share XY samples. Cache exact coordinates only for this result;
+  // never carry roof values into another geometry revision. Bound retained data
+  // on very large roofs, where avoiding unbounded memory beats cache hit rate.
+  const roofSamples=new Map();let cachedSamples=0;
+  const roofAt=(x,y)=>{
+    let column=roofSamples.get(x);
+    if(column?.has(y))return column.get(y);
+    const top=topAt(shell,x,y);
+    if(cachedSamples>=100000){roofSamples.clear();cachedSamples=0;column=null;}
+    if(!column){column=new Map();roofSamples.set(x,column);}
+    column.set(y,top);cachedSamples++;return top;
+  };
+
   for (let skin = 1; skin <= count; skin++) {
 
     const below = count - skin;
-    const rows = scanlineFill(region, width, settings.strokeAngleDeg);
     // Alternate row order between skins and stroke direction along the rows, so
     // consecutive strokes end where the next begins.
     const sequence = skin % 2 ? rows : [...rows].reverse();
     const strokes = sequence.map((row, position) => {
       const [from, to] = position % 2 ? [row.to, row.from] : [row.from, row.to];
-      return { role: 'skin', closed: false, scanlineCell:row.cellId, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count,survey.limitDeg,supportTopAt) };
+      return { role: 'skin', closed: false, scanlineCell:row.cellId, points: samplePath(shell, from, to, settings.sampleStepMm, below, thickness, process, count,survey.limitDeg,supportTopAt,roofAt) };
     }).filter(stroke => stroke.points.length > 1);
 
     // The surface this skin lies on, for both clearance and direct travel.
@@ -181,7 +200,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
         report.minGapMm = Math.min(report.minGapMm, gap);
         report.maxGapMm = Math.max(report.maxGapMm, gap);
         requireThat(gap > 0, 'A skin stroke would deposit into material already there; check the reserved thickness.');
-        // Rectangular bead over the sampled interval: 3D length by row spacing
+        // Rectangular bead over the sampled interval: 3D length by bead width
         // by the vertical gap, converted to the normal direction.
         const volume = length * width * gap * Math.cos(slope * Math.PI / 180);
         volumesMm3.push(volume);segmentMetadata.push({gapMm:gap,slopeDeg:slope});
@@ -198,14 +217,14 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
 }
 
 // Sample a straight bed-plane run, lifting each sample onto the skin surface.
-function samplePath(shell, from, to, stepMm, below, thickness, process, count,limitDeg,supportTopAt=null) {
+function samplePath(shell, from, to, stepMm, below, thickness, process, count,limitDeg,supportTopAt,roofAt) {
   const span = distance2(from, to);
   const steps = Math.max(1, Math.ceil(span / stepMm));
   const points = [];
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     const x = from[0] + (to[0] - from[0]) * t, y = from[1] + (to[1] - from[1]) * t;
-    const top = topAt(shell, x, y);
+    const top = roofAt(x, y);
     requireThat(top&&top.slopeDeg<=limitDeg+1e-6,'Drape crosses an absent or unsampled steep surface; refine the survey or select a continuous roof.');
     const cos = Math.cos(top.slopeDeg * Math.PI / 180);
     const z = top.zMm - below * thickness / cos;

@@ -6,6 +6,16 @@ import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {exportMotion} from '../export/griffin.mjs';
+import {readFileSync} from 'node:fs';
+
+test('modal writer retains captured bytes across coordinate/E rounding and command transitions',()=>{
+  const fixture=JSON.parse(readFileSync(new URL('./fixtures/modal-motion-bytes.json',import.meta.url),'utf8'));
+  for(const extrusionMode of ['absolute','relative']){
+    const lines=exportMotion(fixture.path,fixture.plan,{extrusionMode});
+    assert.deepEqual(lines,fixture.expected[extrusionMode]);
+    assert.doesNotMatch(lines.join('\n'),/[XYZ]-(?:0(?:\.0+)?)(?= |$)/,'rounded negative zero is written as zero');
+  }
+});
 
 test('modal fields retain exact machine moves across speed, travel, retract and relative-E transitions',async()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']) {

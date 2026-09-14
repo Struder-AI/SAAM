@@ -1,5 +1,6 @@
 {
-  "schema":"saam-machine/1", "id":"denso-vp6242-rc8", "name":"DENSO VP-6242 / RC8 + rotary", "revision":1, "units":"mm",
+  "schema":"saam-machine/1", "id":"denso-vp6242-rc8", "name":"DENSO VP-6242 / RC8 + rotary", "revision": 2, "units":"mm",
+  "planarWallToleranceMm":0.01,
   "kinematics":"six-axis-arm-plus-external-rotary; controller-owned inverse kinematics",
   "motionChecks":"deferred",
   "bounds":{"min":[-250,-250,0],"max":[250,250,500]},

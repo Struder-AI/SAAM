@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createProjection} from '../../studio/camera.mjs';
 import {toolpathStyle,CURRENT_LAYER_GAP_MM} from '../../studio/toolpath-view.mjs';
+test('pan translates screen positions without changing depth or scale at every camera angle',()=>{
+  for(const [yaw,tilt] of [[-.78,.62],[0,0],[0,Math.PI/2]])for(const zoom of [.08,1,4]){
+    const bounds={min:[-4,2,0],max:[40,60,100]},base=createProjection(bounds,600,400,yaw,tilt,zoom);
+    const panned=createProjection(bounds,600,400,yaw,tilt,zoom,[120,-85]);
+    assert.equal(base.pixelsPerMm,panned.pixelsPerMm);
+    for(const p of [bounds.min,bounds.max,[0,0,0]]){
+      const a=base(p),b=panned(p);assert.ok(Math.abs(b[0]-a[0]-120)<1e-9);assert.ok(Math.abs(b[1]-a[1]+85)<1e-9);assert.equal(b[2],a[2]);
+    }
+  }
+});
 test('deposited stroke width uses the same millimeter scale as positions at every zoom and viewport size',()=>{
   const bounds={min:[0,0,0],max:[20,20,12]},current={layer:1,phase:'planar',extruding:true};
   for(const [width,height] of [[527,401],[1054,802]])for(const zoom of [.08,1,2,4])for(const lineWidthMm of [.3,.4,.8]){
@@ -17,20 +27,6 @@ test('deposited stroke width uses the same millimeter scale as positions at ever
     const doubled=createProjection(bounds,width,height,0,Math.PI/2,zoom*2);
     assert.equal(doubled.pixelsPerMm,project.pixelsPerMm*2);
   }
-});
-test('frame projection preserves screen positions and depth across camera views, fit and zoom',()=>{
- for(const bounds of [{min:[0,0,0],max:[24,24,25.6]},{min:[-100,10,0],max:[320,200,100]},{min:[1,2,3],max:[1,2,3]}])
- for(const [yaw,tilt] of [[-.78,.62],[0,0],[0,Math.PI/2],[1.6,-1.4]])
- for(const zoom of [.08,1,4]){
-   const width=527,height=401,project=createProjection(bounds,width,height,yaw,tilt,zoom);
-   for(const p of [bounds.min,bounds.max,[5,-4,42]]){
-     const size=bounds.max.map((v,i)=>Math.max(1,v-bounds.min[i]));
-     const [x,y,z]=p.map((v,i)=>v-(bounds.min[i]+bounds.max[i])/2);
-     const u=x*Math.cos(yaw)-y*Math.sin(yaw),v=x*Math.sin(yaw)+y*Math.cos(yaw);
-     const scale=Math.min(width/(size[0]+size[1])*1.1,height/(size[2]+Math.max(size[0],size[1]))*.9)*zoom;
-     assert.deepEqual(project(p),[width/2+u*scale,height*.53-(v*Math.sin(tilt)+z*Math.cos(tilt))*scale,-v*Math.cos(tilt)+z*Math.sin(tilt)]);
-   }
- }
 });
 test('top and front views use right-handed machine axes and correct face depth',()=>{
   const bounds={min:[0,0,0],max:[30,20,10]};

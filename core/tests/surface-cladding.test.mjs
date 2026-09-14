@@ -49,6 +49,18 @@ test('shared normal offsets preserve native parameter correspondence and converg
   assert.throws(()=>sampleSurfaceCurve(chart,t=>[t,.4],.6,{maxPoints:4}),/maxPoints/);
 });
 
+test('adaptive normal-offset sampling evaluates each retained parameter only once',()=>{
+  const visits=new Set();
+  const analytic={at(u,v){
+    const key=u+','+v;assert.ok(!visits.has(key),'subdivision must reuse an already evaluated native parameter');visits.add(key);
+    return {point:[u,v,u*u],normal:[0,0,1],du:[1,0,2*u],dv:[0,1,0]};
+  }};
+  const samples=sampleSurfaceCurve(analytic,t=>[t,0],.2,{maxStepMm:.15,toleranceMm:.001});
+  assert.ok(samples.length>8,'exercise multiple recursive subdivisions');
+  for(const e of samples){near(e.point[0],e.t);near(e.point[2],e.t*e.t+.2);}
+  for(let i=1;i<samples.length;i++)assert.ok(distance(samples[i-1].point,samples[i].point)<=.15);
+});
+
 test('explicit mesh strip uses source triangle positions and a shared normal field',()=>{
   const mesh=pipeMesh({innerRadiusMm:8,outerRadiusMm:10,heightMm:4,toleranceMm:.02}),n=mesh.vertices.length/4;
   const rows=Array.from({length:n+1},(_,i)=>[i%n,2*n+i%n]);

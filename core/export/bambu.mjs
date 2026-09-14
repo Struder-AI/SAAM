@@ -3,7 +3,7 @@
 // print body is reconstructed by the shared modal G-code interpreter.
 import {createHash} from 'node:crypto';
 import {deflateSync} from 'node:zlib';
-import {exportMotion,validatePath} from './griffin.mjs';
+import {exportMotion} from './griffin.mjs';
 import {interpretBody,prelude} from './bambu-player.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
@@ -50,8 +50,7 @@ function checkContext(c,plan,machine){
   requireThat(Number.isInteger(c.layers)&&c.layers>0&&c.layers<100000,'Invalid H2D layer count.');
   requireThat(c.release&&/^[a-zA-Z0-9.+-]{1,40}$/.test(c.release.generatorVersion)&&/^\d{4}-\d{2}-\d{2}$/.test(c.release.buildDate),'Invalid H2D release metadata.');
 }
-function sections(c,plan,machine){
-  const output=configuration(plan,machine);checkContext(c,plan,machine);
+function sections(c,plan,machine,output){
   const endClearanceZ=fmt(Math.max(c.pathMaxZ,c.bounds.max[2]+10));
   const values={...plan.setup,physicalTool:toolFor(machine,plan.setup.tool).physicalExtruder,
     minX:fmt(c.bounds.min[0]),minY:fmt(c.bounds.min[1]),sizeX:fmt(c.bounds.max[0]-c.bounds.min[0]),sizeY:fmt(c.bounds.max[1]-c.bounds.min[1]),
@@ -69,26 +68,41 @@ function header(c,program){
 }
 
 export function exportBambu(path,plan,machine,release){
-  configuration(plan,machine);validatePath(path);
-  const c=contextFor(path,plan,machine,release),s=sections(c,plan,machine);
+  return exportAndInterpretBambu(path,plan,machine,release).bytes;
+}
+
+// The body must be interpreted to populate package totals and thumbnails. Keep
+// that result with the exact bytes assembled from it instead of parsing the
+// same million-command body again immediately after packaging. Imported bytes
+// still enter through interpretBambu and its archive integrity checks.
+export function exportAndInterpretBambu(path,plan,machine,release){
+  const output=configuration(plan,machine);
   const body=prelude(plan)+exportMotion(path,plan,{extrusionMode:'relative'}).map(l=>l==='M107'?'M106 S0':l).join('\n')+'\n';
+  const c=contextFor(path,plan,machine,release),s=sections(c,plan,machine,output);
   const program=interpretBody(body,plan,machine);
   const code=header(c,program)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
-  return packZip(packageEntries(code,c,program,plan));
+  const bytes=packZip(packageEntries(code,c,program,plan));
+  return {bytes,program:completeProgram(program,code,c,s)};
 }
 export function interpretBambu(bytes,plan,machine){
-  configuration(plan,machine);const entries=unpackZip(bytes);
+  const output=configuration(plan,machine),entries=unpackZip(bytes);
   const c=JSON.parse(entries.get('Metadata/saam.json')?.toString()??'null');checkContext(c,plan,machine);
   const code=entries.get(GCODE)?.toString('utf8');requireThat(typeof code==='string','Missing H2D G-code.');
   const begin=code.indexOf(BEGIN),end=code.indexOf(END);
   requireThat(begin>=0&&end>begin&&code.indexOf(BEGIN,begin+BEGIN.length)===-1&&code.indexOf(END,end+END.length)===-1,'Invalid H2D body boundary.');
-  const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine),s=sections(c,plan,machine);
+  const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine),s=sections(c,plan,machine,output);
   requireThat(code===header(c,program)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n','H2D program differs from its declared firmware envelope.');
-  requireThat(program.moves.every(m=>m.to[2]<=c.pathMaxZ+1e-5),'H2D body exceeds declared shutdown clearance.');
   const expected=packageEntries(code,c,program,plan);
   requireThat(entries.size===expected.size&&[...expected].every(([name,value])=>entries.get(name)?.equals(Buffer.from(value))),'H2D package metadata, checksum or thumbnail differs from the program.');
+  return completeProgram(program,code,c,s);
+}
+
+function completeProgram(program,code,c,s){
+  const begin=code.indexOf(BEGIN);
+  requireThat(program.moves.every(m=>m.to[2]<=c.pathMaxZ+1e-5),'H2D body exceeds declared shutdown clearance.');
   let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
-  for(const event of [...program.moves,...program.events])event.line+=prefixLines;
+  for(const move of program.moves)move.line+=prefixLines;
+  for(const event of program.events)event.line+=prefixLines;
   program.code=code;
   program.envelope={contract:c.contract,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,
     notice:'Firmware probing, wiping, calibration, purge, unload and service motions are checked against a fixed reference envelope; they are not simulated. Playback and timing cover the print body only.'};
@@ -114,7 +128,11 @@ function packageEntries(code,c,program,plan){
     ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:[tool],optimal_assignment:[0],sequence:[1]}})],
     ['Metadata/project_settings.config',json({printer_model:'Bambu Lab H2D',printer_settings_id:'Bambu Lab H2D 0.4 nozzle',gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:['1','0'],filament_map:[String(map)],filament_map_mode:'Manual',filament_nozzle_map:[String(tool)],nozzle_diameter:['0.4','0.4'],nozzle_volume_type:['Standard','Standard'],filament_diameter:['1.75'],filament_type:['PLA'],filament_ids:['GFA00'],filament_colour:['#28A090'],filament_density:['1.26'],filament_flow_ratio:['1'],nozzle_temperature:[String(plan.setup.nozzleC)],nozzle_temperature_initial_layer:[String(plan.setup.nozzleC)],hot_plate_temp:[String(plan.setup.bedC)],hot_plate_temp_initial_layer:[String(plan.setup.bedC)],chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0'})]
   ]);
-  for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]])entries.set(`Metadata/${name}.png`,thumbnail(program.moves,c.bounds,size));
+  const thumbnails=new Map();
+  for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){
+    if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.moves,c.bounds,size));
+    entries.set(`Metadata/${name}.png`,thumbnails.get(size));
+  }
   return entries;
 }
 

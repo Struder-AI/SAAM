@@ -1,52 +1,66 @@
 # Skills
 
-Skills package a manual, callable tools and tests. Discover their behavior and
-limits in the owning manual:
+This brief digest introduces the available capabilities and why they may help
+with a part. Printing skills describe deposition patterns; task skills operate
+on geometry or other preparation work. Follow the selected manuals for tools,
+settings and supported scope.
 
-| Skill | Geometry | Machine compatibility |
-|---|---|---|
-| [pipe-cladding](pipe-cladding/SKILL.md) | Native circular pipe: planar concentric substrate plus alternating axial/helical radial shells | Experimental VP-6242 / RC8 + configured external rotary; shared composer, source playback and lifecycle. |
-| [wedge-demo](wedge-demo/SKILL.md) | Eight-point mesh, rectangular base, planar roof in any direction | S5, experimental H2D and configured Dobot software checks; shared export/review lifecycle. |
-| [full-fill](full-fill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |
-| [planar-infill](planar-infill/SKILL.md) | Closed mesh or supported untrimmed spline shell | S5, H2D and configured Dobot software checks. |
-| [supports](supports/SKILL.md) | Explicit standard footprints or tree skeletons; shared mesh/spline part-clearance queries | Bed-rooted, same-tool planar supports through the shared S5/H2D/configured Dobot lifecycle. |
-| [rimming-planar](rimming-planar/SKILL.md) | Assigned open bivariate spline surface between base and supported edges | Two outward horizontal offsets per section, shared planar pipeline; bed/edge bases. |
-| [rimming-normal](rimming-normal/SKILL.md) | Same assigned surface as rimming-planar | Experimental 3D normal offsets; shifted heights and ordering remain subjects for physical comparison. |
-| [draped-skin](draped-skin/SKILL.md) | Continuous accessible roof on either backend | Declared non-planar capability/limit; S5, experimental H2D and configured Dobot checks. |
-| [vase-wall](vase-wall/SKILL.md) | One supported convex outer section on mesh or untrimmed splines, no holes/islands | Continuous rising wall with optional level ending for successors; S5, experimental H2D and configured Dobot software checks. |
-| [thick-lip](thick-lip/SKILL.md) | Finishing region directly above a level-ended vase-wall region, same frozen outer section | Ordinary planar rings, no non-planar motion; any machine declaring `xyz-extrusion`/`planar`. |
+<!-- BEGIN GENERATED SKILL DIGEST -->
 
-S5 has the complete export, Studio toolpath review and delivery workflow.
-H2D has experimental sliced-3MF output through the same review/delivery workflow.
-Its [firmware-service contract](../DEVELOP.md#h2d-output-contract) is checked but not motion-simulated.
-Dobot's experimental [Lua source ZIP](../DEVELOP.md#dobot-output-contract) follows
-the same approvals and delivery, with installation settings required before
-generation. Its segment-stop motion and relay estimate do not establish smooth
-vase deposition or measured extrusion. Vendor project-import acceptance is unverified.
-Software verification does not establish a physical print.
+## Printing patterns
 
-Skills also compose within one part through shared [material regions](../DEVELOP.md#material-regions-and-shared-interfaces).
-They can own different bases, walls, caps and roofs, and a later horizontal fill
-can consume an earlier nonflat surface as its bottom. The owning manuals describe
-support, transition, sampling and geometry limits. Sharing a machine exporter
-alone does not establish this broader interoperability.
+| Skill | Capability and value |
+|---|---|
+| [planar-infill](planar-infill/SKILL.md) | Print conventional flat-layer walls with a patterned interior, varying infill density to control material use or leave a hollow body. Supports closed meshes and supported spline geometry; combine with full-fill for solid tops and bases. |
+| [full-fill](full-fill/SKILL.md) | Fill an entire body with solid planar layers, or add solid bases, caps and surface regions around sparse infill. Works on closed meshes and supported spline shells, providing solid material where the part needs it. |
+| [supports](supports/SKILL.md) | Add conventional supports beneath selected areas or explicitly placed tree branches at local contacts. Choose their placement to balance support, surface contact and removal access; the agent and maker assign areas through judgment. |
+| [rimming-planar](rimming-planar/SKILL.md) | Experiment with thin walls that support selected edges so a planned bridge can span the area between them. A maker-assigned spline surface connects the bed or another edge to the supported edge; paired beads use horizontal offsets. |
+| [rimming-normal](rimming-normal/SKILL.md) | Experiment with edge-support walls whose paired beads follow 3D surface-normal offsets, allowing nonplanar paths on a curved reference surface. Compare with rimming-planar to explore how offset direction affects bead spacing and edge contact; physical behavior remains unvalidated. |
+| [draped-skin](draped-skin/SKILL.md) | Follow a sloping or curved roof with top-skin strokes instead of approximating it with flat-layer steps. Works on continuous accessible mesh or supported spline roofs within the machine's nonplanar angle limit; excluded steep areas are reported. |
+| [vase-wall](vase-wall/SKILL.md) | Print a hollow vase from an ordinary solid model, using a continuous spiral or repeating motifs warped around its contours. Overlapping tilted loops can preserve the guide's exterior or create a scalloped finish. Continuous vase mode has no travel; explicit segmented mode permits gaps. |
+| [thick-lip](thick-lip/SKILL.md) | Thicken a vase-wall's top edge into a rigid, optionally rolled rim instead of leaving a single spiral or level-ended bead. Use when the operator asks for a rim, brim, bead, rolled edge, round-over or a more durable/rigid lip on a vase-mode print. |
+| [pipe-cladding](pipe-cladding/SKILL.md) | Wrap a substrate with alternating lengthwise and helical cladding, or opposite-handed helices for a crossed exterior pattern. Supports circular pipes and explicitly mapped periodic spline or mesh surfaces; this development capability requires a configured DENSO RC8 robot and external rotary. |
+| [wedge-demo](wedge-demo/SKILL.md) | Demonstrate horizontal body layers and inclined roof layers on a bounded eight-point wedge. Uses its own generator for a rectangular base, vertical sides and one planar sloping roof, providing a small example for exploring inclined deposition. |
 
-The [local MCP adapter](../adapters/mcp/README.md) exposes the current workflow
-and these known manuals to a compatible client. Automatic discovery and
-registration are [deferred](../DECISIONS.md#d-022--defer-automatic-capability-discovery);
-the fixed list does not replace validation of the selected recipe.
+## Geometry processing
 
-Shared authoring requirements live in DEVELOP.md:
+| Skill | Capability and value |
+|---|---|
+| [mesh-tools](mesh-tools/SKILL.md) | Diagnose rejected meshes or perform requested STL cleanup and solid reconstruction so usable geometry can return to import and review. Preserves the original for comparison; reconstruction can change small features and requires closed, consistently oriented input. |
+| [voxel-tools](voxel-tools/SKILL.md) | Create and edit volumetric parts from scalar voxel samples or smooth B-spline control lattices. Extract at an explicit resolution for shared planar slicing and Studio review; no optimization or physical solver is included. |
+| [text](text/SKILL.md) | Add raised or recessed lettering to a part, or create standalone text, using a supplied outline font. Lay out lettering flat, optionally along a spline baseline, then bend its solid onto a part surface or an independent spline guide. The resulting mesh goes through the shared printing and Studio review workflow. |
+| [gridfinity](gridfinity/SKILL.md) | gridfinity |
 
-- [Geometry queries and representation boundaries](../DEVELOP.md#geometry-interoperability-for-skill-authors).
-- [Machine capabilities and output adapters](../DEVELOP.md#machine-interoperability-design).
-- [Whole-plan travel and combing](../DEVELOP.md#whole-plan-travel-requirement).
-- [Composable operations and dependencies](../DEVELOP.md#skill-result-composition).
-- [Shared offsets and their supported scope](../DEVELOP.md#shared-offset-functions).
-- [Numerically robust, established and measured shared functions](../DEVELOP.md#shared-numerical-foundations).
+<!-- END GENERATED SKILL DIGEST -->
 
-Keep pattern decisions in skills, representation-specific queries in the
-geometry core and machine behavior in profiles/output adapters. Add equivalent
-backend/machine tests for general skills; document narrow exceptions. Reuse the
-existing composer, Studio, approvals and delivery rather than creating another
-pipeline. Intermediate tests use the same components in scratch bundles.
+## Special capabilities
+
+Most printing patterns can spread their lines farther apart while retaining
+the nominal bead width, creating open meshes or reducing material. The agent
+chooses one [spacing factor](../core/print/USAGE.md#line-spacing); SAAM derives
+the matching path spacing and extrusion internally.
+Cladding can also alternate helix winding on a
+[finished surface](pipe-cladding/SKILL.md#finished-surface-composition), including
+a hollow vase wall, to form a crossed exterior pattern.
+
+## Shared workflow and development
+
+[Print tools](../core/print/USAGE.md) owns creating/importing a print, applying
+changes, reopening, setup reuse and generation/delivery. Pattern manuals add
+their own recipe settings and supported geometry.
+
+For a part combining patterns, read the selected manuals and their
+[material-region interface](../core/region/README.md#material-regions-and-shared-interfaces).
+For machine setup and export limitations, follow the
+[machine contracts](../core/export/README.md#machine-interoperability-design).
+
+Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
+discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).
+Developers start at [DEVELOP.md](../DEVELOP.md) for shared geometry, numerical,
+composition, travel and machine requirements. [Skill development](DEVELOP.md)
+owns manual authorship and discovery metadata.
+
+Package implementation notes cover [planar infill](planar-infill/DEVELOP.md),
+[assigned supports](supports/DEVELOP.md) and the shared
+[rimming design](rimming-planar/DEVELOP.md). Read these when changing the relevant
+producer or its integration with shared components.

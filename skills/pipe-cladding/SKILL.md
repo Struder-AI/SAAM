@@ -1,16 +1,21 @@
 ---
 name: pipe-cladding
-description: Print a full-fill substrate and alternate axial/helical cladding on a circular pipe, selected periodic native spline surface, or explicitly mapped mesh strip, through shared composition, RC8 export and Studio.
+description: Wrap a substrate with alternating lengthwise and helical cladding, or opposite-handed helices for a crossed exterior pattern. Supports circular pipes and explicitly mapped periodic spline or mesh surfaces; this development capability requires a configured DENSO RC8 robot and external rotary.
 ---
 
 # Pipe cladding
 
-Read [MAKERS.md](../../MAKERS.md); developers also read [DEVELOP.md](../../DEVELOP.md).
+For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
 This is a bounded development implementation for the DENSO VP-6242 with RC8 and
 an external rotary. RC8 is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
 
 ## Geometry and process
+
+Choose an explicit [finished-surface selection](#finished-surface-composition)
+to coat an existing printed boundary, including a hollow vase wall. The circular
+pipe recipe below is the legacy `surface: null` mode with an inward reserved band.
 
 The native `pipe` recipe takes `innerRadiusMm`, `outerRadiusMm`, `heightMm` and
 `toleranceMm`. It stores a closed annular indexed mesh through the shared geometry
@@ -40,6 +45,14 @@ shells alternate these patterns. Each entire shell depends on its predecessor;
 the first waits for the entire substrate. The existing operation composer owns
 these dependencies, joins and ordering. There is no separate scheduler.
 
+Set `pattern: "crossed-helices"` for a helix on every shell with opposite winding
+on successive shells. Each runs bottom to top; the shared transition retreats
+and returns to the next shell's lower end with extrusion off. Wider
+[line spacing](../../core/print/USAGE.md#line-spacing) opens the crossed pattern
+without increasing bead width. This works on circular pipes and the selected
+periodic surfaces below. It remains substrate cladding, not a free-standing
+mesh generator or a physically validated TPU process.
+
 The nozzle points inward and downward, at `tiltDeg` from downward vertical.
 At 45 degrees its shank retreats outward/upward from the contact point. This
 improves the intended approach at the bed but is not a clearance guarantee.
@@ -51,19 +64,22 @@ uses unwrapped rotary angles, including many revolutions without a modulo reset.
 | Setting under `skills.pipe-cladding` | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | Select radial cladding. |
-| `shells` | `4` | Positive integer; axial first, then alternating. |
+| `part` | `null` | Component whose finished surface is coated; required for assembly surface selection. |
+| `pattern` | `axial-hoop` | Alternating axial/helix shells, or `crossed-helices` for opposite winding on successive helical shells. |
+| `shells` | `4` | Positive integer; follows the selected pattern outward. |
 | `normalMm` | `0.2` | Radial shell thickness. |
 | `tiltDeg` | `45` | Tool axis tilt from downward vertical, between 0 and 90. |
 | `sampleStepMm` | `1` | Maximum axial/circumferential sample spacing. |
 | `toleranceMm` | `0.01` | Circumferential chord tolerance. |
 | `maxPoints` | `500000` | Explicit generation budget; increase if a larger plan needs it. |
 
-Shared line width controls track spacing and helix pitch; `skinSpeedMmS` controls
+By default, shared line width sets track spacing and helix pitch; `skinSpeedMmS` controls
 cladding speed. Intent volume uses rectangular bead area. Axial centers stay
 half a bead from the ends; helix centers are clamped there with tapered intent
 on the edge turns. These are deposition approximations, not a measured bead
-model or proof of level, fully filled end surfaces. The substrate must retain
-more than one line width and the pipe must be taller than two line widths.
+model or proof of level, fully filled end surfaces. In the legacy circular mode,
+the substrate must retain more than one line width and the pipe must be taller
+than two line widths.
 
 The legacy `surface: null` mode requires the native circular pipe recipe. It does not infer a
 cylinder from arbitrary STL/CAD or accept `composition.regions` Z assignments.
@@ -75,7 +91,7 @@ existing fixed-orientation scope.
 
 ## Machine setup and source output
 
-Read the [RC8 output contract](../../DEVELOP.md#denso-rc8-output-contract).
+Read the [RC8 output contract](../../core/export/denso.md#denso-rc8-output-contract).
 The profile is unconfigured by default. Record the actual tool/work frames,
 arm group and figure, rotary interface/axis/sign/zero, bed center, frame offset/yaw,
 initial position/orientation, relay IO and measured relay rate in `setup.denso`.
@@ -83,7 +99,9 @@ initial position/orientation, relay IO and measured relay rate in `setup.denso`.
 Work coordinates must be defined with Z parallel to the bed axis; the calibrated
 RC8 Work definition accounts for the ceiling installation. The SAAM transform
 currently supports translation and yaw between that frame and the displayed room.
-The robot's joint geometry is not modeled in SAAM.
+The optional [nominal presentation model](../../core/machine/README.md) requires
+separate explicit base/tool alignment and model seed; it does not establish
+controller joint or FIG parity.
 
 The implemented rotary interface is `rc8-relative-ex`: a configured RC8 extended
 joint commanded through `EX`. An independently controlled rotary needs another
@@ -124,16 +142,23 @@ The fixture is a 16 mm bore, 20.8 mm outside diameter, 12 mm tall pipe with
 2.4 mm walls: 1.6 mm substrate plus four 0.2 mm radial shells. Its invented
 installation values are labeled in the plan and never remembered by this script.
 It creates no human manufacturing approvals and executes no hardware.
+For any new provisional RC8 part, call `developmentPipePlan()` from
+[demo.mjs](scripts/demo.mjs), replace its geometry and selected skills, then
+`initBundle(directory, plan, {machineId:'denso-vp6242-rc8'})` and generate in
+development mode; the labeled setup is reusable across shapes and is not remembered.
+Disable pipe-cladding when selecting only ordinary fixed-orientation skills.
 For an existing development bundle, use `node core/print/cli.mjs demo <directory>`;
 use `upgrade` first if its saved machine snapshot needs the current profile.
 
-Studio defaults to the room perspective, with bed and deposited material rotating.
-Select **Follow build plate** to inspect stationary part coordinates. Both views
-use one source interpreter and timeline. The nozzle direction is shown; robot
-joint/arm animation is intentionally absent because no joint solutions were computed.
+Studio defaults to **Follow build plate**, retaining stationary part coordinates;
+clear it to inspect bed and material rotation in the room frame. **Machine view**
+independently switches from faint context to assembly framing. Both modes use
+one source interpreter and timeline. The nominal arm is shown only when its
+installation/model inputs are supplied; otherwise bed and tool remain visible
+with an explanation in **Machine model**.
 
-Normal use follows the same `init`, `adjust`, `check`, generation, Studio approvals
-and exact-byte `deliver` lifecycle as [full-fill](../full-fill/SKILL.md). The fixed
+Normal use follows the [shared print tools](../../core/print/USAGE.md) for recipe
+adjustment, Studio review and delivery. The fixed
 MCP catalog includes this manual and machine. Do not reuse synthetic fixture
 calibration for an actual installation.
 
@@ -141,6 +166,35 @@ Software coverage is in [denso.test.mjs](../../core/tests/denso.test.mjs): nativ
 geometry, radial ownership/order, unwrapped turns, tilted poses, source edits,
 relay behavior, both preview frames, mesh/spline predecessor skills, bounded
 wedge, cold reopen, synthetic approval invalidation and exact-byte delivery.
+
+## Finished-surface composition
+
+An explicit `surface` selection consumes the nominal finished boundary of the
+selected component, independently of the pattern that prints it. Full-fill,
+planar-infill, automatic vase-wall and draped-skin participate through shared
+composition. The substrate can use whole-component settings or several
+`composition.regions`; keep cladding in the global skill settings, and set
+`part` when selecting an assembly component. Cladding waits for that component's
+surface producers, then builds outward with either cladding pattern.
+
+For a hollow vase substrate, enable vase-wall and disable full-fill unless a
+solid base is wanted. Select the same geometry's side chart for cladding; its
+nominal outer boundary is the coating reference. A level vase ending supplies
+the complete side height. A spiral ending publishes only the side below its
+lowest unfinished rim height. The vase generator, stroke width and deposition
+path are unchanged by selecting cladding.
+
+The [finished-surface interface](../../core/path/README.md#finished-surfaces)
+binds chart geometry, material extent, coverage and source operation IDs.
+Other producers can publish this interface without adding their names to
+cladding. Unprinted components and selections outside a published extent are
+rejected. These are nominal material boundaries; sparse coverage remains
+identified as sparse, and contact or bridging still requires process judgment.
+Authored free-form paths do not implicitly publish a filled surface.
+
+This removes the full-fill prerequisite from explicit surface cladding.
+The legacy `surface: null` circular recipe retains its full-fill adapter and
+inward reserved band; use an explicit finished-surface selection for composition.
 
 ## Bumpy spline and explicit surface cladding
 
@@ -178,6 +232,19 @@ Set `skills.pipe-cladding.surface` to an explicit selection:
   on those triangles; area-weighted selected-face vertex normals are interpolated
   for an explicitly smooth offset/pose field. This does not reconstruct a CAD surface.
 
+Use the selected component's saved native vertices/triangles for mesh-strip
+indices (`get_print` with `includeGeometry:true` through MCP); rebuilding or
+reordering that mesh requires rebuilding the chart too.
+For a periodic spline, use its actual U domain rather than copying `[0,16]`;
+the `spline-tube` builder uses `[0, controlPoints.length]` and V `[0,1]`.
+
+When authoring a new `spline-tube`, use 8–64 angular columns and 4–32 vertical
+controls; with `k = clampedKnots(nv,3)` from
+[spline-tube.mjs](../../core/geom/spline-tube.mjs), set
+`z[j] = heightMm * (k[j+1] + k[j+2] + k[j+3]) / 3`, not evenly spaced control Z.
+Column `i` lies at angle `2*pi*i/nu`, and every radius must satisfy
+`radius * cos(3*pi/nu) > innerRadiusMm`; the builder repeats seam columns itself.
+
 The shared [surface-region query](../../core/geom/surface-region.mjs) retains
 native parameters. The shared [normal-surface operations](../../core/region/normal-surface.mjs)
 evaluate ambient normal offsets and refine curve samples using millimeter chord
@@ -204,9 +271,10 @@ bring each contact azimuth to the working side. The same interpreted tool frame
 drives Studio's bead orientation; neither playback nor material display guesses
 a cylindrical normal for the new mode.
 
-Current limits: one full-fill body and one rectangular periodic surface chart;
+Current limits: one selected component and one rectangular periodic surface chart;
 no arbitrary face-region unwrapping, holes in the chart, multi-patch seam routing,
-Z-region composition, open-patch cladding or general inward material reservation.
+open-patch cladding or general inward material reservation. The substrate's
+Z-regions can compose through their published boundaries.
 The `spline-tube` authoring shape uses evenly angled columns and linear V height,
 with a control-hull condition that keeps its bore separate. Other regular native
 patches can be selected through the same query. Arbitrary folded offset surfaces,

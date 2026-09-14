@@ -21,7 +21,7 @@ test('inward offsets retain the main outline when short convex corners disappear
       .map(([x,y])=>[120+x*Math.cos(angle)-y*Math.sin(angle),90+x*Math.sin(angle)+y*Math.cos(angle)]);
     // Vary the starting vertex as well: no corner may own the retained outline.
     for(let start=0;start<source.length;start++) {
-      const loop=[...source.slice(start),...source.slice(0,start)],inset=offsetRegion([loop],-0.2);
+      const loop=[...source.slice(start),...source.slice(0,start)],inset=offsetRegion([loop],-0.2,{precisionMm:1e-9});
       assert.equal(inset.length,1,`corner ${e}, angle ${angle}, start ${start}`);
       // Integer offset coordinates have 1e-9 mm quantization; area error scales
       // with perimeter, rather than the old floating construction's exactness.

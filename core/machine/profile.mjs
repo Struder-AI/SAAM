@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { requireThat,distance } from '../geom/tolerance.mjs';
 
-export const MACHINE_IDS=['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8'];
+export const MACHINE_IDS=['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8','split-delta','tilty'];
 export function loadMachine(id='ultimaker-s5') {
   requireThat(MACHINE_IDS.includes(id),'Unknown machine profile.');
   return JSON.parse(readFileSync(new URL(`../../machines/${id}.json`,import.meta.url),'utf8'));

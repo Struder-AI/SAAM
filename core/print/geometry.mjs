@@ -132,5 +132,5 @@ function createMeshGeometry(r,parameters) {
   else append(parameters,'');
   const bytes=Buffer.from(JSON.stringify({schema:'saam-native-geometry/1',units:'mm',geometry:parameters}));
   return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,geometryVersion:hash(parameters),fileHash:hash(bytes),
-    nativeForm:'indexed triangle mesh; mixed assemblies retain spline component recipes',features,boundsMm:shell.bounds,vertices,faces,labels}};
+    nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels}};
 }

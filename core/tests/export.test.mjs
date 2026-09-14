@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,9 +38,15 @@ test('shared interpretation rejects cold extrusion, unsupported state, and inval
   assert.throws(()=>emit(broken),/upgrade/);
 });
 
-test('standalone preview is no longer a product command',()=>{
-  assert.throws(()=>execFileSync(process.execPath,['core/print/cli.mjs','preview'],{encoding:'utf8',stdio:'pipe'}),/Command failed/);
-  assert.equal(JSON.parse(readFileSync('package.json','utf8')).scripts.preview,undefined);
+test('G-code tokenization retains packed arguments, whitespace, comments and strict malformed rejection',()=>{
+  const code=emit(),reference=interpretGriffin(code,plan,machine);
+  for(const command of ['M109T1S215','  M109\tT1  S215  ','M109 T1 S215 ; T0 S0 is a comment']){
+    assert.deepEqual(interpretGriffin(code.replace('M109 T1 S215',command),plan,machine),reference);
+  }
+  for(const command of ['M109 T1 S215 S215','M109 T1 S215 M109','M109 T1 S2e2','M109 T1 SInfinity',
+    'M109 T1 SNaN','M109 T1 S215junk','!M109 T1 S215','M109 T1 S215!','M109 T1 S'+'9'.repeat(400)]){
+    assert.throws(()=>interpretGriffin(code.replace('M109 T1 S215',command),plan,machine),/Duplicate|Unsupported arguments|Malformed|Nonfinite/);
+  }
 });
 
 for(const kind of ['shell','wedge']) test(`${kind} upgrade retains geometry approval and existing delivery bytes`,async()=>{

@@ -1,11 +1,26 @@
+import {planarWallTolerance} from '../core/machine/rules.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
+const globalSkills=[...supportSkills,'pipe-cladding'];
 export const skillName=name=>({'pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
-export const hasSkill=(plan,name)=>supportSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
+export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
+export const hasSkill=(plan,name)=>globalSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
   ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
   :Boolean(plan.skills?.[name]?.enabled);
 const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
+export const claddingPatternName=settings=>settings.pattern==='crossed-helices'?'crossed helices':'axial / circumferential';
+export function claddingSubstrateName(plan){
+  const clad=plan.skills['pipe-cladding'];
+  if(!clad.surface)return 'Concentric horizontal loops';
+  const regions=plan.composition?.regions??[],part=clad.part;
+  const names=regions.length?regions.filter(r=>r.part===part).flatMap(r=>Object.keys(r.skills)):
+    ['full-fill','planar-infill','vase-wall','draped-skin'].filter(name=>{
+      const s=plan.skills[name];return s.enabled&&(plan.geometry.shape!=='assembly'||(s.parts?!s.parts.length||s.parts.includes(part):s.part===part));
+    });
+  return [...new Set(names)].map(skillName).join(' + ')+' · finished surface';
+}
 const fields={
+  spacingFactor:['Line spacing','× nominal spacing; bead width unchanged'],
   pattern:['Pattern',''],maxPatternCells:['Pattern cell budget',''],interfaceDensity:['Interface fraction',''],
   interfaceLayers:['Interface layers',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
   mode:['Fill mode',''],bottomLayers:['Solid bottom layers',''],topLayers:['Solid top layers',''],
@@ -16,9 +31,34 @@ const fields={
   toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],maxPoints:['Point budget',''],endTransition:['Wall ending','']
 };
 export function skillSettingsRows(name,settings,prefix=skillName(name)){
+  if(name==='vase-wall'&&settings.pathMode==='segmented')prefix=prefix.replace(skillName(name),'Segmented paths');
   const rows=[];
   for(const [key,v] of Object.entries(settings)){
     if(['enabled','part','parts'].includes(key))continue;
+    if(name==='vase-wall'&&settings.pattern&&key==='endTransition')continue;
+    if(key==='spacingFactor'&&v===1)continue;
+    if(key==='pattern'&&name==='vase-wall'){
+      if(v){
+        rows.push([prefix+' · Pattern','Repeated motif on the selected solid or sleeve'],
+          [prefix+' · Deposition','Motif strokes only; the guide surface is not printed'],
+          [prefix+' · Repetitions',String(v.repeats)],
+          [prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
+          [prefix+' · Mapping','Actual inset contour at each height; fraction of perimeter length']);
+        for(const [i,path] of v.paths.entries())rows.push(
+          [prefix+' · Motif path '+(i+1),path.points.length+' points'],
+          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+' (turns, mm)'],
+          [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
+        for(const [i,path] of v.paths.entries())if(path.offsetMm!==undefined){
+          const values=Array.isArray(path.offsetMm)?path.offsetMm:[path.offsetMm];
+          rows.push([prefix+' · Contour offset '+(i+1),Math.min(...values)+' to '+Math.max(...values)+' mm; negative extends inward']);
+        }
+        rows.push([prefix+' · Connections',settings.pathMode==='segmented'?'Shared travel across mapped gaps':'Continuous at mapped endpoints and repeat boundaries']);
+      }
+      continue;
+    }
+    if(key==='pathMode'){
+      rows.push([prefix+' · Mode',v==='segmented'?'Segmented paths':'Continuous vase']);continue;
+    }
     if(key==='surface'){
       rows.push([prefix+' · Surface',v?(v.kind==='spline'?'Native spline: '+v.patch:'Explicit mesh strip'):'Circular pipe'],
         [prefix+' · Boundary',v?'Substrate surface; cladding adds outward':'Finished pipe; cladding reserved inward']);
@@ -44,7 +84,8 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
       continue;
     }
     const [label,unit]=fields[key]??[key,''];
-    const rendered=key==='maxAngleDegOverride'&&v===null?'Machine profile limit'
+    const rendered=key==='pattern'&&name==='pipe-cladding'?claddingPatternName(settings)
+      :key==='maxAngleDegOverride'&&v===null?'Machine profile limit'
       :key==='zEndMm'&&v===null?'Geometry top'
       :key==='endTransition'?({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v))
       :value(v)+unit;
@@ -54,26 +95,28 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
 }
 export function regionRows(plan){
   return (plan.composition?.regions??[]).flatMap(region=>[
-    [region.id,(region.part??'Part')+' · '+(region.zEndMm===null?region.zStartMm+' mm to geometry top':region.zStartMm+'–'+region.zEndMm+' mm')+' · '+Object.keys(region.skills).map(skillName).join(' + ')],
+    [region.id,(region.part??'Part')+' · '+(region.zEndMm===null?region.zStartMm+' mm to geometry top':region.zStartMm+'–'+region.zEndMm+' mm')+' · '+Object.keys(region.skills).map(name=>name==='vase-wall'?pathModeName({...plan.skills[name],...region.skills[name]}):skillName(name)).join(' + ')],
     ...(region.lowerSurfaceFrom?[[region.id+' · Bottom','Follows the finished surface of '+region.lowerSurfaceFrom]]:[])
   ]);
 }
-export function recipeRows(plan){
+export function recipeRows(plan,machine){
   const composition=plan.composition,regions=composition?.regions??[],rows=[];
+  rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm']);
   if(composition){
     rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],
       ['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],
       ['Additional dependencies',composition.dependencies.length?composition.dependencies.map(e=>e.before+' → '+e.after).join('; '):'None']);
   }
   if(regions.length){
-    for(const name of supportSkills)if(plan.skills?.[name]?.enabled)rows.push(...skillSettingsRows(name,plan.skills[name]));
+    for(const name of globalSkills)if(plan.skills?.[name]?.enabled)rows.push(...skillSettingsRows(name,plan.skills[name]));
+    if(hasSkill(plan,'pipe-cladding'))rows.push(['Cladding component',plan.skills['pipe-cladding'].part??'Part']);
     rows.push(...regionRows(plan));
     for(const region of regions)for(const [name,overrides] of Object.entries(region.skills))rows.push(
       ...skillSettingsRows(name,{...plan.skills[name],...overrides},region.id+' · '+skillName(name))
         .filter(([label])=>!label.endsWith('above component base')));
   }else if(plan.skills){
     for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled){
-      rows.push([skillName(name)+' · Component',supportSkills.includes(name)?'Explicitly assigned supports':settings.parts?.join(', ')||settings.part||'All selected geometry']);
+      rows.push([(name==='vase-wall'?pathModeName(settings):skillName(name))+' · Component',supportSkills.includes(name)?'Explicitly assigned supports':settings.parts?.join(', ')||settings.part||'All selected geometry']);
       rows.push(...skillSettingsRows(name,settings));
     }
   }

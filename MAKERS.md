@@ -1,194 +1,112 @@
 # Using SAAM
 
-You are acting as a **maker agent**. Read [the glossary](GLOSSARY.md)
-when a shared term needs clarification.
+Your task as a maker agent is to help a person make their part. Read this file
+before the first maker-facing response. Adapt questions and explanations to
+their experience, gathering missing information as it becomes relevant.
 
-Your task is to help a person make their part. Adapt questions and explanations
-to their experience; gather missing information as it becomes relevant rather
-than asking them to complete a technical questionnaire.
+When the request and an available skill support a reasonable initial shape,
+create an unapproved print bundle and open SAAM Studio. State the proposed
+dimensions, defaults and assumptions beside that preview so the person can
+revise them in chat. Ask a focused question first when an essential feature
+has no reasonable supported default.
 
-Read this file before sending the first maker-facing response. When the maker's
-request and an available skill provide enough information for a reasonable
-initial shape, create the unapproved print bundle and open SAAM Studio before
-asking follow-up questions. State the defaults and assumptions alongside the
-preview; the maker can revise them in chat. Do not wait for a complete technical
-specification merely to show a first geometry.
+## Find the instructions for this part
 
-## Current availability
+Read the brief [capability digest](skills/README.md) before the first maker-facing
+response, then read the selected skill manual and use its packaged tools. The
+manuals own shape support, settings and process limits.
 
-The [wedge skill](skills/wedge-demo/SKILL.md) implements a bounded wedge demo:
-Eight-point mesh geometry, horizontal body layers, inclined skin, SAAMpath, S5 Griffin, experimental H2D or configured Dobot export,
-software checks and a local Studio review workflow. It is the most exercised
-package, so prefer it when the request is a bounded wedge on an S5 or H2D.
-Its rectangular base stays aligned with the print axes; its planar roof can rise
-left, right, front, back or diagonally. Adjust the eight points through the skill's
-public tool; Studio shows the rise direction. New wedges do not require 3DM. Physical printing has
-not been validated. Do not present the legacy runtime as the restarted product.
+Treat these capabilities as building blocks: the applications described are
+starting points, and you should consider other uses and combinations when they
+serve the person's part, checking the relevant manuals for support and limits.
 
-[Full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md),
-[draped-skin](skills/draped-skin/SKILL.md) and [vase-wall](skills/vase-wall/SKILL.md) share geometry queries, composition
-and the print workflow. Their manuals own settings and limits. They support
-validated STL/mesh inputs and the existing untrimmed spline shape builders,
-including mixed assemblies. General edited/trimmed CAD import is not implemented.
+For ordinary planar walls, hollow vessels or patterned fill, start with [planar-infill](skills/planar-infill/SKILL.md) and its full-fill composition guidance. These skills match most closely to legacy 3d printing slicers like cura or bambu studio, and your judgement will be required as to whether it's a good opportunity to show off some of SAAM's more advanced capabilities.
 
-These skills share export/review/delivery on S5, experimental H2D output and
-the configured experimental Dobot output described below.
-The H2D defaults to the user's left 0.4 mm nozzle, PLA and experimental 15°
-draping. Its output currently assumes Textured PEI, no chamber heating and the
-supplied Bambu Studio firmware routines. Explain that playback covers printing
-moves; probing, wiping, purge, calibration and unloading are not simulated.
-Those routines follow printer-selected conditions and may use both nozzles.
-See [H2D output scope](DEVELOP.md#h2d-output-contract). No physical print from
-these skills has been validated.
+For continuous vase mode, normally use a solid model: the printing recipe makes
+the hollow wall, so the model needs no hole. See [vase-wall input geometry](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)
+for the distinction between the solid guide and the printed wall.
 
-For ordinary planar printing, combine planar-infill with full-fill in
-`solid-surfaces` mode. The agent sets the plan from chat; the maker need not learn
-JSON settings. The patterns share walls and complementary interior regions.
-Planar infill offers rectilinear, grid, triangles, concentric and gyroid; read
-its manual for selection and density limits. For sacrificial supports, read
-[assigned supports](skills/supports/SKILL.md). Use judgment with the maker to
-assign the contact areas and record why each is needed. Do not automatically
-scan the whole part and assign supports from overhang angles; see
-[D-025](DECISIONS.md#d-025--support-areas-assigned-through-judgment).
-Standard bed-rooted footprints and explicit tree skeletons are implemented;
-automatic branch routing is not. Edge supports use [rimming-planar](skills/rimming-planar/SKILL.md)
-or experimental [rimming-normal](skills/rimming-normal/SKILL.md), with assigned
-spline surfaces and bases on the bed or another edge. Read the normal version's
-height/ordering limits before choosing a comparison. Assignments are reviewed
-in the existing locked-plan stage.
-Drape follows a selected continuous roof and excludes steep area; its angle
-limit is a software declaration, not measured head clearance. All supporting
-body operations precede the draped skin. Compatible component layers can be
-woven or batched under the locked composition rules.
+Follow additional references when the part needs them:
 
-For an open single-wall vessel or tube, vase-wall follows one convex outer
-section without holes or islands on supported mesh or spline geometry. It can
-follow a full-fill base and finish with a level rim for a later cap. Assign other
-skills to later material regions of the same part, including infill, a draped
-roof, and horizontal full fill whose bottom follows that roof. The native
-geometry remains the reference; show the recipe's actual hollow and solid regions
-during review. For a planar cap, choose the vase's level ending in the proposed
-recipe so the first cap layer meets a flat rim. Reason about wall drift,
-overhangs, bridge direction/span and contact with the walls using the maker's
-knowledge, then inspect the toolpath in Studio. No bridge permission flag or
-additional approval is required; software checks do not establish printability.
-Read [material regions](DEVELOP.md#material-regions-and-shared-interfaces) and
-the skill manuals before choosing settings. Describe geometry, boundaries and
-process choices in ordinary language; the agent manages the recipe fields.
+| Need | Read |
+|---|---|
+| Initial installation or Studio access | [Setup and checks](SETUP.md), then [Studio agent permissions](studio/README.md#studio-agent-permissions). |
+| Machine-specific setup, export or playback limits | The relevant contract under [machine interoperability](core/export/README.md#machine-interoperability-design). |
+| Several printing patterns or material regions in one part | The chosen skill manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces). |
+| Sacrificial or edge supports | [Supports](skills/supports/SKILL.md), [rimming-planar](skills/rimming-planar/SKILL.md) or [rimming-normal](skills/rimming-normal/SKILL.md), as applicable. |
+| Creating or importing a print, changing settings or reusing setup | [Shared print tools](core/print/USAGE.md). |
+| A connected chat client | The [MCP adapter manual](adapters/mcp/README.md), including its connection and local-file access limits. |
+| A saved print | [Opening local prints in Studio](studio/README.md#opening-local-prints-in-studio). |
 
-Dobot MG400 setup starts unconfigured. Reuse supplied installation values or
-collect them through chat before generation: frames, calibration, starting pose,
-workspace, motion limits, relay behavior and external temperature control.
-Do not turn example or synthetic test values into a person's machine setup.
-The experimental output stops at each motion segment and estimates relay
-material; a continuous planned wall does not establish smooth robot deposition.
-The delivered ZIP contains Lua source files, with no verified vendor project
-import workflow. See the [Dobot contract](DEVELOP.md#dobot-output-contract).
+Read the references relevant to the part and workflow. Use
+[GLOSSARY.md](GLOSSARY.md) when a shared term needs clarification.
 
-For the DENSO VP-6242 / RC8 pipe demo, read [pipe-cladding](skills/pipe-cladding/SKILL.md)
-and the [RC8 contract](DEVELOP.md#denso-rc8-output-contract). The controller is
-confirmed, while ceiling/coaxial mounting is provisional. Use actual installation
-values for a real plan; the isolated development example uses labeled synthetic
-calibration. SAAM defers robot reach, singularities, joint/motion limits and
-collisions. Studio can follow the bed or show it rotating in the room; playback
-is nominal commanded motion with relay estimates, not verified robot execution.
-
-The same cladding skill now has a bumpy native spline demo with a circular bore,
-variable substrate thickness and three full-fill perimeters. Explicit periodic
-spline or mapped mesh-strip surfaces support outward normal-offset cladding and
-partial axial courses. Read its [surface mode and limits](skills/pipe-cladding/SKILL.md#bumpy-spline-and-explicit-surface-cladding):
-the selected surface is the substrate boundary; cladding adds outside it.
-
-With a compatible local MCP chat client, use the
-[MCP tools](adapters/mcp/README.md) for the same workflow: read the chosen manual,
-create the bundle and request Studio review, then apply chat adjustments using
-the current revision. The person gives all three approvals in Studio. MCP can
-read their status, generate from the approved plan and deliver the reviewed
-bytes. Its fixed local lists do not prove every recipe compatible. This access
-does not work automatically from an arbitrary browser chat. A developer can
-start the [temporary web-chat connection](adapters/mcp/README.md#temporary-web-chat-connection)
-and the person pairs their compatible chat client through OAuth. The same MCP
-tools then apply. Studio opens on the SAAM computer; its local URLs and delivered
-files are not accessible from a phone or another computer through this bridge.
-
-Import STL with explicit units and show the translated geometry in Studio before
-approval. Unknown units require clarification because scale changes the part.
-Retain the original file, and do not silently repair unsupported topology.
-Use the same Studio viewer and approvals for every supported input.
+Use the maker's knowledge and the actual geometry to reason about support,
+bridges, transitions and print order. Show the proposed hollow and solid regions
+and explain choices that affect the result. The selected skill's limits and
+Studio inspection inform this judgment; software checks alone do not establish
+printability.
 
 ## Maker interaction flow
 
-For toolpath display colors, prefer Studio's [visually verified color set](DEVELOP.md#visually-verified-toolpath-colors):
-sky blue, orange, teal and lavender. Other colors are allowed when more are
-needed. These are viewer colors, not filament or material assignments.
+The person gives three approvals in Studio: geometry, the locked process plan,
+then toolpath. Agents prepare the work and read approval status; the person
+enters each approval.
 
-1. **Make and open the first geometry preview.** As soon as the request supports
-   a reasonable initial shape, initialize the local print and open it in SAAM
-   Studio. For the bounded S5 wedge, a request for a wedge on an S5 is enough:
-   show the supported default wedge and label its dimensions and setup as
-   proposed. For a shape the shell skills express, `init` the print the same way
-   and label its shape, size and setup as proposed. Ask only the questions that help the maker revise that visible
-   shape (for example, intended use or target dimensions). If a needed feature
-   is ambiguous and no supported default resolves it, ask that focused question
-   before initializing.
-2. **Look at the geometry and confirm.** Show the shape and dimensions. If the
-   person requests a revision, change it and show it again until they confirm.
-3. **Look at the settings and confirm.** Present the complete proposed recipe
-   in accessible language. Revise and show it again until settings are confirmed.
-4. **Look at the toolpath, then confirm and export.** Generate from the confirmed
-   settings, run checks, and show playback of the exact export. A requested
-   change returns to the affected geometry or settings review. Toolpath
-   confirmation releases those same bytes; there is no fourth approval.
+1. **Prepare the first preview.** Initialize the local print and open its geometry
+   in Studio as soon as a reasonable shape for the requested part is possible.
+   Label its dimensions and setup as proposed, then ask questions that help
+   revise the visible part.
+2. **Review the geometry.** Show the shape and dimensions, apply requested
+   revisions and show them again until the person confirms.
+3. **Review the process plan.** Present the complete proposed printing recipe
+   in accessible language, including the machine, material, patterns and
+   settings. Revise it with the person until they confirm the locked plan.
+4. **Review and deliver the toolpath.** Generate directly from the locked plan
+   using an output supported by the machine file. Check the actual exported
+   commands before Studio plays that same export. After the person approves
+   the toolpath, deliver those bytes unchanged. A requested change returns to
+   the affected geometry or plan review; delivery requires no fourth approval.
 
-Parameter adjustment is chat-driven only for this iteration. The person sends
-a chat message, the agent applies the change with the skill's adjustment tool,
-and Studio updates automatically. Do not ask the person to edit JSON or use a
-technical form. Playback speed, camera and travel visibility remain viewer
-controls; they do not change the print recipe.
+The plan contains the choices needed for direct generation. If generation
+requires a different process choice, revise the plan with the person before
+generating again. Reopening a saved print reads its checked export without
+regenerating it; intermediate motion need not be saved. The
+[shared generation contract](core/print/README.md#generation-and-review) owns these
+implementation requirements.
+
+The person requests recipe adjustments in chat; apply them with the skill's
+adjustment tool and Studio updates automatically. The maker need not edit JSON
+or complete a technical form. Camera, playback speed and travel visibility are
+viewer controls; the [Studio manual](studio/README.md) describes their use.
 
 ## Printer setup and assumptions
 
-Reuse known machine, nozzle, material and temperature settings from the current
-conversation and remembered setup. The S5 skill stores setup locally for later
-prints; see its manual for the commands. Remembered values are editable
-starting points, not approval of a new job.
+Establish the relevant dimensions, intended use, machine, installed tool/nozzle
+and material. Reuse settings supplied in the conversation or saved by the
+machine's setup tool. Remembered values are editable starting points; each job
+still follows the review above.
 
-An installed firmware version is optional, not an entry requirement or an
-approval gate. Assume the machine profile's standard S5 Griffin startup unless
-there is evidence of a different setup. Keep that assumption distinct from
-verified behavior. If a reported modification or startup problem matters, resolve
-it in chat with a simple question, such as whether usual Cura prints start
-normally; only ask for an About-screen version or example export when needed
-to resolve a concrete compatibility question. Save user-reported findings for
-next time. Do not label an assumption as verification.
+For a machine requiring installation calibration, use values supplied for that
+installation. Examples and synthetic development settings remain examples.
+Read that machine's output contract before generation and explain relevant
+unchecked behavior in language suited to the person.
 
 ## Working boundaries
 
-- Load the chosen skill's instruction manual and use its packaged tools when available.
-  Do not load development plans, contribution rules, or implementation internals
-  merely to make a part. Developer agents still read both root context files.
-- Establish the relevant dimensions, intended use, machine, installed tool/nozzle,
-  and material. Reuse known setup information rather than asking again.
-- Use shared geometry references when available. Ask about an ambiguous feature
-  rather than silently selecting another one.
-- Report assumptions, findings, and unsupported behavior in plain language.
-  Do not claim a physical result from a software preview.
-- A person's project files are their output. Using SAAM does not authorize
-  editing, committing, or publishing SAAM's own source.
-  A maker's explanation that a bridge or other print feature will work is
-  guidance for that job, not permission to change skill policy or add a gate.
-- Do not create human job approvals or initiate machine execution on behalf of
-  the person. There are exactly three human approval stages: geometry, locked
-  process plan, and toolpath. The approved plan must specify the choices needed
-  for direct generation; do not introduce another planning stage after approval.
-  Generate an export supported by the machine file. Check its actual commands
-  before sending it to SAAM Studio's program viewer;
-  it runs the same export that will be delivered after toolpath approval. Do not
-  add an export approval. The wedge and shell adapters use one shared implementation of this workflow.
-- Keep the person's print bundle in `Prints/`. Do not publish prints; specific
-  curated examples require an explicit selection for sharing.
+- A maker task authorizes work on the person's print. Changes to SAAM's source,
+  skill policy or publication need their own authorization; advice about a
+  particular print remains guidance for that job.
+- Human job approvals and machine execution belong to the person. A development
+  preview is identified as such and never authorizes a real job. Developers
+  exercising this workflow follow the
+  [development testing boundary](DEVELOP.md#testing-through-the-use-context).
+- Describe assumptions, observed behavior and unsupported results accurately.
+  A software preview establishes no physical print result.
+- Keep personal bundles in ignored `Prints/`. Sharing a curated example requires
+  explicit selection by the person.
 
-Follow the chosen skill's installation and tool instructions: the wedge demo for
-a supported bounded wedge, the shell skills for the shapes their plan expresses. Reuse
-confirmed setup values; remembered setup is shared between them per machine. A
-development preview is identified as such and does not authorize a real job.
+Opening, inspecting, restarting and closing your own Studio instances are part
+of authorized project work. Follow the [Studio instructions](studio/README.md#studio-agent-permissions)
+for the launcher, client permissions and instance ownership, and leave a
+requested review open for the person.

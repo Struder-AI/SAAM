@@ -1,8 +1,10 @@
 // Shared numeric helpers and the tolerance vocabulary used across the core.
 //
-// Tolerances are stated in millimetres and chosen against the process, not the
-// float: a 1 um chord tolerance is roughly 400x finer than a 0.4 mm bead, so
-// discretisation introduced here is far below anything the machine resolves.
+// Spatial tolerances are in mm; parameter convergence is in the native UV
+// parameter units, not mm. Keep predicate slack separate from geometric
+// approximation and choose each for its consumer (DEVELOP.md precision policy).
+// A fine chord target bounds that construction only, not accumulated downstream
+// shape error, mesh repair error, or the machine's physical accuracy.
 
 export const TOLERANCE = {
   point: 1e-6,       // coincident-point tolerance for joining section pieces

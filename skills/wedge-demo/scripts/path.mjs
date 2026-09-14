@@ -2,7 +2,7 @@ import { VERSION, distance, requireThat, validatePlan, roofGeometry } from './mo
 import { scanlineFill, loopArea } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
 import { PathBuilder } from '../../../core/path/builder.mjs';
-import { startupPosition, toolBounds } from '../../../core/machine/profile.mjs';
+import { startupPosition, startupRetracted, toolBounds } from '../../../core/machine/profile.mjs';
 
 // Keep the bounded eight-point section construction; inset its result with the
 // same material-region offset used by every other skill.
@@ -32,7 +32,7 @@ export function generatePath(plan, machine) {
   const builder=new PathBuilder({start:startupPosition(machine,plan),process:p,machine,generatorVersion:VERSION,motion:plan.setup.denso??null});
   builder.motionBounds=toolBounds(machine,s.tool);
   // A new job recovers the previous SAAM job's final retraction once.
-  builder.retracted=p.startupRetracted;
+  builder.retracted=startupRetracted(machine,plan);
   const world=q=>[o.xMm+q[0],o.yMm+q[1],q[2]];
   const move=builder.move.bind(builder);
   const finishLayer=builder.finishLayer.bind(builder);
@@ -50,18 +50,19 @@ export function generatePath(plan, machine) {
   builder.fan(0);
   line([[0,-4,p.firstLayerMm],[runMm,-4,p.firstLayerMm]],p.firstLayerMm,p.firstLayerSpeedMmS);
   builder.phase='planar';
-  const zs=[];
+  const zs=[],perimeters=[];
   for(let i=0;;i++) {
     const z=p.firstLayerMm+i*p.layerMm;
     if(z>partMaxZ-p.skinLayers*skinZ+1e-9) break;
-    if(!course(roof,coreBase,z,w/2).length)break;
-    zs.push(z);
+    const perimeter=course(roof,coreBase,z,w/2);
+    if(!perimeter.length)break;
+    zs.push(z);perimeters.push(perimeter);
   }
   for(const [index,z] of zs.entries()) {
     builder.layer=index; const h=index===0?p.firstLayerMm:p.layerMm;
     const speed=index===0?p.firstLayerSpeedMmS:p.planarSpeedMmS;
     if(index===1) builder.fan(p.fanPercent);
-    const perimeter=course(roof,coreBase,z,w/2),inside=course(roof,coreBase,z,1.5*w);
+    const perimeter=perimeters[index],inside=course(roof,coreBase,z,1.5*w);
     const strokes=[{role:'perimeter',points:[...perimeter,perimeter[0]].map(q=>[...q,z])}];
     if(inside.length) {
       const fill=scanlineFill([inside],w,90,{originMm:[w/2,0]}),points=[];

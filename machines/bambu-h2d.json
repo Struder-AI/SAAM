@@ -2,8 +2,9 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 4,
+  "revision": 5,
   "units": "mm",
+  "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "capabilities": [
     "xyz-extrusion",

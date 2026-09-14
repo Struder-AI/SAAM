@@ -1,25 +1,29 @@
 ---
 name: planar-infill
-description: Generate planar walls and rectilinear, grid, triangles, concentric or gyroid infill on closed mesh or supported spline geometry. Combine with solid surfaces, assigned supports and draped skin through the shared workflow.
+description: Print conventional flat-layer walls with a patterned interior, varying infill density to control material use or leave a hollow body. Supports closed meshes and supported spline geometry; combine with full-fill for solid tops and bases.
 ---
 
 # Planar infill
 
 Use for conventional flat-layer printing with walls and a sparse interior.
-Read [MAKERS.md](../../MAKERS.md) for making a part; developers also read
-[DEVELOP.md](../../DEVELOP.md). Software tests cover the S5 and H2D profiles,
+For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+Software tests cover the S5 and H2D profiles,
 mesh and restricted spline inputs. No physical print is validated. Both machines
 use the shared export/review/delivery workflow. H2D output is experimental; read
-its [machine contract](../../DEVELOP.md#h2d-output-contract) before use.
+its [machine contract](../../core/export/bambu.md#h2d-output-contract) before use.
 
 ## Tools
 
-Use the [shared bundle commands](../full-fill/SKILL.md#setup-and-tools).
+Use the [shared bundle commands](../../core/print/USAGE.md).
 Enable `skills.planar-infill.enabled` in the proposed plan. Set full-fill to
 `mode: solid-surfaces` for solid top/bottom regions, or disable full-fill for an
 open sparse body. Complete solid fill and sparse fill cannot own the same
 material region; assign them separate regions or use complementary solid masks.
 All settings and component selections are locked before generation.
+
+For conventional flat-layer printing, also disable draped-skin; it is enabled
+in the shell template and otherwise reserves roof material for a separate skin.
 
 ## Settings
 
@@ -28,7 +32,7 @@ All settings and component selections are locked before generation.
 | `enabled` | `false` | Select the pattern. |
 | `parts` | `[]` | Assembly components; empty selects all. |
 | `perimeters` | `2` | Maximum inward loops from each boundary per layer. |
-| `density` | `0.2` | Approximate interior volume fraction; spacing is line width / density. |
+| `density` | `0.2` | Zero leaves the interior empty; otherwise 0.01–1 sets approximate interior volume fraction, with spacing = line width / density. |
 | `pattern` | `rectilinear` | Sparse interior pattern, described below. |
 | `sampleStepMm` | `0.2` | Gyroid maximum sampling grid step, also limited to 1/32 of its period. |
 | `maxPatternCells` | `1000000` | Gyroid sampling cells per layer; raise explicitly for larger/finer slices. |
@@ -37,6 +41,12 @@ All settings and component selections are locked before generation.
 | `minFeatureMm` | `0.4` | Smallest sampled spline section feature. |
 
 Full-fill owns `bottomLayers` and `topLayers` (three each by default).
+For a hollow vessel printed in ordinary flat layers, use zero density, positive
+perimeters and full-fill `solid-surfaces` with bottom layers and zero top layers.
+This follows supported concave sections too; it does not require vase-wall or
+its convex-section restriction. Walls close separately on each layer, so a seam
+and layer transitions remain. Local solid-surface masks still apply to shelves
+and changing sections; inspect the generated path before printing.
 Walls use full-fill's shared perimeter generator, including its
 [central-loop recovery](../full-fill/SKILL.md#settings): a 2 mm circular wall
 at 0.4 mm line width and three or more perimeters has five loops and no sparse
@@ -70,15 +80,15 @@ Thin strips and their roof support deserve judgment and Studio inspection.
 
 Gyroid samples the nodal field `sin(x)cos(y) + sin(y)cos(z) + sin(z)cos(x) = 0`
 in scaled millimeter coordinates, with period `2.4 * lineWidthMm / density`.
-This approximate density calibration measured 20.52% deposited line-volume
-fraction for requested 20% on a 48 mm square averaged over 16 phases, at 0.2 mm
-sampling and 0.4 mm width. It is not a certified surface or exact-volume model.
+This is an approximate density calibration, not a certified surface or
+exact-volume model; the [development measurement](../../DEVLOG.md#2026-09-10--gyroid-contour-construction-measurement)
+records its sampled line-volume fraction.
 The existing level-set constructor extracts contours; the shared Clipper2 open
 path tool clips them at walls, holes, islands and solid masks without adding
 extrusion connections across gaps. The pattern is anchored to the shared world
 coordinate grid, including Z, so placement can change its phase within a part.
 Sample refinement tests measure field residual and contour-length convergence.
-No upstream slicer code or documentation text was copied.
+The pattern implementation is original SAAM code.
 
 `scripts/patterns.mjs` exposes `infillStrokes(region, settings)` for the owning
 generator and developer tests. Makers use the shared plan tools, not a separate
@@ -93,7 +103,7 @@ operations, including full-fill operations when solid regions are selected.
 It reuses the planar stroke generator and region operations. Walls precede
 interiors; supporting layers precede later layers and draped skins.
 Closed solid/sparse mask intersections, unions and differences use the
-[shared Clipper2 region tool](../../DEVELOP.md#shared-planar-intersections).
+[shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections).
 
 Shared `composition.regions` can place sparse walls above a solid cap on a vase,
 below a draped roof, or between other assigned material regions on the same
@@ -116,7 +126,7 @@ strokes; use compatible sequential regions until that transition is supported.
 Both geometry backends provide bounds and sections through `core/geom/query.mjs`.
 Machines must declare XYZ extrusion and planar capabilities; machine profiles
 own tool/material limits and export behavior. Follow the
-[shared interoperability guidance](../../DEVELOP.md#geometry-interoperability-for-skill-authors).
+[shared interoperability guidance](../../core/geom/README.md#geometry-interoperability-for-skill-authors).
 
 Travel uses nearest wall starts, alternating fill direction and verified combing,
 including bounded routes around holes. Fill completes disconnected regions and
@@ -126,6 +136,6 @@ end row, with row order and stroke direction chosen independently. Concentric
 and gyroid keep their existing ordering. Heat balancing and lookahead are deferred.
 Shared motion compacts straight runs and directly repositions across permitted
 gaps of at most 1 mm without retraction or lift. Other moves clear
-the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../DEVELOP.md#whole-plan-travel-requirement).
+the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../core/path/README.md#whole-plan-travel-requirement).
 Thin features may collapse under offsets; density is approximate near
 boundaries. No collision or automatic support model is implied by these checks.

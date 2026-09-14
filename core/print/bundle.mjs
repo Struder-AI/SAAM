@@ -4,9 +4,18 @@ import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './pla
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
 import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
+  '../geom/voxel.mjs','../geom/voxel-record.mjs','../geom/voxel-compile.mjs','./voxel.mjs',
+  '../../skills/gridfinity/scripts/record.mjs','../../skills/gridfinity/scripts/gridfinity.mjs','../../skills/gridfinity/scripts/bundle.mjs',
+  '../path/deposition.mjs','../geom/contour-path.mjs','../../skills/vase-wall/scripts/paths.mjs',
+  '../geom/text-record.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',
+  '../../skills/text/scripts/text.mjs','./text.mjs','../../node_modules/manifold-3d/manifold.js','../../node_modules/manifold-3d/manifold.wasm',
+  '../../node_modules/fontkit/dist/module.mjs',
+  '../path/spacing.mjs',
+  '../path/finished-surface.mjs',
+  '../../skills/pipe-cladding/scripts/course.mjs',
   '../geom/spline-tube.mjs','../geom/surface-region.mjs','../region/normal-surface.mjs','../../skills/pipe-cladding/scripts/surface-clad.mjs',
   '../geom/cylinder.mjs','../path/pose.mjs','../machine/denso.mjs','../export/denso.mjs','../export/denso-player.mjs','../../skills/pipe-cladding/scripts/clad.mjs',
-  '../region/offset.mjs', '../region/clipper.mjs', '../../node_modules/clipper-lib/clipper.js', '../../package-lock.json',
+  '../region/offset.mjs', '../region/clipper.mjs', '../region/clipper2.mjs', '../../package-lock.json',
   '../region/intersection.mjs', '../../node_modules/clipper2-wasm/dist/umd/clipper2z.js',
   '../../node_modules/clipper2-wasm/dist/umd/clipper2z.wasm',
   '../region/surface-offset.mjs', '../geom/surface-derivatives.mjs',

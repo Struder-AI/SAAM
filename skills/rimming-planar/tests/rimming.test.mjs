@@ -15,6 +15,17 @@ import {scheduleOperations} from '../../../core/path/compose.mjs';
 const surface=(lean=0)=>({id:'edge-rim',reason:'Anchor the selected edge for bridging.',baseEdge:'bed',basePart:null,supportedEdge:'front lower edge',supportedPart:null,
   outwardSide:1,degreeU:1,degreeV:1,controlPoints:[[[0,-lean,0],[0,0,4]],[[10,-lean,0],[10,0,4]]]});
 
+test('reused surface validity follows control-net content and does not share mutable placed patches',()=>{
+  const spec=surface(),first=supportSurface(spec),second=supportSurface(structuredClone(spec),{xMm:5,yMm:2});
+  assert.equal(second.bounds.min[0],first.bounds.min[0]+5);
+  first.cp[0]=999;
+  assert.equal(supportSurface(spec).cp[0],0,'caller mutation cannot change a subsequently built surface');
+  spec.controlPoints[0][1][2]=-1;
+  assert.throws(()=>supportSurface(spec),/rise monotonically/,'a changed control net must be checked');
+  spec.controlPoints[0][1][2]=4;spec.degreeU=3;
+  assert.throws(()=>supportSurface(spec),/degrees/,'a changed degree must be checked');
+});
+
 test('vertical reference surface gives identical offsets in both modes, with two adjacent bead centers',()=>{
   const patch=supportSurface(surface()),chain=supportSurfaceSection(patch,1)[0];assert.ok(chain?.length>1);
   for(const d of [0.2,0.6]){

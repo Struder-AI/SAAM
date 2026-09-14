@@ -1,0 +1,195 @@
+{
+  "schema": "saam-machine/1",
+  "id": "split-delta",
+  "name": "Splitty / paired-edge 150 mm rod candidate",
+  "revision": 5,
+  "units": "mm",
+  "kinematics": "six-prismatic-fixed-rod-spherical; upper branch; nozzle TCP",
+  "kinematicModel": {
+    "module": "core/machine/split-delta.mjs",
+    "towerRadiusMm": 48.499861207697535,
+    "railSeparationMm": 135.7733115464449,
+    "railTiltDeg": -1.3264437119476495,
+    "railReferenceHeightMm": 220.73731031559873,
+    "platformRadiusMm": 32.54689920076635,
+    "platformPairMm": 16,
+    "rodLengthMm": 150,
+    "toolLengthMm": 55.55021591363475,
+    "jointConeDeg": 90,
+    "marginDeg": 4,
+    "operatingTiltDeg": 40,
+    "minSingularRatio": 0.02,
+    "railMinMm": 0,
+    "railMaxMm": 441.62111669440174,
+    "checkPlateBedClearance": true,
+    "frameHeightMm": 441.47462063119747,
+    "railToeDeg": 1.2941557107493264,
+    "platformClockDeg": -0.588236391730609,
+    "platformPairSkewDeg": -35.47918643653393,
+    "rodDiameterMm": 4,
+    "plateThicknessMm": 3.7645941047091025,
+    "plateRimMm": 5.583234457545913,
+    "railMountOffsetMm": 25
+  },
+  "designEnvelope": {
+    "diameterMm": 51.41934040699067,
+    "heightMm": 63.220843,
+    "spinDeg": 0,
+    "basis": "Selected wavy-path fit with150 mm rods and paired-edge ordering; no all-orientation cylinder guarantee."
+  },
+  "bounds": {
+    "min": [
+      -25.693476,
+      -25.701502,
+      0.412687
+    ],
+    "max": [
+      25.709664,
+      25.701669,
+      63.220843
+    ]
+  },
+  "boundsBasis": "Selected deposited path bounds, excluding bead thickness; not independent workspace approval.",
+  "motionChecks": "standalone sampled kinematics; hardware uncommissioned",
+  "jointDesign": {
+    "maximumLayers": 2,
+    "effectivePivotCentersPerRodEnd": 1,
+    "articulationVerified": false,
+    "note": "User specifies at most two layers retaining one effective pivot center. No three-layer option. Cone is a design input, not an inferred property of two layers."
+  },
+  "maxFeedMmS": {
+    "x": 60,
+    "y": 60,
+    "z": 20,
+    "e": 25
+  },
+  "temperatureLimitsC": {
+    "nozzle": [
+      0,
+      280
+    ],
+    "bed": [
+      0,
+      110
+    ],
+    "chamberMax": 0
+  },
+  "filamentDiameterMm": 1.75,
+  "tools": [
+    {
+      "index": 0,
+      "label": "Provisional pointed hotend; 55.6 mm plate-to-tip",
+      "cores": [
+        "custom 0.4"
+      ],
+      "nozzleDiametersMm": [
+        0.4
+      ],
+      "layerHeightMm": [
+        0.06,
+        0.3
+      ],
+      "startupXY": [
+        0,
+        0
+      ]
+    }
+  ],
+  "capabilities": [
+    "xyz-extrusion",
+    "planar",
+    "nonplanar",
+    "tool-orientation"
+  ],
+  "materials": {
+    "PLA": {
+      "maxFlowMm3S": 4,
+      "maxRetractMm": 6.5,
+      "nozzleC": [
+        190,
+        230
+      ],
+      "bedC": [
+        0,
+        70
+      ]
+    }
+  },
+  "outputs": [
+    {
+      "id": "split-delta-controller",
+      "extension": ".gcode",
+      "implemented": false,
+      "experimental": true,
+      "reason": "Controller dialect and hardware commissioning unresolved. Use tools/split-delta for standalone simulation and SAAMpath preview; it cannot deliver a machine program."
+    }
+  ],
+  "preview": {
+    "exportModule": "core/export/split-delta-player.mjs",
+    "exportFunction": "exportSplitDeltaPreview",
+    "interpretFunction": "interpretSplitDelta",
+    "hardwareExecutable": false
+  },
+  "defaultSetup": {
+    "tool": 0,
+    "core": "custom 0.4",
+    "nozzleMm": 0.4,
+    "material": "PLA",
+    "filamentMm": 1.75,
+    "nozzleC": 205,
+    "bedC": 60,
+    "buildVolumeC": 0,
+    "materialGuid": null,
+    "firmwareVersion": null,
+    "startupVerified": false
+  },
+  "defaultProcess": {
+    "retractMm": 1,
+    "fanPercent": 100
+  },
+  "startup": {
+    "protocol": "uncommissioned",
+    "zAfterStartupMm": 20
+  },
+  "nonplanar": {
+    "maxAngleDeg": 15,
+    "basis": "Provisional fixed-axis recipe slope limit; separate from the 40 degree head tilt requirement."
+  },
+  "clearance": {
+    "model": null,
+    "validatedInclinationDeg": null
+  },
+  "validation": "Design/simulation profile only. No measured machine geometry, joint cone, hotend envelope, collision model, loads, calibration, dynamics, thermal or firmware validation. Six local DOF do not establish global pose reachability. Feed and temperature values are provisional process defaults, not hardware ratings.",
+  "study": {
+    "score": 0.2647335697260797,
+    "scale": 8.67,
+    "coverage": "Minimum joint-center gap15 mm; track pair gap20 mm; rod/plate thickness bounds are geometric assumptions, not structural ratings. Hotend excluded. Symmetric 3-tower family; no claim of global optimum or continuous swept collision certification. Form-factor includes a 20 mm rail-body envelope and a supporting bed with 5 mm radial margin. Rail/part and inter-rail clearance are checked."
+  },
+  "collisionStudy": {
+    "source": "Prints/development/splitty-fixed-150-rods/search.json",
+    "railBodyDiameterMm": 20,
+    "railMountOffsetMm": 25,
+    "requiredGapMm": 1,
+    "unmodeled": [
+      "carriage housings",
+      "joint bodies",
+      "bracket bodies",
+      "frame beams",
+      "drives",
+      "nozzle",
+      "plate against rails"
+    ],
+    "pairedEdgeLayout": {
+      "passed": true,
+      "errors": [],
+      "order": [
+        "C1",
+        "C2",
+        "A1",
+        "A2",
+        "B1",
+        "B2"
+      ]
+    }
+  }
+}

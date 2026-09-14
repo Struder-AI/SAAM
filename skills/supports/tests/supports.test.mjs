@@ -31,6 +31,18 @@ export function supportPlan(machine=loadMachine(),style='standard'){
   return plan;
 }
 
+test('support dependency lookup chooses the final existing layer below each operation extent',()=>{
+  const plan=supportPlan();
+  const heights=[-0.1,0.19,0.2,0.6-5e-9,1.1,2.8,9];
+  const modelResults=[{operations:heights.map((high,i)=>({id:'model:'+i,after:[],strokes:[{points:[[0,0,high-0.1],[0,0,high]]}]}))}];
+  const results=supportResults({plan,shells:[],modelResults}),supports=results.flatMap(r=>r.operations);
+  for(const [i,high] of heights.entries()){
+    const eligible=supports.filter(op=>op.rank<=high+1e-8);
+    const finalRank=eligible.reduce((rank,op)=>Math.max(rank,op.rank),-Infinity);
+    assert.deepEqual(modelResults[0].operations[i].after,eligible.filter(op=>op.rank===finalRank).map(op=>op.id));
+  }
+});
+
 test('no support is inferred on overhangs and enabling requires explicit assignments',async()=>{
   const plan=supportPlan();plan.skills.supports.enabled=false;plan.skills.supports.assignments=[];
   assert.ok(generatePath(plan,loadMachine(),await rhino()).actions.every(a=>a.phase!=='supports'));

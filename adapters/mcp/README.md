@@ -50,13 +50,15 @@ saved IDs; there is no single global plan that overwrites another job.
 
 | Tool | Role |
 |---|---|
-| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. These small fixed lists are not an automatic discovery or installation system. |
-| `read_guidance` | Read fixed guidance IDs: `makers`, `development`, `glossary`, `mcp`, `wedge-generation`, `wedge-s5-export`. Root manuals and required wedge references are available without shell access. |
+| `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish printing patterns from task skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
+| `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
 | `get_plan_template` | Read a complete proposed shell or wedge recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with explicit `mm`/`inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
 | `list_prints`, `get_print` | Reopen saved prints and read their current state/recipe. `get_print` omits geometry and marks `planComplete:false` unless `includeGeometry:true` is supplied. |
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
+| `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
+| `voxel` | Create or rebuild a scalar-field part using [voxel tools](../../skills/voxel-tools/SKILL.md), explicit surface sampling and current `expectedRevision` for edits. |
 | `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
@@ -66,11 +68,28 @@ saved IDs; there is no single global plan that overwrites another job.
 | `generate_print` | Generate and check the machine export from approved geometry and settings. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
-Read `read_guidance` with `guidanceId: "makers"` and the skill manual, create the first reasonable geometry, and call
+The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
+recipe adjustments, setup reuse, reopening and delivery. Read it through
+`read_guidance` with `guidanceId: "print-tools"`; individual pattern manuals own
+their settings and limits. Mesh diagnostics route to the
+[mesh-tools manual](../../skills/mesh-tools/SKILL.md). Mesh repair currently runs
+through the local CLI; this adapter exposes STL import, with no repair tool.
+
+Manual responses include their repository-relative `path`, available `headings`,
+and `links` whose `guidanceId` values can be passed straight to `read_guidance`.
+For example, `core/export/griffin.md#s5-startup-observations` reads that section
+and its subsections. This follows the same Markdown files as a local collaborator.
+The reader accepts public root manuals and Markdown in the component, skill,
+Studio, machine, adapter and script trees. Private/hidden paths, dependencies,
+build output, source code, traversal and filesystem links are unavailable.
+Existing `wedge-generation` and `wedge-s5-export` aliases still resolve for clients
+that saved them; the selected skill's links provide the normal reference route.
+
+Read `read_guidance` with `guidanceId: "makers"` and the relevant skill manual, create the first reasonable geometry, and call
 `request_review`. Studio opens in the default browser where available; the
 returned URL remains usable if browser launch fails. Set `SAAM_NO_AUTO_OPEN=1`
 for tests or a headless client. Studio servers are owned by the MCP process,
-use free loopback ports, and close three seconds after the last viewer tab
+use free loopback ports, and close 30 minutes after the last viewer tab
 disconnects (with a grace period for refresh), or when the owning stdio client
 disconnects. There is no deadline to open the first viewer.
 Repeated review requests use the print's still-open server within this adapter;
@@ -99,19 +118,23 @@ import reads only the chosen source; it writes the new bundle inside the configu
 Prints root. `upgrade_print` remains available when current-version validation
 prevents normal reopening; it does not silently migrate on read.
 
-The legacy `compile_plan` is replaced by `create_print` / `adjust_print` followed
-by the shared approvals and `generate_print`. `validate_plan` becomes
-`check_print`; `post_process` becomes shared generation and `deliver_print`.
+Use `create_print` / `adjust_print`, the shared approvals and `generate_print`;
+`check_print` verifies the persisted print and `deliver_print` delivers its
+checked export. Legacy `compile_plan`, `validate_plan` and `post_process`
+are unsupported.
 The fixed catalog also includes `denso-vp6242-rc8` and
 [pipe-cladding](../../skills/pipe-cladding/SKILL.md). This experimental rotary
 demo uses the same tools and Studio. Actual installation setup is unresolved;
 synthetic development calibration is not a hardware configuration.
 
-`list_operations` is replaced by the small known-manual list. `request_review`
-and `get_approval_status` now accept only a persisted print ID. The legacy
-revision-only approval and global live-session plan are deliberately not adopted.
+The known-manual list supplies operation guidance; legacy `list_operations`
+is unsupported. `request_review` and `get_approval_status` accept only a
+persisted print ID. Revision-only approvals and a global live-session plan
+are unsupported.
 
-Run the SDK subprocess integration checks with:
+SDK subprocess integration coverage is available below. Select checks under
+[Avoid check spirals](../../DEVELOP.md#avoid-check-spirals); these commands add no
+separate verification pass.
 
 ```sh
 node --test core/tests/mcp.test.mjs core/tests/mcp-access.test.mjs
@@ -273,6 +296,6 @@ tunnels do not; this bridge still uses stateless JSON responses.
   computer for the complete review/delivery flow. A phone or different computer
   cannot open those local URLs or retrieve local files through this bridge.
 
-Run `node --test core/tests/mcp-http.test.mjs` for OAuth rejection/rotation/
+`node --test core/tests/mcp-http.test.mjs` provides coverage for OAuth rejection/rotation/
 revocation, two-client state, preserved Studio lifetime, synthetic approval gates
 and exact-export delivery. No test authorizes a real print or starts hardware.

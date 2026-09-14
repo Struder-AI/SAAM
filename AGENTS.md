@@ -1,139 +1,77 @@
 # SAAM agent entry point
 
-SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes,
-approve it, and get a file your machine can run. The aim is to lower the barrier
-to 3D printing, including for people without CAD, slicing, or programming experience.
+SAAM helps people make parts through conversation with an AI agent, without
+requiring CAD, slicing or programming expertise. The agent handles the tools
+and printing settings; the person guides the result and reviews geometry,
+the process plan and toolpath in SAAM Studio before receiving a machine program.
 
-## First run
+The project develops composable printing skills and shared interfaces for
+geometry, motion and machine output. Its direction is to combine patterns across
+geometry types and machines through one generation, review and delivery workflow.
+[README.md](README.md) introduces that direction; the references below describe
+implemented scope.
 
-Do this before either role's work when the checkout has not been used yet; the
-person need not ask for it. Node.js 22+ is the one prerequisite these steps do
-not install: check `node --version` first, and if it is missing or older, name
-the installer the person should run rather than guessing a package manager.
-
-1. From the repository root, run `npm ci`, unless `node_modules/` is already
-   present as it is in a packaged download. Git is needed only to clone.
-2. Run `npm test` once to confirm the checkout works before offering to make a part.
-3. Apply the [first-use client setup](DEVELOP.md#studio-agent-permissions):
-   project trust, the shared Studio launcher permission, and browser access.
-
-Report a failure at any step as a setup problem and stop there; do not present a
-broken checkout as a working product. None of this creates a manufacturing approval.
+Choose context for the requested work: helping a person make a part or developing
+SAAM itself.
 
 ## Choose your context
 
-| Your task | Read next |
+| Task | Start here |
 |---|---|
-| Developer agent (default): build, fix, or document SAAM | Read both [DEVELOP.md](DEVELOP.md) and [MAKERS.md](MAKERS.md) |
-| Maker agent: help a person make a part | Read [MAKERS.md](MAKERS.md) **before responding to the maker** |
-| Developer agent exercising maker skills/tools | Read both files and apply DEVELOP.md's development testing boundary |
+| Help a person make a part | Read [MAKERS.md](MAKERS.md) before the first maker-facing response, then the relevant [skill manual](skills/README.md). |
+| Build, fix, investigate or document SAAM | Read the orientation at the start of [DEVELOP.md](DEVELOP.md), then follow its task-specific references. |
+| Exercise maker tools during development | Follow [development testing through the use context](DEVELOP.md#testing-through-the-use-context) and the maker/skill instructions for the workflow being tested. |
+| Set up an unused checkout | Follow [setup and checks](SETUP.md), including [Studio client permissions](studio/README.md#studio-agent-permissions), before using it. |
 
-These are task roles, not different models or permanent agent identities.
-When the role is not specified, default to developer for now. Every developer
-agent reads both DEVELOP.md and MAKERS.md. A role does not expand the user's
-authorized task scope. Load a skill's instruction manual when that skill is relevant.
-Use [GLOSSARY.md](GLOSSARY.md) for shared terms; proposed terms are marked there.
+Choose by the requested work; when unspecified, use the developer pathway.
+These are task contexts, and they do not expand the user's authorization.
+If `.local/AGENTS.md` exists, consult it when the user refers to a local experiment.
+Local capabilities are not part of shared SAAM and must not be assumed elsewhere.
+Read linked reference sections when their responsibilities affect the task;
+follow their dependencies as needed rather than loading every document.
 
-README.md owns the project introduction and direction for people and agents;
-PROJECT_CHARTER.md is a compatibility pointer. Skill authors must read DEVELOP.md's
-geometry, machine interoperability and whole-plan travel requirements.
-Use the [shared geometry operations](DEVELOP.md#shared-offset-functions) for
-offsets; skill authors must follow the [numerical reuse guidance](DEVELOP.md#shared-numerical-foundations).
-Closed planar booleans use the [shared Clipper2 tool](DEVELOP.md#shared-planar-intersections).
-Scope shared components to current needs and extend them when needed; see
-[developer guidance](DEVELOP.md#interoperability-and-one-workflow).
+## Current context boundary
 
-## Shared context
+This checkout's current instructions and implemented shared contracts govern SAAM
+work. When arriving from an older repository or conversation, reorient here before
+editing; do not carry its component architecture, methods or workflow rules forward
+as current requirements. Prior material is reference for explicit selective adoption
+under [the contribution boundary](DEVELOP.md#context-and-selective-adoption).
+The [withdrawal and deferred intents](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission)
+identify the September 12 work that must not be restored wholesale.
 
-- Opening, inspecting, restarting and closing your own SAAM Studio instances
-  are part of authorized project work; do not ask a separate conversational
-  permission for each. For shell launches, run `node studio/server.mjs <print-directory>`
-  directly from the repository root using the client's managed terminal/background
-  session. Open the printed loopback URL with the client's browser tool, and close
-  your own viewer tabs when finished; the server then shuts down automatically.
-  Keep a requested review open for the person. Never stop another agent's instance
-  or approve a manufacturing job for the person. Follow the
-  [Studio permissions setup](DEVELOP.md#studio-agent-permissions) proactively on
-  first use if project trust or browser access is still required; repo instructions
-  do not override the client's permission enforcement.
-- Describe capabilities and limitations as implemented. A proposal, preview,
-  or passing software test does not establish a successful physical print.
-- Adapt guidance to the person's knowledge. Clarify choices that affect their
-  result; do not require them to learn the implementation to use the product.
-- Do not invent human approval, measurements, or contributor agreement.
-  Project decisions and approval of a manufacturing job are separate records.
-- The maker workflow has three human approvals: geometry, locked process plan,
-  then toolpath. Generate directly from the approved locked plan without a
-  separate planning stage or new process choices. Generate the export in an
-  output option declared by the machine file. Intermediate motion is transient;
-  bundles do not require a saved SAAMpath or regenerate when reopened.
-  Automated checks precede SAAM Studio's program viewer, which runs the same
-  export that will be delivered. Delivery does not require a fourth approval.
-- [DECISIONS.md](DECISIONS.md) records project decisions and their approval status.
-  Approval from both `tkeller` and `remettub` makes a decision accepted; one makes
-  it provisional. Do not treat an agent recommendation as either person's approval.
+## First invocation
 
-## Restart state
+On first use of a checkout, follow [setup and checks](SETUP.md).
+Reuse completed setup across tasks; a new agent or print does not require another
+setup or regression run. Setup creates no manufacturing approval.
 
-The restart includes an eight-point wedge development demo with native mesh geometry,
-SAAMpath, Griffin export, software checks, and a local Studio review workflow.
-Read [the wedge skill](skills/wedge-demo/SKILL.md) when working on that demo.
-No physical print has been validated. The local architecture map is a development
-aid. The user authorized selective restoration of MCP, Dobot machine/Lua support
-and vase-wall on 2026-09-09; see the current skill manuals and DEVELOP.md for
-implemented scope. Automatic capability discovery is deferred by D-022.
-The old source is preserved in Git history and a separate local archive,
-outside the active tree. New wedges use native indexed meshes; full Rhino computation and
-general surface slicing remain deferred.
+Development checks follow [change-based selection](DEVELOP.md#avoid-check-spirals).
+Commits and task completion add no test gate; skill manuals do not add a second
+verification pass. Run a check to resolve a concrete uncertainty, then reuse its
+result until relevant inputs change.
 
-The [full-fill](skills/full-fill/SKILL.md), [planar-infill](skills/planar-infill/SKILL.md),
-[draped-skin](skills/draped-skin/SKILL.md) and [vase-wall](skills/vase-wall/SKILL.md) manuals own their current shape and
-process limits. They share operation composition, export, Studio review and
-bundle delivery. They accept validated STL/mesh input and supported spline shells
-through shared queries. Vase-wall is limited to one convex outer section with
-no holes or islands. [Material regions](DEVELOP.md#material-regions-and-shared-interfaces)
-compose skills on one part, including a level-ended vase, cap, infill/draped roof,
-and horizontal fill above a consumed nonflat surface. Interoperability across
-skills, geometry, machines and public workflow is a core requirement; assess
-existing boundaries when changing a component and report concrete remaining limits.
-S5, H2D and configured Dobot have software checks through the
-shared lifecycle; H2D output is experimental with a fixed firmware-service contract.
-See [H2D output scope](DEVELOP.md#h2d-output-contract). Arbitrary trimmed CAD import remains unimplemented.
-The [Dobot output](DEVELOP.md#dobot-output-contract) requires installation setup
-and interprets the delivered Lua source ZIP; robot reachability, continuous
-relay deposition and vendor project-import acceptance are not established.
-The [local MCP adapter](adapters/mcp/README.md) exposes this same workflow to a
-compatible local chat client, with fixed known profiles/manuals and no approval
-tool. Its [temporary web-chat connection](adapters/mcp/README.md#temporary-web-chat-connection)
-adds an OAuth-protected HTTP bridge and outbound HTTPS tunnel for compatible
-web clients; Studio and generation stay local. Actual vendor-account acceptance
-requires a separate connection check; arbitrary browser-chat access is not implied.
-See [the developer guide](DEVELOP.md#skill-result-composition) for weaving and
-[machine observations](DEVELOP.md#machine-program-templates-and-s5-observations)
-for the user's scoped S5 startup report; complete physical validation remains open.
+## Find the owning source
 
-The [pipe-cladding demo](skills/pipe-cladding/SKILL.md) adds native pipe geometry,
-optional tool/rotary poses and experimental VP-6242 / RC8 PacScript output through
-the same composer, bundles and Studio. RC8 is confirmed; ceiling/coaxial mounting
-and the actual rotary installation remain provisional. Robot reach, IK solving
-in SAAM, joint/motion limits and collisions are deferred. Source playback uses
-nominal Cartesian/rotary progress and relay estimates; vendor compilation and
-physical execution are unverified. Synthetic demo calibration is not user setup.
+- [MAKERS.md](MAKERS.md) owns guidance for helping a person make a part.
+- [DEVELOP.md](DEVELOP.md) owns developer orientation and routes to the relevant implementation references.
+- [SETUP.md](SETUP.md) owns installation and reusable first-use checks.
+- [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md) owns checkpoint and remote contribution guidance; read it after implementation, immediately before those activities, or earlier when they are the task.
+- [Component references](core/README.md) own shared implementation contracts; [Studio](studio/README.md) owns its interaction and runtime behavior.
+- [Skill manuals](skills/README.md) own pattern and preparation-task tools, settings and limits; [shared print tools](core/print/USAGE.md) owns common operations.
+- [The MCP adapter manual](adapters/mcp/README.md) owns chat-client connection and tool use.
+- [GLOSSARY.md](GLOSSARY.md) owns shared terms.
+- [DECISIONS.md](DECISIONS.md) owns contributor decisions and their approval status.
+- [build_request.md](build_request.md#outstanding-work) owns outstanding or incomplete work only.
+- [DEVLOG.md](DEVLOG.md) owns dated work records, measurements and development history.
 
-The current entry documents are this file, `CLAUDE.md`, `README.md`,
-`PROJECT_CHARTER.md`, `DECISIONS.md`, `GLOSSARY.md`, `build_request.md`,
-`DEVELOP.md`, and `MAKERS.md`. Skills package their own manuals and tools.
-Developer rules, setup, organization and open design proposals live together
-in [DEVELOP.md](DEVELOP.md). There is no separate docs folder.
-Do not load the old architecture or operation instructions as always-on context.
+Keep present behavior and contracts at their owners, future work and proposals
+clearly marked, and past work and observations in the devlog. Work build-first
+within the user's authorization; build requests hold only outstanding or incomplete
+work. Remove completed requests from the open list. Follow [documentation maintenance](DEVELOP.md#documentation-maintenance)
+for dates, evidence and the limited historical-provenance exceptions.
 
-For the bounded wedge, retain `skills/wedge-demo/` and its eight-point
-mesh geometry/generator: axis-aligned rectangular base, vertical corner pairs,
-and a planar roof sloping in any direction. Use the shared export and bundle lifecycle; do not substitute
-the shell slicer for its bounded geometry.
-
-Prefer shared interfaces and one pipeline. Skills should aspire to work across
-machines and other elements should generalize where practical, with documented
-exceptions. Normally ask before introducing a genuinely necessary parallel
-pipeline. Studio is the toolpath preview; intermediate developer tests are
-scratch using the same components. See [the principles](DEVELOP.md#interoperability-and-one-workflow).
+Use implemented behavior and recorded evidence when describing SAAM. A software
+check or preview is evidence about software; a physical result needs physical
+evidence. Human job approvals, contributor decisions and authorization to develop
+the project are distinct and must be recorded as given.

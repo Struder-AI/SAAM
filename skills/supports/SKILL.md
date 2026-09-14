@@ -1,13 +1,13 @@
 ---
 name: supports
-description: Generate conventional or tree supports in explicitly assigned areas, with shared planar deposition, interface layers and Studio review. Use judgment to place supports; there is no automatic overhang-angle assignment.
+description: Add conventional supports beneath selected areas or explicitly placed tree branches at local contacts. Choose their placement to balance support, surface contact and removal access; the agent and maker assign areas through judgment.
 ---
 
 # Assigned supports
 
-Read [MAKERS.md](../../MAKERS.md) before helping a maker. Developers also read
-[DEVELOP.md](../../DEVELOP.md). Use the [shared shell commands](../full-fill/SKILL.md#setup-and-tools)
-or MCP `get_plan_template`, `create_print`, `adjust_print`, and `request_review`.
+For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
+[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+Use the [shared print tools](../../core/print/USAGE.md).
 Enable `skills.supports.enabled` and supply `assignments` before plan approval.
 The same export, three approvals and delivery workflow applies. No hardware is run.
 
@@ -36,7 +36,7 @@ Tree geometry consists of linearly interpolated horizontal circular sections
 between parent/child nodes, including radius changes. This is an initial SAAM
 construction, not Bambu's tree algorithm or a claim of equivalent print quality.
 [Bambu Studio](https://github.com/bambulab/BambuStudio) provides normal/tree/custom
-support features under AGPL-3.0. No Bambu/Cura source or manual text was imported.
+support features under AGPL-3.0. SAAM uses its own implementation and manual.
 
 Rimming supports are separate experimental skills:
 [rimming-planar](../rimming-planar/SKILL.md) and
@@ -114,7 +114,10 @@ multi-extruder supports.
 ## Composition and verification
 
 `supportResults({plan, shells, modelResults})` returns operations through the
-existing full-fill producer and composer. Shared Clipper union removes overlap
+existing full-fill producer and composer. It consumes the plan already checked
+by shared `validatePlan`; standalone developer callers validate their inputs at
+that boundary (or with `validateSupports`) before invoking the producer. It does
+not repeat settings validation while slicing. Shared Clipper union removes overlap
 between assignments. Sparse and interface interiors are complementary; one owner
 prints their walls. Supports use whole-plan travel and layer cooling, and required
 support layers precede part operations even with layer batching. Supports are

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PathBuilder} from '../path/builder.mjs';
+import {PathBuilder,planarPolicy} from '../path/builder.mjs';
+import {combSegment,combRoute} from '../path/comb.mjs';
+import {pointInRegion,SegmentIndex} from '../region/region2d.mjs';
 import {composeResults} from '../path/compose.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
@@ -9,6 +11,23 @@ import {loadMachine} from '../machine/profile.mjs';
 import {defaults as wedgeDefaults,validatePlan as validateWedge} from '../../skills/wedge-demo/scripts/model.mjs';
 import {generatePath as wedgePath} from '../../skills/wedge-demo/scripts/path.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
+
+test('indexed travel queries retain boundary, hole and crossing decisions',()=>{
+  const loops=[[[0,0],[12,0],[12,12],[8,12],[8,5],[4,5],[4,12],[0,12]],[[1,1],[1,3],[3,3],[3,1]]];
+  const policy=planarPolicy(loops,{layerZ:.2,liftMm:1,maxCombMm:20,lineWidthMm:.4});
+  const plain={...policy,combIndex:undefined,combCorners:undefined};
+  const points=[...loops.flat(),[-.0000001,1],[0,1],[.0000001,1],[1,0],[2,2],[6,4.8],[6,5.2]];
+  let seed=123;
+  for(let i=0;i<160;i++){seed=(Math.imul(seed,1664525)+1013904223)>>>0;const x=seed/2**32*14-1;seed=(Math.imul(seed,1664525)+1013904223)>>>0;points.push([x,seed/2**32*14-1]);}
+  for(const point of points)assert.equal(policy.combIndex.contains(point),pointInRegion(point,loops));
+  for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j+=13)
+    assert.equal(combSegment(points[i],points[j],policy),combSegment(points[i],points[j],plain));
+  for(const [a,b] of [[[2,4],[10,4]],[[2,8],[10,8]],[[.5,2],[3.5,2]]])
+    assert.deepEqual(combRoute([...a,.2],[...b,.2],policy),combRoute([...a,.2],[...b,.2],plain));
+  const before=policy.combCorners();assert.strictEqual(({...policy}).combCorners(),before,'stroke policy copies share the prepared layer');
+  const changed=new SegmentIndex([[[20,20],[22,20],[22,22],[20,22]]],.5);
+  assert.equal(changed.contains([21,21]),true);assert.equal(changed.contains([1,1]),false);
+});
 
 test('deposition height follows both ends of sloping segments; travel and repeated parks do not raise it',()=>{
   const machine=loadMachine(),plan=defaults(machine);

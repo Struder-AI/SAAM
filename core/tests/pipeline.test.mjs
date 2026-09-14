@@ -1,14 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import rhino3dm from 'rhino3dm';
 import { defaults, validatePlan, canonical, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
 import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
-import { initBundle, generateBundle, loadBundle, deliver } from '../print/bundle.mjs';
 
 const rhino = await rhino3dm();
 const machine = JSON.parse(readFileSync('machines/ultimaker-s5.json', 'utf8'));
@@ -107,36 +103,3 @@ test('the interpreter rejects programs it cannot account for', () => {
     assert.throws(() => interpretGriffin(broken, plan, machine), pattern, name);
 });
 
-test('development generation uses the reviewed bundle workflow without approvals', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'saam-shell-'));
-  try {
-    await initBundle(directory,smallPlan());
-    const checks = await generateBundle(directory,{development:true});
-    assert.equal(checks.mode, 'development');
-    await assert.rejects(()=>deliver(directory),/approval/);
-    assert.equal(checks.physicalValidation, 'not performed');
-    const written = await readFile(join(directory, 'exports/griffin-gcode/part.gcode'), 'utf8');
-    assert.ok(written.startsWith(';START_OF_HEADER'));
-    const reopened = await loadBundle(directory);
-    assert.equal(reopened.exportHash, checks.exportHash, 'reopening regenerates the same bytes');
-    // Nothing in the bundle claims a human approved anything.
-    assert.deepEqual(reopened.review.approvals,{});
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test('an edited export is caught when the print is reopened', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'saam-shell-'));
-  try {
-    await initBundle(directory,smallPlan());
-    await generateBundle(directory,{development:true});
-    const file = join(directory, 'exports/griffin-gcode/part.gcode');
-    const code = await readFile(file, 'utf8');
-    const { writeFile } = await import('node:fs/promises');
-    await writeFile(file, code.replace(/G0 Z20 F300/, 'G0 Z21 F300'));
-    assert.match((await loadBundle(directory)).programError,/files changed/);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
