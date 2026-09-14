@@ -14,7 +14,7 @@ const installedExtension=await loadLocalExtension(root);
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs','core/export/split-delta-player.mjs',
-  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs','core/machine/tilty.mjs','core/machine/split-delta.mjs',
+  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs','core/machine/split-delta.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
   'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',

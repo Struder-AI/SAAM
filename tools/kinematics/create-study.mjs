@@ -7,7 +7,7 @@ import {rigid} from '../../core/machine/rigid.mjs';
 import {interpretMachineStudy,interpretSplitDeltaStudy} from '../../core/export/machine-study.mjs';
 
 const euler=r=>[Math.atan2(r[2][1],r[2][2]),Math.asin(Math.max(-1,Math.min(1,-r[2][0]))),Math.atan2(r[1][0],r[0][0])].map(v=>v*180/Math.PI);
-export async function createStudy(directory,machineId='tilty',{source,model={}}={}){
+export async function createStudy(directory,machineId='split-delta',{source,model={}}={}){
   const dir=resolve(directory);
   try{const existing=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));if(existing.schema!=='saam-machine-study/1')throw Error('Choose a study directory; an existing print must not be replaced');}
   catch(error){if(error.code!=='ENOENT')throw error;}
@@ -21,10 +21,10 @@ export async function createStudy(directory,machineId='tilty',{source,model={}}=
   }else if(['ultimaker-s5','bambu-h2d'].includes(machineId))center=[150,110,25];
   machine.kinematicModel={...machine.kinematicModel,...model};setup.kinematicModel={...setup.kinematicModel,...model};
   if(!source){
-    const tilty=machineId==='tilty',delta=tilty||machineId==='split-delta';
+    const delta=machineId==='split-delta';
     const moves=Array.from({length:48},(_,i)=>{const a=(i+1)*Math.PI/24;return {tcp:[center[0]+8*Math.cos(a),center[1]+8*Math.sin(a),center[2]+4*Math.sin(a*2)],
       anglesDeg:delta?[15*Math.sin(a),15*Math.cos(a),0]:angles,seconds:.5};});
-    source={schema:'saam-machine-study-source/1',orientation:tilty?'gimbal-rx-ry':'euler-xyz',initial:{tcp:[center[0]+8,center[1],center[2]],anglesDeg:delta?[0,15,0]:angles},moves};
+    source={schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:[center[0]+8,center[1],center[2]],anglesDeg:delta?[0,15,0]:angles},moves};
   }
   const split=typeof source==='string',program=split?interpretSplitDeltaStudy(source,machine,setup):interpretMachineStudy(source);
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};

@@ -241,7 +241,7 @@ policy matching controller behavior. The existing Cartesian/rotary source
 interpreter does not establish that policy.
 
 [Studio studies](../kinematics/README.md) reuse Splitty and Dobot models in the
-shared machine viewer and also support Tilty and nominal DENSO. Existing
+shared machine viewer and also support nominal DENSO. Existing
 `.sdgcode` source can be opened there without rewriting its bytes.
 
 ## Exact-path scale optimization

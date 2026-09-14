@@ -30,8 +30,7 @@ export function frameAtTime(moves, seconds) {
   if(move.controllerFrom)result.controllerPoint=move.controllerFrom.map((v,i)=>v+(move.controllerTo[i]-v)*fraction);
   if(move.anglesFrom){
     const a=move.anglesFrom.map((v,i)=>(v+(move.anglesTo[i]-v)*fraction)*Math.PI/180);
-    result.rotation=move.interpolation==='gimbal-rx-ry'?mm(rotation([1,0,0],a[0]),rotation([0,1,0],a[1]))
-      :mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
+    result.rotation=mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
     result.toolAxis=mv(result.rotation,[0,0,-1]);result.toolUp=mv(result.rotation,[0,1,0]);
   }else if(move.toolAxisFrom&&!Number.isFinite(move.rotaryFromDeg))Object.assign(result,interpolateDirections({toolAxis:move.toolAxisFrom,toolUp:move.toolUpFrom},{toolAxis:move.toolAxisTo,toolUp:move.toolUpTo},fraction));
   return result;

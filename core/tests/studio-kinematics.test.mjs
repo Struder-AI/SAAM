@@ -29,12 +29,12 @@ test('moving-bed source alignment retains tool contact with nonzero placement in
 });
 
 test('rail endpoints and slider bounds come from the machine and stay fixed across source and manual movement',async()=>{
-  const machine=loadMachine('tilty'),program={seconds:1,moves:[{from:[0,0,20],to:[0,0,20],startSeconds:0,durationSeconds:1}]};
+  const machine=loadMachine('split-delta'),program={seconds:1,moves:[{from:[0,0,20],to:[0,0,20],startSeconds:0,durationSeconds:1}]};
   const provider=await createMachinePresentation({machine,program,sourceIdentity:binding}),scene=compileMachine(provider.descriptor);
   const sample=async request=>poseMachine(scene,validateSnapshot(await provider.sample(request),scene.descriptor,request));
   const length=(pose,id)=>{const v=pose.components.find(c=>c.id===id).vertices;return Math.hypot(...v[1].map((n,i)=>n-v[0][i]));};
-  const source=await sample({requestId:1,seconds:.5});assert.ok(Math.abs(length(source,'rail-0-0')-(machine.kinematicModel.railMaxMm-machine.kinematicModel.tiltRailMinMm[0]))<1e-6);assert.ok(Math.abs(length(source,'rail-0-1')-(machine.kinematicModel.railMaxMm-machine.kinematicModel.railMinMm))<1e-6);assert.ok(Math.abs(length(source,'rod-0')-350)<1e-6);
-  const manual=await sample({requestId:2,seconds:.5,manual:[0,0,80,0,0]});assert.equal(length(manual,'rail-0-0'),length(source,'rail-0-0'));assert.ok(Math.abs(length(manual,'rod-0')-350)<1e-6);
+  const source=await sample({requestId:1,seconds:.5});assert.ok(Math.abs(length(source,'rail-0')-(machine.kinematicModel.railMaxMm-machine.kinematicModel.railMinMm))<1e-6);assert.ok(Math.abs(length(source,'rod-0')-machine.kinematicModel.rodLengthMm)<1e-6);
+  const manual=await sample({requestId:2,seconds:.5,manual:[0,0,30,0,0,0]});assert.equal(length(manual,'rail-0'),length(source,'rail-0'));assert.ok(Math.abs(length(manual,'rod-0')-machine.kinematicModel.rodLengthMm)<1e-6);
   const reset=await sample({requestId:3,seconds:.5});assert.deepEqual(reset,source);
   const other=await createMachinePresentation({machine,program:{seconds:2,moves:[{from:[20,0,80],to:[40,0,90],startSeconds:0,durationSeconds:2}]},sourceIdentity:binding});assert.deepEqual(other.descriptor.controls,provider.descriptor.controls);other.dispose();
   provider.dispose();

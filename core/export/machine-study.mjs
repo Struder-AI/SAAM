@@ -18,13 +18,12 @@ export function interpretSplitDeltaStudy(source,machine,setup={},options={}){
 }
 export function interpretMachineStudy(source,{moves=[]}={}){
   const s=typeof source==='string'?JSON.parse(source):source;
-  if(s?.schema!=='saam-machine-study-source/1'||!['euler-xyz','gimbal-rx-ry'].includes(s.orientation)||!Array.isArray(s.moves)||!s.moves.length)throw Error('Invalid machine study source');
+  if(s?.schema!=='saam-machine-study-source/1'||s.orientation!=='euler-xyz'||!Array.isArray(s.moves)||!s.moves.length)throw Error('Invalid machine study source');
   const vector=(v,name)=>{if(!Array.isArray(v)||v.length!==3||!v.every(Number.isFinite))throw Error('Invalid study '+name);return [...v];};
   let from=vector(s.initial?.tcp,'initial TCP'),anglesFrom=vector(s.initial?.anglesDeg,'initial angles'),seconds=0,volume=0;
   for(const [i,command] of s.moves.entries()){
     const to=vector(command.tcp,'TCP'),anglesTo=vector(command.anglesDeg,'angles'),dt=command.seconds,amount=command.volumeMm3??0;
     if(!Number.isFinite(dt)||dt<=0||!Number.isFinite(amount)||amount<0)throw Error('Invalid study duration or volume');
-    if(s.orientation==='gimbal-rx-ry'&&(anglesFrom[2]!==0||anglesTo[2]!==0))throw Error('Two-axis gimbal has no independent roll coordinate');
     const length=Math.hypot(...to.map((v,j)=>v-from[j]));
     moves.push({from,to,anglesFrom,anglesTo,interpolation:s.orientation,startSeconds:seconds,durationSeconds:dt,
       line:i+1,file:'motion.json',extruding:amount>0,volumeMm3:amount,commandedVolumeMm3:amount,phase:typeof command.phase==='string'?command.phase:amount>0?'study':'travel',

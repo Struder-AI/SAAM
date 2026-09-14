@@ -15,7 +15,7 @@ import {frameAtTime} from '../export/source-time.mjs';
 
 test('machine study uses source transport and cannot approve or deliver; changed source changes identity',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-machine-study-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await createStudy(dir,'tilty');
+  await createStudy(dir);
   const server=createStudio(dir,{localExtension:{}});await new Promise(done=>server.listen(0,'127.0.0.1',done));
   t.after(()=>new Promise(done=>server.close(done)));const origin=`http://127.0.0.1:${server.address().port}`;
   const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
@@ -32,7 +32,7 @@ test('machine study uses source transport and cannot approve or deliver; changed
 });
 test('actual nominal studies supply complete deterministic mechanism poses throughout motion',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-model-studies-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  for(const id of ['split-delta','tilty','dobot-mg400','denso-vp6242-rc8','ultimaker-s5','bambu-h2d']){
+  for(const id of ['split-delta','dobot-mg400','denso-vp6242-rc8','ultimaker-s5','bambu-h2d']){
     await createStudy(dir,id);const state=await loadBundle(dir),provider=await createMachinePresentation({program:state.program,machine:state.machine,setup:state.plan.setup,sourceIdentity:{printId:'fixture',revision:state.revision,exportHash:state.exportHash}});
     for(const seconds of [0,.25,6.3,12.1,24,6.3]){
       const pose=await provider.sample({requestId:1,seconds});assert.equal(pose.status,'ready',id+': '+JSON.stringify(pose.diagnostics));
@@ -46,12 +46,14 @@ test('actual nominal studies supply complete deterministic mechanism poses throu
     provider.dispose();
   }
 });
-test('study source rejects malformed poses, duration and unsupported roll',()=>{
-  const source={schema:'saam-machine-study-source/1',orientation:'gimbal-rx-ry',initial:{tcp:[0,0,20],anglesDeg:[0,0,0]},moves:[{tcp:[1,1,20],anglesDeg:[10,10,1],seconds:1}]};
-  assert.throws(()=>interpretMachineStudy(source),/roll/);source.moves[0].anglesDeg[2]=0;source.moves[0].seconds=0;assert.throws(()=>interpretMachineStudy(source),/duration/);
+test('study source rejects malformed poses, duration and unsupported orientation',()=>{
+  const source={schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:[0,0,20],anglesDeg:[0,0,0]},moves:[{tcp:[1,1,20],anglesDeg:[10,10,1],seconds:1}]};
+  source.orientation='unsupported';assert.throws(()=>interpretMachineStudy(source),/source/);
+  source.orientation='euler-xyz';source.moves[0].anglesDeg=[10,10];assert.throws(()=>interpretMachineStudy(source),/angles/);
+  source.moves[0].anglesDeg=[10,10,1];source.moves[0].seconds=0;assert.throws(()=>interpretMachineStudy(source),/duration/);
 });
 test('adapted studies preserve deposition phases and layers for Studio',()=>{
-  const program=interpretMachineStudy({schema:'saam-machine-study-source/1',orientation:'gimbal-rx-ry',initial:{tcp:[0,0,1],anglesDeg:[0,0,0]},moves:[
+  const program=interpretMachineStudy({schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:[0,0,1],anglesDeg:[0,0,0]},moves:[
     {tcp:[1,0,1],anglesDeg:[0,0,0],seconds:1,volumeMm3:.1,phase:'cladding-axial',operation:'shell-0',layer:3},
     {tcp:[1,1,1],anglesDeg:[0,0,0],seconds:1,volumeMm3:.1,phase:'cladding-hoop',operation:'shell-1',layer:4}]});
   assert.deepEqual(program.moves.map(m=>[m.phase,m.operation,m.layer]),[['cladding-axial','shell-0',3],['cladding-hoop','shell-1',4]]);
@@ -59,7 +61,7 @@ test('adapted studies preserve deposition phases and layers for Studio',()=>{
 test('study creation refuses to overwrite an ordinary print',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-study-protection-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const original=JSON.stringify({schema:'saam-shell-plan/1'});await writeFile(join(dir,'plan.json'),original);
-  await assert.rejects(createStudy(dir,'tilty'),/existing print/);assert.equal(await readFile(join(dir,'plan.json'),'utf8'),original);
+  await assert.rejects(createStudy(dir,'split-delta'),/existing print/);assert.equal(await readFile(join(dir,'plan.json'),'utf8'),original);
 });
 test('Splitty study retains original source bytes and interpreter timing, extrusion and source lines',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-splitty-source-'));t.after(()=>rm(dir,{recursive:true,force:true}));

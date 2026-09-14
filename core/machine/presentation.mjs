@@ -3,11 +3,10 @@ import {rotateZ} from '../path/pose.mjs';
 import {geometry as splitGeometry,inverse as splitInverse} from './split-delta.mjs';
 import {densoGeometry,densoInverse} from './denso-kinematics.mjs';
 import {dobotGeometry,dobotInverse} from './dobot-kinematics.mjs';
-import {tiltyGeometry,tiltyInverse,tiltyBounds} from './tilty.mjs';
 import {constrainedJog} from './jog.mjs';
-import {rigid,identity,add,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,validateRigid} from './rigid.mjs';
+import {rigid,add,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,validateRigid} from './rigid.mjs';
 
-const supported=new Set(['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8','split-delta','tilty']);
+const supported=new Set(['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8','split-delta']);
 const durationOf=p=>p.seconds??p.summary?.motionSeconds??0;
 // A closed registry of trusted models. Profiles contain data, never loaded code.
 export async function createMachinePresentation({program,machine,setup={},sourceIdentity,signal}){
@@ -36,50 +35,29 @@ export async function createMachinePresentation({program,machine,setup={},source
     line('x-rail','rail',[0,0,0],[w,0,0],'gantry');box('carriage','carriage',[24,20,14]);
     machineBoundsWorldMm={min:[-15,-15,0],max:[w+15,d+15,headZ+25]};
     solve=at=>{const [x,y,z]=at.point,part=rigid([0,0,headZ-toolLength-z]);return {worldFromFrame:{part,tcp:rigid([x,y,headZ-toolLength]),gantry:rigid([0,y,headZ]),carriage:rigid([x,y,headZ])},margins:at.point.flatMap((v,i)=>[v-bounds.min[i],bounds.max[i]-v])};};
-  }else if(machine.id==='split-delta'||machine.id==='tilty'){
-    const tilty=machine.id==='tilty',g=tilty?tiltyGeometry(config):splitGeometry(config),count=tilty?9:6;
-    angularLever=g.toolLengthMm+(g.rearLengthMm??0);
-    limits.push(`Working carriage travel: ${g.railMinMm} to ${g.railMaxMm} mm${tilty?`; tilt rails start at ${g.tiltRailMinMm.join(', ')} mm`:''}. These fixed endpoints also define the displayed rails.`);
-    if(tilty)limits.push(`Rod inversion reserve: ${g.marginDeg} degrees; minimum normalized constraint singular-value ratio: ${g.minSingularRatio}.`);
-    const endpoints=tilty?g.towers.map(e=>[[e[0]*(g.towerRadiusMm-g.platformRadiusMm),e[1]*(g.towerRadiusMm-g.platformRadiusMm),g.railMinMm],[e[0]*(g.towerRadiusMm-g.platformRadiusMm),e[1]*(g.towerRadiusMm-g.platformRadiusMm),g.railMaxMm]])
-      :g.rails.map((p,i)=>[add(p,scale(g.railDirections[i],g.railMinMm)),add(p,scale(g.railDirections[i],g.railMaxMm))]);
-    const reach=g.rodLengthMm+g.toolLengthMm+(tilty?0:Math.max(...g.anchors.map(norm)));
+  }else if(machine.id==='split-delta'){
+    const g=splitGeometry(config),count=6;
+    angularLever=g.toolLengthMm;
+    limits.push(`Working carriage travel: ${g.railMinMm} to ${g.railMaxMm} mm. These fixed endpoints also define the displayed rails.`);
+    const endpoints=g.rails.map((p,i)=>[add(p,scale(g.railDirections[i],g.railMinMm)),add(p,scale(g.railDirections[i],g.railMaxMm))]);
+    const reach=g.rodLengthMm+g.toolLengthMm+Math.max(...g.anchors.map(norm));
     coordinateBounds={min:[0,1,2].map(i=>Math.max(...endpoints.map(pair=>Math.min(pair[0][i],pair[1][i])-reach))),max:[0,1,2].map(i=>Math.min(...endpoints.map(pair=>Math.max(pair[0][i],pair[1][i])+reach)))};
     coordinateBounds.min[2]=0; // Study bed plane; no nozzle below the bed.
-    if(tilty)coordinateBounds=tiltyBounds(g);
-    if(tilty){
-      const bedComponent=components.find(c=>c.id==='bed');bedComponent.label='Rail-radius footprint';
-      bedComponent.shape.pointsMm=Array.from({length:64},(_,i)=>[g.towerRadiusMm*Math.cos(i*Math.PI/32),g.towerRadiusMm*Math.sin(i*Math.PI/32),0]);
-      limits.push(`Nozzle, carrier plate and tilt plate stay within the ${g.towerRadiusMm} mm rail radius. Tilt rods and their triangular plate stay inside the main-arm envelope, defined by the three paired-arm side planes.`);
-      for(let i=0;i<3;i++){const e=g.towers[i],t=[-e[1],e[0],0],base=scale(e,g.towerRadiusMm);
-        for(const side of [-1,0,1])line(`rail-${i}-${side}`,'rail',add(base,add(scale(t,side*g.pairSpacingMm/2),[0,0,side===0?g.tiltRailMinMm[i]:g.railMinMm])),add(base,add(scale(t,side*g.pairSpacingMm/2),[0,0,g.railMaxMm])));
-        box('main-carriage-'+i,'carriage',[16,g.pairSpacingMm+12,12]);box('tilt-carriage-'+i,'carriage',[12,12,12]);
-      }
-      for(let i=0;i<count;i++)link('rod-'+i,i%3===2?g.tiltRodLengthMm:g.rodLengthMm);
-      joint('gimbal');line('rear-hotend','link',[0,0,0],[0,0,g.rearLengthMm],'hotend');
-      component('gimbal-outer','joint',{kind:'polyline',closed:true,pointsMm:Array.from({length:20},(_,i)=>[0,8*Math.cos(i*Math.PI/10),8*Math.sin(i*Math.PI/10)])},'gimbal');
-      component('gimbal-inner','joint',{kind:'polyline',closed:true,pointsMm:Array.from({length:20},(_,i)=>[6*Math.cos(i*Math.PI/10),0,6*Math.sin(i*Math.PI/10)])});
-      component('rear-anchor-ring','link',{kind:'polyline',closed:true,pointsMm:g.towers.map(e=>add(scale(e,g.rearRadiusMm),[0,0,g.rearLengthMm]))},'hotend');
-    }else{
-      for(let i=0;i<count;i++){
-        line('rail-'+i,'rail',add(g.rails[i],scale(g.railDirections[i],g.railMinMm)),add(g.rails[i],scale(g.railDirections[i],g.railMaxMm)));
-        link('rod-'+i,g.rodLengthMm);box('carriage-'+i,'carriage',[12,12,12]);
-      }
+    for(let i=0;i<count;i++){
+      line('rail-'+i,'rail',add(g.rails[i],scale(g.railDirections[i],g.railMinMm)),add(g.rails[i],scale(g.railDirections[i],g.railMaxMm)));
+      link('rod-'+i,g.rodLengthMm);box('carriage-'+i,'carriage',[12,12,12]);
     }
-    const radius=tilty?g.platformRadiusMm:g.rotationScaleMm;
+    const radius=g.rotationScaleMm;
     component('platform','carriage',{kind:'polyline',closed:true,pointsMm:Array.from({length:24},(_,i)=>[radius*Math.cos(i*Math.PI/12),radius*Math.sin(i*Math.PI/12),0])});
     components.find(c=>c.id==='hotend-shaft').shape.toMm[2]=g.toolLengthMm;
     const r=g.towerRadiusMm+g.railMaxMm*Math.abs(Math.tan((g.railTiltDeg??0)*Math.PI/180))+40;
     machineBoundsWorldMm={min:[-r,-r,Math.min(0,g.railMinMm)],max:[r,r,g.railMaxMm+20]};
     solve=at=>{
       const R=at.rotation??axisFrame(scale(at.toolAxis??[0,0,-1],-1),at.toolUp??[0,1,0]);
-      const s=tilty?tiltyInverse(g,{tcp:at.point,rotation:R}):splitInverse(g,{tcp:at.point,rotation:R});
+      const s=splitInverse(g,{tcp:at.point,rotation:R});
       if(!s.valid)return {worldFromFrame:{part:rigid()},margins:s.margins,diagnostics:s.errors.map(message=>({code:'model-solve',severity:'warning',message}))};
-      const pose={part:rigid(),tcp:rigid(at.point,R),platform:rigid(s.platform,tilty?identity():R)};
-      if(tilty){pose.gimbal=rigid(s.platform);pose['gimbal-inner']=rigid(s.platform,rotation([1,0,0],s.gimbalRadians[0]));pose.hotend=rigid(s.platform,R);
-        s.rods.forEach((rod,i)=>pose['rod-'+i]=rodFrame(rod.from,rod.to));
-        g.towers.forEach((e,i)=>{pose['main-carriage-'+i]=rigid(add(scale(e,g.towerRadiusMm),[0,0,s.mainHeights[i]]),axisFrame([0,0,1],[-e[1],e[0],0]));pose['tilt-carriage-'+i]=rigid(add(scale(e,g.towerRadiusMm),[0,0,s.tiltHeights[i]]));});
-      }else s.carriages.forEach((c,i)=>{pose['carriage-'+i]=rigid(c);pose['rod-'+i]=rodFrame(c,s.points[i]);});
+      const pose={part:rigid(),tcp:rigid(at.point,R),platform:rigid(s.platform,R)};
+      s.carriages.forEach((c,i)=>{pose['carriage-'+i]=rigid(c);pose['rod-'+i]=rodFrame(c,s.points[i]);});
       return {worldFromFrame:pose,margins:s.margins};
     };
   }else{
@@ -126,19 +104,18 @@ export async function createMachinePresentation({program,machine,setup={},source
       solve=at=>({worldFromFrame:sourceFrames(at),diagnostics:[{code:'arm-unavailable',severity:'info',message:limits.at(-1)}]});
     }
   }
-  const tilty=machine.id==='tilty',cartesian=['ultimaker-s5','bambu-h2d'].includes(machine.id),dobot=machine.id==='dobot-mg400';
-  const angleAxes=cartesian?[]:dobot?[2]:tilty?[0,1]:[0,1,2];
+  const cartesian=['ultimaker-s5','bambu-h2d'].includes(machine.id),dobot=machine.id==='dobot-mg400';
+  const angleAxes=cartesian?[]:dobot?[2]:[0,1,2];
   const controls=manualEnabled?[...['X','Y','Z'].map((label,i)=>({label,unit:'mm',min:Math.floor(coordinateBounds.min[i]*10)/10,max:Math.ceil(coordinateBounds.max[i]*10)/10,step:.1})),
-    ...angleAxes.map(i=>({label:tilty?['Gimbal X','Gimbal Y'][i]:['Rotate X','Rotate Y','Rotate Z'][i],unit:'°',min:tilty?-(config.maxTiltDeg??40):-180,max:tilty?(config.maxTiltDeg??40):180,step:.1}))]:[];
+    ...angleAxes.map(i=>({label:['Rotate X','Rotate Y','Rotate Z'][i],unit:'°',min:-180,max:180,step:.1}))]:[];
   function controlPose(at,manual){
     if(!controls.length)return {at,controlValues:[]};
     const R=at.rotation??axisFrame(scale(at.toolAxis??[0,0,-1],-1),at.toolUp??[0,1,0]);
     const b=Math.asin(Math.max(-1,Math.min(1,-R[2][0]))),singular=Math.abs(Math.cos(b))<1e-7;
-    const a=tilty?[Math.atan2(-R[1][2],R[2][2]),Math.asin(Math.max(-1,Math.min(1,R[0][2]))),0]
-      :[singular?0:Math.atan2(R[2][1],R[2][2]),b,singular?Math.atan2(-R[0][1],R[1][1]):Math.atan2(R[1][0],R[0][0])];
+    const a=[singular?0:Math.atan2(R[2][1],R[2][2]),b,singular?Math.atan2(-R[0][1],R[1][1]):Math.atan2(R[1][0],R[0][0])];
     if(!manual)return {at,controlValues:[...at.point,...angleAxes.map(i=>a[i]*180/Math.PI)]};
     angleAxes.forEach((axis,i)=>a[axis]=manual[i+3]*Math.PI/180);
-    const r=tilty?mm(rotation([1,0,0],a[0]),rotation([0,1,0],a[1])):mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
+    const r=mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
     return {at:{...at,point:manual.slice(0,3),rotation:r,toolAxis:mv(r,[0,0,-1]),toolUp:mv(r,[0,1,0])},controlValues:[...manual]};
   }
   const descriptor={schema:'saam-machine-presentation/1',binding,label:machine.name,basis:config.basis??'Nominal design geometry; source-command motion',frameIds:[...frames],components,machineBoundsWorldMm,limitations:limits,controls};

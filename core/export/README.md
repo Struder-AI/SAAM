@@ -10,7 +10,6 @@ Read the contract for the output being changed:
 | Dobot MG400 / Lua source ZIP | [Dobot](dobot.md) |
 | DENSO VP-6242 / RC8 PacScript ZIP | [DENSO](denso.md) |
 | Splitty / simulation only | [Kinematics lab](../../tools/split-delta/README.md#preview-source-and-saampath), [Studio studies](../../tools/kinematics/README.md) |
-| Tilty / mechanism study only | [Studio studies](../../tools/kinematics/README.md), [gimbal-delta model](../machine/README.md#tilty) |
 
 [Machine files](../../machines/README.md) hold capabilities and setup declarations.
 [Print lifecycle](../print/README.md) owns review and delivery of the checked output.
