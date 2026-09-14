@@ -12,7 +12,10 @@ const OFFSET_PRECISION_MM=0.00001;
 const cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
 
-function convexLoop(loops) {
+// Shared with skills/thick-lip: a rim finish freezes the same outer section
+// vase-wall itself would have printed at the boundary Z, so it reuses this
+// exact convexity/dedupe check rather than re-deriving it.
+export function convexLoop(loops) {
   requireThat(loops.length===1&&loopArea(loops[0])>0,'Vase wall requires one outer section loop without holes or multiple islands.');
   const loop=dedupe(loops[0]);
   requireThat(loop.length>=3,'Vase wall section collapsed.');

@@ -14,6 +14,7 @@ limits in the owning manual:
 | [rimming-normal](rimming-normal/SKILL.md) | Same assigned surface as rimming-planar | Experimental 3D normal offsets; shifted heights and ordering remain subjects for physical comparison. |
 | [draped-skin](draped-skin/SKILL.md) | Continuous accessible roof on either backend | Declared non-planar capability/limit; S5, experimental H2D and configured Dobot checks. |
 | [vase-wall](vase-wall/SKILL.md) | One supported convex outer section on mesh or untrimmed splines, no holes/islands | Continuous rising wall with optional level ending for successors; S5, experimental H2D and configured Dobot software checks. |
+| [thick-lip](thick-lip/SKILL.md) | Finishing region directly above a level-ended vase-wall region, same frozen outer section | Ordinary planar rings, no non-planar motion; any machine declaring `xyz-extrusion`/`planar`. |
 
 S5 has the complete export, Studio toolpath review and delivery workflow.
 H2D has experimental sliced-3MF output through the same review/delivery workflow.

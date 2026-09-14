@@ -17,6 +17,7 @@ const RUNTIME_FILES = [
   '../export/griffin.mjs', './plan.mjs', './generate.mjs', './geometry.mjs', './bundle.mjs',
   '../../skills/full-fill/scripts/fill.mjs', '../../skills/draped-skin/scripts/drape.mjs',
   '../../skills/planar-infill/scripts/infill.mjs', '../../skills/vase-wall/scripts/vase.mjs'
+  ,'../../skills/thick-lip/scripts/lip.mjs'
   ,'../../skills/planar-infill/scripts/patterns.mjs'
   ,'../../skills/supports/scripts/supports.mjs'
   ,'../../skills/rimming-planar/scripts/rimming.mjs','../../skills/rimming-normal/scripts/rimming.mjs'

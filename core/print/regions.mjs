@@ -8,6 +8,7 @@ import {difference,union,intersect} from '../region/boolean.mjs';
 import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
+import {thickLipResult} from '../../skills/thick-lip/scripts/lip.mjs';
 import {drapedSkinResult,surveySurface,machineMaxAngle,bodyTopAt} from '../../skills/draped-skin/scripts/drape.mjs';
 
 const has=(record,name)=>Object.hasOwn(record.assignment.skills,name);
@@ -71,6 +72,10 @@ function publishSurface(record,results) {
     if(plan.skills['vase-wall'].endTransition!=='level')return null;
     const section=sectionGeometry(shell,end).loops;footprint=difference(section,offsetRegion(section,-plan.process.lineWidthMm));
     query=(x,y)=>pointInRegion([x,y],footprint)?end:null;kind='rim';
+  } else if(has(record,'thick-lip')) {
+    // A rolled/thickened rim is a terminal finish: nothing is expected to
+    // print above it, so it publishes no consumable material top.
+    return null;
   } else {
     const layers=planarLayers(results).sort((a,b)=>b.z-a.z);
     query=(x,y)=>{for(const layer of layers)if(covered(x,y,layer.region))return layer.z;return null;};
@@ -104,8 +109,15 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
       settings.enabled=Object.hasOwn(assignment.skills,name);
       if(settings.enabled)Object.assign(settings,assignment.skills[name]);
     }
-    const start=shell.bounds.min[2]+assignment.zStartMm,end=assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm;
-    requireThat(start>=shell.bounds.min[2]-1e-8&&end<=shell.bounds.max[2]+1e-8&&end>start,'Region bounds exceed its selected native geometry.');
+    const start=shell.bounds.min[2]+assignment.zStartMm;
+    // A rim finish generates its own geometry above its start Z and never
+    // samples the modeled shell there, unlike every other region skill - so
+    // it alone is exempt from needing real geometry to reach its own "end."
+    // Leaving zEndMm null gives it a nominal one-layer span; a caller-given
+    // zEndMm still must clear zStartMm, same as any other region.
+    const isLip=Object.hasOwn(assignment.skills,'thick-lip');
+    const end=assignment.zEndMm===null?(isLip?start+plan.process.layerMm:shell.bounds.max[2]):shell.bounds.min[2]+assignment.zEndMm;
+    requireThat(start>=shell.bounds.min[2]-1e-8&&(isLip||end<=shell.bounds.max[2]+1e-8)&&end>start,'Region bounds exceed its selected native geometry.');
     return {assignment,shell,plan:localPlan,start,end,after:new Set(),results:[]};
   });
   const byId=new Map(records.map(record=>[record.assignment.id,record]));
@@ -113,6 +125,7 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     const {assignment}=record;
     if(assignment.lowerSurfaceFrom)record.after.add(assignment.lowerSurfaceFrom);
     if(has(record,'vase-wall'))requireThat(Object.keys(assignment.skills).length===1,'A continuous outer-wall region cannot also assign another wall or interior owner; use separate material regions.');
+    if(has(record,'thick-lip'))requireThat(Object.keys(assignment.skills).length===1,'A rim finish cannot also assign another wall or interior owner; use a separate material region.');
     if(has(record,'full-fill')&&has(record,'planar-infill'))requireThat(record.plan.skills['full-fill'].mode==='solid-surfaces','Overlapping body fill and sparse fill require complementary solid-surfaces ownership.');
     for(const previous of records)if(previous!==record&&previous.assignment.part===assignment.part) {
       const overlap=Math.min(previous.end,record.end)-Math.max(previous.start,record.start);
@@ -143,6 +156,7 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     for(const previous of touching)if(has(previous,'vase-wall')) {
       requireThat(previous.plan.skills['vase-wall'].endTransition==='level',`Region ${assignment.id} needs a level vase ending at its flat boundary; set region ${previous.assignment.id}'s vase-wall endTransition to level in the proposed recipe.`);
     }
+    if(has(record,'thick-lip'))requireThat(touching.some(p=>has(p,'vase-wall')),`Region ${assignment.id} is a rim finish; it must sit directly above a level-ended vase-wall region on the same component.`);
     if(planar(record)||has(record,'vase-wall')) {
       const relative=start-shell.bounds.min[2],index=(relative-plan.process.firstLayerMm)/plan.process.layerMm;
       requireThat(lowerSurface||relative<1e-8||Math.abs(index-Math.round(index))<1e-8,'A flat region boundary must align with the component layer grid.');
@@ -158,6 +172,10 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
       const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,
         budgetSetting:`composition.regions[${plan.composition.regions.indexOf(assignment)}].skills.vase-wall.maxPoints (region ${assignment.id})`});
       record.results.push(result);
+    }
+    if(has(record,'thick-lip')) {
+      requireThat(!lowerSurface,'A rim finish requires a flat lower boundary; use a planar transition region above the supplied surface.');
+      record.results.push(thickLipResult({shell,plan:localPlan,id:prefix+':thick-lip',zStartMm:start}));
     }
     if(has(record,'draped-skin')) {
       const supports=[...ordered,record].filter(r=>planar(r)).map(r=>({shell:r.shell,start:r.start,end:r.end,results:r.results}));
@@ -178,13 +196,14 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
       skills:Object.keys(assignment.skills),lowerSurfaceFrom:assignment.lowerSurfaceFrom,
       publishedSurface:record.surface?.kind??null,operationIds:ids(record.results)});
   }
-  const full=results.filter(r=>r.id.includes(':full-fill')||r.id.endsWith(':solid')),sparse=results.filter(r=>r.id.endsWith(':planar-infill')),vases=results.filter(r=>r.id.endsWith(':vase-wall')),skins=results.filter(r=>r.id.endsWith(':draped-skin'));
+  const full=results.filter(r=>r.id.includes(':full-fill')||r.id.endsWith(':solid')),sparse=results.filter(r=>r.id.endsWith(':planar-infill')),vases=results.filter(r=>r.id.endsWith(':vase-wall')),skins=results.filter(r=>r.id.endsWith(':draped-skin')),lips=results.filter(r=>r.id.endsWith(':thick-lip'));
   const aggregate=items=>Object.fromEntries([...new Set(items.flatMap(r=>Object.keys(r.report)))].filter(key=>items.every(r=>r.report[key]===undefined||typeof r.report[key]==='number')).map(key=>[key,items.reduce((sum,r)=>sum+(r.report[key]??0),0)]));
   const summary={regions:summaries};
   if(full.length)summary.fullFill={...aggregate(full),instances:full.map(r=>({id:r.id,...r.report}))};
   if(sparse.length)summary.planarInfill={instances:sparse.map(r=>({id:r.id,...r.report}))};
   if(vases.length)summary.vaseWall={...vases[0].report,instances:vases.map(r=>({id:r.id,...r.report}))};
   if(skins.length)summary.drapedSkin={...aggregate(skins),instances:skins.map(r=>({id:r.id,...r.report}))};
+  if(lips.length)summary.thickLip={instances:lips.map(r=>({id:r.id,...r.report}))};
   const surveys=records.filter(r=>r.survey).map(r=>r.survey);
   if(surveys.length)summary.nonplanarLimit={machineMaxAngleDeg:surveys[0].declaredLimitDeg,effectiveMaxAngleDeg:Math.max(...surveys.map(s=>s.limitDeg)),experimentalOverride:surveys.some(s=>s.experimentalOverride),surfaceMaxSlopeDeg:Math.max(...surveys.map(s=>s.maxSlopeDeg)),excludedAreaPercent:Math.max(...surveys.map(s=>s.steepFraction))*100};
   return {results,summary};
