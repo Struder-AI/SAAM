@@ -108,7 +108,7 @@ test('enclosed void remains empty in middle sections and covered at the roof',as
 });
 
 test('CLI creates and rebuilds a field from a request file without approving it',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-voxel-cli-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
+  const dir=await mkdtemp(join(tmpdir(),'saam-voxel-cli-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const bundle=join(dir,'print'),file=join(dir,'request.json'),request={field:field(),extraction:{edgeMm:1}};
   await writeFile(file,JSON.stringify(request));
   execFileSync(process.execPath,['core/print/cli.mjs','voxel-create',bundle,file,'ultimaker-s5'],{stdio:'pipe'});
@@ -118,7 +118,7 @@ test('CLI creates and rebuilds a field from a request file without approving it'
 });
 
 test('voxel lifecycle retains source, slices, reopens, delivers exact bytes and invalidates changed controls',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-voxel-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
+  const dir=await mkdtemp(join(tmpdir(),'saam-voxel-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const request={field:field(),extraction:{edgeMm:1}};
   let state=await createVoxelBundle(dir,request);
   assert.deepEqual(state.plan.geometry.field,request.field);assert.equal(state.geometry.nativeFile,'model.mesh.json');
@@ -136,7 +136,7 @@ test('voxel lifecycle retains source, slices, reopens, delivers exact bytes and 
 });
 
 test('voxel components compose with spline geometry and planar infill through shared generation',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-voxel-mixed-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
+  const dir=await mkdtemp(join(tmpdir(),'saam-voxel-mixed-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const plan=defaults();plan.skills['draped-skin'].enabled=false;plan.skills['full-fill'].enabled=false;plan.skills['planar-infill'].enabled=true;
   plan.geometry={shape:'assembly',parts:[{id:'field',geometry:await compileVoxel(field(),{edgeMm:1}),xMm:0,yMm:0,zMm:0},
     {id:'spline',geometry:{shape:'box',runMm:12,widthMm:12,heightMm:2},xMm:20,yMm:0,zMm:0}]};

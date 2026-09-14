@@ -30,7 +30,7 @@ Follow additional references when the part needs them:
 
 | Need | Read |
 |---|---|
-| Initial installation or Studio access | [Setup and checks](CONTRIBUTING.md#setup-and-checks), then [Studio agent permissions](studio/README.md#studio-agent-permissions). |
+| Initial installation or Studio access | [Setup and checks](SETUP.md), then [Studio agent permissions](studio/README.md#studio-agent-permissions). |
 | Machine-specific setup, export or playback limits | The relevant contract under [machine interoperability](core/export/README.md#machine-interoperability-design). |
 | Several printing patterns or material regions in one part | The chosen skill manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces). |
 | Sacrificial or edge supports | [Supports](skills/supports/SKILL.md), [rimming-planar](skills/rimming-planar/SKILL.md) or [rimming-normal](skills/rimming-normal/SKILL.md), as applicable. |
@@ -100,7 +100,7 @@ unchecked behavior in language suited to the person.
 - Human job approvals and machine execution belong to the person. A development
   preview is identified as such and never authorizes a real job. Developers
   exercising this workflow follow the
-  [development testing boundary](CONTRIBUTING.md#testing-through-the-use-context).
+  [development testing boundary](DEVELOP.md#testing-through-the-use-context).
 - Describe assumptions, observed behavior and unsupported results accurately.
   A software preview establishes no physical print result.
 - Keep personal bundles in ignored `Prints/`. Sharing a curated example requires

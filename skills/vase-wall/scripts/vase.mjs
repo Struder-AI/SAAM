@@ -12,6 +12,22 @@ export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'spiral',p
 // Ten-nanometer integer grid: independent of contour/chord and boundary
 // tolerances; shared Clipper2 offsets use this same grid by default.
 const OFFSET_PRECISION_MM=0.00001;
+const cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
+
+// Shared with skills/thick-lip: a rim finish freezes the same outer section
+// vase-wall itself would have printed at the boundary Z, so it reuses this
+// exact convexity/dedupe check rather than re-deriving it.
+export function convexLoop(loops) {
+  requireThat(loops.length===1&&loopArea(loops[0])>0,'Vase wall requires one outer section loop without holes or multiple islands.');
+  const loop=dedupe(loops[0]);
+  requireThat(loop.length>=3,'Vase wall section collapsed.');
+  for(let i=0;i<loop.length;i++) {
+    const a=sub(loop[(i+1)%loop.length],loop[i]),b=sub(loop[(i+2)%loop.length],loop[(i+1)%loop.length]);
+    requireThat(cross(a,b)>=-1e-7*Math.hypot(...a)*Math.hypot(...b),'Vase wall currently requires convex sections; concave sections are unsupported.');
+  }
+  return loop;
+}
 function motifContour(outer,toleranceMm){
   // Start simplification at a geometric extreme, not an arbitrary triangle
   // seam that can slide along an edge as Z changes.
@@ -76,7 +92,13 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall inward offset is empty, split or collapsed at Z ${z} mm for bead width ${width} mm.`);
     const loop=dedupe(inset[0]);
     requireThat(loop.length>=3,'Vase wall section collapsed.');
-    const curve=contourPath(loop,seam);seam??=curve.seam;
+    const curve=contourPath(loop,seam);
+    // Keep the projection anchor outside every section. The first seam itself
+    // can lie inside later, expanding contours, where its nearest projection
+    // switches between opposite edges of a corner and makes phase discontinuous.
+    // A +X anchor preserves the initial maximum-X seam and remains exterior as
+    // the wall changes height. Offset motifs translate this same anchor below.
+    seam??=[shell.bounds.max[0]+width,curve.seam[1]];
     const holes=cut.loops.filter(loop=>loopArea(loop)<0);
     const value={outer,loop,curve,holes};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
   }

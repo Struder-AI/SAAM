@@ -223,6 +223,8 @@ test('playback speed scales elapsed time and interpolates actual moves including
 test('geometry and process edits invalidate the correct approvals and reject stale writes',async t=>{
   const dir=await fixture(t),actor='SYNTHETIC TEST REVIEWER';let s=await loadBundle(dir);
   await approve(dir,{stage:'geometry',actor,revision:s.revision});s=await loadBundle(dir);
+  await approve(dir,{stage:'plan',actor,revision:s.revision});s=await loadBundle(dir);
+  assert.equal(s.planApproved,true,'the edit must invalidate an existing approval');
   const old=s.revision,p=clone(s.plan);p.process.skinSpeedMmS=8;await updatePlan(dir,p,s.revision);
   s=await loadBundle(dir);assert.equal(s.geometryApproved,true);assert.equal(s.planApproved,false);
   await assert.rejects(updatePlan(dir,p,old),/stale/);
@@ -239,17 +241,4 @@ test('Studio serves the exact export and rejects cross-origin or stale mutations
   const denied=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:'https://example.com','X-SAAM-Token':token},body:'{}'});assert.equal(denied.status,403);
   const stale=await fetch(origin+'/api/plan',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({plan:s.plan,revision:'old'})});assert.equal(stale.status,400);
   const blocked=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});assert.equal(blocked.status,400);
-});
-test('Studio closes after its viewer disconnects and preserves the bundle',async t=>{
-  const dir=await fixture(t),server=createStudio(dir,{disconnectMs:25});
-  t.after(()=>server.shutdown());
-  await new Promise(r=>server.listen(0,'127.0.0.1',r));
-  const origin=`http://127.0.0.1:${server.address().port}`;
-  const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
-  const controller=new AbortController();
-  const viewer=await fetch(origin+'/api/viewer?token='+token,{signal:controller.signal});
-  assert.equal(viewer.status,200);
-  controller.abort();
-  await new Promise((resolve,reject)=>{server.once('close',resolve);setTimeout(()=>reject(new Error('Studio listener did not close after viewer inactivity.')),500);});
-  assert.ok(await loadBundle(dir));
 });

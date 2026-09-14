@@ -15,6 +15,7 @@ import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
+import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
 import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
 import {SUPPORT_DEFAULTS,validateSupports} from '../../skills/supports/scripts/supports.mjs';
 import {RIMMING_DEFAULTS,validateRimming} from '../../skills/rimming-planar/scripts/rimming.mjs';
@@ -64,6 +65,7 @@ export function defaults(machine=loadMachine()) {
       'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
+      'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
       'draped-skin': { enabled: true, part: null, ...DRAPED_SKIN_DEFAULTS }
     },
     composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
@@ -124,6 +126,7 @@ export function validatePlan(plan, machine) {
   plan.skills['planar-infill']??={enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS};
   for(const field of ['pattern','sampleStepMm','maxPatternCells'])plan.skills['planar-infill'][field]??=PLANAR_INFILL_DEFAULTS[field];
   plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
+  plan.skills['thick-lip']??={enabled:false,part:null,...THICK_LIP_DEFAULTS};
   plan.skills.supports??=structuredClone(SUPPORT_DEFAULTS);
   for(const name of ['rimming-planar','rimming-normal'])plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);
   plan.skills['vase-wall'].endTransition??='spiral';
@@ -237,6 +240,10 @@ export function validatePlan(plan, machine) {
   number(vase.boundaryToleranceMm,0.002,0.05,'Vase boundary tolerance');
   number(vase.minFeatureMm,0.05,5,'Vase minimum section feature');
   requireThat(Number.isSafeInteger(vase.maxPoints)&&vase.maxPoints>=100,'Vase maxPoints must be a safe integer of at least 100; increase it to allow a larger wall (no preset 200000-point ceiling).');
+  const lip=skills['thick-lip'];
+  requireThat(typeof lip.enabled==='boolean'&&(lip.part===null||typeof lip.part==='string'),'Invalid thick-lip selection.');
+  requireThat(Array.isArray(lip.steps)&&lip.steps.length>=1&&lip.steps.length<=50&&lip.steps.every(n=>Number.isInteger(n)&&n>=1&&n<=20),'Lip steps must be 1–50 layer entries, each 1–20 perimeters.');
+  number(lip.minFeatureMm,0.05,5,'Lip minimum section feature');
   requireThat(typeof normal.enabled==='boolean'&&Array.isArray(normal.parts)&&new Set(normal.parts).size===normal.parts.length&&normal.parts.every(id=>typeof id==='string'),'Invalid planar-infill selection.');
   requireThat(['body','solid-surfaces'].includes(fill.mode),'Invalid full-fill mode.');
   for(const key of ['bottomLayers','topLayers'])requireThat(Number.isInteger(fill[key])&&fill[key]>=0&&fill[key]<=20,`${key} must be 0–20.`);
@@ -256,6 +263,7 @@ export function validatePlan(plan, machine) {
       child.skills['full-fill'].parts=[];child.skills['draped-skin'].part=null;
       child.skills['planar-infill'].parts=[];
       child.skills['vase-wall'].part=null;
+      child.skills['thick-lip'].part=null;
       child.skills['pipe-cladding'].enabled=false;child.skills['pipe-cladding'].part=null;
       for(const name of ['rimming-planar','rimming-normal'])child.skills[name].enabled=false;
       child.composition.regions=[];
@@ -266,10 +274,12 @@ export function validatePlan(plan, machine) {
     requireThat(normal.parts.every(id=>ids.has(id)),'Unknown planar-infill component.');
     requireThat(regional||!skin.enabled||skin.part!==null,'An assembly must select the component whose roof is draped.');
     requireThat((vase.part===null||ids.has(vase.part))&&(regional||!vase.enabled||vase.part!==null),'An assembly must select a known vase-wall component.');
-  } else requireThat(fill.parts.length===0&&normal.parts.length===0&&skin.part===null&&vase.part===null,'Component selection requires assembly geometry.');
+    requireThat(lip.part===null||ids.has(lip.part),'Unknown thick-lip component.');
+  } else requireThat(fill.parts.length===0&&normal.parts.length===0&&skin.part===null&&vase.part===null&&lip.part===null,'Component selection requires assembly geometry.');
   requireThat(typeof fill.enabled === 'boolean' && typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
-  requireThat(regional||fill.enabled || skin.enabled || normal.enabled || vase.enabled, 'Select at least one pattern skill.');
+  requireThat(regional||fill.enabled || skin.enabled || normal.enabled || vase.enabled || lip.enabled, 'Select at least one pattern skill.');
   if(!regional&&vase.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'vase-wall');
+  if(!regional&&lip.enabled)requireMachine(machine,['xyz-extrusion','planar'],'thick-lip');
   if(!regional&&normal.enabled)requireMachine(machine,['xyz-extrusion','planar'],'planar-infill');
   if(!regional&&fill.enabled)requireMachine(machine,['xyz-extrusion','planar'],'full-fill');
   if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');

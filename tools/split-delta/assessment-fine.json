@@ -1,0 +1,349 @@
+{
+  "schema": "saam-split-delta-assessment/1",
+  "createdAt": "2026-09-13T03:29:48.604Z",
+  "jointLayers": 2,
+  "effectivePivotCentersPerRodEnd": 1,
+  "method": "Disk and tilt-cone grid, nominal spin zero; reserve tilt49 and spin[-4,0,4]; no physical evidence",
+  "candidates": [
+    {
+      "name": "150-compact",
+      "geometry": {
+        "towerRadiusMm": 180,
+        "railSeparationMm": 50,
+        "platformRadiusMm": 55,
+        "platformPairMm": 120,
+        "rodLengthMm": 400,
+        "toolLengthMm": 120,
+        "jointConeDeg": 90,
+        "marginDeg": 4,
+        "operatingTiltDeg": 45,
+        "minSingularRatio": 0.02,
+        "railMinMm": 0,
+        "railMaxMm": 900
+      },
+      "reserved": {
+        "passed": true,
+        "samples": 328755,
+        "failures": 0,
+        "diameterMm": 150,
+        "heightMm": 200,
+        "testedTiltDeg": 49,
+        "spinValues": [
+          -4,
+          0,
+          4
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.043607818461595456,
+        "minRodElevationDeg": 37.944166972011914,
+        "maxJointDeflectionDeg": 81.78538382784497,
+        "requiredJointConeDeg": 85.78538382784497,
+        "carriageAtBedMm": [
+          345.71294853042514,
+          534.426398959549
+        ],
+        "overheadMm": 188.7134504291239,
+        "workingTrackMm": 388.7134504291239,
+        "railIntervalMm": [
+          345.71294853042514,
+          734.426398959549
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      },
+      "operating": {
+        "passed": true,
+        "samples": 109585,
+        "failures": 0,
+        "diameterMm": 150,
+        "heightMm": 200,
+        "testedTiltDeg": 45,
+        "spinValues": [
+          0
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.08590138141700156,
+        "minRodElevationDeg": 40.61415145546254,
+        "maxJointDeflectionDeg": 75.42763524898163,
+        "requiredJointConeDeg": 79.42763524898163,
+        "carriageAtBedMm": [
+          364.1469210241801,
+          534.2648505589314
+        ],
+        "overheadMm": 170.11792953475128,
+        "workingTrackMm": 370.1179295347513,
+        "railIntervalMm": [
+          364.1469210241801,
+          734.2648505589314
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      }
+    },
+    {
+      "name": "200-compact",
+      "geometry": {
+        "towerRadiusMm": 180,
+        "railSeparationMm": 50,
+        "platformRadiusMm": 55,
+        "platformPairMm": 120,
+        "rodLengthMm": 450,
+        "toolLengthMm": 120,
+        "jointConeDeg": 90,
+        "marginDeg": 4,
+        "operatingTiltDeg": 45,
+        "minSingularRatio": 0.02,
+        "railMinMm": 0,
+        "railMaxMm": 900
+      },
+      "reserved": {
+        "passed": true,
+        "samples": 328755,
+        "failures": 0,
+        "diameterMm": 200,
+        "heightMm": 200,
+        "testedTiltDeg": 49,
+        "spinValues": [
+          -4,
+          0,
+          4
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.04938278168687175,
+        "minRodElevationDeg": 40.839884769735086,
+        "maxJointDeflectionDeg": 81.11375563333505,
+        "requiredJointConeDeg": 85.11375563333505,
+        "carriageAtBedMm": [
+          390.63429551833076,
+          589.3067591749547
+        ],
+        "overheadMm": 198.6724636566239,
+        "workingTrackMm": 398.6724636566239,
+        "railIntervalMm": [
+          390.63429551833076,
+          789.3067591749547
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      },
+      "operating": {
+        "passed": true,
+        "samples": 109585,
+        "failures": 0,
+        "diameterMm": 200,
+        "heightMm": 200,
+        "testedTiltDeg": 45,
+        "spinValues": [
+          0
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.08719424352150555,
+        "minRodElevationDeg": 43.08726268775538,
+        "maxJointDeflectionDeg": 75.15272747693679,
+        "requiredJointConeDeg": 79.15272747693679,
+        "carriageAtBedMm": [
+          408.11316055091686,
+          589.3311335048129
+        ],
+        "overheadMm": 181.21797295389604,
+        "workingTrackMm": 381.21797295389604,
+        "railIntervalMm": [
+          408.11316055091686,
+          789.3311335048129
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      }
+    },
+    {
+      "name": "200-reduced-articulation",
+      "geometry": {
+        "towerRadiusMm": 180,
+        "railSeparationMm": 50,
+        "platformRadiusMm": 55,
+        "platformPairMm": 120,
+        "rodLengthMm": 600,
+        "toolLengthMm": 120,
+        "jointConeDeg": 80,
+        "marginDeg": 4,
+        "operatingTiltDeg": 45,
+        "minSingularRatio": 0.02,
+        "railMinMm": 0,
+        "railMaxMm": 1000
+      },
+      "reserved": {
+        "passed": true,
+        "samples": 328755,
+        "failures": 0,
+        "diameterMm": 200,
+        "heightMm": 200,
+        "testedTiltDeg": 49,
+        "spinValues": [
+          -4,
+          0,
+          4
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.09122036329194548,
+        "minRodElevationDeg": 55.43053330377209,
+        "maxJointDeflectionDeg": 71.04949133745801,
+        "requiredJointConeDeg": 75.04949133745801,
+        "carriageAtBedMm": [
+          566.9473488453701,
+          740.436548543548
+        ],
+        "overheadMm": 173.4891996981779,
+        "workingTrackMm": 373.4891996981779,
+        "railIntervalMm": [
+          566.9473488453701,
+          940.436548543548
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      },
+      "operating": {
+        "passed": true,
+        "samples": 109585,
+        "failures": 0,
+        "diameterMm": 200,
+        "heightMm": 200,
+        "testedTiltDeg": 45,
+        "spinValues": [
+          0
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.10564461962976669,
+        "minRodElevationDeg": 56.78819490885818,
+        "maxJointDeflectionDeg": 65.85551608901127,
+        "requiredJointConeDeg": 69.85551608901127,
+        "carriageAtBedMm": [
+          581.4592510593004,
+          740.3705719508955
+        ],
+        "overheadMm": 158.9113208915951,
+        "workingTrackMm": 358.9113208915951,
+        "railIntervalMm": [
+          581.4592510593004,
+          940.3705719508955
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      }
+    },
+    {
+      "name": "200-long-tool",
+      "geometry": {
+        "towerRadiusMm": 180,
+        "railSeparationMm": 50,
+        "platformRadiusMm": 55,
+        "platformPairMm": 120,
+        "rodLengthMm": 500,
+        "toolLengthMm": 160,
+        "jointConeDeg": 90,
+        "marginDeg": 4,
+        "operatingTiltDeg": 45,
+        "minSingularRatio": 0.02,
+        "railMinMm": 0,
+        "railMaxMm": 900
+      },
+      "reserved": {
+        "passed": true,
+        "samples": 328755,
+        "failures": 0,
+        "diameterMm": 200,
+        "heightMm": 200,
+        "testedTiltDeg": 49,
+        "spinValues": [
+          -4,
+          0,
+          4
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.04811684723262664,
+        "minRodElevationDeg": 42.22550972701094,
+        "maxJointDeflectionDeg": 81.5452813020249,
+        "requiredJointConeDeg": 85.5452813020249,
+        "carriageAtBedMm": [
+          459.64503485907267,
+          674.4905534832953
+        ],
+        "overheadMm": 214.84551862422268,
+        "workingTrackMm": 414.8455186242227,
+        "railIntervalMm": [
+          459.64503485907267,
+          874.4905534832953
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      },
+      "operating": {
+        "passed": true,
+        "samples": 109585,
+        "failures": 0,
+        "diameterMm": 200,
+        "heightMm": 200,
+        "testedTiltDeg": 45,
+        "spinValues": [
+          0
+        ],
+        "grid": {
+          "radialSteps": 6,
+          "azimuthSteps": 36,
+          "tiltSteps": 14
+        },
+        "minSingularRatio": 0.08475011905295503,
+        "minRodElevationDeg": 44.50530617725304,
+        "maxJointDeflectionDeg": 75.5216874534388,
+        "requiredJointConeDeg": 79.5216874534388,
+        "carriageAtBedMm": [
+          481.43335870885807,
+          674.5620676200994
+        ],
+        "overheadMm": 193.1287089112413,
+        "workingTrackMm": 393.1287089112413,
+        "railIntervalMm": [
+          481.43335870885807,
+          874.5620676200994
+        ],
+        "fitsConfiguredTrack": true,
+        "worst": null,
+        "coverage": "Sampled kinematics only; no collisions, loads, tolerances or continuous-domain proof"
+      }
+    }
+  ]
+}

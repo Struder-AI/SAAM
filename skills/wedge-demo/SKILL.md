@@ -46,6 +46,9 @@ For a request that identifies this supported wedge, its default geometry can
 provide the first proposed preview. Identify the dimensions and assumptions so
 the maker can revise them through chat.
 
+This bounded generator requires PLA and a 0.4 mm nozzle; remembered setup for
+another material or nozzle must be revised before using it.
+
 For example, an `adjust` patch of `{"process":{"skinLayers":3}}` requests three
 sloped layers; replace `geometry.points` to change dimensions or roof direction
 (example below).
@@ -152,7 +155,7 @@ never test approval actions on the person's real print.
   covered by software regression tests. Software checks do not
   measure clearance or certify printability.
 
-Run `npm test` after changes. General freeform surface slicing, dual-material
+General freeform surface slicing, dual-material
 printing, UFP packaging, network sending and full Rhino computation are outside
 this package.
 

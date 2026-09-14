@@ -188,12 +188,11 @@ identity so changed construction code invalidates old generation identity.
 No additional numerical library, imported CAD application or external generator
 is required; the pinned `manifold-3d` dependency is already present.
 
-Run the [skill tests](tests/gridfinity.test.mjs) and
-[access tests](tests/access.test.mjs) with:
+The [skill tests](tests/gridfinity.test.mjs) and
+[access tests](tests/access.test.mjs) are available with:
 
 ```sh
 node --test skills/gridfinity/tests/*.test.mjs
-node scripts/check-repo.mjs
 ```
 
 Tests cover dimensional sections, cavities, mating intersections, parameter

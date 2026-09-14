@@ -3,17 +3,17 @@
 Only outstanding or incomplete work belongs here. Work normally proceeds
 build-first; completed work and dated evidence belong in [DEVLOG.md](DEVLOG.md).
 Current component references and skill manuals own implemented behavior.
-See [documentation maintenance](CONTRIBUTING.md#documentation-maintenance) for
+See [documentation maintenance](DEVELOP.md#documentation-maintenance) for
 the closeout rules. An empty outstanding-work list is valid.
 
+Use a `### BR-NNN — Title` heading with `Status` (`open`, `in progress` or
+`blocked`), `Remaining`, `Completion` and `Context` fields; `Source` is optional.
+On completion, update the owning manuals, move the work and verification record to
+the devlog, and remove the completed request. For partial completion, leave only
+the remainder here. Preserve request IDs and redirect evidence links when moving
+records. A deferred idea belongs in a decision or labeled proposal until requested.
+
 ## Outstanding work
-
-### BR-044 — Prepared download platform and client acceptance
-
-- Status: blocked
-- Remaining: GitHub publication, native macOS/Windows ARM64/Linux matrix results and live desktop permission behavior lack verification. Publishing the workflow needs restored terminal Git authentication; removing main's remote test requirement needs repository admin access unavailable to the current connector.
-- Completion: Publish the locally checked branches after authentication is restored, remove only the required test status as authorized, run the prepared/source archive matrix and record live Claude Code Desktop/Codex Desktop first-use behavior with the supported downloads.
-- Context: [Implementation and Windows evidence](DEVLOG.md#2026-09-12--prepared-repository-downloads-and-consolidated-setup), [download procedure](scripts/FIRST-RUN.md), [Studio permissions](studio/README.md#studio-agent-permissions).
 
 These entries retain unresolved requests and acceptance checks from the existing
 records. Current task instructions determine what to take up. Lack of recorded
@@ -77,3 +77,18 @@ complex region ordering.
 - Remaining: The actual export and extra firmware actions behind the reported startup discrepancy remain unidentified. Physical confirmation of the shared first-deposition recovery correction is also open.
 - Completion: Identify the delivered bytes and relevant installation behavior, diagnose the discrepancy and record the user's startup result for the correction. Do not generalize an earlier successful envelope report to another revision or installation.
 - Context: [Existing S5 reports](DEVLOG.md#2026-09-08-to-2026-09-10--s5-startup-observations), [current S5 contract](core/export/griffin.md#s5-startup-observations).
+
+### BR-044 — Port a vetted material library
+
+- Status: open
+- Remaining: Port the material-library concept to the live shared architecture when the user explicitly starts this work. The user commits to doing it, but defers implementation; do not restore the withdrawn catalog or implement it during recovery.
+- Completion: Review the selected data and interfaces against current material, machine, output and recipe consumers; preserve machine-owned compatibility and intentional process settings. Establish the concrete supported scope and relevant evidence before admitting the implementation. Catalog availability does not establish hardware or output support.
+- Context: [Withdrawal and conceptual intents](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission), [current component contracts](core/README.md#interoperability-and-one-workflow), [minimal implementation guidance](DEVELOP.md#engineering-priorities).
+- Source: Current user, 2026-09-13: “mark material library as definitely we will port that over - but don't do it yet.”
+
+### BR-045 — Prepared download platform and client acceptance
+
+- Status: open
+- Remaining: Native macOS, Linux and Windows ARM64 archive checks and live Codex/Claude Code first-use permission behavior lack current recorded results. Windows x64 source and offline archive integration passed; the manual packaging workflow is available after integration into main.
+- Completion: Run the affected native distribution checks and record actual client setup/open behavior, including the download used. Retain the current required PR check and change-based testing policy.
+- Context: [Packaging and verification](scripts/PACKAGING.md), [current Windows evidence](DEVLOG.md#2026-09-14--reconcile-prepared-downloads-with-current-main), [setup](SETUP.md#private-runtime).

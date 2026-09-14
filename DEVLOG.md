@@ -1,52 +1,443 @@
 # Development log
 
+Date entries by the work or observation when evidence supports it; cite the
+dated source or commit and distinguish request, checkpoint and completion dates.
+Preserve explicit follow-up dates and timezones. If the work date is unknown,
+say so and record the recording or migration date separately; never infer it from
+file modification time. Record actual verification scope, without copying entire
+contracts or turning test counts into claims of physical success. New entries
+need no build-request ID; preserve an existing ID when moving its work record.
+
+## 2026-09-14 — Reconcile prepared downloads with current main
+
+At the user's request, updated `codex/first-run-bundle` from its unmerged
+`9893cfa` implementation against main `ddb704a`. Main's current geometry,
+machines, Studio, contributor/document ownership and reduced verification
+practices are the baseline. The user clarified that existing downscoping must
+be preserved, not replaced with a newly reduced feature set. The user will
+merge manually.
+
+Retained project-local verified Node downloads, dependency setup with reusable
+evidence, prepared archives and their native platform matrix. Moved setup
+guidance to SETUP.md and maintainer packaging instructions to scripts/PACKAGING.md.
+Packaging is manually dispatched; the required PR `test`, separate stress and
+document checks, and lack of a commit-time regression gate remain unchanged.
+The withdrawn tour, material configuration, private-machine integration and
+obsolete root files are not restored. The requested Windows ownership guidance
+removal is included; the earlier local repair remains in place.
+
+Setup now locks before consulting cached readiness, and both runtime launchers
+serialize download publication. Archives use a freshly checksum-verified runtime
+rather than copying an arbitrary local runtime tree. Setup retains the existing
+30-second check deadline. Archive integration stops its own Studio process tree
+instead of expecting immediate exit after viewer disconnect; Studio's 30-minute
+grace period is unchanged. The branch's unrelated voxel-test cleanup edits were
+not restored. Distribution packaging still excludes personal Prints and contains
+the existing demo generators, not generated demo bundles.
+
+Verification on Windows x64: focused setup cache/failure/concurrency test passed;
+fresh source extraction without system Node/npm/Git passed (11.585 s setup,
+0.390 s reuse, 0.927 s geometry/HTTP preview). A development ZIP built from
+fresh Node 22.23.2 and locked dependencies passed offline extraction/setup and
+Studio checks (3.924 s extraction, 1.683 s setup, 0.502 s reuse, 1.205 s preview).
+The prepared run blocked installation downloads. POSIX shell syntax and scoped
+Codex launcher rules passed; repository links/private-file checks passed.
+These are software/CLI/HTTP observations. Other native targets and live desktop
+permission UX remain open under BR-045; no full regression rerun or physical
+printing was performed for this packaging change.
+
+## 2026-09-14 — Withdraw Windows setup guidance
+
+Removed the Windows checkout ownership section from SETUP.md at the user's
+request. The local permission repair remains in place; its historical record
+below is retained. No software behavior changed.
+
+## 2026-09-14 — Remove obsolete root files
+
+Removed `CONTRIBUTORS.txt` and `sotvl_Spiral-Vase_repaired.stl` at the user's
+request. A checkout search found no references to either filename. Current
+contributor guidance remains in DEVELOP.md and CONTRIBUTING-AGENTS.md. No
+software tests were needed for removing these unreferenced files.
+
+## 2026-09-14 — Windows checkout ownership recovery
+
+Diagnosed shell and Node REPL startup failures in a copied Windows checkout.
+The Codex sandbox log showed `SetNamedSecurityInfoW` error 5 while applying a
+protective deny access rule to `.git`; its owner was `CodexSandboxOffline`.
+Git also rejected the checkout as owned by another account. The system and
+bundled Node executables ran successfully outside the sandbox.
+
+Restored the user's ownership of `.git` and its contents and granted that user
+Full Control through an administrator-approved repair, preserving existing
+access rules. Ownership repair processed 124 entries without failures. Normal
+sandboxed shell execution and a minimal Node REPL call then succeeded; Git
+status also succeeded under the user's account. Added prevention and diagnostic
+guidance to SETUP.md. No source, remote, or runtime installation change was
+needed, and no application regression tests were run for this permissions and
+documentation work.
+
+## 2026-09-14 — Remove private machine integration
+
+Removed the private machine profile, model, study tools, associated coverage and
+documentation from the shared project at the user's request. Studio retains the
+shared machine viewer and supported public-machine studies.
+
+Verification: checkout setup passed. All 27 selected tests pass across machine
+presentation, constrained jogging, study transport, Studio kinematics and source
+playback. Repository checks passed for 61 documents, 724 local links and 29
+decision records. A current-tree scan found no remaining private-machine names
+or mechanism-specific references. Git history is unchanged.
+
+## 2026-09-13 — Publication review before fork transition
+
+Reconciled GitHub's PR #4 merge through local merge `f4ea2d8`; its tree and
+the existing uncommitted diff were unchanged. Reused the focused verification
+recorded below; the whitespace diff check passed without another software run.
+The user requested publication before creating a fork. Review observations
+remain unresolved: tracked .NET build artifacts in `scripts/bench/obj/`, an
+apparently unreferenced repaired STL at the root.
+
+At the user's subsequent request, `npm test` passed all 465 ordinary software
+tests in 72 seconds with no failures or skips. Stress tests remain separate.
+
+## 2026-09-13 — Human contributor rules and agent guidance placement
+
+At the user's direction in the contributor-guidance conversation, CONTRIBUTING
+became human-facing and left the default agent reading path. Setup and test
+references moved to focused owners. DEVELOP retained the during-work context,
+selective-adoption, shared-edit, durable-knowledge and anti-check-spiral rules;
+checkpoint and remote guidance moved to CONTRIBUTING-AGENTS for reading at that
+stage. Blanket preliminary checkpoints, an assumed Git coordinator and mandatory
+human PR review were removed. Existing authorization remained applicable.
+
+The user's follow-up established whole-checkout commits as the default for an
+authorized checkpoint: all non-ignored work, including concurrent contributions
+and unfinished increments, unless explicitly excluded. Recording shared state
+did not establish completion, review or selective-adoption approval.
+
+The user also distinguished local checkpoints from remote publication: the
+pre-push guidance favored a complete result at the outgoing branch head while
+allowing intentional work-in-progress pushes with their purpose and remaining
+work stated. This added no hard gate, approval requirement or verification pass.
+
+The verification wording reused valid evidence instead of triggering new checks
+at publication or from skill manuals. The repository document check passed for
+60 documents, 725 local links and 29 decision records, including open requests
+and skill metadata. This guidance edit changed no software behavior and ran no
+software tests; concurrent implementation work retained its own work records.
+
+## 2026-09-13 — Retain the assembly during manual pose requests
+
+Fixed manual-slider blinking by retaining the last complete model pose at the
+frozen source time while a new worker request is pending or unsuccessful. The
+exact request cache remains separate, so drawing the retained assembly does not
+suppress the new solve or claim its requested coordinates were reached. Source
+and model changes clear the retained state. The focused Studio kinematics checks
+pass, including retained geometry during a pending request and disposal cleanup.
+
+The user clarified that used rail length belongs to the machine definition and
+slider spans should cover the machine's motion independently of the source.
+Removed source-dependent rail cropping and its snapshot field. The existing
+working rail endpoints now drive both geometry and limits. Slider spans derive
+conservative bounds from mechanism dimensions and installation transforms.
+
+Implemented local constrained jogging: prioritize the selected coordinate,
+project corrections against model-owned signed boundary margins, and stop at a
+valid local boundary. Returned slider values follow the accepted pose. Splitty
+and Dobot expose their existing numeric limits. DENSO uses nominal wrist reach plus its seeded IK
+acceptance. Cartesian sliders enforce axis travel, with the bed rail geometry
+aligned to that travel. Missing physical socket/collision limits remain missing.
+This does not claim global reach optimization or hardware motion validation.
+
+Regression evidence includes analytical curved-boundary coupling, fixed rails
+independent of source, source/override cache separation and Cartesian end stops.
+
+## 2026-09-13 — Manual machine positioning and used rail travel
+
+Added model-owned tool-position controls to Studio Machine view: XYZ for all
+aligned models, Dobot yaw and Splitty/DENSO Euler
+orientation. Slider input pauses playback and invokes the same model solver in
+the source worker. Manual/source requests have distinct cache identity; obsolete
+requests cannot replace the displayed pose. Play, seeking, return-to-playback,
+mode/stage/source changes and movie export clear temporary manual posing.
+No source bytes, job approvals or hardware commands are changed.
+
+Rails now display sampled source carriage travel plus the exact current pose,
+with 10 mm end clearance. Optional normalized line spans crop the existing
+primitive geometry; rods retain their configured lengths. Source sampling is
+bounded, is only for display, and retains no viewing-history dependency.
+Machine fit uses the cropped assembly.
+
+Focused provider, study, session/renderer and movie checks pass. Regressions
+cover manual source preservation, model control sets, manual/source cache
+separation, rail cropping/extension/reset and fixed rod length. This is software
+simulation evidence, not hardware motion validation.
+
+## 2026-09-13 — Studio machine ghost and Machine view
+
+Implemented the complete Studio consumer of the [v1 presentation contract](studio/KINEMATICS.md):
+simple links, rails, carriages, joints, bed and tool; neutral ghost composition;
+Machine view with independent saved camera; shared reference-frame transforms;
+worker sampling, unavailable-model fallback, stale-response rejection and movie
+parity. Existing material geometry, operation colors and part-fit detail remain
+the baseline. Provider geometry and kinematic equations remain in the separate
+shared-model implementation. This work followed the updated AGENTS/D-029 context
+boundary and fresh Studio sessions.
+
+Verification: 31 selected tests pass across Studio kinematics, cameras, material,
+movie export and source transport. These cover nonzero-placement/moving-bed
+contact, invalid/stale/partial poses, worker failure/disposal, camera restoration,
+projected machine fitting and asynchronous pose-before-video capture. Fresh
+browser inspection covers the actual 8,343-move development S5 wedge, DENSO
+study, and 48,430-move development pipe. No manufacturing approvals were created.
+
+Paired browser measurements at 848 × 404 compare real WebGL material rendering,
+Canvas composition and a forced pixel readback, with 60 frame pairs after 10
+warmups and alternating order. Wedge baseline/ghost median: 5.3/6.1 ms; p95:
+10.3/9.5 ms. Pipe baseline/ghost median: 4.5/5.2 ms; p95: 6.2/6.5 ms. These
+measure drawing at source time 1190 with varying orbit, excluding source decode
+and worker transport; they are not end-to-end interactive FPS guarantees. No
+toolpath simplification or detail reduction was added. The ignored local harness
+and screenshots are under `.local/studio-machine-presentation/`. Repository
+document/link checks pass. Model poses and previews remain nominal software
+evidence; collision, installation calibration and physical results are unverified.
+
+## 2026-09-13 — Shared machine providers and mechanism studies
+
+The user authorized implementation after the contract review and minimal-core
+guidance and requested a checkpoint. Commit
+`cf6856f` checkpoints the shared checkout before this implementation; generated
+benchmark caches and the loose STL are excluded. Reoriented to D-029 and the
+updated entry point before editing; no withdrawn component is restored.
+
+Implemented [machine providers](core/machine/README.md) for the current catalog,
+sharing source-time evaluation with Studio. S5/H2D use schematic XY
+carriage/Z-bed motion; Splitty reuses its reference model; MG400 reuses nominal
+FK/IK with explicit alignment. The new VP-6242 model uses DENSO's dimension
+drawing and explicit seeded model angles, without claiming RC8 encoder/FIG
+parity. Dobot's standalone sampler reuses the shared acceleration
+evaluator instead of maintaining a second timing equation.
+
+Added [read-only Studio studies](tools/kinematics/README.md), including unchanged
+original Splitty `.sdgcode` input.
+These use the shared viewer and hashed source transport, with no manufacturing
+approval, generation or delivery. Default robot studies explicitly use synthetic
+nominal floor installations. The separate Studio task owns consumer rendering,
+camera behavior, worker lifecycle and visual verification.
+
+Verification: independent DENSO drawing poses, complete deterministic provider
+samples, source-hash invalidation, manufacturing-operation refusal and Splitty
+source/timing parity
+pass. Existing Dobot, source-player, split-delta and DENSO export/lifecycle checks
+pass. A 0.1-second sampling sweep of each 24-second Splitty and DENSO study
+returns complete poses throughout; this is sampled nominal software evidence,
+not continuous reach, collision, calibration or physical printing evidence.
+
+## 2026-09-13 — Withdraw September 12 contributions and establish context boundary
+
+- The user reports that the originating agent context combined a pre-GitHub repository with modern SAAM and explicitly authorizes withdrawal of e3dc134, f2a97d8, 6e11afd and ce61c69. The old repository and transcripts are unavailable; no claim is made that every changed line was copied from them. The material-intent addition and revert cancel exactly.
+- Withdraws the net incoming setup/tour, material catalog, nozzle-selection UI, generic compatibility/default changes, expanded H2D output and related portability changes. Retains the independently authored lightweight setup check, shared geometry/skills, kinematics, local-extension boundary, Studio lifetime work, test-worthiness changes and September 13 minimal-core guidance. No repository reset, history rewrite or blanket file restoration is used.
+- Resolves the 44-path incoming footprint in an isolated copy of 357 tracked/nonignored working paths. Seven incoming-only files are removed; the independent setup-check implementation is retained. Existing missing tracked files remain missing. The recovery directory under ignored .local/contribution-withdrawal-20260913 contains the source snapshot, original working patch, path dispositions and verification record; ignored personal experiments, Prints and installed dependencies remain in place.
+- Entry and contribution guidance require reorientation to live contracts when arriving from superseded repositories or transcripts, and explicit selective adoption before old components or methods enter the ecosystem. Routine authorized development gains no additional approval or test gate. [D-029](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission) records three conceptual intents; [BR-044](build_request.md#br-044--port-a-vetted-material-library) records the committed but explicitly deferred material-library port. No port is implemented.
+- Verification: the recovered candidate passes the lightweight runtime/geometry/Studio setup check and all 72 selected tests covering shared lifecycle, both recipe adapters, S5/H2D/configured-Dobot MCP workflows, actual-source review/delivery, setup persistence, malformed outputs, Studio lifetime and independent intersection references. The first candidate run failed because its explicit dependency-hash paths lacked node_modules; linking the installed dependencies resolved that isolated-environment problem. These are software checks, not physical printing evidence.
+
+## 2026-09-13 — Studio and kinematic-model presentation contract
+
+The user selected a machine ghost plus Machine view toggle, retaining manual
+zoom and Studio's simple lines/shapes/cones with careful visual hierarchy.
+They clarified that Studio needs the complete links/rails/print-carriage
+presentation integrated with its existing bed/tool; only the model builder
+works incrementally. Recorded the direction in D-028 and authored the shared
+[integration contract](studio/KINEMATICS.md), reachable from Studio, rendering,
+core architecture and machine references.
+
+The contract specifies primitive geometry, component roles, resolved frames,
+source-time poses, identity, partial/unavailable data, asynchronous responses,
+camera/visibility behavior, movie parity and task ownership. It preserves the
+existing toolpath renderer and exact-source review boundary. Synthetic providers
+support complete Studio development while actual model components arrive.
+The earlier generated-image concepts are presentation illustrations, not graphics
+requirements. No runtime integration, new model or machine execution is included
+in this documentation work. Verification is source/document inspection and
+focused local-link checking; no software regressions are needed for these edits.
+
+## 2026-09-12 — Fixed150 mm rods, maximize unchanged wavy-part scale
+
+The user replaced the rod-minimization objective with fixed150 mm rods and maximum
+part size. First showed a normalized regular six-anchor plate at the previous
+66.7 mm pivot diameter. Then searched other physical dimensions with paired-edge
+ordering enforced and the existing source unchanged except uniform XYZ scale.
+Rail placement is free within the recorded symmetric-family bounds. Neutral
+feasible mutations can replace equal-score candidates so geometry can change before
+scale improves. Two2200-candidate passes found scale2.107361: diameter51.419 mm,
+top Z63.221 mm, tool offset55.550 mm, paired plate center radius32.547 mm and pair
+spacing16 mm. Operating rail travel is152.419 mm; minimum sampled assembly surface
+gap3.365 mm. The standalone and machine profile revision5 show this candidate.
+
+Evidence:64,833 operating samples pass modeled assembly and progressive rod/part
+checks;45,225 cladding endpoints pass rod/plate checks;70 operating poses plus1820
+raw angular probes pass kinematics. Rods remain exactly150 mm, paired-edge ordering
+passes, and non-XYZ source words are identical. Results and search bounds are in
+`Prints/development/splitty-fixed-150-rods/search.json`. This is the best found by a
+bounded search, not proof of a global maximum. Previous unmodeled-body and physical
+validation limitations remain.
+
+
+## 2026-09-12 — Reject interleaved Splitty plate attachments
+
+The user identified that the optimized plate had collapsed toward a triangle. Its perimeter order was C1,B2,A1,C2,B1,A2, violating the intended three paired edges. Added a design-family constraint requiring each pair to stay in its tower sector and a convex A1,A2,B1,B2,C1,C2 perimeter. The optimizer rejects this layout; the viewer flags it instead of falsely saying all pairs occupy their own edges. Three focused analytical/layout tests pass. The recorded full-rod and half-rod comparisons retain this rejected plate arrangement; no replacement physical search has been performed after this correction.
+
+## 2026-09-12 — Splitty assembly clearance and angular-margin correction
+
+- Corrected double application of the angular reserve: operating tilt stays 40 degrees; rod/joint margins apply once at operating poses, and separate probes test raw kinematic boundaries without another margin or collision requirement. Operating motion determines rail travel. Cylinder assessment follows the same distinction; finite probe directions do not prove distance to every parallel singularity.
+- Added finite-segment rod/rail and rod/rod checks, rod/bed and physical rail/rail clearance. Rails retain their full configured extent for checks and the objective. The assumed physical rail bodies are 20 mm diameter with spherical pivots on 25 mm inward mounts; entire rods are checked against their own rails. No near-joint rod segment is exempted. Mount brackets, carriage/joint bodies, frame beams and drives remain unmodeled; nozzle is excluded by user direction.
+- Reused the fixed source with XYZ scaling only. Rod/part travel checks use progressively deposited height; startup is not compared against a finished part. Plate/part checks remain at cladding endpoints. The earlier skinny candidate is superseded because it omitted rod/rail collision checks.
+- Selected the candidate in `Prints/development/splitty-assembly-search/search.json`: scale 5.23524, deposited centerline diameter 127.739 mm, top Z157.057 mm, rods544.502 mm, tool107.118 mm, frame height958.720 mm, average physical envelope diameter285.904 mm. Operating carriage interval589.471–851.661 mm, travel262.189 mm. Updated the standalone and machine profile revision4; no Studio integration or hardware program was built.
+- Evidence: 81,453 operating interpolation samples pass modeled assembly and progressive rod/part checks; minimum assembly surface gap1.777 mm. All45,225 cladding endpoints pass rod/plate checks. Angular checks cover70 operating poses and1,820 raw limit probes. Source non-XYZ words are identical. Nineteen focused kinematics/interpreter tests and two analytical assembly-clearance tests pass. These are sampled geometry results, not full mechanical certification or a global optimum.
+
+
+## 2026-09-12 — Splitty standalone kinematics and profile clearance
+
+- Added shared six-carriage fixed-rod inverse/seeded-forward kinematics, nominal Dobot MG400 kinematics and standalone source playback. DENSO joint modeling remains deferred at the user’s direction. No Studio integration or hardware firmware was built. The preview interpreter samples TCP/Euler motion before IK and does not produce steps or thermal/IO control.
+- Adapted the local wavy DENSO source to a stationary bed with an explicit tilt cap. Added a Dobot vase-wall simulation with synthetic placement. The user selected 40° head tilt, at most two joint layers with one effective pivot center, and a 4° angular reserve.
+- Explored smaller plate/nozzle dimensions and outward rail inclinations. Then fixed the top endpoints and widened the base for inward 5° rails: top radius 180 mm at Z=900 mm, base radius 258.7398 mm, rail coordinate 903.4379 mm. Selected plate pair-center radius 34 mm, pair spacing 86 mm, rods 450 mm, tool offset 64 mm.
+- Built the requested lightweight part-profile check: 41 circular profiles, analytical rod/frustum intersections and plate horizontal cuts. On the 235.2 mm wavy path, full-height cladding collides. The unchanged approach passes at 61.5 mm diameter / 75.6 mm height at all 45,225 source cladding endpoints. Rods alone limit the coarse study to about 64.3 mm diameter. Constant radial 40° approach gives about 63.2 mm; ±15°/30° side approaches slightly reduce capacity.
+- The 235.2 mm path passes the same endpoint/profile check with hypothetical 50 or 60 mm build/clad stages; 70 mm stages fail. Stage ordering and between-stage transitions have not been generated. The standalone now displays the smaller full-height cladding example, with the machine dimensions retained.
+- Evidence: 23 focused kinematics/interpreter tests passed before the profile collision addition; five direct analytical collision cases passed for rod intersections, stage clipping, plate intersections and separated bodies. The full selected operating preview was sampled once; finite 4° reserve directions were checked separately. Collision assumptions are 6 mm rods, 1 mm clearance, 5 mm plate rim, 6 mm plate thickness and all-shell radial inflation. Hotend checking is intentionally excluded. These are mathematical/sampled studies, not physical printing evidence or a continuously certified collision envelope.
+
+## 2026-09-12 — Reconcile shared branches and restore normal PR checks
+
+Integrated the new remote nozzle/material selection work with the pending shared
+geometry, skill and Studio changes, preserving both sides of overlapping imports,
+routes and documentation. The six older local tasks share one recorded branch;
+they do not own six separate feature branches. Contributor guidance permits tasks
+to share a commit while coordinating changes to shared lines and Git operations.
+The normal pull-request `test` job checks fresh-runner setup using read-only source
+permissions; no commit-status write permission is added. Local setup passed in
+0.27 seconds; the combined source passed all 434 regression tests.
+
+
 Completed work, development checkpoints, measurements and scoped observations.
 [Build requests](build_request.md#outstanding-work) contains only outstanding or
 incomplete work; component references and skill manuals describe present behavior.
 [Decisions](DECISIONS.md) preserves contributor direction and approval provenance.
 
-## 2026-09-12 — Prepared repository downloads and consolidated setup
+## 2026-09-12 — Sweep test worthiness and establish useful examples
 
-- Added PowerShell and POSIX launchers, pinned Node 22.23.2 distributions with
-  official SHA-256 values, one dependency/setup operation, version-bound setup
-  reuse and explicit repair. Source downloads need no system Node or Git;
-  prepared archives include matching Node/npm and installed dependencies.
-- Added archive construction and a six-platform first-run workflow for Windows,
-  macOS and glibc Linux on x64/ARM64. The workflow tests OS launchers and extracted
-  downloads, without repeating the local manufacturing regression suite.
-- Windows x64 source-download integration passed with empty caches, no usable
-  system Node/npm/Git and a folder containing spaces: 41.474 seconds setup,
-  0.793 seconds cached setup, 2.242 seconds to create and serve geometry.
-  An initial 67,878,394-byte prepared ZIP passed with npm installation disabled:
-  9.211 seconds extraction, 18.461 seconds setup, 1.065 seconds cached setup and
-  2.457 seconds geometry preview. Those initial runs eagerly imported adapter
-  dependencies. The final smoke check resolves their entry points instead and
-  exercises geometry kernels/Studio; a local installed-dependency check took
-  0.36 seconds after that correction. Cold extracted-folder timings remain
-  distinct from that warm local measurement.
-- Final Windows ZIP integration used 67,881,321 bytes, with 6.397 seconds
-  extraction, 4.176 seconds first setup (2.307 seconds inside the smoke check),
-  0.818 seconds cached setup and 2.221 seconds geometry creation/HTTP preview.
-  It passed with no usable system Node/npm/Git and npm installation disabled.
-  The final source test also passed, taking 228.082 seconds including slow
-  downloads, 0.615 seconds cached setup and 1.394 seconds geometry preview;
-  its smoke check took 2.521 seconds. Network and filesystem variation make
-  these scoped observations, not guaranteed first-run durations.
-- Found and corrected PowerShell 5 module/ZIP extraction compatibility and
-  argument forwarding for Node flags. Focused tests verified cache invalidation,
-  failure recovery, install-lock ownership and preservation of Prints. Codex
-  policy checks allow the specific Studio launchers and reject arbitrary Node
-  subcommands; POSIX shell syntax checks passed.
-- The bundled Node 22 full regression run reached 424/425 passing tests and
-  failed a voxel fixture cleanup with Windows EBUSY, after its geometry assertions.
-  Added bounded filesystem retries to those temporary voxel cleanup hooks.
-  An earlier parallel run hit an unrelated Windows rename lock in source-player;
-  all five source-player tests passed on the focused rerun.
-- GitHub publication and the other platform runs require restored Git
-  authentication. The available connector lacks repository admin/workflow-write
-  access; the user was asked to remove main's required test status and restore
-  terminal sign-in. No desktop client permission UI or physical print outcome
-  is inferred from the OS/CLI/HTTP checks.
+- The user requested evaluating the existing suite as an example for future
+  builders. Surveyed the 74 test files present at the start, including two files
+  from concurrent kinematics work that were left unchanged. Retained analytical
+  geometry, upstream references, malformed-program cases, changed-input cache
+  behavior, and distinct transport/output boundaries.
+- Removed 15 tests or repeated matrix cases: tour wording and repeated setup,
+  a retired command, copied camera and former offset implementations, function
+  alias identity, duplicated bundle and viewer lifecycles, a generic boolean case
+  in the infill suite, a recursive live-document crawl, and three repeated MCP
+  vase lifecycles. Removed incidental wording, markup and cosmetic assertions.
+  Input preservation remains in the independent offset-reference test; bounded
+  synthetic fixtures cover the manual reader's relative links and private paths.
+- Moved four real size-boundary regressions to `core/tests/stress/`, selected by
+  `npm run test:stress`: 200,000 moves, Griffin/H2D bodies above 25 MB and a ZIP
+  member above 64 MB. The stress command runs them sequentially to limit concurrent
+  large allocations. Ordinary chunk-boundary and invalid-command tests remain
+  in `npm test`. This preserves defect coverage without paying its cost routinely.
+- Strengthened two approval-invalidation tests to start from an approved plan.
+  Fixed source-player teardown to shut down Studio before deleting its temporary
+  bundle. Added [test-worthiness guidance and examples](core/tests/README.md#worthwhile-tests)
+  and updated the test registry; no additional mandatory gate was introduced.
+- The initial full-suite run reported 446 passes and two failures. A source-player
+  cleanup failed with Windows `EBUSY` and left a worker stalled; the audit's worker
+  was stopped after identifying it. The document crawl also found the concurrent
+  split-delta link in `core/export/README.md` outside the MCP reader's allowed
+  documentation roots. Removing the crawl does not make that link available through
+  MCP; the unrelated manual-access issue was left unchanged. The stalled run is
+  not a useful performance baseline.
+- Verification after edits: 105 focused ordinary tests passed, including all 12
+  MCP tests, and all four stress cases passed across the stress run and a focused
+  rerun. The first stress run exposed an erroneous corruption offset introduced
+  while moving the ZIP case; restored corruption of the compressed payload and
+  reran that case successfully. No full-suite speedup is claimed. Changes remain
+  local and uncommitted.
+
+## 2026-09-12 — Remove blanket agent verification gates
+
+- The user authorized removing purposeless and repeated agent checks, keeping
+  first-use environment checks and locally resolving checks required for publication.
+- Live GitHub inspection found main protected by the GitHub Actions `test` status;
+  the connected account had write access but no admin access. Remote main still
+  ran the full suite on pushes and pull requests, despite local guidance claiming
+  the status was not required. Sources: [main branch metadata](https://api.github.com/repos/Struder-AI/SAAM/branches/main)
+  and [remote workflow at the inspected main commit](https://github.com/Struder-AI/SAAM/blob/6e11afd8718182ebecadc4373e226ae4378c9d50/.github/workflows/test.yml).
+- Changed the local workflow to preserve `test` and run the existing runtime
+  setup smoke check on fresh pull-request runners, with optional manual dispatch
+  and no duplicate push run. This edits the check's implementation without
+  altering branch protection. These changes have not been published.
+- Removed full-suite requirements for commits, checkpoints and skill edits,
+  the task-completion documentation gate, and the document-check prefix from
+  `npm test`. Setup results carry across agent tasks. Focused verification follows
+  relevant changes and concrete failure cases; the full suite and document checker
+  remain available when useful. Removed the redundant print-check command from
+  the setup example.
+- Verification: the replacement CI command, `npm run setup:check`, passed locally
+  on Windows in 0.40 seconds for dependency entry points, geometry kernels and an
+  unapproved Studio preview. Reviewed the workflow and affected guidance. No full
+  regression suite, documentation checker or physical test was run for these edits;
+  the Linux runner result remains for publication.
+
+## 2026-09-12 — Consolidate shared work toward main
+
+- The user requested frequent returns to main, at most one active pending branch
+  per account, and discussion when an unmentioned merge has no clear answer;
+  purpose-saved side branches are exempt. Added one line at the contribution owner.
+- Removed the checkout's uncommitted Codex approval override as requested.
+  Shared MCP tests distinguish installed local extensions from cataloged manuals
+  and exercise viewer reconnection plus adapter-owned shutdown under the longer
+  Studio grace period. All 427 tests passed before the shared-work checkpoint.
+- Integrated the existing local main setup work while preserving its local-test
+  policy. Saved experiments and generated local artifacts stay outside publication.
+- Combined remote main's cached first-run command, Node 26 test compatibility
+  and geometry material-intent display with the shared text and field workflows.
+  Kept the faster dependency-entry checks and installed Manifold smoke check;
+  the MCP guidance reader exposes both the devlog and first-use guide.
+
+## 2026-09-12 — Preserve Studio sessions across task switches
+
+- Extended the default last-viewer disconnect grace from three seconds to
+  30 minutes. First viewing still has no deadline, connected viewers have no
+  idle deadline, and reconnecting resets the disconnect grace. Explicit owner
+  shutdown remains immediate and drains accepted work.
+- Shared one default between the server and lifetime helper, updated the CLI
+  startup message and Studio/MCP guidance. This addresses users returning to
+  previews several minutes after switching tasks or replacing browser tabs.
+- All nine focused `studio-lifetime.test.mjs` tests pass, including mocked-time
+  coverage of the full grace period, reconnection and connected-viewer lifetime.
+  No npm test was run under the user's session restriction.
+
+## 2026-09-12 — Expanding vase contour reference
+
+- Source: the user requested fixing the subdivision error encountered while
+  reopening Nudge Cup's toolpath. Reproduced it on the saved cup component at
+  Z 3.119693 mm: the fixed first-section seam lies inside the expanding inset,
+  and its nearest projection switches between the two edges beside a corner.
+  The approximately 0.020 mm phase jump cannot converge through subdivision.
+  This differs from the earlier patterned-wall triangle-seam cleanup below.
+- The vase mapper projects a fixed reference outside the geometry's maximum X
+  onto later sections. It preserves the first maximum-X seam and requested
+  settings while preventing that interior-reference switch. Pattern offsets
+  translate the same reference. Existing topology, boundary, angle and point
+  budget checks remain in place; no tolerance was relaxed.
+- Added a 120-sided expanding-frustum regression at the origin and translated
+  to the saved print placement. It checks complete turns, monotone progression,
+  maximum segment length, level ending and endpoint/midpoint distance from an
+  independently constructed polygonal boundary. The complete saved spiral also
+  generated 84 turns through Z 17.8 mm with 16010 points.
+- Verification: all 31 selected vase, motif, finished-cladding and regional
+  workflow tests passed, along with documentation and diff checks. The public
+  development workflow generated the full cup in
+  `Prints/development/nudge-cup-contour-fix`: 104593 interpreted moves, 83.1
+  estimated minutes, and passing export checks. Reopened the checked source in
+  Studio's toolpath viewer. Original print approvals remain unchanged. These
+  are software results, not physical print evidence.
 
 ## 2026-09-12 — Lightweight first-use setup
 
@@ -284,7 +675,7 @@ were retained. This restart did not authorize adoption of the legacy runtime.
 All 114 archived files were checked against their original SHA-256 hashes.
 Initial checks covered document links, decision metadata and private-file
 exclusions; they did not validate manufacturing behavior. Current checks are
-described in the [check policy](CONTRIBUTING.md#checks).
+described in the [check policy](DEVELOP.md#avoid-check-spirals).
 
 ## BR-003 — Resolve native path versus machine file
 
@@ -1091,3 +1482,33 @@ empirical default, not a universal frame-rate guarantee. Raw local results are
 in `.local/studio-fast/cap-results.json`; the original Studio baseline is in
 `.local/studio-bench/findings.md`. Keep browser drawing measurements distinct
 from server generation, cold verification, JSON transfer and UI-ready time.
+
+## 2026-09-12 — Skill audit for assumptions hidden in first demos
+
+- Source: user requested an audit of every skill for knowledge available only to
+  its first maker agent, authorizing workflow or concise manual fixes. Follow-up
+  excludes vase-wall edits while another task works there.
+- Audited all 13 cataloged manuals against their entry points, defaults, demo
+  preparation and relevant input requirements. Added guidance for complete shell
+  recipe creation, inherited draped-skin selection, assembly roof selection,
+  wedge nozzle/material restrictions and the text example's packaged font.
+- Documented existing reusable DENSO and Dobot synthetic setup helpers for new
+  provisional shapes, plus spline-tube control heights, angular/bore constraints,
+  actual UV domains and native mesh-strip indexing. No new machine requirement,
+  production validator or manufacturing approval stage was introduced.
+- Shell and wedge CLI status now expose the existing output-availability and
+  missing-configuration result before generation. Added CLI integration coverage
+  for unconfigured DENSO/Dobot on both adapters. Contribution guidance now makes
+  a demo's reusable preparation discoverable from its skill manual.
+- Verification: five MCP/CLI access tests pass, including four fresh robot
+  adapter combinations. Fresh temporary box bundles generate checked development
+  output on S5, DENSO and Dobot without approvals. A new 12-column/6-control spline
+  tube and its non-demo UV domain pass construction and surface selection.
+  Repository documentation and whitespace checks pass; no physical test occurred.
+- Vase-wall audit only: its motif demos initialize a non-null pattern directly,
+  whereas adding a pattern to a fresh bundle through `adjustBundle` fails with
+  `Cannot convert undefined or null to object` in the shared merge of a null
+  setting. Its simple recipe also leaves disabling the template's draped skin
+  implicit. These findings are reported to the user; this task makes no vase-wall
+  edits. Supports, both rimming skills, mesh-tools, voxel-tools and Gridfinity
+  have no additional hidden prerequisite identified in this audit.

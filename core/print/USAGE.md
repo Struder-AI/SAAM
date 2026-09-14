@@ -7,7 +7,7 @@ The [lifecycle reference](README.md) explains implementation contracts.
 
 ## Choose the tool entry point
 
-Run CLI examples from the repository root after [checkout setup](../../CONTRIBUTING.md#setup-and-checks).
+Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
 Use a named directory under ignored `Prints/`; quote paths containing spaces.
 The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns. The
 [bounded wedge demo](../../skills/wedge-demo/SKILL.md#setup-and-tools) has its own
@@ -32,6 +32,13 @@ Supply a complete recipe suited to the requested part, including geometry and
 selected skills. Omitting `plan.json` uses the shell adapter's proposed recipe
 and remembered machine setup. That default is a starting point to evaluate
 against the request. An explicit recipe supplies its own setup.
+
+For a complete recipe in a local authoring script, use
+`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs), then change its
+geometry and skill settings before passing it to `initBundle` or saving JSON.
+The shell template enables full-fill **and draped-skin**; explicitly disable
+unwanted patterns when choosing another recipe (STL, Gridfinity and voxel
+creation already disable draped-skin).
 
 Through MCP, get a complete editable recipe with `get_plan_template`, selecting
 `kind: "shell"` and the machine, then pass the proposed recipe to `create_print`.
@@ -155,8 +162,15 @@ For an explicitly developmental preview, `demo Prints/development/my-part`
 creates or reopens a shell bundle and generates without human approvals. An
 existing recipe can be initialized first. Development output cannot authorize
 delivery, and MCP does not expose this mode. Follow the
-[development testing context](../../CONTRIBUTING.md#testing-through-the-use-context)
+[development testing context](../../DEVELOP.md#testing-through-the-use-context)
 when exercising maker tools during development.
+
+Development generation still needs explicit robot command settings; for a new
+provisional part use the reusable setup instructions for
+[DENSO](../../skills/pipe-cladding/SKILL.md#public-workflow-and-development-demo)
+or [Dobot](../export/dobot.md#dobot-output-contract), independently of its shape.
+CLI `check` reports `outputAvailability` and missing `machineConfiguration`
+fields from the saved state, without attempting generation.
 
 ## Remember machine setup
 

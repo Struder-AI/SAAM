@@ -1,5 +1,5 @@
 // Build on the target platform; optional native dependencies are platform-specific.
-import {readFile,writeFile,mkdir,mkdtemp,copyFile,cp,lstat,rm} from 'node:fs/promises';
+import {readFile,writeFile,mkdir,mkdtemp,copyFile,lstat,rm} from 'node:fs/promises';
 import {createReadStream} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
@@ -34,10 +34,7 @@ export async function packageBundle({development=false}={}){
   const workspace=await mkdtemp(join(out,'.package-')),folder=join(workspace,'SAAM');
   try{
     await copySource(folder);
-    // Reuse only the pinned official runtime; npm ci still runs on this platform.
-    const runtime=join(root,'runtime',spec.directory);
-    try{await lstat(runtime);await cp(runtime,join(folder,'runtime',spec.directory),{recursive:true,verbatimSymlinks:true});}
-    catch(error){if(error.code!=='ENOENT')throw error;}
+    // Fresh verified download: never package an arbitrary local runtime tree.
     await launcher(folder,['setup']);
     await rm(join(folder,'.saam'),{recursive:true,force:true});
     const commit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();

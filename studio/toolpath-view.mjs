@@ -88,6 +88,30 @@ export function remainingLayerMs(view,moveIndex,seconds,speed){
   const next=view.groups[low+1];
   return next?Math.max(0,(view.moves[next.first].startSeconds-seconds)/speed*1000):Infinity;
 }
+// A "layer" for inspection is one group: a run of same-phase, same-layer
+// moves, the same unit the axial-color inspect buttons jump between.
+export function layerIndexAt(view,seconds){
+  if(!view.groups.length)return 0;
+  const startOf=index=>view.moves[view.groups[index].first].startSeconds;
+  let low=0,high=view.groups.length;
+  while(low<high){const mid=(low+high)>>1;if(startOf(mid)<=seconds)low=mid+1;else high=mid;}
+  return Math.max(0,Math.min(low-1,view.groups.length-1));
+}
+// The layer buttons show what the selected layer looks like FINISHED, not its
+// start: a viewer stepping through layers wants to see what printed on each
+// one, which needs every one of its moves drawn. Land just short of the next
+// layer's first move so that move (already at the boundary) never appears
+// started, even when it follows with no gap.
+export function layerEndSeconds(view,index){
+  if(!view.groups.length)return 0;
+  const clamped=Math.max(0,Math.min(index,view.groups.length-1));
+  const group=view.groups[clamped],move=view.moves[group.last],end=move.startSeconds+move.durationSeconds;
+  const next=view.groups[clamped+1];
+  return next?Math.min(end,view.moves[next.first].startSeconds-1e-6):end;
+}
+export function stepLayerIndex(view,seconds,direction){
+  return Math.max(0,Math.min(layerIndexAt(view,seconds)+direction,view.groups.length-1));
+}
 function entries(view,group,reduced) {
   if(!reduced)return group.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
     const i=group.first+j,m=view.moves[i];return {first:i,last:i,from:m.from,to:m.to,move:m};

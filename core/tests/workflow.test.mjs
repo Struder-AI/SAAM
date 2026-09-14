@@ -133,6 +133,9 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   const fingerprint = await bundleFingerprint(dir);
   await approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision });
   state = await loadBundle(dir);
+  await approve(dir, { stage: 'plan', actor: ACTOR, revision: state.revision });
+  state = await loadBundle(dir);
+  assert.equal(state.planApproved, true, 'the edit must invalidate an existing approval');
   const stale = state.revision;
 
   // A settings change keeps geometry approval and drops the plan approval.

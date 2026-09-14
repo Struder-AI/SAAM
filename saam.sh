@@ -22,8 +22,12 @@ saam_node="$saam_runtime/bin/node"
 if [ ! -x "$saam_node" ]; then
     [ "$action" = setup ] || { echo 'Run sh saam.sh setup once before using SAAM.' >&2; exit 1; }
     mkdir -p "$saam_root/runtime"
+    download_lock="$saam_root/runtime/.download.lock"
+    mkdir "$download_lock" 2>/dev/null || { echo 'Another download owns runtime/.download.lock. Wait for it; remove only that lock after confirming the owning download stopped.' >&2; exit 1; }
+    trap 'rmdir "$download_lock"' EXIT
+    if [ ! -x "$saam_node" ]; then
     download_dir=$(mktemp -d "$saam_root/runtime/.download-XXXXXXXX")
-    trap 'rm -rf -- "$download_dir"' EXIT
+    trap 'rm -rf -- "$download_dir"; rmdir "$download_lock"' EXIT
     echo "Preparing SAAM: downloading Node $version for $saam_platform $saam_arch..."
     curl --fail --location --retry 2 --proto '=https' --tlsv1.2 "https://nodejs.org/dist/v$version/$archive" -o "$download_dir/$archive"
     if command -v sha256sum >/dev/null 2>&1; then actual=$(sha256sum "$download_dir/$archive"); else actual=$(shasum -a 256 "$download_dir/$archive"); fi
@@ -33,6 +37,8 @@ if [ ! -x "$saam_node" ]; then
     tar -xzf "$download_dir/$archive" -C "$download_dir"
     mv "$download_dir/node-v$version-$saam_platform-$saam_arch" "$saam_runtime"
     rm -rf -- "$download_dir"
+    fi
+    rmdir "$download_lock"
     trap - EXIT
 fi
 PATH="$saam_runtime/bin:$PATH"; export PATH

@@ -2,7 +2,7 @@
 // Order introduces familiar printing approaches before specialized ones.
 export const SKILL_IDS = Object.freeze([
   'planar-infill', 'full-fill', 'supports', 'rimming-planar', 'rimming-normal',
-  'draped-skin', 'vase-wall', 'pipe-cladding', 'wedge-demo', 'mesh-tools', 'voxel-tools', 'text', 'gridfinity'
+  'draped-skin', 'vase-wall', 'thick-lip', 'pipe-cladding', 'wedge-demo', 'mesh-tools', 'voxel-tools', 'text', 'gridfinity'
 ]);
 
 export function skillMetadata(id, manual) {

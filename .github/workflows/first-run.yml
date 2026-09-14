@@ -1,10 +1,13 @@
 name: prepared repository downloads
 
+# Distribution builds are explicit. The required PR test remains in test.yml.
 on:
   workflow_dispatch:
-  push:
-    branches: [codex/first-run-bundle]
-    tags: ['v*']
+    inputs:
+      check_source:
+        description: Also check first use from a source-only download
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,13 +30,13 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22.23.2
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Test source download without system Node or Git
+          node-version: 22
+      - name: Check source download when bootstrap changed
+        if: inputs.check_source
         run: node scripts/test-first-run.mjs --source
-      - name: Build matching runtime and dependency archive
+      - name: Build archive with verified runtime and locked dependencies
         run: node scripts/package-bundle.mjs
-      - name: Test extracted archive without installation downloads
+      - name: Check extracted archive without installation downloads
         run: node scripts/test-first-run.mjs --archive dist/SAAM-${{ matrix.platform }}-${{ matrix.arch }}.${{ matrix.extension }}
       - uses: actions/upload-artifact@v4
         with:

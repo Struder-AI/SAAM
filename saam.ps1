@@ -18,9 +18,13 @@ if (!(Test-Path -LiteralPath $saamNode)) {
     if ($action -ne 'setup') { throw 'Run .\saam.ps1 setup once before using SAAM.' }
     $runtimeRoot = Join-Path $saamRoot 'runtime'
     New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
+    $downloadLock = Join-Path $runtimeRoot '.download.lock'
+    try { New-Item -ItemType Directory -Path $downloadLock | Out-Null }
+    catch { throw 'Another download owns runtime/.download.lock. Wait for it; remove only that lock after confirming the owning download stopped.' }
     $downloadDir = Join-Path $runtimeRoot ('.download-' + [guid]::NewGuid())
-    New-Item -ItemType Directory -Path $downloadDir | Out-Null
     try {
+        if (!(Test-Path -LiteralPath $saamNode)) {
+        New-Item -ItemType Directory -Path $downloadDir | Out-Null
         Write-Host "Preparing SAAM: downloading Node $version for Windows $arch..."
         $download = Join-Path $downloadDir $archive
         $oldProgress = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'
@@ -33,11 +37,13 @@ if (!(Test-Path -LiteralPath $saamNode)) {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         [IO.Compression.ZipFile]::ExtractToDirectory($download, $downloadDir)
         Move-Item -LiteralPath (Join-Path $downloadDir "node-v$version-win-$arch") -Destination $saamRuntime
+        }
     } finally {
         $resolvedDownload = [IO.Path]::GetFullPath($downloadDir)
         $resolvedRuntime = [IO.Path]::GetFullPath($runtimeRoot) + [IO.Path]::DirectorySeparatorChar
         if (!$resolvedDownload.StartsWith($resolvedRuntime,[StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid runtime cleanup path.' }
-        Remove-Item -LiteralPath $resolvedDownload -Recurse -Force
+        if (Test-Path -LiteralPath $resolvedDownload) { Remove-Item -LiteralPath $resolvedDownload -Recurse -Force }
+        Remove-Item -LiteralPath $downloadLock
     }
 }
 $oldPath = $env:PATH

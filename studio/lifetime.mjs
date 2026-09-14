@@ -1,7 +1,8 @@
 // One lifetime per Studio server, never shared between agents/adapter processes.
 // Opening the first viewer has no deadline. Closing the last page releases the
-// listener after a short refresh/reconnect grace period.
-export function viewerLifetime(server,{disconnectMs=3_000}={}) {
+// listener after a grace period long enough for switching between tasks.
+export const DEFAULT_DISCONNECT_MS=30*60*1000;
+export function viewerLifetime(server,{disconnectMs=DEFAULT_DISCONNECT_MS}={}) {
   const viewers=new Set(),sockets=new Map();
   let timer,closing=false,finished;
   server.on('connection',socket=>{

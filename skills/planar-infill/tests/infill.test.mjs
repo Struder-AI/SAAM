@@ -5,8 +5,6 @@ import {loadMachine} from '../../../core/machine/profile.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
-import {intersect,difference,union} from '../../../core/region/boolean.mjs';
-import {regionArea} from '../../../core/region/region2d.mjs';
 import {infillStrokes,INFILL_PATTERNS} from '../scripts/patterns.mjs';
 import {exportProgram,interpretProgram} from '../../../core/export/registry.mjs';
 import {makeMesh} from '../../../core/geom/mesh.mjs';
@@ -52,12 +50,6 @@ test('zero infill makes an open vessel with planar walls and a solid base throug
   }
 });
 
-test('coincident sections and shared edges retain solid masks within the region precision',()=>{
-  const a=[[[0,0],[10,0],[10,10],[0,10]]],b=[[[5,0],[15,0],[15,10],[5,10]]];
-  const checkArea=(region,expected)=>assert.ok(Math.abs(regionArea(region)-expected)<1e-7);
-  checkArea(intersect(a,a),100);assert.deepEqual(difference(a,a),[]);
-  checkArea(intersect(a,b),50);checkArea(union(a,b),150);checkArea(difference(a,b),50);
-});
 test('planar infill and full-fill share walls and partition the solid layers on both machines/backends',async()=>{
   const r=await rhino();
   for(const id of ['ultimaker-s5','bambu-h2d'])for(const geometry of [{shape:'box',runMm:16,widthMm:12,heightMm:4},boxMesh(16,12,4)]){

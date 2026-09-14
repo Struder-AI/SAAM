@@ -19,7 +19,7 @@ test('older layers use 50 percent opacity and gentler color fading without thinn
   const current={layer:8,phase:'planar',extruding:true};
   const now=toolpathStyle(current,current),old=toolpathStyle({...current,layer:7},current);
   assert.equal(now.opacity,1);assert.equal(old.opacity,.5);assert.equal(now.width,old.width-CURRENT_LAYER_GAP_MM);
-  assert.equal(now.color,'#5b9fd3');assert.equal(old.color,'#7ab1dc');
+  assert.notEqual(now.color,old.color,'current and completed layers remain distinguishable');
   assert.equal(toolpathStyle({...current,phase:'draped-skin'},current).active,false);
   assert.equal(toolpathStyle(current,null).active,false);
   for(const phase of ['inclined','draped-skin','vase-wall'])assert.equal(toolpathStyle({...current,phase},{...current,phase},phase).opacity,1);

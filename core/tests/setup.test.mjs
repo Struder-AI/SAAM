@@ -28,6 +28,9 @@ export async function checkSetup(){
   assert.equal((await module.setup()).cached,true);
   assert.equal(await readFile(join(root,'.saam/setup.json'),'utf8'),ready);
   assert.equal(await readFile(join(root,'checks.txt'),'utf8'),'checked\n');
+  await mkdir(join(root,'.saam/setup.lock'));
+  await assert.rejects(module.setup(),/Another setup owns/,'cached readiness must respect an active install');
+  await rm(join(root,'.saam/setup.lock'),{recursive:true});
   // A new check version must not trust the old successful result.
   await writeFile(check,(await readFile(check,'utf8'))+'\n// Updated smoke check version.\n');
   await writeFile(join(root,'fail'),'synthetic failure');

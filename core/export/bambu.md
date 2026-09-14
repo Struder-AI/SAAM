@@ -11,7 +11,7 @@ reference geometry, thumbnails and personal settings stay outside generated
 output and Git. The [reference checks](../../DEVLOG.md#2026-09-09-to-2026-09-10--h2d-reference-and-startup-checks)
 do not establish successful physical printing or universal firmware compatibility.
 
-The contract supports one selected standard hardened 0.4 mm nozzle,
+The initial contract supports one selected standard hardened 0.4 mm nozzle,
 1.75 mm PLA, Textured PEI and **no chamber heating** (`buildVolumeC: 0`). Left
 is the default. Left/right package maps are 1/2, nozzle IDs 0/1, and physical
 heater selectors 1/0. Logical material `T0 H-1` remains the same under Bambu's

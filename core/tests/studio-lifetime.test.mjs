@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {once} from 'node:events';
+import {once,EventEmitter} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
 import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
@@ -44,6 +44,17 @@ test('ordinary requests and rejected viewer connections leave Studio ready for a
   await connect();assert.equal(server.listening,true);
 });
 
+test('default disconnect grace survives task switching for 30 minutes and resets on reconnect',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  const server=http.createServer(),lifetime=viewerLifetime(server);t.after(()=>lifetime.shutdown());
+  server.listen(0,'127.0.0.1');await once(server,'listening');
+  const viewer=()=>{const res=new EventEmitter();res.writeHead=()=>{};res.write=()=>{};res.end=()=>res.emit('close');lifetime.attach(res);return res;};
+  const first=viewer();first.end();t.mock.timers.tick(29*60*1000);assert.equal(server.listening,true);
+  const second=viewer();t.mock.timers.tick(60*60*1000);assert.equal(server.listening,true,'connected viewers have no idle deadline');
+  second.end();t.mock.timers.tick(30*60*1000-1);assert.equal(server.listening,true);
+  const closed=once(server,'close');t.mock.timers.tick(1);await closed;assert.equal(server.listening,false);
+});
+
 test('last viewer closes only its instance; live background viewers need no polling',async t=>{
   const a=await fixture(t),b=await fixture(t);
   const closeA1=await a.connect(),closeA2=await a.connect(),closeB=await b.connect();
@@ -53,14 +64,6 @@ test('last viewer closes only its instance; live background viewers need no poll
   const closed=once(a.server,'close');closeA2();await closed;
   assert.ok(b.server.listening,'another agent instance stays alive');
   closeB();
-});
-
-test('refresh reconnects during grace without replacing the server',async t=>{
-  const {server,connect}=await fixture(t,{disconnectMs:150});
-  const closeFirst=await connect();closeFirst();
-  await delay(20);const closeNext=await connect();
-  await delay(180);assert.ok(server.listening);
-  const closed=once(server,'close');closeNext();await closed;
 });
 
 test('owner shutdown closes live viewer connections and is idempotent',async t=>{

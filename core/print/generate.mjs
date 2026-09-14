@@ -113,6 +113,7 @@ export function generatePath(plan, machine, rhino) {
     const regional=generateRegionResults({plan,machine,placed,componentShells});
     results.push(...regional.results);Object.assign(summary,regional.summary);
   } else {
+  requireThat(!plan.skills['thick-lip'].enabled,'thick-lip only applies through composition.regions, assigned directly above a level-ended vase-wall region.');
   const skinShell=componentShells&&skin.part ? componentShells.get(skin.part):placed;
   if (skin.enabled) {
     const declaredLimitDeg = machineMaxAngle(machine);

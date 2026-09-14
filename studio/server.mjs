@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
 import {attachCheckedProgramWorker} from '../core/print/program-handoff.mjs';
-import { viewerLifetime } from './lifetime.mjs';
+import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
 import {loadLocalExtension} from '../core/local-extension.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -13,6 +13,9 @@ export const root=resolve(here,'..');
 const installedExtension=await loadLocalExtension(root);
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
+  'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs','core/export/split-delta-player.mjs',
+  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs','core/machine/split-delta.mjs',
+  'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
   'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs']);
@@ -21,6 +24,7 @@ const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mj
 // and that selects its geometry/recipe adapter. Both adapters use the single
 // workflow implementation in core/print/workflow.mjs.
 const bundles={
+  'saam-machine-study/1':()=>import('./machine-study.mjs'),
   'saam-wedge-plan/1':()=>import('../skills/wedge-demo/scripts/bundle.mjs'),
   'saam-shell-plan/1':()=>import('../core/print/bundle.mjs')
 };
@@ -58,7 +62,7 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
 }
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
-export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,localExtension=installedExtension}={}) {
+export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,localExtension=installedExtension}={}) {
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
   const printId=()=>createHash('sha256').update(dir).digest('hex');
@@ -129,8 +133,11 @@ export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(r
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
+      }
+      if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
+        res.writeHead(200,{'Content-Type':'image/png'});res.end(await readFile(resolve(here,'struder-logo.png')));return;
       }
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
@@ -235,7 +242,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   const bundle=await bundleFor(dir);
   await bundle.loadBundle(dir,{program:false});
   const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);
-  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes 3 seconds after the last viewer disconnects.`));
+  server.listen(port,'127.0.0.1',()=>console.log(`SAAM Studio: http://127.0.0.1:${server.address().port}\nPrint: ${dir}\nNo deadline to open. Closes ${DEFAULT_DISCONNECT_MS/60000} minutes after the last viewer disconnects.`));
   for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>void server.shutdown());
   server.on('error',e=>{console.error(e.message);process.exitCode=1;});
 }

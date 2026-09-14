@@ -29,6 +29,11 @@ font path on the SAAM computer. The tool saves the exact font bytes and hash,
 so subsequent edits and reopening do not depend on installed system fonts.
 For a font collection, also supply its `postscriptName`.
 
+For a portable starting font, resolve [Abel-Regular.ttf](tests/fixtures/Abel-Regular.ttf)
+to an absolute path on the SAAM computer; replace the example's placeholder path.
+For ordinary planar lettering, disable draped-skin on a fresh shell template,
+as the text demo does; small glyph roofs are not one continuous drape surface.
+
 Example request for a 3 mm high part whose top is horizontal:
 
 ```json

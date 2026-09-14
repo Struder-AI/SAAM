@@ -6,7 +6,6 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { intersect, union, difference } from '../region/intersection.mjs';
-import * as compatibility from '../region/boolean.mjs';
 import { intersectionFixtures } from '../../scripts/bench/intersection-fixtures.mjs';
 import { createBundleWorkflow } from '../print/workflow.mjs';
 import { offsetRegion } from '../region/offset.mjs';
@@ -25,10 +24,6 @@ const area = region => region.reduce((sum, loop) => {
 },0);
 const near = (a,b,tolerance=1e-7) => assert.ok(Math.abs(a-b)<=tolerance, `${a} != ${b} (tolerance ${tolerance})`);
 const operations = { intersect, union, difference };
-
-test('existing skill imports are aliases to the shared Clipper2 functions',()=>{
-  for(const [name,operation] of Object.entries(operations))assert.strictEqual(compatibility[name],operation);
-});
 
 test('WASM results match 138 saved unmodified upstream C# results, with exact coordinates and topology',()=>{
   const reference=JSON.parse(fs.readFileSync(new URL('./fixtures/intersection-reference.json',import.meta.url)));

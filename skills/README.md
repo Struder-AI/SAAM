@@ -18,6 +18,7 @@ settings and supported scope.
 | [rimming-normal](rimming-normal/SKILL.md) | Experiment with edge-support walls whose paired beads follow 3D surface-normal offsets, allowing nonplanar paths on a curved reference surface. Compare with rimming-planar to explore how offset direction affects bead spacing and edge contact; physical behavior remains unvalidated. |
 | [draped-skin](draped-skin/SKILL.md) | Follow a sloping or curved roof with top-skin strokes instead of approximating it with flat-layer steps. Works on continuous accessible mesh or supported spline roofs within the machine's nonplanar angle limit; excluded steep areas are reported. |
 | [vase-wall](vase-wall/SKILL.md) | Print a hollow vase from an ordinary solid model, using a continuous spiral or repeating motifs warped around its contours. Overlapping tilted loops can preserve the guide's exterior or create a scalloped finish. Continuous vase mode has no travel; explicit segmented mode permits gaps. |
+| [thick-lip](thick-lip/SKILL.md) | Thicken a vase-wall's top edge into a rigid, optionally rolled rim instead of leaving a single spiral or level-ended bead. Use when the operator asks for a rim, brim, bead, rolled edge, round-over or a more durable/rigid lip on a vase-mode print. |
 | [pipe-cladding](pipe-cladding/SKILL.md) | Wrap a substrate with alternating lengthwise and helical cladding, or opposite-handed helices for a crossed exterior pattern. Supports circular pipes and explicitly mapped periodic spline or mesh surfaces; this development capability requires a configured DENSO RC8 robot and external rotary. |
 | [wedge-demo](wedge-demo/SKILL.md) | Demonstrate horizontal body layers and inclined roof layers on a bounded eight-point wedge. Uses its own generator for a rectangular base, vertical sides and one planar sloping roof, providing a small example for exploring inclined deposition. |
 
@@ -55,9 +56,9 @@ For machine setup and export limitations, follow the
 
 Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
 discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).
-Developers start at [DEVELOP.md](../DEVELOP.md), whose skill-author pathway
-routes to the shared geometry, numerical, composition, travel and machine
-requirements.
+Developers start at [DEVELOP.md](../DEVELOP.md) for shared geometry, numerical,
+composition, travel and machine requirements. [Skill development](DEVELOP.md)
+owns manual authorship and discovery metadata.
 
 Package implementation notes cover [planar infill](planar-infill/DEVELOP.md),
 [assigned supports](supports/DEVELOP.md) and the shared

@@ -5,21 +5,32 @@ prints. Rendering and playback implementation live in [RENDERING](RENDERING.md).
 The [shared lifecycle](../core/print/README.md) owns bundle validity and approval state;
 [MAKERS](../MAKERS.md) owns the interaction with the person making a part.
 
+[Machine presentation integration](KINEMATICS.md) owns the shared provider
+contract. Toolpath preview shows available rails, links, carriages, bed and tool
+as a quiet machine ghost. **Machine view** fits the assembly and raises its
+visibility; switching back restores the part camera. Orbit, pan and zoom work in
+both modes. **Follow build plate** independently chooses the reference frame
+and is enabled for new views. The **Machine model** disclosure gives the model's
+basis and limits; missing installation data does not disable source playback.
+Playback and exported movies use the same source-time poses and rendering.
+
+In Machine view, **Tool position** sliders pause playback and pose the simulated
+machine using its supported position/orientation axes. **Return to playback**,
+Play or the timeline restores the source pose. The controls do not change the
+print or send hardware commands. Rails display fixed working carriage travel
+from the machine definition. Sliders prioritize the dragged coordinate, adjust
+the others to stay reachable, and stop at modeled boundaries. The assembly stays
+visible while solving; slider readouts show the accepted pose.
+
 ## Studio agent permissions
 
-With the private runtime, run `.\saam.ps1 studio Prints/my-part` in Windows
-PowerShell or `sh saam.sh studio Prints/my-part` on macOS/Linux. Complete the
-[single setup operation](../CONTRIBUTING.md#setup-and-checks) first. These literal
-forms have scoped rules alongside the system-Node command below. Only `studio`
-is allowed: it accepts at most one print directory and performs no installation.
-The launcher retains its child until Studio exits through its viewer lifetime.
-Setup, npm and arbitrary Node subcommands have no blanket allowance. Keep the
-same trust/browser flows and instance ownership described below for either form.
-
-If downloaded-script policy blocks the PowerShell shorthand, use
+With [private-runtime setup](../SETUP.md#private-runtime), use
+`.\saam.ps1 studio Prints/my-part` on Windows or
+`sh saam.sh studio Prints/my-part` on macOS/Linux. The shared rules also cover
+these exact launchers and the process-scoped Windows form
 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\saam.ps1 studio Prints/my-part`.
-Its rule includes that exact script and subcommand; there is no general
-PowerShell allowance or persistent execution-policy change.
+They start the same server and accept only one optional print directory; setup,
+npm and arbitrary Node subcommands retain normal client approval behavior.
 
 The checkout includes [Codex rules](../.codex/rules/studio.rules) and
 [Claude Code settings](../.claude/settings.json) for the same direct launcher:
@@ -33,7 +44,8 @@ Run from the repository root, quote a print path containing spaces, and keep
 demo bundle. Use the client's managed terminal/background session so it can
 retain the process handle. The human-facing `npm run studio` alias still works,
 but the shared permission targets the direct command. Shell wrappers, different
-script spellings, inline Node code and custom development launchers are outside
+script spellings, inline Node code and custom development launchers beyond the
+private-runtime forms above are outside
 this rule. Do not replace it with a blanket Node, PowerShell, process-kill or
 all-command allowance.
 
@@ -70,7 +82,9 @@ First-use setup is part of the agent's work; the user need not ask for it:
 During work, inspect geometry, source and playback and use camera/view controls
 without another conversational permission question. Keep each instance's print,
 URL and terminal handle together. To finish or restart it, close that instance's
-viewer tabs; after three seconds without a viewer its server exits. For a server
+viewer tabs; after 30 minutes without a viewer its server exits. To stop it
+immediately, stop only its recorded terminal task or send Ctrl+C through that
+session. For a server
 with no viewer connection yet, or a stuck server, stop only its recorded terminal task
 or send Ctrl+C through that session. A client's stop-tool permission can still
 apply. Do not scan for and kill all Node processes. Leave a viewer open while
@@ -127,8 +141,10 @@ Do not rewrite approval hashes to make an old approval match new code.
 Studio tracks open pages through authenticated persistent viewer connections,
 independent of revision polling and background-tab timer throttling. There is no
 deadline to open the first viewer, for either CLI or MCP launches. Once opened,
-Studio closes three seconds after its last viewer disconnects, allowing ordinary
-refreshes to reconnect. An accepted bundle write finishes before shutdown
+Studio closes 30 minutes after its last viewer disconnects, allowing task switches,
+browser suspension and refreshes to reconnect. Each reconnection cancels the
+pending shutdown; the next final disconnect starts a fresh 30-minute grace period.
+Connected viewers have no idle deadline. An accepted bundle write finishes before shutdown
 completes. Saved bundles are retained and can be opened in a fresh instance later.
 The old `--close-when-idle` flag is accepted but no longer needed. The CLI process
 exits when its work drains. In MCP, only that Studio listener and session are

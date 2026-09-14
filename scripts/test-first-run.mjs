@@ -5,7 +5,6 @@ import {tmpdir} from 'node:os';
 import {join,resolve,delimiter} from 'node:path';
 import {performance} from 'node:perf_hooks';
 import {spawn} from 'node:child_process';
-import {once} from 'node:events';
 import {fileURLToPath} from 'node:url';
 import {copySource} from './package-bundle.mjs';
 import {root,run} from './setup.mjs';
@@ -55,7 +54,7 @@ export async function testFirstRun({archive,source=false}={}){
     const previewStart=performance.now();
     await invoke(['node','skills/wedge-demo/scripts/cli.mjs','init',print]);
     viewer=spawn(command,[...base,'studio',print],{cwd:folder,env,stdio:['pipe','pipe','pipe']});
-    const exit=once(viewer,'exit');let output='';
+    let output='';
     const origin=await new Promise((done,reject)=>{
       const timer=setTimeout(()=>reject(new Error(`Studio did not start: ${output}`)),30000);
       viewer.once('error',error=>{clearTimeout(timer);reject(error);});
@@ -66,18 +65,29 @@ export async function testFirstRun({archive,source=false}={}){
     const response=await fetch(origin+'/api/state',{signal:AbortSignal.timeout(10000)});assert.equal(response.status,200);
     const state=await response.json();assert.ok(state.geometry);assert.equal(state.geometryApproved,false);assert.equal(state.program,undefined);
     timings.previewMs=Math.round(performance.now()-previewStart);
-    // A real viewer connection owns server lifetime, including the shell's child.
+    // Exercise viewer registration without waiting for Studio's 30-minute grace.
     const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
     const connection=await fetch(origin+'/api/viewer?token='+token,{signal:AbortSignal.timeout(10000)});
     assert.equal(connection.status,200);
     await connection.body.cancel();
-    await Promise.race([exit,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Launcher did not stop.')),10000).unref())]);
-    viewer=null;
     const report={platform:process.platform,arch:process.arch,kind:source?'source':'prepared',...timings,smoke:JSON.parse(first),scope:'OS launcher, extracted folder, no usable system Node/npm/Git, empty setup cache, geometry HTTP preview; desktop client permission UI and physical printing are not exercised.'};
     await mkdir(join(root,'dist'),{recursive:true});
     await writeFile(join(root,'dist',`first-run-${report.kind}-${process.platform}-${process.arch}.json`),JSON.stringify(report,null,2)+'\n');
     console.log(JSON.stringify(report,null,2));return report;
-  }finally{viewer?.kill('SIGTERM');await rm(workspace,{recursive:true,force:true,maxRetries:4,retryDelay:250});}
+  }finally{
+    try{
+    if(viewer?.pid&&viewer.exitCode===null&&viewer.signalCode===null){
+      const stopped=new Promise(done=>viewer.once('exit',done));
+      // The Windows launcher owns a Node child; stop only this test's process tree.
+      if(process.platform==='win32'){
+        try{await run('taskkill.exe',['/PID',String(viewer.pid),'/T','/F'],{stdio:'ignore'});}
+        catch(error){if(viewer.exitCode===null&&viewer.signalCode===null)throw error;}
+      }
+      else viewer.kill('SIGTERM');
+      await Promise.race([stopped,new Promise((_,reject)=>setTimeout(()=>reject(new Error('Test Studio process did not stop.')),10000).unref())]);
+    }
+    }finally{await rm(workspace,{recursive:true,force:true,maxRetries:4,retryDelay:250});}
+  }
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   try{
