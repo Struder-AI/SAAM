@@ -28,12 +28,12 @@ import {infillStrokes} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {splineTubeShell} from '../geom/spline-tube.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
 
-export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','voxel'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>['mesh','pipe','text','gridfinity'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
   if(geometry.shape==='pipe')return pipeMesh(geometry);
-  if(['mesh','text','gridfinity','voxel'].includes(geometry.shape))return makeMesh(geometry.vertices,geometry.triangles);
+  if(['mesh','text','gridfinity'].includes(geometry.shape))return makeMesh(geometry.vertices,geometry.triangles);
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {
     const components=geometry.parts.map(part=>translateShell(buildShell(rhino,part.geometry),part.xMm,part.yMm,part.zMm));
     return {kind:'assembly',components,bounds:{min:[0,1,2].map(i=>Math.min(...components.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...components.map(c=>c.bounds.max[i])))}};

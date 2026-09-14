@@ -1,3 +1,4 @@
+import {createTourUI} from './tour-ui.mjs';
 import { advancePlayback, frameAtTime, displayPoint, exportMovie } from './playback.mjs';
 import { createProjection } from './camera.mjs';
 import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
@@ -10,6 +11,7 @@ const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
+let tourUI;
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
@@ -94,7 +96,7 @@ function restoreView(){
     if(saved.exportHash===state.exportHash){
       if(Number.isFinite(saved.seconds))seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))fitBounds=saved.fitBounds;
-      if(['geometry','plan','toolpath'].includes(saved.tab)&&(saved.tab!=='plan'||state.geometryApproved||state.inspection)&&(saved.tab!=='toolpath'||state.program))tab=saved.tab;
+      if(['geometry','plan','toolpath'].includes(saved.tab)&&(saved.tab!=='plan'||state.geometryApproved||state.inspection||state.referencePreview)&&(saved.tab!=='toolpath'||state.program))tab=saved.tab;
       if(machineSession?.scene)useCamera(cameras.restore(saved.machineCameras));
     }
     $('#fit-program').textContent=fitBounds?.allMoves?'Fit part':'Fit all moves';
@@ -189,7 +191,7 @@ const views={
     names:{},
     facts(state,tab) {
       const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'];
-      const shape={voxel:'Volumetric field',assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
+      const shape={assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
@@ -201,10 +203,8 @@ const views={
           rows.push(['Vertical wall outline','X out '+g.xBulgeMm+' mm · Y in '+g.yInsetMm+' mm']);
         }
         const textRows=(geometry,prefix='')=>{if(geometry.shape==='text')for(const feature of geometry.features)rows.push([prefix+feature.id,(feature.mode==='raised'?'Raised':'Recessed')+' “'+feature.text+'” · '+feature.depthMm+' mm']);};
-        const voxelRows=(geometry,prefix='')=>{if(geometry.shape==='voxel')rows.push([prefix+'Surface sampling',geometry.extraction.edgeMm+' mm · finer features may be missed'],[prefix+'Material threshold',String(geometry.field.isoValue)]);};
         textRows(g);
-        voxelRows(g);
-        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');voxelRows(part.geometry,part.id+' · ');}
+        if(g.shape==='assembly')for(const part of g.parts){rows.push([part.id,part.geometry.shape+' at '+[part.xMm,part.yMm,part.zMm].join(', ')+' mm']);textRows(part.geometry,part.id+' · ');}
         if(g.shape==='spline-tube')rows.push(['Circular bore',2*g.innerRadiusMm+' mm'],['Substrate height',g.heightMm+' mm'],['Outer spline',g.controlPoints.length+' × '+g.controlPoints[0].length+' control points'],['Surface meaning','Full-fill boundary; cladding builds outward']);
         return rows;
       }
@@ -279,6 +279,17 @@ async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
   const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;
   if(!previous||previous.revision!==next.revision||previous.exportHash!==next.exportHash)clearManual();
+  if(next.referencePreview&&!previous){
+    // Paint geometry before loading the saved playback data.
+    state={...next};delete state.program;clearProgramView();stop();
+    tab='geometry';selected=null;fitBounds=null;zoom=1;pan=[0,0];yaw=-.78;tilt=.62;seconds=0;
+    if(next.referencePreview.id==='surface-drape'){yaw=-.3;tilt=.42;zoom=1.3;}
+    geometryScene=buildGeometryView(state.geometry,35,state.referencePreview?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
+    try{geometryRenderer??=createGeometryRenderer();}catch(error){geometryError=error.message;}
+    $('#skin-label').textContent=view().skinLabel;document.title='SAAM Studio · '+state.printName;
+    render();activity('Loading saved toolpath…');
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  }
   if(next.program){
     if(previous?.program&&previous.exportHash===next.exportHash&&previous.planHash===next.planHash){next.program=previous.program;await machineSession?.bind(next);}
     else try{
@@ -288,7 +299,7 @@ async function refresh(follow=false,reopen=false) {
   }
   state=next;
   if(!geometryScene||previous?.geometry.geometryVersion!==state.geometry.geometryVersion){
-    geometryScene=buildGeometryView(state.geometry);meshView=geometryScene.topology;
+    geometryScene=buildGeometryView(state.geometry,35,state.referencePreview?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
   }
@@ -298,7 +309,8 @@ async function refresh(follow=false,reopen=false) {
     materialError='';
     try{
       materialRenderer??=createMaterialRenderer();
-      if(materialRenderer)materialScene=await buildMaterialScene(state.program.moves,state.plan,state.geometry,
+      if(materialRenderer&&state.program.previewMaterial){materialScene={...state.program.previewMaterial,moves:state.program.moves,plan:state.plan,geometry:state.geometry};delete state.program.previewMaterial;}
+      else if(materialRenderer)materialScene=await buildMaterialScene(state.program.moves,state.plan,state.geometry,
         {onProgress:progress=>activity('Preparing material view… '+Math.round(progress*100)+'%')});
       else materialError='3D material rendering needs WebGL2. Showing toolpath lines.';
     }catch(error){materialScene=null;materialError='Material view unavailable: '+error.message+' Showing toolpath lines.';}
@@ -308,12 +320,13 @@ async function refresh(follow=false,reopen=false) {
   if(!previous) {
     stop();selected=null;fitBounds=null;zoom=1;pan=[0,0];seconds=duration();
     cameras.reset();$('#follow-plate').checked=true;
-    tab=state.program?'toolpath':state.geometryApproved?'plan':'geometry';
+    if(state.referencePreview?.id==='surface-drape'){yaw=-.3;tilt=.42;zoom=1.3;}
+    tab=state.referencePreview?(tourUI?.initialTab()??'geometry'):state.program?'toolpath':state.geometryApproved?'plan':'geometry';
     $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
     $('#skin-label').textContent=view().skinLabel;
     document.title='SAAM Studio · '+state.printName;
     $('#open-print').title='Open print: '+state.printName;
-    restoreView();
+    if(!state.referencePreview)restoreView();
   }
   else if(follow&&previous.planHash!==state.planHash){tab=state.geometryApproved?'plan':'geometry';message('Updated from chat.');}
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
@@ -330,7 +343,7 @@ async function decodeInWorker(snapshot){
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,sourceTransport:snapshot.sourceTransport,
-    plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
+    referencePreview:snapshot.referencePreview,plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
 }
 function table(entries) {
   const dl=document.createElement('dl');
@@ -379,10 +392,13 @@ function render() {
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
   updateMachineStatus();
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||!state.inspection&&b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
+  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||!state.inspection&&!state.referencePreview&&b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
   // Explicit local scratch adapters can describe historical paths without
   // assigning them a current skill or presenting manufacturing approval controls.
   $('#confirm').hidden=Boolean(state.inspection);
+  if(state.referencePreview){$('#confirm').disabled=busy;$('#confirm').textContent='Use this example';$('#review-note').textContent='Saved example preview. Explore freely; review your own changes before printing.';$('#kind-label').textContent='Example · '+state.machine.name;}
+  if(state.referencePreview?.id==='surface-drape')$('#view-title').textContent=tab==='toolpath'?'Rolling hills · draped layers':'Rolling hills · bivariate roof';
+  tourUI?.render(state);
   if(state.inspection){
     const inspection=state.inspection;
     $('#stage-label').textContent='DEVELOPMENT INSPECTION';
@@ -559,6 +575,7 @@ async function download(){
 }
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
+  if(state.referencePreview){try{await working('Opening your working copy…',async()=>{await api('use-example',{});await tourUI.load();await refresh(false,true);setTab('geometry');message('Your working copy is ready. Ask your agent for changes, then review the result.');});}catch(e){message(e.message,true);}return;}
   try{
     await working(tab==='toolpath'?'Checking and exporting your print…':tab==='plan'?'Calculating toolpath':'Saving geometry confirmation…',async()=>{
     if(tab==='geometry'){if(!state.geometryApproved)await approval('geometry');tab='plan';}
@@ -572,7 +589,7 @@ async function openPrint(path){
   if(busy)return;
   saveView();
   $('#picker-message').textContent='';$('#print-picker').close();
-  try{await working('Opening and checking your saved print…',async()=>{await api('open',{path});await refresh(false,true);message('');});}
+  try{await working('Opening and checking your saved print…',async()=>{await api('open',{path});await tourUI?.load();await refresh(false,true);message('');});}
   catch(error){message(error.message,true);$('#picker-message').textContent=error.message;$('#print-picker').showModal();}
 }
 $('#open-print').onclick=async()=>{
@@ -651,7 +668,8 @@ async function poll(){
   }catch(e){reconnecting=true;$('#confirm').disabled=true;message('Your print is updating. Reconnecting…');}
   finally{polling=false;}
 }
-working('Loading and checking your print…',()=>refresh()).catch(e=>message(e.message,true));
+tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,machineView:()=>{if($('#machine-view').disabled)return false;if(!$('#machine-view').checked)$('#machine-view').click();return true;}});
+working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
 setInterval(poll,1000);
 window.addEventListener('pagehide',()=>machineSession?.dispose());
 window.addEventListener('pageshow',event=>{if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));});

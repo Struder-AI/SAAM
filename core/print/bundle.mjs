@@ -4,7 +4,6 @@ import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './pla
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
 import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
-  '../geom/voxel.mjs','../geom/voxel-record.mjs','../geom/voxel-compile.mjs','./voxel.mjs',
   '../../skills/gridfinity/scripts/record.mjs','../../skills/gridfinity/scripts/gridfinity.mjs','../../skills/gridfinity/scripts/bundle.mjs',
   '../path/deposition.mjs','../geom/contour-path.mjs','../../skills/vase-wall/scripts/paths.mjs',
   '../geom/text-record.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',

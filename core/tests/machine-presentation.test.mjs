@@ -20,7 +20,7 @@ test('source-time Euler interpolation, reverse seek and dwell are deterministic'
   middle.rotation.flat().forEach((v,i)=>near(v,expected.flat()[i]));assert.deepEqual(frameAtTime(p.moves,2.5).point,[5,5,25]);
 });
 test('providers align TCP with source coordinates and emit only finite declared frames',async()=>{
-  for(const id of ['ultimaker-s5','bambu-h2d','split-delta','dobot-mg400','denso-vp6242-rc8']){
+  for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8']){
     const machine=loadMachine(id),program={seconds:2,moves:[{from:[0,0,25],to:[5,2,30],startSeconds:0,durationSeconds:2}]};
     const provider=await createMachinePresentation({program,machine,setup:machine.defaultSetup,sourceIdentity:{printId:'fixture',revision:'1',exportHash:'study'}});
     const pose=await provider.sample({requestId:1,seconds:1});assert.notEqual(pose.status,'unavailable',id);

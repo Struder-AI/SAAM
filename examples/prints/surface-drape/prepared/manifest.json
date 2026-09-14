@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "surface-drape",
+  "files": {
+    "checks.json": "8ccfcd748cf301066e6986defc0e7a28675d080df80f7b24fecc7532acbc36cb",
+    "exports/griffin-gcode/part.gcode": "f06bd65be6cdfe2f984ecbd31af79b7a019af0a0fc52015c8cc32c57984c0520",
+    "geometry/model.3dm": "fa0446732059b4a6391a37fe336a761ef2f6313fba459d0065536b52668343e8",
+    "geometry/model.json": "a5258403ae256b6e84e38a2ff1fd2481655c4d53107c11686afe6a274d5645bb",
+    "machine.json": "3fb2c0a08d20b3207140d9f1638bd09899b61f66f79613338fbdf27ddb44511c",
+    "plan.json": "6764dd2fa01fe6c81a5a9a807cb6f9f6b2ca4efdb435f50b8bed21a7207cf3e6",
+    "review.json": "222cea68bafc20a39d3668033ce0269f9503fc02b7b4b850ef622d12e63b7bd5"
+  },
+  "stateHash": "e441109d7ff27db7fc3b501841883411c460c9f3da678020f1a09d3415385089",
+  "displayHash": "cfd5c843f84c795d18e183d83b235d896f1558a2898c57470f809787f550be85"
+}

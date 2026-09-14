@@ -10,12 +10,9 @@
     "test:stress": "node --test --test-concurrency=1 core/tests/stress/*.test.mjs",
     "demo": "node skills/wedge-demo/scripts/cli.mjs demo",
     "studio": "node studio/server.mjs",
-    "split-delta": "node tools/split-delta/server.mjs",
-    "split-delta:assess": "node tools/split-delta/assess.mjs",
     "check:print": "node skills/wedge-demo/scripts/cli.mjs check",
     "shell": "node core/print/cli.mjs",
-    "mcp": "node adapters/mcp/src/server.mjs",
-    "web-chat": "node adapters/mcp/src/web-chat.mjs"
+    "mcp": "node adapters/mcp/src/server.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -24,7 +21,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
     "clipper2-wasm": "0.4.0",
-    "express": "5.2.1",
     "fontkit": "2.0.4",
     "manifold-3d": "3.5.3",
     "rhino3dm": "8.32.2",

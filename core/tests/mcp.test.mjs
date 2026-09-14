@@ -51,23 +51,6 @@ async function smallPlan(call, kind, machineId = 'ultimaker-s5') {
 
 
 
-test('MCP voxel task discovers its manual and rebuilds field geometry through revision checks',async t=>{
-  const {call}=await fixture(t);
-  assert.equal((await call('list_skills')).find(s=>s.id==='voxel-tools').kind,'task');
-  assert.match((await call('read_skill',{skillId:'voxel-tools'})).manual,/voxel-create/);
-  const request={field:{schema:'saam-voxel-field/1',originMm:[0,0,0],sizeMm:[8,8,2],counts:[2,2,2],degrees:[1,1,1],
-    knots:[[0,0,1,1],[0,0,1,1],[0,0,1,1]],values:Array(8).fill(1),weights:null,isoValue:0.5},extraction:{edgeMm:1}};
-  let state=await call('voxel',{printId:'volume',action:'create',machineId:'ultimaker-s5',request});
-  assert.deepEqual(state.approvals,{geometry:false,plan:false,toolpath:false});
-  await call('voxel',{printId:'volume',action:'update',expectedRevision:'stale',request},/stale/);
-  request.field.values[0]=0;
-  state=await call('voxel',{printId:'volume',action:'update',expectedRevision:state.revision,request});
-  const saved=await call('get_print',{printId:'volume',includeGeometry:true});
-  assert.equal(saved.plan.geometry.shape,'voxel');assert.equal(saved.plan.geometry.field.values[0],0);
-  assert.deepEqual((await call('check_print',{printId:'volume'})).checked,['geometry','plan']);
-  assert.deepEqual(state.approvals,{geometry:false,plan:false,toolpath:false});
-});
-
 test('MCP text task edits actual geometry with a local font and stale-revision protection',async t=>{
   const {call}=await fixture(t),plan=await smallPlan(call,'shell');
   let state=await call('create_print',{printId:'text-sample',kind:'shell',machineId:'ultimaker-s5',plan});

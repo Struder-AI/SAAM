@@ -5,7 +5,7 @@
 model by machine ID. Profiles supply data, never executable module paths.
 The renderer receives simple rigid components and world transforms; it has no
 machine-specific solvers. [Study tools](../../tools/kinematics/README.md) open
-nominal mechanisms or existing Splitty source in the same Studio.
+nominal mechanisms in the same Studio.
 
 ## Source and installation
 
@@ -32,7 +32,7 @@ they omit housings, belts and parked tools. Tool shapes are schematic: a short
 cone marks the tip, and a line represents the configured tool length.
 
 Machine view supplies manual XYZ tool-position sliders, plus three Euler angles
-for Splitty/DENSO or yaw for an aligned Dobot.
+for DENSO or yaw for an aligned Dobot.
 The provider owns their coordinates and ranges, and reuses its source-pose solver.
 Unaligned robots do not offer arm controls. Manual poses remain temporary display
 state; they do not alter source programs or authorize hardware motion.
@@ -43,26 +43,20 @@ the print display bounds. These fixed spans contain the modeled motion, not
 just sampled source poses.
 [jog.mjs](jog.mjs) prioritizes the dragged coordinate
 and adjusts other coordinates through local constraint projection; all returned
-poses pass the owning model checks. Delta manual posing also keeps the TCP above
-the study bed plane. S5/H2D enforce travel bounds, Splitty supplies
-rail/reach/joint-reserve/singularity checks, Dobot
+poses pass the owning model checks. S5/H2D enforce travel bounds, Dobot
 supplies reach and reserved joint limits, and DENSO uses nominal wrist reach plus
 its existing seeded IK branch. A solve failure stops the jog; unknown physical
 socket limits and collisions remain outside these nominal models.
 The [presentation contract](../../studio/KINEMATICS.md#provider-interface) owns
 manual request identity, display retention and return-to-playback behavior.
 
-## Splitty and Dobot
-
-[split-delta.mjs](split-delta.mjs) remains the existing six-carriage, six-DOF
-reference model; the [lab manual](../../tools/split-delta/README.md) owns its
-dimensions, assembly branches and sampled assessment limits. Studio reuses it.
+## Dobot
 
 [dobot-kinematics.mjs](dobot-kinematics.mjs) uses nominal
 [official MG400 URDF](https://github.com/Dobot-Arm/MG400_ROS/blob/main/mg400_description/urdf/mg400_description.urdf)
 centerlines with an idealized vertical wrist. Its fixed elbow branch and
 deterministic wrist winding are model policies. They do not verify the installed
-controller's user/tool frames or coupled interference. The standalone program
+controller's user/tool frames or coupled interference. The program
 sampler now consumes the shared command-time evaluator.
 
 ## DENSO VP-6242
@@ -91,4 +85,4 @@ the [production output contract](../export/denso.md) remains unchanged.
 DENSO drawing reference poses, frame alignment and shared provider behavior.
 [machine-study.test.mjs](../tests/machine-study.test.mjs) exercises
 the real study adapters, source identity, refusal of manufacturing operations,
-all registered providers, and unchanged Splitty source playback.
+all registered providers, and deterministic source playback.

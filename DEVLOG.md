@@ -8,6 +8,83 @@ file modification time. Record actual verification scope, without copying entire
 contracts or turning test counts into claims of physical success. New entries
 need no build-request ID; preserve an existing ID when moving its work record.
 
+## 2026-09-14 — Ready examples and guided Studio tour
+
+Built the tour in SAAM_tkeller. The normal bare Studio launcher opens packaged
+examples, saves copies in ignored Prints/tour, and remembers tour progress. Nine
+steps cover the user’s selected rolling-hills bivariate roof, wavy DENSO cladding
+and Nudge Cup. The welcome and first step explain that the agent operates SAAM
+while the person guides the design through conversation and reviews the result.
+
+Prepared snapshots and display caches use the existing source interpreter,
+material renderer and machine presentation. Opening a demo needs no slicing or
+extraction command. Geometry appears before the saved toolpath finishes loading.
+Reference previews grant no manufacturing approvals; source/delivery and review
+mutations require returning to the ordinary workflow. Changed copies use live
+validation, and revisiting the tour preserves them by creating a fresh example.
+
+Verified all nine steps in the browser, including settings without approval,
+playback, DENSO Machine view, completion and reopening saved examples. Focused
+tour, source-player, Studio opening and instance-lifetime checks passed 22 tests.
+These are software previews, not physical print or calibration evidence.
+Runtime packaging remains on the separate first-run-bundle branch.
+
+## 2026-09-14 — Remove voxel authoring and experimental web connections
+
+Applied the user's revised scope: removed voxel field authoring, refinement,
+extraction, geometry records, CLI/MCP entry points and Studio-specific labels,
+plus their dedicated tests and manuals. Removed the experimental HTTP/OAuth
+bridge, tunnel launcher, Claude web-plugin packager and web-runtime probes,
+including their tests, setup guidance and deferred acceptance request BR-026.
+Historical records remain; the removed field manual's historical link points to
+its unchanged source commit.
+
+Text, specialized rimming, Gridfinity, ordinary stdio MCP and local-extension
+hooks remain. Manifold and fontkit remain required by retained text/Gridfinity
+work. Removed the direct Express dependency and refreshed the lockfile offline;
+Express remains transitively required by the MCP SDK. Removed the solid helper
+whose only production consumer was voxel extraction.
+
+Verification: the complete ordinary suite passed all 425 tests with no failures
+or skips in 91.8 seconds, including retained text, rimming and Gridfinity coverage.
+Repository checks passed for 61 documents, 695 local links and 29 decisions; the
+whitespace check passed. Existing voxel geometry is no longer a supported input;
+use supported mesh geometry for further slicing. These checks establish software
+behavior, not physical print success. No Git staging, commit or push was performed.
+
+## 2026-09-14 — Remove Splitty and add three shared demos
+
+At the user's request, removed the remaining Splitty model/profile, variants,
+research lab, simulation dialect, npm launchers and associated coverage. Removed
+the lab's separate Dobot viewer as explicitly requested: Studio remains the single
+viewer for S5, H2D, Dobot and DENSO. Generic machine-study creation, source playback,
+manual posing and the newer Euler-interpolation test remain. Adapted the fixed-rail
+regression to the S5 instead of deleting that generic check.
+
+Added the surface-drape, wavy-DENSO and Nudge Cup recipes, creation command and
+individual guides, with discovery from README, maker/developer guidance and the
+relevant skill manuals. Generated all three as unapproved development workspaces
+under Prints/tour. The command refuses existing destinations. No private setup,
+saved approvals or experimental-fork changes were copied.
+
+Verification: all 27 selected tests passed across machine presentation, studies,
+Studio kinematics, jogging, Dobot kinematics/playback and demo lifecycle. All three
+demo generations passed. Repository checks passed for 64 documents, 733 local links
+and 29 decision records; the whitespace check passed. An active-source scan found
+no remaining Splitty registration, dialect, launch command or separate machine
+viewer. These are software checks, not physical print results.
+
+Preserved the existing SETUP.md withdrawal and DEVLOG edits, current source-time
+behavior, thick-lip finishing, branding and layer controls. The broader feature
+reduction remains pending user review; other skills and bridge interfaces are
+unchanged. No manufacturing approval, Git staging, commit or push was performed.
+
+## 2026-09-14 — Withdraw Windows setup guidance
+
+Removed the Windows checkout ownership section from SETUP.md at the user's
+request. The local permission repair remains in place; its historical record
+below is retained. No software behavior changed.
+
 ## 2026-09-14 — Remove obsolete root files
 
 Removed `CONTRIBUTORS.txt` and `sotvl_Spiral-Vase_repaired.stl` at the user's
@@ -570,7 +647,7 @@ with a roughly 20.5 mm outer footprint and lobed through-hole. The checked S5
 export contained 12117 moves over 24 planar layers. Visually inspected the
 geometry and toolpath in Studio. No approvals, solver results or physical
 validation were created. The future solver requirements and extraction limits
-are documented in [the field reference](core/geom/VOXEL.md).
+are documented in [the field reference](https://github.com/Struder-AI/SAAM/blob/ddb704a70d022a1810c8db52a2ac3d44a55aacf1/core/geom/VOXEL.md).
 
 ## Dates and historical scope
 

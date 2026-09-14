@@ -5,7 +5,6 @@ import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,
 import {importSTLBundle} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
-import {createVoxelBundle,updateVoxelBundle} from './voxel.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
   const args=process.argv.slice(2),revisionIndex=args.indexOf('--revision');
@@ -22,7 +21,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   }, null, 2);
 
   const run = async () => {
-    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text','voxel-update'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust, text and voxel-update.');
+    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust and text.');
     if (command === 'init') {
       const plan = argument&&argument!=='--machine' ? await readJson(resolve(argument)) : undefined;
       const machineId=argument==='--machine'?extra:extra==='--machine'?last:extra;
@@ -30,11 +29,6 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Print created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; the three approvals are made by a person in Studio.');
-    } else if(command==='voxel-create'||command==='voxel-update') {
-      if(!argument)throw new Error('Use voxel-create|voxel-update <print-directory> <voxel-request.json> [machine-id | --revision <revision>].');
-      const request=await readJson(resolve(argument));
-      const state=command==='voxel-create'?await createVoxelBundle(bundleDirectory(),request,{machineId:extra}):await updateVoxelBundle(bundleDirectory(),request,{expectedRevision});
-      console.log(report(state));
     } else if(command==='text') {
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
       const state=await applyText(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
@@ -79,8 +73,6 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.error('       cli.mjs init|demo|generate|check|deliver|upgrade|remember-setup [print-directory] [plan.json]');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');
-      console.error('       cli.mjs voxel-create <print-directory> <voxel-request.json> [machine-id]');
-      console.error('       cli.mjs voxel-update <print-directory> <voxel-request.json> --revision <revision>');
       console.error('       cli.mjs import-stl <print-directory> <source.stl> <mm|inch> [machine-id]');
       console.error('       cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> <resolution-mm> [options.json]');
       console.error('       cli.mjs check-path <print-directory> (software compatibility only)');

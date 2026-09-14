@@ -30,6 +30,14 @@ the nozzle; pipe cladding uses radial thickness around its commanded bead center
 Lighting distinguishes adjacent current tracks without an artificial gap.
 This is a nominal display cross-section, not measured filament spread.
 
+### Packaged tour previews
+
+The [guided tour](../examples/prints/README.md) uses this same renderer and machine
+presentation. It paints geometry before loading a versioned display cache of
+interpreted moves and material instances. The rolling-hills introduction retains
+the roof proxy grid and uses a closer camera to expose the bivariate curvature.
+This is display data only; editing returns to live generation and review.
+
 ### Visually verified toolpath colors
 
 Sky blue, orange, teal and lavender form the preferred visible color set;

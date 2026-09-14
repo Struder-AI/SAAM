@@ -1,21 +1,4 @@
 // Explicit design-motion source for Studio studies. Not a controller dialect.
-import {interpretSplitDelta} from './split-delta-player.mjs';
-import {geometry} from '../machine/split-delta.mjs';
-
-export function interpretSplitDeltaStudy(source,machine,setup={},options={}){
-  if(machine.id!=='split-delta')throw Error('Splitty source requires its declared machine');
-  const preview=interpretSplitDelta(source,geometry({...machine.kinematicModel,...setup.kinematicModel}));
-  const samples=preview.samples,moves=[],sourceLines=[],area=Math.PI*((setup.filamentMm??1.75)/2)**2;
-  for(let i=1;i<samples.length;i++){
-    const a=samples[i-1],b=samples[i],dt=b.seconds-a.seconds;if(dt<=0)continue;
-    moves.push({tcp:b.tcp,anglesDeg:b.abc,seconds:dt,volumeMm3:Math.max(0,b.e-a.e)*area});
-    sourceLines.push(b.line);
-  }
-  const program=interpretMachineStudy({schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:samples[0].tcp,anglesDeg:samples[0].abc},moves});
-  program.moves.forEach((move,i)=>{move.line=sourceLines[i];move.file='motion.sdgcode';});
-  if(options.moves){for(const move of program.moves)options.moves.push(move);program.moves=options.moves;}
-  program.language='split-delta-preview';return program;
-}
 export function interpretMachineStudy(source,{moves=[]}={}){
   const s=typeof source==='string'?JSON.parse(source):source;
   if(s?.schema!=='saam-machine-study-source/1'||s.orientation!=='euler-xyz'||!Array.isArray(s.moves)||!s.moves.length)throw Error('Invalid machine study source');

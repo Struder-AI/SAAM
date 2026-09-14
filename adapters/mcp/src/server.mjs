@@ -12,7 +12,6 @@ import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs'
 import { importSTLBundle } from '../../../core/print/import-stl.mjs';
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
 import { applyText } from '../../../core/print/text.mjs';
-import {createVoxelBundle,updateVoxelBundle} from '../../../core/print/voxel.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
 import { readGuidance } from './manuals.mjs';
 import { SKILL_IDS, skillMetadata } from '../../../skills/catalog.mjs';
@@ -214,20 +213,6 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       return summary(printId, await (await bundles.shell()).loadBundle(dir));
     }, false);
   localExtension.registerMcp?.({tool,z,printIdSchema,objectSchema,idSchema,read,noApprovalFields});
-  tool('voxel', 'Create or update a volumetric scalar-field part. Read the voxel-tools skill for control lattices, threshold and explicit mesh resolution. Uses shared slicing and Studio review.',
-    {printId:printIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
-    async({printId,action,request,machineId,expectedRevision,part})=>{
-      noApprovalFields(request);
-      if(action==='create'){
-        if(!machineId||expectedRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
-        loadMachine(machineId);
-        return summary(printId,await createVoxelBundle(await directory(printId,{create:true}),request,{machineId,setupFile:await setupFile(machineId)}));
-      }
-      if(machineId!==undefined)throw new Error('Use the existing print machine for updates.');
-      const {dir,state}=await read(printId);
-      if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
-      return summary(printId,await updateVoxelBundle(dir,request,{expectedRevision,part}));
-    },false);
   tool('gridfinity', 'gridfinity',
     {printId:printIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),expectedRevision:z.string().optional(),part:idSchema.optional()},
     async({printId,action,parameters,machineId,expectedRevision,part})=>{

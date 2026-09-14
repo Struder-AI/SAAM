@@ -1,5 +1,6 @@
+import {decodePreview} from './preview-cache.mjs';
 import {decodeSource,fetchSources} from './source-player.mjs';
-import {moveBuffers} from './move-store.mjs';
+import {moveBuffers,moveStore} from './move-store.mjs';
 import {createMachinePresentation} from '../core/machine/presentation.mjs';
 import {validateSnapshot} from './machine-view.mjs';
 
@@ -18,7 +19,12 @@ self.onmessage=async({data})=>{
   const {id,type}=data;
   try{
     if(type==='load'){
-      const state=data.state,sources=await fetchSources(state);program=decodeSource(sources,state.plan,state.machine);
+      const state=data.state;
+      if(state.referencePreview){
+        const query=new URLSearchParams({printId:state.printId,revision:state.revision,exportHash:state.exportHash}),response=await fetch('/api/example-display?'+query);
+        if(!response.ok)throw Error((await response.json()).error);const cache=decodePreview(await response.arrayBuffer());
+        program={...cache.program,moves:moveStore(cache.moves),previewMaterial:cache.material};
+      }else{const sources=await fetchSources(state);program=decodeSource(sources,state.plan,state.machine);}
       const machine=await bind(state),moves=program.moves.snapshot();
       self.postMessage({id,program:{...program,moves},...machine},provider?[]:moveBuffers(moves));
     }else if(type==='bind')self.postMessage({id,...await bind(data.state)});

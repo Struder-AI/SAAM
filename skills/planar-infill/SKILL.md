@@ -139,3 +139,9 @@ gaps of at most 1 mm without retraction or lift. Other moves clear
 the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../core/path/README.md#whole-plan-travel-requirement).
 Thin features may collapse under offsets; density is approximate near
 boundaries. No collision or automatic support model is implied by these checks.
+
+## Shared example
+
+The [nudge-cup workspace](../../examples/prints/nudge-cup/README.md) packages a
+reproducible recipe using this skill. Its guide describes dimensions, setup and
+current limits; generated workspaces begin without manufacturing approvals.

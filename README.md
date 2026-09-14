@@ -47,8 +47,7 @@ reported physical observations. Software checks do not establish physical print
 success.
 
 The [MCP adapter](adapters/mcp/README.md) connects compatible chat clients to the
-same local workflow. Its manual covers available tools, local connections and
-the temporary web-chat bridge.
+same local workflow. Its manual covers available tools and local stdio connections.
 
 ## Get started
 
@@ -59,8 +58,18 @@ For a manual development trial, follow [setup and checks](SETUP.md)
 and the [wedge demo manual](skills/wedge-demo/SKILL.md). The demo produces a
 development preview; human job approval remains separate.
 
-Personal prints stay local in ignored `Prints/`. Selected shared examples belong
-in `examples/prints/`.
+Ask your agent to **open the SAAM tour**, or launch Studio after setup:
+
+```sh
+node studio/server.mjs
+```
+
+The [guided tour](examples/prints/README.md) takes you through a bivariate surface
+drape, wavy DENSO cladding, and Nudge Cup in the same viewer used for your parts.
+Their geometry, settings and toolpath previews are ready to explore. Studio saves
+your copies automatically in ignored `Prints/tour/`, remembers your place, and
+lets you revisit them with **Open print**. **Use this example** starts the normal
+review workflow; exploring a demo grants no printing approvals.
 
 ## Reading and contributing
 

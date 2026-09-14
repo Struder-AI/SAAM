@@ -1,13 +1,14 @@
 # Machine studies in Studio
 
-Create a nominal motion study and open it with the normal Studio launcher:
+Studio is the shared viewer for every supported machine. Create a nominal motion
+study and open it with the normal Studio launcher:
 
 ```sh
-node tools/kinematics/create-study.mjs split-delta Prints/development/splitty-studio
-node studio/server.mjs Prints/development/splitty-studio
+node tools/kinematics/create-study.mjs ultimaker-s5 Prints/development/s5-studio
+node studio/server.mjs Prints/development/s5-studio
 ```
 
-Supported IDs are `split-delta`, `dobot-mg400`, `denso-vp6242-rc8`,
+Supported IDs are `dobot-mg400`, `denso-vp6242-rc8`,
 `ultimaker-s5` and `bambu-h2d`. Use **Machine view** to fit the assembly and
 **Play** or the scrubber to inspect motion. Enable **Show travel** to display
 the default study's non-depositing path. Geometry and process approval are
@@ -28,7 +29,7 @@ described in the [model reference](../../core/machine/README.md).
 Optional third and fourth arguments supply motion and model-configuration JSON:
 
 ```sh
-node tools/kinematics/create-study.mjs split-delta Prints/development/splitty-custom motion.json model.json
+node tools/kinematics/create-study.mjs ultimaker-s5 Prints/development/s5-custom motion.json model.json
 ```
 
 The motion source is small, explicit and simulation-only:
@@ -50,18 +51,6 @@ in seconds. Equal endpoints express a dwell. `euler-xyz` uses
 `Rz(C) Ry(B) Rx(A)` and interpolates those Euler coordinates. Optional
 `volumeMm3` is authored deposition intent for visualization, not an extrusion
 controller command.
-
-Existing Splitty `.sdgcode` source can be opened without rewriting its bytes:
-
-```sh
-node tools/kinematics/create-study.mjs split-delta Prints/development/splitty-import preview.sdgcode
-node studio/server.mjs Prints/development/splitty-import
-```
-
-The study retains `motion.sdgcode` and uses the existing Splitty interpreter.
-Its TCP/Euler interpolation, elapsed dwell time and source lines feed Studio.
-Supply a fourth model JSON argument when that source uses a different design.
-The shared provider draws the solved mechanism using that same configuration.
 
 [machine-study.mjs](../../studio/machine-study.mjs) is a read-only adapter into
 the shared viewer, source transport and identity handling. It cannot approve,
