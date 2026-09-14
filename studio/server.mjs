@@ -87,6 +87,9 @@ export function createStudio(directory,{disconnectMs=3_000,libraryRoot=resolve(r
       if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
+      if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
+        res.writeHead(200,{'Content-Type':'image/png'});res.end(await readFile(resolve(here,'struder-logo.png')));return;
+      }
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
