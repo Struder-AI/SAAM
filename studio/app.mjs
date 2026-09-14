@@ -1,6 +1,6 @@
 import { advancePlayback, frameAtTime, displayPoint, exportMovie } from './playback.mjs';
 import { createProjection } from './camera.mjs';
-import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, TOOLPATH_COLORS } from './toolpath-view.mjs';
+import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {buildGeometryView,createGeometryRenderer,pickGeometry} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams} from './settings.mjs';
@@ -363,6 +363,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   }
   if(tab==='toolpath'&&state.program) {
     const moves=state.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=state.plan.placement,showTravel=$('#travel').checked;
+    if(updateUI)$('#layer-label').textContent='Layer '+(layerIndexAt(pathView,seconds)+1)+'/'+pathView.groups.length;
     const center=state.plan.setup.denso?.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0;
     const local=p=>{const q=displayPoint(p,angle,center,!state.plan.setup.denso||$('#follow-plate').checked);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
     if(state.plan.setup.denso){
@@ -481,6 +482,14 @@ $('#travel').onchange=requestDraw;
 $('#follow-plate').onchange=requestDraw;
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
 $('#scrub').oninput=()=>{stop();layerFade.reset();seconds=Number($('#scrub').value);requestDraw();};
+function stepLayer(direction){
+  if(busy||!pathView||!pathView.groups.length)return;
+  stop();layerFade.reset();
+  seconds=layerEndSeconds(pathView,stepLayerIndex(pathView,seconds,direction));
+  $('#scrub').value=seconds;requestDraw();
+}
+$('#prev-layer').onclick=()=>stepLayer(-1);
+$('#next-layer').onclick=()=>stepLayer(1);
 $('#cancel-movie').onclick=()=>movieController?.abort();
 $('#export-movie').onclick=async()=>{
   if(busy||!state?.program)return;

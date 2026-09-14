@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildToolpathView,toolpathFrame} from '../../studio/toolpath-view.mjs';
+import {buildToolpathView,toolpathFrame,layerIndexAt,layerEndSeconds,stepLayerIndex} from '../../studio/toolpath-view.mjs';
 const move=(from,to,layer=0,extruding=true)=>({from,to,layer,phase:'planar',operation:'fill',extruding});
 test('viewer reduction is bounded, keeps bends and transitions, and never changes source moves',()=>{
  const moves=[];
@@ -45,5 +45,40 @@ test('simplified curves stay within display tolerance, including the playback pr
    const f=toolpathFrame(view,count,false,{pointCap:100});assert.equal(f.overview,false);
    const edges=f.partial?[...f.segments,{...f.partial,last:count-1,to:moves[count].from}]:f.segments;
    for(const edge of edges)for(let i=edge.first;i<=edge.last;i++)assert.ok(distance(moves[i].to,edge.from,edge.to)<=.020000001);
+ }
+});
+test('layer step buttons show the selected layer fully printed, not its start',()=>{
+ const moves=[];
+ for(let layer=0;layer<4;layer++)for(let x=0;x<3;x++)
+   moves.push({...move([x,0,layer],[x+1,0,layer],layer),startSeconds:layer*3+x,durationSeconds:1});
+ const view=buildToolpathView(moves);
+ assert.equal(view.groups.length,4);
+ assert.equal(layerIndexAt(view,0),0);assert.equal(layerIndexAt(view,4),1);assert.equal(layerIndexAt(view,11.9),3);
+ assert.ok(Math.abs(layerEndSeconds(view,0)-3)<1e-3,'layer 0 ends where layer 1 begins');
+ assert.equal(layerEndSeconds(view,3),12,'the last layer ends at its own last move');
+ // Landing on layer 0's end must still read back as layer 0, not roll into layer 1.
+ assert.equal(layerIndexAt(view,layerEndSeconds(view,0)),0);
+ assert.equal(stepLayerIndex(view,0,1),1);
+ assert.equal(stepLayerIndex(view,layerEndSeconds(view,0),1),1,'next from a completed layer advances exactly one layer');
+ assert.equal(stepLayerIndex(view,11.9,1),3,'forward on the last layer stays there');
+ assert.equal(stepLayerIndex(view,4,-1),0);
+ assert.equal(stepLayerIndex(view,0,-1),0,'back on the first layer stays there');
+});
+test('a completed layer renders as the current (dark) layer, drawn to its very last point',async()=>{
+ const {frameAtTime}=await import('../../studio/playback.mjs');
+ const moves=[];
+ for(let layer=0;layer<3;layer++)for(let x=0;x<5;x++)
+   moves.push({...move([x,0,layer],[x+1,0,layer],layer),startSeconds:layer*5+x,durationSeconds:1});
+ const view=buildToolpathView(moves);
+ for(let index=0;index<view.groups.length;index++){
+   const seconds=layerEndSeconds(view,index),group=view.groups[index],at=frameAtTime(moves,seconds);
+   // The selected layer's own last move must be "active" (so it draws with full
+   // emphasis, not the faded style of an older layer) and essentially finished:
+   // the tiny epsilon that keeps it out of the next layer's first move must not
+   // leave a visible gap in what's drawn.
+   assert.equal(at.active,group.last);
+   assert.ok(at.fraction>1-1e-3);
+   assert.ok(Math.hypot(...at.point.map((v,i)=>v-moves[group.last].to[i]))<1e-3);
+   assert.ok(at.completed===group.last||at.completed===group.last+1,'no later move is ever counted as drawn');
  }
 });
