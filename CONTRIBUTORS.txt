@@ -1,0 +1,3 @@
+1. Always use the main branch SAAM, or a personal fork derived from main branch SAAM, as your agent's native context. This must be the first thing the agent sees when it enters existence. Then, you can refer to whatever additional content as needed. Never do the reverse - never start from your external material THEN reference SAAM - if your intent is to use the results of that agent's work to contribute to SAAM.
+
+2. 
