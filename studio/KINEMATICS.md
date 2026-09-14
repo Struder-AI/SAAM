@@ -149,8 +149,7 @@ at that source time. Diagnostics describe the requested pose; retained geometry
 does not imply it succeeded. A source/model rebind clears that retained pose.
 
 Rail endpoints are fixed working carriage limits in the machine definition
-(`railMinMm`/`railMaxMm` for the delta models, with Tilty's three tilt-rail
-starts in `tiltRailMinMm`), not a source-derived crop. They do
+(`railMinMm`/`railMaxMm` for Splitty), not a source-derived crop. They do
 not stretch during manual control. This defines working center travel, not the
 extra stock length needed to support the carriage body beyond its end position.
 
