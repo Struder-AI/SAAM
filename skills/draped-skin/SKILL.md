@@ -103,3 +103,9 @@ Beads, skin offsets and first-skin bridging are approximate. Curvature convergen
 automatic supports, pressure/adhesion and second-nozzle collision are not modeled.
 A direct turnaround permits up to a quarter-skin thickness of surface sag (capped
 at 0.05 mm). Sampling can miss features between samples; refine deliberately.
+
+## Shared example
+
+The [surface-drape workspace](../../examples/prints/surface-drape/README.md) packages a
+reproducible recipe using this skill. Its guide describes dimensions, setup and
+current limits; generated workspaces begin without manufacturing approvals.

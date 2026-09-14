@@ -1,4 +1,4 @@
-import {interpretMachineStudy,interpretSplitDeltaStudy} from '../core/export/machine-study.mjs';
+import {interpretMachineStudy} from '../core/export/machine-study.mjs';
 import {interpretGriffin} from '../core/export/griffin.mjs';
 import {interpretBambuSource} from '../core/export/bambu-player.mjs';
 import {interpretDobotFiles} from '../core/export/dobot-player.mjs';
@@ -11,7 +11,6 @@ export function decodeSource(sources,plan,machine,{compact=true}={}) {
   const options=compact?{moves:moveStore()}:{};
   let program;
   if(plan.output==='machine-study')program=interpretMachineStudy(sources['motion.json'],options);
-  else if(plan.output==='split-delta-preview')program=interpretSplitDeltaStudy(sources['motion.sdgcode'],machine,plan.setup,options);
   else if(plan.output==='griffin-gcode')program=interpretGriffin(sources.program,plan,machine,options);
   else if(plan.output==='bambu-gcode')program=interpretBambuSource(sources.program,plan,machine,options);
   else if(plan.output==='dobot-lua')program=interpretDobotFiles(sources,plan,machine,options);

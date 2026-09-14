@@ -32,8 +32,8 @@ node studio/server.mjs Prints/my-part
 ```
 
 Run from the repository root, quote a print path containing spaces, and keep
-`node studio/server.mjs` literal. The bare command opens the existing default
-demo bundle. Use the client's managed terminal/background session so it can
+`node studio/server.mjs` literal. The bare command opens the [guided tour](../examples/prints/README.md), with
+ready previews and automatically saved local copies. Use the client's managed terminal/background session so it can
 retain the process handle. The human-facing `npm run studio` alias still works,
 but the shared permission targets the direct command. Shell wrappers, different
 script spellings, inline Node code and custom development launchers are outside
@@ -141,9 +141,7 @@ The old `--close-when-idle` flag is accepted but no longer needed. The CLI proce
 exits when its work drains. In MCP, only that Studio listener and session are
 released; the adapter and its other viewers stay available. Repeated
 review requests within the same adapter can use that print's still-open session.
-The temporary web-chat bridge shares one adapter across clients; it does not
-provide per-agent identity or locking. Independent agent ownership requires
-separate adapters. Distinct instances do not lock a shared bundle against edits
+Independent agent ownership uses separate stdio adapters. Distinct instances do not lock a shared bundle against edits
 from another process, so concurrent agent work should use separate bundles.
 
 ### Historical toolpath inspection

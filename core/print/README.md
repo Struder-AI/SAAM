@@ -89,12 +89,6 @@ exist. See the [remaining validation work](../../build_request.md#br-039--slicin
 
 ## Print bundle and current formats
 
-[Volumetric fields](../geom/VOXEL.md) use `shape: "voxel"` records with the field,
-extraction settings and checked manufacturing mesh retained together in the
-native JSON asset. Shared generation sections that mesh; Studio displays it.
-Field edits explicitly rebuild the mesh through the [voxel task](../../skills/voxel-tools/SKILL.md)
-and invalidate geometry, plan and toolpath approvals through this same lifecycle.
-
 The shared workflow stores one directory per print (wedge filenames shown):
 
 ```text

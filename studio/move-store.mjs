@@ -1,4 +1,5 @@
-// Local drawing/timeline storage, never a saved file or server response format.
+// Local drawing/timeline storage. Packaged tours serialize snapshots only through
+// the versioned display cache; manufacturing output never uses that cache.
 // Doubles retain the interpreter's precision. Fixed-size chunks avoid repeated
 // whole-job reallocations; strings are interned once per column.
 const CHUNK=16384;

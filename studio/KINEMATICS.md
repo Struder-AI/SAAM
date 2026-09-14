@@ -149,7 +149,7 @@ at that source time. Diagnostics describe the requested pose; retained geometry
 does not imply it succeeded. A source/model rebind clears that retained pose.
 
 Rail endpoints are fixed working carriage limits in the machine definition
-(`railMinMm`/`railMaxMm` for Splitty), not a source-derived crop. They do
+(from the known machine definition), not a source-derived crop. They do
 not stretch during manual control. This defines working center travel, not the
 extra stock length needed to support the carriage body beyond its end position.
 
@@ -236,7 +236,7 @@ It returns `Promise<Provider | null>`; `null` means no registered model.
 `program` is the existing immutable interpreted export with its move/event access,
 not generated SAAMpath or a new serialized trajectory. Explicitly read-only
 [machine studies](../tools/kinematics/README.md) also supply decoded authored
-motion or unchanged Splitty preview source; these are labeled simulation and
+motion; these are labeled simulation and
 cannot authorize machine delivery. `machine` and `setup` are
 the resolved existing profile and job installation. `sourceIdentity` supplies
 `printId`, `revision` and `exportHash`; the provider adds `modelKey`. The Studio

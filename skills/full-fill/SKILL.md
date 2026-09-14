@@ -14,8 +14,6 @@ Supported geometry: validated indexed triangle meshes (including STL import),
 closed untrimmed spline shells from the existing shape builders, and assemblies
 of those components. Arbitrary edited 3DM and trimmed CAD import are unsupported.
 The shared geometry interface supplies each layer's real cross section.
-Volumetric fields prepared by [voxel tools](../voxel-tools/SKILL.md) use their
-explicitly extracted manufacturing mesh through the same sections.
 Closed planar masks and material reservations use the
 [shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections).
 This does not add new input geometry types.
@@ -131,3 +129,9 @@ clearance validation are not implemented.
 
 Available tests cover shape/volume, travel, geometry and
 machine interoperability, source changes, approvals and exact-byte S5/H2D delivery.
+
+## Shared example
+
+The [nudge-cup workspace](../../examples/prints/nudge-cup/README.md) packages a
+reproducible recipe using this skill. Its guide describes dimensions, setup and
+current limits; generated workspaces begin without manufacturing approvals.

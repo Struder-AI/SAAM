@@ -346,3 +346,9 @@ node skills/vase-wall/scripts/loop-demo.mjs Prints/development/scalloped-loop-va
 node skills/vase-wall/scripts/loop-demo.mjs Prints/development/wavy-scalloped-loop-vase wavy
 node skills/vase-wall/scripts/loop-demo.mjs Prints/development/both-scalloped-loop-vase both-scalloped
 ```
+
+## Shared example
+
+The [nudge-cup workspace](../../examples/prints/nudge-cup/README.md) packages a
+reproducible recipe using this skill. Its guide describes dimensions, setup and
+current limits; generated workspaces begin without manufacturing approvals.

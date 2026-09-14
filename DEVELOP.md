@@ -152,6 +152,13 @@ A maker's judgment about a print does not itself change general product policy.
 Resource-budget failures should state the limit and how to raise it, leaving
 geometry and quality choices explicit.
 
+## Reproducible examples
+
+The [three demo workspaces](examples/prints/README.md) package editable recipes
+for surface drape, wavy DENSO and Nudge Cup. The creation command refuses existing
+destinations. Use `--generate` for unapproved development toolpaths, then inspect
+geometry and toolpath in Studio.
+
 ## Testing through the use context
 
 Develop and exercise maker-facing changes through [MAKERS.md](MAKERS.md), public

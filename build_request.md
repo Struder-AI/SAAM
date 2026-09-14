@@ -43,13 +43,6 @@ complex region ordering.
 - Completion: Compare the same part and matched planar settings using saved profiles, exact versions, thread counts and repeated timings; separate loading, generation, checking/export and UI-ready time. Report failures and non-planar coverage differences separately.
 - Context: [Benchmark request and initial findings](DEVLOG.md#br-023--slicing-performance-baseline), [benchmark procedure](scripts/bench/README.md#slicing-speed-benchmarks).
 
-### BR-026 — Web-client pairing and Claude plugin acceptance
-
-- Status: open
-- Remaining: Actual ChatGPT/Claude vendor-client connection acceptance and Claude plugin upload/tool use lack recorded acceptance in the user's account.
-- Completion: Verify pairing and ordinary tool use through the actual supported web clients and the uploadable Claude package; record the client, route and result. Temporary bridge/browser fixtures alone do not close this acceptance check.
-- Context: [Connection work and pairing corrections](DEVLOG.md#br-026--temporary-web-chat-connection), [current connector guidance](adapters/mcp/README.md).
-
 ### BR-034 — Live Claude Code permission behavior
 
 - Status: open

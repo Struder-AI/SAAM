@@ -1,12 +1,11 @@
 import {frameAtTime} from '../export/source-time.mjs';
 import {rotateZ} from '../path/pose.mjs';
-import {geometry as splitGeometry,inverse as splitInverse} from './split-delta.mjs';
 import {densoGeometry,densoInverse} from './denso-kinematics.mjs';
 import {dobotGeometry,dobotInverse} from './dobot-kinematics.mjs';
 import {constrainedJog} from './jog.mjs';
 import {rigid,add,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,validateRigid} from './rigid.mjs';
 
-const supported=new Set(['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8','split-delta']);
+const supported=new Set(['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8']);
 const durationOf=p=>p.seconds??p.summary?.motionSeconds??0;
 // A closed registry of trusted models. Profiles contain data, never loaded code.
 export async function createMachinePresentation({program,machine,setup={},sourceIdentity,signal}){
@@ -35,31 +34,6 @@ export async function createMachinePresentation({program,machine,setup={},source
     line('x-rail','rail',[0,0,0],[w,0,0],'gantry');box('carriage','carriage',[24,20,14]);
     machineBoundsWorldMm={min:[-15,-15,0],max:[w+15,d+15,headZ+25]};
     solve=at=>{const [x,y,z]=at.point,part=rigid([0,0,headZ-toolLength-z]);return {worldFromFrame:{part,tcp:rigid([x,y,headZ-toolLength]),gantry:rigid([0,y,headZ]),carriage:rigid([x,y,headZ])},margins:at.point.flatMap((v,i)=>[v-bounds.min[i],bounds.max[i]-v])};};
-  }else if(machine.id==='split-delta'){
-    const g=splitGeometry(config),count=6;
-    angularLever=g.toolLengthMm;
-    limits.push(`Working carriage travel: ${g.railMinMm} to ${g.railMaxMm} mm. These fixed endpoints also define the displayed rails.`);
-    const endpoints=g.rails.map((p,i)=>[add(p,scale(g.railDirections[i],g.railMinMm)),add(p,scale(g.railDirections[i],g.railMaxMm))]);
-    const reach=g.rodLengthMm+g.toolLengthMm+Math.max(...g.anchors.map(norm));
-    coordinateBounds={min:[0,1,2].map(i=>Math.max(...endpoints.map(pair=>Math.min(pair[0][i],pair[1][i])-reach))),max:[0,1,2].map(i=>Math.min(...endpoints.map(pair=>Math.max(pair[0][i],pair[1][i])+reach)))};
-    coordinateBounds.min[2]=0; // Study bed plane; no nozzle below the bed.
-    for(let i=0;i<count;i++){
-      line('rail-'+i,'rail',add(g.rails[i],scale(g.railDirections[i],g.railMinMm)),add(g.rails[i],scale(g.railDirections[i],g.railMaxMm)));
-      link('rod-'+i,g.rodLengthMm);box('carriage-'+i,'carriage',[12,12,12]);
-    }
-    const radius=g.rotationScaleMm;
-    component('platform','carriage',{kind:'polyline',closed:true,pointsMm:Array.from({length:24},(_,i)=>[radius*Math.cos(i*Math.PI/12),radius*Math.sin(i*Math.PI/12),0])});
-    components.find(c=>c.id==='hotend-shaft').shape.toMm[2]=g.toolLengthMm;
-    const r=g.towerRadiusMm+g.railMaxMm*Math.abs(Math.tan((g.railTiltDeg??0)*Math.PI/180))+40;
-    machineBoundsWorldMm={min:[-r,-r,Math.min(0,g.railMinMm)],max:[r,r,g.railMaxMm+20]};
-    solve=at=>{
-      const R=at.rotation??axisFrame(scale(at.toolAxis??[0,0,-1],-1),at.toolUp??[0,1,0]);
-      const s=splitInverse(g,{tcp:at.point,rotation:R});
-      if(!s.valid)return {worldFromFrame:{part:rigid()},margins:s.margins,diagnostics:s.errors.map(message=>({code:'model-solve',severity:'warning',message}))};
-      const pose={part:rigid(),tcp:rigid(at.point,R),platform:rigid(s.platform,R)};
-      s.carriages.forEach((c,i)=>{pose['carriage-'+i]=rigid(c);pose['rod-'+i]=rodFrame(c,s.points[i]);});
-      return {worldFromFrame:pose,margins:s.margins};
-    };
   }else{
     // Room/part alignment is established by source playback. Arm installation is
     // separate; never infer a robot base from a print's bounding box.

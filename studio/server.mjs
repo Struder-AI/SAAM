@@ -1,3 +1,4 @@
+import {createTour,referenceAdapter,previewBytes,tourReference,useExample} from './tour.mjs';
 import http from 'node:http';
 import { readFile, readdir, stat, realpath } from 'node:fs/promises';
 import { resolve, dirname, basename, isAbsolute } from 'node:path';
@@ -12,9 +13,9 @@ const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
 const installedExtension=await loadLocalExtension(root);
 // Explicit browser module allowlist; no generic repository/file serving.
-const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
-  'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs','core/export/split-delta-player.mjs',
-  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs','core/machine/split-delta.mjs',
+const playerModules=new Set(['studio/preview-cache.mjs','studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
+  'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
+  'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
   'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
@@ -32,7 +33,7 @@ export async function bundleFor(directory) {
   const plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));
   const load=bundles[plan.schema];
   if(!load)throw new Error(`This print uses ${plan.schema??'an unknown plan format'}, which Studio cannot review.`);
-  return load();
+  const adapter=await load();return plan.schema==='saam-shell-plan/1'?referenceAdapter(adapter):adapter;
 }
 // A selected plan, export or delivery file reopens its owning print bundle.
 // Standalone foreign programs need an interpreter contract before review.
@@ -63,6 +64,7 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
 // A local development launcher may explicitly supply a scratch adapter resolver.
 // This is a function supplied by code, never a module path supplied by a print or HTTP request.
 export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libraryRoot=resolve(root,'Prints'),resolveBundle=bundleFor,localExtension=installedExtension}={}) {
+  const tour=createTour(libraryRoot);
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
   const printId=()=>createHash('sha256').update(dir).digest('hex');
@@ -79,7 +81,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   };
   const prepare=(state,readDir)=>{
     if(closed||resolveBundle!==bundleFor)return null;
-    if(state.program||state.outputAvailability){discardPreparation();return null;}
+    if(state.referencePreview||state.program||state.outputAvailability){discardPreparation();return null;}
     const key=readDir+':'+state.planHash;
     if(preparation?.key===key)return preparation;
     discardPreparation();
@@ -133,7 +135,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -142,11 +144,18 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
+      if(req.method==='GET'&&url.pathname==='/api/tour'){send(await tour.info());return;}
       if(req.method==='GET'&&url.pathname==='/api/prints'){send({prints:await listPrints(libraryRoot,resolveBundle)});return;}
       await queue;
       const readDir=dir,readId=printId();
       const bundle=await opened;
       if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
+      if(req.method==='GET'&&url.pathname==='/api/example-display'){
+        const state=await bundle.loadBundle(readDir,{program:'source'});
+        if(!state.referencePreview||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==state.revision||url.searchParams.get('exportHash')!==state.exportHash)throw Error('The example changed. Reopen it before continuing.');
+        const bytes=await previewBytes(readDir);if(readDir!==dir)throw Error('The open print changed.');
+        res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Encoding':'gzip'});res.end(bytes);return;
+      }
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const fingerprint=await bundle.bundleFingerprint(readDir);const state=await bundle.loadBundle(readDir,{program:'source'});
         if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
@@ -177,6 +186,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         for(const [name,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]]){
           if(url.searchParams.has(name)&&url.searchParams.get(name)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
         }
+        if(state.referencePreview)throw Error('Choose Use this example before preparing manufacturing output.');
         if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
         res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end(state.code);return;
       }
@@ -187,8 +197,15 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       const run=queue.then(async()=>{
         if(data.printId&&data.printId!==printId())throw new Error('The open print changed. Reload before continuing.');
         const current=await opened;
-        if(url.pathname==='/api/open'){
-          await openPrint(data.path);
+        if(url.pathname==='/api/tour'){
+          const result=await tour.action(data.action,data.step);if(result.directory)await openPrint(result.directory);
+        }
+        else if(url.pathname==='/api/use-example'){
+          if(!await tourReference(dir))throw Error('This print is already using the normal workflow.');
+          await useExample(dir);await tour.action('pause');
+        }
+        else if(url.pathname==='/api/open'){
+          await openPrint(data.path);await tour.action('pause');
         }
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan')await current.updatePlan(dir,data.plan,data.revision);
@@ -238,7 +255,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
   // Retain the old flag as a harmless alias: viewer-owned shutdown is universal.
   const args=process.argv.slice(2);
-  const dir=resolve(args.find(arg=>arg!=='--close-when-idle')??resolve(root,'Prints/s5-wedge-demo'));
+  const requested=args.find(arg=>arg!=='--close-when-idle');
+  const dir=requested?resolve(requested):await createTour(resolve(root,'Prints')).landing();
   const bundle=await bundleFor(dir);
   await bundle.loadBundle(dir,{program:false});
   const server=createStudio(dir),port=Number(process.env.SAAM_STUDIO_PORT??0);

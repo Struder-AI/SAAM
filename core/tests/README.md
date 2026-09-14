@@ -82,7 +82,6 @@ All file names in the core column below are relative to `core/tests/`.
 |---|---|---|
 | `core/geom/`: spline evaluation, sections, prepared mesh section index, height queries, STL/mesh input | [geometry.test.mjs](geometry.test.mjs), [mesh.test.mjs](mesh.test.mjs), [mesh-boundary.test.mjs](mesh-boundary.test.mjs) | Affected skill tests; pipeline and regional tests for shared query changes |
 | Explicit STL repair, winding reconstruction, spatial queries and collision-checked simplification | [mesh-repair.test.mjs](mesh-repair.test.mjs), [mesh.test.mjs](mesh.test.mjs) | Shared STL import and unapproved S5/H2D bundles |
-| Volumetric fields, rational controls, local refinement, explicit extraction and persisted identity | [voxel.test.mjs](voxel.test.mjs), [voxel-refine.test.mjs](voxel-refine.test.mjs), [mcp.test.mjs](mcp.test.mjs) | Voxel task demo, shared slicing, mixed spline/field assembly and exact-byte lifecycle |
 | `core/geom/polyline.mjs`: numerical contour seams before offsets and deposition | [contour-cleanup.test.mjs](contour-cleanup.test.mjs) | Mesh sections, full-fill and planar-infill |
 | `core/region/offset.mjs`, Clipper normalization and offset compatibility | [offset.test.mjs](offset.test.mjs), [offset-junctions.test.mjs](offset-junctions.test.mjs), [offset-remnants.test.mjs](offset-remnants.test.mjs) | Fill, infill, drape, vase and wedge consumers as affected |
 | `core/region/perimeters.mjs`: coincident closed wall fronts | [perimeters.test.mjs](perimeters.test.mjs) | [perimeter-wall.test.mjs](../../skills/full-fill/tests/perimeter-wall.test.mjs) covers full-fill, planar-infill, solid masks and S5/H2D export |
@@ -100,7 +99,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/export/`: streamed G-code lines and chunk-boundary errors | [gcode-stream.test.mjs](gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
 | Large move counts and G-code/ZIP size boundaries (explicit stress run) | [stress/large-export.test.mjs](stress/large-export.test.mjs), [stress/large-program.test.mjs](stress/large-program.test.mjs) | `npm run test:stress`; real former size and call-stack boundaries |
 | Dobot profile, Lua export/interpreter and relay behavior | [dobot.test.mjs](dobot.test.mjs), [robot-playback.test.mjs](robot-playback.test.mjs) | [dobot.test.mjs](../../skills/wedge-demo/tests/dobot.test.mjs), vase and regional machine coverage |
-| Standalone split-delta kinematics, cylinder/track assessment, simulation source and nominal MG400 FK/IK | [split-delta.test.mjs](split-delta.test.mjs), [dobot-kinematics.test.mjs](dobot-kinematics.test.mjs) | Standalone browser inspection; existing Dobot/MCP profile checks |
+| Nominal MG400 FK/IK | [dobot-kinematics.test.mjs](dobot-kinematics.test.mjs) | Shared Studio model coverage |
 | Shared machine presentation providers, constrained jogging, nominal DENSO model and read-only study source/bundles | [machine-presentation.test.mjs](machine-presentation.test.mjs), [machine-jog.test.mjs](machine-jog.test.mjs), [machine-study.test.mjs](machine-study.test.mjs) | Source-time playback, actual-source transport and Studio machine-view checks |
 | VP-6242 / RC8, oriented/rotary motion, native pipe cladding and both Studio frames | [denso.test.mjs](denso.test.mjs) | Shared mesh/spline regional skills, wedge, composition, browser source and exact-byte lifecycle |
 | Periodic spline tube, selected surface charts, normal-offset cladding and partial courses | [surface-cladding.test.mjs](surface-cladding.test.mjs) | Native spline/bore, explicit mesh strips, three-perimeter interaction, RC8 lifecycle, bead orientation and ZIP32 helper counts |
@@ -109,7 +108,6 @@ All file names in the core column below are relative to `core/tests/`.
 | Studio machine-source transport, browser interpreters and compact local drawing data | [source-player.test.mjs](source-player.test.mjs) | S5/H2D/Dobot source identity, timeline/layer equivalence, stale requests, workflow and exact delivery |
 | Studio machine primitives, source alignment, unavailable/stale poses and per-mode cameras | [studio-kinematics.test.mjs](studio-kinematics.test.mjs), [studio-movie.test.mjs](studio-movie.test.mjs) | Shared provider conformance; browser inspection of ghost, machine and reference frames |
 | `adapters/mcp/`: stdio tools, shared import/setup, CLI access and bounded manual/section reading | [mcp.test.mjs](mcp.test.mjs), [mcp-access.test.mjs](mcp-access.test.mjs) | One lifecycle per transport/output shape; synthetic manual-link fixtures and unresolved robot setup |
-| Temporary HTTP/OAuth bridge, Claude package and web probe | [mcp-http.test.mjs](mcp-http.test.mjs), [claude-plugin.test.mjs](claude-plugin.test.mjs), [web-agent-probe.test.mjs](web-agent-probe.test.mjs) | MCP stdio integration when shared tools change |
 | `scripts/bench/`: analytical fixtures and mesh convergence | [benchmark-fixtures.test.mjs](benchmark-fixtures.test.mjs) | Performance measurements remain opt-in; see benchmark instructions |
 | Full-fill generation | Shared geometry, travel and pipeline tests as affected | [full-fill.test.mjs](../../skills/full-fill/tests/full-fill.test.mjs) |
 | Planar infill patterns, open clipping, solid masks and sparse/drape composition | Shared booleans, scanlines and reservations as affected | [infill.test.mjs](../../skills/planar-infill/tests/infill.test.mjs), [patterns.test.mjs](../../skills/planar-infill/tests/patterns.test.mjs) |
@@ -134,3 +132,5 @@ node scripts/check-repo.mjs
 `npm test` runs ordinary software regressions. Stress tests and the optional
 repository-document check are separate; focused selection needs no subsequent
 full-suite run.
+
+[Demo workspace checks](demos.test.mjs) verify unapproved creation and protection of existing work.

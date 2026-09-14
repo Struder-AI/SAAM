@@ -10,6 +10,12 @@ dimensions, defaults and assumptions beside that preview so the person can
 revise them in chat. Ask a focused question first when an essential feature
 has no reasonable supported default.
 
+For a guided introduction, launch `node studio/server.mjs` and open its URL.
+The [tour](examples/prints/README.md) includes ready previews of surface draping,
+DENSO cladding and a composed mesh cup. Do not generate or unpack demos for first
+use. Studio saves local copies automatically. Exploring them carries no printing
+approval; editing a copy returns to the ordinary review workflow.
+
 ## Find the instructions for this part
 
 Read the brief [capability digest](skills/README.md) before the first maker-facing

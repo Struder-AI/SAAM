@@ -290,3 +290,9 @@ feasibility and execution remain unverified.
 round trips, bore and wall dimensions, normal offsets/refinement, mesh-strip
 mapping, perimeter-front interaction, partial courses, rotary continuity, bead
 frames, packaging beyond 64 helper files and the shared export/review lifecycle.
+
+## Shared example
+
+The [wavy-denso workspace](../../examples/prints/wavy-denso/README.md) packages a
+reproducible recipe using this skill. Its guide describes dimensions, setup and
+current limits; generated workspaces begin without manufacturing approvals.

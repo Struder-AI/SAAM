@@ -2,7 +2,7 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="saam-token" content="__CSRF__"><title>SAAM Studio</title><link rel="stylesheet" href="/style.css"></head>
 <body>
-<header><a class="brand" href="/"><img src="/struder-logo.png" alt="Struder" class="brand-logo"><span>SAAM Studio</span></a><nav aria-label="Print stages"><button data-tab="geometry" class="active"><span>1</span> Geometry</button><button data-tab="plan"><span>2</span> Settings</button><button data-tab="toolpath"><span>3</span> Toolpath</button></nav><button id="open-print">Open print</button></header>
+<header><a class="brand" href="/"><img src="/struder-logo.png" alt="Struder" class="brand-logo"><span>SAAM Studio</span></a><nav aria-label="Print stages"><button data-tab="geometry" class="active"><span>1</span> Geometry</button><button data-tab="plan"><span>2</span> Settings</button><button data-tab="toolpath"><span>3</span> Toolpath</button></nav><div class="header-actions"><button id="tour-toggle">Tour</button><button id="open-print">Open print</button></div></header>
 <div id="activity" role="status" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span><div><strong id="activity-label">Loading your print…</strong><span>Please wait. Studio is working.</span></div></div>
 <dialog id="print-picker" aria-labelledby="picker-title"><div class="picker-head"><h2 id="picker-title">Open a local print</h2><button id="close-picker" aria-label="Close print picker">Close</button></div><p>Choose a saved print to reopen its geometry, settings and toolpath.</p><div id="print-list"></div><form id="open-path"><label for="print-path">Print folder, plan.json, or a file inside the saved print</label><input id="print-path" placeholder="C:\…\Prints\my-part" required><button class="primary" type="submit">Open</button></form><p id="picker-message" role="status"></p></dialog>
 <main>
@@ -23,6 +23,11 @@
     </div>
   </section>
   <aside>
+    <section id="tour-panel" aria-label="SAAM guided tour" hidden>
+      <div id="tour-welcome"><p class="eyebrow">EXPLORE · LEARN · MAKE</p><h2 id="tour-welcome-title">Welcome to SAAM</h2><p>Just ask your agent in ordinary words. It runs the tools and handles the printing settings; you guide the result and review it here. These three ready-made parts show what you can ask for. Your copies are saved automatically.</p><button id="tour-start" class="primary">Start guided tour</button><div id="tour-choices"></div><div class="tour-actions"><button id="tour-explore">Explore freely</button><button id="tour-fresh">Start fresh</button></div><p class="chat-hint">Have a part in mind? Describe it to your agent and ask to see it here.</p></div>
+      <div id="tour-lesson" hidden><p id="tour-progress" class="eyebrow"></p><h2 id="tour-title"></h2><p id="tour-body"></p><p id="tour-try" class="tour-try"></p><div class="tour-actions"><button id="tour-back">Back</button><button id="tour-next" class="primary">Next</button></div></div>
+      <button id="tour-copy" hidden>Copy a request for your agent</button><textarea id="tour-request" aria-label="Request for your agent" readonly hidden></textarea><p id="tour-status" role="status"></p>
+    </section>
     <div><p class="eyebrow" id="stage-label" hidden></p><p id="guidance">Check the shape and dimensions.</p></div>
     <section id="manual-position" aria-labelledby="manual-title" hidden>
       <h2 id="manual-title">Tool position</h2>

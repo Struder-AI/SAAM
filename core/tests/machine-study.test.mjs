@@ -9,9 +9,6 @@ import {fetchSources,decodeSource} from '../../studio/source-player.mjs';
 import {createMachinePresentation} from '../machine/presentation.mjs';
 import {loadBundle} from '../../studio/machine-study.mjs';
 import {interpretMachineStudy} from '../export/machine-study.mjs';
-import {interpretSplitDelta} from '../export/split-delta-player.mjs';
-import {geometry} from '../machine/split-delta.mjs';
-import {frameAtTime} from '../export/source-time.mjs';
 
 test('machine study uses source transport and cannot approve or deliver; changed source changes identity',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-machine-study-'));t.after(()=>rm(dir,{recursive:true,force:true}));
@@ -32,7 +29,7 @@ test('machine study uses source transport and cannot approve or deliver; changed
 });
 test('actual nominal studies supply complete deterministic mechanism poses throughout motion',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-model-studies-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  for(const id of ['split-delta','dobot-mg400','denso-vp6242-rc8','ultimaker-s5','bambu-h2d']){
+  for(const id of ['dobot-mg400','denso-vp6242-rc8','ultimaker-s5','bambu-h2d']){
     await createStudy(dir,id);const state=await loadBundle(dir),provider=await createMachinePresentation({program:state.program,machine:state.machine,setup:state.plan.setup,sourceIdentity:{printId:'fixture',revision:state.revision,exportHash:state.exportHash}});
     for(const seconds of [0,.25,6.3,12.1,24,6.3]){
       const pose=await provider.sample({requestId:1,seconds});assert.equal(pose.status,'ready',id+': '+JSON.stringify(pose.diagnostics));
@@ -61,14 +58,5 @@ test('adapted studies preserve deposition phases and layers for Studio',()=>{
 test('study creation refuses to overwrite an ordinary print',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-study-protection-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const original=JSON.stringify({schema:'saam-shell-plan/1'});await writeFile(join(dir,'plan.json'),original);
-  await assert.rejects(createStudy(dir,'split-delta'),/existing print/);assert.equal(await readFile(join(dir,'plan.json'),'utf8'),original);
-});
-test('Splitty study retains original source bytes and interpreter timing, extrusion and source lines',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-splitty-source-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  const source='; original simulation\nG21\nG90\nM82\nG94\nG1 X5 Y0 Z25 A0 B10 C0 E1 F600\nG4 P1000\nG93\nG1 X0 Y0 Z20 A0 B0 C0 E2 F30\n';
-  await createStudy(dir,'split-delta',{source});assert.equal(await readFile(join(dir,'motion.sdgcode'),'utf8'),source);
-  const state=await loadBundle(dir,{allSources:true}),original=interpretSplitDelta(source,geometry(state.machine.kinematicModel));
-  assert.equal(state.program.seconds,original.seconds);assert.equal(state.program.moves[0].file,'motion.sdgcode');assert.equal(state.program.moves[0].line,6);
-  for(const sample of original.samples){const at=frameAtTime(state.program.moves,sample.seconds);assert.ok(Math.hypot(...at.point.map((v,i)=>v-sample.tcp[i]))<1e-7);}
-  const decoded=decodeSource(state.sources,state.plan,state.machine);assert.equal(decoded.moves.length,state.program.moves.length);
+  await assert.rejects(createStudy(dir,'ultimaker-s5'),/existing print/);assert.equal(await readFile(join(dir,'plan.json'),'utf8'),original);
 });

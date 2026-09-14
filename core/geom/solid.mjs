@@ -5,24 +5,6 @@ import {requireThat} from './tolerance.mjs';
 let runtime;
 export const solidKernel=()=>runtime??=Module().then(module=>{module.setup();return module;});
 
-// MeshGL stores Float32 positions. Carry their residual in three property
-// channels so distinct nearby double-precision vertices do not collapse on
-// export. Honor the kernel's explicit seam welds, never proximity-weld geometry.
-export function preciseSolidMesh(solid){
-  // Leave the first three property slots available to the kernel's tracked
-  // normals: exporting a normal-bearing solid normalizes those slots.
-  const encoded=solid.setProperties(6,(out,p,old)=>{for(let a=0;a<3;a++){out[a]=a<old.length?old[a]:0;out[3+a]=p[a]-Math.fround(p[a]);}});
-  try{
-    const mesh=encoded.getMesh(-1),n=mesh.vertProperties.length/mesh.numProp,parent=Array.from({length:n},(_,i)=>i);
-    const root=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
-    for(let i=0;i<mesh.mergeFromVert.length;i++)parent[root(mesh.mergeFromVert[i])]=root(mesh.mergeToVert[i]);
-    const vertices=[],triangles=[],ids=new Map();
-    const vertex=i=>{const r=root(i);if(!ids.has(r)){const o=r*mesh.numProp;ids.set(r,vertices.length);vertices.push([0,1,2].map(a=>mesh.vertProperties[o+a]+mesh.vertProperties[o+6+a]));}return ids.get(r);};
-    for(let i=0;i<mesh.triVerts.length;i+=3)triangles.push([vertex(mesh.triVerts[i]),vertex(mesh.triVerts[i+1]),vertex(mesh.triVerts[i+2])]);
-    return {vertices,triangles};
-  }finally{encoded.delete();}
-}
-
 export function solidFromMesh(kernel,mesh){
   const input=new kernel.Mesh({numProp:3,vertProperties:Float32Array.from(mesh.vertices.flat()),triVerts:Uint32Array.from(mesh.triangles.flat())});
   const solid=new kernel.Manifold(input);

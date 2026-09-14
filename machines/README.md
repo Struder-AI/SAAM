@@ -31,9 +31,3 @@ See the [RC8 contract](../core/export/denso.md#denso-rc8-output-contract) for ca
 rotary assumptions, relay behavior and unverified vendor execution.
 
 See [GLOSSARY.md](../GLOSSARY.md) and [build requests](../build_request.md).
-
-[split-delta.json](split-delta.json) declares the six-carriage design profile and
-shared kinematic model. Its [standalone lab](../tools/split-delta/README.md) provides
-cylinder/track assessment and a simulation-only source interpreter; production
-controller output is unavailable. The same lab exposes a nominal MG400 linkage
-model without changing the configured Dobot Lua output or claiming calibration.

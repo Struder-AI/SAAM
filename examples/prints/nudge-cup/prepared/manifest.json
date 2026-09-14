@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "nudge-cup",
+  "files": {
+    "checks.json": "7e531a2805712a7177b9a8049f90d5bbfe6621ff58571190a1cb9d26829b0697",
+    "exports/griffin-gcode/part.gcode": "c8a7b786b338a26114748d36da706b46936cc71f96fbf0d0fb7faf9bb25aa237",
+    "geometry/model.json": "383c0c32aa76e52d7228cc935463316eb519cfa4678876c619b21764ee576daa",
+    "geometry/model.mesh.json": "4663760f505cc6515b977043e21134c8c4a3ccb796920f7c213bd9cecb622d08",
+    "machine.json": "3fb2c0a08d20b3207140d9f1638bd09899b61f66f79613338fbdf27ddb44511c",
+    "plan.json": "fc9bcbb028fc8cec4dc5950958f8ddb6cbab897dd4f6cd0a11c6da1ae222835d",
+    "review.json": "0215ce12161b6bdcfb2147e9b976cdd5d2000c5b60f77f7bed21a2278b617773"
+  },
+  "stateHash": "135a98b45af9ccc7ab9a764d67992a74b53d6ee14e4d4540611f138e5083d47c",
+  "displayHash": "ab171d01c0e853f774c0f6567ed011bcdb206d613c0ce3fc96739be2fdce8cb4"
+}

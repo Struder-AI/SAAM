@@ -37,19 +37,13 @@ For a complete recipe in a local authoring script, use
 `await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs), then change its
 geometry and skill settings before passing it to `initBundle` or saving JSON.
 The shell template enables full-fill **and draped-skin**; explicitly disable
-unwanted patterns when choosing another recipe (STL, Gridfinity and voxel
+unwanted patterns when choosing another recipe (STL and Gridfinity
 creation already disable draped-skin).
 
 Through MCP, get a complete editable recipe with `get_plan_template`, selecting
 `kind: "shell"` and the machine, then pass the proposed recipe to `create_print`.
 `kind: "wedge"` selects the bounded demo when that is the intended workflow.
 Creation stores unapproved geometry and settings; open Studio for review.
-
-### Create volumetric geometry
-
-For volumetric samples or B-spline control lattices, use the
-[voxel tools](../../skills/voxel-tools/SKILL.md). They retain the field and its
-explicit extraction resolution while using the shared slicing and review workflow.
 
 ### Import an STL
 

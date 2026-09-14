@@ -35,7 +35,7 @@ export function buildMeshView({vertices,faces},creaseDeg=3) {
 
 // Angle-weighted corner normals remove triangulation shading without rounding
 // real corners or blending across separately named CAD/component features.
-export function buildGeometryView(geometry,creaseDeg=35){
+export function buildGeometryView(geometry,creaseDeg=35,gridFeatures=[]){
   const {vertices,faces,labels}=geometry,topology=buildMeshView(geometry,creaseDeg);
   const {normals,weld,edges}=topology,incident=new Map(),cosine=Math.cos(creaseDeg*Math.PI/180);
   const features=[...new Set(labels)],featureIds=new Map(features.map((id,i)=>[id,i]));
@@ -62,7 +62,7 @@ export function buildGeometryView(geometry,creaseDeg=35){
   });
   for(const entries of edges.values()){
     const a=entries[0],b=entries[1];
-    if(entries.length===2&&labels[a.f]===labels[b.f]&&!topology.edgeMasks[a.f][a.i])continue;
+    if(entries.length===2&&labels[a.f]===labels[b.f]&&!gridFeatures.includes(labels[a.f])&&!topology.edgeMasks[a.f][a.i])continue;
     for(const entry of entries.filter((e,i)=>entries.findIndex(o=>labels[o.f]===labels[e.f])===i)){
       const face=faces[entry.f];
       for(const k of [entry.i,(entry.i+1)%face.length])outlines.push(...vertices[face[k]],0,0,1,featureIds.get(labels[entry.f]));

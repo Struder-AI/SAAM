@@ -5,10 +5,6 @@ and SAAM Studio. It has no compiler, private review bridge, model calls, or
 hardware connection. Machine outputs and skill compatibility remain governed
 by the shared plan, generation and interpreter checks.
 
-For ChatGPT and Claude web chats, use the [temporary web-chat connection](#temporary-web-chat-connection).
-The same tools run locally through an OAuth-protected HTTP bridge and HTTPS
-tunnel. No desktop application package is required.
-
 Install the root dependencies with `npm ci` using Node.js 22+, then launch:
 
 ```sh
@@ -58,7 +54,6 @@ saved IDs; there is no single global plan that overwrites another job.
 | `list_prints`, `get_print` | Reopen saved prints and read their current state/recipe. `get_print` omits geometry and marks `planComplete:false` unless `includeGeometry:true` is supplied. |
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
-| `voxel` | Create or rebuild a scalar-field part using [voxel tools](../../skills/voxel-tools/SKILL.md), explicit surface sampling and current `expectedRevision` for edits. |
 | `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
@@ -95,9 +90,7 @@ disconnects. There is no deadline to open the first viewer.
 Repeated review requests use the print's still-open server within this adapter;
 after it closes, they start a fresh instance from the saved bundle. Closing a
 viewer leaves the MCP connection and its other viewers running. Separate adapter
-processes never adopt each other's Studio sessions. The temporary web-chat bridge
-shares an adapter across clients and has no per-agent ownership lock; use separate
-adapters for independent agent ownership and separate bundles for concurrent edits.
+processes never adopt each other's Studio sessions. Use separate adapters for independent agent ownership and separate bundles for concurrent edits.
 A separately launched CLI Studio remains independent and is never terminated by
 this adapter.
 
@@ -142,160 +135,3 @@ node --test core/tests/mcp.test.mjs core/tests/mcp-access.test.mjs
 
 Tests use isolated temporary Prints roots and synthetic approval records written
 by test fixtures outside the adapter protocol. They never approve a real print.
-
-## Temporary web-chat connection
-
-This is a single-user development connection to this computer, intended for
-ChatGPT and Claude custom remote MCP connections. SDK integration tests establish
-the HTTP/OAuth and shared workflow behavior; actual vendor-web-chat acceptance
-must be checked separately in the user's account. Account plans and administrator
-settings may restrict custom connections.
-
-Install the root dependencies with `npm ci`. Install the official
-[Cloudflare tunnel client](https://developers.cloudflare.com/tunnel/setup/),
-then run from the repository root:
-
-```sh
-npm run web-chat -- --cloudflared /absolute/path/to/cloudflared
-```
-
-On this Windows development checkout, the verified local binary can be used as:
-
-```powershell
-npm run web-chat -- --cloudflared .local/bin/cloudflared.exe
-```
-
-The command reserves loopback port 4322, starts a temporary Cloudflare HTTPS
-tunnel, and writes the public `/mcp` URL and pairing code to the ignored
-`.local/web-chat/connection-4322.json`. The code is a credential: read it locally
-and enter it only on the SAAM OAuth page, never in a chat or a public URL.
-The launcher does not print the code to the terminal. It opens a pairing page
-on a separate loopback port with the code and a copy button; no tunnel points
-at that port, so the page is reachable only from this computer. Use
-`SAAM_NO_AUTO_OPEN=1` to suppress opening it. No project files or Studio routes are
-served by the public bridge. Cloudflare carries requests and responses, so tool
-arguments/results are not private from the tunnel provider or selected AI service.
-
-1. Add the generated `/mcp` URL as a custom connection in the web chat. Select
-   OAuth; dynamic client registration supplies the client ID and secret where
-   needed, so normally leave those fields empty.
-2. The chat opens the SAAM authorization page. Check the client and return
-   address, then copy the code from the local pairing page and paste it there to
-   connect that client. This is connection authorization, separate from the
-   three manufacturing approvals.
-3. Ask the agent to read `read_guidance` with `guidanceId: "makers"`, read the
-   relevant skill, create an unapproved print, and request review.
-4. Review in the Studio window opened on this computer, approve geometry and
-   the locked plan, then ask the agent to generate. Review and approve the exact
-   toolpath in Studio; the agent can then deliver the same bytes locally.
-
-ChatGPT: use its custom MCP/plugin connection flow in developer mode where
-available. Claude: use Customize/Settings > Connectors > Add custom connector.
-See the current official [ChatGPT connection instructions](https://developers.openai.com/plugins/deploy/connect-chatgpt)
-and [Claude connection instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
-This repository does not change client settings automatically or publish a
-directory integration.
-
-### Claude plugin upload
-
-For the alpha onboarding test, use the Claude plugin generated by `web-chat`:
-`.local/web-chat/saam-claude-4322.zip` (the suffix follows `--port`). In Claude
-web, open Customize > Plugins > Upload a plugin and select that ZIP. Connect
-the bundled SAAM connector, then enter the current pairing code on the SAAM
-authorization page. Start a chat with the plugin enabled and describe a part.
-Claude plugins are available on paid plans; see
-[Claude's plugin guide](https://support.claude.com/en/articles/13837440-use-plugins-in-claude).
-
-The package contains a Claude manifest, the current remote MCP address and a
-short maker skill that loads the canonical manuals through MCP. It contains no
-pairing code, token, print files or executable local server. It does not start
-SAAM, replace OAuth, or expose local Studio through the tunnel. The person must
-keep SAAM running on the computer used for review. Each temporary tunnel has
-its own URL: use the newly generated package after restarting that tunnel.
-One user's development package points to that user's installation, not to the
-recipient's computer. A shared alpha release still needs stable hosting and
-installation pairing; that hosted multi-user service remains deferred.
-
-To regenerate a package for an already-running connection:
-
-```sh
-node adapters/claude/package.mjs --connection .local/web-chat/connection-4322.json --out .local/web-chat/saam-claude-4322.zip
-```
-
-The templates are in `adapters/claude/plugin/`. Packaging uses an explicit file
-allowlist and the existing ZIP helper. Local packaging and browser OAuth checks
-do not establish that Claude has accepted an upload; the external-client test
-records that separately.
-
-The launcher owns the tunnel and bridge. Keep it and the computer running;
-Ctrl+C closes the listeners and marks the connection file stopped. A process
-restart invalidates all tokens and registrations; a quick-tunnel restart also
-changes the URL, so reconnect both clients. The connection file records the
-launcher and tunnel PIDs for stopping a background development run. Do not
-terminate unrelated Node or tunnel processes.
-
-`--port` chooses another loopback port. `--prints-root` (or `SAAM_PRINTS_ROOT`)
-selects the bundle library; the default is this checkout's `Prints`. Use an
-isolated root for synthetic tests. `SAAM_NO_AUTO_OPEN=1` disables automatic
-browser opening. `--public-url https://your-host.example` uses an already
-configured reverse proxy instead of starting Cloudflare. That proxy must forward
-to this command's loopback port and preserve either the configured public Host
-or its loopback Host. Issuer/resource URLs come only from startup configuration.
-A loopback `--public-url` is a local test of the bridge itself; it packages no
-Claude plugin, because that package needs a public HTTPS address.
-
-### Stable address with a named tunnel
-
-A quick tunnel gets a new URL on every restart, so every client has to be
-reconnected. To keep one address, create a
-[named tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
-on a Cloudflare domain you control, route the chosen hostname to
-`http://127.0.0.1:4322`, and start it through this launcher:
-
-```sh
-npm run web-chat -- --public-url https://saam.your-domain.example --tunnel-token-file /path/to/token
-```
-
-The token is read from that file or from `SAAM_TUNNEL_TOKEN`, never from the
-command line, because process arguments are readable by other local accounts.
-The launcher runs `cloudflared tunnel run`, waits for a registered connection,
-and owns that process as it does a quick tunnel. `--public-url` is required with
-a token: the hostname is configured in Cloudflare, not discovered here. A restart
-still invalidates every OAuth registration and token, but the address and the
-generated plugin package stay valid. Named tunnels also carry SSE, which quick
-tunnels do not; this bridge still uses stateless JSON responses.
-
-## Development connection security and limits
-
-- The local tunnel connects outbound. No inbound router port is required.
-  The bridge binds to loopback and refuses unexpected Host/Origin headers.
-  Studio retains its own loopback, origin and session-token checks.
-- The MCP SDK provides OAuth discovery, dynamic registration, redirect matching,
-  PKCE S256 verification and bearer-token middleware. SAAM adds the local pairing
-  screen, expiring in-memory grants and tokens, resource/scope checks and token
-  revocation. Discovery is public; MCP tools require a token for this installation.
-- Pairing requests last five minutes; authorization codes last one minute and
-  are single-use and client-bound. Access tokens last one hour; rotating refresh
-  tokens last at most eight hours from connection. Restart revokes everything.
-  Registrations, pending requests and tokens have bounded in-memory capacity;
-  OAuth endpoints and pairing attempts are rate-limited.
-- This is one installation's library, not multi-user hosting. Every paired
-  client can use the existing MCP tools on that library, including the explicit
-  local STL importer. There is no arbitrary shell or general file-reader tool.
-  Pair only chat clients you intend to give those capabilities.
-- One local adapter serializes tool calls across all HTTP clients and retains
-  Studio listeners across individual requests/client disconnects. Existing
-  revision/hash checks and human approvals are unchanged. The bridge does not
-  retry writes automatically. After a timeout, read current print state before
-  deciding whether to retry; a local operation may have continued.
-- Quick tunnels do not support SSE, so this bridge uses stateless Streamable
-  HTTP with JSON responses and no GET event stream. Long generation calls can
-  exceed the tunnel/client request timeout. Persistent hosting and asynchronous
-  generation are not part of this development connection.
-- Studio URLs and delivered file paths are local. Use the web chat on the SAAM
-  computer for the complete review/delivery flow. A phone or different computer
-  cannot open those local URLs or retrieve local files through this bridge.
-
-`node --test core/tests/mcp-http.test.mjs` provides coverage for OAuth rejection/rotation/
-revocation, two-client state, preserved Studio lifetime, synthetic approval gates
-and exact-export delivery. No test authorizes a real print or starts hardware.

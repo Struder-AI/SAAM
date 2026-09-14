@@ -27,7 +27,6 @@ settings and supported scope.
 | Skill | Capability and value |
 |---|---|
 | [mesh-tools](mesh-tools/SKILL.md) | Diagnose rejected meshes or perform requested STL cleanup and solid reconstruction so usable geometry can return to import and review. Preserves the original for comparison; reconstruction can change small features and requires closed, consistently oriented input. |
-| [voxel-tools](voxel-tools/SKILL.md) | Create and edit volumetric parts from scalar voxel samples or smooth B-spline control lattices. Extract at an explicit resolution for shared planar slicing and Studio review; no optimization or physical solver is included. |
 | [text](text/SKILL.md) | Add raised or recessed lettering to a part, or create standalone text, using a supplied outline font. Lay out lettering flat, optionally along a spline baseline, then bend its solid onto a part surface or an independent spline guide. The resulting mesh goes through the shared printing and Studio review workflow. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 

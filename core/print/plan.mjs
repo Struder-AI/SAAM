@@ -24,7 +24,6 @@ import {pipeMesh} from '../geom/cylinder.mjs';
 import {validateSplineTube} from '../geom/spline-tube.mjs';
 import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
-import {voxelTemplate,validateVoxelRecord} from '../geom/voxel-record.mjs';
 import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 
 export const VERSION = '0.1.0';
@@ -91,7 +90,6 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape) {
-  if(shape==='voxel')return voxelTemplate();
   if(shape==='gridfinity')return gridfinityTemplate();
   if(shape==='text')return textTemplate();
   if(shape==='spline-tube')return {shape,innerRadiusMm:8,heightMm:24,controlPoints:[]};
@@ -112,7 +110,7 @@ export function geometryTemplate(shape) {
 }
 
 export function validatePlan(plan, machine) {
-  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(plan.geometry?.shape), 'Unsupported shape.');
+  requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity'].includes(plan.geometry?.shape), 'Unsupported shape.');
   plan.skills['pipe-cladding']??=structuredClone(PIPE_CLADDING_DEFAULTS);
   plan.skills['pipe-cladding'].surface??=null;
   if(plan.skills['pipe-cladding'].pattern===undefined)plan.skills['pipe-cladding'].pattern=PIPE_CLADDING_DEFAULTS.pattern;
@@ -166,14 +164,13 @@ export function validatePlan(plan, machine) {
   if(geometry.shape==='spline-tube')validateSplineTube(geometry);
   if(geometry.shape==='text')validateTextRecord(geometry);
   if(geometry.shape==='gridfinity')validateGridfinityRecord(geometry);
-  if(geometry.shape==='voxel')validateVoxelRecord(geometry);
-  if(!['assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
+  if(!['assembly','mesh','pipe','spline-tube','text','gridfinity'].includes(geometry.shape)) for (const [key, min, max] of [['runMm', 5, 200], ['widthMm', 5, 200]]) number(geometry[key], min, max, key);
   if(geometry.shape==='pipe'){
     for(const key of ['innerRadiusMm','outerRadiusMm','heightMm','toleranceMm'])requireThat(Number.isFinite(geometry[key])&&geometry[key]>0,'Invalid pipe '+key+'.');
     requireThat(geometry.toleranceMm<geometry.innerRadiusMm/4,'Pipe mesh tolerance exceeds its bore radius.');pipeMesh(geometry);
   }
   validateCladding(plan,machine);
-  if(['mesh','text','gridfinity','voxel'].includes(geometry.shape)) {
+  if(['mesh','text','gridfinity'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
     requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
     if(geometry.shape==='mesh')requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
@@ -311,8 +308,8 @@ export function validatePlan(plan, machine) {
   const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
     : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
   const bounds=toolBounds(machine,setup.tool);
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','voxel'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
+  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   const regionIds=new Set();
   for(const region of plan.composition.regions) {

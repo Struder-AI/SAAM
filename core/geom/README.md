@@ -110,7 +110,6 @@ Mesh conversion is not required before SAAMpath generation.
 | Representation | Role |
 |---|---|
 | Spline shell / triangle mesh | Part geometry behind common queries. |
-| [Volumetric scalar field](VOXEL.md) | Editable voxel samples or rational B-spline controls; explicitly extracted to the shared manufacturing mesh backend for slicing and Studio. |
 | Closed regions with holes | Planar sections, offsets, solid masks and infill clipping. |
 | Surface height and normal | Accessible roof sampling for drape; faceted normals stay faceted. |
 | Skill operation result | Composable strokes, dependencies, layer references and travel policies. |
