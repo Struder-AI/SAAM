@@ -8,9 +8,12 @@ export const SKILL_IDS = Object.freeze([
 export function skillMetadata(id, manual) {
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(manual)?.[1] ?? '';
   const metadata = /^metadata:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/m.exec(frontmatter)?.[1] ?? '';
+  const kind = /^[ \t]+saam-kind:[ \t]*task[ \t]*$/m.test(metadata) ? 'task'
+    : /^[ \t]+saam-kind:[ \t]*thick-wall[ \t]*$/m.test(metadata) ? 'thick-wall'
+    : 'printing';
   return {
     id,
-    kind: /^[ \t]+saam-kind:[ \t]*task[ \t]*$/m.test(metadata) ? 'task' : 'printing',
+    kind,
     description: frontmatter.match(/^description:[ \t]*(.*)$/m)?.[1]?.trim() ?? ''
   };
 }

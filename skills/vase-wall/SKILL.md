@@ -1,6 +1,8 @@
 ---
 name: vase-wall
-description: Print a hollow vase from an ordinary solid model, using a continuous spiral or repeating motifs warped around its contours. Overlapping tilted loops can preserve the guide's exterior or create a scalloped finish. Continuous vase mode has no travel; explicit segmented mode permits gaps.
+description: Describe a container by one boundary and a wall thickness instead of perimeters and infill, using a continuous spiral or repeating motifs warped around the guide's actual contours. Overlapping tilted loops touch their neighbor by one line width to bond into a thicker wall, and can preserve the guide's exterior or create a scalloped finish. Continuous vase mode has no travel; explicit segmented mode permits gaps.
+metadata:
+  saam-kind: thick-wall
 ---
 
 # Vase wall
