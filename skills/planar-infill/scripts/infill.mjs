@@ -10,7 +10,10 @@ export const PLANAR_INFILL_DEFAULTS={spacingFactor:1,perimeters:2,density:0.2,pa
 
 // One owner for walls; full-fill owns only selected solid interiors. Neither
 // pattern makes a second toolpath or chooses process parameters at generation.
-export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-infill',solid=false,zStartMm=null,zEndMm=null,lowerSurface=null}) {
+export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-infill',solid=false,zStartMm=null,zEndMm=null,lowerSurface=null,onProgress}) {
+  const surfaceSolids=solid;
+  const envelopes=(shell.processReservations??[]).filter(r=>r.solidRegionAt);
+  solid=solid||envelopes.length>0;
   const settings=plan.skills['planar-infill'],fill=plan.skills['full-fill'],width=plan.process.lineWidthMm;
   const heights=layerHeights(plan.process,shell.bounds.min[2],Math.min(shell.bounds.max[2],zEndMm??Infinity)).filter(z=>z>(zStartMm??-Infinity)+1e-9);
   const layerOffset=heights.length?Math.round((heights[0]-shell.bounds.min[2]-plan.process.firstLayerMm)/plan.process.layerMm):0;
@@ -19,22 +22,27 @@ export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-
   const sectionAt=z=>{if(!sections.has(z))sections.set(z,query(z));return sections.get(z);};
   // Shared solid/sparse construction owns one clipped region and centerline
   // inset per layer. A standalone sparse body needs neither eager mask pass.
-  const regions=solid?heights.map(z=>{
+  const regions=solid?heights.map((z,i)=>{
+    onProgress?.({stage:'Slicing layers',completed:i,total:heights.length});
     let region=sectionAt(z).loops;
     if(lowerSurface)region=clipAboveSurface(region,z,lowerSurface);
     for(const reservation of reserves)region=clipReservedRegion(region,z,reservation);
     return region;
   }):[];
   const solids=regions.map((region,i)=>{
+    onProgress?.({stage:'Planning solid surfaces',completed:i,total:regions.length});
     if(!solid||!region.length)return [];
     let supported=region,covered=region;
-    for(let n=1;n<=fill.bottomLayers&&supported.length;n++)supported=intersect(supported,regions[i-n]??[]);
-    for(let n=1;n<=fill.topLayers&&covered.length;n++)covered=intersect(covered,regions[i+n]??[]);
-    return union(difference(region,supported),difference(region,covered));
+    if(surfaceSolids){
+      for(let n=1;n<=fill.bottomLayers&&supported.length;n++)supported=intersect(supported,regions[i-n]??[]);
+      for(let n=1;n<=fill.topLayers&&covered.length;n++)covered=intersect(covered,regions[i+n]??[]);
+    }
+    return union(union(difference(region,supported),difference(region,covered)),
+      intersect(region,union(envelopes.flatMap(r=>r.solidRegionAt(heights[i])),[])));
   });
   const interiors=[];
   const prepared=solid?{regionAt:(_z,i)=>regions[i-layerOffset]}:{};
-  const sparse=fullFillResult({shell,plan,machine,reserve,id,settings:{...settings,spacingFactor:settings.spacingFactor??1},spacingMm:settings.density===0?null:lineSpacing(width,settings)/settings.density,zStartMm,zEndMm,lowerSurface,sectionAt,...prepared,
+  const sparse=fullFillResult({shell,plan,machine,reserve,id,onProgress,settings:{...settings,spacingFactor:settings.spacingFactor??1},spacingMm:settings.density===0?null:lineSpacing(width,settings)/settings.density,zStartMm,zEndMm,lowerSurface,sectionAt,...prepared,
     interiorStrokes:(region,i,z)=>infillStrokes(region,{...settings,widthMm:width,angleDeg:settings.fillAnglesDeg[(settings.pattern==='rectilinear'?i:0)%settings.fillAnglesDeg.length],zMm:z}),
     interiorRegion:solid?(region,i)=>{
       interiors[i-layerOffset]=region;
@@ -44,7 +52,7 @@ export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-
   sparse.report.density=settings.density;
   sparse.report.pattern=settings.pattern??'rectilinear';
   if(!solid)return [sparse];
-  const solidResult=fullFillResult({shell,plan,machine,reserve,id:id+':solid',settings:{...settings,spacingFactor:fill.spacingFactor??1,perimeters:0},zStartMm,zEndMm,lowerSurface,sectionAt,
+  const solidResult=fullFillResult({shell,plan,machine,reserve,id:id+':solid',onProgress,detailsMode:'reserve',settings:{...settings,spacingFactor:fill.spacingFactor??1,perimeters:0},zStartMm,zEndMm,lowerSurface,sectionAt,
     regionAt:prepared.regionAt,fillRegionAt:(_whole,i)=>{
       // Match the sparse interior's centerline domain, including wall overlap.
       return solids[i-layerOffset].length?intersect(interiors[i-layerOffset],solids[i-layerOffset]):[];

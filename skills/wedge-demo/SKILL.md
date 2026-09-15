@@ -13,7 +13,7 @@ with six named planar faces,
 horizontal solid-fill toolpaths, alternating inclined skin strokes, SAAMpath, and
 the selected machine export (S5 Griffin, experimental H2D sliced 3MF or configured
 Dobot Lua ZIP). [Studio](../../studio/server.mjs) reconstructs motion from the
-exact exported program and records three version-bound human approvals.
+exact exported program and records two version-bound human confirmations.
 
 Use this package's own eight-point geometry and generator for the wedge.
 The base is an axis-aligned rectangle; roof corners sit vertically above it
@@ -43,8 +43,8 @@ fresh geometry, settings and toolpath review. Existing export/delivery and old
 3DM bytes remain intact. Upgrading an unchanged mesh retains geometry approval.
 
 For a request that identifies this supported wedge, its default geometry can
-provide the first proposed preview. Identify the dimensions and assumptions so
-the maker can revise them through chat.
+provide the first proposed preview under the
+[standard parameter policy](../../MAKERS.md#standard-parameter-policy).
 
 This bounded generator requires PLA and a 0.4 mm nozzle; remembered setup for
 another material or nozzle must be revised before using it.
@@ -92,8 +92,9 @@ the plane and footprint derived from these same points. Read
 The default recipe is a 30 × 20 mm wedge with a 2 mm low end and 15° slope.
 It uses right nozzle #2 (`T1`), AA 0.4, 2.85 mm PLA at 215°C, a proposed 60°C
 bed, 28°C build-volume setting, Generic PLA material profile, 0.2 mm first and subsequent horizontal layers, and two 0.2 mm
-skins measured normal to the slope. Reuse the user's confirmed setup; do not
-describe defaults such as bed temperature as separately human-approved.
+skins measured normal to the slope. Choose setup under the
+[standard parameter policy](../../MAKERS.md#standard-parameter-policy); these
+defaults confer no human approval.
 
 S5 and H2D printing speed defaults are 40 mm/s flat, 20 mm/s sloped and
 24 mm/s first layer, with 120 mm/s XY travel and 10 mm/s Z travel.
@@ -123,7 +124,7 @@ See the [shared travel rule](../../core/path/README.md#whole-plan-travel-require
 wedge ended with its terminal retraction, so its first recovery cancels that
 retraction rather than backing filament up a second time.
 
-Machine setup reuse and the three human review stages follow the
+Machine setup reuse and the two human review stages follow the
 [shared workflow](../../core/print/USAGE.md). For S5 startup assumptions and
 reported incompatibilities, use the [S5 setup guidance](../../core/export/griffin.md#s5-setup-and-troubleshooting).
 
@@ -168,7 +169,7 @@ print quality and physical clearance remain unverified.
 
 Select `--machine dobot-mg400` when initializing. The same eight-point mesh,
 horizontal body and inclined-roof generator produce SAAMpath; export uses the
-shared Dobot Lua interpreter and the same three approvals. Geometry can be
+shared Dobot Lua interpreter and the same two confirmations. Geometry can be
 reviewed before installation configuration is supplied. Export requires the
 locked frame, calibration, workspace, external initial pose and relay/thermal
 settings described in the [Dobot contract](../../core/export/dobot.md#dobot-output-contract).

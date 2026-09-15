@@ -13,3 +13,12 @@ export function ringMesh() {
   }
   return {shape:'mesh',vertices,triangles:quads.flatMap(([a,b,c,d])=>[[a,b,c],[a,c,d]]),source:null};
 }
+
+export function subdividedBox(levels=3){
+  const mesh=boxMesh(4,4,4);
+  for(let level=0;level<levels;level++){
+    const edges=new Map(),midpoint=(a,b)=>{const key=a<b?a+':'+b:b+':'+a;if(!edges.has(key)){edges.set(key,mesh.vertices.length);mesh.vertices.push(mesh.vertices[a].map((v,k)=>(v+mesh.vertices[b][k])/2));}return edges.get(key);};
+    mesh.triangles=mesh.triangles.flatMap(([a,b,c])=>{const ab=midpoint(a,b),bc=midpoint(b,c),ca=midpoint(c,a);return [[a,ab,ca],[ab,b,bc],[ca,bc,c],[ab,bc,ca]];});
+  }
+  return mesh;
+}

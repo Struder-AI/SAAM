@@ -1,6 +1,7 @@
 import {requireThat,distance,cross,normalize} from '../../../core/geom/tolerance.mjs';
 import {solidKernel,solidFromMesh,meshFromSolid,combineSolids} from '../../../core/geom/solid.mjs';
-import {textOutlines,flattenBezier} from '../../../core/geom/text-outline.mjs';
+import {textOutlines} from '../../../core/geom/text-outline.mjs';
+import {textLayout} from '../../../core/geom/text-layout.mjs';
 import {referenceSurface} from '../../../core/geom/reference-surface.mjs';
 import {tessellateShell} from '../../../core/geom/tessellate.mjs';
 import {textTemplate,textDigest} from '../../../core/geom/text-record.mjs';
@@ -24,35 +25,8 @@ export function textFeature(spec){
   return f;
 }
 
-function baselineMapper(spec,toleranceMm){
-  if(spec===null)return (x,y)=>[x,y];
-  requireThat(spec&&Object.keys(spec).every(k=>['controlPoints','startMm'].includes(k))&&Array.isArray(spec.controlPoints)&&[3,4].includes(spec.controlPoints.length)&&spec.controlPoints.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),'Baseline needs three or four XY Bezier control points.');
-  const start=spec.startMm??0;requireThat(Number.isFinite(start)&&start>=0,'Baseline startMm must be nonnegative.');
-  const points=[spec.controlPoints[0]],parameters=[0];flattenBezier(spec.controlPoints,toleranceMm/4,points,0,parameters);
-  const lengths=[0];for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+distance(points[i],points[i-1]));
-  requireThat(lengths.at(-1)>0,'Text baseline has zero length.');
-  return (x,y)=>{
-    const s=x+start;requireThat(s>=0&&s<=lengths.at(-1),'Text exceeds baseline length; change size or startMm.');
-    let i=1;while(i<lengths.length-1&&lengths[i]<s)i++;
-    const len=lengths[i]-lengths[i-1];
-    requireThat(len>1e-10,'Text baseline has a degenerate segment.');
-    const t=parameters[i-1]+(parameters[i]-parameters[i-1])*(s-lengths[i-1])/len;
-    const at=cp=>{let row=cp;while(row.length>1)row=row.slice(1).map((p,i)=>p.map((v,k)=>row[i][k]+(v-row[i][k])*t));return row[0];};
-    const p=at(spec.controlPoints),d=at(spec.controlPoints.slice(1).map((p,i)=>p.map((v,k)=>(v-spec.controlPoints[i][k])*(spec.controlPoints.length-1)))),norm=Math.hypot(...d);
-    requireThat(norm>1e-10,'Text baseline has a singular tangent.');
-    return [p[0]-d[1]*y/norm,p[1]+d[0]*y/norm];
-  };
-}
-
-function layoutMapper(feature,toleranceMm){
-  const along=baselineMapper(feature.baseline,toleranceMm),angle=feature.rotationDeg*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
-  return (x,y)=>{
-    const [a,b]=along(feature.mirror?-x:x,y);
-    return [feature.positionMm[0]+a*c-b*s,feature.positionMm[1]+a*s+b*c];
-  };
-}
 function layoutGroup(group,feature,toleranceMm){
-  let map=layoutMapper(feature,toleranceMm);
+  let map=textLayout(feature,toleranceMm);
   const anchor=group.anchor?map(...group.anchor):null;
   if(group.anchor){
     const h=0.0001,a=group.anchor,dx=map(a[0]+h,a[1]).map((v,i)=>(v-anchor[i])/h),length=Math.hypot(...dx);

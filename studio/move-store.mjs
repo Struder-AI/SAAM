@@ -19,6 +19,25 @@ export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0}) {
   const methods={
     get length(){return data.length;},
     at,
+    // A local scratch row for batch display work. Copy only requested columns,
+    // reusing its small vectors; never expose or mutate the backing buffers.
+    reader(names){
+      const fields=names.map(name=>data.fields?.find(field=>field.name===name)).filter(Boolean);
+      const hasLine=fields.some(field=>field.name==='line');
+      const row=Object.fromEntries(names.map(name=>[name,undefined]));
+      for(const field of fields)if(field.width>1)row[field.name]=Array(field.width).fill(0);
+      return index=>{
+        if(index<0||index>=data.length)return undefined;
+        const chunk=data.chunks[Math.floor(index/CHUNK)],offset=index%CHUNK;
+        for(const field of fields){
+          const column=chunk[field.name];
+          if(field.width>1)for(let k=0;k<field.width;k++)row[field.name][k]=column[offset*field.width+k];
+          else row[field.name]=field.values?field.values[column[offset]]:column[offset];
+        }
+        if(hasLine)row.line+=data.lineOffset;
+        return row;
+      };
+    },
     value(index,name){
       fieldsByName??=Object.fromEntries(data.fields.map(f=>[f.name,f]));
       const field=fieldsByName[name],column=data.chunks[Math.floor(index/CHUNK)][name],offset=index%CHUNK;

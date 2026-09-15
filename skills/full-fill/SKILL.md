@@ -118,7 +118,7 @@ interface through the same generator. The
 [synthetic stack fixture](../../core/tests/fixtures/regional-stack.mjs) exercises
 base, vase, cap, sparse walls, drape and horizontal fill over the wavy lower
 surface. Its invented robot configuration is software-test data, not a usable
-hardware setup. Region settings and source references are part of plan approval.
+hardware setup. Region settings and source references are part of combined settings/toolpath confirmation.
 
 The [geometry contract](../../core/geom/README.md#geometry-interoperability-for-skill-authors)
 owns validation and backend limits. Mesh normals are faceted; spline contour

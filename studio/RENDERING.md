@@ -2,12 +2,26 @@
 
 Display geometry, material rendering, playback and performance. See [Studio](README.md) for launch and review behavior.
 
+Stationary extrusion has source-decoded duration and volume at a fixed nozzle
+position. Playback holds that position and draws an injection ring, with volume
+and nozzle setpoint while the action is active. It does not invent a bead
+direction or simulate molten cavity filling. The ring remains at the commanded
+location afterward; the final CAD model still describes the intended finished
+part. Thermal wait time is not simulated.
+
 The [machine presentation contract](KINEMATICS.md#implemented-consumer) owns
 the simple ghost overlay, Machine view, shared depth/compositing strategy and
 model-provider boundary. Its neutral palette and assembly bounds are separate
 from toolpath colors, bead detail and default part framing described below.
 
 ## Studio performance and display detail
+
+Shared work activity fades the viewport canvas to 28% opacity, using the same
+state as the agent dots. It clears without a delayed transition when the requested
+result is ready, or work pauses, fails or is interrupted. This presentation does
+not alter geometry, source playback, exports or exported movies. The tour's step-3
+attention fade is independent and lasts until a print is selected or the lesson
+is left; step 4 gives both continuation choices equal arrows, colors and blinking.
 
 The optional Evolve pane can reveal enclosed cavities through a translucent shell.
 It flood-fills empty cells in the saved analysis grid: regions reaching a domain
@@ -30,13 +44,13 @@ the nozzle; pipe cladding uses radial thickness around its commanded bead center
 Lighting distinguishes adjacent current tracks without an artificial gap.
 This is a nominal display cross-section, not measured filament spread.
 
-### Packaged tour previews
+### Tour previews
 
 The [guided tour](../examples/prints/README.md) uses this same renderer and machine
-presentation. It paints geometry before loading a versioned display cache of
-interpreted moves and material instances. The rolling-hills introduction retains
-the roof proxy grid and uses a closer camera to expose the bivariate curvature.
-This is display data only; editing returns to live generation and review.
+presentation. Both starting shapes initialize from source recipes and show
+geometry before toolpath generation. At toolpath review, the normal worker and
+source interpreter supply playback and material instances. Generated display
+caches and machine programs are not bundled in the repository.
 
 ### Visually verified toolpath colors
 
@@ -61,6 +75,10 @@ Completed material uses rectangular swept sections with every source curve
 segment retained. Compact instance buffers, shared cross-section templates and
 cached geometry reduce storage and drawing cost without voxelizing curves.
 Layers and operations remain separately colored; unprinted bores remain empty.
+Material preparation reads selected compact move columns into one local scratch
+row, reusing vectors instead of allocating a complete move for every pass.
+Retained group representatives remain independent copies. This preserves every
+source segment and the same instance buffers; it does not reduce display detail.
 A depth prepass prevents hidden internal surfaces from accumulating opacity.
 Draped skin and normal rimming currently lack source surface normals and retain
 an explicitly labeled line fallback. Browsers without WebGL2 also use lines.
@@ -107,6 +125,13 @@ a restrained tint and stronger boundary lines; pointer picking interpolates
 depth at the clicked location, leaving real holes empty. The grid retains its
 original contrast, with an orientation indicator in the corner instead of axes
 over the part.
+Clicks within six CSS pixels of a visible crease or boundary select an edge
+before a surface. Connected segments join through degree-two vertices; junctions
+split edges and closed rims remain whole. Names use the adjacent source feature
+labels plus a per-group number, stable within the geometry revision. Internal
+coplanar tessellation and the roof's illustrative grid are not selectable edges.
+Picking compares edge depth with the front surface, and an orange depth-tested
+line highlights selection. The flat fallback samples visibility along that line.
 Geometry buffers are cached until the source changes. These operations affect
 display only: source coordinates, tessellation and manufacturing data remain
 unchanged. Without WebGL2, Studio labels its flat-surface fallback. Toolpath view

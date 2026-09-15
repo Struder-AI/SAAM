@@ -15,6 +15,9 @@ MCP catalog. After changing descriptions or catalog membership, run
 Generated agreement does not establish that capability claims are true.
 
 Keep setup, reusable assets and recipe assumptions accessible through the manual.
+Reference the shared [standard parameter policy](../MAKERS.md#standard-parameter-policy)
+for choosing and reusing settings; manuals own their specific defaults and limits
+without restating that interaction policy.
 Place recovery references at the operation or failure that needs them. When those
 routes change, assess access through both local files and the connector's manual
 reader. Select relevant verification under [Avoid check spirals](../DEVELOP.md#avoid-check-spirals).

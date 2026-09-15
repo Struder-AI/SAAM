@@ -122,7 +122,7 @@ for(const machineId of ['ultimaker-s5','bambu-h2d'])test(`${machineId}: shared p
   const dir=await temp(t);let state=await createGridfinityBundle(dir,{heightUnits:2,stackingLip:false},{machineId,setupFile:resolve(dir,'unused.json')});
   state=await adjustBundle(dir,{process:{minimumLayerSeconds:0}},{expectedRevision:state.revision});
   const actor='SYNTHETIC GRIDFINITY TEST — not a real approval';
-  for(const stage of ['geometry','plan']){state=await loadBundle(dir);await approve(dir,{stage,revision:state.revision,actor});}
+  for(const stage of ['geometry']){state=await loadBundle(dir);await approve(dir,{stage,revision:state.revision,actor});}
   const checks=await generateBundle(dir);assert.ok(checks.moves>0);
   state=await loadBundle(dir);assert.ok(state.program&&!state.programError);
   const bytes=await readFile(resolve(dir,'exports',state.plan.output,state.exportName));

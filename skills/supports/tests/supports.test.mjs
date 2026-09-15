@@ -111,7 +111,7 @@ test('assigned support recipe survives bundle review and exact delivery; edits i
   t.after(()=>rm(dir,{recursive:true,force:true}));
   const actor='SYNTHETIC SUPPORT TEST — not human approval';
   await initBundle(dir,supportPlan());
-  for(const stage of ['geometry','plan']){const state=await loadBundle(dir);await approve(dir,{stage,actor,revision:state.revision});}
+  for(const stage of ['geometry']){const state=await loadBundle(dir);await approve(dir,{stage,actor,revision:state.revision});}
   await generateBundle(dir);
   let state=await loadBundle(dir);assert.ok(state.skills.includes('supports'));
   assert.ok(!(await readdir(dir)).includes('path.saampath'));

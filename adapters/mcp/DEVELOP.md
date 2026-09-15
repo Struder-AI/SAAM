@@ -8,7 +8,8 @@ owns manufacturing state.
 
 The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.
 
-[The manual reader](src/manuals.mjs) accepts published repository Markdown paths
+[The shared manual reader](../../core/agent/manuals.mjs), re-exported by
+[the adapter](src/manuals.mjs), accepts published repository Markdown paths
 and returns the document's own links as resolved IDs. New references therefore
 use ordinary links without a parallel per-document registry. It confines reads
 to the public documentation trees and rejects private locations and filesystem
@@ -23,6 +24,11 @@ frontmatter; existing printing manuals retain the default `printing` kind.
 `apply_text` delegates to [shared text preparation](../../core/print/text.mjs),
 including local font reading, stale-revision checks and geometry updates. The
 adapter does not own a separate text schema, boolean pipeline or approval route.
+
+`apply_heat_set` delegates to [shared insert preparation](../../core/print/heat-set.mjs)
+with the same revision and geometry lifecycle. `heat_set_catalog` exposes the
+skill's packaged insert profiles; geometry and feature validation stay at the
+shared preparation and skill owners.
 
 `core/tests/mcp.test.mjs` uses actual SDK clients and child processes, temporary
 bundles and synthetic approval fixtures outside the adapter protocol.

@@ -4,6 +4,10 @@ import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './pla
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
 import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
+  '../../skills/plastic-weld/scripts/weld.mjs',
+  '../../skills/heat-set-inserts/scripts/feature.mjs','../../skills/heat-set-inserts/scripts/catalog.mjs',
+  '../../skills/heat-set-inserts/scripts/geometry.mjs','../../skills/heat-set-inserts/scripts/reinforcement.mjs','./heat-set.mjs',
+  '../../skills/wave-overhangs/scripts/wave.mjs',
   '../../skills/gridfinity/scripts/record.mjs','../../skills/gridfinity/scripts/gridfinity.mjs','../../skills/gridfinity/scripts/bundle.mjs',
   '../path/deposition.mjs','../geom/contour-path.mjs','../../skills/vase-wall/scripts/paths.mjs',
   '../geom/text-record.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',
@@ -20,7 +24,7 @@ const RUNTIME_FILES = [
   '../region/surface-offset.mjs', '../geom/surface-derivatives.mjs',
   '../geom/nurbs.mjs', '../geom/section.mjs', '../geom/shell.mjs', '../geom/shapes.mjs', '../geom/field.mjs',
   '../geom/tolerance.mjs', '../region/region2d.mjs', '../region/boolean.mjs', '../path/builder.mjs', '../path/compose.mjs',
-  '../geom/query.mjs','../geom/mesh.mjs','../machine/profile.mjs','../export/registry.mjs',
+  '../geom/query.mjs','../geom/mesh.mjs','../geom/mesh-topology.mjs','../geom/mesh-budget.mjs','../geom/triangle-bvh.mjs','../geom/stl-file.mjs','../machine/profile.mjs','../export/registry.mjs',
   '../path/comb.mjs', './regions.mjs', '../region/reservation.mjs',
   '../export/griffin.mjs', './plan.mjs', './generate.mjs', './geometry.mjs', './bundle.mjs',
   '../../skills/full-fill/scripts/fill.mjs', '../../skills/draped-skin/scripts/drape.mjs',
@@ -47,13 +51,14 @@ const limitationsFor = (plan, machine) => {
   const limits=machine.id==='bambu-h2d'?[...LIMITATIONS,'H2D uses the supplied PLA / Textured PEI firmware envelope. Startup purge uses 240 C and up to 25 mm³/s; its time and material are excluded from print-body totals. Printer-selected calibration may heat both nozzles. Experimental output has not been physically validated.','The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating.']:[...LIMITATIONS];
   for(const override of new Set(skins.map(s=>s.maxAngleDegOverride).filter(v=>v!==null)))limits.push(
     `EXPERIMENTAL: this print overrides the machine profile’s declared ${machine.nonplanar.maxAngleDeg}° non-planar limit with ${override}°. Physical clearance and deposition behavior are unvalidated.`);
+  if(plan.skills['wave-overhangs']?.enabled)limits.push('Experimental surface wave overhangs: seeds and material ownership are explicitly assigned. Surface propagation, lateral bead attachment, cooling and warping have not been physically validated. Small numerical residuals are retained in the wave report.');
   return limits;
 };
 
 
-export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, upgradeBundle}=createBundleWorkflow({
+export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine, upgradeBundle}=createBundleWorkflow({
   kind:'shell',defaults,validatePlan,geometryTemplate,createGeometry,verifyGeometry,
-  generatePath:async(plan,machine)=>generatePath(plan,machine,await rhino()),
+  generatePath:async(plan,machine,options)=>generatePath(plan,machine,await rhino(),options),
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',machineFile:'machines/ultimaker-s5.json',
   limitations:limitationsFor,runtimeFiles:RUNTIME_FILES.map(file=>new URL(file,import.meta.url))
 });

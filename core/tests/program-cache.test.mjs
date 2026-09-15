@@ -27,9 +27,9 @@ test('unchanged bundle inputs validate once; approvals and reloads reuse those c
  first.plan.process.layerMm=99;first.geometry.parameters.widthMm=999;
  let state=await workflow.loadBundle(dir);assert.notEqual(state.plan.process.layerMm,99);
  state=await workflow.approve(dir,{stage:'geometry',actor:'SYNTHETIC TEST ONLY',revision:state.revision});
- await workflow.approve(dir,{stage:'plan',actor:'SYNTHETIC TEST ONLY',revision:state.revision});
+
  assert.equal(geometryChecks,1);assert.equal(planChecks,1);
- await assert.rejects(workflow.approve(dir,{stage:'plan',actor:'SYNTHETIC TEST ONLY',revision:first.revision}),/stale/);
+ await assert.rejects(workflow.approve(dir,{stage:'geometry',actor:'SYNTHETIC TEST ONLY',revision:first.revision}),/stale/);
  const planFile=resolve(dir,'plan.json'),plan=JSON.parse(await readFile(planFile,'utf8'));
  plan.process.layerMm=.1;await writeFile(planFile,JSON.stringify(plan));
  assert.equal((await workflow.loadBundle(dir)).planApproved,false);assert.equal(planChecks,2);assert.equal(geometryChecks,1);
@@ -75,6 +75,52 @@ test('warm and cold opening check the export without reslicing or an intermediat
  await assert.rejects(readFile(file),{code:'ENOENT'});
 });
 
+test('preparation reports actual layer and operation progress without persisting output',async t=>{
+ const dir=await mkdtemp(resolve(tmpdir(),'saam-progress-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ const plan=shellDefaults();plan.geometry={shape:'box',runMm:8,widthMm:8,heightMm:2};
+ plan.skills['draped-skin'].enabled=false;plan.skills['full-fill'].mode='solid-surfaces';plan.skills['planar-infill'].enabled=true;
+ await shellBundle.initBundle(dir,plan);
+ const before=await readFile(resolve(dir,'review.json')),progress=[];
+ await shellBundle.checkPathBundle(dir,{onProgress:p=>progress.push(p)});
+ for(const stage of ['Slicing layers','Planning walls and infill','Planning print moves']){
+   const steps=progress.filter(p=>p.stage===stage);assert.ok(steps.length>1,stage);
+   assert.equal(steps[0].completed,0);assert.ok(steps.every(p=>Number.isInteger(p.completed)&&p.completed<=p.total));
+   assert.ok(steps.every((p,i)=>!i||p.completed>=steps[i-1].completed));
+ }
+ assert.deepEqual(await readFile(resolve(dir,'review.json')),before);
+ assert.equal((await shellBundle.loadBundle(dir)).program,undefined);
+});
+
+test('confirmed development output becomes production without reslicing or changing reviewed bytes',async t=>{
+ let generations=0;
+ const make=()=>createBundleWorkflow({kind:'wedge',defaults,validatePlan,createGeometry,verifyGeometry,
+   generatePath:async(...args)=>{generations++;return generatePath(...args);},version:VERSION,buildDate:BUILD_DATE,
+   exportName:'wedge.gcode',machineFile:'machines/ultimaker-s5.json',limitations:()=>[],runtimeFiles:[]});
+ const workflow=make(),dir=await mkdtemp(resolve(tmpdir(),'saam-promote-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ await workflow.initBundle(dir);await workflow.generateBundle(dir,{development:true});
+ await assert.rejects(workflow.generateBundle(dir),/Approve the geometry/);
+ let state=await workflow.loadBundle(dir,{program:'source'});
+ state=await workflow.approve(dir,{stage:'geometry',actor:'SYNTHETIC reuse test',revision:state.revision});
+ const file=resolve(dir,'exports/griffin-gcode/wedge.gcode'),before=await readFile(file);
+ const checks=await make().generateBundle(dir);
+ assert.equal(generations,1,'a cold adapter reuses persisted checked commands');
+ assert.equal(checks.mode,'production');assert.deepEqual(await readFile(file),before);
+ state=await workflow.loadBundle(dir);assert.equal(state.exportHash,checks.exportHash);
+ assert.equal(state.geometryApproved,true);assert.equal(state.toolpathApproved,false);
+ assert.equal(state.review.history.at(-1).event,'generation-reused');
+ await assert.rejects(workflow.deliver(dir),/Confirm|Approve|approval/i);
+ // Edited bytes cannot be promoted; regenerate the current plan instead.
+ await workflow.generateBundle(dir,{development:true});
+ await writeFile(file,Buffer.concat([before,Buffer.from('; changed\n')]));
+ await make().generateBundle(dir);assert.equal(generations,3);
+ assert.deepEqual(await readFile(file),before);
+ // A new recipe also invalidates the saved source and must be sliced.
+ await workflow.generateBundle(dir,{development:true});
+ const planFile=resolve(dir,'plan.json'),plan=JSON.parse(await readFile(planFile,'utf8'));
+ plan.process.layerMm=.1;await writeFile(planFile,JSON.stringify(plan));
+ await make().generateBundle(dir);assert.equal(generations,5);
+});
+
 test('checked preparation is reused only for exact current inputs and never grants approval',async t=>{
  let generations=0;
  const workflow=createBundleWorkflow({kind:'wedge',defaults,validatePlan,createGeometry,verifyGeometry,
@@ -89,18 +135,18 @@ test('checked preparation is reused only for exact current inputs and never gran
  await assert.rejects(readFile(resolve(dir,'exports/griffin-gcode/wedge.gcode')),{code:'ENOENT'});
  assert.notEqual((await workflow.checkPathBundle(dir)).exportSummary.moves,-1);
  assert.equal(generations,1);
- await assert.rejects(workflow.generateBundle(dir),/Approve the geometry/);
+
  let state=await workflow.loadBundle(dir);
- for(const stage of ['geometry','plan'])state=await workflow.approve(dir,{stage,actor:'SYNTHETIC preparation test',revision:state.revision});
+ for(const stage of ['geometry'])state=await workflow.approve(dir,{stage,actor:'SYNTHETIC preparation test',revision:state.revision});
  const planFile=resolve(dir,'plan.json'),plan=JSON.parse(await readFile(planFile,'utf8'));
  await writeFile(planFile,JSON.stringify(plan));
  const reformatted=await workflow.loadBundle(dir);
- assert.equal(reformatted.planHash,state.planHash);assert.equal(reformatted.planApproved,true);
+ assert.equal(reformatted.planHash,state.planHash);assert.equal(reformatted.geometryApproved,true);
  await workflow.generateBundle(dir);assert.equal(generations,1,'approval and JSON formatting must reuse the checked commands');
  assert.equal((await workflow.loadBundle(dir)).toolpathApproved,false);
  await workflow.checkPathBundle(dir);assert.equal(generations,2);
  plan.process.layerMm=.1;await writeFile(planFile,JSON.stringify(plan));
- await assert.rejects(workflow.generateBundle(dir),/Approve the geometry/);
+
  await workflow.generateBundle(dir,{development:true});assert.equal(generations,3,'changed process cannot reuse the earlier candidate');
  await workflow.checkPathBundle(dir);
  const geometryFile=resolve(dir,'geometry/model.mesh.json');
@@ -142,7 +188,7 @@ test('machine wall tolerance defaults stay read-only and edits invalidate approv
  assert.deepEqual(await readFile(file),raw);assert.deepEqual(await readFile(reviewFile),unapprovedReview);
  machine.planarWallToleranceMm=.01;await writeFile(file,JSON.stringify(machine));
  let state=await workflow.loadBundle(dir,{program:false});
- for(const stage of ['geometry','plan'])state=await workflow.approve(dir,{stage,actor:'SYNTHETIC machine tolerance test',revision:state.revision});
+ for(const stage of ['geometry'])state=await workflow.approve(dir,{stage,actor:'SYNTHETIC machine tolerance test',revision:state.revision});
  await workflow.generateBundle(dir);state=await workflow.loadBundle(dir);
  state=await workflow.approve(dir,{stage:'toolpath',actor:'SYNTHETIC machine tolerance test',revision:state.revision});
  const approvedHash=state.planHash,approvedReview=await readFile(reviewFile);
@@ -152,7 +198,7 @@ test('machine wall tolerance defaults stay read-only and edits invalidate approv
  state=await workflow.loadBundle(dir);const zeroHash=state.planHash;
  assert.notEqual(zeroHash,approvedHash);assert.equal(state.geometryApproved,true);
  assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
- await assert.rejects(workflow.generateBundle(dir),/Approve the geometry/);
+
  await workflow.checkPathBundle(dir);assert.equal(generations,3,'zero tolerance cannot reuse the .01 candidate');
  assert.deepEqual(await readFile(reviewFile),approvedReview,'reading/checking edited machine settings must not rewrite approvals');
  machine.planarWallToleranceMm=.01;await writeFile(file,JSON.stringify(machine));

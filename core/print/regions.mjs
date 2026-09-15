@@ -96,6 +96,12 @@ function publishSurface(record,results) {
     return null;
   } else {
     const layers=planarLayers(results).sort((a,b)=>b.z-a.z);
+    // A reserved process void can publish material completed by a later
+    // operation. Consumers inherit that operation, so its mouth is usable as
+    // a final surface without pretending the surrounding fill deposited it.
+    for(const {completion:c} of shell.processReservations??[])if(c&&c.z>start+1e-8&&c.z<=end+1e-8)
+      layers.push({z:c.z,region:c.region,materialRegion:c.region,coverage:'area'});
+    layers.sort((a,b)=>b.z-a.z);
     query=(x,y)=>{for(const layer of layers)if(covered(x,y,layer.region))return layer.z;return null;};
     // Top ownership follows emitted solid masks and walls. Sparse interiors
     // remain explicitly sparse; a real solid top mask can publish area support.
@@ -116,7 +122,8 @@ function publishSurface(record,results) {
     kind=Math.abs(regionArea(missing))<=1e-5?'area':'sparse';
   }
   const field=surfaceField(shell,query,plan.skills['draped-skin'].surveyStepMm);
-  return {footprint,solidFootprint:solidFootprint??footprint,topAt:query,field,sourceOperationIds:ids(results),kind,sourceRegionId:record.assignment.id};
+  return {footprint,solidFootprint:solidFootprint??footprint,topAt:query,field,
+    sourceOperationIds:[...ids(results),...(shell.processReservations??[]).map(r=>r.completion).filter(c=>c&&c.z>start+1e-8&&c.z<=end+1e-8).map(c=>c.operationId)],kind,sourceRegionId:record.assignment.id};
 }
 
 export function generateRegionResults({plan,machine,placed,componentShells}) {
@@ -214,7 +221,7 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
         boundary:wall?'side':roof?'top':'shell',maxSlopeDeg:record.survey?.limitDeg??90,
         coverage:result.operations.some(op=>op.materialCoverage==='sparse')||(roof&&localPlan.skills['draped-skin'].spacingFactor>1)?'sparse':'nominal'});
     }
-    const prerequisiteIds=ids(predecessors.flatMap(p=>p.results));
+    const prerequisiteIds=[...ids(predecessors.flatMap(p=>p.results)),...(lowerSurface?.sourceOperationIds??[])];
     for(const result of record.results)for(const op of result.operations){op.regionId=assignment.id;op.after=[...new Set([...(op.after??[]),...prerequisiteIds])];}
     record.surface=publishSurface(record,record.results);results.push(...record.results);ordered.push(record);completed.add(assignment.id);
     summaries.push({id:assignment.id,part:assignment.part,zStartMm:assignment.zStartMm,zEndMm:assignment.zEndMm,startMm:start,endMm:end,

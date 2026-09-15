@@ -1,3 +1,0 @@
-
-# Prepared examples retain exact source bytes across platforms.
-examples/prints/*/prepared/** -text

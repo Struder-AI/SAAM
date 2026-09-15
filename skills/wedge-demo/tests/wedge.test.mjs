@@ -159,14 +159,14 @@ test('development generation creates no approvals and cannot deliver',async t=>{
   const s=await loadBundle(dir);assert.deepEqual(s.review.approvals,{});assert.ok(s.program);assert.equal(s.toolpathApproved,false);
   await assert.rejects(deliver(dir),/requires approval/);await assert.rejects(generateBundle(dir),/Approve/);
 });
-test('three synthetic approvals, stale views, reopening and byte-identical delivery',async t=>{
+test('two synthetic confirmations, stale views, reopening and byte-identical delivery',async t=>{
   const dir=await fixture(t),actor='SYNTHETIC TEST REVIEWER — no real job';let s=await loadBundle(dir);
   await assert.rejects(approve(dir,{stage:'plan',actor,revision:s.revision}),/geometry first/);
   await approve(dir,{stage:'geometry',actor,revision:s.revision});
   await assert.rejects(approve(dir,{stage:'geometry',actor,revision:s.revision}),/stale/);
   s=await loadBundle(dir);
   assert.equal(s.plan.setup.firmwareVersion,'');assert.equal(s.plan.setup.startupVerified,false);
-  await approve(dir,{stage:'plan',actor,revision:s.revision});await generateBundle(dir);
+  await generateBundle(dir);
   s=await loadBundle(dir);assert.ok(s.program);await approve(dir,{stage:'toolpath',actor,revision:s.revision});
   const delivered=await deliver(dir),exported=resolve(dir,'exports/griffin-gcode/wedge.gcode');
   assert.equal(hash(await readFile(delivered)),hash(await readFile(exported)));
@@ -223,7 +223,8 @@ test('playback speed scales elapsed time and interpolates actual moves including
 test('geometry and process edits invalidate the correct approvals and reject stale writes',async t=>{
   const dir=await fixture(t),actor='SYNTHETIC TEST REVIEWER';let s=await loadBundle(dir);
   await approve(dir,{stage:'geometry',actor,revision:s.revision});s=await loadBundle(dir);
-  await approve(dir,{stage:'plan',actor,revision:s.revision});s=await loadBundle(dir);
+  await generateBundle(dir);s=await loadBundle(dir);
+  s=await approve(dir,{stage:'toolpath',actor,revision:s.revision});
   assert.equal(s.planApproved,true,'the edit must invalidate an existing approval');
   const old=s.revision,p=clone(s.plan);p.process.skinSpeedMmS=8;await updatePlan(dir,p,s.revision);
   s=await loadBundle(dir);assert.equal(s.geometryApproved,true);assert.equal(s.planApproved,false);

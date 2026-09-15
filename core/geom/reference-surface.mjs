@@ -1,4 +1,5 @@
 // Open spline references are independent of printable, closed part geometry.
+import {topAt,requireGeometry} from './query.mjs';
 import {evaluate} from './nurbs.mjs';
 import {requireThat,cross,normalize} from './tolerance.mjs';
 
@@ -19,11 +20,20 @@ export function referencePatch(spec){
 }
 
 export function referenceSurface(spec,part){
-  requireThat(spec&&['plane','spline','part'].includes(spec.kind),'Text reference must be plane, spline or part.');
-  const fields={plane:['kind','origin','xAxis','yAxis','normalSide'],part:['kind','patch','sizeMm','uvBounds','normalSide'],spline:['kind','degreeU','degreeV','controlPoints','knotsU','knotsV','sizeMm','uvBounds','normalSide']};
+  requireThat(spec&&['plane','spline','part','top'].includes(spec.kind),'Text reference must be plane, spline, part or top.');
+  const fields={top:['kind','normalSide'],plane:['kind','origin','xAxis','yAxis','normalSide'],part:['kind','patch','sizeMm','uvBounds','normalSide'],spline:['kind','degreeU','degreeV','controlPoints','knotsU','knotsV','sizeMm','uvBounds','normalSide']};
   requireThat(Object.keys(spec).every(k=>fields[spec.kind].includes(k)),'Unknown text reference field.');
   const normalSide=spec.normalSide??1;
   requireThat([1,-1].includes(normalSide),'Reference normalSide must be 1 or -1.');
+  if(spec.kind==='top'){
+    requireThat(part,'Top reference needs an original part; use a plane or spline for standalone text.');
+    requireGeometry(part,['top-surface']);
+    return (x,y)=>{
+      const hit=topAt(part,x,y);
+      requireThat(hit,'Text extends outside the original part top; change its position or size.');
+      return {point:[x,y,hit.zMm],normal:hit.normal.map(n=>n*normalSide)};
+    };
+  }
   if(spec.kind==='plane'){
     const {origin,xAxis,yAxis}=spec;
     requireThat([origin,xAxis,yAxis].every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'Plane needs origin, xAxis and yAxis XYZ vectors.');

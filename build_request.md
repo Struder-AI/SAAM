@@ -6,75 +6,54 @@ Current component references and skill manuals own implemented behavior.
 See [documentation maintenance](DEVELOP.md#documentation-maintenance) for
 the closeout rules. An empty outstanding-work list is valid.
 
-Use a `### BR-NNN — Title` heading with `Status` (`open`, `in progress` or
-`blocked`), `Remaining`, `Completion` and `Context` fields; `Source` is optional.
-On completion, update the owning manuals, move the work and verification record to
-the devlog, and remove the completed request. For partial completion, leave only
-the remainder here. Preserve request IDs and redirect evidence links when moving
-records. A deferred idea belongs in a decision or labeled proposal until requested.
+Every request must be explicitly human requested, or agent proposed and explicitly
+human approved. Record the contributor account, the request/approval evidence,
+the originating chat title when recoverable, and a brief explanation of what
+prompted the work. An agent's recommendation, audit finding, missing test result,
+commit authorship or silence does not establish a human request or approval.
+See [request provenance](DEVELOP.md#build-request-provenance) for attribution and
+scope rules.
+
+Use a `### BR-NNN — Title` heading with these fields:
+
+- `Status`: `open`, `in progress` or `blocked`.
+- `Contributor`: requesting or approving account, with the basis for attribution.
+- `Authorization`: `human requested` or `agent proposed, human approved`, followed
+  by the authorized scope and any explicit deferral.
+- `Session`: exact observed chat title and stable ID/link when available; otherwise
+  state that it is unavailable. Distinguish an origin from a later follow-up.
+- `Source`: dated request/approval excerpt or faithful summary and a retrievable
+  reference. For an approved proposal, retain both the proposal and approval.
+- `Context`: briefly explain the originating problem or discussion; link related
+  records or contracts as useful context.
+- `Remaining` and `Completion`: outstanding authorized work and what resolves it.
+
+On completion, cancellation, supersession or discovery that an item was never
+authorized, preserve its provenance and disposition in the devlog and remove it
+from this queue. Update owning manuals and redirect links. Partial completion
+leaves only the authorized remainder. Preserve IDs; do not reuse removed IDs.
+A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
-These entries retain unresolved requests and acceptance checks from the existing
-records. Current task instructions determine what to take up. Lack of recorded
-acceptance is not a new report of failure or authorization for hardware execution.
-Limitations and deferred ideas do not automatically become implementation work;
-[decisions](DECISIONS.md) owns deferred discovery, packaged deployment and more
-complex region ordering.
+### BR-045 — Complete continuous wave-overhang paths around holes
 
-### BR-005 — Complete print and novice workflow evaluation
-
-- Status: open
-- Remaining: A novice workflow evaluation and a validated complete physical print lack recorded acceptance. Evaluate feature identification, edits, the three reviews, recovery, save/reopen and delivery, including the setup and clarification effort relative to the same agent using existing CAD/slicing tools.
-- Completion: Record the novice's actual workflow observations and the physical outcome for a specified printer/material/nozzle. Software checks alone do not close this item; real job approvals stay with the maker.
-- Context: [Initial print request](DEVLOG.md#br-005--first-complete-print), [Studio evaluation](DEVLOG.md#br-006--saam-studio-interaction-and-export-interpretation), [evaluation proposal](DEVLOG.md#what-should-earn-adoption-next).
-
-### BR-018 — H2D acceptance and physical retest
-
-- Status: open
-- Remaining: Independent Bambu Studio program-viewer acceptance, the corrected relative-extrusion physical retest and physical testing of the v2 startup sequence lack recorded results.
-- Completion: Record program-viewer acceptance and user-observed physical results against the exact corrected export and startup revision, with the normal human reviews. Model-import CLI checks do not establish program-viewer acceptance.
-- Context: [H2D implementation](DEVLOG.md#br-018--h2d-output-from-the-supplied-nozzle-references), [physical report and correction](DEVLOG.md#br-019--h2d-wedge-and-studio-reopenactivity), [startup checks](DEVLOG.md#2026-09-09-to-2026-09-10--h2d-reference-and-startup-checks), [current output contract](core/export/bambu.md#h2d-output-contract).
-
-### BR-023 — Matched slicer and public-workflow comparison
-
-- Status: open
-- Remaining: Matched Cura/Bambu Studio planar timing and complete public-workflow load/check/generate comparisons lack a controlled result. Existing measurements have unequal settings, coverage or timing boundaries.
-- Completion: Compare the same part and matched planar settings using saved profiles, exact versions, thread counts and repeated timings; separate loading, generation, checking/export and UI-ready time. Report failures and non-planar coverage differences separately.
-- Context: [Benchmark request and initial findings](DEVLOG.md#br-023--slicing-performance-baseline), [benchmark procedure](scripts/bench/README.md#slicing-speed-benchmarks).
-
-### BR-034 — Live Claude Code permission behavior
-
-- Status: open
-- Remaining: Live Claude Code launch/use/close behavior and browser permission persistence across Studio ports lack verification in an installation with Claude Code.
-- Completion: Exercise the shared rules with that client and record the actual permission behavior, including instance ownership and closure.
-- Context: [Permission implementation and verification scope](DEVLOG.md#br-034--shared-studio-permissions-for-codex-and-claude-code), [current setup](studio/README.md#studio-agent-permissions).
-
-### BR-039 — Slicing latency and remaining validation duplication
-
-- Status: open
-- Remaining: The requested 10–12 second slicing target lacks a qualifying end-to-end result. Audit follow-through includes repeated settings validation at direct shell/wedge generation, spline closure work under rigid placement and repeated selected-surface field validation. Recheck each site against current source before changing it.
-- Completion: Resolve or justify the remaining duplicate checks at their owning boundaries; measure the current recipe from user action to useful result with stage timings and unchanged quality/settings. Report the achieved latency and any remaining target gap explicitly.
-- Context: [Validation audit](DEVLOG.md#br-039--remove-repeated-validation-and-make-slicing-progress-truthful), [subsequent kernel measurements](DEVLOG.md#br-041--complete-shared-clipper2-integration), [validation ownership](core/print/README.md#validate-at-the-boundary-that-owns-the-data).
-
-### BR-040 — Precision audit follow-through
-
-- Status: open
-- Remaining: Audit priorities include polygon coordinate/vertex budgets, dimensionally inconsistent or scale-dependent repair/projector determinant thresholds, UV-to-physical error mapping, separate export field budgets and accumulated relative-E error, volume handling for coordinate collapse, and oriented-motion small-move policy.
-- Completion: Resolve or justify each finding using dimensionally appropriate contracts and measured cost/shape/volume effects. Changes must preserve material and relevant machine semantics; this is not a blanket instruction to coarsen tolerances.
-- Context: [Audit and export follow-up](DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance), [current precision guidance](core/geom/README.md#precision-belongs-to-a-quantity-and-an-operation).
-
-### BR-043 — S5 startup diagnosis
-
-- Status: open
-- Remaining: The actual export and extra firmware actions behind the reported startup discrepancy remain unidentified. Physical confirmation of the shared first-deposition recovery correction is also open.
-- Completion: Identify the delivered bytes and relevant installation behavior, diagnose the discrepancy and record the user's startup result for the correction. Do not generalize an earlier successful envelope report to another revision or installation.
-- Context: [Existing S5 reports](DEVLOG.md#2026-09-08-to-2026-09-10--s5-startup-observations), [current S5 contract](core/export/griffin.md#s5-startup-observations).
+- Status: open.
+- Contributor: `remettub`, explicitly identified in the originating conversation as the contributor on this machine.
+- Authorization: human requested — generalize wave overhangs to curved bivariate spline slices, support holes as in the exemplar, and use unbroken continuous passes per layer. No exception allowing branch restarts or arbitrary extruded retracing has been approved.
+- Session: “Add wave overhang spline skill” (`01a0a191-8027-7f13-bf42-7b88316cc5ed`).
+- Source: current conversation, 2026-09-14: “Must always use unbroken continuous passes per layer in this type of geometry”; “If the exemplar supports holes, we can too”; supplied [Janis Andersons short](https://www.youtube.com/shorts/RxPW5A4__X4), and clarified that SAAM introduced the glue jogs without an established exemplar.
+- Context: The first generator split fronts and inserted travels. The correction preserves complete fronts and accepts a slice only when short in-domain turns form one continuous stroke. The [reference findings](skills/wave-overhangs/DEVELOP.md#research-and-license-findings) establish that the slicer exemplar permits branch restarts; they do not establish an uninterrupted whole-slice strategy for arbitrary holes. A clarification about that distinction is pending. The current no-hole diagnostic is not completion of hole support.
+- Remaining: Resolve the continuity requirement against the intended exemplar and complete the corresponding hole-branch routing. Retain the strict continuity rejection until an explicit exception is authorized; do not add unreviewed glue/retrace strokes or silently remove holes. The original local hole recipe `Prints/wave-overhangs-preview-20260914` is preserved and presently requires five disconnected passes.
+- Completion: Generate and review the intended curved hole example with the agreed continuity behavior, including support order, in-domain connections and exported movement checks. Update the [skill manual](skills/wave-overhangs/SKILL.md) and record software evidence separately from any physical trial.
 
 ### BR-044 — Port a vetted material library
 
 - Status: open
+- Contributor: Unconfirmed for the approving speaker; `tkeller` is explicitly identified as the source of the withdrawn material-library concept, not as the approver of this deferred port.
+- Authorization: human requested — commit to a future material-library port, explicitly defer implementation until the user starts it. This approves the concept, not the withdrawn implementation.
+- Session: “tkeller integration + contributor policy” (`01a09bdb-b64f-7dd1-a361-cd38dea3d245`).
+- Source: 2026-09-13T18:48:54Z: “mark material library as definitely we will port that over - but don't do it yet.” Same message identifies “tkeller's three conceptual intents”. [Withdrawal record](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission).
 - Remaining: Port the material-library concept to the live shared architecture when the user explicitly starts this work. The user commits to doing it, but defers implementation; do not restore the withdrawn catalog or implement it during recovery.
 - Completion: Review the selected data and interfaces against current material, machine, output and recipe consumers; preserve machine-owned compatibility and intentional process settings. Establish the concrete supported scope and relevant evidence before admitting the implementation. Catalog availability does not establish hardware or output support.
-- Context: [Withdrawal and conceptual intents](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission), [current component contracts](core/README.md#interoperability-and-one-workflow), [minimal implementation guidance](DEVELOP.md#engineering-priorities).
-- Source: Current user, 2026-09-13: “mark material library as definitely we will port that over - but don't do it yet.”
+- Context: Four September 12 contributions were withdrawn to restore the agreed architecture. The user retained three concepts for selective review and singled out the material library as committed future work. [Current component contracts](core/README.md#interoperability-and-one-workflow), [minimal implementation guidance](DEVELOP.md#engineering-priorities).

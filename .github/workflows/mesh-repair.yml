@@ -1,0 +1,36 @@
+name: mesh repair
+on:
+  pull_request:
+    paths:
+      - 'core/geom/**'
+      - 'core/print/repair-stl.mjs'
+      - 'core/print/mesh-repair-*.mjs'
+      - 'core/print/import-stl.mjs'
+      - 'core/print/workflow.mjs'
+      - 'core/tests/mesh*.test.mjs'
+      - 'core/tests/fixtures/mesh.mjs'
+      - 'scripts/build-mesh-repair.mjs'
+      - '.github/workflows/mesh-repair.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mesh-repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libboost-dev libeigen3-dev
+          curl --fail --location --output "$RUNNER_TEMP/cgal.tar.xz" https://github.com/CGAL/cgal/releases/download/v6.2.1/CGAL-6.2.1-library.tar.xz
+          printf '8e7ce1e30e8ffcb3e69d153c3a561bb1f38bbb4becd8e6544cbaa0fb2889af62  %s\n' "$RUNNER_TEMP/cgal.tar.xz" | sha256sum --check
+          tar -xJf "$RUNNER_TEMP/cgal.tar.xz" -C "$RUNNER_TEMP"
+      - name: Build pinned CGAL helper
+        run: npm run setup:mesh -- --compiler /usr/bin/g++ --cgal "$RUNNER_TEMP/CGAL-6.2.1/include" --eigen /usr/include/eigen3
+      - run: node --test core/tests/mesh.test.mjs core/tests/mesh-repair.test.mjs core/tests/mesh-large.test.mjs

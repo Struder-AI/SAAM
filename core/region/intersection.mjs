@@ -10,11 +10,11 @@ export const union = (a, b, options) => combine(a, b, 'Union', options);
 export const difference = (a, b, options) => combine(a, b, 'Difference', options);
 export const clipOpenPaths = (paths, region, options) => combine(paths, region, 'Intersection', options, true);
 
-function combine(a, b, operation, { precisionMm = CLIPPER_PRECISION } = {}, open = false) {
+function combine(a, b, operation, { precisionMm = CLIPPER_PRECISION, origin = null } = {}, open = false) {
   requireThat([a, b].every(region => Array.isArray(region) && region.every(Array.isArray)),
     'Region operations need arrays of closed 2D loops.');
   // One origin/grid for BOTH operands, shared with the offset conversion.
-  const context = clipperContext([a, b], precisionMm);
+  const context = clipperContext([a, b], precisionMm,0,origin);
   try {
     const paths=booleanPaths(context.encode(a),context.encode(b),operation,{open});
     return open?context.decodeOpen(paths):context.decode(paths);

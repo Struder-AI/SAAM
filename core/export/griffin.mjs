@@ -1,6 +1,7 @@
 import { distance, requireThat } from '../geom/tolerance.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds,startupRetracted} from '../machine/rules.mjs';
+import {plannedNozzleTemperatures,validateNozzleC} from '../path/process-controls.mjs';
 const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
@@ -18,6 +19,7 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
   for(const a of path.actions) {
     if(a.kind==='move'){time+=distance(pos,a.to)/a.speedMmS;pos=a.to;}
     if(a.kind==='dwell')time+=a.seconds;
+    if(a.kind==='extrude')time+=a.volumeMm3/a.flowMm3S;
     if(a.filamentMm)time+=a.filamentMm/a.speedMmS;
   }
   const envelope=machine.outputs.find(o=>o.id===plan.output).program;
@@ -86,6 +88,19 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
       }
       else motion('G0',target,undefined,a.speedMmS*60);
       writtenPosition=target;
+    } else if(a.kind==='extrude') {
+      const filamentMm=a.volumeMm3/area;
+      if(!relativeE)e+=filamentMm;
+      const nextE=Number((relativeE?filamentMm:e).toFixed(5));
+      const de=relativeE?nextE:nextE-writtenE;
+      requireThat(de>0,'Stationary extrusion collapsed at export precision.');
+      const feed=Math.floor(Math.min(a.flowMm3S,plan.process.maxFlowMm3S)/area*60*1000)/1000;
+      requireThat(feed>0,'Stationary extrusion feed collapsed at export precision.');
+      motion('G1',null,nextE,feed);
+      if(!relativeE)writtenE=nextE;
+    } else if(a.kind==='temperature') {
+      requireThat(plannedNozzleTemperatures(plan).has(a.targetC),'Unplanned operation temperature.');
+      lines.push(`M400`,`M109 S${fmt(a.targetC)}`);
     } else if(a.kind==='retract'||a.kind==='recover') {
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
       if(!relativeE)e+=filamentMm;
@@ -110,6 +125,8 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
+  const temperatures=plannedNozzleTemperatures(plan);
+  for(const target of temperatures)validateNozzleC(target,plan,machine);
   const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   let pos=[...machine.tools[s.tool].startupXY,startupZ],e=0,feed=0,absolute=null,absE=null,metric=false;
@@ -180,7 +197,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
           for(let i=0;i<3;i++)requireThat(Math.abs(next[i]-pos[i])/duration<=machine.maxFeedMmS['xyz'[i]]+0.002,`Axis speed exceeds limit at line ${line}.`);
           requireThat(Math.abs(de)/duration<=machine.maxFeedMmS.e+0.002,`Extruder speed exceeds limit at line ${line}.`);
           requireThat(de>=-1e-8,'Moving retractions are outside this demo subset.');
-          if(de>1e-8){requireThat(hot&&bedReady&&nozzle===s.nozzleC&&bed===s.bedC,'Extrusion without the planned temperature waits.');requireThat(debt<1e-4,'Extrusion while retracted.');}
+          if(de>1e-8){requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,'Extrusion without the planned temperature waits.');requireThat(debt<1e-4,'Extrusion while retracted.');}
           const v=Math.max(0,de)*area;
           requireThat(v/duration<=plan.process.maxFlowMm3S+0.03,`Flow exceeds locked limit at line ${line}.`);
           moves.push({line,from:[...pos],to:next,extruding:de>1e-8,volumeMm3:v,speedMmS:feed,phase,layer,operation,fan,startSeconds:time,durationSeconds:duration});
@@ -192,7 +209,18 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
           let startupRecovery=false;
           if(de<0)debt-=de;
           else if(debt>0){requireThat(de<=debt+1e-4,'Unexpected stationary extrusion.');debt=Math.max(0,debt-de);}
-          else {requireThat(startupRecoveryPending&&de<=plan.process.retractMm+1e-4,'Unexpected stationary extrusion.');startupRecovery=true;startupRecoveryPending=false;}
+          else if(startupRecoveryPending){requireThat(de<=plan.process.retractMm+1e-4,'Unexpected stationary extrusion.');startupRecovery=true;startupRecoveryPending=false;}
+          else {
+            requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,'Stationary extrusion without planned temperature waits.');
+            const seconds=de/feed,v=de*area;
+            requireThat(v/seconds<=plan.process.maxFlowMm3S+0.003,'Stationary extrusion exceeds locked material flow.');
+            moves.push({line,from:[...pos],to:[...pos],extruding:true,volumeMm3:v,speedMmS:0,phase,layer,operation,fan,startSeconds:time,durationSeconds:seconds});
+            events.push({line,kind:'injection',positionMm:[...pos],volumeMm3:v,nozzleC:nozzle,phase,layer,operation,startSeconds:time,seconds});
+            volume+=v;time+=seconds;extrusionMoves++;
+            for(let i=0;i<3;i++){motionMin[i]=Math.min(motionMin[i],pos[i]);motionMax[i]=Math.max(motionMax[i],pos[i]);}
+            pos=next;e=nextE;
+            break;
+          }
           requireThat(debt<=8.001,'Excessive retraction.');
           events.push({line,kind:de<0?'retract':startupRecovery?'startup-recover':'recover',filamentMm:Math.abs(de),startSeconds:time,seconds:Math.abs(de)/feed});time+=Math.abs(de)/feed;
         }
@@ -232,6 +260,8 @@ export function validatePath(path) {
     requireThat(typeof a.phase==='string'&&!/[\r\n]/.test(a.phase)&&Number.isFinite(a.layer),'Invalid SAAMpath context.');
     if(a.kind==='move') requireThat(point(a.to)&&Number.isFinite(a.speedMmS)&&a.speedMmS>0&&Number.isFinite(a.volumeMm3)&&a.volumeMm3>=0, 'Invalid SAAMpath move.');
     else if(a.kind==='retract'||a.kind==='recover') requireThat(Number.isFinite(a.filamentMm)&&a.filamentMm>=0&&Number.isFinite(a.speedMmS)&&a.speedMmS>0, 'Invalid filament action.');
+    else if(a.kind==='extrude')requireThat(Number.isFinite(a.volumeMm3)&&a.volumeMm3>0&&Number.isFinite(a.flowMm3S)&&a.flowMm3S>0,'Invalid stationary deposition.');
+    else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
     else if(a.kind==='fan') number(a.percent,0,100,'Fan');
     else if(a.kind==='dwell') number(a.seconds,0,60,'Dwell');
     else throw new Error('Unsupported SAAMpath action: '+a.kind);

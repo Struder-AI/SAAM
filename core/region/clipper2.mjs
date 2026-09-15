@@ -50,6 +50,12 @@ export function inflatePaths(paths,delta,{join,miterLimit,arcTolerance}){
   }finally{result?.delete();input.delete();}
 }
 
+export function simplifyPaths(paths,epsilon,closed=true){
+  const input=encode(paths);let result;
+  try{result=clipper.SimplifyPaths64(input,epsilon,closed);return decode(result);}
+  finally{result?.delete();input.delete();}
+}
+
 // Offsets require normalized input. Keep that union's exact native result in
 // native memory for inflation instead of decoding it into JS and immediately
 // encoding the same coordinates again. Both kernel operations still run.

@@ -17,8 +17,8 @@ interiors have distinct owners. An optional `sectionAt` callback lets this
 producer reuse full-fill without pretending sacrificial geometry is native CAD.
 
 These bed-rooted, same-tool supports use the shared layer grid, planar machine
-capability, travel, cooling, composer, export-only bundles, Studio and three
-approvals. They are independent of part `composition.regions` and may coexist
+capability, travel, cooling, composer, export-only bundles, Studio and two
+confirmations. They are independent of part `composition.regions` and may coexist
 with regional recipes. Required support layers precede atomic part operations
 using their highest deposition Z, including nonplanar operations, rather than
 assuming scheduling rank is physical height. This does not prove head clearance,

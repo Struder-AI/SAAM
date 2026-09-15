@@ -27,7 +27,7 @@ export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=fa
     }else normal=point=>normalize([point[0]-center[0],point[1]-center[1],0]);
   }else if(move.phase==='inclined'&&geometry.roof){
     height=p.skinNormalMm;normal=()=>normalize([-geometry.roof.a,-geometry.roof.b,1]);
-  }else if(move.phase==='draped-skin'||move.phase==='rimming-normal'){
+  }else if(move.phase==='draped-skin'||move.phase==='rimming-normal'||move.phase==='wave-overhangs'){
     // Source records do not yet retain these skills' local surface normals.
     // Keep an explicitly labelled line fallback rather than inventing a frame.
     return null;
@@ -60,13 +60,17 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   let lastYield=performance.now(),visited=0,beads=0;
   const due=()=>performance.now()-lastYield>=8;
   const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
+  const read=moves.reader?.(['extruding','from','to','phase','layer','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo'])??(i=>moves[i]);
   for(let i=0;i<moves.length;i++){
     if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
-    const move=moves[i];if(!move.extruding)continue;
+    const move=read(i);if(!move.extruding)continue;
+    // Stationary deposition is shown by its source event marker, not a bead
+    // with an invented direction or a missing surface-frame warning.
+    if(length(subtract(move.to,move.from))<1e-9){supported[i]=1;continue;}
     beads++;
     for(const point of [move.from,move.to])point.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
     const key=materialKey(move);let group=byKey.get(key);
-    if(!group){group={key,layerKey:layerKey(move),move,indices:[],last:i};byKey.set(key,group);groups.push(group);}
+    if(!group){group={key,layerKey:layerKey(move),move:moves[i],indices:[],last:i};byKey.set(key,group);groups.push(group);}
     group.indices.push(i);group.last=i;
   }
   for(let i=0;i<groups.length;i++){
@@ -74,7 +78,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
     let count=0,instances,indices;
     for(const index of group.indices){
       if(visited++%128===0&&due())await pause(.25+.75*(visited-1)/Math.max(1,beads));
-      const s=beadSection(moves[index],plan,geometry);
+      const move=read(index),s=beadSection(move,plan,geometry);
       if(s){
         instances??=new Float32Array(group.indices.length*18);indices??=new Uint32Array(group.indices.length);
         const offset=count*18;
@@ -82,7 +86,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
         instances.set(s.a.wide,offset+6);instances.set(s.a.short,offset+9);
         instances.set(s.b.wide,offset+12);instances.set(s.b.short,offset+15);
         indices[count++]=index;supported[index]=1;
-      }else unsupported.add(moves[index].phase);
+      }else unsupported.add(move.phase);
     }
     group.instances=count?instances.subarray(0,count*18):new Float32Array();
     group.indices=count?indices.subarray(0,count):new Uint32Array();

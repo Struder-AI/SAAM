@@ -1,11 +1,12 @@
-// Explicit, resolution-dependent solid reconstruction. Never called by import.
+// Exact triangle cleanup and output validation shared by import and native repair.
 import {decodeSTL,makeMesh,parseSTL} from './mesh.mjs';
-import {triangleIndex,checkAdjacentContacts} from './mesh-spatial.mjs';
+import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
+import {checkMeshBudget} from './mesh-budget.mjs';
 
 export function cleanTriangleSoup(input) {
   requireThat(Array.isArray(input.vertices)&&Array.isArray(input.triangles),'Repair needs vertices and triangles.');
-  requireThat(input.vertices.length<=300000&&input.triangles.length<=100000,'Repair input exceeds 300000 vertices or 100000 triangles.');
+  checkMeshBudget(input.vertices.length,input.triangles.length);
   const vertices=[],lookup=new Map(),mapping=input.vertices.map(p=>{
     requireThat(Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),'Repair coordinates must be finite XYZ.');
     const key=p.join(',');if(!lookup.has(key)){lookup.set(key,vertices.length);vertices.push([...p]);}return lookup.get(key);
@@ -18,8 +19,57 @@ export function cleanTriangleSoup(input) {
     const key=[...t].sort((a,b)=>a-b).join(',');if(seen.has(key)){duplicates++;continue;}seen.add(key);triangles.push(t);
   }
   requireThat(triangles.length>=4,'Repair has no usable solid surface.');
-  const compact=compactMesh(vertices,triangles);
-  return {...compact,removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length}};
+  const stitching=degenerate?stitchCollapsedEdges(vertices,triangles):{triangles,stitchedEdges:0,addedTriangles:0};
+  const compact=compactMesh(vertices,stitching.triangles);
+  return {...compact,removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
+    stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:1e-9}};
+}
+
+// Removing a collinear face can expose A--C opposite C--B--A. Split the
+// surviving A--C face at B, preserving its orientation and existing coordinates.
+// Only stitch a complete, oppositely directed boundary chain: never cap a hole
+// or guess how to join branching/nonmanifold boundaries.
+function stitchCollapsedEdges(vertices,triangles) {
+  const key=(a,b)=>a<b?`${a}:${b}`:`${b}:${a}`,edges=new Map();
+  triangles.forEach((face,i)=>face.forEach((a,k)=>{
+    const b=face[(k+1)%3],id=key(a,b),entries=edges.get(id)??[];
+    entries.push({a,b,face:i});edges.set(id,entries);
+  }));
+  const boundary=[...edges.values()].filter(e=>e.length===1).map(e=>e[0]);
+  const outgoing=new Map();
+  for(const e of boundary){const list=outgoing.get(e.a)??[];list.push(e);outgoing.set(e.a,list);}
+  const splits=new Map();let stitchedEdges=0,addedTriangles=0;
+  for(const edge of boundary){
+    const a=vertices[edge.a],b=vertices[edge.b],ab=sub(b,a),length=Math.hypot(...ab);
+    if(length<=1e-9)continue;
+    const direction=ab.map(v=>v/length),chain=[edge.b];let at=edge.b,previous=length;
+    const visited=new Set(chain);
+    while(at!==edge.a){
+      const next=(outgoing.get(at)??[]).filter(e=>{
+        if(e===edge||visited.has(e.b))return false;
+        const offset=sub(vertices[e.b],a),position=dot(offset,direction);
+        return position>=-1e-9&&position<previous&&Math.hypot(...cross(offset,direction))<=1e-9;
+      });
+      if(next.length!==1)break;
+      at=next[0].b;chain.push(at);visited.add(at);previous=dot(sub(vertices[at],a),direction);
+    }
+    if(at!==edge.a||chain.length<=2)continue;
+    const points=chain.reverse(),list=splits.get(edge.face)??[];
+    list.push({...edge,points});splits.set(edge.face,list);stitchedEdges++;addedTriangles+=points.length-2;
+    checkMeshBudget(vertices.length,triangles.length+addedTriangles);
+  }
+  if(!stitchedEdges)return {triangles,stitchedEdges,addedTriangles};
+  const output=triangles.flatMap((face,i)=>{
+    let pieces=[face];
+    for(const {a,b,points} of splits.get(i)??[]){
+      const index=pieces.findIndex(t=>t.some((v,k)=>v===a&&t[(k+1)%3]===b));
+      requireThat(index>=0,'Cannot resolve collapsed-edge stitching adjacency.');
+      const t=pieces[index],c=t.find(v=>v!==a&&v!==b);
+      pieces.splice(index,1,...points.slice(1).map((v,k)=>[points[k],v,c]));
+    }
+    return pieces;
+  });
+  return {triangles:output,stitchedEdges,addedTriangles};
 }
 
 export function compactMesh(vertices,triangles) {
@@ -27,74 +77,16 @@ export function compactMesh(vertices,triangles) {
   return {vertices:points,triangles:triangles.map(t=>t.map(i=>{if(!used.has(i)){used.set(i,points.length);points.push(vertices[i]);}return used.get(i);}))};
 }
 
-function checkClosedWinding({triangles}) {
-  const edges=new Map();
-  for(const t of triangles)for(let k=0;k<3;k++){const a=t[k],b=t[(k+1)%3],key=a<b?`${a}:${b}`:`${b}:${a}`,e=edges.get(key)??{count:0,sum:0};e.count++;e.sum+=a<b?1:-1;edges.set(key,e);}
-  requireThat([...edges.values()].every(e=>e.count===2&&e.sum===0),'Winding reconstruction requires a closed, consistently oriented triangle surface after cleanup; open edges, nonmanifold edges and inconsistent winding need an explicit source correction.');
-}
-
-// A conforming six-tetrahedra subdivision uses the same diagonal on shared faces.
-const TETS=[[0,1,3,7],[0,3,2,7],[0,2,6,7],[0,6,4,7],[0,4,5,7],[0,5,1,7]];
-const CORNERS=[[0,0,0],[1,0,0],[0,1,0],[1,1,0],[0,0,1],[1,0,1],[0,1,1],[1,1,1]];
-
-export function reconstructMesh(input,{resolutionMm,maxGridPoints=16000000,maxOutputTriangles=2000000,fillRule='nonzero',progress=()=>{}}={}) {
-  requireThat(Number.isFinite(resolutionMm)&&resolutionMm>0,'Specify a positive repair resolutionMm in millimeters.');
-  requireThat(['nonzero','evenodd'].includes(fillRule),'Repair fillRule must be nonzero or evenodd.');
-  requireThat(Number.isSafeInteger(maxGridPoints)&&maxGridPoints>=64&&maxGridPoints<=64000000,'Repair maxGridPoints must be 64–64000000.');
-  requireThat(Number.isSafeInteger(maxOutputTriangles)&&maxOutputTriangles>=4&&maxOutputTriangles<=2000000,'Repair maxOutputTriangles must be 4–2000000.');
-  const mesh=cleanTriangleSoup(input);checkClosedWinding(mesh);
-  const index=triangleIndex(mesh.vertices,mesh.triangles),h=resolutionMm;
-  // Non-dyadic phase reduces coincidences with source facets; half-open ray tests
-  // still own projected shared edges exactly. Padding closes the extracted solid.
-  const origin=index.bounds.min.map(v=>v-h*1.314159265359);
-  const dims=index.bounds.max.map((v,k)=>Math.ceil((v-origin[k])/h)+3),[nx,ny,nz]=dims,count=nx*ny*nz;
-  requireThat(Number.isSafeInteger(count)&&count<=maxGridPoints,`Repair needs ${count} grid points; allowance is ${maxGridPoints}. Increase maxGridPoints or explicitly choose a coarser resolutionMm.`);
-  const inside=new Uint8Array(count),id=(x,y,z)=>x+nx*(y+ny*z),position=i=>{const x=i%nx,y=Math.floor(i/nx)%ny,z=Math.floor(i/(nx*ny));return [origin[0]+x*h,origin[1]+y*h,origin[2]+z*h];};
-  progress({stage:'classify',gridPoints:count,dimensions:dims});
-  let occupied=0;
-  for(let z=0;z<nz;z++)for(let y=0;y<ny;y++){
-    const hits=index.crossings(origin[1]+y*h,origin[2]+z*h);let at=0,winding=0;
-    for(let x=0;x<nx;x++){
-      const px=origin[0]+x*h;while(at<hits.length&&hits[at].x<px)winding+=hits[at++].sign;
-      if(fillRule==='nonzero'?winding!==0:Math.abs(winding)%2===1){inside[id(x,y,z)]=1;occupied++;}
-    }
-    while(at<hits.length)winding+=hits[at++].sign;
-    requireThat(winding===0,'Projected winding did not close; cannot reconstruct this source at the selected grid phase.');
-  }
-  requireThat(occupied>0,'No material resolved; use a finer resolution or correct the source orientation.');
-  const values=new Map(),edgeVertices=new Map(),vertices=[],triangles=[];
-  function value(i){if(!values.has(i)){const distance=index.nearest(position(i)).distance;values.set(i,(inside[i]?-1:1)*Math.max(distance,h*1e-3));}return values.get(i);}
-  function vertex(a,b){
-    const key=a<b?a*count+b:b*count+a;
-    if(!edgeVertices.has(key)){const p=position(a),q=position(b),va=value(a),vb=value(b),t=va/(va-vb);edgeVertices.set(key,vertices.length);vertices.push(p.map((v,k)=>v+(q[k]-v)*t));}
-    return edgeVertices.get(key);
-  }
-  function emit(t,outward){
-    const [a,b,c]=t.map(i=>vertices[i]);if(dot(cross(sub(b,a),sub(c,a)),outward)<0)[t[1],t[2]]=[t[2],t[1]];
-    triangles.push(t);requireThat(triangles.length<=maxOutputTriangles,`Repair exceeded ${maxOutputTriangles} output triangles; increase maxOutputTriangles or explicitly coarsen resolutionMm.`);
-  }
-  progress({stage:'surface',occupiedGridPoints:occupied});
-  for(let z=0;z<nz-1;z++)for(let y=0;y<ny-1;y++)for(let x=0;x<nx-1;x++){
-    const ids=CORNERS.map(([dx,dy,dz])=>id(x+dx,y+dy,z+dz)),sum=ids.reduce((s,i)=>s+inside[i],0);if(sum===0||sum===8)continue;
-    for(const tet of TETS){
-      const a=tet.map(i=>ids[i]),neg=a.filter(i=>inside[i]),pos=a.filter(i=>!inside[i]);if(!neg.length||!pos.length)continue;
-      const mean=ids=>ids.map(position).reduce((s,p)=>s.map((v,k)=>v+p[k]/ids.length),[0,0,0]),outward=sub(mean(pos),mean(neg));
-      if(neg.length===1)emit(pos.map(i=>vertex(neg[0],i)),outward);
-      else if(pos.length===1)emit(neg.map(i=>vertex(pos[0],i)),outward);
-      else {const [a,b]=neg,[c,d]=pos,ac=vertex(a,c),ad=vertex(a,d),bc=vertex(b,c),bd=vertex(b,d);emit([ac,ad,bd],outward);emit([ac,bd,bc],outward);}
-    }
-  }
-  const report={method:'winding-grid-marching-tetrahedra/1',resolutionMm,fillRule,removed:mesh.removed,gridPoints:count,gridDimensions:dims,occupiedGridPoints:occupied,inputTriangles:input.triangles.length,reconstructedTriangles:triangles.length,
-    limitations:['Resolution-dependent reconstruction; features and gaps smaller than the grid spacing can disappear or join.','Nonzero winding defines material; overlapping oppositely oriented surfaces can cancel.','No certified surface-distance or topology-preservation bound. Geometry review is required.']};
-  progress({stage:'reconstructed',triangles:triangles.length});return {vertices,triangles,report};
-}
-
 // Decimal STL preserves JS coordinates through the shared decoder. Float32 STL
 // can create new contacts when newly reconstructed vertices are rounded.
 export function encodeRepairSTL(mesh) {
-  const lines=['solid saam_repaired'];
-  for(const t of mesh.triangles){const [a,b,c]=t.map(i=>mesh.vertices[i]),n=cross(sub(b,a),sub(c,a)),length=Math.hypot(...n);requireThat(length>1e-10,'Repair produced a degenerate triangle.');lines.push(`facet normal ${n.map(v=>v/length).join(' ')}`,'outer loop',...t.map(i=>`vertex ${mesh.vertices[i].join(' ')}`),'endloop','endfacet');}
-  lines.push('endsolid saam_repaired');return Buffer.from(lines.join('\n')+'\n');
+  return Buffer.concat([...encodeRepairSTLChunks(mesh)].map(chunk=>Buffer.from(chunk)));
+}
+
+export function* encodeRepairSTLChunks(mesh){
+  let chunk='solid saam_repaired\n';
+  for(const t of mesh.triangles){const [a,b,c]=t.map(i=>mesh.vertices[i]),n=cross(sub(b,a),sub(c,a)),length=Math.hypot(...n);requireThat(length>1e-10,'Repair produced a degenerate triangle.');chunk+=`facet normal ${n.map(v=>v/length).join(' ')}\nouter loop\n`+t.map(i=>`vertex ${mesh.vertices[i].join(' ')}\n`).join('')+'endloop\nendfacet\n';if(chunk.length>=65536){yield chunk;chunk='';}}
+  yield chunk+'endsolid saam_repaired\n';
 }
 
 export function validateRepair(mesh) {

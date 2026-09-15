@@ -5,7 +5,14 @@ Use this manual to create, import, revise, review and deliver a print. The
 process limits; [MAKERS](../../MAKERS.md) owns the conversation and human review.
 The [lifecycle reference](README.md) explains implementation contracts.
 
+Apply the [standard parameter policy](../../MAKERS.md#standard-parameter-policy)
+when choosing or revising geometry, feature, process and machine settings.
+
 ## Choose the tool entry point
+
+The [agent CLI toolkit](../agent/README.md) bundles onboarding, print
+creation/import plus Studio opening, saved-print opening, work context and
+failure inspection. It delegates to the operations described here.
 
 Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
 Use a named directory under ignored `Prints/`; quote paths containing spaces.
@@ -51,14 +58,25 @@ Creation stores unapproved geometry and settings; open Studio for review.
 node core/print/cli.mjs import-stl Prints/my-part source.stl mm ultimaker-s5
 ```
 
-Use explicit `mm` or `inch` units. Clarify unknown units before importing because
-they determine scale. The importer accepts ASCII or binary STL, preserves its
+Units default to `auto`: load without a units question or popup, then assume a
+reasonable scale from the part size. Explicit `mm` or `inch` overrides that
+assumption. The provisional heuristic prefers mm; it chooses inches only when the
+raw longest dimension is below 10, conversion makes it at least 10 mm, and the
+converted model fits the printer (with 5 mm XY margin). This is a revisable
+assumption, not information encoded by STL; see [D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption).
+The importer accepts ASCII or binary STL, preserves its
 source bytes and hash, checks the mesh, and translates it onto the bed. It reuses
 remembered machine setup and creates a shell recipe with draped skin disabled.
 Adjust printing patterns for the intended result, then show size and placement
 in Studio before geometry approval.
 
-MCP `import_stl_print` takes `printId`, `sourcePath`, `units` and `machineId`.
+MCP `import_stl_print` takes `printId`, `sourcePath`, optional `units` (default
+`auto`) and `machineId`. Studio shows assumed units beside the dimensions.
+Correct a plain imported mesh later with `stl-units Prints/my-part mm` (or
+`inch`), or MCP `set_stl_units` with the current `expectedRevision`. This rescales
+the current mesh, preserves mesh edits and settings, retains source bytes, and
+invalidates geometry/toolpath confirmation. Text-wrapped or composed geometry
+requires a geometry-specific edit instead.
 The source must be an absolute local `.stl` file on the SAAM computer and no
 larger than 64 MiB. A path on a remote chat device is not a local source.
 
@@ -67,9 +85,9 @@ larger than 64 MiB. A path on a remote chat device is not a local source.
 If import or reopening reports invalid mesh geometry, read the
 [mesh-tools manual](../../skills/mesh-tools/SKILL.md) with the reported failure.
 It explains how to assess the available correction tools and their effect on
-the part. Import itself preserves the supplied geometry; reconstruction is a
+the part. Import itself preserves the supplied geometry; repair is a
 separate operation whose result needs geometry review. Missing files, wrong
-units and machine incompatibility need their own corrections, not reconstruction.
+units and machine incompatibility need their own corrections.
 
 ### Add or remove text material
 
@@ -97,9 +115,12 @@ for picker behavior and unsupported standalone program files.
 
 Read current CLI status with `check` below. Through MCP, `list_prints` finds
 saved IDs, `get_print` reads state and recipe settings, and
-`get_approval_status` reads the three approval stages. Set `includeGeometry:true`
+`get_approval_status` reads the two confirmation stages. Set `includeGeometry:true`
 on `get_print` when you need the complete editable recipe; the default omits
 geometry and reports `planComplete:false`.
+CLI `adjust` returns a compact checked summary and revision instead of echoing
+the entire geometry-bearing plan. The complete editable recipe remains in
+`plan.json`.
 
 ## Adjust the recipe
 
@@ -114,10 +135,22 @@ and protects against applying an edit to a version that has changed since you
 read it. MCP `adjust_print` requires that fresh `expectedRevision` and the patch.
 After a stale-revision error, reload state and reassess the change.
 
-Studio picks up the revised bundle. Geometry changes require all three reviews
-again; process and setup changes retain unchanged geometry approval and require
-plan and toolpath review. The maker requests revisions in chat; the agent handles
+Studio picks up the revised bundle. Geometry changes require both confirmations
+again; process and setup changes retain unchanged geometry confirmation and require
+combined settings/toolpath review. The maker requests revisions in chat; the agent handles
 the recipe files. Manual replacement of bundle internals can break consistency.
+
+### Change printer
+
+`node core/print/cli.mjs change-machine Prints/my-part <machine-id> --revision <revision>`
+(or MCP `change_machine`) selects a compatible machine snapshot and its remembered
+or default setup. It retains geometry confirmation and invalidates the combined
+settings/toolpath confirmation. The target printer's declared process defaults
+(such as retraction) replace the corresponding old values; other recipe choices
+are retained. Compatibility is checked before saving; a rejected
+recipe needs adjustment rather than a silent machine-capability override. Change
+material through the ordinary setup patch. Establish both choices before entering
+toolpath view, and allow later chat changes from that view.
 
 ### Line spacing
 
@@ -143,7 +176,7 @@ surface fitting and composition behavior.
 |---|---|---|---|
 | Read checked state | `check Prints/my-part` | `check_print` | Checks saved inputs and any stored export; reports approval state without generation. |
 | Investigate path feasibility | `check-path Prints/my-part` | `check_path` | Runs shared generation and machine checks without approval or persisted output. Use when feasibility needs investigation; it is not a mandatory extra step. |
-| Generate for review | `generate Prints/my-part` | `generate_print` | Requires current geometry and plan approvals; creates and checks the machine export for toolpath review. |
+| Generate for review | `generate Prints/my-part` | `generate_print` | Requires geometry confirmation; creates and checks the export for combined settings/toolpath review. |
 | Deliver approved output | `deliver Prints/my-part` | `deliver_print` | Requires toolpath approval and copies the exact checked export into `delivery/`. |
 
 Studio also supports generation and final export in its review flow. Read the
@@ -151,6 +184,10 @@ current state before repeating a timed-out operation: work may have completed.
 Changed inputs or a stale/edited export require the affected generation and
 reviews again. Only the person enters approvals in Studio. Delivery preserves
 the selected machine's filename and extension and does not send a job to hardware.
+An unchanged checked development export can become production after geometry
+confirmation without slicing again; final settings/toolpath confirmation remains
+required. During tour toolpath lessons Studio generates saved setting changes
+automatically, so agents should not start a duplicate CLI generation.
 
 For an explicitly developmental preview, `demo Prints/development/my-part`
 creates or reopens a shell bundle and generates without human approvals. An
@@ -176,7 +213,10 @@ MCP uses `remember_setup`. Both save this print's setup as editable defaults for
 new prints on that machine; `adjust` / `adjust_print` also save setup changes.
 The normal store is `.local/machine-setups/<machine-id>.json`, with source and
 update time. MCP with a custom Prints root uses its own setup store. Setup
-reuse confers no approval and does not change existing prints.
+reuse follows the [standard parameter policy](../../MAKERS.md#standard-parameter-policy)
+and does not change existing prints. This store contains machine setup; obtain
+prior geometry, process and skill values from the relevant saved recipe or
+conversation when reusing those parameters.
 
 A firmware-version change clears startup verification unless verification is
 explicitly supplied with it. Keep user-reported findings distinct from assumed

@@ -38,7 +38,7 @@ function mixColor(from,to,t){
 }
 export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1}={}) {
   const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
-  const skin=move.phase===skinPhase||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
+  const skin=move.phase===skinPhase||move.phase==='wave-overhangs'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const strength=active?1:emphasis??0;
   const axial=move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
   const foreground=move.extruding?(axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue):'#657fa3';

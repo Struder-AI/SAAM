@@ -269,7 +269,7 @@ test('vase native spline and mesh bundles reopen, review and deliver exact S5 by
     const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-vase-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
     await initBundle(dir,vasePlan(loadMachine(),geometry));
     const actor='SYNTHETIC VASE TEST — not a human approval';
-    for(const stage of ['geometry','plan'])await approve(dir,{stage,actor,revision:(await loadBundle(dir)).revision});
+    for(const stage of ['geometry'])await approve(dir,{stage,actor,revision:(await loadBundle(dir)).revision});
     await generateBundle(dir);
     let state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.skills,['vase-wall']);
     await approve(dir,{stage:'toolpath',actor,revision:state.revision});

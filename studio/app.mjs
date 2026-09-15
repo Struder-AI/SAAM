@@ -1,8 +1,8 @@
-import {createTourUI} from './tour-ui.mjs';
+import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, frameAtTime, displayPoint, exportMovie } from './playback.mjs';
 import { createProjection } from './camera.mjs';
 import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
-import {buildGeometryView,createGeometryRenderer,pickGeometry} from './mesh-view.mjs';
+import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
@@ -12,6 +12,10 @@ const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
+let generationTarget=null,progressPolling=false;
+import {TOUR_LESSONS as L} from './tour-catalog.mjs';
+import {createAgentUI} from './agent-ui.mjs';
+const agentUI=createAgentUI();
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
@@ -96,7 +100,7 @@ function restoreView(){
     if(saved.exportHash===state.exportHash){
       if(Number.isFinite(saved.seconds))seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))fitBounds=saved.fitBounds;
-      if(['geometry','plan','toolpath'].includes(saved.tab)&&(saved.tab!=='plan'||state.geometryApproved||state.inspection||state.referencePreview)&&(saved.tab!=='toolpath'||state.program))tab=saved.tab;
+      if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||state.program))tab=saved.tab;
       if(machineSession?.scene)useCamera(cameras.restore(saved.machineCameras));
     }
     $('#fit-program').textContent=fitBounds?.allMoves?'Fit part':'Fit all moves';
@@ -139,17 +143,22 @@ function machineSettings(state,rows){
   const omitted=new Set(['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']);
   return [...rows.filter(([name])=>!omitted.has(name)),...robotRows(state.plan)];
 }
-function stop(){playing=false;playbackEpoch++;lastFrame=0;cancelAnimationFrame(frame);$('#play').textContent='Play';}
-function activity(text=''){
+function stop(){if(playing)void tourUI?.playback('pause');playing=false;playbackEpoch++;lastFrame=0;cancelAnimationFrame(frame);$('#play').textContent='Play';}
+function activity(text='',fraction=null){
   $('#activity').hidden=!text;$('#activity-label').textContent=text;
+  const measured=Number.isFinite(fraction);
+  $('#activity-percent').hidden=!measured;$('#activity-progress').hidden=!measured;
+  if(measured){const value=Math.min(1,Math.max(0,fraction));$('#activity-percent').textContent=Math.floor(value*100)+'%';$('#activity-progress').value=value;}
+  $('#activity-detail').textContent=measured?'Progress for this stage.':'Please wait. Studio is working.';
   $('main').setAttribute('aria-busy',String(!!text));
 }
 async function working(text,task){
-  if(busy)return;busy=true;stop();activity(text);if(state)render();$('#open-print').disabled=true;
+  if(busy)return;busy=true;stop();agentUI.loading();activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  try{return await task();}
-  finally{busy=false;activity();$('#open-print').disabled=false;if(state)render();}
+  let failure;
+  try{return await task();}catch(error){failure=error;throw error;}
+  finally{busy=false;agentUI.settled(failure||state?.generationError||state?.programError);activity();$('#open-print').disabled=false;if(state)render();}
 }
 
 // Studio reviews more than one kind of print. Everything that depends on which
@@ -195,6 +204,7 @@ const views={
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
         const rows=[['Shape',shape],['Footprint',round2(bounds.max[0]-bounds.min[0])+' × '+round2(bounds.max[1]-bounds.min[1])+' mm'],['Height',round2(bounds.max[2]-bounds.min[2])+' mm']];
+        if(g.shape==='mesh'&&g.source?.format==='stl')rows.push(['STL units',g.source.units+(g.source.unitsInferred?' · assumed from size':'')+' · change in chat']);
         if(g.shape==='pipe')rows.push(['Bore / outside diameter',2*g.innerRadiusMm+' / '+2*g.outerRadiusMm+' mm'],['Wall thickness',round2(g.outerRadiusMm-g.innerRadiusMm)+' mm']);
         if(g.shape==='spline-top'||g.shape==='spline-shell')rows.push(['Surface',g.cpU+' × '+g.cpV+' control points']);
         if(g.shape==='spline-shell')rows.push(['Side taper','Long sides in '+g.longSideInsetMm+' mm · short sides out '+g.shortSideOutsetMm+' mm']);
@@ -221,11 +231,13 @@ const views={
         ['Body',normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
         ...(normal?.enabled&&fill.enabled?[['Solid surfaces',fill.bottomLayers+' bottom / '+fill.topLayers+' top layers']]:[]),
         ...(skin.enabled?[['Draped skin',skin.layers+' × '+skin.normalMm+' mm along the surface'],['Roof component',skin.part??'Part roof']]:[]),
+        ...(hasSkill(state.plan,'wave-overhangs')?[['Wave overhangs',state.plan.skills['wave-overhangs'].slices.length+' spline slices · '+state.plan.skills['wave-overhangs'].lineSpacingMm+' mm surface spacing']]:[]),
         ...(state.plan.geometry.shape==='assembly'?[['Fill sequencing',(state.plan.composition?.batchLayers??1)+' layer(s) per component'],['Filled components',fill.parts?.join(', ')||'All']]:[])];
       if(!state.program)return [];
       const limit=state.pathSummary?.nonplanarLimit;
       const pathCount=state.pathSummary?.vaseWall?.paths;
-      const rows=[pathCount&&!state.pathSummary?.fullFill&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'],
+      const waveLayers=state.pathSummary?.waveOverhangs?.length??0;
+      const rows=[pathCount&&!state.pathSummary?.fullFill&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'+(waveLayers?' + '+waveLayers+' wave slice(s)':'')],
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasSkill(state.plan,'vase-wall')){
@@ -236,6 +248,7 @@ const views={
       if(hasSkill(state.plan,'pipe-cladding'))rows.push(['Exterior shells',state.plan.skills['pipe-cladding'].shells+' · '+claddingPatternName(state.plan.skills['pipe-cladding'])],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
       if(state.pathSummary?.pipeCladding?.partialAxialPasses!==undefined&&state.plan.skills['pipe-cladding'].pattern!=='crossed-helices')rows.push(['Partial vertical passes',String(state.pathSummary.pipeCladding.partialAxialPasses)],['Full vertical passes',String(state.pathSummary.pipeCladding.fullAxialPasses)]);
       if(state.plan.composition?.regions?.length)rows.push(...regionRows(state.plan));
+      if(state.pathSummary?.waveOverhangs)for(const w of state.pathSummary.waveOverhangs)rows.push(['Wave slice · '+w.slice,w.waves+' fronts · '+(w.continuity?.passes??'unverified')+' continuous pass(es) · '+w.residualsUv.length+' residual region(s) within sampling tolerance']);
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.effectiveMaxAngleDeg+'°']);
         if(limit.experimentalOverride)rows.push(['Experimental override',limit.effectiveMaxAngleDeg+'° versus the profile’s '+limit.machineMaxAngleDeg+'°']);
@@ -260,46 +273,69 @@ const views={
   }
 };
 const view=()=>views[state?.kind==='shell'?'shell':'wedge'];
-const label=id=>view().names[id]??id.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());
+const label=id=>{const edge=geometryScene?.edgeFeatures.get(id);return edge?edge.names.map(label).join(' / ')+' · edge '+edge.number:view().names[id]??id.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());};
 
 // Part bounds come from the display proxy both packages write, so the camera
 // and the bed grid do not need to know which shape produced them.
+let waveBoundsMoves=null,waveDisplayBounds=null;
 function partBounds() {
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
   for(const point of state.geometry.vertices)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
+  if(tab==='toolpath'&&state.program&&hasSkill(state.plan,'wave-overhangs')){
+    if(waveBoundsMoves!==state.program.moves){
+      waveBoundsMoves=state.program.moves;waveDisplayBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+      for(const move of waveBoundsMoves)if(move.extruding&&move.phase==='wave-overhangs')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
+        const v=p[i]-(i===0?state.plan.placement.xMm:i===1?state.plan.placement.yMm:0);
+        waveDisplayBounds.min[i]=Math.min(waveDisplayBounds.min[i],v);waveDisplayBounds.max[i]=Math.max(waveDisplayBounds.max[i],v);
+      }
+    }
+    for(let i=0;i<3;i++){min[i]=Math.min(min[i],waveDisplayBounds.min[i]);max[i]=Math.max(max[i],waveDisplayBounds.max[i]);}
+  }
   return {min,max};
 }
 
 async function api(route,data) {
-  const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify({...data,printId:state?.printId})});
-  if(!response.ok)throw new Error((await response.json()).error);
-  return response;
+  const target=(route==='generate'||route==='tour'&&data?.action!=='finish'&&(data?.step??state?.tour?.step)>=L.playback)
+    ?{printId:state?.printId,planHash:route==='generate'?data?.planHash:null}:null;
+  if(target)generationTarget=target;
+  try{
+    const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify({...data,printId:state?.printId})});
+    if(!response.ok)throw new Error((await response.json()).error);
+    return response;
+  }finally{if(target===generationTarget)generationTarget=null;}
 }
+async function pollPreparation(){
+  const target=generationTarget;if(!target||progressPolling)return;
+  progressPolling=true;
+  try{
+    const response=await fetch('/api/preparation');if(!response.ok)return;
+    const job=await response.json();
+    if(generationTarget!==target||job.printId!==target.printId||target.planHash&&job.planHash!==target.planHash)return;
+    if(job.progress&&['preparing','generating'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
+  }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
+}
+setInterval(pollPreparation,250);
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
   const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;
+  agentUI.received(next.work);
   if(!previous||previous.revision!==next.revision||previous.exportHash!==next.exportHash)clearManual();
-  if(next.referencePreview&&!previous){
-    // Paint geometry before loading the saved playback data.
-    state={...next};delete state.program;clearProgramView();stop();
-    tab='geometry';selected=null;fitBounds=null;zoom=1;pan=[0,0];yaw=-.78;tilt=.62;seconds=0;
-    if(next.referencePreview.id==='surface-drape'){yaw=-.3;tilt=.42;zoom=1.3;}
-    geometryScene=buildGeometryView(state.geometry,35,state.referencePreview?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
-    try{geometryRenderer??=createGeometryRenderer();}catch(error){geometryError=error.message;}
-    $('#skin-label').textContent=view().skinLabel;document.title='SAAM Studio · '+state.printName;
-    render();activity('Loading saved toolpath…');
-    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  }
   if(next.program){
-    if(previous?.program&&previous.exportHash===next.exportHash&&previous.planHash===next.planHash){next.program=previous.program;await machineSession?.bind(next);}
+    // Rebind serializable metadata before attaching the proxy-backed move store.
+    if(previous?.program&&previous.exportHash===next.exportHash&&previous.planHash===next.planHash){await machineSession?.bind(next);next.program=previous.program;}
     else try{
       const decoded=await decodeInWorker(next);
       next.program={...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}};
     }catch(error){next.programError=error.message;delete next.program;next.toolpathApproved=false;}
   }
   state=next;
+  // Metadata can change while the exact same source/move buffers are reused.
+  $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
+  $('#skin-label').textContent=view().skinLabel;
+  document.title='SAAM Studio · '+state.printName;
+  $('#open-print').title='Open print: '+state.printName;
   if(!geometryScene||previous?.geometry.geometryVersion!==state.geometry.geometryVersion){
-    geometryScene=buildGeometryView(state.geometry,35,state.referencePreview?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
+    geometryScene=buildGeometryView(state.geometry,35,state.tourExample?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
   }
@@ -311,7 +347,7 @@ async function refresh(follow=false,reopen=false) {
       materialRenderer??=createMaterialRenderer();
       if(materialRenderer&&state.program.previewMaterial){materialScene={...state.program.previewMaterial,moves:state.program.moves,plan:state.plan,geometry:state.geometry};delete state.program.previewMaterial;}
       else if(materialRenderer)materialScene=await buildMaterialScene(state.program.moves,state.plan,state.geometry,
-        {onProgress:progress=>activity('Preparing material view… '+Math.round(progress*100)+'%')});
+        {onProgress:progress=>activity('Preparing material view…',progress)});
       else materialError='3D material rendering needs WebGL2. Showing toolpath lines.';
     }catch(error){materialScene=null;materialError='Material view unavailable: '+error.message+' Showing toolpath lines.';}
   }
@@ -320,17 +356,13 @@ async function refresh(follow=false,reopen=false) {
   if(!previous) {
     stop();selected=null;fitBounds=null;zoom=1;pan=[0,0];seconds=duration();
     cameras.reset();$('#follow-plate').checked=true;
-    if(state.referencePreview?.id==='surface-drape'){yaw=-.3;tilt=.42;zoom=1.3;}
-    tab=state.referencePreview?(tourUI?.initialTab()??'geometry'):state.program?'toolpath':state.geometryApproved?'plan':'geometry';
-    $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
-    $('#skin-label').textContent=view().skinLabel;
-    document.title='SAAM Studio · '+state.printName;
-    $('#open-print').title='Open print: '+state.printName;
-    if(!state.referencePreview)restoreView();
+    if(state.tourExample?.id==='surface-drape'){yaw=-.45;tilt=.52;zoom=1.25;}
+    tab=state.tourExample?(tourUI?.initialTab()??'geometry'):state.program?'toolpath':state.geometryApproved?'toolpath':'geometry';
+    if(!state.tourExample)restoreView();
   }
-  else if(follow&&previous.planHash!==state.planHash){tab=state.geometryApproved?'plan':'geometry';message('Updated from chat.');}
+  else if(follow&&previous.planHash!==state.planHash){if(!(state.tour?.active&&state.tour.directory===state.localPrintDirectory))tab=state.geometryApproved?'toolpath':'geometry';message('Updated from chat.');}
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
-  if(!selected||!state.geometry.labels.includes(selected))selectFeature(null);
+  if(!selected||!state.geometry.labels.includes(selected)&&(!geometryScene.edgeFeatures.has(selected)||previous?.geometry.geometryVersion!==state.geometry.geometryVersion))selectFeature(null);
   machineColors=machineTheme();
   if(machineSession?.scene){
     const d=machineSession.scene.descriptor;$('#machine-basis').textContent=d.basis;
@@ -338,12 +370,26 @@ async function refresh(follow=false,reopen=false) {
     await machineSession.sample(seconds,{manual:manualValues,jog:manualJog});
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  const viewReady=!needsTourToolpath(state)&&!state.generationError&&!state.programError
+    &&(tab==='geometry'&&(!state.geometryApproved||state.tour?.active&&state.tour.step<L.playback)
+      ||tab==='toolpath'&&Boolean(state.program));
+  if(viewReady){
+    agentUI.present({...state.work,snapshot:{...state.work.snapshot,stage:tab}});
+    await tourUI?.acknowledgeView(state,tab);
+  }
+  if(needsTourToolpath(state)){
+    activity('Preparing your toolpath…');
+    try{await api('generate',{development:false,planHash:state.planHash});return refresh(follow);}
+    catch(error){state.generationError=error.message;message(error.message,true);render();}
+  }
 }
 async function decodeInWorker(snapshot){
+  activity('Loading the checked toolpath…');
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,sourceTransport:snapshot.sourceTransport,
-    referencePreview:snapshot.referencePreview,plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
+    plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
 }
 function table(entries) {
   const dl=document.createElement('dl');
@@ -352,12 +398,14 @@ function table(entries) {
 }
 function render() {
   $('#stage-label').hidden=!state.inspection;
-  $('#view-title').textContent={geometry:'Your geometry',plan:'Your geometry',toolpath:'Your toolpath'}[tab];
-  $('#guidance').textContent={geometry:'Check the shape and dimensions.',plan:'',toolpath:'Inspect the full toolpath before exporting.'}[tab];
+  $('#view-title').textContent={geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
+  $('#guidance').textContent={geometry:'Check the shape and dimensions.',toolpath:'Inspect the full toolpath before exporting.'}[tab];
   $('#guidance').hidden=!$('#guidance').textContent;
   $('#facts').replaceChildren(table(view().facts(state,tab)));
-  $('#more-settings').hidden=tab!=='plan';
-  $('#settings-detail').replaceChildren(table([...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
+  $('#more-settings').hidden=tab!=='toolpath';
+  $('#print-setup').hidden=tab!=='toolpath';
+  $('#print-setup-values').textContent=state.machine.name+' · '+state.plan.setup.material;
+  $('#settings-detail').replaceChildren(table([...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
   $('#planar-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
   $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
   const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasSkill(state.plan,'pipe-cladding')||!pathView;
@@ -380,24 +428,24 @@ function render() {
     };
     samples.append(button);
   }
-  $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
-  const ready=tab==='geometry'||(tab==='plan'&&state.geometryApproved)||(tab==='toolpath'&&state.planApproved&&state.program&&state.review.generation?.mode==='production');
+  $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
+  const ready=tab==='geometry'||(tab==='toolpath'&&state.geometryApproved);
   $('#confirm').disabled=!ready||busy;
-  $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'Continue to settings':'Confirm geometry'):tab==='plan'?(state.planApproved?'View toolpath':'Confirm settings'):state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm & export';
-  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.programError??(!state.program?'The toolpath will appear after you confirm the settings.':!state.planApproved?'Preview only. Confirm geometry and settings before export.':state.program.notice??state.program.envelope?.notice??'Clearance is your check for this demo.')):'');
+  $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'View toolpath':'Confirm geometry'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
+  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':!state.geometryApproved?'Confirm geometry before reviewing this as a real print.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
+  $('#play').disabled=busy||!state.program||Boolean(state.programError);
   $('#selection').hidden=tab==='toolpath';
-  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Current layer is dark; earlier layers are faded. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a face to select it.');
+  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Current layer is dark; earlier layers are faded. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
   updateMachineStatus();
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',plan:'planApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||!state.inspection&&!state.referencePreview&&b.dataset.tab==='plan'&&!state.geometryApproved||b.dataset.tab==='toolpath'&&!state.program;});
+  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||b.dataset.tab==='toolpath'&&!state.program&&!state.geometryApproved;});
   // Explicit local scratch adapters can describe historical paths without
   // assigning them a current skill or presenting manufacturing approval controls.
   $('#confirm').hidden=Boolean(state.inspection);
-  if(state.referencePreview){$('#confirm').disabled=busy;$('#confirm').textContent='Use this example';$('#review-note').textContent='Saved example preview. Explore freely; review your own changes before printing.';$('#kind-label').textContent='Example · '+state.machine.name;}
-  if(state.referencePreview?.id==='surface-drape')$('#view-title').textContent=tab==='toolpath'?'Rolling hills · draped layers':'Rolling hills · bivariate roof';
+  if(state.tourExample)$('#view-title').textContent=state.printName+(tab==='toolpath'?' · toolpath':'');
   tourUI?.render(state);
   if(state.inspection){
     const inspection=state.inspection;
@@ -405,13 +453,13 @@ function render() {
     $('#view-title').textContent=inspection.title;
     $('#guidance').textContent=inspection.description;
     $('#guidance').hidden=!inspection.description;
-    $('#facts').replaceChildren(table(tab==='plan'?inspection.settings:inspection.facts));
-    $('#more-settings').hidden=true;
+    $('#facts').replaceChildren(table(inspection.facts));
+    $('#settings-detail').replaceChildren(table(inspection.settings));
     $('#review-note').textContent=inspection.note;
   }
   requestDraw();
 }
-function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface to select';requestDraw();}
+function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
 function setTab(next){if(!state)return;clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));tab=next;stop();layerFade.reset();render();}
 
 function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight,ratio=devicePixelRatio||1,
@@ -460,7 +508,8 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
         for(let i=0;i<polygon.points.length;i++)if(polygon.edges[i])segment(polygon.points[i],polygon.points[(i+1)%polygon.points.length],'#5c879e',.6);
       }
     }
-    if(updateUI)$('#selection').textContent=geometryError||(selected?label(selected):'Click a surface to select');
+    if(!geometryRenderer&&geometryScene.edgeFeatures.has(selected))for(const [a,b]of visibleGeometryEdgeSegments(geometryScene,project,selected))segment(a,b,'#eb591f',3);
+    if(updateUI)$('#selection').textContent=selected?label(selected):geometryError||'Click a surface or edge to see its name';
   }
   if(tab==='toolpath'&&state.program) {
     const moves=state.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=state.plan.placement,showTravel=$('#travel').checked;
@@ -502,6 +551,13 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     }
     ctx.globalAlpha=1;
     // Finish an outgoing fade even when playback is paused at the boundary.
+    // Stationary injection has duration and volume but no line segment. Show
+    // its source-decoded location without inventing a simulated filled rivet.
+    for(const event of state.program.events??[])if(event.kind==='injection'&&seconds>=event.startSeconds){
+      const p=project(local(event.positionMm)),active=seconds<event.startSeconds+event.seconds;
+      ctx.beginPath();ctx.arc(p[0],p[1],active?7:4,0,Math.PI*2);ctx.strokeStyle='#b85c28';ctx.lineWidth=2;ctx.stroke();
+      if(active){ctx.fillStyle='#b85c28';ctx.font='12px Segoe UI';ctx.fillText(`Injecting ${event.volumeMm3.toFixed(2)} mm³ · ${event.nozzleC}°C`,p[0]+11,p[1]-8);}
+    }
     if(updateUI&&fade.fading&&!playing)requestDraw();
     if(current&&at.fraction<1&&(current.extruding||showTravel)&&!(solidView&&materialScene?.supported[at.active])){
       const style=toolpathStyle(current,current,skinPhase,undefined,strokeScale);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);
@@ -524,7 +580,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
 
 canvas.onpointerdown=e=>{if(e.button>2)return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pan:e.shiftKey||e.button===1||e.button===2};moved=false;};
 canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>2)moved=true;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;requestDraw();};
-canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top));}};
+canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}};
 canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
 canvas.oncontextmenu=e=>e.preventDefault();
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
@@ -566,20 +622,28 @@ async function approval(stage){
   Object.assign(state,result.approval);
   if(!result.approval.programAvailable){delete state.program;clearProgramView();}
 }
-async function download(){
-  const response=await api('deliver',{});
+async function download(route='deliver',data={}){
+  const response=await api(route,data);
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
   const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');
-  a.href=url;a.download=state.exportName??view().exportName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  a.href=url;a.download=state.downloadName??state.exportName??view().exportName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   exportedThisSession.add(exportKey());
 }
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
-  if(state.referencePreview){try{await working('Opening your working copy…',async()=>{await api('use-example',{});await tourUI.load();await refresh(false,true);setTab('geometry');message('Your working copy is ready. Ask your agent for changes, then review the result.');});}catch(e){message(e.message,true);}return;}
+  if(tourUI?.active()){
+    if(state.tour?.step!==L.export)return;
+    try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();});}
+    catch(e){message(e.message,true);await refresh(false);}return;
+  }
   try{
-    await working(tab==='toolpath'?'Checking and exporting your print…':tab==='plan'?'Calculating toolpath':'Saving geometry confirmation…',async()=>{
-    if(tab==='geometry'){if(!state.geometryApproved)await approval('geometry');tab='plan';}
-    else if(tab==='plan'){if(!state.planApproved)await approval('plan');if(!state.program||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});activity('Loading toolpath…');await refresh();}tab='toolpath';}
+    await working(tab==='toolpath'?'Checking your toolpath…':'Saving geometry confirmation…',async()=>{
+    if(tab==='geometry'){
+      if(!state.geometryApproved)await approval('geometry');
+      if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});await refresh();}
+      tab='toolpath';
+    }
+    else if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});await refresh();tab='toolpath';}
     else {if(!state.toolpathApproved)await approval('toolpath');await download();}
     message('');
     });
@@ -603,6 +667,17 @@ $('#open-print').onclick=async()=>{
   }catch(error){$('#picker-message').textContent=error.message;}
 };
 $('#close-picker').onclick=()=>$('#print-picker').close();
+$('#import-stl').onclick=()=>{if(busy)return;$('#stl-file').value='';$('#stl-file').click();};
+$('#stl-file').onchange=async()=>{
+  const file=$('#stl-file').files[0];if(!file||busy)return;
+  if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
+  try{await working('Importing your STL…',async()=>{
+    const query=new URLSearchParams({name:file.name,printId:state.printId});
+    const response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});
+    if(!response.ok)throw Error((await response.json()).error);
+    await tourUI.load();await refresh(false,true);message('');
+  });}catch(error){message(error.message,true);await tourUI.load();await refresh(false,true);}
+};
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
 $('#follow-plate').onchange=()=>{const fit=mode=>mode==='machine'?fitMachine():fitDisplayedPart();cameras.refit(fit);fitBounds=fit(cameras.mode);$('#fit-program').textContent='Fit all moves';saveView();requestDraw();};
@@ -647,7 +722,7 @@ $('#export-movie').onclick=async()=>{
     $('#cancel-movie').hidden=true;$('#movie-progress').hidden=true;render();
   }
 };
-$('#play').onclick=()=>{clearManual();if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
+$('#play').onclick=()=>{if(busy||!state?.program||state.programError)return;clearManual();if(playing){stop();requestDraw();return;}if(seconds>=duration()){seconds=0;layerFade.reset();}playing=true;void tourUI?.playback('play');lastFrame=0;$('#play').textContent='Pause';frame=requestAnimationFrame(animate);};
 async function animate(now){
   if(!playing)return;
   const epoch=playbackEpoch,next=lastFrame?advancePlayback(seconds,now-lastFrame,Number($('#playback-speed').value),duration()):seconds;
@@ -661,15 +736,26 @@ async function poll(){
   if(polling||busy)return;polling=true;
   try{
     const response=await fetch('/api/revision');if(!response.ok)throw new Error('Reconnecting to your print…');
-    const next=await response.json();if(movieController)return;
+    const next=await response.json();if(movieController||busy)return;
+    // Restarted servers have new session credentials. Reload the page and its
+    // viewer connection instead of repeatedly posting with the previous token.
+    if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
     if(!state||reconnecting||next.fingerprint!==state.fingerprint)await working('Loading and checking the updated print…',()=>refresh(true));
     reconnecting=false;
-  }catch(e){reconnecting=true;$('#confirm').disabled=true;message('Your print is updating. Reconnecting…');}
+  }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
 }
-tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,machineView:()=>{if($('#machine-view').disabled)return false;if(!$('#machine-view').checked)$('#machine-view').click();return true;}});
+tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,seek:startAt=>{
+  if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('Your agent must choose an infill layer for this tour.');
+  let move;for(const candidate of state.program?.moves??[])if(candidate.extruding&&candidate.layer===startAt.layer&&/infill/.test(candidate.operation??'')&&!/solid|walls/.test(candidate.operation??'')){move=candidate;break;}
+  if(!move)throw Error('That layer has no sparse infill. Ask your agent to choose another startAt layer.');
+  stop();seconds=move.startSeconds;$('#scrub').value=seconds;layerFade.reset();requestDraw();
+}});
 working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
+let changeTimer;
+function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
+window.addEventListener('saam-studio-change',scheduleChange);
 setInterval(poll,1000);
 window.addEventListener('pagehide',()=>machineSession?.dispose());
 window.addEventListener('pageshow',event=>{if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));});

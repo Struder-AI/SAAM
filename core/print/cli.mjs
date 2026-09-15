@@ -1,10 +1,11 @@
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,upgradeBundle,checkPathBundle} from './bundle.mjs';
-import {importSTLBundle} from './import-stl.mjs';
+import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,upgradeBundle,checkPathBundle,changeMachine} from './bundle.mjs';
+import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
+import {applyHeatSet} from './heat-set.mjs';
 const readJson=async file=>JSON.parse(await readFile(file,'utf8'));
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, '/')}`).href) {
   const args=process.argv.slice(2),revisionIndex=args.indexOf('--revision');
@@ -21,26 +22,33 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   }, null, 2);
 
   const run = async () => {
-    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust and text.');
+    if(revisionIndex>=0&&(!expectedRevision||!['adjust','text','heat-set','change-machine','stl-units'].includes(command)))throw new Error('--revision requires a revision hash and is supported by adjust, text, heat-set, change-machine and stl-units.');
     if (command === 'init') {
       const plan = argument&&argument!=='--machine' ? await readJson(resolve(argument)) : undefined;
       const machineId=argument==='--machine'?extra:extra==='--machine'?last:extra;
       const directory = await initBundle(bundleDirectory(), plan,{machineId});
       console.log(`Print created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
-      console.log('Nothing is approved yet; the three approvals are made by a person in Studio.');
+      console.log('Nothing is approved yet; geometry and combined settings/toolpath confirmations are made by a person in Studio.');
     } else if(command==='text') {
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
       const state=await applyText(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
       console.log(report(state));
+    } else if(command==='heat-set') {
+      if(!argument)throw new Error('Use heat-set <print-directory> <heat-set-request.json> [--revision <revision>].');
+      const state=await applyHeatSet(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
+      console.log(report(state));
     } else if(command==='repair-stl') {
-      if(!argument||!['mm','inch'].includes(extra)||!last)throw new Error('Use repair-stl <new-repair-directory> <source.stl> <mm|inch> <resolution-mm> [options.json].');
-      const options=args[5]?await readJson(resolve(args[5])):{};
-      console.log(JSON.stringify(await repairSTLFiles(bundleDirectory(),await readFile(resolve(argument)),{...options,units:extra,resolutionMm:Number(last),progress:event=>console.error(JSON.stringify(event))}),null,2));
+      if(!argument||!['mm','inch'].includes(extra))throw new Error('Use repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json].');
+      const options=last?await readJson(resolve(last)):{};
+      console.log(JSON.stringify(await repairSTLFiles(bundleDirectory(),resolve(argument),{...options,units:extra,progress:event=>console.error(JSON.stringify(event))}),null,2));
     } else if(command==='import-stl') {
-      if(!argument||!['mm','inch'].includes(extra))throw new Error('Use import-stl <print-directory> <source.stl> <mm|inch> [machine-id].');
-      await importSTLBundle(bundleDirectory(),await readFile(resolve(argument)),{units:extra,machineId:last});
-      console.log('STL imported in '+extra+' and translated to rest on the bed; open Studio for geometry review. Nothing is approved.');
+      if(!argument||extra!==undefined&&!['auto','mm','inch'].includes(extra))throw new Error('Use import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id].');
+      await importSTLBundle(bundleDirectory(),resolve(argument),{units:extra,machineId:last});
+      const imported=await loadBundle(bundleDirectory(),{program:false});
+      console.log('STL imported in '+imported.plan.geometry.source.units+(imported.plan.geometry.source.unitsInferred?' (assumed from size)':'')+'; open Studio for geometry review. Nothing is approved.');
+    } else if(command==='stl-units') {
+      console.log(report(await setSTLUnits(bundleDirectory(),argument,{expectedRevision})));
     } else if(command==='check-path') {
       console.log(JSON.stringify(await checkPathBundle(bundleDirectory()),null,2));
     } else if (command === 'demo') {
@@ -51,6 +59,8 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`  ${checks.moves} moves, about ${checks.estimatedMinutes} minutes`);
       console.log(`Print: ${directory}`);
       console.log(`Open Studio with: npm run studio -- ${directory}`);
+    } else if (command === 'change-machine') {
+      console.log(report(await changeMachine(bundleDirectory(),argument,{expectedRevision})));
     } else if (command === 'upgrade') {
       await upgradeBundle(bundleDirectory());
       console.log('Machine snapshot upgraded; plan and toolpath require review again.');
@@ -59,7 +69,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
     } else if (command === 'adjust') {
       if (!argument) throw new Error('Supply a JSON patch file after the print directory.');
       const state = await adjustBundle(bundleDirectory(), await readJson(resolve(argument)),{expectedRevision});
-      console.log(JSON.stringify({ revision: state.revision, plan: state.plan }, null, 2));
+      console.log(report(state));
     } else if (command === 'remember-setup') {
       console.log(await rememberSetup(bundleDirectory()));
     } else if (command === 'deliver') {
@@ -72,9 +82,12 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
     } else {
       console.error('       cli.mjs init|demo|generate|check|deliver|upgrade|remember-setup [print-directory] [plan.json]');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
+      console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');
-      console.error('       cli.mjs import-stl <print-directory> <source.stl> <mm|inch> [machine-id]');
-      console.error('       cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> <resolution-mm> [options.json]');
+      console.error('       cli.mjs heat-set <print-directory> <heat-set-request.json> [--revision <revision>]');
+      console.error('       cli.mjs stl-units <print-directory> <mm|inch> [--revision HASH]');
+      console.error('       cli.mjs import-stl <print-directory> <source.stl> [auto|mm|inch] [machine-id]');
+      console.error('       cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json]');
       console.error('       cli.mjs check-path <print-directory> (software compatibility only)');
       console.error('       cli.mjs init <print-directory> [plan.json] [--machine <machine-id>]');
       process.exitCode = 1;
