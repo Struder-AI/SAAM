@@ -24,7 +24,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
   const file=id=>{if(!/^[a-f0-9-]{32,64}$/.test(id))throw Error('Invalid agent request id.');return resolve(folder,id+'.json');};
   async function save(record){await mkdir(folder,{recursive:true});const path=file(record.id),temp=path+'.'+randomUUID()+'.tmp';await writeFile(temp,JSON.stringify(record)+'\n');await rename(temp,path);return record;}
   async function get(id){return JSON.parse(await readFile(file(id),'utf8'));}
-  function printId(directory){const name=relative(root,resolve(directory)).split('\\').join('/');if(!name||name.startsWith('../')||isAbsolute(name))throw Error('Agent requests must refer to a print in this library.');return name;}
+  function printId(directory,{optional=false}={}){const name=relative(root,resolve(directory)).split('\\').join('/');if(!name||name==='..'||name.startsWith('../')||isAbsolute(name)){if(optional)return null;throw Error('Agent requests must refer to a print in this library.');}return name;}
   async function list(){let names;try{names=await readdir(folder);}catch(e){if(e.code==='ENOENT')return [];throw e;}
     const records=await Promise.all(names.filter(n=>n.endsWith('.json')).map(n=>get(n.slice(0,-5))));
     return records.map(r=>!r.presented&&['queued','working'].includes(r.status)&&r.expiresAt<=now()?{...r,status:'failed',timedOut:true,error:'The agent did not respond. Retry the request or return to chat.'}:r).sort((a,b)=>a.createdAt-b.createdAt);
@@ -53,7 +53,8 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
       return save({...record,baseline,result,target,presented:resultStage||resuming?false:record.presented,ownerId:ownerId??record.ownerId,status,connectionClosed:false,timedOut:false,message:String(message).slice(0,8000),updatedAt:now(),expiresAt:now()+600000});
     },
     async presented(directory,shown){
-      for(const record of await list())if(record.printId===printId(directory)&&['working','completed'].includes(record.status)&&!record.presented&&hasPresentedResult(record,shown))
+      const id=printId(directory,{optional:true});if(!id)return;
+      for(const record of await list())if(record.printId===id&&['working','completed'].includes(record.status)&&!record.presented&&hasPresentedResult(record,shown))
         await save({...await get(record.id),presented:true});
     },
     async disconnect(){

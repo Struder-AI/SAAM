@@ -1,5 +1,25 @@
 # Development log
 
+## 2026-09-14 — Goalpost setup fix and removal of extra mesh CI
+
+The user confirmed the intended branch rule as "at most one active pending
+branch per account" and requested removal of the added mesh CI job. Applied
+that wording to existing agent guidance and removed `mesh-repair.yml`; broader
+policy rewrites were discarded. The existing runtime setup workflow and local
+regression tests remain unchanged.
+
+The GitHub runtime setup failure reproduced locally: Studio's activity metadata
+required the temporary setup print to belong to the configured Prints library,
+so `/api/state` returned 400. External saved prints now load without library
+request records, and their view receipts skip that ledger. Starting agent edit
+requests still requires a print inside the configured library. The setup
+assertion now includes the server's error message when state loading fails.
+
+The existing setup check passed after the fix, as did 15 existing Studio opening
+and agent-request tests. Those results were reused after the documentation-only
+follow-up. No test or CI job was added, and the user will handle GitHub review
+and merging without an additional agent verification run there.
+
 ## 2026-09-14 — Branch repair and recipe-only tour packages
 
 The user identified Timothy Keller's direct main commit `164d3e5` as work that

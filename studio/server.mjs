@@ -222,7 +222,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const {state,fingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly?false:'source'});
         if(readDir!==dir)throw new Error('The print is being updated.');
         state.tour=guide;state.localPrintDirectory=readDir;state.instanceId=instanceId;
-        state.work={printId:requests.printId(readDir),snapshot:workSnapshot(state),requests:await requests.list()};
+        const workPrintId=requests.printId(readDir,{optional:true});
+        state.work={printId:workPrintId??readId,snapshot:workSnapshot(state),requests:workPrintId?await requests.list():[]};
         if(generationFailure?.directory===readDir&&generationFailure.planHash===state.planHash&&!state.program)
           state.generationError=generationFailure.message;
         delete state.code;delete state.dir;state.printName=await printName(readDir);state.downloadName=downloadName(state.printName,state.exportName);state.printId=readId;state.fingerprint=readId+fingerprint+await tourFingerprint();state.sourceTransport='ndjson';send(state);

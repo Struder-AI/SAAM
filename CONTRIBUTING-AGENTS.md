@@ -22,7 +22,7 @@ the shared state; it does not declare every contribution complete, reviewed or
 approved for adoption. Do not assume that a dedicated coordinator or human
 reviewer has been assigned. Agents can perform technical review.
 
-Keep one active development branch per developer account. Reuse it across tasks;
+Keep at most one active pending branch per account. Reuse it across tasks;
 create a branch before editing on main only when that account has no active
 development branch. Publish that branch for a pull request into main.
 Direct main publication requires an explicit request for that action, such as
