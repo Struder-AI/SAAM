@@ -25,11 +25,39 @@ export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
   return {shape:'mesh',vertices,triangles,source:null};
 }
 
+// The tangential span a single loop's own start/end footprint covers, for a
+// loop of half-width `tangentRadius` riding on a course that advances `advance`
+// mm per loop. Follows from pos(v) = advance*v + tangentRadius*sin(2*pi*v),
+// v in [0,1]; the span is the distance between that function's one interior
+// max and min (they exist once tangentRadius exceeds advance/(2*pi)).
+function loopFootprintSpanMm(tangentRadius,advanceMm){
+  const ratio=advanceMm/(2*Math.PI*tangentRadius);
+  if(ratio>=1)return 0;
+  const v1=Math.acos(-ratio)/(2*Math.PI);
+  return advanceMm*(2*v1-1)+2*tangentRadius*Math.sin(2*Math.PI*v1);
+}
+
+// Default loop width so adjacent loops touch by one normal line width instead
+// of leaving a gap at the seam between them, giving the overlap a second
+// bonding surface rather than a single point of contact. Numerically solved
+// since the footprint span above has no closed-form inverse.
+export function touchingMotifWidthMm({perimeter,loopsPerTurn,lineWidthMm}){
+  const advance=perimeter/loopsPerTurn;
+  let lo=advance/(2*Math.PI)+1e-6,hi=advance*4;
+  for(let i=0;i<60;i++){
+    const mid=(lo+hi)/2;
+    if(loopFootprintSpanMm(mid,advance)<advance+lineWidthMm)lo=mid;else hi=mid;
+  }
+  return lo+hi;
+}
+
 export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
-  radius=14,motifDepthMm=4.8,motifWidthMm=5.6,exterior='smooth',waveDepthMm=0}={}){
+  radius=14,motifDepthMm=4.8,motifWidthMm=null,exterior='smooth',waveDepthMm=0}={}){
   if(!['smooth','scalloped','both-scalloped'].includes(exterior))throw new Error('Choose smooth, scalloped or both-scalloped.');
-  const plan=defaults(),tangentRadius=motifWidthMm/2;
+  const plan=defaults();
   const perimeter=2*Math.PI*(radius-plan.process.lineWidthMm/2),rise=plan.process.layerMm;
+  const width=motifWidthMm??touchingMotifWidthMm({perimeter,loopsPerTurn,lineWidthMm:plan.process.lineWidthMm});
+  const tangentRadius=width/2;
   const points=[],offsets=[];
   // The advance is part of the looping curve itself. There is no separate
   // circumference stroke, closing circle, or straight connector between loops.
@@ -53,7 +81,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   const variant=process.argv[3]??'smooth';
   if(!['smooth','scalloped','both-scalloped','wavy'].includes(variant))throw new Error('Choose smooth, scalloped, both-scalloped or wavy.');
   const directory=resolve(process.argv[2]??`Prints/development/${variant}-loop-vase`);
-  const options=variant==='wavy'?{exterior:'scalloped',waveDepthMm:.6,courses:36,loopsPerTurn:32,motifWidthMm:3.2,motifDepthMm:2.4,samplesPerLoop:40}:
+  const options=variant==='wavy'?{exterior:'scalloped',waveDepthMm:.6,courses:36,loopsPerTurn:32,motifDepthMm:2.4,samplesPerLoop:40}:
     {exterior:variant};
   const plan=loopDemoPlan(options);
   await initBundle(directory,plan);

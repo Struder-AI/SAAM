@@ -17,10 +17,17 @@ settings and supported scope.
 | [rimming-planar](rimming-planar/SKILL.md) | Experiment with thin walls that support selected edges so a planned bridge can span the area between them. A maker-assigned spline surface connects the bed or another edge to the supported edge; paired beads use horizontal offsets. |
 | [rimming-normal](rimming-normal/SKILL.md) | Experiment with edge-support walls whose paired beads follow 3D surface-normal offsets, allowing nonplanar paths on a curved reference surface. Compare with rimming-planar to explore how offset direction affects bead spacing and edge contact; physical behavior remains unvalidated. |
 | [draped-skin](draped-skin/SKILL.md) | Follow a sloping or curved roof with top-skin strokes instead of approximating it with flat-layer steps. Works on continuous accessible mesh or supported spline roofs within the machine's nonplanar angle limit; excluded steep areas are reported. |
-| [vase-wall](vase-wall/SKILL.md) | Print a hollow vase from an ordinary solid model, using a continuous spiral or repeating motifs warped around its contours. Overlapping tilted loops can preserve the guide's exterior or create a scalloped finish. Continuous vase mode has no travel; explicit segmented mode permits gaps. |
 | [thick-lip](thick-lip/SKILL.md) | Thicken a vase-wall's top edge into a rigid, optionally rolled rim instead of leaving a single spiral or level-ended bead. Use when the operator asks for a rim, brim, bead, rolled edge, round-over or a more durable/rigid lip on a vase-mode print. |
 | [pipe-cladding](pipe-cladding/SKILL.md) | Wrap a substrate with alternating lengthwise and helical cladding, or opposite-handed helices for a crossed exterior pattern. Supports circular pipes and explicitly mapped periodic spline or mesh surfaces; this development capability requires a configured DENSO RC8 robot and external rotary. |
 | [wedge-demo](wedge-demo/SKILL.md) | Demonstrate horizontal body layers and inclined roof layers on a bounded eight-point wedge. Uses its own generator for a rectangular base, vertical sides and one planar sloping roof, providing a small example for exploring inclined deposition. |
+
+## Thick wall strategies
+
+Describe a container by one boundary (inner or outer) and a wall thickness instead of perimeters and infill: these skills build the wall itself through a continuous or repeating 3D path rather than stacked flat rings.
+
+| Skill | Capability and value |
+|---|---|
+| [vase-wall](vase-wall/SKILL.md) | Describe a container by one boundary and a wall thickness instead of perimeters and infill, using a continuous spiral or repeating motifs warped around the guide's actual contours. Overlapping tilted loops touch their neighbor by one line width to bond into a thicker wall, and can preserve the guide's exterior or create a scalloped finish. Continuous vase mode has no travel; explicit segmented mode permits gaps. |
 
 ## Geometry processing
 

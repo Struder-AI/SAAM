@@ -34,7 +34,10 @@ export async function updatedSkillIndex(repoRoot) {
     ...skills.filter(skill => skill.kind === kind).map(skill =>
       `| [${skill.id}](${skill.id}/SKILL.md) | ${skill.description.replaceAll('|', '&#124;')} |`)
   ].join('\n');
-  const block = `${start}\n\n## Printing patterns\n\n${table('printing')}\n\n## Geometry processing\n\n${table('task')}\n\n${end}`;
+  const thickWallIntro = 'Describe a container by one boundary (inner or outer) and a wall '
+    + 'thickness instead of perimeters and infill: these skills build the wall itself through '
+    + 'a continuous or repeating 3D path rather than stacked flat rings.';
+  const block = `${start}\n\n## Printing patterns\n\n${table('printing')}\n\n## Thick wall strategies\n\n${thickWallIntro}\n\n${table('thick-wall')}\n\n## Geometry processing\n\n${table('task')}\n\n${end}`;
   const current = await readFile(resolve(skillsRoot, 'README.md'), 'utf8');
   if (current.split(start).length !== 2 || current.split(end).length !== 2 || current.indexOf(end) < current.indexOf(start)) {
     throw new Error('skills/README.md needs exactly one ordered pair of generated skill digest markers.');
