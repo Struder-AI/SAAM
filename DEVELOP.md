@@ -1,5 +1,14 @@
 # Developing SAAM
 
+For developer work with missing context, run
+`node scripts/agent-toolkit.mjs developer-onboarding` directly; use `--area AREA`
+when the affected component is already known. The command returns this manual,
+core architecture and the complete skill digest, plus the requested area context.
+Use that returned text without reading the same sources before or after the
+command. If the developer context is already loaded, continue from it and read
+only missing task-specific references. Individual skill manuals remain separate
+choices. A client without command access reads the same sources directly once.
+
 SAAM is a composable slicing system operated through an AI agent. The product
 goal is to make advanced printing workflows accessible through conversation,
 while retaining explicit control over geometry, process choices and machine
@@ -82,9 +91,11 @@ conveniently to source using ordinary repository tools.
 Keep present behavior and contracts in their owning manuals, future work and
 proposals clearly marked at their owners, and past work and observations in
 [DEVLOG.md](DEVLOG.md). Future possibilities must not read as implemented
-capabilities. [Build requests](build_request.md#outstanding-work) contain only
-outstanding or incomplete work; build-first work needs no request record once
-complete. Follow [documentation maintenance](#documentation-maintenance).
+capabilities. Implement current requests directly; do not create a build-request
+record before starting or while carrying them through. [Build requests](build_request.md#outstanding-work)
+retain authorized work deferred or left incomplete beyond the active task, or
+work the human explicitly asks to put in the backlog. Completed work needs no
+build-request record. Follow [documentation maintenance](#documentation-maintenance).
 
 Describe what was actually established. Record approvals as given, without
 extending their scope: a software simulation does not establish a physical result,
@@ -100,7 +111,9 @@ Delegate independent objectives with their purpose, relevant context and guiding
 principles; leave implementation reasoning to the assignee. Coordinate changes
 at shared boundaries and pass findings to the collaborators they affect.
 
-Tasks sharing a checkout preserve concurrent edits and keep its current branch.
+Tasks sharing a checkout preserve concurrent edits and keep its current contributor
+branch. If the checkout is on main, create a contributor branch before editing;
+publish through a pull request unless direct main work is explicitly authorized.
 Reread affected lines before editing. Infer scope and dependencies from the work,
 source history and recorded context; resolve concrete conflicts without requiring
 humans to maintain a coordination ledger. Preserve other tasks' unfinished work.
@@ -127,6 +140,43 @@ human approval for that selective adoption. Existing approval applies to its
 stated scope. Approval of a concept does not approve its previous implementation;
 a merge, passing test or catalog entry does not establish architectural fit or
 machine support. Ordinary authorized development adds no per-task approval gate.
+
+## Build-request provenance
+
+These rules apply when recording work that belongs in the
+[backlog](build_request.md), not when starting an ordinary build, fix or maker
+task. Do the requested work directly. Do not create a temporary request merely
+to document its authorization, and do not apply the backlog's field schema to
+ordinary devlog entries.
+
+A backlog item must be explicitly human requested or an agent proposal explicitly
+approved by a human. When an item is needed, use the [request format](build_request.md)
+to record its contributor, source, session when available and originating context.
+Reuse identity already established in conversation or available project/client
+context without reconfirmation. Record attribution as inferred or unconfirmed
+when that is all the evidence supports; Git identity alone is not proof of who
+spoke. Missing contributor or session metadata is a recording limitation: it must
+not trigger identity questions, transcript searches or delays during ordinary
+work. Investigate historical provenance only when that investigation is requested.
+
+The recorded scope must cover the actual remaining work. A requested audit can be
+complete with findings and guidance; its recommendations do not automatically
+authorize every proposed fix. Missing acceptance evidence can be an unfinished
+check of requested behavior, but it does not commission a new study, additional
+feature or physical trial. Explain that relationship in the request. Unapproved
+ideas stay labeled as proposals at their owner, outside the work queue. An
+explicitly committed but deferred request retains its deferral; listing it does
+not authorize starting it early. A later audit of the queue is not blanket approval
+of its contents.
+
+When reviewing existing requests, check original human messages, later scope
+changes, implementation and recorded outcomes. Preserve concise evidence and the
+disposition in [DEVLOG.md](DEVLOG.md) when removing completed, superseded, cancelled
+or never-authorized work; retain only the authorized remainder of partial work.
+Move existing provenance with the record and preserve IDs and useful links. Keep
+raw private transcripts out of shared Git. This records existing authorization;
+it adds no identity-confirmation step, second approval, contributor-consensus
+requirement, manufacturing approval or software-test gate.
 
 ## Avoid check spirals
 
@@ -213,8 +263,11 @@ printability. Use it to resolve those concrete maintenance uncertainties.
 
 ## Find context for your task
 
-Start with the affected area and follow its dependencies. Each reference owns a
-specific scope; reading neighboring material depends on the change.
+Start with the affected area and follow its dependencies. Reuse sources/sections
+already returned by onboarding, including an explicitly selected `--area`.
+Each reference owns a specific scope; reading neighboring material depends on
+the change. Checkpoint/publication guidance belongs at that stage, and maker
+guidance is needed when developing or exercising the maker-facing workflow.
 
 | Task | Start here |
 |---|---|

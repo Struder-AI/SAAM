@@ -1,12 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildGeometryView,pickGeometry} from '../../studio/mesh-view.mjs';
+import {buildGeometryView,pickGeometry,visibleGeometryEdgeSegments} from '../../studio/mesh-view.mjs';
+import {boxMesh} from './fixtures/mesh.mjs';
 import {pipeMesh} from '../geom/cylinder.mjs';
 
 function pipe(){
   const mesh=pipeMesh({innerRadiusMm:7,outerRadiusMm:10,heightMm:12,toleranceMm:.1});
   return {vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.triangles.map(()=>'pipe')};
 }
+test('edge selection splits box junctions, hides triangulation and respects front surfaces',()=>{
+  const box=boxMesh(100,100,20),geometry={vertices:box.vertices,faces:box.triangles,labels:box.triangles.map(()=>'box')},view=buildGeometryView(geometry);
+  assert.equal(view.edgeFeatures.size,12);
+  const edge=pickGeometry(view,p=>p,50,1,{edges:true});assert.ok(view.edgeFeatures.has(edge));
+  assert.equal(pickGeometry(view,p=>p,50,50,{edges:true}),'box','surface interiors remain selectable; no diagonal triangle seams');
+  const selected=view.edgeFeatures.get(edge);assert.ok(selected.segments.every(pair=>pair.every(i=>geometry.vertices[i][2]===20)),'hidden bottom edge cannot win over the top');
+  assert.equal(pickGeometry(view,p=>p,50,-10,{edges:true}),null);
+  assert.ok(visibleGeometryEdgeSegments(view,p=>p,edge).length);
+  const bottom=[...view.edgeFeatures.values()].find(e=>e.segments.every(pair=>pair.every(i=>geometry.vertices[i][2]===0)));
+  assert.deepEqual(visibleGeometryEdgeSegments(view,p=>p,bottom.id),[]);
+});
+
+test('curved rim selection follows a complete edge without making the bore selectable',()=>{
+  const view=buildGeometryView(pipe());assert.equal(view.edgeFeatures.size,4,'inner/outer top/bottom rims each form one edge');
+  const project=p=>p.map((v,k)=>k<2?v*20:v);
+  const selected=pickGeometry(view,project,199,0,{edges:true});assert.ok(view.edgeFeatures.has(selected));
+  assert.ok(view.edgeFeatures.get(selected).segments.length>10);
+  assert.equal(pickGeometry(view,project,0,0,{edges:true}),null);
+});
 
 test('geometry normals smooth a triangulated cylinder while retaining its flat rim and bore',()=>{
   const geometry=pipe(),before=structuredClone(geometry),view=buildGeometryView(geometry);

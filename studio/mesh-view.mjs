@@ -68,15 +68,41 @@ export function buildGeometryView(geometry,creaseDeg=35,gridFeatures=[]){
       for(const k of [entry.i,(entry.i+1)%face.length])outlines.push(...vertices[face[k]],0,0,1,featureIds.get(labels[entry.f]));
     }
   }
+  const edgeFeatures=new Map(),edgeLines=[],groups=new Map();
+  for(const entries of edges.values()){
+    const a=entries[0],names=[...new Set(entries.map(e=>labels[e.f]))].sort();
+    if(names.length===1&&entries.length===2&&!topology.edgeMasks[a.f][a.i])continue;
+    const face=faces[a.f],indices=[face[a.i],face[(a.i+1)%face.length]],key=JSON.stringify(names);
+    if(!groups.has(key))groups.set(key,{names,segments:[]});
+    groups.get(key).segments.push({indices,ends:indices.map(i=>weld[i])});
+  }
+  // Join a curved rim, but split at junctions so a box's wireframe is twelve edges.
+  for(const [key,{names,segments}]of groups){
+    const at=new Map(),visited=new Set();let number=0;
+    segments.forEach((s,i)=>s.ends.forEach(v=>{if(!at.has(v))at.set(v,[]);at.get(v).push(i);}));
+    function chain(index,start){
+      const collected=[];let vertex=start;
+      while(!visited.has(index)){
+        visited.add(index);const s=segments[index];collected.push(s.indices);vertex=s.ends[0]===vertex?s.ends[1]:s.ends[0];
+        if(at.get(vertex).length!==2)break;
+        const next=at.get(vertex).find(i=>!visited.has(i));if(next===undefined)break;index=next;
+      }
+      const id='edge:'+key+':'+(++number),feature=features.length,offset=edgeLines.length/7;features.push(id);
+      for(const pair of collected)for(const i of pair)edgeLines.push(...vertices[i],0,0,1,feature);
+      edgeFeatures.set(id,{id,names,number,segments:collected,offset,count:collected.length*2});
+    }
+    segments.forEach((s,i)=>{const start=s.ends.find(v=>at.get(v).length!==2);if(start!==undefined&&!visited.has(i))chain(i,start);});
+    segments.forEach((s,i)=>{if(!visited.has(i))chain(i,s.ends[0]);});
+  }
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const p of vertices)p.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
   bounds.min[2]=Math.min(0,bounds.min[2]);
-  return {geometry,features,triangles,cornerNormals,bounds,topology,surface:new Float32Array(surface),outlines:new Float32Array(outlines)};
+  return {geometry,features,triangles,cornerNormals,bounds,topology,edgeFeatures,edgeLines:new Float32Array(edgeLines),surface:new Float32Array(surface),outlines:new Float32Array(outlines)};
 }
 
 // Interpolate depth at the click, rather than sorting by whole-face centers.
-export function pickGeometry(view,project,x,y){
-  const points=view.geometry.vertices.map(project);let closest=-Infinity,hit=null;
+function faceAt(view,points,x,y){
+  let closest=-Infinity,hit=null;
   for(const triangle of view.triangles){
     const [a,b,c]=triangle.indices.map(i=>points[i]);
     const d=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);if(Math.abs(d)<1e-10)continue;
@@ -85,7 +111,33 @@ export function pickGeometry(view,project,x,y){
     if(Math.min(u,v,w)<-1e-8)continue;
     const depth=u*a[2]+v*b[2]+w*c[2];if(depth>closest){closest=depth;hit=triangle.id;}
   }
-  return hit;
+  return {id:hit,depth:closest};
+}
+export function pickGeometry(view,project,x,y,{edges=false,radius=6}={}){
+  const points=view.geometry.vertices.map(project);
+  if(edges){
+    let nearest=radius*radius,hit=null,front=-Infinity;
+    for(const edge of view.edgeFeatures.values())for(const pair of edge.segments){
+      const [a,b]=pair.map(i=>points[i]),dx=b[0]-a[0],dy=b[1]-a[1],squared=dx*dx+dy*dy;
+      if(squared<1e-10)continue;
+      const t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/squared)),px=a[0]+t*dx,py=a[1]+t*dy,distance=(px-x)**2+(py-y)**2,depth=a[2]+t*(b[2]-a[2]);
+      if(distance>nearest+1e-8||distance>=nearest-1e-8&&depth<front)continue;
+      if(depth+1e-7<faceAt(view,points,px,py).depth)continue;
+      nearest=distance;front=depth;hit=edge.id;
+    }
+    if(hit)return hit;
+  }
+  return faceAt(view,points,x,y).id;
+}
+export function visibleGeometryEdgeSegments(view,project,id){
+  const edge=view.edgeFeatures.get(id);if(!edge)return [];
+  const points=view.geometry.vertices.map(project),visible=[];
+  for(const pair of edge.segments){
+    const [a,b]=pair.map(i=>points[i]),count=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/6));
+    const point=t=>a.map((v,k)=>v+t*(b[k]-v));
+    for(let i=0;i<count;i++){const middle=point((i+.5)/count);if(middle[2]+1e-7>=faceAt(view,points,middle[0],middle[1]).depth)visible.push([point(i/count),point((i+1)/count)]);}
+  }
+  return visible;
 }
 
 export function createGeometryRenderer(documentApi=document){
@@ -101,7 +153,7 @@ export function createGeometryRenderer(documentApi=document){
     precision highp float;in vec3 n;flat in float id;uniform vec3 color,light,eye;uniform float selected;uniform bool shadow,edges;out vec4 result;
     void main(){if(shadow){result=vec4(.12,.18,.20,1.);return;}
       bool highlighted=selected>=0.&&abs(id-selected)<.1;
-      if(edges){float a=highlighted?.75:.22;result=vec4(vec3(.15,.34,.46)*a,a);return;}
+      if(edges){float a=highlighted?.95:.22;result=vec4((highlighted?vec3(.92,.35,.12):vec3(.15,.34,.46))*a,a);return;}
       vec3 normal=normalize(n);if(dot(normal,eye)<0.)normal=-normal;
       float diffuse=max(0.,dot(normal,light));float highlight=pow(max(0.,dot(normal,normalize(light+eye))),36.)*.12;
       vec3 base=highlighted?mix(color,vec3(.65,.83,.94),.22):color;
@@ -117,7 +169,7 @@ export function createGeometryRenderer(documentApi=document){
     for(const [location,size,offset] of [[0,3,0],[1,3,12],[2,1,24]]){gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,size,gl.FLOAT,false,28,offset);}return {buffer,vao,count:data.length/7};}
   return {canvas,draw(next,{project,width,height,ratio,color,selected=null,shadow=false}){
     if(lost)throw new Error('Geometry graphics context lost. Refresh Studio to restore shading.');
-    if(scene!==next){reset();scene=next;buffers=[upload(scene.surface),upload(scene.outlines)];}
+    if(scene!==next){reset();scene=next;buffers=[upload(scene.surface),upload(scene.outlines),upload(scene.edgeLines)];}
     const w=Math.round(width*ratio),h=Math.round(height*ratio);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
     gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     const {matrix,light}=materialProjection(project,width,height,scene.bounds),o=project([0,0,0]);
@@ -127,7 +179,8 @@ export function createGeometryRenderer(documentApi=document){
     gl.uniform1i(uniforms.shadow,shadow);gl.uniform1i(uniforms.edges,0);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LESS);
     gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.bindVertexArray(buffers[0].vao);gl.drawArrays(gl.TRIANGLES,0,buffers[0].count);gl.disable(gl.POLYGON_OFFSET_FILL);
     if(!shadow){gl.uniform1i(uniforms.edges,1);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthFunc(gl.LEQUAL);gl.depthMask(false);
-      gl.bindVertexArray(buffers[1].vao);gl.drawArrays(gl.LINES,0,buffers[1].count);}
+      gl.bindVertexArray(buffers[1].vao);gl.drawArrays(gl.LINES,0,buffers[1].count);
+      const edge=scene.edgeFeatures.get(selected);if(edge){gl.lineWidth(3);gl.bindVertexArray(buffers[2].vao);gl.drawArrays(gl.LINES,edge.offset,edge.count);gl.lineWidth(1);}}
     gl.bindVertexArray(null);
   },dispose(){reset();gl.deleteProgram(program);}};
 }

@@ -189,7 +189,7 @@ test('regional mapping retains translated placement and does not publish an inve
 test('mapped pattern edits use ordinary reviews and exact-byte delivery',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-sleeve-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
   await initBundle(dir,recipe());const actor='SYNTHETIC SLEEVE TEST — not a human approval';
-  for(const stage of ['geometry','plan'])await approve(dir,{stage,actor,revision:(await loadBundle(dir)).revision});
+  for(const stage of ['geometry'])await approve(dir,{stage,actor,revision:(await loadBundle(dir)).revision});
   await generateBundle(dir);let state=await loadBundle(dir);assert.equal(state.programError,undefined);
   await approve(dir,{stage:'toolpath',actor,revision:state.revision});assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,EXPORT_PATH)));
   const pattern=structuredClone(state.plan.skills['vase-wall'].pattern);pattern.repeats=3;

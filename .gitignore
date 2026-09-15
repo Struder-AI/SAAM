@@ -27,5 +27,8 @@ Thumbs.db
 /[Pp]rints/
 /.local/
 
+# Tour recipes are source; generated preview/export bundles stay local.
+/examples/prints/*/prepared/
+
 # personal Claude Code permissions; shared .claude/settings.json stays visible
 /.claude/settings.local.json

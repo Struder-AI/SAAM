@@ -86,6 +86,6 @@ excluding acceleration, heating and firmware service routines.
 
 The public `upgrade` command verifies the old native file and its recipe,
 converts run/width/base/angle to eight points, writes a native mesh, and
-invalidates all three approvals. Old 3DM, export and delivery bytes remain
+invalidates both confirmations. Old 3DM, export and delivery bytes remain
 untouched. A mesh bundle with unchanged geometry retains its geometry approval
 when only generator/machine settings are upgraded. No upgrade creates job approval.

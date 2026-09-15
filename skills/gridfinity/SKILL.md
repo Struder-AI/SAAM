@@ -54,8 +54,8 @@ baseplate. Wrong fields, incompatible settings, stale revisions, mesh failures
 and machine-bound violations are rejected before saving the edited plan.
 An existing print is never overwritten by `create`.
 
-Dimension edits rebuild from the parameters and invalidate geometry, plan and
-toolpath reviews through the common lifecycle. Use this tool to edit the recipe;
+Dimension edits rebuild from the parameters and invalidate geometry and combined
+settings/toolpath confirmations through the common lifecycle. Use this tool to edit the recipe;
 direct changes to its baked mesh or parameters through `adjust_print` are rejected
 unless supplied as a complete newly compiled geometry record.
 

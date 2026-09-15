@@ -78,11 +78,11 @@ test('checked robot output preserves both winding directions, review invalidatio
   const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-crossed-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;
   await initBundle(dir,p,{machineId:machine.id});let state=await loadBundle(dir);
-  for(const stage of ['geometry','plan'])state=await approve(dir,{stage,revision:state.revision,actor:'SYNTHETIC CROSSED-HELIX TEST ONLY'});
+  for(const stage of ['geometry'])state=await approve(dir,{stage,revision:state.revision,actor:'SYNTHETIC CROSSED-HELIX TEST ONLY'});
   state=await adjustBundle(dir,{skills:{'pipe-cladding':{pattern:'crossed-helices',spacingFactor:3}}},{expectedRevision:state.revision});
   assert.ok(state.geometryApproved);assert.ok(!state.planApproved);
   assert.ok(recipeRows(state.plan,machine).some(([k,v])=>k.endsWith('Pattern')&&v==='crossed helices'));
-  state=await approve(dir,{stage:'plan',revision:state.revision,actor:'SYNTHETIC CROSSED-HELIX TEST ONLY'});
+
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);
   for(const [phase,sign] of [['cladding-helix-forward',-1],['cladding-helix-reverse',1]]){
     const moves=state.program.moves.filter(m=>m.extruding&&m.phase===phase);assert.ok(moves.length>10);

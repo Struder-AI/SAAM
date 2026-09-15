@@ -7,12 +7,16 @@ operations and checked program used by this lifecycle.
 
 ## Generation and review
 
-Implement the three human stages in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
-geometry, locked process plan, and toolpath. `core/print/workflow.mjs` owns
+Implement the two human confirmations in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
+geometry, then settings and the exact toolpath together. `core/print/workflow.mjs` owns
 initialization, verification, revision hashes, adjustment, approvals, generation,
 reopening, setup reuse, upgrades and delivery. Shell and wedge adapters supply
 their recipe validation, geometry, generator, limitations and release metadata.
-Studio chooses the adapter by saved plan schema.
+Studio chooses the adapter by saved plan schema. There is no standalone settings
+confirmation. `approve(stage: "toolpath")` records the settings hash and export
+hash in one human event; the persisted `approvals.plan`/`planApproved` fields remain
+for record compatibility. Production generation requires geometry confirmation;
+production delivery still requires the exact current final confirmation.
 
 The [text preparation entry](text.mjs) compiles editable font/surface features
 into the same native mesh geometry used by Studio and slicing, then calls
@@ -20,12 +24,18 @@ into the same native mesh geometry used by Studio and slicing, then calls
 recipe. Reopening checks the saved result without rerunning its construction;
 text edits reconstruct from the retained source and invalidate geometry review.
 
-Generate the machine-declared export directly from the approved complete plan,
+After geometry confirmation, generate the machine-declared export from the complete plan,
 using transient motion objects. Check its actual commands before Studio plays
-that export for toolpath approval. Delivery copies those reviewed bytes unchanged.
+that export for combined settings/toolpath confirmation. Delivery copies those reviewed bytes unchanged.
 Geometry edits invalidate all approvals; process, composition, runtime or machine
-changes invalidate plan and toolpath approval. Development generation records
+changes invalidate the combined settings/toolpath confirmation. Development generation records
 `mode: development`, creates no human approvals and cannot satisfy delivery.
+After geometry confirmation, production generation can reuse a current checked
+development export: it verifies current input/runtime identity, export bytes and
+saved check hashes, then records production mode without reslicing or changing
+the reviewed bytes. This transition does not approve settings or toolpath.
+Stale source falls back to generation. A plan changed during generation cannot
+receive the earlier candidate.
 
 Generation performs the calculations specified by the plan. It does not add
 another planning stage. A plan must include the choices, settings and versions
@@ -195,7 +205,7 @@ surface height field, travel and lift behaviour, the angle limit excluding steep
 surface, strict interpretation of the export, determinism, and detection of an
 edited export. `core/tests/workflow.test.mjs` adds the review workflow: the 3DM
 round trip and rejection of a substituted file, development generation creating
-no approvals, three synthetic approvals with stale views and byte-identical
+no approvals, two synthetic confirmations with stale views and byte-identical
 delivery, the approvals each kind of edit invalidates, remembered setup, and
 Studio serving and delivering a shell print. Synthetic approvals are written
 with an actor name that says so. None of that establishes clearance, surface

@@ -3,7 +3,7 @@ import { createBundleWorkflow } from '../../../core/print/workflow.mjs';
 import { defaults,validatePlan,requireThat,legacyPoints,VERSION,BUILD_DATE } from './model.mjs';
 import { createGeometry,verifyGeometry } from './geometry.mjs';
 import { generatePath } from './path.mjs';
-export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, upgradeBundle}=createBundleWorkflow({
+export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine, upgradeBundle}=createBundleWorkflow({
   kind:'wedge',defaults,validatePlan,createGeometry,verifyGeometry,generatePath,
   version:VERSION,buildDate:BUILD_DATE,exportName:'wedge.gcode',machineFile:'machines/ultimaker-s5.json',
   limitations:(_plan,machine)=>['Physical clearance is the operator’s responsibility for this demo.',

@@ -21,8 +21,7 @@ export function closestTrianglePoint(p,a,b,c) {
 }
 
 // Closed triangle intersection, excluding only the actual shared vertex/edge.
-// Coplanar overlap uses projected segment and containment tests. Used before
-// accepting a repair edge collapse, in addition to the final shared validator.
+// Coplanar overlap uses projected segment and containment tests.
 export function trianglesContact(pa,pb,sharedPoints=[]) {
   if(!sharedPoints.length)return !separatedTriangles(pa,pb);
   const eps=1e-9,n=cross(sub(pa[1],pa[0]),sub(pa[2],pa[0])),length=Math.hypot(...n);
@@ -73,9 +72,10 @@ export function trianglesContact(pa,pb,sharedPoints=[]) {
 }
 
 export function checkAdjacentContacts({vertices,triangles}) {
+  let candidates=0;const allowance=Math.max(2000000,triangles.length*100);
   const incident=vertices.map(()=>[]);triangles.forEach((t,i)=>t.forEach(v=>incident[v].push(i)));
   for(const [i,t]of triangles.entries())for(const j of new Set(t.flatMap(v=>incident[v]))){
-    if(j<=i)continue;const other=triangles[j],shared=t.filter(v=>other.includes(v)).map(v=>vertices[v]);
+    if(j<=i)continue;if(++candidates>allowance)throw Error('Adjacent-contact work budget exceeded; too many incident faces.');const other=triangles[j],shared=t.filter(v=>other.includes(v)).map(v=>vertices[v]);
     if(trianglesContact(t.map(v=>vertices[v]),other.map(v=>vertices[v]),shared))throw new Error('Repair has intersecting adjacent triangles beyond their shared vertex or edge.');
   }
 }
@@ -101,27 +101,5 @@ export function triangleIndex(vertices,triangles) {
     }
     visit(root);return {point,distance:Math.sqrt(distance2)};
   }
-  // Signed crossings of an X-directed line, using half-open projected triangles.
-  function crossings(y,z) {
-    const hits=[];
-    function visit(b){
-      if(y<b.min[1]||y>b.max[1]||z<b.min[2]||z>b.max[2])return;
-      if(!b.items){visit(b.left);visit(b.right);return;}
-      for(const item of b.items){
-        let [a,b,c]=triangles[item.i].map(i=>vertices[i]);
-        const nx=cross(sub(b,a),sub(c,a))[0];if(nx===0)continue;
-        const sign=nx>0?1:-1;if(sign<0)[b,c]=[c,b];
-        const points=[a,b,c];let inside=true;
-        for(let k=0;k<3;k++){
-          const p=points[k],q=points[(k+1)%3],dy=q[1]-p[1],dz=q[2]-p[2],e=dy*(z-p[2])-dz*(y-p[1]);
-          if(e<0||(e===0&&!(dz>0||(dz===0&&dy<0)))){inside=false;break;}
-        }
-        if(!inside)continue;
-        const n=cross(sub(b,a),sub(c,a));
-        hits.push({x:a[0]-(n[1]*(y-a[1])+n[2]*(z-a[2]))/n[0],sign});
-      }
-    }
-    visit(root);return hits.sort((a,b)=>a.x-b.x);
-  }
-  return {nearest,crossings,bounds:{min:root.min,max:root.max}};
+  return {nearest,bounds:{min:root.min,max:root.max}};
 }

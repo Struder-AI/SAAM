@@ -4,13 +4,20 @@ import {parentPort,workerData} from 'node:worker_threads';
 import {bundleFor} from './server.mjs';
 
 const {directory,planHash}=workerData;
+let lastStage,lastPercent;
+const onProgress=workerData.progress?progress=>{
+  const percent=progress.total>0?Math.floor(100*progress.completed/progress.total):null;
+  if(progress.stage===lastStage&&percent===lastPercent)return;
+  lastStage=progress.stage;lastPercent=percent;
+  parentPort.postMessage({type:'progress',progress});
+}:undefined;
 let preparationError;
 const bundle=await bundleFor(directory);
 const ready=(async()=>{
   try{
     const state=await bundle.loadBundle(directory,{program:false});
     if(state.planHash!==planHash)throw new Error('The prepared print changed. Reload before generating.');
-    await bundle.checkPathBundle(directory);
+    await bundle.checkPathBundle(directory,{onProgress});
     parentPort.postMessage({type:'prepared'});
   }catch(error){preparationError=error;parentPort.postMessage({type:'prepared',error:error.message});}
 })();
@@ -21,7 +28,7 @@ parentPort.on('message',async message=>{
     const state=await bundle.loadBundle(directory,{program:false});
     if(state.planHash!==planHash)throw new Error('The prepared print changed. Reload before generating.');
     if(preparationError)throw preparationError;
-    const checks=await bundle.generateBundle(directory,{development:message.development===true});
+    const checks=await bundle.generateBundle(directory,{development:message.development===true,onProgress});
     const generated=await bundle.loadBundle(directory,{program:'source',allSources:true});
     if(!generated.program||generated.programError)throw new Error(generated.programError??'Checked machine source is unavailable.');
     parentPort.postMessage({type:'generated',checks,source:{planHash:generated.planHash,exportHash:generated.exportHash,

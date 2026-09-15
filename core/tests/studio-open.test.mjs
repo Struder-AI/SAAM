@@ -46,7 +46,7 @@ test('Studio reopens saved approval stages and exports without creating or rewri
   await wedge.approve(geometry,{stage:'geometry',actor:'SYNTHETIC TEST reopen',revision:state.revision});
   await wedge.initBundle(ready,defaults(loadMachine('bambu-h2d')),{machineId:'bambu-h2d'});
   state=await wedge.loadBundle(ready);
-  for(const stage of ['geometry','plan'])state=await wedge.approve(ready,{stage,actor:'SYNTHETIC TEST reopen',revision:state.revision});
+  for(const stage of ['geometry'])state=await wedge.approve(ready,{stage,actor:'SYNTHETIC TEST reopen',revision:state.revision});
   await wedge.generateBundle(ready);
   const original=await readFile(join(ready,'review.json'));
   const server=createStudio(geometry,{libraryRoot:library});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
@@ -58,7 +58,7 @@ test('Studio reopens saved approval stages and exports without creating or rewri
   assert.equal((await post('open',{path:ready},false)).status,403);
   const archive=join(ready,'exports/bambu-gcode/wedge.gcode.3mf');
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
-  state=await get();assert.equal(state.planApproved,true);assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
+  state=await get();assert.equal(state.planApproved,false);assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
   assert.deepEqual(await readFile(join(ready,'review.json')),original);
   assert.equal((await post('generate',{development:true,printId:first.printId})).status,400,'an old tab cannot mutate a newly opened print');
@@ -67,7 +67,7 @@ test('Studio reopens saved approval stages and exports without creating or rewri
   await writeFile(archive,Buffer.from('altered'));
   assert.equal((await post('open',{path:ready})).status,200);
   state=await get();assert.equal(state.program,undefined);assert.match(state.programError,/changed/);
-  assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,true);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
   assert.equal((await post('open',{path:join(geometry,'plan.json')})).status,200);
   assert.equal((await get()).geometryApproved,true);
 });
@@ -86,7 +86,7 @@ test('background preparation leaves review writable and persists only a currentl
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   let revision=initial.revision;
-  for(const stage of ['geometry','plan']){
+  for(const stage of ['geometry']){
     const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({stage,actor:'SYNTHETIC worker test',revision})});
     assert.equal(response.status,200);const saved=await response.json();
     assert.ok(saved.approval);assert.equal(saved.approval.plan,undefined);
@@ -137,11 +137,20 @@ test('explicit generation retries a failed background worker once without bypass
   const denied=await post('generate',{});assert.equal(denied.status,400);
   assert.match((await denied.json()).error,/Approve the geometry/);assert.equal(attempts,2,'explicit request starts exactly one fresh worker');
   state=await get();assert.deepEqual(state.review.approvals,{});assert.equal(state.review.generation,null);
-  for(const stage of ['geometry','plan']){
+  for(const stage of ['geometry']){
     const response=await post('approve',{stage,actor:'SYNTHETIC worker retry test',revision:state.revision});
     assert.equal(response.status,200);Object.assign(state,(await response.json()).approval);
   }
   assert.equal((await post('generate',{})).status,200);
   state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
   assert.equal(state.toolpathApproved,false);assert.equal(attempts,2,'the recovered prepared worker is reused after approval');
+});
+
+
+test('Studio opening retries a read spanning a multi-file edit but preserves persistent validation errors',async()=>{
+  const {readStableBundle}=await import('../../studio/server.mjs');let reads=0;
+  const adapter={bundleFingerprint:async()=>'current',loadBundle:async()=>{if(reads++===0)throw Error('Plan and geometry disagree. Ask the agent to recreate the geometry.');return {revision:'updated'};}};
+  assert.equal((await readStableBundle(adapter,'synthetic',{program:false})).state.revision,'updated');assert.equal(reads,2);
+  reads=0;adapter.loadBundle=async()=>{reads++;throw Error('Unconfigured machine');};
+  await assert.rejects(readStableBundle(adapter,'synthetic',{}),/Unconfigured machine/);assert.equal(reads,1);
 });

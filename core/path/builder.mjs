@@ -15,6 +15,7 @@
 import { requireThat, distance, TOLERANCE } from '../geom/tolerance.mjs';
 import {combRoute,combSegment,prepareCombCorners} from './comb.mjs';
 import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
+import {requireProcessControl} from './process-controls.mjs';
 
 // Candidate distance for checking whether XYZ output collapses. This is not a
 // minimum printable segment length: five-decimal output can retain much shorter
@@ -108,6 +109,22 @@ export class PathBuilder {
   }
 
   fan(percent) { this.actions.push({ kind: 'fan', percent, phase: this.phase, layer: this.layer }); }
+
+  nozzle(targetC) {
+    requireProcessControl(this.machine);
+    requireThat(Number.isFinite(targetC)&&targetC>0,'Invalid operation temperature.');
+    this.actions.push({kind:'temperature',targetC,phase:this.phase,layer:this.layer,operation:this.operationId});
+  }
+
+  extrude(volumeMm3,flowMm3S) {
+    requireProcessControl(this.machine);
+    requireThat(!this.retracted&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
+    const flow=Math.min(flowMm3S,this.process.maxFlowMm3S);
+    this.actions.push({kind:'extrude',volumeMm3,flowMm3S:flow,phase:this.phase,layer:this.layer,operation:this.operationId});
+    this.layerSeconds+=volumeMm3/flow;
+    this.depositedMaxZ=Math.max(this.depositedMaxZ,this.position[2]);
+    this.moveRun=null;
+  }
 
   dwell(seconds) { if (seconds > 0) this.actions.push({ kind: 'dwell', seconds, phase: this.phase, layer: this.layer }); }
 

@@ -89,7 +89,7 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
   try{
     await initBundle(dir,plan,{machineId:machine.id});let state=await loadBundle(dir);
     state=await approve(dir,{stage:'geometry',actor,revision:state.revision});
-    state=await approve(dir,{stage:'plan',actor,revision:state.revision});
+
     const checks=await generateBundle(dir);assert.ok(checks.checks.includes('strict-lua-execution'));
     assert.ok(!checks.checks.includes('temperature-state'));assert.ok(!checks.checks.includes('extrusion-flow'));
     assert.equal(checks.materialModel,'relay-estimate');

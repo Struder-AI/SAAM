@@ -22,8 +22,11 @@ the shared state; it does not declare every contribution complete, reviewed or
 approved for adoption. Do not assume that a dedicated coordinator or human
 reviewer has been assigned. Agents can perform technical review.
 
-Prefer working into main or integrating back frequently. Keep active pending
-branches few; purpose-saved reference or experiment branches can remain separate.
+Develop on a contributor branch, keeping active pending branches few. Create a
+branch before editing when the checkout is on main; reuse its current contributor
+branch for concurrent tasks. Publish that branch for a pull request into main.
+Direct main publication requires an explicit request for that action, such as
+an authorized repair. Purpose-saved reference or experiment branches can remain separate.
 Use intentional isolation when it helps the work, with a clear integration scope.
 
 For imported work, apply [selective adoption](DEVELOP.md#context-and-selective-adoption).

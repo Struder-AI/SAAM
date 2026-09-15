@@ -10,9 +10,11 @@
     "test:stress": "node --test --test-concurrency=1 core/tests/stress/*.test.mjs",
     "demo": "node skills/wedge-demo/scripts/cli.mjs demo",
     "studio": "node studio/server.mjs",
+    "agent": "node scripts/agent-toolkit.mjs",
     "check:print": "node skills/wedge-demo/scripts/cli.mjs check",
     "shell": "node core/print/cli.mjs",
-    "mcp": "node adapters/mcp/src/server.mjs"
+    "mcp": "node adapters/mcp/src/server.mjs",
+    "setup:mesh": "node scripts/build-mesh-repair.mjs"
   },
   "engines": {
     "node": ">=22"

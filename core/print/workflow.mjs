@@ -1,5 +1,6 @@
 // One print lifecycle for every geometry/generator adapter.
-import { readFile, writeFile, mkdir, rename, access, rm, stat } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, access, rm, stat,copyFile } from 'node:fs/promises';
+import {hashFile} from '../geom/stl-file.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
@@ -16,7 +17,7 @@ const nativeFile=geometry=>{const name=geometry.nativeFile??'model.3dm';requireT
 const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
 const hash=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:canonical(value)).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
-const originalSource=geometry=>geometry?.source??(geometry?.shape==='text'?originalSource(geometry.base):null);
+const originalSource=geometry=>geometry?.source??(['text','heat-set'].includes(geometry?.shape)?originalSource(geometry.base):null);
 async function save(file,value){
   await mkdir(dirname(file),{recursive:true});
   const temporary=file+'.tmp';
@@ -63,6 +64,7 @@ export function createBundleWorkflow(adapter) {
       new URL('../export/gcode-lines.mjs',import.meta.url),
       new URL('../export/denso.mjs',import.meta.url),new URL('../export/denso-player.mjs',import.meta.url),new URL('../machine/denso.mjs',import.meta.url),new URL('../path/pose.mjs',import.meta.url),
       new URL('../machine/rules.mjs',import.meta.url),new URL('../export/bambu-player.mjs',import.meta.url),
+      new URL('../path/process-controls.mjs',import.meta.url),
       new URL('../export/dobot-player.mjs',import.meta.url),
       new URL('../export/dobot.mjs',import.meta.url),new URL('../export/dobot-lua-subset.mjs',import.meta.url),
       new URL('../geom/tolerance.mjs',import.meta.url), new URL('../geom/polyline.mjs',import.meta.url), ...adapter.runtimeFiles
@@ -75,7 +77,7 @@ async function proposedPlan(machineId, { setupFile } = {}) {
   if (remembered) plan.setup = { ...plan.setup, ...remembered, materialGuid: remembered.materialGuid || plan.setup.materialGuid };
   return plan;
 }
-async function initBundle(directory, plan, { setupFile, machineId, sourceBytes } = {}) {
+async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,sourcePath } = {}) {
   const dir = resolve(directory);
   try {
     await access(resolve(dir, 'plan.json'));
@@ -88,8 +90,10 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes }
   validatePlan(plan, machine);
   const geometry = await createGeometry(plan.geometry);
   if(originalSource(plan.geometry)){
-    requireThat(sourceBytes&&hash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');
-    await save(resolve(dir,'geometry/source.stl'),sourceBytes);
+    if(sourcePath){
+      const target=resolve(dir,'geometry/source.stl'),temporary=target+'.tmp';await mkdir(dirname(target),{recursive:true});
+      try{await copyFile(sourcePath,temporary);requireThat(await hashFile(temporary)===originalSource(plan.geometry).sha256,'STL source changed during import.');await rename(temporary,target);}finally{await rm(temporary,{force:true});}
+    }else{requireThat(sourceBytes&&hash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');await save(resolve(dir,'geometry/source.stl'),sourceBytes);}
   }
   await save(resolve(dir, nativeFile(geometry.descriptor)), geometry.bytes);
   await save(resolve(dir, 'geometry/model.json'), geometry.descriptor);
@@ -140,13 +144,13 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
     inputIdentity=identity;
   }
   const {geometryHash,planHash}=identity;
-  if(originalSource(plan.geometry))requireThat(hash(await readFile(resolve(dir,'geometry/source.stl')))===originalSource(plan.geometry).sha256,'Imported STL source changed; geometry approval is stale.');
+  if(originalSource(plan.geometry))requireThat(await hashFile(resolve(dir,'geometry/source.stl'))===originalSource(plan.geometry).sha256,'Imported STL source changed; geometry approval is stale.');
   const state = {
     kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime,
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.composition?.regions?.length
-      ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','rimming-planar','rimming-normal'].filter(name=>plan.skills?.[name]?.enabled)])]
+      ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','rimming-planar','rimming-normal','wave-overhangs'].filter(name=>plan.skills?.[name]?.enabled)])]
       : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : ['wedge-demo'],
     geometryApproved: review.approvals.geometry?.hash === geometryHash,
     planApproved: review.approvals.plan?.hash === planHash
@@ -242,18 +246,20 @@ async function rememberSetup(directory, { setupFile, source = 'User setup suppli
 
 // Feasibility inspection through the same generator, without persisted output
 // or approval. The approved generation/export step remains the delivery gate.
-async function checkPathBundle(directory) {
+async function checkPathBundle(directory, {onProgress} = {}) {
   const state = await loadBundle(directory, { program: false });
-  const prepared=await prepareProgram(state);
+  const prepared=await prepareProgram(state,onProgress);
   return { mode: 'development-check-only', revision: state.revision, ...structuredClone(prepared.summary), exportSummary:structuredClone(prepared.program.summary) };
 }
 
-async function prepareProgram(state){
+async function prepareProgram(state,onProgress){
   if(preparedProgram?.planHash===state.planHash)return preparedProgram;
   // One candidate per adapter. No approvals, files, or full producer path are
   // retained; the checked commands are committed only by generateBundle.
   preparedProgram=null;
-  const path=await generatePath(state.plan,state.machine);
+  onProgress?.({stage:'Preparing geometry'});
+  const path=await generatePath(state.plan,state.machine,{onProgress});
+  onProgress?.({stage:'Writing and checking machine commands'});
   const {bytes,program}=exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
   return preparedProgram={planHash:state.planHash,summary:path.summary,bytes,program};
 }
@@ -326,12 +332,32 @@ async function updatePlan(directory, plan, revision) {
 }
 
 // Generation performs the calculations the locked plan specifies. Production
-// generation requires the geometry and plan approvals; development generation
+// generation requires geometry confirmation; development generation
 // is a preview and is recorded as one, so it can never satisfy delivery.
-async function generateBundle(directory, { development = false } = {}) {
+async function generateBundle(directory, { development = false, onProgress } = {}) {
   const state = await loadBundle(directory, { program: false });
-  requireThat(development || state.planApproved, 'Approve the geometry and locked plan before production generation.');
-  const prepared=await prepareProgram(state);
+  requireThat(development || state.geometryApproved, 'Approve the geometry before production generation.');
+  // Both modes use identical commands. Reuse a checked development export after
+  // geometry confirmation, without slicing merely to change its mode. Current
+  // input/runtime and byte identity still belong to loadBundle; no approval is added.
+  if(!development&&state.review.generation?.mode==='development'){
+    onProgress?.({stage:'Checking the reviewed file'});
+    const current=await loadBundle(directory,{program:'source'});
+    if(current.program&&!current.programError){
+      requireThat(current.geometryApproved,'Approve the geometry before production generation.');
+      const checks=await json(resolve(state.dir,'checks.json'));
+      requireThat(checks.planHash===current.planHash&&checks.exportHash===current.exportHash&&checks.result==='pass','Saved checks do not match the reviewed export.');
+      checks.mode='production';
+      await save(resolve(state.dir,'checks.json'),checks);
+      current.review.generation.mode='production';
+      current.review.history.push({event:'generation-reused',mode:'production',time:new Date().toISOString(),exportHash:current.exportHash});
+      await save(resolve(state.dir,'review.json'),current.review);
+      return checks;
+    }
+  }
+  const prepared=await prepareProgram(state,onProgress);
+  requireThat((await loadBundle(directory,{program:false})).planHash===state.planHash,'The print changed during generation. Review the updated print.');
+  onProgress?.({stage:'Saving the checked toolpath'});
   const {bytes:code,program,summary}=prepared;
   const checks = {
     schema: 'saam-checks/1', result: 'pass', mode: development ? 'development' : 'production',
@@ -364,19 +390,22 @@ async function generateBundle(directory, { development = false } = {}) {
 }
 
 async function approve(directory, { stage, actor, revision, program = true }) {
-  requireThat(['geometry', 'plan', 'toolpath'].includes(stage), 'Unknown approval stage.');
+  requireThat(['geometry', 'toolpath'].includes(stage), 'Confirm geometry first, then settings and toolpath together.');
   requireThat(typeof actor === 'string' && actor.trim().length >= 2 && actor.length <= 100, 'Enter the human reviewer’s name.');
   const state = await loadBundle(directory,{program});
   requireThat(revision === state.revision, 'This review is stale. Reload before approving.');
-  if (stage === 'plan') requireThat(state.geometryApproved, 'Approve geometry first.');
-  if (stage === 'toolpath') requireThat(state.planApproved && state.program && !state.programError
+  if (stage === 'toolpath') requireThat(state.geometryApproved && state.program && !state.programError
     && state.review.generation?.mode === 'production',
   'Generate and check the approved production plan before toolpath approval.');
   const record = {
     actor: actor.trim(), time: new Date().toISOString(),
-    hash: stage === 'geometry' ? state.geometryHash : stage === 'plan' ? state.planHash : state.exportHash
+    hash: stage === 'geometry' ? state.geometryHash : state.exportHash
   };
-  if (stage === 'toolpath') record.planHash = state.planHash;
+  if (stage === 'toolpath') {
+    record.planHash = state.planHash;
+    record.scope = ['settings','toolpath'];
+    state.review.approvals.plan = {...record,hash:state.planHash};
+  }
   state.review.approvals[stage] = record;
   state.review.history.push({ event: 'human-approval', stage, ...record });
   await save(resolve(state.dir, 'review.json'), state.review);
@@ -400,6 +429,23 @@ async function deliver(directory) {
   await save(destination, bytes);
   requireThat(hash(await readFile(destination)) === state.exportHash, 'Delivery bytes differ from reviewed export.');
   return destination;
+}
+
+async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}) {
+  const state=await loadBundle(directory,{program:false});
+  if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
+  const machine=loadMachine(machineId),proposal=await proposedPlan(machineId,{setupFile});
+  const process={...state.plan.process};
+  for(const key of new Set([...Object.keys(state.machine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))process[key]=proposal.process[key];
+  const plan={...state.plan,setup:proposal.setup,output:proposal.output,process};
+  validatePlan(plan,machine);
+  const review=state.review;
+  delete review.approvals.plan;delete review.approvals.toolpath;review.generation=null;
+  review.history.push({event:'machine-changed',from:state.machine.id,to:machineId,time:new Date().toISOString()});
+  await save(resolve(state.dir,'machine.json'),machine);
+  await save(resolve(state.dir,'plan.json'),plan);
+  await save(resolve(state.dir,'review.json'),review);
+  return loadBundle(directory,{program:false});
 }
 
 async function upgradeBundle(directory) {
@@ -426,5 +472,5 @@ async function upgradeBundle(directory) {
   await save(resolve(directory,'machine.json'),machine);
   await save(resolve(directory,'review.json'),review);
 }
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,upgradeBundle};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine,upgradeBundle};
 }

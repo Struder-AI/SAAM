@@ -22,6 +22,13 @@ atomic; expose smaller operations when within-layer interleaving is permitted.
 These runtime results are not separate machine files or a persisted preview
 format. Travel policies may contain geometry-query callbacks.
 
+[Wave overhangs](../../skills/wave-overhangs/SKILL.md) publish one atomic operation
+and one continuous stroke per accepted spline slice. A slice is the cooling unit;
+there is no interleaving, retraction or travel between its fronts. Whole-component
+seed and successor dependencies bind through the same composer, with slices in
+array order. The producer rejects geometry requiring disconnected passes.
+Material ownership is explicit; it does not publish `lowerSurfaceFrom` coverage.
+
 `core/path/compose.mjs` is skill-independent. It topologically orders operations,
 rejects duplicate IDs, missing dependencies and cycles, and uses stable result
 order to break ties. Plan `composition` contains `batchLayers` (1–20), `order`
@@ -32,7 +39,7 @@ similar. Batch size 1 alternates compatible results at each height; size 2 gives
 AA–BB for two results with matching layers. Rank breaks ties within a result's
 height batch. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
-skill's prerequisites. The agent proposes these choices before plan approval;
+skill's prerequisites. The agent proposes these choices before toolpath generation;
 generation executes the locked rules without a new planning or approval stage.
 
 One PathBuilder owns the resulting travel/retraction state, and the composer
@@ -95,6 +102,26 @@ for plain spirals and motifs; [contour-path.mjs](../geom/contour-path.mjs) owns
 arc-length traversal. Motifs publish no assumed area, rim or finished side surface.
 
 ## Finished surfaces
+
+### Stationary deposition and operation temperature
+
+An operation can supply a one-point stroke with
+`stationaryExtrusion: {volumeMm3, flowMm3S, holdSeconds}`. Composition approaches
+through the same travel/retraction state, meters volume with a shared `extrude`
+action, holds, and accounts for it in layer cooling. It never encodes injection
+as a tiny XYZ move or as retraction recovery.
+
+Optional `nozzleC` and required paired `restoreNozzleC` scope a nozzle temperature
+to an operation. The composer parks before changing temperature and before
+restoring it. [Process controls](process-controls.mjs) own recipe temperature
+discovery and validation; machine adapters own command semantics. Current
+filament-axis G-code outputs support these actions; relay outputs reject them.
+[Plastic weld](../../skills/plastic-weld/SKILL.md) is their first producer.
+
+Its cavity reservations remain open until all enclosing layers are complete.
+Injection prerequisites and cover-layer dependencies use the ordinary scheduler;
+explicit orders cannot bypass them. An atomic path that conflicts with that
+sequence needs a different region assignment or injection height.
 
 [finished-surface.mjs](finished-surface.mjs) connects surface consumers to
 material producers without a skill-name allowlist in the consumer. A result's

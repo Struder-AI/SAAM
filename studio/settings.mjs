@@ -1,7 +1,7 @@
 import {planarWallTolerance} from '../core/machine/rules.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
-const globalSkills=[...supportSkills,'pipe-cladding'];
+const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
 export const skillName=name=>({'pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>globalSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
@@ -20,6 +20,8 @@ export function claddingSubstrateName(plan){
   return [...new Set(names)].map(skillName).join(' + ')+' · finished surface';
 }
 const fields={
+  lineSpacingMm:['Wave spacing along surface',' mm'],beadHeightMm:['Bead height',' mm'],speedMmS:['Deposition speed',' mm/s'],
+  fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],maxWaves:['Wave budget',''],maxEvaluations:['Surface evaluation budget',''],
   spacingFactor:['Line spacing','× nominal spacing; bead width unchanged'],
   pattern:['Pattern',''],maxPatternCells:['Pattern cell budget',''],interfaceDensity:['Interface fraction',''],
   interfaceLayers:['Interface layers',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
@@ -35,6 +37,14 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
   const rows=[];
   for(const [key,v] of Object.entries(settings)){
     if(['enabled','part','parts'].includes(key))continue;
+    if(name==='wave-overhangs'&&key==='slices'){
+      for(const s of v)rows.push([s.id+' · Wave slice',s.reason],
+        [s.id+' · Surface',s.surface.patch?`${s.surface.part??'Part'} / ${s.surface.patch}`:`Spline degrees ${s.surface.degreeU}/${s.surface.degreeV}; ${s.surface.controlPoints.length} × ${s.surface.controlPoints[0].length} controls`],
+        [s.id+' · Seed / region',`${s.seedUv.length} supported seed loop(s); ${s.domainUv.length} region loop(s)`],
+        [s.id+' · Print after',s.afterParts.map(p=>p??'Part').join(', ')||'Previously present support'],
+        [s.id+' · Print before',s.beforeParts.map(p=>p??'Part').join(', ')||'No assigned successor']);
+      continue;
+    }
     if(name==='vase-wall'&&settings.pattern&&key==='endTransition')continue;
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){

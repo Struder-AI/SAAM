@@ -4,6 +4,7 @@ import {beadSection,beadInstance,materialTemplate,buildMaterialScene,materialKey
 import {createProjection} from '../../studio/camera.mjs';
 import {displayPoint} from '../../studio/playback.mjs';
 import {dot,length} from '../geom/tolerance.mjs';
+import {moveStore} from '../../studio/move-store.mjs';
 const plan={geometry:{shape:'pipe'},placement:{xMm:0,yMm:0},process:{lineWidthMm:.4,layerMm:.2,firstLayerMm:.2,skinNormalMm:.2},skills:{'pipe-cladding':{normalMm:.2}},setup:{denso:{rotaryCenterMm:[0,0,0]}}};
 const move=(from,to,overrides={})=>({from,to,extruding:true,phase:'planar',layer:0,operation:'fill',...overrides});
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
@@ -35,6 +36,11 @@ test('bounded wedge uses roof normal; unsupported surface frames remain explicit
   const s=beadSection(move([0,0,1],[1,0,1.1],{phase:'inclined'}),plan,{roof:{a:.1,b:.2}});
   assert.ok(s.a.center[2]<1);assert.ok(s.a.short[1]<0);
   assert.equal(beadSection(move([0,0,1],[1,0,1.1],{phase:'draped-skin'}),plan,{}),null);
+  // A rounded E quantum on this short Y move used to be drawn as a broad
+  // X ribbon. Wave source has no across-path surface frame; show its actual
+  // centerline through the existing curved-surface fallback instead.
+  assert.equal(beadSection(move([149.17954,103.90631,1.41404],[149.17954,103.90632,1.41404],
+    {phase:'wave-overhangs',volumeMm3:0.00006379396581954265}),plan,{}),null);
   assert.equal(beadSection(move([0,0,1],[0,0,1]),plan,{}),null);
 });
 test('completed geometry reduces cross-section cost without losing curve samples or filling a bore',async()=>{
@@ -65,8 +71,8 @@ test('material preparation retains interleaved and unsupported source records in
     move([1,0,.2],[1,0,.2]),move([1,0,.2],[2,0,.2]),
     move([0,0,1],[1,0,1.1],{phase:'draped-skin'}),move([2,0,.2],[3,0,.2],{extruding:false})];
   const scene=await buildMaterialScene(moves,plan,{}, {yieldTask:async()=>{}});
-  assert.deepEqual([...scene.supported],[1,1,0,1,0,0]);
-  assert.deepEqual(scene.unsupported,['planar','draped-skin']);
+  assert.deepEqual([...scene.supported],[1,1,1,1,0,0]);
+  assert.deepEqual(scene.unsupported,['draped-skin'],'stationary extrusion has an event marker, not a missing surface frame');
   assert.deepEqual([...scene.groups[0].indices],[0,3]);
   assert.deepEqual(scene.groups[0].instances,new Float32Array([
     ...beadInstance(beadSection(moves[0],plan,{})),...beadInstance(beadSection(moves[3],plan,{}))]));
@@ -85,6 +91,25 @@ test('material preparation yields within a large operation without adding a time
     assert.ok(progress.every((p,i)=>i===0||p>=progress[i-1]));
   }
 });
+test('compact batch reads preserve material buffers across chunks without mutating source records',async()=>{
+  const compact=moveStore(),moves=Array.from({length:16400},(_,i)=>move([i,0,.2],[i+1,0,.2],
+    {line:i+1,operation:i%3?'fill':'wall',phase:i%7?'planar':'draped-skin',volumeMm3:.08,toolAxisFrom:[0,0,-1]}));
+  for(const m of moves)compact.push(m);
+  compact.offsetLines(10);
+  const read=compact.reader(['from','line','operation','absent']);
+  for(const i of [0,16383,16384,16399]){
+    const row=read(i);assert.deepEqual(row.from,moves[i].from);assert.equal(row.line,i+11);
+    assert.equal(row.operation,moves[i].operation);assert.equal(row.absent,undefined);
+  }
+  read(0).from[0]=-999;assert.equal(compact[0].from[0],0,'scratch mutation cannot change the stored source');
+  const options={yieldTask:async()=>{}};
+  const a=await buildMaterialScene(moves,plan,{},options),b=await buildMaterialScene(compact,plan,{},options);
+  assert.deepEqual(b.bounds,a.bounds);assert.deepEqual(b.supported,a.supported);assert.deepEqual(b.unsupported,a.unsupported);
+  assert.deepEqual(b.groups.map(g=>[g.key,g.last,g.indices,g.instances]),a.groups.map(g=>[g.key,g.last,g.indices,g.instances]));
+  assert.notEqual(b.groups[0].move,b.groups[1].move,'representative moves outlive the scratch reader');
+  assert.deepEqual(compact[0].from,moves[0].from);
+});
+
 test('WebGL projection matches Studio screen coordinates in both rotary views and at every zoom',()=>{
   const bounds={min:[-12,-12,0],max:[12,12,14]};
   for(const follow of [true,false])for(const angle of [0,45,720])for(const zoom of [.2,1,4]){

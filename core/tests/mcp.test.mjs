@@ -10,6 +10,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { bundleFor } from '../../studio/server.mjs';
 import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
+import {createTour} from '../../studio/tour.mjs';
+import {createAgentRequests} from '../../studio/agent-requests.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 async function clientFor(t, printsRoot) {
@@ -48,6 +50,47 @@ async function smallPlan(call, kind, machineId = 'ultimaker-s5') {
   }
   return plan;
 }
+
+test('MCP correlates ordinary maker work and receives Studio requests without approvals',async t=>{
+  const {call,printsRoot}=await fixture(t),plan=await smallPlan(call,'shell');
+  await call('create_print',{printId:'ordinary',kind:'shell',machineId:'ultimaker-s5',plan});
+  const first=await call('begin_studio_work',{printId:'ordinary',instruction:'Change infill'});
+  const second=await call('begin_studio_work',{printId:'ordinary',instruction:'Add lettering'});
+  const waiting=await call('respond_to_studio_request',{requestId:second.id,status:'waiting',message:'Awaiting a choice'});
+  assert.equal(waiting.status,'waiting');
+  const targeted=await call('respond_to_studio_request',{requestId:second.id,status:'working',resultStage:'geometry'});
+  assert.equal(targeted.target.stage,'geometry');assert.ok(targeted.target.inputKey);
+  await call('respond_to_studio_request',{requestId:first.id,message:'Done'});
+  assert.deepEqual((await call('get_studio_requests')).requests.filter(r=>r.status==='working').map(r=>r.id),[second.id]);
+  const queue=createAgentRequests(printsRoot),request=await queue.begin({directory:resolve(printsRoot,'ordinary'),source:'studio',instruction:'Offer infill options'});
+  assert.equal((await call('wait_for_studio_request',{waitMs:0})).requests[0].id,request.id);
+  await call('begin_studio_work',{printId:'ordinary',instruction:'Offer choices',requestId:request.id});
+  await call('respond_to_studio_request',{requestId:request.id,message:'Choices offered'});
+  assert.deepEqual((await call('wait_for_studio_request',{waitMs:0})).requests,[]);
+  const bundled=await queue.begin({directory:resolve(printsRoot,'ordinary'),source:'studio',instruction:'SYNTHETIC bundled claim'});
+  const claimed=await call('wait_for_studio_request',{waitMs:0,claim:true});
+  assert.equal(claimed.requests[0].id,bundled.id);
+  assert.equal(claimed.requests[0].status,'working');
+  assert.equal((await queue.list()).find(item=>item.id===bundled.id).status,'working');
+  assert.equal((await call('get_print',{printId:'ordinary'})).approvals.geometry,false);
+});
+
+test('MCP follows tour chat gates and generates only a development preview for its active print',async t=>{
+  const {call,printsRoot}=await fixture(t),tour=createTour(printsRoot);
+  await tour.action('resume');const before=await call('get_tour');
+  assert.equal(before.step,0);assert.equal(before.canNext,false);
+  await call('set_tour_start_at',{startAt:{layer:12}});
+  const saved=await call('get_print',{printId:'tour/handle',includeGeometry:true});
+  saved.plan.geometry.parts[1].geometry.heightMm=11;
+  await call('adjust_print',{printId:'tour/handle',expectedRevision:saved.revision,patch:{geometry:saved.plan.geometry}});
+  const after=await call('get_tour',{after:before.cursor,waitMs:50});assert.equal(after.canNext,false,'wait for the browser to render the edit');
+  const generated=await call('generate_print',{printId:'tour/handle'});assert.equal(generated.checks.mode,'development');
+  await call('deliver_print',{printId:'tour/handle'},/Exit the tour/);
+  await tour.action('exit');
+  const current=await call('get_print',{printId:'tour/handle'});
+  const changed=await call('change_machine',{printId:'tour/handle',machineId:'bambu-h2d',expectedRevision:current.revision});
+  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.approvals.geometry,false);
+});
 
 
 
@@ -164,7 +207,7 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
 // One case per transport/output shape; vase geometry and machine semantics are
 // covered by the skill and exporter suites, not by repeating this protocol flow.
 for (const [kind, machineId] of [['shell', 'ultimaker-s5'], ['wedge', 'bambu-h2d'], ['shell', 'dobot-mg400']]) {
-  test(`MCP ${kind}/${machineId} uses Studio, fresh three-stage hashes and byte-identical delivery`, async t => {
+  test(`MCP ${kind}/${machineId} uses Studio, fresh two-stage hashes and byte-identical delivery`, async t => {
     const { call, printsRoot } = await fixture(t), printId = 'reviewed', dir = resolve(printsRoot, printId);
     const plan = await smallPlan(call, kind, machineId);
     if (machineId === 'dobot-mg400') syntheticDobotSetup(plan);
@@ -177,8 +220,6 @@ for (const [kind, machineId] of [['shell', 'ultimaker-s5'], ['wedge', 'bambu-h2d
     assert.equal((await call('request_review', { printId })).url, opened.url);
     await syntheticApproval(dir, 'geometry');
     assert.equal((await call('get_approval_status', { printId })).approvals.geometry, true);
-    await call('generate_print', { printId }, /Approve/);
-    await syntheticApproval(dir, 'plan');
     const generated = await call('generate_print', { printId });
     assert.equal(generated.checks.result, 'pass');
     assert.equal(generated.checks.mode, 'production');
@@ -195,7 +236,6 @@ for (const [kind, machineId] of [['shell', 'ultimaker-s5'], ['wedge', 'bambu-h2d
     const changed = await call('adjust_print', { printId, expectedRevision: status.revision, patch: { process: { planarSpeedMmS: 22 } } });
     assert.deepEqual(changed.approvals, { geometry: true, plan: false, toolpath: false });
     await call('deliver_print', { printId }, /approval/);
-    await syntheticApproval(dir, 'plan');
     await call('generate_print', { printId });
     await syntheticApproval(dir, 'toolpath');
     const bytes = await readFile(exportFile);
@@ -330,4 +370,50 @@ test('MCP preserves the shared regional recipe and configurable composition with
   assert.deepEqual(reopened.skills, ['planar-infill']);
   assert.notEqual(changed.revision, created.revision);
   await assert.rejects(access(resolve(printsRoot, printId, 'path.saampath')), { code: 'ENOENT' });
+});
+
+
+test('MCP transport close persists scoped failure and pushes it to Studio before shutdown',async t=>{
+  const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');
+  const {createMcpAdapter}=await import('../../adapters/mcp/src/server.mjs');
+  const printsRoot=await mkdtemp(resolve(tmpdir(),'saam-close-'));t.after(()=>rm(printsRoot,{recursive:true,force:true}));
+  const adapter=createMcpAdapter({printsRoot,autoOpen:false});t.after(()=>adapter.close());
+  const [ct,st]=InMemoryTransport.createLinkedPair(),client=new Client({name:'close-test',version:'1'});
+  await adapter.server.connect(st);await client.connect(ct);
+  const call=async(name,args={})=>{const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse(result.content[0].text);};
+  await call('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(call,'shell')});
+  const request=await call('begin_studio_work',{printId:'part',instruction:'Pending edit'});
+  const other=await createAgentRequests(printsRoot,{ownerId:'another-connection'}).begin({directory:resolve(printsRoot,'part'),instruction:'Independent'});
+  const {url}=await call('request_review',{printId:'part'}),html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const viewer=await fetch(url+'/api/viewer?token='+token),reader=viewer.body.getReader();await reader.read();
+  const studioRequest=await(await fetch(url+'/api/agent-request',{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:'{}'})).json();
+  await client.close();let events='';for(;;){const {done,value}=await reader.read();if(done)break;events+=new TextDecoder().decode(value);}
+  await adapter.close();assert.match(events,/event: agent-connection-closed/);assert.match(events,/connectionClosed/);
+  const requests=await createAgentRequests(printsRoot).list();
+  for(const id of [request.id,studioRequest.id])assert.equal(requests.find(r=>r.id===id).connectionClosed,true);
+  assert.equal(requests.find(r=>r.id===other.id).status,'working');
+});
+
+
+test('waiting for Studio does not block immediate dots, responses or tour metadata',async t=>{
+  const {call,printsRoot}=await fixture(t),tour=createTour(printsRoot);await tour.action('resume');
+  const waiting=call('wait_for_studio_request',{waitMs:4000});
+  await new Promise(r=>setTimeout(r,30));const started=Date.now();
+  const work=await call('begin_studio_work',{instruction:'Change this shape'});
+  assert.equal(work.printId,'tour/handle');assert.ok(Date.now()-started<1000,'begin must bypass an outstanding wait');
+  await call('respond_to_studio_request',{requestId:work.id,message:'Geometry updated; acknowledgement already sent'});
+  const guide=await call('get_tour');assert.equal(guide.step,0);
+  const request=await createAgentRequests(printsRoot).begin({directory:guide.directory,source:'studio',instruction:'Congratulate now'});
+  const result=await waiting;assert.equal(result.requests[0].id,request.id);assert.ok(Date.now()-request.createdAt<1000,'listener returns as soon as work is queued');
+});
+
+test('a queued Studio request is pushed to the MCP client and included in the next tool result',async t=>{
+  const {LoggingMessageNotificationSchema}=await import('@modelcontextprotocol/sdk/types.js');
+  const {call,client,printsRoot}=await fixture(t),tour=createTour(printsRoot),{directory}=await tour.action('resume');
+  let resolveNotice;const notice=new Promise(resolve=>{resolveNotice=resolve;});
+  client.setNotificationHandler(LoggingMessageNotificationSchema,message=>{if(message.params.logger==='saam.studio')resolveNotice(message.params.data);});
+  const record=await createAgentRequests(printsRoot).begin({directory,source:'studio',instruction:'Offer infill options now'});
+  const timeout=setTimeout(()=>resolveNotice({timeout:true}),1500);const pushed=await notice;clearTimeout(timeout);
+  assert.equal(pushed.request?.id,record.id);assert.ok(Date.now()-record.createdAt<1000);
+  const response=await call('get_print',{printId:'tour/handle'});assert.equal(response.studioRequests[0].id,record.id);
 });

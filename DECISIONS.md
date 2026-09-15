@@ -323,3 +323,13 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 | Easier first use and onboarding, including a possible guided tour | Potential future port; no new implementation requested | Retain the independently developed lightweight setup check. Reconsider additional onboarding against the conversational workflow and current setup cost; the removed tour and its repeated prompting are not approved for restoration. |
 | Material-intent presentation during geometry review | Potential future port; no implementation requested | Assess the need and presentation against geometry, process and toolpath responsibilities. Do not restore the removed panel or duplicate the region model without a specific approved design. |
 | Printer/nozzle/material configuration and a shared material library | Material library is committed future work, deferred until the user starts it; nozzle controls and expanded hardware/output support remain potential ports | [BR-044](build_request.md#br-044--port-a-vetted-material-library) owns the deferred library. Its old data, generic compatibility fallback, process-reset behavior and expanded H2D startup contract are not admitted. Vet each consumer against current shared interfaces and the minimal-core guidance. |
+
+
+## D-030 — Provisional STL units assumption
+
+- Decision: Load STL files without a units question or popup. Assume reasonable units after loading, based on part size, in both tour and ordinary Studio flows. Respect explicitly supplied units and allow later correction. This is a provisional policy expected to be reconsidered.
+- Status: proposed
+- Recorded: 2026-09-15T01:03:31Z
+- Approvals: Current user explicitly authorizes implementation and recording; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in the Studio tour task (01a0a19d-25eb-7fa3-9e55-d1b97ee544fc), 2026-09-14 local time: “Automatically choose reasonable units after load, based on part size. Can always be changed later if needed. This applies outside of tour as well. Note this in decisions - and we will likely change this policy later down the road.”
+- Scope: Active user-authorized implementation. The shared importer owns the size heuristic and records the assumption; [print-tool guidance](core/print/USAGE.md#import-an-stl) describes the current thresholds and correction tools. STL itself does not encode units. Formal contributor consensus is not inferred.

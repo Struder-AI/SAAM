@@ -23,7 +23,7 @@ No overhang-angle scan assigns support. For maker work, read
 
 Enable `skills.rimming-planar` in the [shared shell plan tools](../../core/print/USAGE.md).
 MCP exposes the same plan template, adjustment, manual and review tools. Supply
-`surfaces` before the existing locked-plan approval. Generate through the same
+`surfaces` before toolpath generation. Generate through the same
 composer and machine exporter; Studio reviews that export, which is delivered
 unchanged. Intermediate motion is transient. No additional approval is added.
 

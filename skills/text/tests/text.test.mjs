@@ -161,3 +161,37 @@ test('explicit stroke thickening preserves every curved-roof letter in actual de
     assert.ok(glyph.maxRelief>0.6,'Letter '+thin.text[i]+' must reach its upper relief layers');
   }
 });
+
+test('public circular text follows the original wavy top and deposits every letter',async t=>{
+  const dir=await mkdtemp(join(tmpdir(),'saam-circular-text-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+  const roof={shape:'spline-top',runMm:40,widthMm:40,cpU:4,cpV:4,
+    heightsMm:[3,4,4,3].map(z=>[z,z+0.2,z+0.4,z+0.6])};
+  const plan=defaults();plan.geometry=roof;plan.skills['draped-skin'].enabled=false;
+  await initBundle(dir,plan,{setupFile:join(dir,'absent.json')});
+  const initial=await loadBundle(dir,{program:false});
+  await approve(dir,{stage:'geometry',revision:initial.revision,actor:'SYNTHETIC CIRCULAR TEXT TEST — never a real approval'});
+  const spec=feature({text:'groucho',sizeMm:7,align:'center',positionMm:[20,20],letterSpacingMm:0.4,
+    outlineOffsetMm:0.18,depthMm:0.8,reference:{kind:'top'},baseline:{kind:'circle',radiusMm:10}});
+  await applyText(dir,{feature:spec},{expectedRevision:(await loadBundle(dir,{program:false})).revision});
+  const state=await loadBundle(dir,{program:false});
+  assert.equal(state.geometryApproved,false);
+  assert.deepEqual(state.plan.geometry.base,roof);
+  assert.deepEqual(state.plan.geometry.features[0].reference,{kind:'top'});
+  assert.deepEqual(state.plan.geometry.features[0].baseline,{kind:'circle',radiusMm:10});
+  const result=fullFillResult({shell:buildGeometry(state.plan.geometry),plan:state.plan,machine:loadMachine()});
+  const glyphs=textOutlines(spec,0.02).glyphs.map(g=>({
+    min:Math.min(...g.loops.flat().map(p=>p[0]))/10-0.02,
+    max:Math.max(...g.loops.flat().map(p=>p[0]))/10+0.02,length:0,maxRelief:0
+  }));
+  for(const operation of result.operations)for(const stroke of operation.strokes)for(let i=1;i<stroke.points.length;i++){
+    const a=stroke.points[i-1],b=stroke.points[i],p=a.map((v,k)=>(v+b[k])/2),u=p[0]/40;
+    const relief=p[2]-(3+3*u*(1-u)+0.015*p[1]);
+    if(relief<0.3)continue;
+    const angle=Math.atan2(p[0]-20,p[1]-20),glyph=glyphs.find(g=>angle>=g.min&&angle<=g.max);
+    if(glyph){glyph.length+=Math.hypot(...a.map((v,k)=>v-b[k]));glyph.maxRelief=Math.max(glyph.maxRelief,relief);}
+  }
+  for(const [i,glyph] of glyphs.entries()){
+    assert.ok(glyph.length>1,'Circular letter '+spec.text[i]+' needs deposition above the roof');
+    assert.ok(glyph.maxRelief>0.6,'Circular letter '+spec.text[i]+' must reach the relief layers');
+  }
+});

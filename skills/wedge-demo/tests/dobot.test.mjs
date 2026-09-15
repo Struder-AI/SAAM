@@ -28,7 +28,7 @@ test('bounded wedge preserves its native geometry and inclined strokes through D
   assert.equal(state.geometry.nativeFile,'model.mesh.json');
   assert.equal(state.geometry.vertices.length,8);
   await assert.rejects(deliver(dir),/approval/);
-  for(const stage of ['geometry','plan'])state=await approve(dir,{stage,actor:'SYNTHETIC TEST ONLY — Dobot wedge',revision:state.revision});
+  for(const stage of ['geometry'])state=await approve(dir,{stage,actor:'SYNTHETIC TEST ONLY — Dobot wedge',revision:state.revision});
   await generateBundle(dir);state=await loadBundle(dir);
   assert.equal(state.programError,undefined);
   assert.equal(state.exportName,'wedge.zip');

@@ -27,13 +27,13 @@ test('bounded wedge runs on both H2D nozzles through the shared exporter',()=>{
   }
 });
 
-test('H2D wedge keeps three approvals and exact archive delivery, including upgrade',async t=>{
+test('H2D wedge keeps two confirmations and exact archive delivery, including upgrade',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-h2d-wedge-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);
   await initBundle(dir,plan,{machineId:machine.id});await generateBundle(dir,{development:true});
   let state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.equal(state.exportName,'wedge.gcode.3mf');
   assert.deepEqual(state.review.approvals,{});await assert.rejects(deliver(dir),/approval/);
-  for(const stage of ['geometry','plan'])state=await approve(dir,{stage,actor:'SYNTHETIC TEST H2D wedge',revision:state.revision});
+  for(const stage of ['geometry'])state=await approve(dir,{stage,actor:'SYNTHETIC TEST H2D wedge',revision:state.revision});
   await generateBundle(dir);state=await loadBundle(dir);
   state=await approve(dir,{stage:'toolpath',actor:'SYNTHETIC TEST H2D wedge',revision:state.revision});
   const bytes=await readFile(join(dir,'exports/bambu-gcode/wedge.gcode.3mf'));

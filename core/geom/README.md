@@ -6,6 +6,16 @@ regions; [composition](../path/README.md) consumes the resulting skill operation
 
 ## Geometry interoperability for skill authors
 
+Compiled heat-set and text geometry retains editable feature recipes. The
+builder attaches optional `planarDetails` to geometry with local deposition
+requirements. `translated(dx,dy,dz)` preserves them under placement;
+`at(region,z,{widthMm,perimeters,pitchMm})` supplies local wall/fin strokes,
+material regions, fill exclusions, an interior boundary and a wall-ownership
+predicate. The [shared planar producer](../../skills/full-fill/scripts/fill.mjs)
+consumes those details, including through sparse/solid partners and regional
+composition. This in-memory interface adds no file, exporter or scheduler.
+The [heat-set manual](../../skills/heat-set-inserts/SKILL.md) owns its constraints.
+
 Skills consume common geometry queries with explicit supported representations.
 The sections below define numerical assumptions, query semantics and the
 representation-specific work behind that boundary.
@@ -49,7 +59,7 @@ are different contracts; do not replace them with one global epsilon.
 |---|---|---|
 | Coordinate quantization, mm | Planar offset `precisionMm`; Clipper2 boolean grid `1e-9` mm | This rounds coordinates for kernel arithmetic. Use a local origin and account for repeated conversions. A grid step does not bound all later outline displacement or remove excess contour vertices. Measure the actual kernel cost before keeping extreme precision. |
 | Shape approximation, mm | Native section chord `0.001` mm; offset arcs `0.02` mm; coverage arcs `0.001` mm | Bound perpendicular deviation from the source curve independently of coordinate storage. Sample long, nearly straight spans economically; preserve cumulative curvature and topology. Coverage expansion and its consuming predicates must agree about approximation error. |
-| Sampling distance and feature size, mm | Surface stroke steps `0.2` mm; rim sampling `0.5` mm and error `0.01` mm; repair's explicit grid spacing | A step size is not a certified surface-error bound. Retain explicit repair resolution and measured shape change. Reducing floating-point decimals cannot undo repair's geometric approximation or reduce its triangle count. |
+| Sampling distance and feature size, mm | Surface stroke steps `0.2` mm; rim sampling `0.5` mm and error `0.01` mm | A step size is not a certified surface-error bound. Report mesh repair shape changes separately from numerical precision. |
 | Coincidence/predicate slack, mm or derived units | Point `1e-6` mm, plane `1e-7` mm; mesh separation `1e-9` mm | Keep numerical degeneracy handling separate from intentional shape simplification. A determinant from two length vectors has units mm²; compare to an area quantity or normalize it to distance/relative conditioning. Do not use a length tolerance as an area cutoff. |
 | Solver parameters and angles | `TOLERANCE.parameter=1e-9` in native UV parameter units; surface `precisionUv=1e-10`; angles in degrees/radians | UV precision maps to physical displacement through surface derivatives and can differ in U and V. A normal dot product is dimensionless. Neither uses an XYZ millimetre tolerance. Record units at conversions and use scale-aware conditioning for singularity decisions. |
 | Machine command quantization | S5/H2D XYZ and filament E currently five decimals; feed three decimals in mm/min; dwell integer milliseconds; Dobot ten decimals and RC8 eight | XYZ, filament length, volume, feed, time and pose need independent error budgets even when a formatter currently shares digits. Relative-E rounding can accumulate per move; absolute E has different accumulation. Reconcile final endpoints, length, volume and duration when removing or coalescing points. |
@@ -92,9 +102,10 @@ assertion to accommodate an unexplained error. This is design/review guidance,
 not another runtime precision sweep, validation gate or approval stage.
 
 The [precision audit history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
-records corrections; [open follow-through](../../build_request.md#br-040--precision-audit-follow-through)
-covers remaining findings, including collapsed-segment volume and oriented motion. Current XYZ behavior is specified
-under [formats](../print/README.md#formats).
+records corrections and proposed follow-ups, including collapsed-segment volume
+and oriented motion. The [provenance audit](../../DEVLOG.md#2026-09-14--build-request-provenance-audit)
+distinguishes the completed audit from approval to implement all its findings.
+Current XYZ behavior is specified under [formats](../print/README.md#formats).
 
 ### Geometry query boundary
 
@@ -121,7 +132,7 @@ millimeter indexed triangles, original source provenance and shape parameters.
 Mixed assemblies retain spline recipes for spline components. Existing spline
 bundles continue using `geometry/model.3dm`. New wedges store indexed meshes;
 explicit wedge upgrade converts the former four-parameter/3DM recipe and
-invalidates all three approvals while preserving old artifacts. No silent migration occurs.
+invalidates both confirmations while preserving old artifacts. No silent migration occurs.
 STL import accepts ASCII and binary with explicit mm/inch units, indexes exact
 shared vertices, records translation onto the bed, and retains `geometry/source.stl`
 and its hash. File changes invalidate review. STL does not supply semantic CAD
@@ -130,7 +141,8 @@ faces, so Studio selects the imported component as a whole.
 `core/geom/mesh.mjs` rejects invalid indices/nonfinite coordinates, degenerate or
 duplicate triangles, open edges, inconsistent winding, nonmanifold vertices and
 intersecting nonadjacent triangles. It does not repair geometry. Checks are
-bounded to 100000 triangles and two million candidate intersection tests; adjacent
+controlled by a configurable memory estimate and a spatial hierarchy. The candidate
+work allowance grows with face count (at least two million tests). Adjacent
 facets sharing vertices are excluded from the intersection pass, so this is not
 a complete solid-kernel validity proof. Explicit [mesh repair](#explicit-mesh-repair)
 adds an adjacent-contact check to its own output validation. Mesh sections preserve holes/islands and
@@ -227,8 +239,19 @@ and verifies deposition above the source roof for all five letters after
 B-spline control net, a plane, or a named original-part patch. A flat rectangle
 maps explicitly to a UV rectangle; local scale/distortion belongs to that mapping.
 They do not become printable material. Rigid glyph mode places each glyph on its
-local tangent plane. Spline-baseline arc length uses a subdivided Bezier chord
-table with continuous curve/tangent evaluation; it is approximate.
+local tangent plane. `kind: top` instead uses the shared [top-surface query](query.mjs)
+on the retained original spline or mesh: layout XY stays in physical millimetres,
+with the highest surface height and normal at that column. Missing roof columns
+fail. It creates no sampled copy of the surface; folds, ridges and discontinuous
+normals retain the query and text-mapping limitations.
+
+[Shared text layout](text-layout.mjs) composes straight, Bezier and circular
+baselines with placement, rotation and mirroring before surface mapping. Circle
+advance is exact XY arc length at its radius; glyph Y follows the left normal,
+and centre-crossing layouts fail. It retains font spacing without stretching a
+word to fill the circle. Bezier arc length uses a subdivided chord table with
+continuous curve/tangent evaluation; it is approximate. Existing UV references
+and saved compiled meshes retain their semantics.
 
 [Target tessellation](tessellate.mjs) samples supported closed spline shells,
 matches shared boundaries geometrically despite different parameterizations,
@@ -271,50 +294,69 @@ rhino3dm is a geometry/file library, not the complete Rhino computation engine.
 
 ## Explicit mesh repair
 
-The [mesh-tools manual](../../skills/mesh-tools/SKILL.md) owns diagnosis, command
-usage, options and review of processing results. [The repair entry](../print/repair-stl.mjs)
-owns cleanup/reconstruction and its source-preserving artifacts. It is separate
-from ingestion; the normal importer validates supplied geometry. Existing mesh
-input checks attach a recovery-manual reference when they reject data, without
-adding another validation pass or changing the successful-load path.
+The [mesh-tools manual](../../skills/mesh-tools/SKILL.md) owns command use and
+review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
+source, runs exact cleanup, and uses the [native CGAL adapter](mesh-native.mjs)
+when cleanup alone does not yield a valid mesh. Import validates supplied geometry;
+repair is an explicit preparation operation.
 
-At the user's explicit request, these are original JavaScript implementations,
-not an adopted upstream repair kernel. [Reconstruction](mesh-repair.mjs)
-indexes exact coordinate matches, removes degenerate/duplicate facets and unused
-vertices, and returns already-valid geometry without resampling. Otherwise it
-requires closed, consistently oriented manifold edges, classifies a padded grid
-by signed X-ray crossings, samples source distance near the surface and extracts
-the zero surface of a conforming six-tetrahedra subdivision. This handles
-intersections between separate shells and folds within a shell without identifying
-a special model, plane or repair location. Half-open projected-edge ownership
-avoids counting a shared triangle edge twice. Distances at grid vertices have a
-minimum magnitude of 0.001 times the grid spacing to avoid nearly zero-area faces.
+[Cleanup](mesh-repair.mjs) merges identical coordinates and removes duplicate,
+degenerate and unused elements. Collapsed faces can leave a long boundary edge
+opposite a complete collinear chain. Cleanup subdivides the surviving face at
+those existing vertices, preserving positions and winding with a 1e-9 mm
+line-distance tolerance. It does not guess between branches or fill actual holes.
 
-The selected fill rule interprets the signed crossings as material. Oppositely
-wound surfaces can express cavities or cancellation. Reconstruction requires
-closed, consistently oriented manifold edges; open or ambiguous incidence is
-rejected. Grid spacing controls approximation detail and cost, without certifying
-surface error or preservation of topology.
+The native backend orients the soup, stitches compatible borders, and applies
+CGAL 6.2.1 local patch repair with smoothing disabled and genus preservation
+requested. It can split vertices to represent manifold patches, but that does
+not guarantee a valid closed solid. Optional hole filling needs both an edge-count
+limit and a physical bounding-box diagonal limit. Failed repair, remaining open
+boundaries or detected intersections produce no accepted output. See the
+[native build and license reference](native/README.md).
 
-When needed, [quadric edge collapse](mesh-simplify.mjs) reduces the surface
-with local link, duplicate-face, orientation and spatial collision checks before
-each accepted collapse. Its error metric is accumulated plane residual rather
-than Hausdorff distance. Grid and reconstruction budgets bound allocations;
-exhaustion or a final result outside import limits fails before output is saved.
+Final checks use shared mesh topology/intersection checks, adjacent-contact checks
+and reimport of the exact decimal ASCII STL. Contact tolerance is 1e-9 mm;
+this is not an exact-arithmetic validity proof. The report counts unchanged source
+faces and changed/new faces and samples vertices and triangle centroids in both
+directions. Samples are deterministic and bounded to 10,000 per direction. They
+are not a certified maximum surface error. Identical face geometry is recognized
+exactly without distance sampling. An optional sampled-distance limit rejects
+excessive measured changes; it does not certify unsampled regions. Geometry still
+needs review, and successful processing creates no manufacturing approval.
 
-Final validation uses shared `makeMesh`, repair-specific checks for overlap beyond
-shared vertices/edges, and reimport of the exact decimal ASCII STL. Decimal
-coordinates avoid a new float32 rounding step. The spatial predicates use floating
-point with 1e-9 mm contact tolerance, not exact arithmetic. Failed validation
-produces no repaired artifact. Reported distances sample vertices in both
-directions, including source surfaces discarded inside overlaps; they are not a
-certified continuous bound.
+### Memory, files and progress
 
-Tests cover analytical overlapping-box volume convergence, rotated folded
-connected surfaces, cavities, holes, disconnected pieces, inverted winding,
-fill-rule differences, exact cleanup, ray-edge ownership, adjacent contact,
-allocation/topology failures and source-preserving S5/H2D import without approvals.
-These are software checks, not universal repair or physical print validation.
-The same repaired mesh remains subject to each skill's shape limits, including
-vase-wall's single-section/single-inset-loop restriction. Spline geometry is not resampled by this
-STL-only operation; all downstream composition and machine contracts remain shared.
+[File decoding](stl-file.mjs) reads ASCII and binary STL in 64 KiB blocks, computes
+the source hash while reading and indexes facets immediately. The public import
+and repair file entries accept paths so callers need not allocate the entire
+source buffer. Output STL is written in bounded text chunks. Native temporary
+files are private to each request and deleted on success, failure or cancellation;
+file results are staged and validated before publishing a new destination.
+
+The shared validator uses packed edge incidence, a triangle AABB hierarchy, and
+compact normals. Cached identity is a streaming SHA-256 digest; derived cache data
+is capped at 32 MiB. Public normals and edge maps materialize lazily. The former
+fixed face-count gate is gone. `SAAM_MESH_MEMORY_MIB` sets a working-set estimate
+budget; the default is the smallest of 1,536 MiB, 40% of the Node heap limit and
+25% of system RAM. An exhausted budget reports its estimate and setting, without
+changing geometry. This is a conservative estimate, not a hard RSS reservation.
+The source indexed mesh, CGAL mesh and final result still require memory. Neither
+native repair nor downstream bundle serialization is fully out-of-core.
+
+Repair runs in a worker thread, with CGAL in a child process. Async repair accepts `signal`, `timeoutMs`, `progress` and `onGeometry`.
+Countable stages report completed/total and percentage within that stage. CGAL
+patch work is indeterminate; no fabricated global percentage is reported.
+After final validation, `onGeometry` receives at most 4,096 full-quality triangles
+per chunk, with local vertices/indices, first-triangle offset and completion
+percentage. Each callback is awaited, allowing the consumer to release a chunk
+before requesting more. There is no lower-quality display proxy. Studio's consumer
+is owned separately and has not been changed by this mesh task.
+
+### Mesh compatibility development boundary
+
+Mesh import, cleanup, repair, memory handling, progress, generic regression tests
+and owning documentation are shared core work intended for the remote repository.
+The dataset loop, comparison runners, downloaded evaluation builds, trial profiles,
+benchmarks and raw reports remain under ignored `.local`. Production code does
+not depend on those experiments. Test models are disposable; supplied originals
+are preserved. Temporary inspection adapters use existing Studio interfaces.

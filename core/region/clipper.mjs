@@ -7,11 +7,12 @@ export const CLIPPER_PRECISION = 1e-9;
 const LIMIT = 2 ** 50; // headroom within exactly representable JS integer coordinates
 const round=value=>value<0?-Math.round(-value):Math.round(value);
 
-export function clipperContext(regions, precision = CLIPPER_PRECISION, margin = 0) {
+export function clipperContext(regions, precision = CLIPPER_PRECISION, margin = 0, originOverride = null) {
   requireThat(Number.isFinite(precision) && precision > 0, 'Region precision must be positive and finite.');
   const points = regions.flat(2);
   requireThat(points.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)), 'Region coordinates must be finite 2D points.');
-  const origin = points.length ? points.reduce((a,p)=>[Math.min(a[0],p[0]),Math.min(a[1],p[1])],[Infinity,Infinity]) : [0,0];
+  requireThat(originOverride===null||(Array.isArray(originOverride)&&originOverride.length===2&&originOverride.every(Number.isFinite)),'Region origin must be a finite 2D point.');
+  const origin = originOverride??(points.length ? points.reduce((a,p)=>[Math.min(a[0],p[0]),Math.min(a[1],p[1])],[Infinity,Infinity]) : [0,0]);
   requireThat(points.every(p => p.every((v, k) => (Math.abs(v - origin[k]) + margin) / precision < LIMIT)),
     'Region coordinate range exceeds Clipper precision; increase precisionMm or use a smaller coordinate span.');
   const encode = loops => loops.map(loop => loop.map(p => ({

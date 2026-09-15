@@ -34,12 +34,16 @@ function checkBuildRequests(markdown) {
     const statuses = [...entry.matchAll(/^- Status: (.*)$/gm)];
     if (statuses.length !== 1 || !/^(?:open|in progress|blocked)$/.test(statuses[0][1]))
       issues.push(`${id}: use an open status; move completed records to DEVLOG.md.`);
-    for (const field of ['Remaining', 'Completion', 'Context']) {
-      if (!new RegExp(`^- ${field}: \\S.+`, 'm').test(entry)) issues.push(`${id}: missing ${field}.`);
+    for (const field of ['Contributor', 'Authorization', 'Session', 'Source', 'Remaining', 'Completion', 'Context']) {
+      const values = [...entry.matchAll(new RegExp(`^- ${field}: (.*)$`, 'gm'))];
+      if (values.length !== 1 || !/\S/.test(values[0][1])) issues.push(`${id}: require one nonempty ${field}.`);
     }
+    const authorization = entry.match(/^- Authorization: (.*)$/m)?.[1] ?? '';
+    if (!/^(?:human requested|agent proposed, human approved)(?: — |$)/.test(authorization))
+      issues.push(`${id}: record a human request or an explicitly approved agent proposal.`);
   }
   for (const field of markdown.matchAll(/^- ([A-Za-z][A-Za-z -]*):/gm)) {
-    if (!['Status', 'Remaining', 'Completion', 'Context', 'Source'].includes(field[1]))
+    if (!['Status', 'Contributor', 'Authorization', 'Session', 'Source', 'Remaining', 'Completion', 'Context'].includes(field[1]))
       issues.push(`Work-record or unknown field ${field[1]}; keep historical evidence in DEVLOG.md.`);
   }
   return issues;

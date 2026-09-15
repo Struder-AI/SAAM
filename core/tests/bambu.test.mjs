@@ -117,7 +117,7 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   const dir=await mkdtemp(join(tmpdir(),'saam-h2d-workflow-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const {plan,machine}=fixture();await initBundle(dir,plan,{machineId:machine.id});
   await generateBundle(dir,{development:true});await assert.rejects(deliver(dir),/approval/);
-  let state=await loadBundle(dir);for(const stage of ['geometry','plan'])state=await approve(dir,{stage,actor,revision:state.revision});
+  let state=await loadBundle(dir);for(const stage of ['geometry'])state=await approve(dir,{stage,actor,revision:state.revision});
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);
   assert.equal(state.exportName,'part.gcode.3mf');assert.equal(state.outputAvailability,null);
   state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});assert.equal(state.toolpathApproved,true);
