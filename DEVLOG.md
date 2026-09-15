@@ -2488,3 +2488,43 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   20 courses / ~4mm on the denser file) since `exactPoint` still queries the
   real section per sample; this is a known follow-up, not a correctness gap.
   No physical print occurred.
+
+## 2026-09-15 — Guide-build leftover from the old architecture, on the same real vase
+
+- Source: continuing the previous entry's work on a personal branch (`TK-DEV`)
+  toward an actual first-10mm print attempt at the user's originally-requested
+  2mm depth, `vaseWallResult`'s own centerline build (not the motif offset —
+  the plain single-wall lookup every motif sample now reads) started failing
+  with the same "cannot meet the locked chord tolerance" error, on the same
+  real STL, at z≈7.14mm — well inside a range a bare plain spiral (no motif
+  at all) already built successfully.
+- Root cause: `section()` still ran the outer contour through `motifContour`
+  (Douglas-Peucker simplification) whenever `settings.pattern` was set, a
+  step written for the old per-sample large-depth offset reconstruction this
+  branch already removed. It is no longer serving that purpose, and turned
+  out to make this particular contour *less* stable at that Z than the
+  identical, unsimplified contour the plain wall already builds successfully
+  — confirmed by instrumenting `buildCenterline`'s recursion directly: with
+  `motifContour` removed, the same host builds cleanly with or without a
+  pattern set. Removed `motifContour` and its now-unused `cleanPlanarLoop`
+  import entirely.
+- That change alone let one existing synthetic test's offset legitimately
+  split into a main body plus a numerically negligible sliver, previously
+  papered over by the simplification. Instead of restoring the
+  simplification, `section()` now keeps the dominant positive-area piece
+  when every other positive piece is under 1% of its area (patterned mode
+  only; the plain wall still requires exactly one piece, unchanged).
+- Separately fixed a real off-by-one in the guide's own turn margin
+  (`guideTurns`): it was adding a full extra course of margin on top of
+  `repeats` instead of accounting for the last repeat already including the
+  authored points' own turn range, costing an extra ~1 turn / one pitch of
+  real height queried against the host for no reason. Now computed as
+  `(repeats-1)*advance[0] + max(authored point turns)`.
+- Verification: `node --test skills/vase-wall/tests/*.test.mjs` 24/24 pass.
+  Generated the actual first 10mm of `Prints/spiral-vase-v2` (the file this
+  session has been testing against) at the user's requested 2mm depth and
+  smooth exterior: 78,349 moves, ~6.6 minutes to compute, ~16 minutes
+  estimated print time, 2.2g material — confirmed visually in Studio. This
+  is a development preview only; the user reviews and approves it themselves
+  in Studio before any real delivery, and intends to attempt an actual print
+  of this first-10mm test.

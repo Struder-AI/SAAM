@@ -1,6 +1,5 @@
 // Section-derived spirals and sleeve-relative motifs share stroke semantics.
 import {createSectionQuery} from '../../../core/geom/query.mjs';
-import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
 import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../../core/region/region2d.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
@@ -27,19 +26,6 @@ export function convexLoop(loops) {
     requireThat(cross(a,b)>=-1e-7*Math.hypot(...a)*Math.hypot(...b),'Vase wall currently requires convex sections; concave sections are unsupported.');
   }
   return loop;
-}
-function motifContour(outer,toleranceMm){
-  // Start simplification at a geometric extreme, not an arbitrary triangle
-  // seam that can slide along an edge as Z changes.
-  let first=0;
-  for(let i=1;i<outer.length;i++)if(outer[i][0]>outer[first][0]||(outer[i][0]===outer[first][0]&&outer[i][1]<outer[first][1]))first=i;
-  outer=[...outer.slice(first),...outer.slice(0,first)];
-  // Remove triangle seams before and after grid rounding. Otherwise rounding
-  // a collinear split introduces a tiny corner that an inward offset amplifies.
-  outer=cleanPlanarLoop(outer,toleranceMm);
-  const origin=outer.reduce((a,p)=>a.map((v,k)=>Math.min(v,p[k])),[Infinity,Infinity]);
-  const gridded=outer.map(p=>p.map((v,k)=>origin[k]+Math.round((v-origin[k])/OFFSET_PRECISION_MM)*OFFSET_PRECISION_MM));
-  return cleanPlanarLoop(gridded,toleranceMm);
 }
 const pointInLoop=(p,loop)=>pointInRegion(p,[loop]);
 function outerLoop(loops) {
@@ -84,11 +70,24 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
       loop.length===lastContours[i].length&&loop.every((p,j)=>p[0]===lastContours[i][j][0]&&p[1]===lastContours[i][j][1]))){
       return cacheSection(key,lastValue);
     }
-    const rawOuter=outerLoop(cut.loops),outer=settings.pattern?motifContour(rawOuter,Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4):rawOuter;
+    // Motifs no longer reconstruct a large-depth offset from this contour per
+    // sample (they perturb the already-built centerline instead), so there is
+    // no longer a reason to pre-simplify it only in patterned mode: doing so
+    // made this section's own curve less stable here than the identical,
+    // unsimplified contour the plain wall already builds successfully.
+    const outer=outerLoop(cut.loops);
     const offsetLoops=offsetRegion([outer],-width/2,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     // A motif follows only the outer boundary. Interior offset holes do not
     // supply another wall; multiple outer components still cannot be mapped.
-    const inset=settings.pattern?offsetLoops.filter(loop=>loopArea(loop)>0):offsetLoops;
+    // A patterned wall keeps the dominant positive piece when the offset
+    // legitimately splits into a main body plus a numerically tiny sliver
+    // (the fragment's own area stays negligible next to the kept piece);
+    // the plain wall still requires exactly one, unchanged.
+    const positive=offsetLoops.filter(loop=>loopArea(loop)>0);
+    const dominant=positive.reduce((best,loop)=>!best||loopArea(loop)>loopArea(best)?loop:best,null);
+    const inset=settings.pattern
+      ?(dominant&&positive.every(loop=>loop===dominant||loopArea(loop)<=loopArea(dominant)*0.01)?[dominant]:positive)
+      :offsetLoops;
     requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall inward offset is empty, split or collapsed at Z ${z} mm for bead width ${width} mm.`);
     const loop=dedupe(inset[0]);
     requireThat(loop.length>=3,'Vase wall section collapsed.');
@@ -139,12 +138,12 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   }
   if(settings.pattern!==null){
     // Build the guide only as far as the motif's own authored turn range
-    // actually reaches, with margin for a loop that locally runs backward or
-    // ahead of its course boundary before returning to it — not the full
-    // wall height's turn count, which can be far more than a motif with few
-    // repeats ever samples.
+    // actually reaches — the last repeat's own highest authored point, not a
+    // full extra course of margin on top of it. Every extra guide turn is an
+    // extra slice of real height the host is queried at, for no benefit once
+    // it is comfortably past what any vertex actually needs.
     const authoredTurns=settings.pattern.paths.flatMap(p=>p.points.map(pt=>pt[0]));
-    const guideTurns=settings.pattern.repeats+Math.max(1,...authoredTurns.map(Math.abs));
+    const guideTurns=(settings.pattern.repeats-1)*settings.pattern.advance[0]+Math.max(0,...authoredTurns);
     const {points:guidePoints,times:guideTimes}=buildCenterline(guideTurns);
     // A per-vertex normal blended from both adjacent segments (not either
     // segment's own exact direction) so a motif offset varies smoothly along
