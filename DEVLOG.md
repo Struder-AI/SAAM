@@ -19,6 +19,9 @@ optional Nudge Cup and DENSO source recipes remain. Earlier local generated data
 stays ignored. The original checkpoint is preserved locally on
 `codex/provisional-goalpost-original`; the replacement publication omits its
 unpublished binary history.
+After publication, the user clarified one active development branch per developer
+account. Removed the temporary repair branch, repair worktree and local safety
+branch, and made that branch-reuse rule explicit in the owning guidance.
 
 Verification: all 13 focused tour, agent-toolkit and demo tests passed, including
 current roof geometry, no inherited generation, fresh copies, preserved edits,

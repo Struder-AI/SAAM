@@ -114,6 +114,8 @@ at shared boundaries and pass findings to the collaborators they affect.
 Tasks sharing a checkout preserve concurrent edits and keep its current contributor
 branch. If the checkout is on main, create a contributor branch before editing;
 publish through a pull request unless direct main work is explicitly authorized.
+Keep one active development branch per developer account and reuse it across
+tasks. Remove temporary repair branches when their work is integrated.
 Reread affected lines before editing. Infer scope and dependencies from the work,
 source history and recorded context; resolve concrete conflicts without requiring
 humans to maintain a coordination ledger. Preserve other tasks' unfinished work.

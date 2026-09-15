@@ -49,7 +49,8 @@ SAAM itself.
 Choose by the requested work; when unspecified, use the developer pathway.
 Develop on a contributor branch. If the checkout is on main, create a branch
 before editing; publish through a pull request unless direct main work is
-explicitly authorized. Reuse the current contributor branch across shared tasks.
+explicitly authorized. Keep one active development branch per developer account;
+reuse it across tasks rather than creating task-specific branches.
 The [agent CLI toolkit](core/agent/README.md) bundles the owning context reads,
 tour startup, preview creation/opening and request coordination. Use onboarding
 for ordinary maker or developer work. A tour request goes straight to the launch
