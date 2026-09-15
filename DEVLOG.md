@@ -1545,32 +1545,3 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   implicit. These findings are reported to the user; this task makes no vase-wall
   edits. Supports, both rimming skills, mesh-tools, voxel-tools and Gridfinity
   have no additional hidden prerequisite identified in this audit.
-
-## 2026-09-14 — Loop-motif courses now touch by default; new thick-wall skill category
-
-- Source: user testing the vase-wall loop motif (`skills/vase-wall/scripts/loop-demo.mjs`)
-  reported a real gap between adjacent loops at the seam where each course
-  closes back to zero offset, instead of bonding to its neighbor.
-- `loop-demo.mjs` now solves a default `motifWidthMm` (`touchingMotifWidthMm`,
-  via a numeric root-find over the loop's own tangential footprint function)
-  so adjacent loops overlap by one nominal line width at that seam, giving a
-  second bonding surface instead of a single point of contact. An explicit
-  `motifWidthMm` still overrides it; the `wavy` CLI variant's previous
-  hardcoded width was removed so it also auto-touches. This is a demo-default
-  change only — `pattern.paths`/`offsetMm` were already fully author-supplied
-  recipe data, so any recipe can already choose its own motif shape.
-- Added a "Thick wall strategies" digest category (`skills/catalog.mjs`,
-  `scripts/skill-digest.mjs`) for skills that describe a container by one
-  boundary plus a wall thickness instead of perimeters and infill, built
-  through a continuous/repeating 3D path. `vase-wall` is classified
-  `saam-kind: thick-wall` and its frontmatter description now names this
-  framing explicitly; it moves out of "Printing patterns" in the generated
-  `skills/README.md`. No other skill was reclassified.
-- Verification: `node --test skills/vase-wall/tests/paths.test.mjs
-  skills/vase-wall/tests/vase.test.mjs` (24/24 pass, including the
-  default-parameter loop test), `node --test core/tests/skill-digest.test.mjs
-  core/tests/mcp.test.mjs` (14/14 pass), and all four `loop-demo.mjs` variants
-  (smooth/scalloped/both-scalloped/wavy) regenerate development previews
-  without error. Visually confirmed in Studio (top-view toolpath) that loops
-  overlap at the seam instead of gapping. No physical print occurred; contact
-  strength and bonding remain unvalidated, as before.
