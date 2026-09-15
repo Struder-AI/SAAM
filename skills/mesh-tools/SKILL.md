@@ -1,97 +1,95 @@
 ---
 name: mesh-tools
-description: Diagnose rejected meshes or perform requested STL cleanup and solid reconstruction so usable geometry can return to import and review. Preserves the original for comparison; reconstruction can change small features and requires closed, consistently oriented input.
+description: Diagnose mesh import failures, clean duplicate or collapsed facets, and repair self-intersections with CGAL local patches. Supports explicitly bounded hole filling, preserves source files and reports shape changes for geometry review.
 metadata:
   saam-kind: task
 ---
 
 # Mesh tools
 
-Use the load diagnostic or requested geometry change to choose the operation.
-This manual owns mesh-processing choices and tool use. The resulting geometry
-returns to the [shared import and review workflow](../../core/print/USAGE.md);
-mesh processing is a preparation task, separate from a plan's deposition skills.
+Mesh processing is preparation work. Accepted geometry returns to the
+[shared import and review workflow](../../core/print/USAGE.md).
 
-## Diagnose a rejected mesh
+## Diagnose and repair
 
-Preserve the original diagnostic: different failures call for different work.
-
-| Finding | Useful next step |
+| Finding | Operation |
 |---|---|
-| Invalid STL structure, missing coordinates or malformed triangle indices | Obtain a complete export or correct the source geometry. Reconstruction needs readable triangles. |
-| Degenerate or duplicate facets | The repair entry performs exact cleanup before considering reconstruction. |
-| Intersecting closed shells or folds within a consistently oriented closed shell | Assess solid reconstruction, including intended cavities and the feature sizes that must survive. |
-| Open boundaries, inconsistent winding or nonmanifold edge incidence | Resolve the intended solid in the source model or an appropriate authoring tool. The current reconstruction requires unambiguous closed, oriented surfaces. |
-| Triangle or computation limit | Review the requested detail and available processing budget. Reconstruction can simplify its output, but may alter small features. |
+| Malformed or truncated STL, nonfinite coordinates | Obtain a complete export or fix the source. |
+| Duplicate points/faces or collapsed triangles | Exact cleanup and matching collinear boundary stitching. |
+| Inconsistent winding or self-intersecting faces | CGAL orientation and local patch repair; review the changed areas. |
+| Open boundaries | Fill only openings within explicit edge-count and physical-size limits, according to the intended solid. |
+| Nonmanifold topology | CGAL can split/orient compatible patches; remaining ambiguous or invalid topology is rejected. |
+| Memory budget failure | Review available RAM/Node heap and the reported working-set estimate; increase the budget when appropriate. |
 
-A failed check identifies a problem; it does not establish which geometric change
-the maker intends. Explain the material effect of a proposed repair and use the
-person's requested outcome to settle consequential choices. For a saved native
-mesh, use its retained STL source when available; the current processing command
-accepts STL bytes. Native indexing errors may instead need correction by the
-geometry producer.
-
-## Cleanup and reconstruction
+A diagnostic does not determine the intended solid. Preserve the original and
+explain consequential shape changes. Do not automatically fill a large opening
+or accept a partial native result.
 
 From the repository root:
 
-```text
-node core/print/cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> <resolution-mm> [options.json]
-```
+~~~text
+node core/print/cli.mjs repair-stl <new-repair-directory> <source.stl> <mm|inch> [options.json]
+~~~
 
-The destination must be new and its parent must exist. The command retains the
-source and writes three files after successful validation:
+The destination must be new and its parent must exist. Successful processing writes:
 
-- `original.stl`: unchanged input bytes.
-- `repaired.stl`: output in millimeters.
-- `repair.json`: source/output hashes, bounds, processing results, sampled
-  distances and validation evidence.
+- `original.stl`: unchanged source bytes.
+- `repaired.stl`: validated output in millimeters.
+- `repair.json`: hashes, bounds, cleanup/native results, unchanged and changed
+  face counts, sampled shape differences and validation evidence.
 
-Exact cleanup removes duplicate/degenerate facets and unused vertices. If that
-geometry passes validation, it is returned without resampling. Otherwise the
-command reconstructs material on a grid and simplifies the reconstructed surface
-when it exceeds the selected triangle target. Simplification is part of this
-reconstruction path; there is no separate simplification command yet.
+Cleanup merges identical coordinates and removes duplicate/degenerate facets and
+unused vertices. It stitches a long edge to a complete, oppositely directed
+collinear chain at existing vertices, with a 1e-9 mm line-distance tolerance.
+An already valid cleaned surface returns directly. Otherwise the command uses
+CGAL 6.2.1 local patch repair with smoothing disabled. That backend must be built;
+see [native setup and licensing](../../core/geom/native/README.md).
 
-Choose resolution from the features, gaps and wall thicknesses that matter to
-the part. Grid spacing controls reconstruction detail and cost; it is not a
-guaranteed surface-error bound. Small features can disappear and nearby surfaces
-can join. Finer grids consume more memory and time.
-
-The optional JSON file accepts:
+Optional JSON settings:
 
 | Option | Meaning |
 |---|---|
-| `fillRule` | `nonzero` (default) treats any nonzero winding as material; `evenodd` makes even overlaps empty. Select the interpretation that matches the intended solid. Oppositely wound surfaces can express cavities or cancel. |
-| `maxGridPoints` | Grid budget: 16,000,000 by default, up to 64,000,000. |
-| `maxOutputTriangles` | Reconstruction budget before simplification: 2,000,000 by default and at most. |
-| `targetTriangles` | Simplification target for reconstructed output: 80,000 by default; accepted range 4–100,000. |
-| `maxPlaneErrorMm` | Simplification's accumulated plane-residual limit: 0.05 mm by default. This is not a bound on maximum surface displacement. |
+| `maxHoleEdges` | Maximum edges in a boundary to fill; default 0 disables filling. |
+| `maxHoleDiameterMm` | Maximum boundary bounding-box diagonal in mm; default 0. Both hole limits must be positive to enable filling. |
+| `maxSampledDistanceMm` | Reject results exceeding this bidirectional sampled shape change. Optional; sampling is not a certified surface bound. |
+| `timeoutMs` | Native operation timeout; default 120,000 ms. |
 
-An exhausted budget or failed final validation produces no repaired STL.
-Reconsider the reported constraint and relevant settings before another attempt.
-The command reports stage progress on stderr and its final report on stdout.
+No geometry is published after failed repair or validation. The source remains
+unchanged. The command writes stage progress to stderr and the final report to
+stdout. Percentages describe the named stage; native patch processing has no
+known completion count.
 
-## Inspect and return to the print workflow
+## Memory and programmatic use
 
-Compare input/output bounds and the repair report with the intended shape.
-`sampledDistanceMm` contains vertex-distance samples in both directions, including
-source surfaces removed inside overlaps. These samples help locate changes but
-do not certify the complete surface or topology.
+The shared `repairSTLFiles(directory, source, options)` accepts an STL path or
+bytes. Prefer paths for large inputs: reading, hashing and output writing stream
+in chunks. The byte-returning `repairSTL(source, options)` is async and allocates
+its returned STL buffer. Both run repair work off the main thread; use an
+AbortSignal to cancel.
 
-Import `repaired.stl` with units **mm** using the [shared import tool](../../core/print/USAGE.md).
-Show the resulting geometry and consequential changes for the maker's review.
-Repair and successful import create no approvals. The selected printing pattern's
-shape limits still apply to the repaired geometry.
+Both accept `onGeometry(chunk)` for accepted, full-quality geometry. Chunks carry
+local `vertices`/`faces`, `firstTriangle`, `completed`, `total` and `percent`.
+The consumer is awaited before the next chunk. Output starts after validation;
+partial failed repairs are never emitted as accepted geometry.
 
-With MCP-only access, `read_skill` can retrieve this manual and `import_stl_print`
-can import an available result. Repair currently runs through the local CLI;
-the connector has no repair tool. Arrange local execution when repair is needed.
+There is no fixed 100,000-face gate. `SAAM_MESH_MEMORY_MIB` controls a conservative
+working-set estimate. Its default is bounded by the Node heap and system RAM;
+see [memory and progress](../../core/geom/README.md#memory-files-and-progress).
+Indexed meshes and CGAL working data still require memory. This is not unlimited
+or fully disk-backed processing.
 
-## Implementation
+## Inspect and return to printing
 
-[The repair entry](../../core/print/repair-stl.mjs) owns the operation and artifacts;
-[the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns
-reconstruction, predicates and numerical assumptions. Add supported mesh operations
-to this task package as the tooling develops, with their actual inputs, outputs
-and limits.
+Compare source/result views and inspect changed faces. The report counts exact
+unchanged face geometry. Otherwise, distance measurements sample vertices and
+face centroids in both directions, including discarded source surfaces. A clean
+intersection check alone does not establish acceptable shape preservation.
+
+Import `repaired.stl` with units **mm**, then review its geometry. Repair/import
+create no approvals. Each printing pattern's shape restrictions still apply.
+With MCP-only access, `read_skill` retrieves this manual and `import_stl_print`
+imports an available result; the connector currently has no repair tool.
+
+[The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files;
+[the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns the
+algorithms, numerical assumptions and memory contract.

@@ -4,6 +4,9 @@ SAAM combines skill operations through shared geometry, region, motion and machi
 interfaces. This page identifies their responsibilities and the supported exceptions.
 Use the relevant component reference for contracts and implementation details.
 
+The [agent CLI toolkit](agent/README.md) composes context reads, print preparation,
+Studio opening and request coordination around these existing owners.
+
 ## Current organization
 
 The shell workflow follows geometry queries → material regions → skill operations

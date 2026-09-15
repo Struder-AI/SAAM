@@ -1,4 +1,4 @@
-// The reviewed workflow for shell prints: native geometry, three approvals and
+// The reviewed workflow for shell prints: native geometry, two confirmations and
 // delivery of the exact reviewed bytes.
 //
 // Every approval here is written by the test with an actor name that says so.
@@ -14,7 +14,7 @@ import { defaults, hash } from '../print/plan.mjs';
 import { createGeometry, verifyGeometry } from '../print/geometry.mjs';
 import {
   initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, approve, deliver,
-  rememberSetup, bundleFingerprint, EXPORT_PATH
+  rememberSetup, bundleFingerprint, EXPORT_PATH, changeMachine
 } from '../print/bundle.mjs';
 import { createStudio } from '../../studio/server.mjs';
 
@@ -35,6 +35,20 @@ async function fixture(t, plan = smallPlan()) {
   await initBundle(dir, plan);
   return dir;
 }
+
+test('changing printer preserves geometry confirmation, clears the combined confirmation and rejects stale edits',async t=>{
+  const dir=await fixture(t);let state=await loadBundle(dir);
+  await approve(dir,{stage:'geometry',actor:ACTOR,revision:state.revision});
+  await generateBundle(dir);state=await loadBundle(dir);
+  state=await approve(dir,{stage:'toolpath',actor:ACTOR,revision:state.revision});
+  await assert.rejects(changeMachine(dir,'bambu-h2d',{expectedRevision:'stale'}),/stale/);
+  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision});
+  assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
+  assert.equal(next.geometryApproved,true);assert.equal(next.planApproved,false);assert.equal(next.toolpathApproved,false);
+  assert.deepEqual(next.plan.geometry,state.plan.geometry);
+  await assert.rejects(changeMachine(dir,'missing-printer',{expectedRevision:next.revision}),/machine|Unknown/i);
+  assert.equal((await loadBundle(dir,{program:false})).revision,next.revision);
+});
 
 test('a shell print stores native geometry that reopens as the same closed shell', async t => {
   const dir = await fixture(t);
@@ -77,7 +91,7 @@ test('development generation of a shell print creates no approvals and cannot de
   await assert.rejects(generateBundle(dir), /Approve/);
 });
 
-test('three synthetic approvals, stale views, reopening and byte-identical delivery', async t => {
+test('two synthetic confirmations, stale views, reopening and byte-identical delivery', async t => {
   const dir = await fixture(t);
   let state = await loadBundle(dir);
   await assert.rejects(approve(dir, { stage: 'plan', actor: ACTOR, revision: state.revision }), /geometry first/);
@@ -85,7 +99,7 @@ test('three synthetic approvals, stale views, reopening and byte-identical deliv
   await assert.rejects(approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision }), /stale/);
 
   state = await loadBundle(dir);
-  await approve(dir, { stage: 'plan', actor: ACTOR, revision: state.revision });
+
   await assert.rejects(approve(dir, { stage: 'toolpath', actor: ACTOR, revision: (await loadBundle(dir)).revision }),
     /Generate and check/);
   await generateBundle(dir);
@@ -98,6 +112,8 @@ test('three synthetic approvals, stale views, reopening and byte-identical deliv
   assert.match(delivered, /part\.gcode$/);
   assert.equal(hash(await readFile(delivered)), hash(await readFile(exported)));
   assert.equal((await loadBundle(dir)).toolpathApproved, true);
+  assert.equal((await loadBundle(dir)).planApproved, true);
+  assert.deepEqual((await loadBundle(dir)).review.approvals.toolpath.scope,['settings','toolpath']);
 
   // An export edited after approval loses it, and cannot be delivered.
   await writeFile(exported, (await readFile(exported, 'utf8')).replace('S215', 'S216'));
@@ -133,8 +149,10 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   const fingerprint = await bundleFingerprint(dir);
   await approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision });
   state = await loadBundle(dir);
-  await approve(dir, { stage: 'plan', actor: ACTOR, revision: state.revision });
+
   state = await loadBundle(dir);
+  await generateBundle(dir);state=await loadBundle(dir);
+  state=await approve(dir,{stage:'toolpath',actor:ACTOR,revision:state.revision});
   assert.equal(state.planApproved, true, 'the edit must invalidate an existing approval');
   const stale = state.revision;
 
@@ -216,7 +234,7 @@ test('Studio reviews a shell print and delivers it under its own export name', a
   let current = await (await fetch(origin + '/api/state')).json();
   assert.equal((await post('/api/approve', { stage: 'geometry', actor: ACTOR, revision: current.revision })).status, 200);
   current = await (await fetch(origin + '/api/state')).json();
-  assert.equal((await post('/api/approve', { stage: 'plan', actor: ACTOR, revision: current.revision })).status, 200);
+  assert.equal((await post('/api/approve', { stage: 'plan', actor: ACTOR, revision: current.revision })).status, 400);
   assert.equal((await post('/api/generate', { development: false })).status, 200);
   current = await (await fetch(origin + '/api/state')).json();
   assert.equal((await post('/api/approve', { stage: 'toolpath', actor: ACTOR, revision: current.revision })).status, 200);

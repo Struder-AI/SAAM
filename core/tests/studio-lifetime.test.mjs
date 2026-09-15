@@ -92,14 +92,18 @@ test('shutdown drains accepted work before completing',async t=>{
 });
 
 test('page lifecycle opens independently, closes on pagehide and reconnects on history restore',async()=>{
-  const events={},streams=[];
+  const events={},streams=[],dispatched=[];
   const source=await readFile(new URL('../../studio/viewer-session.mjs',import.meta.url),'utf8');
   runInNewContext(source,{
     document:{querySelector:()=>({content:'test-token'})},
-    EventSource:class{constructor(url){this.url=url;streams.push(this);}close(){this.closed=true;}},
+    EventSource:class{constructor(url){this.url=url;this.events={};streams.push(this);}addEventListener(name,handler){this.events[name]=handler;}close(){this.closed=true;}},
+    CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
+    dispatchEvent:event=>dispatched.push(event),
     addEventListener:(name,handler)=>{events[name]=handler;}
   });
   assert.equal(streams.length,1);assert.equal(streams[0].url,'/api/viewer?token=test-token');
+  streams[0].events['agent-connection-closed']({data:JSON.stringify({ownerId:'test-owner'})});
+  assert.equal(dispatched[0].type,'saam-agent-connection-closed');assert.equal(dispatched[0].detail.ownerId,'test-owner');
   events.pagehide();assert.equal(streams[0].closed,true);
   events.pageshow({persisted:true});assert.equal(streams.length,2);
 });

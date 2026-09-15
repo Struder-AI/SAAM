@@ -15,9 +15,10 @@ When the request supports an initial shape, create an unapproved print and call
 The person reviews in SAAM Studio on the computer running SAAM. Follow-up changes
 use the existing print and its current revision, rather than creating duplicates.
 
-The person gives three approvals in Studio: geometry, locked process plan, then
-the generated toolpath. Chat agreement is not a Studio approval. Read approval
-status, generate from the approved plan, and deliver the reviewed bytes using
+The person gives two confirmations in Studio: geometry, then settings and the
+generated toolpath together. Chat agreement is not a Studio approval. Establish
+printer/material choices before toolpath view. Read approval status, generate
+from the confirmed geometry and complete settings, and deliver the reviewed bytes using
 the connector. Do not invent approval records or run a machine. Describe
 software checks separately from physical print validation.
 

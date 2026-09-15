@@ -8,8 +8,8 @@ description: Add conventional supports beneath selected areas or explicitly plac
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
 [developer orientation](../../DEVELOP.md) and follow its task-specific references.
 Use the [shared print tools](../../core/print/USAGE.md).
-Enable `skills.supports.enabled` and supply `assignments` before plan approval.
-The same export, three approvals and delivery workflow applies. No hardware is run.
+Enable `skills.supports.enabled` and supply `assignments` before toolpath generation.
+The same export, two confirmations and delivery workflow applies. No hardware is run.
 
 ## Choosing the support
 

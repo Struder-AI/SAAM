@@ -73,7 +73,7 @@ test('ASCII and binary STL require units and reject broken topology',()=>{
 test('rejected mesh inputs retain their diagnostic and point once to the mesh tools manual',()=>{
   const g=boxMesh(),open={...g,triangles:g.triangles.slice(1)};
   const rejected=[
-    [()=>makeMesh([],[]),/^Mesh needs 4–300000 vertices\./],
+    [()=>makeMesh([],[]),/^Mesh needs at least 4 vertices\./],
     [()=>makeMesh(g.vertices.map((p,i)=>i===0?[NaN,0,0]:p),g.triangles),/^Mesh vertices must be finite XYZ millimeters\./],
     [()=>makeMesh(g.vertices,[...g.triangles,[0,0,0]]),/^Invalid mesh triangle indices\./],
     [()=>makeMesh(open.vertices,open.triangles),/^Mesh must be closed, manifold and consistently wound/],
@@ -120,7 +120,7 @@ test('native mesh uses the shared approvals and exact-byte delivery workflow',as
   assert.equal(state.geometry.nativeFile,'model.mesh.json');
   const native=await createGeometry(plan.geometry),fake=structuredClone(native.descriptor);fake.vertices[0][0]+=1;
   await assert.rejects(verifyGeometry(native.bytes,fake),/display\/identity differs/);
-  for(const stage of ['geometry','plan'])state=await approve(dir,{stage,actor:'SYNTHETIC MESH TEST',revision:state.revision});
+  for(const stage of ['geometry'])state=await approve(dir,{stage,actor:'SYNTHETIC MESH TEST',revision:state.revision});
   await generateBundle(dir);state=await loadBundle(dir);
   assert.equal(state.programError,undefined);
   state=await approve(dir,{stage:'toolpath',actor:'SYNTHETIC MESH TEST',revision:state.revision});

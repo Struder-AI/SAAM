@@ -1,5 +1,6 @@
 import {requireThat,distance} from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from './denso.mjs';
+import {requireProcessControl,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
 
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);
@@ -86,6 +87,12 @@ export function checkMachinePath(path,plan,machine) {
       for(let i=0;i<3;i++)requireThat(Math.abs(action.to[i]-from[i])/seconds<=machine.maxFeedMmS['xyz'[i]]+1e-7,'Machine axis feed exceeded.');
       requireThat(action.volumeMm3/seconds<=plan.process.maxFlowMm3S+1e-7&&(machine.id==='dobot-mg400'||action.volumeMm3/area/seconds<=machine.maxFeedMmS.e+1e-7),'Machine/material extrusion feed exceeded.');
       from=action.to;
+    } else if(action.kind==='extrude'){
+      requireProcessControl(machine);point(from);
+      requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0&&action.flowMm3S<=plan.process.maxFlowMm3S&&action.flowMm3S/area<=machine.maxFeedMmS.e,'Invalid stationary extrusion or flow exceeded.');
+    } else if(action.kind==='temperature'){
+      requireProcessControl(machine);validateNozzleC(action.targetC,plan,machine);
+      requireThat(plannedNozzleTemperatures(plan).has(action.targetC),'Unplanned operation temperature.');
     } else if(['retract','recover'].includes(action.kind))requireThat(action.speedMmS<=machine.maxFeedMmS.e&&(machine.id!=='dobot-mg400'||action.filamentMm===0),'Machine extruder feed exceeded or relay retraction unsupported.');
     else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
   }

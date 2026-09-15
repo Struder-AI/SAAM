@@ -62,7 +62,7 @@ for(const kind of ['shell','wedge']) test(`${kind} upgrade retains geometry appr
   try {
     await adapter.initBundle(directory,recipe);
     let state=await adapter.loadBundle(directory);
-    for(const stage of ['geometry','plan'])state=await adapter.approve(directory,{stage,actor:'synthetic upgrade test',revision:state.revision});
+    for(const stage of ['geometry'])state=await adapter.approve(directory,{stage,actor:'synthetic upgrade test',revision:state.revision});
     await adapter.generateBundle(directory);
     state=await adapter.loadBundle(directory);
     await adapter.approve(directory,{stage:'toolpath',actor:'synthetic upgrade test',revision:state.revision});

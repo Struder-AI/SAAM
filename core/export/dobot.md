@@ -51,6 +51,6 @@ timing can alter the result. Cartesian workspace checks are not inverse
 kinematics, robot reachability, singularity or link/fixture collision checks.
 
 Targeted software checks cover Lua execution and rejection, transformed workspace
-and motion limits, shared skill and wedge outputs, synthetic three-stage review,
+and motion limits, shared skill and wedge outputs, synthetic two-stage review,
 changed helper/archive rejection, MCP access and exact-byte ZIP delivery.
 Use the same native geometry, locked plan, Studio and delivery on every profile.

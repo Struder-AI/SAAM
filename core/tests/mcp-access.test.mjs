@@ -87,7 +87,9 @@ test('shared STL importer and both recipe adapters resolve the same remembered s
   assert.equal(state.plan.setup.bedC, 67);
   assert.deepEqual(state.review.approvals, {});
   assert.deepEqual(await readFile(resolve(dir, 'geometry/source.stl')), bytes);
-  await assert.rejects(importSTLBundle(resolve(scratch, 'No units'), bytes, { machineId: 'ultimaker-s5', setupFile }), /explicit mm\/inch units/);
+  const inferred = resolve(scratch, 'Automatic units');
+  await importSTLBundle(inferred, bytes, { machineId: 'ultimaker-s5', setupFile });
+  assert.equal((await loadBundle(inferred)).plan.geometry.source.unitsInferred, true);
 });
 
 test('public wedge CLI checks ungenerated geometry and rejects stale chat revisions', async t => {

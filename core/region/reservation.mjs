@@ -37,6 +37,9 @@ export function clipReservedRegion(region,z,reserve){
   if(!reserve||!region.length)return region;
   const footprint=reservationFootprint(reserve);
   if(!boundsOverlap(region,footprint))return region;
+  // A bounded process cavity supplies exact planar sections instead of a roof
+  // height field. All planar material owners consume the same reservation.
+  if(reserve.regionAt)return difference(region,reserve.regionAt(z));
   const coverage=levelSetCoverage(reserve.field,z);
   if(coverage==='all')return region;
   // Subtract only the material actually owned by the roof at this height. For

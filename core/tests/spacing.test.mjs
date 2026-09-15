@@ -168,13 +168,11 @@ test('spacing is reviewable, invalidates only the process, and survives checked 
   const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-spacing-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const p=boxPlan();p.geometry.heightMm=.6;
   await initBundle(dir,p);let state=await loadBundle(dir);
-  for(const stage of ['geometry','plan'])state=await approve(dir,{stage,revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
+  for(const stage of ['geometry'])state=await approve(dir,{stage,revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
   state=await adjustBundle(dir,{skills:{'full-fill':{spacingFactor:3}}},{expectedRevision:state.revision});
   assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);
   assert.ok(recipeRows(state.plan,state.machine).some(([key,v])=>key.includes('Line spacing')&&v.startsWith('3')));
   assert.ok(!recipeRows(p,machine).some(([key])=>key.includes('Line spacing')),'normal recipes need no extra review row');
-  await assert.rejects(()=>generateBundle(dir),/[Aa]pprov/);
-  state=await approve(dir,{stage:'plan',revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
   await generateBundle(dir);state=await loadBundle(dir);assert.ok(!state.programError);
   await approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
   assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,'exports/griffin-gcode/part.gcode')));

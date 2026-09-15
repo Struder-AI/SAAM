@@ -8,7 +8,7 @@ Status: proposal for review under [BR-019](../../DEVLOG.md#br-019--h2d-wedge-and
 Implementation and contributor approval remain unconfirmed. Recommendation: own one small SAAM contract for machine
 motion and clearance, implement its XYZ case first, and evaluate Tesseract as
 the first robot-arm backend. Keep the same skills, composition, print bundle,
-three approvals and exact-export Studio review.
+two confirmations and exact-export Studio review.
 
 ### Three implementation options
 

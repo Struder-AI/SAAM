@@ -87,8 +87,8 @@ internal knots below C2 continuity and domain escape raise. Trimmed/multiple
 patches, periodic seams, folded parameterizations and mesh-surface offsets are
 not implemented. Large offsets reaching geodesic caustics/cut loci and arbitrary
 high-curvature surfaces are not validated; no general global distance-error
-guarantee is claimed. This function is available for development, with no current
-skill silently switched to it and no new maker geometry/plan/approval route.
+guarantee is claimed. The experimental [wave-overhangs skill](../../skills/wave-overhangs/SKILL.md)
+uses this function explicitly; other skills retain their existing offset metrics.
 
 Options: `toleranceMm: 0.01` (local integration/chord target, not a certified
 global error bound), `maxStepMm: 0.5`, `precisionUv: 1e-10`,
@@ -97,6 +97,20 @@ subdivision counts, the budget, and experimental status. Budget exhaustion
 identifies the setting to raise and returns no partial result. The caller must
 provide valid patch geometry and the stated chart preconditions; there is no
 expensive whole-surface injectivity or clearance validation in each call.
+
+Optional `constraintLoopsUv` clips outward growth to an allowed UV material
+region and the patch domain. Each integrated ray stops at its first boundary
+crossing; a later re-entry does not seed material across a hole. Boundary-tangent
+rays retain their allowed extent. Boundary-starting rays may project small drift
+onto that same boundary, keeping front endpoints attached. Clipper2 simplification
+between advances removes redundant segments; its UV tolerance is scaled using
+sampled native derivatives, and boundary contacts remain fixed. `simplificationUv`
+records that parameter-space tolerance; it is a local approximation rather than
+a certified global surface-distance bound. The report adds `boundaryStops`. Constrained
+strip/corner construction uses the local sampling tolerance near discontinuous
+stopped rays; it is not exact obstacle-geodesic distance. Wave propagation uses
+small repeated advances and reports terminal residuals. Without this option,
+the original domain-escape error and unconstrained offset behavior remain.
 
 Development checks compare 90 nested/neck/star/island/collapse cases, inward and
 outward with all three joins, against the **unmodified Clipper2 C# kernel** at
@@ -168,6 +182,9 @@ Conversion shares the offset adapter's local origin/grid and canonical ordering,
 using one origin for both operands. `precisionMm` defaults to `1e-9`; the range
 bound is less than `2^50` grid units. Invalid numbers, non-2D points, invalid
 precision or excessive spans raise. Kernel failure raises without partial output.
+An optional finite `origin: [x,y]` fixes the quantization lattice across repeated
+operations. Constrained surface growth anchors its UV grid to the chart bounds;
+ordinary planar callers retain the automatic common local origin.
 The booleans have no epsilon midpoint classifier, handwritten intersection
 construction, endpoint stitching or small-area pruning. Integer rounding still
 allows sub-grid features to collapse; JS decoding cannot recover precision lost
@@ -238,6 +255,24 @@ components for fill instances and a roof for draping. Automatic solid union and
 overlap resolution in a plan remain deferred; an assembly is not a boolean union.
 
 ## Material regions and shared interfaces
+
+### Temporary process cavities
+
+A native shell can carry generation-local `processReservations`. Each entry
+supplies a `footprint` and `regionAt(z)` through the existing reservation clipper.
+Planar walls and interiors subtract that region, including precomputed solid
+masks. An optional `solidRegionAt(z)` assigns an enclosing solid mask through
+planar-infill's existing complementary full-fill producer. The same material
+cannot also receive sparse deposition. These callbacks are reconstructed from
+the locked recipe; they are not a new persisted geometry or artifact format.
+
+A `completion: {z, region, operationId}` declares the material surface supplied
+when the process finishes. Regional surface publication includes completed
+material and passes the operation dependency to consumers. An unfinished cavity
+crossing a `lowerSurfaceFrom` boundary still exposes its deeper floor; use
+contiguous flat bands for such a crossing, or complete the cavity at the consumed
+interface. Publication describes planned material, not measured cavity filling.
+[Plastic weld](../../skills/plastic-weld/SKILL.md) implements this contract.
 
 `composition.regions` assigns skills to regions of native geometry. An empty
 array retains the original whole-component recipe. Each assignment carries

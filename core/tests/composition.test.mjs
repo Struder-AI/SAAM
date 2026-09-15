@@ -142,7 +142,7 @@ test('woven geometry, plan and export use the shared approval and byte-identical
     await initBundle(directory,columns(2));
     let state=await loadBundle(directory);
     assert.equal(state.geometry.features.length,18);
-    for(const stage of ['geometry','plan']) state=await approve(directory,{stage,actor:'synthetic weaving test',revision:state.revision});
+    for(const stage of ['geometry']) state=await approve(directory,{stage,actor:'synthetic weaving test',revision:state.revision});
     await generateBundle(directory);
     state=await loadBundle(directory);
     assert.equal(state.programError,undefined);

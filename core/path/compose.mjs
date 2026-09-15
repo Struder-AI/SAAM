@@ -75,21 +75,25 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   return scheduled;
 }
 
-export function composeResults(builder, results, rules = {}) {
+export function composeResults(builder, results, rules = {}, onProgress) {
   const operations = scheduleOperations(results, rules);
   const remaining = new Map(), elapsed = new Map();
   const deposited=[];
   let constantClearance=-Infinity;
+  let completed=0;
+  onProgress?.({stage:'Planning print moves',completed,total:operations.length});
   for (const op of operations) remaining.set(op.layerId, (remaining.get(op.layerId) ?? 0) + 1);
   for (const op of operations) {
     builder.setContext(op.phase, op.layer);
     builder.operationId = op.id;
     builder.layerSeconds = elapsed.get(op.layerId) ?? 0;
     if (op.fanPercent !== undefined) builder.fan(op.fanPercent);
+    // Heat at clearance, before approaching the work. Restore at clearance too.
+    if(op.nozzleC!==undefined){builder.park();builder.nozzle(op.nozzleC);}
     const strokes = op.order === 'nearest' ? orderStrokes(op.strokes, builder.position)
       : op.order === 'nearest-cells' ? orderScanlineCells(op.strokes, builder.position) : op.strokes;
     for (const stroke of strokes) {
-      requireThat(stroke.points.length >= 2, 'An operation stroke needs at least two points.');
+      requireThat(stroke.points.length >= (stroke.stationaryExtrusion?1:2), 'An operation stroke needs at least two points or an explicit stationary extrusion.');
       requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
       // PathBuilder tracks deposited height per segment. These local queries
       // retain the existing restrictions on direct/combed moves only.
@@ -101,6 +105,12 @@ export function composeResults(builder, results, rules = {}) {
         policy.canTravelDirect=()=>false; policy.maxCombMm=0;
       }
       builder.travelTo(stroke.points[0], policy,stroke.poses?.[0]);
+      if(stroke.stationaryExtrusion){
+        requireThat(stroke.points.length===1&&!stroke.closed&&!stroke.poses,'Stationary extrusion needs one unoriented point.');
+        builder.extrude(stroke.stationaryExtrusion.volumeMm3,stroke.stationaryExtrusion.flowMm3S);
+        builder.dwell(stroke.stationaryExtrusion.holdSeconds??0);
+        builder.layerSeconds+=stroke.stationaryExtrusion.holdSeconds??0;
+      }
       for (let i = 1; i < stroke.points.length; i++) {
         const volume = stroke.volumesMm3 ? stroke.volumesMm3[i - 1]
           : distance(stroke.points[i - 1], stroke.points[i]) * stroke.beadAreaMm2;
@@ -109,11 +119,13 @@ export function composeResults(builder, results, rules = {}) {
           { role: stroke.role, ...(stroke.poses?{pose:stroke.poses[i]}:{}), ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
       }
     }
+    if(op.nozzleC!==undefined){builder.park();builder.nozzle(op.restoreNozzleC);}
     if(op.travelPolicy.constantClearanceZ!==undefined)constantClearance=Math.max(constantClearance,op.travelPolicy.constantClearanceZ);
     else deposited.push(op);
     elapsed.set(op.layerId, builder.layerSeconds);
     remaining.set(op.layerId, remaining.get(op.layerId) - 1);
     if (remaining.get(op.layerId) === 0 && !op.continuous) builder.finishLayer();
+    onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
   }
   builder.operationId = undefined;
   return { operationOrder: operations.map(op => op.id), layers: remaining.size,clearanceZ:builder.clearanceZ() };

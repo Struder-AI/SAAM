@@ -1,5 +1,26 @@
 # SAAM agent entry point
 
+## Tour requests — launch first
+
+For a tour request, the first tool action in a set-up checkout is this command
+from the repository root, through the client's managed command session:
+
+```sh
+node studio/server.mjs --toolkit start-tour --no-open
+```
+
+Use an early yield (about one second when supported). Open `studio.url` from
+the `studio-ready` event immediately with the client's browser integration and
+keep the server session. Then consume the returned participation context and
+keep the returned request listener active. The command creates fresh examples,
+starts lesson one and supplies the instructions needed to continue.
+
+Do not read MAKERS, the toolkit manual, skill manuals, or run onboarding before
+this launch. Do not add a chat introduction or question; Studio supplies the
+first task. Reuse known setup and permissions; a new chat is not an unused
+checkout. Follow SETUP only for a known unused checkout or a concrete setup
+problem, and follow any required client instructions for browser access.
+
 SAAM helps people make parts through conversation with an AI agent, without
 requiring CAD, slicing or programming expertise. The agent handles the tools
 and printing settings; the person guides the result and reviews geometry,
@@ -18,12 +39,29 @@ SAAM itself.
 
 | Task | Start here |
 |---|---|
-| Help a person make a part | Read [MAKERS.md](MAKERS.md) before the first maker-facing response, then the relevant [skill manual](skills/README.md). |
-| Build, fix, investigate or document SAAM | Read the orientation at the start of [DEVELOP.md](DEVELOP.md), then follow its task-specific references. |
+| Start a guided tour | Execute the command above first, open its Studio URL, then use its returned context and listener. |
+| Start a new custom part | Run `node scripts/agent-toolkit.mjs maker-onboarding` if maker context is missing. It supplies MAKERS, the complete skill digest and shared print tools. Then choose and read relevant skill manuals individually before preparing the preview. |
+| Edit an existing Studio print | First run `node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "Requested change"` (omit the directory for the active tour). For Studio-originated work use `--request ID`. Then load only missing maker/skill context and apply the edit using the returned print and revision. |
+| Build, fix, investigate or document SAAM | Run `node scripts/agent-toolkit.mjs developer-onboarding` if developer context is missing; optionally add `--area AREA` for a known affected component. It supplies developer orientation, architecture and the complete skill digest. Then choose the relevant implementation and skill references. |
 | Exercise maker tools during development | Follow [development testing through the use context](DEVELOP.md#testing-through-the-use-context) and the maker/skill instructions for the workflow being tested. |
 | Set up an unused checkout | Follow [setup and checks](SETUP.md), including [Studio client permissions](studio/README.md#studio-agent-permissions), before using it. |
 
 Choose by the requested work; when unspecified, use the developer pathway.
+Develop on a contributor branch. If the checkout is on main, create a branch
+before editing; publish through a pull request unless direct main work is
+explicitly authorized. Keep at most one active pending branch per account;
+reuse it across tasks rather than creating task-specific branches.
+The [agent CLI toolkit](core/agent/README.md) bundles the owning context reads,
+tour startup, preview creation/opening and request coordination. Use onboarding
+for ordinary maker or developer work. A tour request goes straight to the launch
+command above, which supplies its own participation context after the Studio URL.
+Text returned by these commands satisfies the corresponding manual reads. Do
+not read a manual before onboarding and then load it again, rerun onboarding for
+every request, or follow a link to a document/section already present in context.
+Read missing context when the task needs it, and refresh affected guidance only
+when its source changed or the prior context is unavailable. In clients without
+command access, read the same owning manuals through their available file/MCP
+reader once; the CLI is a convenience, not an additional context gate.
 These are task contexts, and they do not expand the user's authorization.
 If `.local/AGENTS.md` exists, consult it when the user refers to a local experiment.
 Local capabilities are not part of shared SAAM and must not be assumed elsewhere.
@@ -67,9 +105,16 @@ result until relevant inputs change.
 
 Keep present behavior and contracts at their owners, future work and proposals
 clearly marked, and past work and observations in the devlog. Work build-first
-within the user's authorization; build requests hold only outstanding or incomplete
-work. Remove completed requests from the open list. Follow [documentation maintenance](DEVELOP.md#documentation-maintenance)
+within the user's authorization: implement current requests directly without first
+writing a build request. The backlog holds authorized work deferred or left
+incomplete beyond the active task, or explicitly requested backlog entries.
+Remove completed requests from the open list. Follow [documentation maintenance](DEVELOP.md#documentation-maintenance)
 for dates, evidence and the limited historical-provenance exceptions.
+
+When a backlog entry is needed, record available [request provenance](DEVELOP.md#build-request-provenance).
+Reuse known contributor identity; leave uncertain metadata marked as such without
+asking identity questions or delaying ordinary work. Agent proposals and missing
+results do not create authorization.
 
 Use implemented behavior and recorded evidence when describing SAAM. A software
 check or preview is evidence about software; a physical result needs physical

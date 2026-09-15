@@ -57,9 +57,10 @@ recover the configured retraction once at the first deposition location without
 another initial withdrawal. H2D uses an unretracted handoff; zero retraction and
 relay output add no recovery. Physical confirmation of this correction is open.
 
-The actual export and extra firmware actions for the reported startup discrepancy
-remain unidentified; see [open diagnosis](../../build_request.md#br-043--s5-startup-diagnosis).
 Absence of explicit leveling or unused-heater commands does not establish that
-Griffin firmware skips those actions. Retained snapshots and delivered bytes can
-predate the current profile. Diagnose the actual file and printer behavior before
-applying an earlier observation. Complete physical print validation remains open.
+Griffin firmware skips those actions. The [recovered diagnosis](../../DEVLOG.md#br-043--s5-startup-diagnosis)
+records the checked export and subsequent report of automatic firmware leveling;
+it does not establish a supported per-file bypass. Retained snapshots and delivered
+bytes can predate the current profile; diagnose the actual file and installation
+before applying an earlier observation. The [requested S5 print](../../build_request.md#br-005--complete-the-requested-s5-wedge-print)
+still lacks a complete physical result for the corrected startup.

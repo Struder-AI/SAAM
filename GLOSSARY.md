@@ -27,10 +27,10 @@ starting vocabulary for the ontology we develop together.
 | Machine file | The definition of a machine, including its supported output options. |
 | Export | The machine-ready file or file bundle produced from SAAMpath, using an output option declared by the machine file. Studio runs the same export the machine receives. |
 | Print | A local bundle containing geometry, a process plan and review records, plus the checked machine export once generated. Specific curated examples may be shared. |
-| Approval | A human's agreement to one specific version of the geometry, locked process plan, or toolpath. |
+| Approval | A human's confirmation of one specific geometry version, or of the complete settings and exact toolpath together. |
 
 Project decision statuses live in [DECISIONS.md](DECISIONS.md); they are separate
-from the three approvals within a print.
+from the two confirmations within a print.
 
 ## Proposed terms and open meanings
 

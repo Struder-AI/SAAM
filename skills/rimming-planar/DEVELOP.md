@@ -52,4 +52,4 @@ This does not split continuous operations or optimize intra-rim path families.
 Height shifts are reported, not silently repaired. Reference edges are assigned by the agent;
 arbitrary CAD edge matching, continuous top trimming, self-intersection cleanup
 and a proof of physical contact/clearance remain unimplemented. Edge assignment
-stays judgment-based under D-025, with the existing three approvals.
+stays judgment-based under D-025, with the existing two confirmations.

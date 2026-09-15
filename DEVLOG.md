@@ -1,5 +1,274 @@
 # Development log
 
+## 2026-09-14 — Goalpost setup fix and removal of extra mesh CI
+
+The user confirmed the intended branch rule as "at most one active pending
+branch per account" and requested removal of the added mesh CI job. Applied
+that wording to existing agent guidance and removed `mesh-repair.yml`; broader
+policy rewrites were discarded. The existing runtime setup workflow and local
+regression tests remain unchanged.
+
+The GitHub runtime setup failure reproduced locally: Studio's activity metadata
+required the temporary setup print to belong to the configured Prints library,
+so `/api/state` returned 400. External saved prints now load without library
+request records, and their view receipts skip that ledger. Starting agent edit
+requests still requires a print inside the configured library. The setup
+assertion now includes the server's error message when state loading fails.
+
+The existing setup check passed after the fix, as did 15 existing Studio opening
+and agent-request tests. Those results were reused after the documentation-only
+follow-up. No test or CI job was added, and the user will handle GitHub review
+and merging without an additional agent verification run there.
+
+## 2026-09-14 — Branch repair and recipe-only tour packages
+
+The user identified Timothy Keller's direct main commit `164d3e5` as work that
+belonged on its own branch. Preserved it on `codex/tkeller-vase-wall` and applied
+the authorized revert `93d2a2a` to main. The revert tree exactly matches its
+pre-change parent `21f8cf4`; shared main history was not rewritten. Development
+guidance now defaults to contributor branches and PR integration.
+Reapplied Timothy's change as `989bf64` on top of repaired main on his branch,
+preserving authorship and making it independently reviewable in a new PR.
+
+The provisional checkpoint's unpublished parents included an approximately
+99 MB display cache and 80 MB machine program for the wavy roof. The user chose
+to keep the current handle/fin block and wavy-roof recipes, initialize both through
+the shared bundle lifecycle, and generate toolpaths when the tour needs them.
+Removed tracked prepared packages and their retired cache loader/packaging tool;
+optional Nudge Cup and DENSO source recipes remain. Earlier local generated data
+stays ignored. The original checkpoint is preserved locally on
+`codex/provisional-goalpost-original`; the replacement publication omits its
+unpublished binary history.
+After publication, the user clarified one active development branch per developer
+account. Removed the temporary repair branch, repair worktree and local safety
+branch, and made that branch-reuse rule explicit in the owning guidance.
+
+Verification: all 13 focused tour, agent-toolkit and demo tests passed, including
+current roof geometry, no inherited generation, fresh copies, preserved edits,
+HTTP startup and toolpath preparation after selection. Browser application and
+source-worker syntax checks passed. No new browser or physical trial was run;
+milestone acceptance remains provisional.
+
+## 2026-09-14 — Provisional goalpost checkpoint
+
+The user requested a checkpoint of all current shared work as the provisional
+goalpost for the first milestone, published on an agent branch for a web PR and
+human merge. If the implemented behavior holds up under further testing, this
+state meets the first milestone target; milestone acceptance remains provisional.
+
+The checkpoint includes the accumulated local development and the latest agent
+toolkit, onboarding, Studio tour/activity, plastic-weld and heat-set gusset work.
+The entries below retain the actual focused software checks and browser evidence.
+No additional software or physical tests were run for this checkpoint. Further
+testing remains necessary; this record does not establish physical print results.
+
+## 2026-09-14 — Direct startup and ordered context reads
+
+The user reported that tour agents still read MAKERS and other references before
+launching the bundled command, then requested a trace of ordinary maker and
+developer entry paths. The entry table still required manual reads first, and
+the MCP initialization guidance independently repeated that routing. AGENTS now
+puts the exact tour launch command first, followed by opening its returned URL
+and consuming the returned context/listener. MAKERS, the toolkit manual, tour
+manual and MCP guidance agree on this ordering. The CLI readiness/result messages
+also state the next action at each stage.
+
+Ordinary new-part and developer entry routes now call their onboarding command
+only for missing context, use its returned documents directly, and choose
+individual follow-up reads. Existing-print requests begin/claim work before
+loading missing context; their common instructions now have their own MAKERS
+section. Developer onboarding no longer returns the already-loaded AGENTS.
+All routes reuse current context and setup; linked documents already supplied
+by onboarding do not create repeated reads. The toolkit manual records these
+four request flows in a read-order table.
+
+Two focused checks passed: both-role context coverage and deduplication, and the
+actual CLI tour launch with Studio readiness before participation context. The
+MCP entry module also passed its syntax check. These checks establish command
+and context behavior; no new-agent timing measurement was performed.
+
+## 2026-09-14 — Remove the Studio tour welcome pane
+
+The user reported the Welcome to SAAM pane on port 52107 and required tours to
+start in the handle part view. Browser inspection confirmed the inactive-tour
+fallback over the saved handle's toolpath view. Removed the welcome markup and
+its rendering branch. The header's Tour button starts a fresh tour directly;
+Resume tour is a separate header control for paused progress. Active Tour toggles
+lesson guidance, and completion uses a dedicated congratulations panel.
+
+Removed the delayed Exit handler's visibility assignment so an old exit cannot
+hide a subsequent lesson. Four focused tour UI tests and the existing fresh-copy,
+resume and exit integration test passed. Browser checks on port 52107 confirmed
+direct handle startup and ordinary geometry after exit without an introductory
+pane. The saved edited handle and its delivered program were preserved; fresh
+local tour copies were created for the browser checks. No print approvals or
+hardware actions were performed during this development follow-up.
+
+## 2026-09-14 — Onboarding leaves skill selection to the agent
+
+The user clarified that both onboarding paths should include the complete skill
+digest while skill manuals remain individual follow-up reads, chosen by the
+agent's judgment for the task. Both paths now return the existing digest and
+explicit follow-up guidance. Removed onboarding's manual-bundling options and
+added `read-skill` and `read-guidance` for one chosen manual or section at a time.
+Failure inspection returns skill references instead of full manuals; tour
+participation guidance remains bundled. The user rejected an added catalog
+label, so existing skill descriptions and catalog presentation are preserved.
+All seven toolkit tests passed, including complete catalog links in both roles,
+separate manual reads, reference-only failure inspection and tour startup.
+
+## 2026-09-14 — Tour cues and shared Studio activity (BR-048 completed)
+
+The current user requested that live tour reports be banked without fixes, then
+released the hold: “Okay tour is done, you are go to make changes.” Contributor
+account, exact conversation title and stable session reference are unavailable.
+The same conversation requested step-3 geometry fading, two step-4 arrows,
+an audit of dots missing during rebuilds or lingering after results arrive, and
+viewport fading during shared Studio activity. Later requests added Exit tour
+on Congratulations, “request any other change”, and equal colors and blinking
+for Continue with this part and Import STL.
+
+Completed all four reports. The tour alone dims geometry at its saved-print
+lesson and gives both step-4 choices large arrows and matching slate-blue
+highlights. Congratulations offers Exit tour and stays dismissed after exit.
+Shared Studio dots and the 28% viewport opacity now use one work state. Requests
+record their input baseline and optional prepared-result target; visible result
+receipts stop activity independently of delayed agent acknowledgements. Viewer
+loading also contributes activity. Source inspection established that the old
+request ledger and viewer readiness could disagree; the exact cause in the
+original live run was not recorded.
+
+The user clarified that waiting for an answer is idle and intermediate display
+is optional. Other active edits may keep activity visible after an intermediate
+result lands; pauses, errors, interruption and supersession do not obligate the
+agent to deliver abandoned edits or intermediate previews. The tour manual
+summarizes this in one sentence; Studio owns the coordination details.
+
+Verification: 26 focused Studio work, UI, tour and agent tests passed, plus three
+focused MCP checks. The completion integration check passed again after marking
+the closing message as guidance. Browser checks showed equal step-4 choices,
+the requested fade, activity stopping at playable-result readiness while its
+request still said working, and dismissal of the Congratulations panel through
+Exit tour. Fixtures used isolated libraries and synthetic approvals/completion
+receipts; this is software evidence, with no hardware trial. Removed resolved
+BR-048 from the outstanding queue.
+
+## 2026-09-14 — Bundled agent CLI operations
+
+The user requested the proposed onboarding, tour, preview, work-context,
+wait/claim and failure-inspection bundles as a CLI toolkit, with a breakdown of
+each command. Added `scripts/agent-toolkit.mjs` over shared exported APIs and the
+`npm run agent` alias. Studio commands also run through the existing
+`node studio/server.mjs --toolkit` launcher, emit the URL before the remaining
+context, and retain the managed process. Onboarding reads the current owning
+manuals and selected references; it observes dependency availability without
+running setup or regression checks. Later failures report retained bundles and
+close the call's own server. The [toolkit manual](core/agent/README.md) records
+each command's contents and limits.
+
+Moved the published-manual reader behind a CLI/MCP shared owner, retaining the
+adapter import path, and shared the existing browser opener. The shared request
+wait accepts optional claiming, including through MCP. Toolkit request responses
+also pass through the current prepared-result and guidance semantics. Updated an
+older STL-access regression to reflect the existing documented automatic-units
+default rather than expecting mandatory explicit units.
+
+Verification: all 36 selected tests in `agent-toolkit.test.mjs`,
+`mcp-access.test.mjs`, `mcp.test.mjs` and `studio-agent.test.mjs` passed. A subsequent
+focused SDK check of the added `claim:true` route also passed. Fixtures use
+isolated temporary libraries and synthetic approvals; coverage includes fresh
+tour geometry over HTTP, the actual CLI launcher, preserved approved export
+bytes on reopening, STL bytes/units, request correlation and partial failure.
+This establishes software behavior, not browser-render timing or physical print
+results. No end-to-end time/token savings were measured.
+
+## 2026-09-14 — New tours begin at the first lesson
+
+The user required new tours to begin at the beginning. The Studio launcher
+without a print path now starts a fresh tour instead of resuming saved progress.
+Start and restart reset to lesson one, retain earlier saved parts, and clear the
+old model's playback layer; a launcher-supplied layer is applied to the new tour.
+Explicit resume retains the saved lesson. Four focused state and UI checks pass,
+including restart from a later lesson and separate start/resume button actions.
+
+The user clarified that both examples must be pristine bundled versions and
+reported 75 seconds of orientation before launch. Fresh start now creates both
+copies immediately. The extended restart regression edits both old copies and
+checks the new plans against their original bundled sources, including the roof
+manifest, while retaining previous edits. It passes. A single isolated startup
+measurement took 1,410 ms: module imports 378 ms, fresh copies/start layer 805 ms,
+and server plus first geometry response 226 ms. This excludes agent orientation,
+browser rendering and the CLI's preliminary bundle read; it does not attribute
+the reported 75 seconds. The entry-point guidance now routes tour requests through
+a short launch section, defers skill reads until edits and loads participation
+guidance while lesson one is visible. No end-to-end latency claim is established.
+
+## 2026-09-14 — Experimental plastic-weld skill
+
+The user requested injected plastic rivets: blind shafts with wider bottom
+basins, individual reinforcement sites and staggered overlapping heights. They
+emphasized reuse of the shared core and interoperability, then explicitly
+accepted sparse hosts when each cavity has a sealed envelope. Added adjustable
+1.2 mm shafts, 3 mm tapered basins and a 4 mm example depth, with metered volume,
+flow, nozzle seating, hold and optional operation temperature. These are trial
+values, not physically established settings.
+
+Shared planar reservations leave cavities empty; existing complementary
+full-fill masks enclose them in sparse interiors. The shared composer orders
+stationary injection before cover layers and carries normal travel and cooling.
+Regional surface publication can expose a completed mouth with its injection
+dependency. Added shared stationary extrusion and nozzle-temperature actions,
+S5/H2D E-only output and source interpretation, and Studio injection markers.
+Relay robot output and nonplanar deposition through a cavity fail explicitly.
+
+Verification covers an independently calculated stepped cavity volume,
+solid/sparse ownership, staggered heights, flat region boundaries, completed
+surface consumption, translated mesh/vase composition, temperature restoration,
+source playback and exact-byte delivery with synthetic test approvals. Focused
+composition, modal export, pipeline, regional workflow and infill regressions
+pass. The unapproved CLI coupon in `Prints/plastic-weld-trial-20260915` generates
+9,950 moves with two approximately 8.18 mm³ injections. Browser inspection shows
+the first injection's fixed position, volume and temperature in Studio. No
+hardware ran; pressure sealing, fusion, strength and thermal behavior need
+physical tests.
+
+Source-player, skill-digest and material rendering checks pass, including the
+updated expectation that stationary deposition uses an event marker. The broad
+documentation check reports unrelated existing backlog statuses/anchors
+(BR-045 and references to BR-005, BR-018, BR-023 and BR-039); no weld manual link
+failure is reported. Whitespace checks pass.
+
+## 2026-09-14 — Tapered heat-set gussets
+
+The user revised the heat-set fins to brace the sleeve/front-face joint with
+approximately double root thickness, taper and a triangular vertical profile.
+Radial reach now grows linearly from the blind-hole floor to the full length at
+the insertion face. Thickness tapers from twice the nominal fin width at the
+sleeve to nominal at the outer tip. Shared scanline fill supplies each trapezoid
+layer and the existing material reservations keep ordinary fill out of it.
+Targeted tests verify the diagonal boundary, 1.6 mm nominal roots for 0.8 mm fins,
+actual joint bead coverage, six unchanged loops, and composition without duplicate
+fins. The existing development example is regenerated; physical behavior remains
+unmeasured.
+
+## 2026-09-14 — Heat-set inserts and standard parameter policy
+
+The user requested catalog-specific receiving holes, exactly six local loops,
+and fins joining the sleeve to the front insertion face, then confirmed radial
+fins and authorized selecting one initial manufacturer. Added 60 SPIROL Series
+19/29 metric/imperial variants with primary-source dimensions. The named standard
+parameter policy now has one owner in MAKERS.md, referenced by the shared tools,
+Studio and skill-author guidance. Reuse remains distinct from job approval.
+
+The feature compiles through the shared solid kernel and adds local deposition
+details to the shared planar producer, preserving full-fill, sparse/solid masks,
+assembly placement, material regions, text, normal export and Studio review.
+Initial holes are blind with flat Z-normal insertion faces; other axes require
+part reorientation. Catalog dimensions, loop counts, material exclusion, edits,
+regional composition and MCP routing have software coverage. The development
+example is a 54 × 32 × 12 mm block with M3-long and 4-40-short bores; no physical
+fit, strength or manufacturing approval is claimed.
+
 Date entries by the work or observation when evidence supports it; cite the
 dated source or commit and distinguish request, checkpoint and completion dates.
 Preserve explicit follow-up dates and timezones. If the work date is unknown,
@@ -7,6 +276,608 @@ say so and record the recording or migration date separately; never infer it fro
 file modification time. Record actual verification scope, without copying entire
 contracts or turning test counts into claims of physical success. New entries
 need no build-request ID; preserve an existing ID when moving its work record.
+
+## 2026-09-14 — Timed tour pass and approved speed fixes
+
+The participant used Adam for the maker role while developer commentary tracked
+the tour. The pass ran on September 15 UTC (September 14 Pacific). Source fixes
+waited until the participant completed the tour and received the timing workbook;
+the subsequent audit preceded the approved performance implementation. Gyroid
+contour optimization was explicitly deferred to a later session, with the user
+carrying that request.
+
+Observed baseline boundaries, including agent/tool orchestration where stated:
+
+| Operation | Observed time |
+|---|---:|
+| Adam on base: request to resolution / text command | 27.205 s / 0.934 s |
+| Adam on roof: request to resolution / text and adjustment commands | 52.264 s / 10.926 s |
+| First roof: entering toolpath lesson to saved generation | 36.296 s |
+| Infill edit: request to resolution | 184.706 s |
+| Avoidable wait before starting infill generation | approximately 113 s |
+| Bambu edit: request to saved generation | 44.293 s |
+| Completion event to agent claim | 19.558 s |
+| Isolated final-roof generation, 799,015 moves | 14.152 s |
+
+Request durations include orchestration and are not pure model CPU time. The
+tour's final-lesson-to-download interval included human dwell and cannot measure
+export latency alone. Ignored `.local/tour-speed-20260915/` holds observer events,
+the timing workbook, audit, profiles and replay scripts. The workbook separates
+operation boundaries, command times and unattributed remainder.
+
+Implemented: selected-part preparation during step 4; automatic generation after
+tour process/machine edits; current checked development-to-production reuse;
+compact CLI adjustment output; scratch-row material construction; and completion
+rendering without a full source reload. The CLI listener can claim in its wait
+call, and maker guidance prioritizes ordinary completion chat over bookkeeping.
+Step 4 now explains preservation of saved copies and labels its keep route.
+The viewport shows a spinner with actual stage percentages through generation
+and loading, including printer-change generation. Notification errors no longer
+mask the originating generation error.
+Viewer labels also refresh when the printer, name or generation mode changes
+without replacing the displayed motion buffers.
+
+The same isolated Bambu export changed to production mode in **0.172 s**, with
+identical bytes/hash and no toolpath approval. This measures a warm checked-source
+transition, not a full cold opening. A same-process material comparison, with
+before/after order reversed on the second pair, measured old construction at
+18.835/23.080 s and new construction at 10.105/11.667 s: **48.1% lower mean**.
+Machine load varied substantially, so these absolute durations are not a promise
+of browser latency. Both versions retained all 799,015 moves and 240 material
+groups. The earlier profiled baseline was 6.955 s for material construction;
+do not compare it directly with the later contended run.
+
+Verification: targeted program-cache, source-player, Studio opening, tour,
+tour-UI, material, agent-request and reconnect checks passed after correcting
+outdated completion expectations and a progress fixture. Coverage includes stale
+bytes/recipes, geometry and final-review gates, worker retry, stage counts,
+single-call request claim and identical material buffers across chunk boundaries.
+Browser inspection of a separate audit print verified the centered loading card,
+live percentage/progress bar and completed toolpath view. No second maker tour
+has yet measured total interaction time, and these software checks establish no
+physical printing result. Concurrent mesh/text work was preserved separately.
+
+## 2026-09-14 — Shared CGAL mesh repair and larger STL handling
+
+Nave requested replacement of the rejected repair implementation and removal of
+its code and documentation. Shared core now owns exact cleanup, CGAL 6.2.1 patch
+repair, explicitly bounded hole filling, shape-change reporting and source/output
+validation. Smoothing is disabled. The retired implementation, its dependent
+simplifier and their tests/instructions were removed at the user's request.
+Current behavior is in the [geometry reference](core/geom/README.md#explicit-mesh-repair).
+
+The supplied 8,220-face vase passes the shared file repair entry, exact STL
+reimport and full-fill/planar-infill slicing. Cleanup removes 96 degenerate faces;
+CGAL replaces 75 cleaned source faces with 27 faces, retaining 8,049 original
+faces geometrically unchanged. Output has 8,076 faces. The measured file repair
+trial took 2.891 seconds, including checks and serialization; its CGAL step took
+0.472 seconds. Sampled distances reached 0.816 mm source-to-result and 0.622 mm
+result-to-source. Samples include vertices and face centroids, and do not certify
+a continuous error bound. The software slicing result contains 427,200 moves.
+Temporary models and bundles were deleted; the supplied original was preserved
+and the accepted review retained in RAM. This is not a physical print result.
+
+The CGAL patch function is distinct from experimental self-union, which fails on
+this vase. Local probing also found that snap-rounded autorefinement followed by
+self-union retains that exception, while autorefinement followed by patch repair
+fails validation. Those chains were not adopted as automatic fallbacks. Broader
+exact Boolean repair remains a potential evaluation of established kernels,
+including [libigl arrangements](https://libigl.github.io/tutorial/#boolean-operations-on-meshes),
+not an implemented capability or a new deferred request.
+
+STL paths now stream through import and repair, source hashing and output writing.
+Validation uses packed edge incidence, an AABB hierarchy, compact cached normals
+and fixed-size content hashes, with 32 MiB of retained derived cache data. A
+configurable working-set estimate replaces the fixed face-count gate. Repair
+runs off the caller's main thread. Accepted geometry is emitted in full-quality
+chunks with stage percentages and consumer backpressure; native patch progress
+is indeterminate. No Studio source was edited by this task. Indexed meshes,
+CGAL and downstream bundle serialization still require memory; this does not
+establish unlimited or fully disk-backed mesh handling.
+
+Verification: focused tests exercise cleanup/stitching, a penetrating-fold repair,
+unchanged remote facets, hole limits, orientation repair, timeout/cancellation,
+shape-change rejection, source preservation, exact geometry chunks and S5/H2D
+unapproved import. A 196,608-face ASCII fixture streamed, validated and sectioned
+without simplification; its complete test took 10.75 seconds in the measured run.
+Existing mesh slicing/lifecycle tests passed. Native compilation was tested on
+Windows; a separate Linux CI workflow builds pinned CGAL before these tests.
+Native repair has its own [build and license notice](core/geom/native/README.md).
+
+## 2026-09-14 — Mesh compatibility, memory work and experiment boundary
+
+Nave clarified in “Find permitted 3D model sources” (session
+`01a0a26a-f0d5-7dc2-976f-bdc942252d21`) that production mesh import, repair, memory
+handling and geometry progress are shared core work intended for remote
+contribution. Test runners, downloaded evaluation dependencies, profiles, raw
+research and reports remain ignored under `.local`. The scope audit found no
+unresolved category ambiguity. Core has no runtime dependency on the experiment
+directories. No publication was performed by this task.
+
+Cura research examined pinned upstream development revisions on September 14.
+[Uranium's STL reader](https://github.com/Ultimaker/Uranium/blob/94404148091d157b29ba080acd47b5949c9d0bb8/plugins/FileHandlers/STLReader/STLReader.py)
+sets a 100-million-facet parsing ceiling; this is not a demonstrated memory
+capacity. Its mesh arrays use compact NumPy storage. CuraEngine retains mesh
+data during sectioning, releases mesh data after cross-sections, and advances
+through a bounded layer-plan buffer; it is not wholly out-of-core. Relevant
+sources are [mesh storage](https://github.com/Ultimaker/CuraEngine/blob/5abf5ec15b4d9f57b45a71401bd7d5f4fb1db20c/include/mesh.h),
+[stage lifetime](https://github.com/Ultimaker/CuraEngine/blob/5abf5ec15b4d9f57b45a71401bd7d5f4fb1db20c/src/FffPolygonGenerator.cpp)
+and [layer buffering](https://github.com/Ultimaker/CuraEngine/blob/5abf5ec15b4d9f57b45a71401bd7d5f4fb1db20c/include/LayerPlanBuffer.h).
+The applicable direction is compact storage and deliberate intermediate lifetimes,
+measured before increasing SAAM's limits. Raw source copies and revision manifests
+remain in `.local/cura-research`; no upstream algorithm was ported by this audit.
+
+## 2026-09-14 — Shared circular text and tour failure recovery
+
+The participant requested a checkpoint before touring, then raised “groucho”
+lettering on the fin and in a circle on the wavy roof. The initial full-circle
+spacing was too wide; the participant accepted the closer upper arc and requested
+that surface support be generalized into core. Local checkpoint `ec697ac` saved
+all pre-tour non-ignored work. Subsequent development remains uncommitted.
+
+Shared text layout now supports an explicit circular baseline alongside the
+existing straight and Bezier layouts. A `top` reference reuses spline/mesh height
+and normal queries in physical XY, replacing the example-specific sampled guide.
+Existing UV and independent references remain supported. Public editable recipes
+retain the original body, font and features. The same wavy-roof geometry was
+rebuilt in `Prints/development/groucho-core-top` with the new concise recipe,
+without altering the tour participant's geometry during playback.
+
+The participant reported geometry remaining visible at the playback lesson,
+missing dots/toolpaths, and a later reconnect failure. Toolpath lessons now select
+the toolpath view before a program exists and show preparation status. Failed
+transitions refresh the saved lesson before reporting the error, so later refreshes
+do not erase it. Ready programs clear old preparation text. Explicit generation
+failures queue the exact cause to the maker agent; guidance requires diagnosis
+and appropriate corrections before regeneration, followed by visible verification.
+Repeated identical failures for the same plan reuse the request.
+
+The lettered roof's draped-skin generation failed on discontinuous glyph roofs.
+The agent explained the switch to planar printing, generated its preview, then
+applied the participant's concentric infill choice. A server running earlier code
+initially rejected the new output as stale. Restarting without refreshing the page
+also left obsolete session credentials, causing repeated acknowledgement failures.
+Server instance identities now trigger a browser reload before new requests;
+obsolete session tokens remain rejected. The live tour recovered after reload.
+
+Verification: existing text tests plus analytical circle direction/arc-length and
+spline-height/normal checks, mesh top references, and a public circular-lettering
+regression all passed. The latter verifies deposition above an analytical wavy
+roof for every letter of “groucho”. Studio tests cover pre-program tab selection,
+ready seeking, retained errors, correlated failure requests, corrected generation,
+actual browser polling after restart, changed server identities and old-token
+rejection. An isolated browser also recovered automatically after a real
+server restart, returning to usable controls without manual reload. The live concentric toolpath and the isolated core-top geometry were visually
+inspected. The repository documentation check still reports unrelated backlog
+status and missing backlog-anchor issues; the text manual’s existing underside
+anchor is preserved. No physical print result
+or manufacturing approval was supplied by the agent.
+
+## 2026-09-14 — Prompt tour updates, listener delivery and completion panel
+
+The participant reported stationary dots/highlights, late geometry unlocking and
+chat messages, a missed infill request, early toolpath loading, and one transient
+saved-print load failure. Selected simple bold tour copy for every lesson and
+requested a finished panel plus prompt chat congratulations, printing help and
+a next-project invitation. These changes preserve the Studio-first introduction.
+
+Removed the reduced-motion rule that disabled these two animations; both now use
+opacity/color changes without movement. Tour highlights use a simple slate-blue
+outline. Library file events notify Studio immediately, with polling retained as
+fallback. The geometry-edit gate opens on the exact rendered update, independently
+of the agent's later acknowledgement. Toolpath state, decoding and speculative
+generation stay absent until the optional STL lesson is completed. Import-layer
+requests are queued after generation, so the requested toolpath exists when the
+agent receives them. Reads spanning plan/geometry replacement retry briefly;
+persistent validation errors still fail. The participant's original one-off load
+error did not reproduce during this check.
+
+MCP begin/respond/wait calls no longer wait behind other tool calls. Pending
+Studio requests produce standard MCP logging notifications and appear in ordinary
+object-valued tool results, supplementing the authoritative wait/list endpoint.
+Guidance requires begin-work before acknowledgement and sends edit responses in
+commentary before waiting. CLI guidance now explains that a returned running
+session ID must be followed until its JSON event arrives; starting a background
+listener and ending the turn loses that delivery. Notifications cannot guarantee
+that an ended host turn wakes. Completion guidance explicitly offers help with
+difficulties printing the downloaded file. The panel shows congratulations and
+invites the next project; stale lesson-status text clears on transition.
+
+Targeted tests covered nonblocking waits/status updates, pushed MCP notifications,
+independent disk writers (51 ms in the notification test), geometry unlocking with
+an outstanding request, both STL-lesson exits, preserved approval/export behavior,
+transient-read retry and completion guidance. Browser inspection confirmed changing
+dot opacity, active outline blinking, uniform bold copy, geometry-only step 4,
+toolpath after Next, and the finished panel. Isolated test prints were removed;
+the live Studio was refreshed with the participant's completed tour preserved.
+These checks establish software behavior, not physical printing results.
+
+## 2026-09-14 — STL flow, geometry selection and agent connection closure
+
+The participant approved the panel expansion/hiding and tour locks, replaced the
+STL units popup with a size-based assumption across ordinary and tour imports,
+and clarified that selecting the print is geometry confirmation before toolpath.
+The shared importer now records assumed units and supports later correction of
+plain imported meshes without losing mesh edits or settings. [D-030](DECISIONS.md#d-030--provisional-stl-units-assumption)
+records the deliberately provisional policy. Studio records the chosen geometry
+before preparing its tour toolpath; final export confirms settings/toolpath.
+Normal fresh imports remain in geometry review.
+
+The participant kept the ten-minute request timeout and requested a connection
+close handler. MCP ownership follows requests created or claimed by that adapter
+and requests queued by its Studio servers. Transport close fails its unfinished
+requests and pushes a viewer event before server shutdown. The indicator replaces
+dots with italic “(connection closed)” or “(request timed out)”; other active
+requests retain dots. The client also evaluates cached expiry if polling fails.
+An ended chat turn need not close MCP, and abrupt process death may skip cleanup.
+
+Targeted request/tour, STL, MCP and Studio open/lifetime checks passed, including
+an actual SDK transport close with independent outstanding work and an SSE viewer.
+Two test expectations were corrected during verification: floating-point scaling
+uses a tolerance, and the EventSource stub now supports event listeners. An
+isolated browser showed the italic close message replacing dots beside the logo
+before its server disappeared. Test bundles were removed. Studio was restarted
+on its existing port and refreshed at lesson 1 with progress preserved and no
+unsolicited maker-chat prompt. These are software checks, not physical prints.
+
+## 2026-09-14 — Preserve Studio-first tour guidance
+
+The participant corrected the unsolicited first-task chat prompt: the tour's
+early guidance belongs in Studio, with proactive chat teaching introduced later
+at the designated infill lesson. Removed the first-task invitation and post-import
+Play invitation from agent guidance, and distinguished silent start-layer
+preparation from chat teaching in the maker, tour and MCP instructions. The tour
+was not advanced or restarted during this audit. Other discretionary flow choices
+were disclosed for review rather than changed as part of this correction.
+
+## 2026-09-14 — Stitch collapsed-face seams during mesh cleanup
+
+The disposable Thingi10K test exposed incomplete cleanup: removing four collinear
+triangles from file 63535 left one long edge opposite five shorter edges. Cleanup
+now splits the surviving face at existing vertices when a complete, oppositely
+directed collinear boundary chain is available. This retains coordinates and
+winding. Shared Studio files were not edited.
+
+All 12 mesh-repair tests passed, including a subdivided tetrahedron with unchanged
+analytical volume, rotated/translated coordinates, source preservation,
+idempotence, public repair/reimport and rejection of an actual missing face.
+Thingi10K 63535 then repaired and sliced successfully: four collapsed faces
+removed, one edge stitched, four triangles added, 1680 output triangles, unchanged
+bounds and zero sampled vertex distance in both directions. Its checked toolpath
+was opened through the local in-memory Studio inspection adapter; downloaded and
+generated files were deleted. This is software evidence, not a physical print.
+
+## 2026-09-14 — Tour feedback, STL lesson and agent coordination
+
+Completed BR-046 after the participant explicitly released the earlier deferral
+in task 01a0a19d-25eb-7fa3-9e55-d1b97ee544fc (exact title unavailable; participant
+addressed as Nave, contributor account unconfirmed). The pass requested flashing
+highlights, recognizable filenames, immediate advancement on file selection,
+automatic maker guidance and Next remaining locked until updated output is shown.
+Later messages added global dots beside the logo, an optional STL lesson, eight
+different copy treatments, and required downloading to complete the tour.
+
+Studio now uses eight lessons. Existing seven-lesson progress migrates without
+discarding edits. Print selection advances directly to optional STL import;
+Next retains the selected part, while importing a valid model advances to
+playback and requests an explicit infill layer from the maker agent. The ordinary
+Import STL button uses the shared importer, explicit units and retained source
+bytes, opening unapproved geometry. UI names and downloads describe the part.
+
+Edit gates require an acknowledgement of the current rendered revision/export;
+outstanding agent requests also keep them locked. Correlated persistent requests
+cover ordinary Studio work and tour events, with bounded MCP/CLI waits and
+ten-minute leases. Only three animated dots appear beside the logo while requests
+are pending. Maker guidance requires immediate begin/claim and matching response,
+and active waits between lessons. The transport reaches an active connected
+agent; no idle-host wakeup or disconnected-chat delivery is claimed.
+
+The final confirmation prepares production output, checks it against the displayed
+export, downloads the same bytes and completes the tour. There is no Finish tour
+button; Exit restores normal controls without completion. A browser test exposed
+a worker-cloning failure when approvals changed but source bytes did not; rebinding
+now uses the fresh source metadata before reusing the decoded move store.
+
+Software evidence: targeted Studio tour/request and MCP integration checks passed,
+including ordinary overlapping requests, import success/failure and units, both
+import-lesson routes, stale preview rejection and exact-byte tour export. Browser
+checks used an isolated synthetic handle for file selection, five seconds of
+playback, guidance dots, generated gyroid/four-wall update, printer/material and
+download completion. These are software checks, not physical print evidence.
+Repository documentation validation also reported pre-existing missing backlog
+anchors and an unrelated BR-045 status-format issue; these were not changed here.
+The edge-selection follow-up was held until the next pass was launched, then
+completed as recorded below.
+
+## 2026-09-14 — Edge names after launching the next tour pass
+
+Completed BR-047 after its explicit deferral condition was met: the new eight-step
+tour was opened on its first lesson at the same Studio URL before implementation.
+The participant (addressed as Nave, account unconfirmed) requested “edge select in
+the geometry preview, like the current surface select ... (to see names)” in task
+01a0a19d-25eb-7fa3-9e55-d1b97ee544fc; exact task title unavailable.
+
+Geometry preview now picks visible boundaries/creases within six screen pixels,
+highlights the chosen edge in orange and shows adjacent feature names plus its
+edge number. Surface-interior picking is preserved. Chains join curved rims but
+split at junctions; hidden edges, holes and triangulation diagonals do not become
+false hits. These are revision-scoped display identifiers; no source geometry or
+manufacturing approvals changed. Eleven geometry/visibility tests passed, and
+the live tour handle showed “Fin/front / Fin/top · edge 1” with its orange highlight.
+
+## 2026-09-14 — Combined confirmation and interactive maker tour
+
+The user expanded the Studio/tour scope in this task: remove standalone settings
+confirmation and teach geometry edits, saved-print switching, playback, chat-led
+toolpath changes, printer/material choices and export.
+
+- Studio now has geometry confirmation followed by a combined settings/toolpath
+  confirmation. The latter binds both hashes in one human event and preserves
+  the existing persisted plan fields for compatibility. Full settings are
+  expandable in toolpath view. Production generation requires geometry approval;
+  delivery retains exact-export approval and byte-identity checks.
+- Added a raised-fin starter and seven lessons with geometry, file-selection,
+  five-second visible-playback and settings-change gates. Agent-selected sparse
+  infill start positions leave the speed and timeline controls free. Exit and
+  finish restore normal controls; edits and saved copies survive navigation.
+- Added tour progress/chat instructions, bounded MCP progress waiting, explicit
+  start-layer control and printer changes through shared tools. Maker guidance
+  now establishes known last-used printer/material choices, or asks when unknown,
+  before toolpath view, and retains chat adjustments afterward. Completion
+  guidance asks the maker agent to congratulate the participant and invite her
+  next creation. Export guidance explains USB transfer directly to the printer.
+- Verified workflow, cache, Studio opening, MCP, tour gates and affected machine/
+  skill lifecycle tests. Updated obsolete three-confirmation test expectations;
+  focused reruns passed. Walked all seven lessons in an isolated browser tour,
+  including edited-copy selection, layer-13 infill start, free scrubbing/speed,
+  playback unlock, changed infill, printer highlight, export and completion.
+  Restarted the user's tour at the unchanged starter with Next locked.
+- The repository documentation checker reported concurrent backlog status/link
+  issues (BR-005, BR-018, BR-023, BR-039 and BR-045), outside this tour change.
+  No manufacturing approval or hardware action was performed.
+
+## 2026-09-14 — Large wavy canopy on all four box sides
+
+`remettub`, in “Add wave overhang spline skill”
+(`01a0a191-8027-7f13-bf42-7b88316cc5ed`), requested a much bigger wavy spline
+surface projecting beyond all four sides of the box.
+
+- Added the reproducible `canopy-example.mjs` recipe: a C2 bicubic surface
+  with a 24 mm flat seed aligned with the top perimeter centerline of a
+  24.4 × 24.4 × 10 mm box. Its rounded outline follows about 33 mm of surface
+  growth on every side. The manual links the preparation and preview commands.
+- The larger example exposed thin residual strips from constrained polygon
+  construction at the rim. Terminal handling now tests whole-residual
+  containment in a small expansion of reached material, scaled by sampled
+  native derivatives and the existing physical tolerance, before extracting
+  another front. Residuals stay explicit; this does not add deposition or relax
+  the single-pass requirement. Earlier fixed-grid and sub-tolerance closures
+  passed a small fixture but failed the full placed example and were replaced.
+- Verification: 12 focused wave and public-workflow checks passed, including
+  a canopy-rim regression at original and translated coordinates. The actual
+  `Prints/wave-overhangs-four-sided-20260914` bundle generated in 57.6 seconds:
+  110 fronts in one pass, 34,665 interpreted wave movements, all extruding,
+  with no internal rapid move or dwell. Its wave extent is 89.78 × 89.79 mm,
+  Z=8.334–11.666 mm. The report retains 129 thin residual regions with a
+  derivative-scaled UV band of 0.0000412924; their long diameters are not
+  mislabeled as sub-tolerance lengths. Inspected partial/live playback and the
+  completed canopy in Studio with travel visible. This remains a development preview,
+  without physical printing evidence or manufacturing approval.
+
+## 2026-09-14 — Wave continuity correction; hole case remains incomplete
+
+`remettub`, in “Add wave overhang spline skill”
+(`01a0a191-8027-7f13-bf42-7b88316cc5ed`), reported broken loops and travels and
+required unbroken continuous passes per layer. The user then supplied
+[Janis Andersons's short](https://www.youtube.com/shorts/RxPW5A4__X4) and clarified
+that the perpendicular glue jogs came from SAAM, not a requested exemplar.
+
+- Removed coincident-outline clipping that discarded front segments, and removed
+  stationary perimeter tails from the extrusion paths. Constrained offset
+  cleanup now uses Clipper2 simplification with native derivative scaling,
+  preserves boundary contacts, treats small boundary-tangent drift, samples
+  obstacle tangents and refines boundary interactions more closely. Collapsed
+  contours remain as explicit sampled-width diagnostics rather than bead loops.
+- Accepted slices use one atomic operation/stroke with short in-domain surface
+  turns. Travel, retract and cooling are absent between their fronts. Separate
+  passes cause a generation error; the earlier hole recipe is now refused.
+- Inspected the supplied short's visible frames and linked explanation/description,
+  and the slicer fork's settings/traversal source. Its Zig Zag mode permits branch
+  restarts. No special glue-jog method or universal single-pass guarantee was
+  established. No research/slicer source or asset was copied into SAAM. The
+  published paper and dataset version 2 were located; full paper text and video
+  transcript remained unavailable.
+- Verification: 33 selected wave, public workflow, surface-offset and shared
+  boolean/offset checks passed. The export continuity assertion also passed
+  after strengthening it to inspect actual G-code lines. The new local
+  `Prints/wave-overhangs-continuous-20260914` diagnostic example intentionally has
+  no hole: 16 fronts, one operation, 271 interpreted wave movements, all extruding.
+  Generation took about 1.2 seconds locally. Studio partial and live playback
+  were inspected with travel visible. No physical print or approval occurred.
+- The original hole recipe is preserved and fails with five required passes.
+  Matching reference-style branch restarts versus enforcing a whole-slice
+  continuous path remains a pending human clarification. Whole-slice continuity
+  remains enforced; no exception is inferred. The new example does not establish
+  completion of the requested hole capability; see BR-045 in
+  [outstanding work](build_request.md#outstanding-work).
+
+## 2026-09-14 — Tour continuity and a stronger opening roof
+
+- Applied the collected tour feedback: wavy roof, Nudge Cup, then DENSO;
+  sequential Next/Back navigation; personal-print choices after completion.
+- Separated tour membership from packaged-preview validity. Chat adjustments
+  retain the current step and edited copy across navigation and reopening.
+  Changed toolpaths use the shared generation worker in development mode,
+  without granting human approvals.
+- Replaced the opening roof with a 100 × 60 mm wave surface and a 6 mm fall
+  toward one edge. Generated and packaged its current source and display.
+  The generation check reports a 14.574° maximum roof slope and zero excluded
+  roof area; drainage and physical printing remain untested.
+- Eight focused checks cover navigation, finish gating, edit persistence,
+  development generation after edits, cache handling and downhill roof geometry.
+  Inspected the restarted first screen with its disabled early-exit controls.
+
+## 2026-09-14 — Wave overhangs on bivariate spline slices
+
+- Contributor: `remettub`, explicitly identified in this conversation.
+- Authorization: human requested — identify the wave-overhang technique seen in
+  a YouTube short, check applicable licenses, and build it generalized to SAAM's
+  bivariate spline slices. Clarification explicitly selected curved spline
+  surfaces with flat slices as a special case.
+- Session: “Add wave overhang spline skill”
+  (`01a0a191-8027-7f13-bf42-7b88316cc5ed`).
+- Source: current conversation, 2026-09-14: “We need that capability, but
+  generalized to our bivariate spline slices … then build that skill”. The
+  user also reported X-wise artifacts during playback and confirmed Grasshopper
+  is available as an optional reference host; no Grasshopper execution was needed.
+- Context: match the published laterally attached expanding-wave technique,
+  retaining native spline geometry and the existing review/delivery workflow.
+- Implementation: [wave-overhangs](skills/wave-overhangs/SKILL.md) uses original
+  SAAM constrained geodesic growth, explicit seeds and component dependencies,
+  shared operations/export and catalog/Studio integration. The research dataset
+  is CC BY 4.0; the Prusa/Orca integrations are AGPL-3.0. No third-party algorithm
+  source or research assets were incorporated. Provenance and numerical limits
+  are at the [implementation owner](skills/wave-overhangs/DEVELOP.md).
+- Software evidence: physical-spacing checks on inclined/rescaled planes and
+  an independently unrolled rational cylinder; doubly curved native surface,
+  hole splitting/rejoining, disconnected seeds, budgets, component/slice ordering,
+  shared export and public CLI/MCP-manual/Studio settings checks. All 49 selected
+  numerical, pipeline, workflow, ordering and Studio checks passed across the
+  relevant runs. The skill validator and catalog/manual digest check also passed.
+- Playback correction: tiny rounded E increments divided by very short Y moves
+  produced spurious X-wise bead widths (one 0.00001 mm move displayed as a
+  31.897 mm bead). Wave output has no retained across-path surface normal, so
+  Studio uses its existing curved-surface centerline display. The machine program
+  is unchanged by this display fix; partial and live browser playback were checked.
+- Reproducible development example: a 5 × 5 × 1 mm box anchors a saddle surface
+  extending 5 mm around a hole. With 0.3 mm front/propagation spacing it generated
+  18 fronts, 2719 sampled points and 249425 surface evaluations; its two retained
+  corner residuals have a maximum sampled diameter of 0.005647 mm. Local public
+  bundle generation took approximately 2.7 seconds in this session. The finer
+  0.1 mm propagation experiment exhausted the 2000000-evaluation budget; this is
+  recorded performance behavior, not evidence that finer settings always cost more.
+- Physical evidence: none. The local preview is unapproved development output;
+  no printer execution, job approval, checkpoint or publication is implied.
+
+## 2026-09-14 — Build-request provenance audit
+
+Follow-up correction from `remettub` in the same conversation: the initial guidance
+caused agents to ask for contributor identity during ordinary builds and appeared
+to require creating a request for each task. Removed the instruction to ask for
+identity and the extension of backlog metadata requirements to ordinary devlog
+entries. Current work proceeds directly; the queue preserves deferred/incomplete
+work beyond the active task or explicitly requested backlog entries. Missing
+metadata remains labeled without prompting or historical investigation during
+ordinary work. The provenance audit below records the earlier findings; its
+unresolved attribution does not require other tasks to ask the user again.
+
+- Contributor: `remettub`, explicitly confirmed in this conversation.
+- Authorization: human requested — recover contributor accounts, session titles
+  and originating context for existing requests; check completion/applicability;
+  require explicit human requests or human-approved agent proposals going forward.
+- Session: “Audit build request provenance”
+  (`01a0a188-d7e2-7020-8927-966a5cc4c146`).
+- Source: current request, 2026-09-14: “We need provenance for all build requests”
+  and “All build requests should be explicit human requested or agent proposed and
+  human approved”. This authorizes the audit and guidance, not the underlying work.
+- Context: The queue contained eight remainders whose generic “user” attribution
+  and links to checkpoint records obscured who requested them and whether later
+  acceptance work had actually been commissioned.
+
+Reviewed the eight entries at `d686269`, their introducing/history commits, current
+owning sources and available local Codex conversations from September 8–14.
+Recovered human messages from primary sessions, including archived continuations;
+subagent prompts were not used as human authorization. Session titles are the
+exact titles in the local session index as observed on the audit date; they can
+have been renamed since the original request. UTC timestamps below come from the
+message records, and can fall on the day after an older local-date devlog entry.
+This was a documentation/status audit, with no new printing, benchmark or live
+Claude Code experiment. Private transcripts remain local and untracked.
+
+Account attribution is the remaining evidence gap. “SAAM reset”
+(`01a08244-f5ff-79b2-a3ab-869b8a2fd04b`), at 2026-09-08T20:07:35Z and its
+20:25:19Z continuation, explicitly says “tkeller, and remettub (us)”. That
+establishes `remettub` for that session. This audit's speaker also confirmed
+`remettub`. The other originating sessions do not explicitly name their speaker;
+same-computer continuity and Evan Buttemer/remettub Git authorship suggest an
+attribution but do not confirm it. Their Contributor fields remain unconfirmed
+pending the requested historical-account clarification. `tkeller` being the author
+of an old material-library concept does not identify the human approving BR-044.
+
+| Prior request | Disposition and evidence |
+|---|---|
+| BR-005 | Narrowed to the explicitly requested S5 wedge print. “Build Ultimaker S5 wedge demo” and “Fix S5 export and wedge extrusion” contain direct implementation/print requests; the source excerpts and IDs are in the surviving request. Software and partial physical reports exist, but no recovered complete outcome for the corrected startup. The broader evaluation extends the agent's first-proof recommendation in “SAAM reset” and the comparative proposal preserved by `e87477a`; no explicit approval of a novice/comparative study was recovered. It remains a labeled proposal, outside this request. |
+| BR-018 | Retained. Human requested H2D support, reported layer-two over-extrusion, then said to remove H10 and try that revision. The current Bambu contract still uses v2 and calls for physical testing. No corrected physical result or independent program-viewer acceptance was recovered; model-import rejection is a different check. |
+| BR-023 | Retained with later partial evidence. “Benchmark spline slicing speed” explicitly requested Cura/Bambu and Studio comparisons. “Speed up studio confirmations” later records a human Cura result of 7.2 seconds and agent-reported SAAM timings, but no recovered controlled Bambu comparison or full matching profiles/repeats across clients. |
+| BR-034 | Retained as unfinished acceptance of approved implementation. In “Scope agent Studio permissions”, the agent proposed repository launcher rules at 2026-09-10T16:26:59Z; the human approved and added Claude at 16:27:53Z. The implementation report states that Claude Code was absent. No later live Claude permission result was recovered. This does not expand into a new permission feature. |
+| BR-039 | Retained. The human explicitly requested the 10–12 second target and cross-skill validation cleanup, then renewed the speed overhaul. Later measurements still miss that target. Current `generatePath` in core/print/generate.mjs and skills/wedge-demo/scripts/path.mjs calls plan validation; `translateShell` rebuilds via `makeShell`, which computes closure; surfaceRegion and plan validation (through validateCladding) both call validateSurfaceSelection. These observations support rechecking those boundaries; they do not prove each call is unnecessary. |
+| BR-040 | Removed from the queue: the requested audit and guidance were delivered. The former queue entry converted the agent's remaining priorities into a blanket obligation to resolve every finding; no approval for that expanded program was recovered. Findings remain in the original BR-040 history as proposals for consideration within future authorized work. Specific speed/validation fixes remain covered by BR-039's own human instructions. |
+| BR-043 | Diagnosis/research completed in the originating conversation; the “file unidentified” remainder was stale. The requested startup-retraction software fix was also implemented. Missing physical confirmation is retained once under BR-005; it does not reopen the diagnosis or authorize firmware modification. See the recovered BR-043 record below. |
+| BR-044 | Retained with its explicit deferral. The human committed to a future material-library port while withdrawing four contributions; the request approves selective conceptual adoption, not restoring the previous implementation. No port is present in the shared scope reviewed here. |
+
+BR-040 source: contributor unconfirmed; session “Repair mesh for Bambu print”
+(`01a08f18-9d61-7d90-b3c0-2c9088c6cefc`), 2026-09-11T07:38:28Z:
+“We need another audit agent looking for inappropriate or mismatched precision
+issues project wide” and “and guidance so it doesn't happen again”. This arose
+while diagnosing the repaired vase mesh's slicing latency. The
+[original audit](#br-040--dimension-aware-precision-audit-and-developer-guidance)
+records findings, guidance, corrections and verification. Removing the expanded
+request does not claim every numerical issue is fixed or justified.
+
+The later “Speed up studio confirmations” record, at 2026-09-12T00:06:49Z,
+reports 25.8→17.0 seconds for generation plus checked export of the repaired mesh,
+about 23.5 seconds after an immediate Generate click, and about 1.3 seconds when
+preparation had already finished during review. The human's 7.2-second Cura result
+is at 2026-09-11T23:15:41Z. Output move counts and precision changed during that
+work; these are historical task-reported results, not newly reproduced timings,
+unchanged-setting comparisons or proof of the 10–12 second target. The queue's
+earlier Clipper2-only context was incomplete.
+
+Guidance now requires Contributor, Authorization, Session, Source and explanatory
+Context in addition to status/remainder/completion. Completed or removed records
+retain provenance and disposition. The existing optional repository checker checks
+field presence and authorization vocabulary; it cannot verify human identity,
+approval scope or factual completion.
+
+Verification: the repository checker passed for 61 documents and 703 local links;
+whitespace checks passed. Targeted checker probes rejected missing provenance
+fields and an unapproved agent proposal while accepting the revised queue. No
+manufacturing regression suite was needed for these documentation/metadata edits.
+
+## BR-043 — S5 startup diagnosis
+
+- Work date: 2026-09-10 for the file investigation and firmware research; recovered
+  and removed from the queue on 2026-09-14. The startup retraction fix was separately
+  requested at 2026-09-11T04:50:40Z.
+- Contributor: Unconfirmed; neither source session explicitly names its speaker.
+- Authorization: human requested — investigate observed S5 startup, verify the USB
+  export, research skipping bed leveling, and fix startup retraction. No printer
+  firmware modification was authorized or performed in the recovered record.
+- Session: “Remove bed leveling startup”
+  (`01a08c8f-9e65-71c0-8712-c73f53c0f5be`); retraction follow-up in
+  “Review full repository code” (`01a08eb4-4fa4-7dc0-bfff-827d989d6192`).
+- Source: 2026-09-10T18:34:07Z requests verification of `flange.gcode` on USB;
+  18:45:51Z: “Confirmed that we are still doing bed leveling, even with that exact
+  file you just verified.” The 18:46:46Z reply clarifies “skip bed leveling”.
+- Context: Observed S5 startup contradicted the agent's inference that omitting
+  explicit leveling commands would skip leveling.
+- Result: At 18:35:51Z the agent reported `D:\flange.gcode` byte-identical to the
+  local `pipe-flange-five-bolt-taller` export, with S5 profile revision 5 header,
+  startup and shutdown, Griffin 4.4.0 compatibility, right nozzle at 215°C and bed
+  at 60°C, and no explicit leveling/unused-heater commands. The human then confirmed
+  leveling with that checked file. This is recovered task evidence; the file was
+  not freshly read during this audit.
+- Research result: At 18:48:01Z the agent corrected its earlier inference, citing
+  the S5 manual's automatic active leveling. It reported an UltiTuner firmware-side
+  option, with compatibility limitations and no verified per-file bypass. That
+  completed the requested research; no installation, firmware change or successful
+  bypass is claimed. The agent asked for firmware information and no further
+  response was recovered in that session.
+- Disposition: Remove stale BR-043 diagnosis from the queue. The shared first-move
+  recovery correction is implemented as described in the
+  [S5 observations](#2026-09-08-to-2026-09-10--s5-startup-observations);
+  its unreported physical outcome is part of the
+  [remaining S5 print](build_request.md#br-005--complete-the-requested-s5-wedge-print).
 
 ## 2026-09-14 — Ready examples and guided Studio tour
 
@@ -952,7 +1823,7 @@ recorded in the S5 machine file.
 
 ## What should earn adoption next
 
-- Date: initial evaluation proposal, recorded by `e87477a` (2026-09-09T09:19:20-07:00); not a completed evaluation. The open evaluation is in [build requests](build_request.md#br-005--complete-print-and-novice-workflow-evaluation).
+- Date: initial evaluation proposal, recorded by `e87477a` (2026-09-09T09:19:20-07:00); not a completed evaluation. The [provenance audit](#2026-09-14--build-request-provenance-audit) recovered no explicit approval of the comparative novice study, so it is excluded from the outstanding-work queue.
 
 Recommend proving one complete print before adding a catalog of operations.
 The value to test is whether SAAM reduces setup, clarification and recovery work
@@ -1363,10 +2234,8 @@ not full bundle generation, export or Studio. The manual owns pattern limits.
 - Work date: 2026-09-11. First committed record: `d8ed7a9` (2026-09-11T17:36:21-07:00); this is a checkpoint, not an exact completion timestamp.
 
 - Source: user requested repair of a supplied spiral-vase STL before Bambu printing, confirmed millimeter units, and explicitly requested an original generalized mesh fixer rather than a vase-specific patch.
-- Implemented: [explicit repair](core/geom/README.md#explicit-mesh-repair) through the shared print CLI. Original JavaScript winding-grid reconstruction and marching tetrahedra handle intersecting closed oriented surfaces, followed when needed by quadric simplification with local topology and spatial collision checks. Import remains strict. Repair preserves original bytes and records hashes, numerical settings, bounds, sampled shape changes and validation before the normal geometry review.
-- Verification: 20 focused repair/mesh tests pass, including analytical union convergence and membership, folded connected surfaces, cavities, through-holes, disconnected components, thin material, exact cleanup, units, near-parallel adjacency, resource failures and unapproved S5/H2D imports. The supplied 8220-facet STL has 96 degenerate facets; the 2 mm trial produces 80000 triangles and passes shared mesh checks, additional adjacent-contact checks and exact-output STL reimport. It takes about 84.5 seconds in this checkout. Maximum sampled distances are 2.024 mm from source vertices to the result and 1.120 mm in the reverse direction; these are not certified surface bounds. A separate 2.2 mm trial without simplification passes at 86996 triangles in about 9.6 seconds, with larger sampled changes.
-- Limits: approximate, resolution-dependent solid reconstruction, not exact triangle splitting or a universal guarantee. Thin features/gaps can change; winding determines material. Open, inconsistently oriented and nonmanifold-edge sources remain unsupported. Allocation/import limits and failed validation return no purported repaired artifact. Per-skill shape restrictions remain, including convex sections for vase-wall. No human manufacturing approval, machine execution, physical validation, staging, commit or publication by the agent.
-- Follow-up: the finer 1.5 mm reconstruction passes at 100000 triangles; maximum sampled distances are 1.443 mm from source vertices to the result and 0.956 mm in reverse. The repair change passes all 310 repository tests. On 2026-09-11 the user explicitly authorized zero-infill support and ordinary planar printing after clarifying that the source defines a solid envelope. Planar infill now accepts zero alongside the existing positive range, preserving walls and full-fill's selected solid masks. The proposed H2D print uses two 0.4 mm walls, 0.2 mm layers, five bottom layers and no top layers. The existing three human reviews remain; no continuous vase-wall operation is selected.
+- Current implementation is documented at [explicit mesh repair](core/geom/README.md#explicit-mesh-repair). Obsolete implementation details and measurements were removed at Nave's request on September 14.
+- Follow-up: On 2026-09-11 the user explicitly authorized zero-infill support and ordinary planar printing after clarifying that the source defines a solid envelope. Planar infill now accepts zero alongside the existing positive range, preserving walls and full-fill's selected solid masks. The proposed H2D print uses two 0.4 mm walls, 0.2 mm layers, five bottom layers and no top layers. The existing three human reviews remain; no continuous vase-wall operation is selected.
 
 ## BR-039 — Remove repeated validation and make slicing progress truthful
 

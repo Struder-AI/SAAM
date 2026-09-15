@@ -11,7 +11,7 @@ to your experience, without needing to learn CAD, slicing, or programming first.
 
 Describe your part in chat. Your agent prepares a shape to inspect in **SAAM
 Studio**, works out the printing settings with you, and generates the toolpath
-for review. You approve the geometry, the process plan and the toolpath. SAAM
+for review. You confirm the geometry, then settings and toolpath together. SAAM
 then delivers the same machine-program bytes you reviewed.
 
 Your agent handles the tools and settings; you guide the result. See the
@@ -64,12 +64,12 @@ Ask your agent to **open the SAAM tour**, or launch Studio after setup:
 node studio/server.mjs
 ```
 
-The [guided tour](examples/prints/README.md) takes you through a bivariate surface
-drape, wavy DENSO cladding, and Nudge Cup in the same viewer used for your parts.
+The [guided tour](examples/prints/README.md) takes you through a wavy roof,
+Nudge Cup, and DENSO cladding in the same viewer used for your parts.
 Their geometry, settings and toolpath previews are ready to explore. Studio saves
 your copies automatically in ignored `Prints/tour/`, remembers your place, and
-lets you revisit them with **Open print**. **Use this example** starts the normal
-review workflow; exploring a demo grants no printing approvals.
+keeps chat edits inside the guide. Finish the tour to choose an example for your
+own print or explore freely. Exploring a demo grants no printing approvals.
 
 ## Reading and contributing
 

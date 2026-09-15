@@ -27,13 +27,21 @@ import {pipeCladdingResult,substrateSection,substrateLoops} from '../../skills/p
 import {infillStrokes} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {splineTubeShell} from '../geom/spline-tube.mjs';
 import {publishFinishedBoundary,consumeFinishedSurface} from '../path/finished-surface.mjs';
+import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
+import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
+import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
+import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
 
-export const hasMesh=geometry=>['mesh','pipe','text','gridfinity'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
 export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
   if(geometry.shape==='pipe')return pipeMesh(geometry);
-  if(['mesh','text','gridfinity'].includes(geometry.shape))return makeMesh(geometry.vertices,geometry.triangles);
+  if(['mesh','text','gridfinity','heat-set'].includes(geometry.shape)){
+    const mesh=makeMesh(geometry.vertices,geometry.triangles),features=heatSetFeatures(geometry);
+    if(features.length)mesh.planarDetails=heatSetDetails(features);
+    return mesh;
+  }
   if(geometry.shape==='assembly'&&hasMesh(geometry)) {
     const components=geometry.parts.map(part=>translateShell(buildShell(rhino,part.geometry),part.xMm,part.yMm,part.zMm));
     return {kind:'assembly',components,bounds:{min:[0,1,2].map(i=>Math.min(...components.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...components.map(c=>c.bounds.max[i])))}};
@@ -68,7 +76,11 @@ export function buildShell(rhino, geometry) {
 // patches keep their parameterisation, so sections and surface solves are
 // unaffected apart from the translation.
 export function translateShell(shell, dx, dy, dz = 0) {
-  if(shell.kind==='triangle-mesh')return translateMesh(shell,dx,dy,dz);
+  if(shell.kind==='triangle-mesh'){
+    const moved=translateMesh(shell,dx,dy,dz);
+    if(shell.planarDetails)moved.planarDetails=shell.planarDetails.translated(dx,dy,dz);
+    return moved;
+  }
   if(shell.kind==='assembly')return {...shell,components:shell.components.map(s=>translateShell(s,dx,dy,dz)),bounds:{min:shell.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:shell.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
   const patches = shell.patches.map(patch => {
     const cp = Float64Array.from(patch.cp);
@@ -85,12 +97,14 @@ export function translateShell(shell, dx, dy, dz = 0) {
   return assertClosed(moved);
 }
 
-export function generatePath(plan, machine, rhino) {
+export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   validatePlan(plan, machine);
+  validateHeatSetAssignments(plan);
   const placed = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
   const componentShells=plan.geometry.shape==='assembly' ? new Map(plan.geometry.parts.map(part=>[part.id,
     translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
   const process = plan.process;
+  const weldSites=preparePlasticWeld({plan,placed,componentShells});
   const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=bounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=bounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
   const fill = plan.skills['full-fill'], skin = plan.skills['draped-skin'],normal=plan.skills['planar-infill'];
@@ -146,12 +160,12 @@ export function generatePath(plan, machine, rhino) {
     requireThat(!(useFill&&useNormal&&fill.mode==='body'),'Full-fill body and planar-infill overlap; select full-fill solid-surfaces mode or separate components.');
     requireThat(!(useFill&&fill.mode==='solid-surfaces'&&!useNormal),'Solid-surface selection requires planar-infill on the same component.');
     if(useNormal){
-      const [sparse,solid]=planarInfillResults({shell,plan,machine,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill});
+      const [sparse,solid]=planarInfillResults({shell,plan,machine,reserve:survey,id:componentShells?id+':planar-infill':'planar-infill',solid:useFill,onProgress});
       publishFinishedBoundary(sparse,{shell,coverage:normal.perimeters?'nominal':'sparse'});
       if(solid)publishFinishedBoundary(solid,{shell});
       results.push(sparse);normalResults.push(sparse);
       if(solid){results.push(solid);fillResults.push(solid);}
-    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,
+    } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress,
       ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1,spacingFactor:fill.spacingFactor})}:{})});
       publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor===1?'nominal':'sparse'});
       results.push(result);fillResults.push(result);}
@@ -182,11 +196,15 @@ export function generatePath(plan, machine, rhino) {
     const result=pipeCladdingResult({plan,shell,finishedSurface,after:finishedSurface?[]:results.flatMap(r=>r.operations.map(op=>op.id))});
     results.push(result);summary.pipeCladding=result.report;
   }
+  const waves=waveResults({plan,machine,placed,componentShells,modelResults:results});
+  if(waves.length){results.push(...waves);summary.waveOverhangs=waves.map(r=>r.report);}
   const rims=[...rimmingPlanarResults({plan,modelResults:results}),...rimmingNormalResults({plan,modelResults:results})];
   if(rims.length){results.unshift(...rims);summary.rimming=rims.map(r=>r.report);}
   const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});
   if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
-  summary.composition=composeResults(builder,results,plan.composition);
+  const welds=plasticWeldResult({plan,sites:weldSites,modelResults:results});
+  if(welds){results.push(welds);summary.plasticWeld=welds.report;}
+  summary.composition=composeResults(builder,results,plan.composition,onProgress);
 
   builder.setContext('finish', 0);
   builder.park();
