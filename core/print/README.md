@@ -41,6 +41,21 @@ the reviewed bytes. This transition does not approve settings or toolpath.
 Stale source falls back to generation. A plan changed during generation cannot
 receive the earlier candidate.
 
+Geometry-only bundle reads and their change fingerprints omit export bytes.
+Fingerprint snapshots reuse content digests while file identity, size, modification
+and change times match; this is change detection, not approval evidence. Review,
+approval and delivery still check current bytes at their owning boundary. Runtime
+provenance retains its full manifest and order, reading duplicate file entries once.
+Recipe adjustment returns the owning update result instead of loading it again;
+the update still checks a fresh revision before saving.
+
+The `presentation` fingerprint separates scene/source identity from approval,
+delivery history and generation mode. Other generation claims and current export
+bytes remain part of source identity. Compact review updates still load validated
+state before updating controls. Generation accepts a `beforeCommit` callback for
+an owning worker to arbitrate cancellation before any output/check/review writes;
+once commit begins, cancellation must let the sequence finish.
+
 Generation performs the calculations specified by the plan. It does not add
 another planning stage. A plan must include the choices, settings and versions
 required for repeatable generation. A random seed is only appropriate for a

@@ -47,7 +47,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start Studio; emit its URL; request browser opening; read participation guidance and tour state. | A live Studio session, initial recipe summary, MAKERS and tour-participation context, plus listener arguments/cursor. |
 | `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
 | `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
-| `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, confirmations and matching tour instruction. | The exact request ID and edit context. A context-read failure marks that request failed and reports it. |
+| `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, geometry confirmation and matching tour instruction without checking the old export. | The exact request ID and edit context, with `programChecked: false`. A context-read failure marks that request failed and reports it. |
 | `wait-for-studio-request` | Wait for queued requests for up to 25 seconds; optionally claim the returned requests in that call. | Requests, their status and an updated `after` list. |
 | `respond-to-studio-request ID` | Record a prepared geometry/toolpath target, or update the matching request's response/status through the shared request API. | Updated request. Other outstanding work remains independent. |
 | `inspect-generation-failure DIRECTORY` | Read requests for that print; read current validated recipe/export status, retaining validation errors when loading fails; return generation guidance and links to the recipe's skill manuals. | Diagnostic evidence, settings, machine-configuration gaps, and skill references for individual follow-up reads. No correction, retry or request claim. |
@@ -160,6 +160,12 @@ in the viewer. Send the required chat acknowledgement and resolve only that
 request. `--after ID` may repeat when waiting. Unclaimed requests excluded by a
 cursor still remain queued; use `--claim` for an active handler. Claiming in one
 call is not a cross-process exclusive-worker lock.
+
+`record-request-activity ID` renews contact while the agent is actually working
+on that request. It preserves status, baseline and target, and does not resume
+waiting work. Never run it as an idle heartbeat. MCP print tools can instead bind
+their real tool entry/exit with `requestIds`. Failure inspection with a request ID
+reads that file directly; otherwise it selects the named print's history.
 
 Failure inspection preserves exact Studio request instructions, which include
 generation errors, and labels raw recipes as unvalidated if loading fails.

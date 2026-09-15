@@ -1,5 +1,12 @@
 # Development tests
 
+`request-index.test.mjs` covers warm operational queries with 1,000 historical
+records, external changes, full history, lease activity and late tour choices.
+`studio-generation-control.test.mjs` covers real worker cancellation/retry, the
+before-save cancellation boundary and compact approval/delivery updates.
+`file-write.test.mjs` covers concurrent temporary-file isolation, bounded Windows
+sharing-conflict retries and preservation of prior contents on permanent failure.
+
 Use [Avoid check spirals](../../DEVELOP.md#avoid-check-spirals) to decide whether
 verification is needed. This reference locates coverage and describes useful test
 design; it adds no verification pass. Commands and source paths in code spans are
@@ -66,6 +73,13 @@ demonstrate the failure they protect against without requiring an extra checklis
 
 ## Test registry
 
+[Vase motif tiling](../../skills/vase-wall/tests/motif.test.mjs) covers compact
+single-cell recipes, exact cell/course joins, tilt before mapping, guide-side
+placement, changing host sections, course progress, authoring-form changes and
+checked S5/H2D/configured Dobot output. Existing
+[mapped-path tests](../../skills/vase-wall/tests/paths.test.mjs) retain advanced
+authored-path, regional, sleeve and review coverage.
+
 [Curved text composition](../../skills/text/tests/draped-text.test.mjs) covers
 four draped glyph layers above a native wavy roof, holes and disconnected glyphs,
 support-derived first-bead volumes, ordering, machine-command preservation and
@@ -91,7 +105,21 @@ Tour speed regressions cover current-byte production reuse and stage progress in
 [studio-tour.test.mjs](studio-tour.test.mjs), edit generation and completion in
 [studio-tour-ui.test.mjs](studio-tour-ui.test.mjs), and compact material-buffer
 equivalence across chunk boundaries in [studio-material.test.mjs](studio-material.test.mjs).
+Request-target publication, pause/resume identity and stale-response merging live
+in the Studio work/agent-UI tests. The open tests check that ordinary review and
+unconfirmed generation start no slicing worker. Reconnect tests also exercise
+metadata-only tour updates without stopping playback; tour-UI tests cover missing
+or unavailable start-layer fallback and generation waiting for published edits.
 These are software checks; real agent response latency requires a timed tour pass.
+
+`read-scope.test.mjs` instruments application filesystem calls and motion copies:
+one selected manual, discovery without geometry/exports, export-free edits and
+geometry fingerprints, direct request lookup, malformed-record isolation and
+machine-study polling. It also checks that changed export bytes remain rejected.
+Tour tests cover fresh runs, cancellation of teaching on lesson changes, and the
+absence of a resume route; individual edit cancellation retains the live tour.
+`studio-tour-lifetime.test.mjs` covers reconnect continuity, end-of-grace shutdown,
+fresh startup after reopening and isolation from observer/older-owner shutdown.
 
 [studio-view-readiness.test.mjs](studio-view-readiness.test.mjs) exercises ordinary
 geometry confirmation through rendered toolpath acknowledgement and activity

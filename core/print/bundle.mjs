@@ -9,7 +9,7 @@ const RUNTIME_FILES = [
   '../../skills/heat-set-inserts/scripts/geometry.mjs','../../skills/heat-set-inserts/scripts/reinforcement.mjs','./heat-set.mjs',
   '../../skills/wave-overhangs/scripts/wave.mjs',
   '../../skills/gridfinity/scripts/record.mjs','../../skills/gridfinity/scripts/gridfinity.mjs','../../skills/gridfinity/scripts/bundle.mjs',
-  '../path/deposition.mjs','../geom/contour-path.mjs','../../skills/vase-wall/scripts/paths.mjs',
+  '../path/deposition.mjs','../geom/contour-path.mjs','../../skills/vase-wall/scripts/paths.mjs','../../skills/vase-wall/scripts/motif.mjs',
   '../geom/text-record.mjs','../geom/selections.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',
   '../../skills/text/scripts/text.mjs','./text.mjs','../../node_modules/manifold-3d/manifold.js','../../node_modules/manifold-3d/manifold.wasm',
   '../../node_modules/fontkit/dist/module.mjs',

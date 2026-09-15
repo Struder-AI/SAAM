@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {resolve,basename} from 'node:path';
-export async function printName(directory){
-  let plan;try{plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));}catch{return basename(directory);}
+export async function printName(directory,plan){
+  if(!plan)try{plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));}catch{return basename(directory);}
   function named(g){return g?.shape==='text'?g.features?.map(f=>f.text).filter(Boolean).join(' & '):null;}
   const g=plan.geometry,base=g?.shape==='text'?g.base:g;
   const handle=g?.shape==='assembly'&&g.parts?.find(p=>p.id==='fin');

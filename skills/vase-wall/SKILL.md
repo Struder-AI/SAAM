@@ -1,6 +1,6 @@
 ---
 name: vase-wall
-description: Print a hollow vase from an ordinary solid model, using a continuous spiral or repeating motifs warped around its contours. Overlapping tilted loops can preserve the guide's exterior or create a scalloped finish. Continuous vase mode has no travel; explicit segmented mode permits gaps.
+description: Print a hollow vase from a solid reference sleeve using a spiral or one reusable motif tiled into connected courses and flow-mapped around its contours. Tilted overlapping loops can follow either side of the guide and drift on changing sections. Continuous vase mode has no travel; explicit advanced segmented paths permit gaps.
 ---
 
 # Vase wall
@@ -90,7 +90,7 @@ configuration solely for testing; it must not be run on hardware.
 | `zStartMm` | `0` | Base top, measured above the selected component's minimum Z. A positive value requires full-fill on that component. |
 | `zEndMm` | `null` | Wall top above component minimum Z; null uses the geometry's maximum Z. |
 | `endTransition` | `spiral` | Keep the sloping rim, or `level` to finish a planar material boundary. |
-| `pattern` | `null` | Plain spiral, or a repeatable motif mapped to actual sleeve sections. |
+| `pattern` | `null` | Plain spiral, one motif with regular tiling settings, or advanced authored paths mapped to actual sleeve sections. |
 | `pathMode` | `continuous` | Continuous vase extrusion, or explicit `segmented` paths that permit travel across gaps. |
 | `sampleStepMm` | `1` | Maximum emitted segment length, 0.1–5 mm. |
 | `toleranceMm` | `0.02` | Contour subdivision tolerance, 0.002–0.05 mm; midpoint deviation is limited to half this value. |
@@ -194,7 +194,89 @@ surfaces are not an additional import format. Concave outer sections are allowed
 when the half-bead inset remains one closed contour. Sleeve material must have
 room for the selected bead width.
 
-`pattern` contains `paths`, `advance` and `repeats`. Each path contains `points`
+### One motif, a regular tiler, then sleeve mapping
+
+**For a repeated looping wall, select or author one motif. Do not hand-author
+every loop or an entire course.** A motif is one continuous curve in a cell of
+the regular, unwrapped reference strip. The tiler repeats that cell along the
+strip, adds the course rise, and repeats courses upward. The shared mapper then
+flows the parameter strip onto actual sections of the selected solid or sleeve.
+Only the motif deposits; the strip and sleeve are reference surfaces.
+
+The ordinary `pattern` form stores:
+
+| Field | Meaning |
+|---|---|
+| `motif` | One curve: `points`, `beadHeightMm`, and optional `offsetMm`. |
+| `cellsPerTurn` | Positive integer number of cells around a complete sleeve turn. |
+| `courseRiseMm` | Positive rise across one entire course. |
+| `repeats` | Positive integer number of complete courses. |
+| `tiltDeg` | Additional rotation of the motif's depth/height plane about its advance direction. Zero retains its authored tilt. |
+
+Motif `points` are **[cell fraction, local height in mm]**. The first point
+has cell fraction 0 and the last has 1. Their local heights and contour offsets
+must be identical; per-point bead heights also agree at the shared endpoint.
+Interior points can double back, go outside the cell, cross
+in projection, and descend locally. These are reference coordinates, not world
+XYZ. `offsetMm` and `beadHeightMm` use the scalar/per-point forms below.
+
+Endpoint agreement is mandatory, including the join from one course to the next.
+Invalid cells are rejected; the tiler never adds a straight connector, guide
+ring, extra wall or travel gap. This form requires `pathMode: continuous`.
+Overlap and nominal bead heights remain authored printing choices, not an
+automatic contact or collision solution.
+
+Tilt pivots about the first point's height and offset. It rotates transverse
+offset and local height together; the course rise is added afterward. For cell
+`i` and local fraction `u`, the global perimeter phase is
+`(i + u) / cellsPerTurn`. Its height gains that phase times `courseRiseMm` and
+then one additional `courseRiseMm` per repeated course. This gives a connected
+rising strip, including its periodic seam. Course grouping retains ordinary
+layer identity and cooling; a tiny cell is not treated as a whole cooling layer.
+
+The strip maps through normalized arc length at each point's **actual height**,
+including tilted descents, then through the requested parallel contour offset.
+This preserves parameter position on tapered, bent or irregular supported hosts;
+it does not promise constant physical cell width or an isometric/normal surface
+projection. Changes in contour shape and length can cause course-to-course drift.
+There is no requirement to stack each loop directly over its predecessor.
+
+[motif.mjs](scripts/motif.mjs) supplies the reusable overlapping-loop selection:
+
+```js
+import {loopMotif} from './skills/vase-wall/scripts/motif.mjs';
+
+plan.skills['vase-wall'].pattern = {
+  motif: loopMotif({widthCells: 1.3, depthMm: 4.8, samples: 64,
+    beadHeightMm: 0.2, exterior: 'smooth'}),
+  cellsPerTurn: 20,
+  courseRiseMm: 0.2,
+  repeats: 24,
+  tiltDeg: 0
+};
+```
+
+`loopMotif` includes cell advance in the looping curve itself. `widthCells` is
+its tangential oscillation width relative to one cell; `depthMm` is its transverse
+depth. It has a gentle authored height slope of 0.03 mm per mm of loop depth.
+`smooth` keeps the outermost offset at zero with inward lobes; `scalloped` flips
+them outward; `both-scalloped` centers them across the guide. Select additional
+tilt deliberately: it changes both depth and height and can change which side
+matches the reference. Any other sampled continuous cell can replace this preset.
+
+The [loop demo](scripts/loop-demo.mjs) stores this compact recipe and computes its
+host height from the complete pattern. Normal `init`/`adjust`, MCP creation and
+adjustment, regional overrides, Studio settings and machine output use the same
+form. Change motif, count or tilt through the normal recipe patch. A complete
+replacement can switch between this form and the advanced form below.
+Changing settings preserves unchanged host approval and invalidates the affected
+toolpath. Patterns that exceed the selected height or sampling budget fail
+explicitly; generation never trims the requested cells or courses.
+
+### Advanced authored paths
+
+Existing `pattern` records containing `paths`, `advance` and `repeats` remain
+supported for explicitly authored paths and segmented work. Each path contains `points`
 and `beadHeightMm`, with optional `offsetMm`. Points are **[unwrapped perimeter turns, height in mm]**.
 One turn means the entire inset contour at that point's actual height. The height
 is above the starting print height, one first/normal layer above the selected
@@ -219,8 +301,10 @@ itself remains unchanged.
 ### Motifs, host shape and exterior finish
 
 A **motif** is the small repeated curve, such as a loop or zigzag. The **pattern**
-describes its placement and connections along the rising vase path; a saved
-pattern path can contain an entire course of motifs.
+describes its placement and connections along the rising vase path. The ordinary
+recipe retains one motif and its tiling settings; advanced authored paths may
+contain an entire course. A gyroid-inspired looping wall uses this motif contract,
+not merely radial waviness on an otherwise ordinary spiral.
 
 Mapping queries the actual host section at every sampled Z, including local
 descents in a tilted motif. A wavy or tapered host therefore changes the path
@@ -305,6 +389,10 @@ continuous mode inserts no cooling parks inside the pattern. An authored pattern
 has no automatic level ending and publishes no assumed filled rim or finished
 side surface for downstream consumers.
 
+Generation reports `Mapping vase motif courses` with completed/total courses
+through the ordinary progress callback and Studio preparation probe. A completed
+base-layer stage is not the progress measure for the subsequent looping wall.
+
 Old recipes with `paths: null` normalize to the plain spiral. The mistaken
 standalone XYZ-path mode is retired: non-null old `paths` is rejected with an
 instruction to recreate the motif, never silently reinterpreted. Existing private
@@ -346,6 +434,26 @@ node skills/vase-wall/scripts/loop-demo.mjs Prints/development/scalloped-loop-va
 node skills/vase-wall/scripts/loop-demo.mjs Prints/development/wavy-scalloped-loop-vase wavy
 node skills/vase-wall/scripts/loop-demo.mjs Prints/development/both-scalloped-loop-vase both-scalloped
 ```
+
+[irregular-demo.mjs](scripts/irregular-demo.mjs) reproduces the broader looping
+wall on a waisted, leaning oval sleeve: 48 × 36.46 × 30 mm overall, one motif
+with `widthCells: 2.8` and 4.8 mm inward depth, 20 cells per course and 145 complete
+courses above a 0.6 mm solid base. Each cell overlaps several neighbors; this is
+an overlapping-loop appearance, not a mathematical gyroid. The oval sections
+retain their aspect ratio while size and position change with height. Import
+`irregularLoopDemoPlan()` to start from the saved-recipe form and adjust it normally.
+
+```sh
+node skills/vase-wall/scripts/irregular-demo.mjs Prints/development/irregular-loop-vase
+node studio/server.mjs Prints/development/irregular-loop-vase
+```
+
+Generation reports course progress. Let this command finish before opening its
+result, and do not start a duplicate CLI calculation when Studio is already
+generating. Existing Studio servers must be restarted after mapper code changes.
+Keep complete cells/courses and the selected tolerances; a mapping failure is
+not permission to trim the path. Changing section topology or contour/seam
+discontinuities can still fail the subdivision check, even on a closed host.
 
 ## Shared example
 

@@ -127,7 +127,7 @@ function publishSurface(record,results) {
     sourceOperationIds:[...ids(results),...(shell.processReservations??[]).map(r=>r.completion).filter(c=>c&&c.z>start+1e-8&&c.z<=end+1e-8).map(c=>c.operationId)],kind,sourceRegionId:record.assignment.id};
 }
 
-export function generateRegionResults({plan,machine,placed,componentShells,selections}) {
+export function generateRegionResults({plan,machine,placed,componentShells,selections,onProgress}) {
   const records=plan.composition.regions.map(assignment=>{
     const shell=componentShells?componentShells.get(assignment.part):placed;
     const localPlan=structuredClone(plan);localPlan.composition.regions=[];
@@ -201,7 +201,7 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
     if(has(record,'vase-wall')) {
       requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
       const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,
-        budgetSetting:`composition.regions[${plan.composition.regions.indexOf(assignment)}].skills.vase-wall.maxPoints (region ${assignment.id})`});
+        budgetSetting:`composition.regions[${plan.composition.regions.indexOf(assignment)}].skills.vase-wall.maxPoints (region ${assignment.id})`,onProgress});
       record.results.push(result);
     }
     if(has(record,'thick-lip')) {

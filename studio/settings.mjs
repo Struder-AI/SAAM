@@ -49,16 +49,19 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){
+        const tiled=Boolean(v.motif),paths=tiled?[v.motif]:v.paths;
         rows.push([prefix+' · Pattern','Repeated motif on the selected solid or sleeve'],
           [prefix+' · Deposition','Motif strokes only; the guide surface is not printed'],
           [prefix+' · Repetitions',String(v.repeats)],
-          [prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
+          [prefix+' · Advance',tiled?'1 perimeter turn / '+v.courseRiseMm+' mm rise':v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
           [prefix+' · Mapping','Actual inset contour at each height; fraction of perimeter length']);
-        for(const [i,path] of v.paths.entries())rows.push(
+        if(tiled)rows.push([prefix+' · Motif tiling',v.cellsPerTurn+' cells per course × '+v.repeats+' courses'],
+          [prefix+' · Motif tilt',v.tiltDeg+'° about the cell advance direction']);
+        for(const [i,path] of paths.entries())rows.push(
           [prefix+' · Motif path '+(i+1),path.points.length+' points'],
-          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+' (turns, mm)'],
+          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+(tiled?' (cell fraction, mm)':' (turns, mm)')],
           [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
-        for(const [i,path] of v.paths.entries())if(path.offsetMm!==undefined){
+        for(const [i,path] of paths.entries())if(path.offsetMm!==undefined){
           const values=Array.isArray(path.offsetMm)?path.offsetMm:[path.offsetMm];
           rows.push([prefix+' · Contour offset '+(i+1),Math.min(...values)+' to '+Math.max(...values)+' mm; negative extends inward']);
         }

@@ -4,6 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {circlePoints} from '../../../core/geom/cylinder.mjs';
+import {loopMotif,tileVaseMotif} from './motif.mjs';
 
 // A vase host is normally solid. The recipe creates the hollow printed wall.
 export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
@@ -28,24 +29,16 @@ export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
 export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
   radius=14,motifDepthMm=4.8,motifWidthMm=5.6,exterior='smooth',waveDepthMm=0}={}){
   if(!['smooth','scalloped','both-scalloped'].includes(exterior))throw new Error('Choose smooth, scalloped or both-scalloped.');
-  const plan=defaults(),tangentRadius=motifWidthMm/2;
+  const plan=defaults();
   const perimeter=2*Math.PI*(radius-plan.process.lineWidthMm/2),rise=plan.process.layerMm;
-  const points=[],offsets=[];
-  // The advance is part of the looping curve itself. There is no separate
-  // circumference stroke, closing circle, or straight connector between loops.
-  for(let i=0;i<=loopsPerTurn*samplesPerLoop;i++){
-    const phase=i/(loopsPerTurn*samplesPerLoop),fraction=(i%samplesPerLoop)/samplesPerLoop;
-    const angle=2*Math.PI*fraction,x=tangentRadius*Math.sin(angle);
-    const depth=motifDepthMm*(1-Math.cos(angle))/2;
-    const offset=exterior==='both-scalloped'?motifDepthMm/2-depth:exterior==='scalloped'?depth:-depth;
-    points.push([phase+x/perimeter,rise*phase+.03*depth]);offsets.push(offset);
-  }
+  const pattern={motif:loopMotif({widthCells:motifWidthMm*loopsPerTurn/perimeter,depthMm:motifDepthMm,
+    samples:samplesPerLoop,beadHeightMm:rise,exterior}),cellsPerTurn:loopsPerTurn,courseRiseMm:rise,repeats:courses,tiltDeg:0};
+  const {points}=tileVaseMotif(pattern,plan.skills['vase-wall'].maxPoints).paths[0];
   const top=plan.process.firstLayerMm+Math.max(...points.map(p=>p[1]))+(courses-1)*rise;
   plan.geometry=loopHost({radius,heightMm:top,waveDepthMm});
   plan.placement={xMm:125,yMm:105};
   for(const settings of Object.values(plan.skills))settings.enabled=false;
-  Object.assign(plan.skills['vase-wall'],{enabled:true,pathMode:'continuous',pattern:{advance:[1,rise],repeats:courses,
-    paths:[{points,offsetMm:offsets,beadHeightMm:rise}]}});
+  Object.assign(plan.skills['vase-wall'],{enabled:true,pathMode:'continuous',pattern});
   return plan;
 }
 

@@ -50,7 +50,7 @@ function outerLoop(loops) {
   return loop;
 }
 
-export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStartMm=null,zEndMm=null,budgetSetting='skills.vase-wall.maxPoints'}) {
+export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStartMm=null,zEndMm=null,budgetSetting='skills.vase-wall.maxPoints',onProgress}) {
   const settings={...VASE_WALL_DEFAULTS,...plan.skills['vase-wall']},process=plan.process;
   const width=process.lineWidthMm,pitch=process.layerMm,base=zStartMm??(shell.bounds.min[2]+settings.zStartMm);
   const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:pitch;
@@ -126,7 +126,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     }
     return [...xy,z];
   }
-  if(settings.pattern!==null)return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,mappedPoint,budgetSetting,
+  if(settings.pattern!==null)return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,mappedPoint,budgetSetting,onProgress,
     sectionReport:()=>({sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM})});
   const point=t=>mappedPoint(t,zAt(t));
   const points=[point(0)],times=[0];

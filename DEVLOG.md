@@ -1,5 +1,489 @@
 # Development log
 
+## 2026-09-15 — Irregular broad-loop example and pre-performance checkpoint
+
+The user requested a wider motif on an irregular sleeve, accepted the displayed
+result and requested a checkpoint before investigating generation speed. The
+reusable vase-wall irregular demo now contains the exact demonstrated host and
+motif recipe: a waisted, leaning oval solid, 20 connected cells per course and
+145 full courses. The owning skill manual includes the command, adjustment
+entry point, progress, mapping limits and duplicate-generation guidance.
+
+The saved print generated 207,671 mapped motif points and 208,414 checked machine
+moves; the actual motif Z interval is 0.8–29.940035 mm. All shared generation
+checks passed. The 287 short-travel advisories were retained as nonblocking
+evidence in the private print. Geometry was confirmed by the human in Studio.
+The user intends to print; no physical result is yet recorded. An earlier host
+with rotating and changing-aspect oval sections failed the contour subdivision
+check near Z 2.23 mm; that trial generated no complete path. The displayed host
+retains oval aspect ratio while its section size and center change. No contour
+tolerance was relaxed and no course was trimmed.
+
+The checkpoint includes concurrent Studio coordination work as required by the
+repository's checkpoint policy; it is not a claim that all carried work is
+complete. Previous focused test evidence remains applicable. Performance work
+and any measurements begin after this checkpoint.
+
+## 2026-09-15 — File-compatible handoff work after SQLite withdrawal
+
+The user briefly approved SQLite while asking about update/version risks, then
+withdrew that option: **"2. I don't think it's worth it but start the rest."**
+Removed the partial database implementation before it was executed. No database,
+data migration, package dependency or Node engine change occurred. The existing
+JSON files and Node >=22 requirement remain. The earlier approved tour-disconnect
+policy remains in effect. Continued on the existing contributor branch without
+staging, committing or publishing, preserving concurrent skill/generator edits.
+
+### Implemented choices
+
+| Choice | Reason and boundary |
+|---|---|
+| Rebuildable request index in memory | Avoid migration and a second persistent authority. Normal queries retain unfinished work, undisplayed completed results and the latest edit outcome per print; full diagnostic history remains explicit. Watch hints plus five-second metadata reconciliation cover external changes. Cold scans and memory still scale with history; this does not provide cross-process transactions. |
+| Real request-specific activity | MCP print tools accept explicit `requestIds` and renew owned working requests at tool entry/exit. CLI agents can report actual work through `record-request-activity`. Waiting/listener helpers never renew leases; activity preserves pause, baseline and target. Long work with no observable contact may still expire. |
+| Cancel Studio calculation before saving | An authenticated cancel route bypasses the mutation queue and arbitrates with the worker using a shared atomic flag. If cancellation wins, the worker stops; if saving wins, its write sequence finishes. Cancellation does not queue generator repair or immediately auto-retry. Explicit retry works. Input-change notifications cancel obsolete Studio calculations. Direct CLI/MCP generation still needs a shared owner. |
+| Separate review updates from displayed-source identity | Approval, delivery history and generation-mode changes update controls after fresh validation. Compact updates omit accumulated history and retain playback/source state; input/export and other generation-identity changes still reload. Full approval/delivery byte checks remain. |
+| Reject late tour start-layer choices | MCP supplies the original run/lesson identities to the tour mutation. An ended or replaced lesson cannot accept that background choice. File-based cross-process read/modify/write races remain. |
+| Retry Windows file sharing conflicts | Browser verification reproduced EPERM while replacing review.json during generation. Shared single-file replacement now uses unique temporary names and bounded Windows EPERM/EACCES/EBUSY retries, preserving prior complete contents on failure. This is not a multi-file transaction. |
+
+### Verification and findings
+
+With 1,000 historical JSON requests, five warm operational queries performed zero
+file reads and zero directory scans. Explicit history remains complete, and the
+tests retain waiting requests and undisplayed results. Found and fixed a watcher
+startup gap (files created before attaching) and released idle watches for
+short-lived callers. Browser snapshots retire omitted resolved work while
+retaining updates that arrived after an older poll began.
+
+Selected software tests cover request discovery/activity, real SDK ownership and
+listeners, CLI participation, tour lifecycle, scoped stale choices, cancellation
+and retry, commit arbitration, exact-byte delivery, compact review updates,
+playback preservation, source invalidation, Windows retry/permanent failure and
+concurrent temporary-file isolation. The browser Cancel calculation action worked
+on an isolated synthetic 80 mm box. After the Windows fix and server restart,
+retry produced the playable toolpath and normal review controls. Browser warning
+and error logs were empty; the audit tab and its server were closed. No real
+manufacturing approval, hardware operation or physical print was performed.
+
+One earlier import/generation run reported a prepared-runtime mismatch while
+generator source was also changing in this shared checkout; subsequent stable
+runs passed. Reconnect test harnesses required the browser's URLSearchParams
+global after the poll URL gained a fingerprint parameter. These observations are
+not evidence of transactional safety. The documentation checker retains the six
+pre-existing status/link diagnostics. Remaining authorized ownership and broad
+read-audit work is tracked in [BR-050](build_request.md#br-050--finish-studio-coordination-and-read-path-handoff).
+
+## 2026-09-15 — Single-motif vase tiling made explicit
+
+The user specified one selected motif, mandatory cell endpoint connections,
+optional transverse tilt, upward repetition on a regular parameter strip, and
+mapping to the actual sleeve. They confirmed the displayed overlapping loops
+and authorized resolving either missing implementation or documentation. Session:
+`01a0a731-c52c-7f81-b60e-c20895d6661f`.
+
+Existing sleeve mapping and advanced repeated paths already supported the
+geometry. The loop demo authored a whole course, however, and saved no separate
+cell/layout recipe. Vase-wall now accepts one motif plus cells per turn, course
+rise, course count and tilt, expanding through the existing mapper. Cell joins
+are explicit and mandatory; course grouping retains cooling and layer identity.
+The loop demo uses that form. Normal recipe changes can switch authoring forms,
+and Studio reviews the cell layout. Skill discovery, the owning manual and the
+glossary describe the workflow and its actual-section mapping limits.
+
+Generation now reports completed motif courses through the existing progress
+callback, including regional work, instead of retaining the preceding base-fill
+stage. This adds progress visibility, not a slicing-performance claim.
+
+All 23 selected motif, mapped-path and Studio-settings tests passed. Coverage
+includes independently authored course equivalence, tilt, rejected gaps,
+inside/outside loop placement, changing hosts, persistence, form changes and
+S5/H2D/configured Dobot command interpretation. A saved development print retained
+one 17-point motif, tiled eight times per course across two courses, generated
+372 checked moves, and reported progress 0/2, 1/2 and 2/2. It had no human
+approvals. No physical printing or clearance validation is claimed.
+
+The repository-wide documentation scan reported an unrelated completed BR-045
+status and existing links to removed backlog headings BR-005, BR-018, BR-023 and
+BR-039. It reported no motif documentation or capability-digest errors.
+
+## 2026-09-15 — Tour disconnect policy approved and implemented
+
+The user answered **"1. yes"** to keeping a tour through brief browser disconnects
+and ending it on exit or Studio shutdown. For **"2. what is the case for it"**, the
+agent explained the proposed SQLite scope, atomic claims/indexed queries, the
+coordinator and file-lock alternatives, and schema/migration/runtime costs.
+That question is not approval to adopt SQLite or change the Node minimum.
+
+Studio now associates a live tour with its owning instance. The existing browser
+grace period retains that run across reconnection; owner shutdown clears it and
+cancels its pending work after accepted operations drain. Closing an observer or
+an older owner cannot end a later run owned by another Studio. Saved example
+prints remain, and opening one after shutdown does not restore the tour. Startup
+through the toolkit attaches the run created before server launch. New tours
+started through Studio record their owner directly.
+
+All 20 selected lifetime, reconnect, toolkit and tour-lifetime tests passed,
+including end-of-grace shutdown and cross-instance isolation. This implements
+normal shutdown and browser-disconnect behavior. Forced process death, atomic
+claims and cross-process mutation races remain part of coordination-store work;
+the file-backed owner field does not establish transactional ownership.
+
+## 2026-09-15 — Handoff implementation: tour scope and read boundaries
+
+The user asked to read the handoff, start work, explain decisions and ask about
+genuine ambiguity. Continued on the existing contributor branch and preserved
+the preceding uncommitted flow-audit work. This entry records the implemented
+portion; the broader coordination/read-path work remains in progress.
+
+### Choices implemented and their reasons
+
+| Choice | Alternatives considered and reason |
+|---|---|
+| Remove tour resume and identify runs/lesson visits. | Hiding the button alone would retain the API and obsolete teaching. Exit/cancel now clears an unfinished run; fresh starts create new example copies and a run ID. Leaving a lesson cancels scoped teaching, and revisiting creates a new lesson ID. Existing print copies remain saved. Individual edit cancellation does not end the tour. |
+| Select MCP read scope by operation. | Loading a full program and then shortening its response retains unnecessary decoding/copying. Discovery now returns names/machines/timestamps with unchecked export status. Checked summaries use the existing metadata-only program contract; edit dispatch omits old exports. Check/approval/delivery still verify bytes. |
+| Use catalog membership for selected manual reads. | Scanning every manual to establish a known ID adds no validity guarantee. A shared skill read now reads one manual; unknown IDs can consult the local extension. |
+| Retain the fresh mutation-boundary read. | Passing an earlier mutable snapshot into a writer without checking current inputs could accept stale edits. Adjustment now reuses updatePlan's returned state, while updatePlan retains its fresh revision check. Further snapshot reuse needs an owning concurrency contract. |
+| Separate geometry fingerprint scope from export scope. | A blanket cache bypass would repeat unrelated reads. Geometry fingerprints now omit exports while retaining original-STL integrity. Review and delivery still read current bytes. |
+| Share bounded file-digest reuse with machine studies. | Rehashing the motion source on every idle poll adds no new change information. Studies reuse metadata-bound digests and omit motion decoding for geometry-only reads; changed bytes still invalidate checked source. |
+| Report lease expiry as lost contact. | A helper heartbeat proves helper survival, not continued agent reasoning. No helper heartbeat was added. Ten-minute request leases remain; confirmed transport closure remains a distinct signal. |
+
+Also added direct request-ID lookup and malformed-JSON isolation, reused supplied
+plans for print names, shared a request snapshot within a tour state response,
+restricted the tour picker to its known example directories, removed duplicate
+signature reads, and stopped request-only events from scheduling generic revision
+polls (target publication still schedules needed generation). Runtime provenance
+keeps its manifest entries/order but reads repeated file paths once.
+
+### Additional read-path evidence
+
+The ignored `.local/read-path-followup.mjs` probe created its own small synthetic
+box, 1,000 historical requests and 21 ordinary prints. Its JSON report is
+`.local/read-path-followup-results.json`; results do not depend on private data.
+The application filesystem instrumentation records returned bytes, parsing,
+cloning and response sizes, not physical disk traffic or end-to-end user latency.
+Module/runtime caches were warmed by fixture construction. Concurrent filesystem
+notifications can contribute background reads; per-operation timings are not
+isolated microbenchmarks. Streams and worker processes are excluded.
+
+| Measured path | Result and disposition |
+|---|---|
+| Selected MCP `text` manual | One manual instead of the previously observed 17 reads. The manual response is about 30 KB; that is requested context, not a hidden full-catalog read. |
+| One/21-print discovery | 2/42 plan-and-machine content reads; no native geometry or exports. Responses approximately 120/2,600 bytes. Recursive link confinement remains and contributes metadata calls. |
+| Checked MCP summary | No motion arrays cloned; current program checks remain. |
+| Direct lookup with 1,000 historical requests | One record read, no directory scan. |
+| Operational request polling at that size | Approximately 534 KB response; full-history scanning and overlapping notification work remain. |
+| Tour geometry state | One request-directory scan shared by the state and lesson gate, but that scan still reads all history. The tour picker likewise still incurs gate-related request reads despite enumerating only its known prints. |
+| State → sources → view-ready | Approximately 88/88/101 KB read in this small fixture; source/geometry rereads remain across independently fresh boundaries. A shared verified-source handle remains a proposal. |
+| No-op/settings/geometry MCP edits | Old export reads removed. Nested geometry/recipe reads remain (19/23/23 readFile calls including metadata/notifications); eliminating them safely needs the mutation owner. |
+| Two simultaneous viewer state requests | Both perform their own reads; shared concurrent read work remains unimplemented. |
+
+The dedicated audit is **not complete**: fresh-process cold paths, large STL and
+native/source assets, growing review history, worker-side parsing/hashing/copies,
+generation cancellation/recovery, approval/delivery measurement and simultaneous
+agent-process ownership still need measurement. Existing software tests cover
+integrity and delivery, but are not latency measurements for those workloads.
+
+### Decisions awaiting clarification and remaining implementation
+
+1. **Disconnect policy:** asked whether a live tour should survive a brief browser
+   disconnect until explicit exit/cancel or Studio shutdown (recommended), or end
+   on browser disconnect. Shutdown/crash invalidation is not implemented in this
+   tranche; transient progress is still file-backed and can be observed by another
+   process. No resume UI/API remains, but that alone does not complete run lifetime.
+2. **Transactional storage compatibility:** compared an authoritative service
+   (requires discovery/startup and a standalone-CLI lifecycle), filesystem locks
+   (stale-lock ownership and crash recovery), and SQLite (atomic claims/indexed
+   queries with independent CLI operation). Recommended SQLite and asked whether
+   the minimum Node version may rise from 22 to 22.13 for its built-in module.
+   [Node's version history](https://nodejs.org/api/sqlite.html) records removal of
+   the startup flag in 22.13; the API remains experimental in that release.
+   No dependency or engine requirement has changed pending that answer.
+3. Indexed operational queries, atomic request/tour transitions, request-scoped
+   renewal from real tool activity, generation cancellation/supersession and compact
+   review updates remain. Implementing separate indexes or heartbeat helpers on the
+   existing nontransactional files would add a second consistency problem. These
+   should follow the chosen owner, retaining explicit history diagnostics and
+   completed work awaiting presentation. Late start-layer writes also need scope
+   validation at that owner, beyond cancellation of their guidance request.
+
+### Verification
+
+Targeted Studio tour/UI/import/agent tests, MCP tests, shared program-cache tests,
+machine-study tests, toolkit, geometry confirmation, work state, opening,
+reconnect and view-readiness tests passed across the relevant runs. New
+`read-scope.test.mjs` assertions cover scoped reads/copies, malformed request
+isolation, machine-study invalidation and altered-export rejection. An early MCP
+run hit an intermittent Windows EPERM replacing a request JSON file while a
+listener was active; the affected suite passed subsequently. This is further
+evidence for storage ownership, not evidence that the race is fixed.
+
+An isolated browser tour verified lesson-one geometry, absence of Resume, exit
+restoring ordinary controls, and Tour starting a fresh `handle-2` at lesson one.
+Browser warning/error logs were empty. Closed only the audit tab and managed
+server. All fixtures and approvals used here were synthetic software exercises;
+no physical print, hardware action or real manufacturing approval was performed.
+
+## 2026-09-15 — Studio flow audit and preview readiness
+
+Audited the user/agent/Studio boundary across startup, edits, guidance, imports,
+geometry confirmation, generation, playback, saved-print selection, export,
+tour navigation, failures, interruption and reconnect. The user's reported
+inconsistency had concrete sources: request completion, displayed-result
+identity, browser loading and lesson gating used different rules. The dots and
+dimmed viewport are now called **Updating preview**; the user rejected "print
+activity" because it sounds like exporting. Normal capabilities remain available
+from any view, subject to their actual inputs and human confirmation dependencies.
+Only the tour's teaching path narrows requests, with a gentle redirect and an
+explicit exit to ordinary work.
+
+### Findings addressed
+
+| Finding | Change and owning boundary |
+|---|---|
+| A single request could finish visually after any changed input, including an intermediate save or unchanged geometry after a settings change. | Every new edit requires a saved result target. The shared [work state](studio/work-state.mjs) matches the target's inputs and geometry/toolpath stage. Legacy inference is conservative. |
+| Waiting for one shape confirmation suppressed unrelated active edits; pausing and claiming work discarded its original baseline and target. | Waiting applies only to the matching prepared target. [Request persistence](studio/agent-requests.mjs) retains identity through pause/resume. |
+| Browser polling could replace newer request state with an older response, and targets published after rendering lacked a persisted display receipt. | [Agent UI](studio/agent-ui.mjs) merges by update time and asks the existing view-ready path to acknowledge already displayed targets without reloading. Presentation and disconnect writes advance update time. |
+| Early completion could leave an absent toolpath busy indefinitely; CLI begin-work could not reclaim a failed request. | Pending presentation has the request lease, and failed/expired work can be reclaimed. Successful presentation remains independent of final chat bookkeeping. |
+| Guidance dimmed usable geometry, and tour gates separately treated queued edits and advisories as blockers. | Guidance/advisories stay visually quiet. Tour gates consume the same request-activity function as the viewport; only active unfinished edit work blocks a delivered edit lesson. |
+| Ordinary geometry review started speculative workers; production generation could perform preparation before rejecting missing confirmation. | Ordinary state reads do not slice. Studio checks geometry confirmation before starting production work. Tour speculation is confined to the selected confirmed part in the import lesson. |
+| Tour auto-generation could slice intermediate saves while the agent was still assembling an edit. Geometry-only reads could also prepare an already generated part. | Automatic tour generation waits for active edits' published input targets. A matching stored generation suppresses speculation; later review still checks its bytes. |
+| Starting an edit checked the old export even though the agent was about to invalidate it. | [CLI begin-work](core/agent/toolkit.mjs) returns recipe/revision/geometry context without old-program validation and labels the unperformed check explicitly. It also returns the geometry hash. |
+| Lesson gates and late start-layer choices changed the full-view fingerprint, stopping playback and entering the loading state. | [Studio revision responses](studio/server.mjs) separate tour metadata from bundle/data-mode identity. [Browser polling](studio/app.mjs) updates metadata without source loading. Unchanged activity polls no longer rerender lesson guidance. Compact approval responses use that same fingerprint. |
+| Imported-model guidance could change settings and regenerate merely to find an infill layer; a now-invalid explicit layer could strand playback readiness. | Start-layer selection is quiet guidance over existing output. Missing or unavailable layers use deposited-layer fallback. It never requires a recipe change or reslice. |
+| Download progress implied preview work, and manuals mixed geometry completion, generation, chat replies and listener waits. | Downloads use their own progress state. [MAKERS](MAKERS.md#existing-studio-work) now owns an explicit situation/action table; toolkit, MCP and tour guidance point to compatible result-publication and response rules. |
+
+### Verification and limits of evidence
+
+All 81 selected software tests passed across `studio-work`, `studio-agent-ui`,
+`studio-view-readiness`, `studio-tour-ui`, `studio-tour`, `studio-agent`,
+`studio-open`, `studio-reconnect`, `agent-toolkit`, `mcp` and
+`chat-geometry-confirmation`. Coverage includes ordinary and tour edits,
+overlapping work, stale responses, same-lesson geometry recovery, worker failures,
+approval preservation, source reuse, S5/H2D/Dobot adapter paths and exact-byte
+delivery. After the final activity/receipt changes, their 52 affected
+Studio tests passed again. `git diff --check` passed.
+The repository documentation check reported the same six pre-existing diagnostics
+recorded in publication preparation below: BR-045 status punctuation and five
+links to removed backlog headings. It found no new link diagnostics for this work.
+
+An isolated browser run under ignored `Prints/studio-flow-audit-20260915` verified
+initial geometry, visible edit activity, an intermediate save remaining active,
+target publication clearing the indicator and unlocking Next before final agent
+completion, saved selection and generated playback. Changing the tour's start
+layer while playing preserved Pause, continued the timeline, and showed no busy
+indicator. Exiting restored ordinary geometry/toolpath, open, import and export
+controls. Browser error/warning logs were empty. Only the audit's tab and managed
+server were closed. These were synthetic software exercises, with no final
+manufacturing approval or physical print. No end-to-end latency benchmark or
+new evidence for the deposition algorithms was claimed.
+
+### Remaining structural findings and recommendations
+
+These are audit findings and proposals, not implemented capabilities or newly
+commissioned backlog work:
+
+1. **Shared storage has no transactional owner across processes.** Request and
+   tour files use atomic replacement, but read/modify/write transitions and claims
+   are not cross-process transactions. CLI, Studio and MCP can race; tour playback
+   writes can race a CLI start-layer change. Removing overlap rewrites and merging
+   browser responses reduces exposure but does not solve storage ownership.
+   Consolidating mutations behind one authoritative coordinator or transactional
+   store should precede claims of exclusive handling or simultaneous agents on
+   one part. The coordinator should own legal transitions and result receipts.
+2. **Generation is serialized but not user-cancellable.** Request/progress reads
+   stay responsive, while ordinary mutations queue behind a running generation
+   and the browser disables navigation. A changed recipe cannot receive an old
+   candidate, but obsolete computation may continue until that check. An explicit
+   cancellation/supersession contract at the generation owner would let a new
+   intent release obsolete work without restarting Studio. This needs coherent
+   CLI/MCP/Studio ownership, not a new lesson-specific exception.
+3. **The indicator observes request leases, not host reasoning.** A dead host
+   turn need not close MCP; conversely a live long edit can exceed the ten-minute
+   lease without renewing it. Geometry approval waits are now explicit, and the
+   maker guidance names renewal, but reliable host cancellation/heartbeat events
+   require client integration. An open viewer must not manufacture evidence that
+   its agent is still working.
+4. **Request history is scanned as a whole.** `list()` reads every saved record,
+   and UI polling returns the library's history. One malformed JSON record can
+   fail the batch. Bounded queries and per-record failure isolation belong with
+   the storage owner; no growth benchmark was performed in this audit.
+5. **Queued teaching can outlive its lesson.** Exit cancels tour work, but moving
+   back within a tour does not scope every queued signal to a live lesson. The
+   manual now tells agents to cancel obsolete guidance. Explicit event scope and
+   cancellation at the coordinator would make this independent of agent memory.
+6. **Review metadata and scene identity are still partly coupled.** Tour-only
+   metadata no longer causes reloads, and normal approval responses reconcile
+   their fingerprint. Tour export still changes review data and removes a marker,
+   so subsequent bundle polling can enter refresh, although matching source and
+   material buffers are reused. A shared compact review-state transition would
+   remove that remaining presentation detour without another export-only flag.
+
+### Follow-up handoff: tour lifetime, activity signals and design options
+
+The user specified the following tour intent after reviewing finding 5:
+**do not save tours for later resumption or expose resume in the UI.** Exiting
+or cancelling a tour ends that run; the next tour starts again from the beginning.
+Agent-mediated recovery on a specific user request remains a possibility to
+consider, not an approved exception or a required capability. This is recorded
+intent for follow-up implementation; the audit changes above do not implement it.
+
+Transient coordination state may still be needed while a tour is running; it
+must not become an implicit saved session. A recommended implementation is a
+unique run identity with lesson-scoped requests. Exit/cancellation invalidates
+that run and its pending teaching; starting again creates a new identity. Lesson
+changes must also invalidate obsolete teaching within a live run, so removing
+resume alone does not fully address finding 5. Whether a brief browser disconnect
+ends the run, and the exact treatment of unexpected host loss, remain unspecified.
+Cancelling an individual edit must remain distinct from cancelling the whole tour.
+
+For finding 3, the user proposed a cleanup listener launched with Studio and
+expressed a preference toward a heartbeat as the simpler approach. Neither is
+implemented by this handoff. A launcher-side listener can observe its own process
+and Studio work, but needs explicit host lifecycle events to know whether the
+agent's turn is active or cancelled. A heartbeat from a surviving helper proves
+only that helper is alive. The recommended portable fallback is request-scoped
+lease renewal on actual agent/tool activity, with expiration reported as lost
+contact rather than proof of model inactivity. Studio-owned workers can report
+their own liveness independently; geometry approval waits remain explicit states.
+A host adapter could add prompt cancellation signals without making host
+integration a prerequisite for ordinary use.
+
+The user found the remaining directions reasonable and asked to retain them as
+**suggestions, with explicit consideration of other options**. A follow-up
+implementer should compare alternatives against actual consumers, ownership,
+failure recovery and complexity before selecting a design. These suggestions
+are not fixed architecture decisions or a claim that the work is implemented:
+
+- **Storage ownership (1):** consider one authoritative coordinator for request
+  transitions and presentation receipts. Compare a coordinator process with
+  transactional storage, including CLI-only operation and process failure; do
+  not add both without a concrete need.
+- **Generation cancellation (2):** consider a shared cancellation/supersession
+  contract. The suggested product policy is that a newer edit supersedes obsolete
+  generation for the same print, while merely changing views does not cancel it.
+  Evaluate explicit cancellation and reuse of still-valid computation before
+  choosing worker and queue behavior.
+- **Agent liveness (3):** consider request leases as the portable baseline and
+  host lifecycle events as an optional improvement. Compare renewal sources and
+  timeout behavior; a helper's survival must not renew an agent request forever.
+  Tune expiration against observed workloads and distinguish lost contact from
+  confirmed cancellation, worker execution and waiting for a person.
+- **Request retrieval (4):** consider direct ID lookup, bounded operational
+  queries, change notifications and per-record failure isolation. Paginated
+  history is useful only where an actual diagnostic consumer needs it; do not
+  build a history feature merely to repair an inefficient active-request query.
+  Compare indexed storage with a bounded active set and optional archive.
+- **Tour scope (5):** apply the user's no-resume intent above. Run and lesson
+  identities are suggested mechanisms, not prescribed storage formats. Evaluate
+  brief-disconnect and host-loss behavior separately from explicit tour exit.
+- **Review updates (6):** consider updating review metadata independently of
+  geometry/toolpath loading through the shared state contract. Compare compact
+  updates with separated revision identities; avoid another export-only flag.
+
+#### Why history is currently read
+
+This is request-record history under `.studio-requests`, not chat transcripts or
+manufacturing review history. `list()` currently reads/parses every request file
+and normalizes lease expiration before consumers filter the returned records:
+
+| Consumer | Actual information needed |
+|---|---|
+| Studio browser polling (every 750 ms), state responses and disconnect notifications | Relevant request activity, pending presentation and failure notices. The server currently sends the library-wide list. |
+| CLI/MCP request wait loop (75 ms delay between scans while waiting), MCP queued-request notifications and queued-request checks | Queued requests; no completed history is needed for dispatch. |
+| CLI/MCP begin-work with a request ID | One request and its print identity; direct lookup would suffice. |
+| Presentation acknowledgements, owner disconnect cleanup and print cancellation | Unpresented work or cancellable requests for the relevant print/owner. A completed request awaiting presentation still belongs in the operational set. |
+| Tour lesson gating and edit evidence | Current work and qualifying edits within the lesson, including completed edits. Current code also collects prior IDs and recovers older saved-lesson baselines; those resume paths should be reconsidered under the new tour intent. |
+| Explicit failure inspection and MCP/CLI request listing | Selected historical records for diagnosis; explicit listing currently permits the full library history. |
+
+No recurring operational consumer inherently needs to scan all historical
+requests. Some need recently resolved records or current-lesson evidence, so
+filtering solely to `status === 'working'` would be incorrect. Preserve those
+semantics and explicit diagnostic access while avoiding full-history reads on
+the live path. This trace establishes unnecessary read scope, not a measured
+latency regression; no history-growth benchmark was run.
+
+### Follow-up: unnecessary reads and dedicated read-path audit
+
+The user challenged whether fixing request-history retrieval was enough. A
+follow-up source trace and isolated read-count probe found additional unnecessary
+scope and repeated work. The user then asked to adopt all findings/directions
+and recommend a dedicated read-path audit in this handoff. Carry the items below
+forward as accepted audit concerns and starting recommendations; compare other
+solutions before choosing implementation. This follow-up records evidence and
+intent, not implementation of these additional fixes. The earlier flow audit
+was broad behavioral coverage, not an exhaustive inventory of reads.
+
+#### Confirmed findings and suggested direction
+
+| Finding | Evidence and suggested direction |
+|---|---|
+| Request retrieval reads the whole library repeatedly. | The consumer trace above still applies. The probe observed five full scans in a 300 ms listener wait with existing IDs excluded, and two scans within one tour geometry state response. Use scoped operational queries/direct lookup and shared snapshots or notifications; retain pending-presentation and lesson evidence. |
+| MCP uses full bundle/program reads for operations that do not need the old toolpath. | `adapters/mcp/src/server.mjs` routes `adjust_print`, text/insert edits, machine changes, `check_path`, `remember_setup` and geometry confirmation through `read()`, which calls `loadBundle()` with full program decoding enabled. The owning operations then read their inputs again. Select read scope by operation; do not check/decode a soon-to-be-invalidated export merely to dispatch an edit. |
+| MCP listing and summaries load more than they return. | `list_prints` first enumerates summaries, then fully validates every bundle, including available programs. `get_print` also loads full motion even though its response omits motion arrays. Separate discovery/recipe metadata from explicitly requested validated export status, label unchecked fields, and use metadata-only checked program results where sufficient. Preserve the guarantees of explicit check/approval tools. |
+| Reading one MCP skill reads every skill first. | `read_skill` calls `skills()` to establish membership, which reads all 16 shared manuals, then reads the selected manual again. The probe confirmed 17 manual reads for one `text` request. Use the existing shared catalog for known IDs and a scoped local-extension lookup; listing metadata and reading a selected manual should not require the same full-manual scan. |
+| Nested workflow functions multiply input loads. | Even a no-op MCP recipe patch read native geometry, geometry descriptor, machine and review four times each; plan five times, plus the existing export once. `adjustBundle -> updatePlan -> loadBundle`, optional `rememberSetup`, and final summaries introduce separate loads. Evaluate one validated operation snapshot and reuse of returned results, retaining a fresh concurrency check at the actual mutation boundary. |
+| Preview preparation, transfer and acknowledgment repeat bundle reads. | A normal `/api/state -> /api/sources -> /api/view-ready` sequence rereads the native geometry and export at every endpoint. CLI preview launch also performs an initial geometry read and then a checked summary read for non-tour opens before the browser performs its own load. Consider a bounded verified snapshot/source handle shared by consumers, with explicit invalidation and freshness checks. Do not remove exact-byte protection across independently mutable files. |
+| Geometry-only reads can still discover/read export bytes through fingerprinting. | `readStableBundle(..., {program:false})` still calls the broad `bundleFingerprint()`, which includes the export and original STL. Thus omitting program loading does not ensure an export-free cold read. A cold revision probe read the saved export; the warm shared-workflow probe correctly reused its digest. Evaluate separate change identities/read scopes rather than a blanket cache bypass. |
+| Tour/library reads have excessive scope and duplicate derivation. | `tour.info()` reads persisted progress and resolves the saved selection even outside an active tour; active edit lessons also query requests and may reread the recipe for gate signatures. POST dispatch obtains progress before handlers that obtain it again. `/api/prints` scans all prints before filtering to known tour choices; `printName()` rereads a plan already read by listing/state code. Reuse per-operation inputs and list the known tour choices directly. The no-resume direction should remove inactive saved-tour dependencies. |
+| Polling and change notifications overlap. | Agent UI polls at 750 ms, revision polling at one second, request waits rescan after 75 ms, and generic Studio change events also schedule revision polling, including request-only changes. Playback adds its own tour updates. Evaluate one scoped notification/snapshot path with bounded fallback polling and no overlapping in-flight work; account for missed filesystem events and multiple processes. |
+| The machine-study adapter rereads the entire motion source on revision polls. | Its `bundleFingerprint()` reads plan, machine and `motion.json` contents each time, unlike the shared print workflow's metadata-assisted digest reuse. `loadBundle({program:false})` also reads/interprets motion to construct study metadata. Apply an equivalent change-detection contract and determine which study metadata truly requires decoding. This was source-traced, not measured in the probe. |
+
+Additional lower-priority evidence: the first shared-workflow state read hashes
+the broad runtime manifest, including unused skill dependencies, and overlapping
+manifest entries read some files twice. The probe's cold state read included 118
+`readFile` calls and about 2.51 MB total, including runtime identity inputs. This
+does not mean all 118 reads are unnecessary: runtime provenance is intentional
+and cached per adapter. Deduplicate identical entries and evaluate reuse across
+processes/adapters only with a sound code-change invalidation contract; do not
+silently narrow the generator identity to improve a benchmark.
+
+#### Probe evidence and limits
+
+An ignored local probe at `Prints/studio-read-audit-20260915/probe.mjs` copied the
+previous synthetic tour fixture into an isolated library and instrumented Node
+filesystem promise calls. Detailed counts are in that directory's `results.json`;
+these local artifacts are not required to read this handoff. Selected results:
+
+| Operation | Observed reads |
+|---|---|
+| Warm ordinary revision | Two `readFile` attempts (tour progress and absent tour marker), ten `stat` calls; no geometry/export content reread. |
+| Idle request listener, 300 ms, three existing IDs excluded | Five directory scans, 15 request-file reads. |
+| Tour geometry state | Two request-directory scans, each reading the same three records. |
+| MCP read `text` skill | All 16 distinct shared manuals, with `text` read a second time, plus one request scan. |
+| MCP list two prints | Each plan read four times; both native geometries and the one available export read. |
+| MCP no-op recipe edit | Four native-geometry reads, four descriptor/machine/review reads each, five plan reads, one existing-export read. |
+
+The generated handle's program was available with no program error. The probe
+used ordinary state/source/view-ready endpoints, tour geometry metadata/listing,
+an in-memory MCP client, and a no-op recipe patch. All owned servers/transports
+were closed. It performed no new generation, manufacturing approval, delivery
+or physical action. Counts are application filesystem calls and returned bytes,
+not physical disk traffic, CPU cost or end-to-end user latency; OS caching may
+serve reads. Instrumentation excludes module-loader internals, stream reads
+(including original-STL hashing), and separate worker processes. Shared process
+caches were warm for the later MCP probes, so these are not cold-client timings.
+
+#### Recommended dedicated audit still outstanding
+
+This follow-up is a partial read-path audit, **not completion of the dedicated
+audit**. Trace reads, parsing, hashing, decoding, copying and response payloads
+across CLI, MCP, Studio server, workers and browser. For each consumer record
+the minimum data, required freshness, purpose, trigger frequency and owner.
+Measure cold/warm startup, unchanged idle, geometry-only edits, settings-only
+edits, source loading, generation, approval/delivery, recovery and tour exit.
+Include large STL/native/source files, growing request/review history, many
+prints, machine studies, multiple viewers and simultaneous agent processes.
+Measure agent-facing payload/context size as well as runtime I/O: shorter output
+alone can hide expensive reads and decoding behind the summary.
+
+Distinguish unnecessary reads, repeated reads within one logical operation,
+premature reads that will be invalidated, and necessary freshness/approval checks.
+Protect original-STL integrity, exact reviewed export bytes, stale-revision
+rejection and path/link confinement. Compare scoped queries, shared operation
+snapshots, versioned source handles and event-driven invalidation; choose the
+simplest design that meets those contracts. Verify improvements against the
+measured paths and add targeted regressions for the specific repeated/unrelated
+reads removed. Do not treat fixing request-history access alone as completion.
+
 ## 2026-09-15 — Publication preparation
 
 Prepared the shared Studio, text-material and travel changes for the user's

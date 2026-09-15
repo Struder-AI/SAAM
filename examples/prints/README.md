@@ -36,18 +36,34 @@ choose **Resume tour** when paused. Refreshing an active viewer keeps its lesson
 
 The agent explicitly chooses `startAt: {layer: 12}` (zero-based layer index)
 for the playback lesson. Choose an actual sparse-infill layer after the first
-layer; Studio seeks to its infill move. If no layer is supplied, Studio starts
-at layer 2, or the first deposited layer for a one-layer model. If edits remove
-infill from an explicitly chosen layer, choose another. The participant can
+layer; Studio seeks to its infill move. If no layer is supplied, or an edit removes
+infill from the chosen layer, Studio starts at layer 2 or the first deposited
+layer for a one-layer model. The participant can
 then move the slider freely; the gate measures five seconds of visible playback
 in wall time, regardless of speed or position.
 
 ### Maker agent participation
 
-Show intermediate previews only when useful; dots and viewport fading indicate active work and stop when that work finishes, pauses, fails, is interrupted or is superseded, without requiring an intermediate result to be displayed.
+The tour deliberately narrows the conversation to its current lesson. In the
+first two lessons, offer shape edits to the selected example; use Open print and
+Import STL in their designated lessons, playback controls while watching, recipe
+changes in the chat lesson, printer/material changes in setup, and final export
+in the export lesson. Questions about the current lesson are always welcome.
+For an unrelated project, a new capability or an action belonging to another
+lesson, gently redirect: "We can do that outside the tour. For this lesson,
+let's change the fin's height; or choose Exit tour to work on your request now."
+Do not silently leave, skip lessons or edit another part. An explicit request to
+exit ends these teaching limits. Normal Studio accepts supported requests from
+any view; a tour restriction must never become a general capability refusal.
 
-Keep requested edits in the current selected copy, read from `get_tour`. Call
-`begin_studio_work` before editing and resolve its ID after successful generation
+The dots and viewport fading are **Updating preview**. Show intermediate results
+only when useful; advice, listener waits and download bookkeeping do not require
+dimming. Use the [maker request lifecycle](../../MAKERS.md#existing-studio-work)
+for work, target publication, pauses and responses.
+
+Keep requested edits in the current selected copy returned by begin-work or
+`get_tour`. Call `begin_studio_work` before editing, publish its saved result
+target, and resolve its ID after the requested preview is displayed
 with `respond_to_studio_request`. Keep `wait_for_studio_request` active between
 lessons, repeating its bounded waits. Studio queues requests for the infill
 lesson, an imported model’s explicit start layer, and completion. Claim each
@@ -71,9 +87,11 @@ ordinary text chat. Never use a generic question box or request-user-input tool
 for completion. Prioritize this message over status checks and bookkeeping.
 
 Imported models reset the start layer: the maker agent can choose an actual sparse
-infill layer for the new geometry, while the layer-2 fallback allows playback
+infill layer from the existing toolpath, while the layer-2 fallback allows playback
 and its five-second timer to proceed without waiting. A late choice does not
-reset playback after the participant has started watching. Saved part names
+reset playback after the participant has started watching. An explicit layer that
+no longer has infill also uses the fallback. Never edit or reslice a part solely
+to provide a viewing position. Saved part names
 and download filenames describe their shapes and lettering, such as
 **Named handle · Nave**. Existing bundle directory names are preserved. Tour
 highlights blink with a simple slate-blue outline. All tour small text uses the

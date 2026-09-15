@@ -12,10 +12,14 @@ const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
-let generationTarget=null,progressPolling=false;
+let generationTarget=null,progressPolling=false,acknowledging=false;
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentUI} from './agent-ui.mjs';
-const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active)});
+const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active),onRequests:requests=>{
+  if(!state?.work)return;
+  state.work.requests=requests;
+  if(needsTourToolpath(state))scheduleChange();
+},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));}});
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
@@ -154,13 +158,13 @@ function activity(text='',fraction=null){
   $('#activity-detail').textContent=measured?'Progress for this stage.':'Please wait. Studio is working.';
   $('main').setAttribute('aria-busy',String(!!text));
 }
-async function working(text,task){
-  if(busy)return;busy=true;stop();agentUI.loading();activity(text);if(state)render();$('#open-print').disabled=true;
+async function working(text,task,{preview=true}={}){
+  if(busy)return;busy=true;stop();if(preview)agentUI.loading();activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   let failure;
   try{return await task();}catch(error){failure=error;throw error;}
-  finally{busy=false;agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
+  finally{busy=false;if(preview)agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
 }
 
 // Studio reviews more than one kind of print. Everything that depends on which
@@ -302,9 +306,9 @@ async function api(route,data) {
   if(target)generationTarget=target;
   try{
     const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify({...data,printId:state?.printId})});
-    if(!response.ok)throw new Error((await response.json()).error);
+    if(!response.ok){const result=await response.json();throw Object.assign(new Error(result.error),{code:result.code});}
     return response;
-  }finally{if(target===generationTarget)generationTarget=null;}
+  }finally{if(target===generationTarget){generationTarget=null;$('#cancel-generation').hidden=true;}}
 }
 async function pollPreparation(){
   const target=generationTarget;if(!target||progressPolling)return;
@@ -313,10 +317,19 @@ async function pollPreparation(){
     const response=await fetch('/api/preparation');if(!response.ok)return;
     const job=await response.json();
     if(generationTarget!==target||job.printId!==target.printId||target.planHash&&job.planHash!==target.planHash)return;
+    target.planHash??=job.planHash;$('#cancel-generation').hidden=!job.cancellable;
     if(job.progress&&['preparing','generating','importing'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
 setInterval(pollPreparation,250);
+$('#cancel-generation').onclick=async()=>{
+  const target=generationTarget;if(!target)return;
+  $('#cancel-generation').disabled=true;
+  try{const result=await(await api('cancel-generation',{planHash:target.planHash})).json();
+    if(result.cancelled){if(state)state.generationCancelled=true;message('Toolpath calculation cancelled.');}
+    else if(result.committing)message('The calculation finished; saving its checked file.');
+  }catch(error){message(error.message,true);}finally{$('#cancel-generation').disabled=false;}
+};
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
   const next=await response.json(),loaded=state?.printId===next.printId?state:null,previous=!reopen?loaded:null;
@@ -389,13 +402,18 @@ async function refresh(follow=false,reopen=false) {
   }
 }
 async function acknowledgeDisplayedView(){
+  if(acknowledging)return;
+  acknowledging=true;
+  try{
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  const geometryReady=tab==='geometry'&&(!state.geometryApproved||state.tour?.active&&state.tour.step<L.playback);
+  const geometryReady=tab==='geometry'&&Boolean(state.geometry);
   const viewReady=geometryReady||!needsTourToolpath(state)&&!state.generationError&&!state.programError&&tab==='toolpath'&&Boolean(state.program);
   if(viewReady){
     agentUI.present({...state.work,snapshot:{...state.work.snapshot,stage:tab},awaitingConfirmation:geometryReady&&!state.geometryApproved});
-    await tourUI?.acknowledgeView(state,tab);
+    const presented=await tourUI?.acknowledgeView(state,tab);
+    if(presented)agentUI.updated(presented);
   }
+  }finally{acknowledging=false;}
 }
 async function decodeInWorker(snapshot){
   activity('Loading your toolpath…');
@@ -648,7 +666,7 @@ $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
   if(tourUI?.active()&&tab!=='geometry'){
     if(state.tour?.step!==L.export)return;
-    try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();});}
+    try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();},{preview:false});}
     catch(e){message(e.message,true);await refresh(false);}return;
   }
   try{
@@ -661,7 +679,7 @@ $('#confirm').onclick=async()=>{
     else if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
     else {if(!state.toolpathApproved)await approval('toolpath');await download();}
     message('');
-    });
+    },{preview:tab==='geometry'||!state.program||Boolean(state.programError)||state.review.generation?.mode!=='production'});
   }catch(e){message(e.message,true);}
 };
 async function openPrint(path){
@@ -753,13 +771,21 @@ async function animate(now){
 async function poll(){
   if(polling||busy)return;polling=true;
   try{
-    const response=await fetch('/api/revision');if(!response.ok)throw new Error('Reconnecting to your print…');
+    const response=await fetch('/api/revision?'+new URLSearchParams({fingerprint:state?.fingerprint??''}));if(!response.ok)throw new Error('Reconnecting to your print…');
     const next=await response.json();if(movieController||busy)return;
     // Restarted servers have new session credentials. Reload the page and its
     // viewer connection instead of repeatedly posting with the previous token.
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
-    if(!state||reconnecting||next.fingerprint!==state.fingerprint)await working('Loading and checking the updated print…',()=>refresh(true));
+    if(state&&!reconnecting&&next.reviewUpdate&&next.presentationFingerprint===state.presentationFingerprint){
+      Object.assign(state,next.reviewUpdate,{fingerprint:next.fingerprint,tour:next.tour});render();
+    }
+    else if(!state||reconnecting||next.fingerprint!==state.fingerprint||needsTourToolpath(state))await working('Loading and checking the updated print…',()=>refresh(true));
+    else if(next.tour&&JSON.stringify(next.tour)!==JSON.stringify(state.tour)){
+      // Lesson gates, guidance and start-layer choices do not change the source.
+      // Updating them must not stop playback, fade the preview or rebuild scenes.
+      state.tour=next.tour;render();
+    }
     reconnecting=false;
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
@@ -778,7 +804,7 @@ tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>s
 working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
 let changeTimer;
 function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
-window.addEventListener('saam-studio-change',scheduleChange);
+window.addEventListener('saam-studio-change',event=>{if(event.detail.kinds.some(kind=>kind==='print'||kind==='tour'))scheduleChange();});
 setInterval(poll,1000);
 window.addEventListener('pagehide',()=>machineSession?.dispose());
 window.addEventListener('pageshow',event=>{if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));});

@@ -36,12 +36,18 @@ test('tour recipe edits trigger generation only for the selected confirmed toolp
   const state={tour:{active:true,step:4,directory:'part'},localPrintDirectory:'part',geometryApproved:true};
   assert.equal(needsTourToolpath(state),true);
   for(const patch of [{program:{}},{geometryApproved:false},{generationError:'Failed'},
+    {outputAvailability:'Machine setup required'},
     {localPrintDirectory:'another'},{tour:{...state.tour,step:3}},{tour:{...state.tour,active:false}}])
     assert.equal(needsTourToolpath({...state,...patch}),false);
   assert.equal(needsTourToolpath({...state,program:{},programError:'Stale export'}),true);
+  const request={kind:'edit',status:'working',printId:'part',requiresTarget:true,expiresAt:Date.now()+60000};
+  const work={printId:'part',snapshot:{inputKey:'saved'},requests:[request]};
+  assert.equal(needsTourToolpath({...state,work}),false,'intermediate saves do not start slicing');
+  work.requests=[{...request,target:{inputKey:'saved',stage:'toolpath'}}];
+  assert.equal(needsTourToolpath({...state,work}),true,'publishing the intended saved inputs releases generation');
 });
 
-test('Tour opens lesson one directly; only Resume tour continues saved progress',async t=>{
+test('Tour always starts lesson one outside an active run and exposes no resume control',async t=>{
   const saved={document:globalThis.document,fetch:globalThis.fetch,setInterval:globalThis.setInterval};
   t.after(()=>Object.assign(globalThis,saved));
   const elements=new Map();
@@ -54,10 +60,10 @@ test('Tour opens lesson one directly; only Resume tour continues saved progress'
   const ui=createTourUI({state:()=>null,working:async(_text,task)=>task(),
     post:async(_route,data)=>actions.push(data),refresh:async()=>{}});
   await ui.load();await element('tour-toggle').onclick();
-  progress={...progress,step:5};await ui.load();await element('tour-resume').onclick();
+  progress={...progress,step:5};await ui.load();assert.equal(elements.has('tour-resume'),false);
   await element('tour-toggle').onclick();
   progress={...progress,completed:true};await ui.load();await element('tour-toggle').onclick();
-  assert.deepEqual(actions,[{action:'fresh',step:0},{action:'resume',step:5},{action:'fresh',step:0},{action:'fresh',step:0}]);
+  assert.deepEqual(actions,[{action:'fresh',step:0},{action:'fresh',step:0},{action:'fresh',step:0}]);
 });
 
 test('tour cues follow their lessons and Exit dismisses congratulations while retaining completion',async t=>{
@@ -79,10 +85,9 @@ test('tour cues follow their lessons and Exit dismisses congratulations while re
     post:async(_route,data)=>{assert.equal(data.action,'exit');progress={...progress,active:false,dismissed:true};},
     refresh:async()=>ui.render(state)});
   ui.render(state);assert.equal(element('tour-panel').hidden,true,'idle Studio has no introductory pane');
-  assert.equal(element('tour-resume').hidden,true);
   state.tour=progress={...progress,selected:'handle',step:1};ui.render(state);
-  assert.equal(element('tour-panel').hidden,true,'paused tour keeps the part visible without an introductory pane');
-  assert.equal(element('tour-resume').hidden,false);
+  assert.equal(element('tour-panel').hidden,true,'inactive tour keeps the part visible without an introductory pane');
+  assert.equal(elements.has('tour-resume'),false);
   state.tour=progress={...progress,active:true,step:0};ui.render(state);await Promise.resolve();
   assert.equal(shown,'geometry');assert.equal(element('tour-lesson').hidden,false);
   assert.equal(element('tour-complete').hidden,true);
@@ -136,7 +141,7 @@ test('playback leaves geometry before a program exists, seeks when ready, and re
   assert.equal(state.tour.completed,true,'completion updates the panel without reloading the source');
 });
 
-for(const fallbackLayer of [1,0])test('missing agent layer uses fallback playback without a late jump (resolved layer '+fallbackLayer+')',async t=>{
+for(const startAt of [null,{layer:999}])for(const fallbackLayer of [1,0])test((startAt?'unavailable':'missing')+' agent layer uses fallback playback without a late jump (resolved layer '+fallbackLayer+')',async t=>{
   const saved={document:globalThis.document,setInterval:globalThis.setInterval};
   t.after(()=>Object.assign(globalThis,saved));
   const elements=new Map(),seeks=[],requests=[],tabs=[];let tick;
@@ -146,21 +151,22 @@ for(const fallbackLayer of [1,0])test('missing agent layer uses fallback playbac
   };
   globalThis.document={hidden:false,getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
   globalThis.setInterval=callback=>{tick=callback;return 0;};
-  const state={localPrintDirectory:'part',printId:'part',program:{},geometryApproved:true,tour:{active:true,directory:'part',step:4,startAt:null,gates:{}}};
+  const state={localPrintDirectory:'part',printId:'part',program:{},geometryApproved:true,tour:{active:true,directory:'part',step:4,startAt,gates:{}}};
   const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab:tab=>tabs.push(tab),
-    seek:startAt=>{seeks.push(startAt);return {layer:startAt.fallback?fallbackLayer:startAt.layer};},
+    seek:startAt=>{seeks.push(startAt);if(startAt.layer===999)throw Error('No sparse infill here');return {layer:startAt.fallback?fallbackLayer:startAt.layer};},
     post:async(route,data)=>{requests.push({route,...data});return {json:async()=>state.tour};}});
   ui.render(state);await Promise.resolve();
-  assert.deepEqual(seeks,[{layer:1,fallback:true}],'human layer 2 is zero-based layer 1');
+  assert.deepEqual(seeks,[...(startAt?[startAt]:[]),{layer:1,fallback:true}],'human layer 2 is zero-based layer 1');
+  const initialSeeks=seeks.length;
   assert.match(element('tour-status').textContent,/Press Play/);
   await ui.playback('play');await tick();
   assert.deepEqual(requests,[{route:'tour-playback',event:'play'},{route:'tour-playback',event:'tick'}],
     'fallback readiness sends both Play and visible playback ticks');
   state.tour={...state.tour,startAt:{layer:12}};ui.render(state);await Promise.resolve();
-  assert.equal(seeks.length,1,'late agent layer does not move playback after Play');
+  assert.equal(seeks.length,initialSeeks,'late agent layer does not move playback after Play');
   assert.equal(tabs.length,1,'late layer does not reset the playing viewer through setTab');
   await ui.playback('pause');state.tour={...state.tour,startAt:{layer:18}};ui.render(state);await Promise.resolve();
-  assert.equal(seeks.length,1,'pausing after the first Play does not reopen automatic seeking');
+  assert.equal(seeks.length,initialSeeks,'pausing after the first Play does not reopen automatic seeking');
 });
 
 test('browser fallback seeks deposited layer 2 or the only layer while explicit agent layers require sparse infill',async()=>{

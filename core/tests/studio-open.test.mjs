@@ -133,7 +133,7 @@ test('compact approval response invalidates a browser program when saved export 
   assert.match(approval.programError,/files changed/);assert.equal(approval.exportHash,null);
 });
 
-test('explicit generation retries a failed background worker once without bypassing approvals',async t=>{
+test('ordinary review and unconfirmed generation do not slice; explicit retry recovers a failed worker',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-worker-retry-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   await wedge.initBundle(dir,defaults());
   const OriginalWorker=workerThreads.Worker;let attempts=0,failed;
@@ -151,21 +151,24 @@ test('explicit generation retries a failed background worker once without bypass
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify(data)});
-  let state=await get();assert.match((await failure).message,/SYNTHETIC worker startup failure/);
-  await get();await get();assert.equal(attempts,1,'state refresh must not create a background retry loop');
+  let state=await get();
+  await get();await get();assert.equal(attempts,0,'geometry review does not slice');
   const denied=await post('generate',{});assert.equal(denied.status,400);
-  assert.match((await denied.json()).error,/Approve the geometry/);assert.equal(attempts,2,'explicit request starts exactly one fresh worker');
+  assert.match((await denied.json()).error,/Approve the geometry/);assert.equal(attempts,0,'approval is checked before starting expensive work');
   state=await get();assert.deepEqual(state.review.approvals,{});assert.equal(state.review.generation,null);
   for(const stage of ['geometry']){
     const response=await post('approve',{stage,actor:'SYNTHETIC worker retry test',revision:state.revision});
     assert.equal(response.status,200);Object.assign(state,(await response.json()).approval);
   }
+  assert.equal((await post('generate',{})).status,400);
+  assert.match((await failure).message,/SYNTHETIC worker startup failure/);
+  await get();await get();assert.equal(attempts,1,'state refresh must not create a background retry loop');
   assert.equal((await post('generate',{})).status,200);
   state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
-  assert.equal(state.toolpathApproved,false);assert.equal(attempts,2,'the recovered prepared worker is reused after approval');
+  assert.equal(state.toolpathApproved,false);assert.equal(attempts,2,'explicit retry starts exactly one replacement worker');
 });
 
-test('completed speculative diagnostics surface before an explicit retry and state polling never restarts them',async t=>{
+test('preparation diagnostics stay actionable until explicit retry; state polling never restarts them',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-preparation-diagnostic-')),dir=join(library,'part');
   t.after(()=>rm(library,{recursive:true,force:true}));await wedge.initBundle(dir,defaults());
   const OriginalWorker=workerThreads.Worker;let attempts=0,reported;
@@ -173,7 +176,7 @@ test('completed speculative diagnostics surface before an explicit retry and sta
   workerThreads.Worker=class extends OriginalWorker{
     constructor(url,options){
       const fail=++attempts===1;
-      super(fail?"const {parentPort}=require('node:worker_threads');parentPort.on('message',()=>{});parentPort.postMessage({type:'prepared',error:'SYNTHETIC completed diagnostic'});":url,fail?{eval:true}:options);
+      super(fail?"const {parentPort}=require('node:worker_threads');parentPort.on('message',()=>parentPort.postMessage({type:'generated',error:'SYNTHETIC completed diagnostic'}));parentPort.postMessage({type:'prepared',error:'SYNTHETIC completed diagnostic'});":url,fail?{eval:true}:options);
       if(fail)this.once('message',reported);
     }
   };
@@ -183,20 +186,17 @@ test('completed speculative diagnostics surface before an explicit retry and sta
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify(data)});
-  await get();assert.equal((await diagnostic).error,'SYNTHETIC completed diagnostic');
-  await get();await get();assert.equal(attempts,1);
-  const first=await post('generate',{});assert.equal(first.status,400);
-  assert.equal((await first.json()).error,'SYNTHETIC completed diagnostic');
-  assert.equal(attempts,1,'the first explicit request reports the completed diagnostic without recalculating');
-  let state=await get();assert.equal(state.generationError,'SYNTHETIC completed diagnostic');
-  await get();assert.equal(attempts,1,'polling after a surfaced diagnostic still cannot retry it');
-  const retry=await post('generate',{});assert.equal(retry.status,400);
-  assert.match((await retry.json()).error,/Approve the geometry/);
-  assert.equal(attempts,2,'a subsequent explicit request starts exactly one real worker');
-  state=await get();assert.deepEqual(state.review.approvals,{});assert.equal(state.review.generation,null);
+  let state=await get();assert.equal(attempts,0);
   const approved=await post('approve',{stage:'geometry',actor:'SYNTHETIC diagnostic retry test',revision:state.revision});
   assert.equal(approved.status,200);
-  assert.equal((await post('generate',{})).status,200);
+  const first=await post('generate',{});assert.equal(first.status,400);
+  assert.equal((await diagnostic).error,'SYNTHETIC completed diagnostic');
+  assert.equal((await first.json()).error,'SYNTHETIC completed diagnostic');
+  assert.equal(attempts,1,'the first explicit request reports the completed diagnostic without recalculating');
+  state=await get();assert.equal(state.generationError,'SYNTHETIC completed diagnostic');
+  await get();assert.equal(attempts,1,'polling after a surfaced diagnostic still cannot retry it');
+  const retry=await post('generate',{});assert.equal(retry.status,200);
+  assert.equal(attempts,2,'a subsequent explicit request starts exactly one real worker');
   state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
   assert.equal(state.toolpathApproved,false);assert.equal(attempts,2,'approved generation reuses the recovered candidate');
 });
