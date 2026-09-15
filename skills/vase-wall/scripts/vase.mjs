@@ -106,44 +106,61 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   // t=0..1 is a flat foundation ring; subsequent turns rise by exactly pitch.
   const spiralTurns=1+(end-start)/pitch,turns=spiralTurns+(settings.endTransition==='level'?1:0);
   const zAt=t=>t<=1?start:Math.min(end,start+(t-1)*pitch);
-  const offsetCurves=new WeakMap();
-  function mappedPoint(u,z,offsetMm=0) {
-    const frame=section(z),{curve,outer,holes}=frame,xy=curve.at(u);
+  // The ordinary single-wall centerline: one point per turn-position `t`,
+  // queried directly against the actual host section. This is the only
+  // place any print in this function reads section/offset geometry from the
+  // mesh; everything below (the plain wall, and a motif's guide path) reuses
+  // its already-converged points instead of re-deriving contours per sample.
+  function exactPoint(u,z) {
+    const {curve,outer,holes}=section(z),xy=curve.at(u);
     const standoff=outer.reduce((best,p,i)=>Math.min(best,pointSegmentDistance(xy,p,outer[(i+1)%outer.length])),Infinity);
     requireThat(Math.abs(standoff-width/2)<=settings.boundaryToleranceMm,'Vase centerline does not preserve the declared bead-width boundary within boundaryToleranceMm.');
     for(const hole of holes)requireThat(!pointInLoop(xy,hole)&&hole.every((p,i)=>pointSegmentDistance(xy,p,hole[(i+1)%hole.length])>=width/2-settings.boundaryToleranceMm),'Sleeve material is too thin for the selected bead width.');
-    if(offsetMm!==0){
-      let curves=offsetCurves.get(frame);if(!curves){curves=new Map();offsetCurves.set(frame,curves);}
-      let parallel=curves.get(offsetMm);
-      if(!parallel){
-        const loops=offsetRegion([outer],offsetMm-width/2,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4}).filter(loop=>loopArea(loop)>0);
-        requireThat(loops.length===1&&loopArea(loops[0])>0,`Motif offset contour split or collapsed at Z ${z} mm, offset ${offsetMm} mm; revise offsetMm or the host.`);
-        parallel=contourPath(dedupe(loops[0]),[seam[0]+offsetMm,seam[1]]);
-        if(curves.size>=32)curves.delete(curves.keys().next().value);
-        curves.set(offsetMm,parallel);
-      }
-      return [...parallel.at(u),z];
-    }
     return [...xy,z];
   }
-  if(settings.pattern!==null)return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,mappedPoint,budgetSetting,
-    sectionReport:()=>({sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM})});
-  const point=t=>mappedPoint(t,zAt(t));
-  const points=[point(0)],times=[0];
-  function append(a,b,pa,pb,depth=0) {
-    requireThat(depth<24,'Vase contour cannot meet the locked chord tolerance within the subdivision limit.');
-    const mid=(a+b)/2,pm=point(mid),linear=pa.map((v,i)=>(v+pb[i])/2);
-    if(distance(pa,pb)>settings.sampleStepMm||distance(pm,linear)>settings.toleranceMm/2||pb[2]-pa[2]>settings.minFeatureMm/2) {
-      append(a,mid,pa,pm,depth+1);append(mid,b,pm,pb,depth+1);return;
+  const mappedPoint=t=>exactPoint(t,zAt(t));
+  function buildCenterline(upperTurns,chordToleranceMm=settings.toleranceMm/2,sampleStepMm=settings.sampleStepMm) {
+    const points=[mappedPoint(0)],times=[0];
+    function append(a,b,pa,pb,depth=0) {
+      requireThat(depth<24,'Vase contour cannot meet the locked chord tolerance within the subdivision limit.');
+      const mid=(a+b)/2,pm=mappedPoint(mid),linear=pa.map((v,i)=>(v+pb[i])/2);
+      if(distance(pa,pb)>sampleStepMm||distance(pm,linear)>chordToleranceMm||pb[2]-pa[2]>settings.minFeatureMm/2) {
+        append(a,mid,pa,pm,depth+1);append(mid,b,pm,pb,depth+1);return;
+      }
+      if(points.length>=settings.maxPoints)exhausted('point',points.length,settings.maxPoints,pb[2]);
+      points.push(pb);times.push(b);
     }
-    if(points.length>=settings.maxPoints)exhausted('point',points.length,settings.maxPoints,pb[2]);
-    points.push(pb);times.push(b);
+    // At most 1/16 turn per initial interval avoids aliasing an entire revolution.
+    for(let t=0;t<upperTurns-1e-10;) {
+      const next=Math.min(upperTurns,t<spiralTurns-1e-10?spiralTurns:Infinity,(Math.floor(t*16+1e-8)+1)/16);
+      append(t,next,points.at(-1),mappedPoint(next));t=next;
+    }
+    return {points,times};
   }
-  // At most 1/16 turn per initial interval avoids aliasing an entire revolution.
-  for(let t=0;t<turns-1e-10;) {
-    const next=Math.min(turns,t<spiralTurns-1e-10?spiralTurns:Infinity,(Math.floor(t*16+1e-8)+1)/16);
-    append(t,next,points.at(-1),point(next));t=next;
+  if(settings.pattern!==null){
+    // Build the guide only as far as the motif's own authored turn range
+    // actually reaches, with margin for a loop that locally runs backward or
+    // ahead of its course boundary before returning to it — not the full
+    // wall height's turn count, which can be far more than a motif with few
+    // repeats ever samples.
+    const authoredTurns=settings.pattern.paths.flatMap(p=>p.points.map(pt=>pt[0]));
+    const guideTurns=settings.pattern.repeats+Math.max(1,...authoredTurns.map(Math.abs));
+    const {points:guidePoints,times:guideTimes}=buildCenterline(guideTurns);
+    // A per-vertex normal blended from both adjacent segments (not either
+    // segment's own exact direction) so a motif offset varies smoothly along
+    // the guide instead of jumping at each vertex the way a true polygon
+    // offset would round with an arc. Pure vector math on the already-built
+    // guide points; no further section query or offset reconstruction.
+    const guideNormals=guidePoints.map((p,i)=>{
+      const prev=guidePoints[Math.max(0,i-1)],next=guidePoints[Math.min(guidePoints.length-1,i+1)];
+      const dx=next[0]-prev[0],dy=next[1]-prev[1],len=Math.hypot(dx,dy);
+      return len?[dy/len,-dx/len]:[0,0];
+    });
+    return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,exactPoint,
+      guide:{points:guidePoints,times:guideTimes,normals:guideNormals},budgetSetting,
+      sectionReport:()=>({sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM})});
   }
+  const {points,times}=buildCenterline(turns);
   const lengths=points.slice(1).map((p,i)=>distance(points[i],p)),turnLengths=new Map();
   const maximumAngleDeg=maximumPathAngle(points);
   requireThat(Number.isFinite(machine?.nonplanar?.maxAngleDeg)&&maximumAngleDeg<=machine.nonplanar.maxAngleDeg+1e-8,'Vase wall rise exceeds the machine declared non-planar angle limit.');

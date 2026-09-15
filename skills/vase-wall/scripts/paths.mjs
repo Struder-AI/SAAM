@@ -5,6 +5,22 @@ const sameSurfacePoint=(a,b)=>Math.abs((a[0]-b[0])-Math.round(a[0]-b[0]))<=1e-10
 const offsetAt=(path,i)=>Array.isArray(path.offsetMm)?path.offsetMm.at(i):(path.offsetMm??0);
 const joined=(a,b)=>sameSurfacePoint(a.points.at(-1),b.points[0])&&Math.abs(offsetAt(a,-1)-offsetAt(b,0))<=1e-9;
 
+// A motif's offset direction comes from this already-converged single-wall
+// guide path's own per-vertex normals (built once against the actual
+// section), blended smoothly across its vertices — never a fresh offset
+// contour rebuilt from the section per sample, so the host's own facet
+// density cannot leak into how many mapping attempts a motif point needs.
+function guideAt(guide,u) {
+  const {times,normals}=guide;
+  const clamped=Math.max(times[0],Math.min(times.at(-1),u));
+  let lo=0,hi=times.length-1;
+  while(lo+1<hi){const mid=(lo+hi)>>1;if(times[mid]<=clamped)lo=mid;else hi=mid;}
+  const span=times[lo+1]-times[lo],t=span?(clamped-times[lo])/span:0;
+  const n0=normals[lo],n1=normals[lo+1];
+  const nx=n0[0]+t*(n1[0]-n0[0]),ny=n0[1]+t*(n1[1]-n0[1]),normalLength=Math.hypot(nx,ny);
+  return {nx:normalLength?nx/normalLength:0,ny:normalLength?ny/normalLength:0};
+}
+
 export function validateVasePattern(pattern,mode='continuous') {
   if(pattern===null)return;
   requireThat(pattern&&Object.keys(pattern).sort().join()==='advance,paths,repeats','Vase pattern needs paths, advance and repeats.');
@@ -31,7 +47,7 @@ export function validateVasePattern(pattern,mode='continuous') {
   }
 }
 
-export function mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,mappedPoint,budgetSetting,sectionReport}) {
+export function mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,guide,exactPoint,budgetSetting,sectionReport}) {
   const pattern=settings.pattern,continuous=settings.pathMode==='continuous',role=continuous?'vase-wall':'segmented-path';
   const paths=[],maxPoints=settings.maxPoints;let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity;
   const budget=()=>{throw new Error(`Vase mapped-pattern point budget exhausted for ${id}; increase ${budgetSetting} from ${maxPoints}. No complete pattern generated.`);};
@@ -39,7 +55,17 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
     const at=(a,b,t)=>{
       const u=a[0]+(b[0]-a[0])*t,z=start+a[1]+(b[1]-a[1])*t;
       requireThat(z>=start-1e-9&&z<=end+1e-9,'Mapped motif exceeds its selected sleeve height interval; adjust repeats, advance or motif heights.');
-      return mappedPoint(u,z,(a[2]??0)+((b[2]??0)-(a[2]??0))*t);
+      const offsetMm=(a[2]??0)+((b[2]??0)-(a[2]??0))*t;
+      // The base position is always the exact single-wall lookup at this
+      // exact (u,z) — the same cheap query the guide itself was built from,
+      // not an offset reconstruction. Only the *direction* to perturb along
+      // comes from the guide, blended smoothly across its vertices so a
+      // depth offset does not jump wherever the host has a sharp corner.
+      const [x,y]=exactPoint(u,z);
+      if(offsetMm===0)return [x,y,z];
+      const {nx,ny}=guideAt(guide,u);
+      requireThat(nx!==0||ny!==0,`Vase motif guide normal collapsed near turn ${u}; the guide path may be degenerate there.`);
+      return [x+offsetMm*nx,y+offsetMm*ny,z];
     };
     const points=[at(vertices[0],vertices[0],0)],segmentHeights=[];
     if(++count>maxPoints)budget();

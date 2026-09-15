@@ -300,7 +300,11 @@ function merge(target, changes) {
       merge(target.geometry, value);
       continue;
     }
-    if (value && typeof value === 'object' && !Array.isArray(value)) merge(target[key], value);
+    // A currently-null field (for example an unset vase-wall pattern) has no
+    // existing shape to merge into; replace it wholesale instead of recursing
+    // into null.
+    if (value && typeof value === 'object' && !Array.isArray(value) && target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])) merge(target[key], value);
+    else if (value && typeof value === 'object' && !Array.isArray(value)) target[key] = structuredClone(value);
     else target[key] = value;
   }
 }

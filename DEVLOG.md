@@ -2443,3 +2443,48 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   without error. Visually confirmed in Studio (top-view toolpath) that loops
   overlap at the seam instead of gapping. No physical print occurred; contact
   strength and bonding remain unvalidated, as before.
+
+## 2026-09-15 — Motif offset no longer rebuilds a section-scale offset polygon per sample
+
+- Source: user testing the loop motif against two real, densely faceted STL
+  vases hit `Sleeve mapping cannot meet the requested contour tolerance`
+  reliably, including on a much shallower 0.3mm depth and on parameters
+  already proven on synthetic hosts. Root cause, confirmed by direct
+  instrumentation: for every distinct motif sample `vaseWallResult`'s
+  `mappedPoint` reconstructed a fresh Clipper2 offset of the *raw* section at
+  that depth (`skills/vase-wall/scripts/vase.mjs`); a host with hundreds of
+  facets per section made that reconstruction both slow and, at some depths,
+  numerically unstable. Removing that reconstruction outright (perturbing a
+  section-derived curve along a finite-difference or exact-segment tangent)
+  was tried and reverted twice — see the same-day history in this file's
+  earlier entries and the session transcript — because a naive tangent has a
+  genuine discontinuity at every polygon vertex that true offsetting rounds
+  with an arc; that surfaced first on synthetic hosts (a plain 32-gon, a
+  boxMesh corner) before it explained the real-file failures.
+- Fix: `vaseWallResult` now builds the ordinary single-wall centerline once
+  per pattern (`buildCenterline`, the same adaptive algorithm the plain
+  spiral already used, scoped only to the turn range the motif's authored
+  points actually reach — not the full wall height). A motif's position
+  comes from `exactPoint(u,z)`, the same cheap zero-offset section lookup
+  that centerline was built from (never a large-depth offset reconstruction);
+  its offset *direction* comes from per-vertex normals on that centerline,
+  each blended from both adjacent segments so the direction varies smoothly
+  across a vertex instead of jumping the way an unrounded tangent would.
+  `skills/vase-wall/scripts/paths.mjs`'s `mappedPatternResult` takes `guide`
+  (`{points,times,normals}`) and `exactPoint` instead of a single
+  `mappedPoint(u,z,offset)`; `core/geom/contour-path.mjs` is unchanged from
+  this feature (an earlier attempt added `tangentAt` there and was reverted
+  with everything else).
+- Verification: `node --test skills/vase-wall/tests/paths.test.mjs
+  skills/vase-wall/tests/vase.test.mjs core/tests/*.test.mjs` — all pass
+  except the same three pre-existing, unrelated environment flakes already
+  on file (a WASM intersection-fixture hash mismatch, a macOS `/private/var`
+  symlink assertion, and a studio-lifetime `ECONNRESET`; none touch
+  vase-wall). Generated a 0.3mm-depth, touching-loop motif end to end on both
+  real vase files from the session (previously-failing `Prints/spiral-vase-v2`
+  and its sibling) with no tolerance or hang failures; confirmed visually in
+  Studio that the toolpath follows the actual (non-circular, organic) host
+  cross-section. Generation is slow on these hosts (roughly two minutes per
+  20 courses / ~4mm on the denser file) since `exactPoint` still queries the
+  real section per sample; this is a known follow-up, not a correctness gap.
+  No physical print occurred.
