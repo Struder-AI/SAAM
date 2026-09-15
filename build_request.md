@@ -36,6 +36,17 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-049 — Improve generators identified by short-travel advisories
+
+- Status: open
+- Contributor: Current requester; account attribution unconfirmed.
+- Authorization: human requested — add an advisory for all Studio toolpaths and improve the responsible skills/functions “at some point.” Generator repairs are explicitly deferred; the advisory itself is implemented.
+- Session: Current Codex task, `01a0a650-b120-7bd3-a9c7-93fbede5003b`; title unavailable.
+- Source: 2026-09-15 request: travel start/end points “within 2mm?” indicate a bad path; “it don't block, it doesn't repair, it just let's the agent know about the problem.”
+- Context: The [shared advisory](core/export/README.md#short-travel-advisory) preserves counts, operation labels and source locations for complete travel trips whose XYZ endpoints are at most 2 mm apart. Near endpoints can expose avoidable breaks or detours; recipe membership alone does not identify the responsible algorithm.
+- Remaining: Other advisory-identified cases remain deferred. When taken up, use reported exports and operation/source evidence to identify and improve the responsible skills or shared routing functions while preserving intended deposition and required clearance.
+- Completion: Demonstrate the targeted generator improvement against representative reported cases and record the resolved producer/cause. Keep the advisory nonblocking and avoid automatic repair during review.
+
 ### BR-045 — Complete continuous wave-overhang paths around holes
 
 - Status: open.

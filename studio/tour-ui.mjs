@@ -1,14 +1,17 @@
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
+export const needsTourGeometryReview=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
+  &&state.tour.step>=L.playback&&!state.geometryApproved);
 export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
   &&state.tour.step>=L.playback&&state.geometryApproved&&!state.generationError&&(!state.program||state.programError));
 export function createTourUI({post,refresh,working,setTab,isBusy,state:current,seek}){
   const $=id=>document.getElementById(id);let progress=null,expanded=null,applied=null,playbackActive=false,pending=false,startReady=false;
-  const panel=$('tour-panel');let displayedStep=null;
+  const panel=$('tour-panel');let displayedStep=null,workActive=false,playStarted=false,playedSource=null;
   async function load(){const response=await fetch('/api/tour');if(!response.ok)throw Error('Could not load the tour');progress=await response.json();if(current())current().tour=progress;}
   async function action(action,step){await working(TOUR_STEPS[step]?.tab==='toolpath'?'Preparing your toolpath…':'Opening your example…',async()=>{
     // The server saves the lesson before generation. Refresh that lesson even
     // when generation fails, so its error is not erased by a later step change.
-    try{await post('tour',{action,step});}
+    try{await post('tour',{action,step,...(action==='step'&&progress?.step===L.import&&step===L.playback
+      ?{revision:current()?.revision,geometryHash:current()?.geometryHash}:{})});}
     finally{await load();applied=null;await refresh(false);}
   });}
   const attempt=fn=>async()=>{try{$('tour-status').textContent='';await fn();}catch(e){$('tour-status').textContent=e.message;}};
@@ -22,7 +25,9 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
   $('tour-next').onclick=attempt(()=>action('step',progress.step+1));
   async function playback(event){
     playbackActive=event==='play';
-    if(!progress?.active||progress.step!==L.playback||!startReady)return;
+    if(!progress?.active||progress.step!==L.playback)return;
+    if(event==='play'){playStarted=true;playedSource=current().printId+':'+current().exportHash;$('play').classList.remove('tour-highlight');}
+    if(!startReady)return;
     try{const response=await post('tour-playback',{event});progress=await response.json();current().tour=progress;render(current());}catch(e){$('tour-status').textContent=e.message;}
   }
   setInterval(async()=>{
@@ -34,8 +39,9 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     if(state?.tour)progress=state.tour;
     if(!progress||!state)return;
     const active=progress.active&&progress.directory===state.localPrintDirectory,step=TOUR_STEPS[progress.step];
+    const geometryReview=needsTourGeometryReview(state);
     const displayKey=active?progress.step:progress.completed?'completed':'idle';
-    if(displayKey!==displayedStep){$('tour-status').textContent='';displayedStep=displayKey;expanded=true;}
+    if(displayKey!==displayedStep){$('tour-status').textContent='';displayedStep=displayKey;expanded=true;playStarted=false;}
     panel.parentElement.dataset.tourStep=active?String(progress.step):'';
     const completed=progress.completed&&progress.directory===state.localPrintDirectory&&!progress.dismissed;
     panel.hidden=!(active||completed)||!expanded;
@@ -46,31 +52,46 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     for(const id of ['import-stl','tour-next'])$(id).classList.toggle('tour-choice',active&&progress.step===L.import);
     $('tour-progress').textContent='SAAM TOUR · '+(progress.step+1)+' OF '+TOUR_STEPS.length;
     $('tour-title').textContent=step.title;$('tour-body').textContent=step.body;$('tour-try').textContent=step.try;
+    const repairReview=active&&progress.step===L.import&&progress.repairReviewRequired;
+    if(repairReview){
+      $('tour-title').textContent='Review the repaired model';
+      $('tour-body').textContent='Your STL needed mesh repairs. Inspect the repaired shape and dimensions before continuing. Your original file is saved.';
+      $('tour-try').textContent='Confirm the repaired geometry to prepare its toolpath, or import another STL.';
+    }
     for(const button of panel.querySelectorAll('button'))button.disabled=isBusy();
-    $('tour-back').disabled=isBusy()||progress.step===0;
-    $('tour-next').disabled=isBusy()||!progress.canNext;
+    $('tour-back').disabled=isBusy()||geometryReview||progress.step===0;
+    $('tour-next').disabled=isBusy()||geometryReview||!progress.canNext||(active&&progress.step===L.roof&&workActive);
     $('tour-next').hidden=progress.step===TOUR_STEPS.length-1;
-    $('tour-next').textContent=progress.step===L.import?'Continue with this part':'Next';
+    $('tour-next').textContent=repairReview?'Confirm repaired geometry & continue':progress.step===L.import?'Continue with this part':'Next';
     $('import-stl').disabled=isBusy()||(active&&progress.step!==L.import);
     $('tour-toggle').disabled=isBusy();$('open-print').disabled=isBusy()||(active&&progress.step!==2);
-    const highlights=active?(progress.step===L.import?['import-stl','tour-next']:step.highlight?[step.highlight]:[]):[];
+    const highlights=active&&!geometryReview?(progress.step===L.import?['import-stl','tour-next']:step.highlight?[step.highlight]:[]):[];
+    if(active&&[L.geometry,L.roof].includes(progress.step)&&progress.gates?.[progress.step]&&!$('tour-next').disabled)highlights.push('tour-next');
+    if(highlights.includes('play')&&progress.step===L.playback&&(playStarted||progress.watchedMs>0))highlights.splice(highlights.indexOf('play'),1);
     document.querySelectorAll('.tour-highlight').forEach(el=>{if(!highlights.includes(el.id))el.classList.remove('tour-highlight');});
     if(active){
       for(const button of document.querySelectorAll('[data-tab]'))button.disabled=true;
-      $('confirm').disabled=isBusy()||progress.step!==L.export||!state.program||Boolean(state.programError);
-      if(progress.step===L.export)$('confirm').textContent='Confirm settings & export';
-      $('review-note').textContent=progress.step===L.export?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
+      $('confirm').disabled=isBusy()||(!geometryReview&&(progress.step!==L.export||!state.program||Boolean(state.programError)));
+      if(geometryReview)$('confirm').textContent='Confirm geometry & return to lesson';
+      else if(progress.step===L.export)$('confirm').textContent='Confirm settings & export';
+      $('review-note').textContent=geometryReview?'Review the updated shape and dimensions. Confirm here or tell your agent this geometry is right to resume this lesson.':progress.step===L.export?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
       for(const id of highlights)$(id)?.classList.add('tour-highlight');
       if(progress.step===L.setup)$('more-settings').open=true;
-      const desired=step.tab;
+      const desired=geometryReview?'geometry':step.tab;
       const key=progress.step+':'+state.printId+':'+(progress.step===L.playback?JSON.stringify(progress.startAt):'')+':'+desired+':'+Boolean(state.program)+':'+(state.generationError??state.programError??'');
       if(applied!==key){
+        const keepPlayback=!geometryReview&&progress.step===L.playback&&playStarted&&state.program&&playedSource===state.printId+':'+state.exportHash;
         applied=key;queueMicrotask(()=>{
+          if(keepPlayback)return;
           setTab(desired);
           startReady=false;
+          if(geometryReview){playbackActive=false;$('tour-status').textContent='Waiting for geometry confirmation. Your current lesson is saved.';return;}
           if(desired==='toolpath'&&!state.program){$('tour-status').textContent=state.generationError??state.programError??'Preparing your toolpath…';return;}
           $('tour-status').textContent='';
-          if(progress.step===L.playback){try{if(!progress.startAt)throw Error('Your agent has been asked to choose an infill layer for this model.');seek(progress.startAt);startReady=true;$('tour-status').textContent='Press Play and watch for five seconds. You can scrub or change the speed.';}catch(e){$('tour-status').textContent=e.message;}}
+          if(progress.step===L.playback){try{
+            const start=progress.startAt??{layer:1,fallback:true},landed=seek(start);startReady=true;
+            $('tour-status').textContent=(start.fallback?'Starting at layer '+((landed?.layer??1)+1)+'. ':'')+'Press Play and watch for five seconds. You can scrub or change the speed.';
+          }catch(e){$('tour-status').textContent=e.message;}}
         });
       }
     }
@@ -79,5 +100,5 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     const response=await post('view-ready',{revision:state.revision,exportHash:state.exportHash,stage});
     progress=await response.json();state.tour=progress;render(state);
   }
-  return {load,render,playback,acknowledgeView,active:()=>Boolean(progress?.active&&progress.directory===current()?.localPrintDirectory),initialTab:()=>progress?.active?TOUR_STEPS[progress.step]?.tab:'geometry'};
+  return {load,render,playback,acknowledgeView,activity(active){workActive=active;render(current());},active:()=>Boolean(progress?.active&&progress.directory===current()?.localPrintDirectory),initialTab:()=>progress?.active?TOUR_STEPS[progress.step]?.tab:'geometry'};
 }

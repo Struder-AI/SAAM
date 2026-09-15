@@ -2,7 +2,7 @@ import {createTour,referenceAdapter,tourExample,useExample} from './tour.mjs';
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
 import {printName,downloadName} from './print-name.mjs';
-import {importStudioSTL} from './import-stl.mjs';
+import {importStudioSTL,loadStudioImportRepair} from './import-stl.mjs';
 import http from 'node:http';
 import {watchStudioChanges} from './changes.mjs';
 import { readFile, readdir, stat, realpath } from 'node:fs/promises';
@@ -99,7 +99,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   let queue=Promise.resolve();
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
-  let preparation,generationFailure,closed=false;
+  let preparation,generationFailure,importProgress,closed=false;
   const discardPreparation=()=>{
     const previous=preparation;preparation=null;
     if(previous){previous.detachSource?.();previous.reject?.(new Error('The prepared print changed.'));return previous.worker?.terminate();}
@@ -134,7 +134,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       void job.worker?.terminate();job.worker=null;
     };
     worker.on('error',failed);
-    worker.on('exit',code=>{if(code&&preparation===job)failed(new Error('Toolpath preparation stopped unexpectedly.'));});
+    worker.on('exit',code=>{if(code&&preparation===job&&job.worker)failed(new Error('Toolpath preparation stopped unexpectedly.'));});
     worker.unref();
     return job;
   };
@@ -146,8 +146,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         // Do not start a new slicing worker for an already-reviewed program.
         if(!development&&state.review.generation?.mode!=='production')await current.generateBundle(generationDir,{development:false});
       }else if(resolveBundle===bundleFor){
-        // Retry failed speculation only on an explicit generation request.
-        if(preparation?.error)await discardPreparation();
+        // A stopped worker needs restarting; a completed preparation diagnostic
+        // is already useful and need not be recomputed on the first Continue.
+        if(preparation?.error&&(!preparation.worker||generationFailure?.directory===generationDir&&generationFailure.planHash===state.planHash))await discardPreparation();
         const job=prepare(state,dir);
         if(job)await new Promise((resolve,reject)=>{
           if(job.error){reject(new Error(job.error));return;}
@@ -157,6 +158,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         else await current.generateBundle(dir,{development});
       }else await current.generateBundle(dir,{development});
       generationFailure=null;
+      const guide=await tour.info();
+      if(guide.active&&guide.directory===generationDir&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
     }catch(error){
       generationFailure={directory:generationDir,planHash:state.planHash,message:error.message};
       try{await requests.begin({directory:generationDir,source:'studio',
@@ -169,12 +172,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const openPrint=async input=>{
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
     await readStableBundle(adapter,next,{program:false});
-    discardPreparation();
+    if(next!==dir)discardPreparation();
     dir=next;opened=Promise.resolve(adapter);
   };
   // Called only by a human Studio action choosing the geometry to print.
-  const confirmGeometryForToolpath=async(adapter,actor)=>{
+  const confirmGeometryForToolpath=async(adapter,actor,seen)=>{
     const state=await adapter.loadBundle(dir,{program:false,live:true});
+    if(seen&&(seen.revision!==state.revision||seen.geometryHash!==state.geometryHash))throw Error('The geometry changed. Review the current shape before confirming.');
     if(!state.geometryApproved)await adapter.approve(dir,{stage:'geometry',actor,revision:state.revision,program:false});
   };
   const server=http.createServer(async(req,res)=>{
@@ -206,6 +210,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&url.pathname==='/api/tour'){send(await tour.info());return;}
       if(req.method==='GET'&&url.pathname==='/api/agent-requests'){send({requests:await requests.list()});return;}
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
+        if(importProgress){send(importProgress);return;}
         const job=preparation;
         send({printId:printId(),planHash:job?.planHash??null,status:!job?'idle':job.error?'failed':job.pending?'generating':job.ready?'ready':'preparing',progress:job?.progress??null,error:job?.error??null});return;
       }
@@ -222,6 +227,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const {state,fingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly?false:'source'});
         if(readDir!==dir)throw new Error('The print is being updated.');
         state.tour=guide;state.localPrintDirectory=readDir;state.instanceId=instanceId;
+        state.importRepair=await loadStudioImportRepair(readDir);
         const workPrintId=requests.printId(readDir,{optional:true});
         state.work={printId:workPrintId??readId,snapshot:workSnapshot(state),requests:workPrintId?await requests.list():[]};
         if(generationFailure?.directory===readDir&&generationFailure.planHash===state.planHash&&!state.program)
@@ -267,19 +273,34 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const progress=await tour.info();
         if(importing){
           if(progress.active&&progress.step!==L.import)throw Error('Use Import STL during the mesh lesson, or exit the tour.');
+          await discardPreparation();
           const state=await current.loadBundle(dir,{program:false});
-          const imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId:state.machine.id,tour:progress.active});
-          if(progress.active)await tour.imported(imported);
-          await openPrint(imported);
-          if(progress.active){await confirmGeometryForToolpath(await opened,'Local user — STL selected for printing');await generate(await opened,false);await tour.requestStartLayer();}
+          importProgress={printId:printId(),planHash:null,status:'importing',progress:{stage:'Checking your STL'}};
+          let imported;
+          try{imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId:state.machine.id,tour:progress.active,
+            onProgress:value=>{importProgress.progress=value;}});}
+          finally{importProgress=null;}
+          if(progress.active)await tour.imported(imported.directory,{requiresReview:imported.repaired});
+          await openPrint(imported.directory);
+          if(progress.active&&!imported.repaired){await confirmGeometryForToolpath(await opened,'Local user — STL selected for printing');await generate(await opened,false);}
           send({ok:true});return;
         }
         if(url.pathname==='/api/view-ready'){
           const stage=data.stage??(progress.step===L.geometry?'geometry':'toolpath');
           if(!['geometry','toolpath'].includes(stage))throw Error('Unknown displayed stage.');
           const state=await current.loadBundle(dir,{program:stage==='geometry'?false:'source'});
-          if(data.revision===state.revision&&(stage==='geometry'||state.program&&!state.programError&&data.exportHash===state.exportHash))
+          if(data.revision===state.revision&&(stage==='geometry'||state.program&&!state.programError&&data.exportHash===state.exportHash)){
             await requests.presented(dir,{...workSnapshot(state),stage});
+            const advisory=state.program?.summary?.shortTravel;
+            if(stage==='toolpath'&&advisory?.count&&requests.printId(dir,{optional:true}))
+              await requests.begin({directory:dir,source:'studio',kind:'advisory',
+                key:`short-travel:${dir}:${state.exportHash}`,
+                evidence:{exportHash:state.exportHash,planHash:state.planHash,skills:state.skills,shortTravel:advisory},
+                instruction:`Toolpath quality advisory for export ${state.exportHash}: ${advisory.message}\n`+
+                  `Affected recipe skills: ${(state.skills??[]).join(', ')}. This notification preserves source locations and operation counts in evidence.shortTravel. `+
+                  `${advisory.count} travels have endpoints within ${advisory.thresholdMm} mm. `+
+                  'Record this as evidence for deferred generator improvement and acknowledge this advisory as completed. Continue the current user task; no repair or new approval is required.'});
+          }
           send(await tour.acknowledgeView(dir,data,state));return;
         }
         if(url.pathname==='/api/agent-request'){
@@ -293,7 +314,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           await useExample(dir);
           try{
             state=await current.loadBundle(dir,{program:'source'});
-            if(!state.geometryApproved)throw Error('Confirm the current geometry before exporting. Select the updated print in the print-selection lesson.');
+            if(!state.geometryApproved)throw Error('Confirm the updated geometry to return to this lesson before exporting.');
             if(state.review.generation?.mode!=='production'){await generate(current,false);state=await current.loadBundle(dir,{program:'source'});}
             if(state.exportHash!==shownHash)throw Error('The regenerated toolpath changed. Review it, then confirm export again.');
             if(!state.toolpathApproved)state=await current.approve(dir,{stage:'toolpath',actor:'Local user — tour export',revision:state.revision,program:'source'});
@@ -302,19 +323,27 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name)}`});res.end(bytes);return;
           }finally{if((await tour.info()).active)await tour.action('resume');}
         }
-        if(progress.active&&progress.directory===dir&&['/api/approve','/api/deliver'].includes(url.pathname))throw Error('Exit the tour before confirming a real print.');
+        if(progress.active&&progress.directory===dir&&(url.pathname==='/api/deliver'||url.pathname==='/api/approve'&&data.stage!=='geometry'))throw Error('Use the export lesson to confirm settings and the exact toolpath.');
         if(url.pathname==='/api/tour-playback'){
           if(!['play','pause','tick'].includes(data.event))throw Error('Unknown playback event');
           send(await tour.playback(data.event));return;
         }
         if(url.pathname==='/api/tour'){
+          if(data.action==='step'&&progress.active&&progress.step>=L.playback&&!(await current.loadBundle(dir,{program:false})).geometryApproved)
+            throw Error('Confirm the updated geometry to return to this lesson.');
+          // This button explicitly selects the displayed part. Generic lesson
+          // navigation carries no geometry approval, including Back and Resume.
+          if(data.action==='step'&&progress.step===L.import&&data.step===L.playback)
+            await confirmGeometryForToolpath(current,'Local user — continue with selected print',data);
           const result=await tour.action(data.action,data.step);
           if(['exit','pause','finish'].includes(data.action))await useExample(dir);
           else if(result.directory&&resolve(result.directory)!==dir)await openPrint(result.directory);
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
-            await confirmGeometryForToolpath(await opened,'Local user — continue with selected print');
             const adapter=await opened,state=await adapter.loadBundle(dir,{program:'source'});
-            if(!state.program||state.programError||state.review.generation?.mode!=='production'){await generate(adapter,false);}
+            if(state.geometryApproved){
+              if(!state.program||state.programError||state.review.generation?.mode!=='production')await generate(adapter,false);
+              if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
+            }
           }
         }
         else if(url.pathname==='/api/use-example'){
@@ -324,10 +353,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         }
         else if(url.pathname==='/api/open'){
           const selected=await printDirectory(data.path,resolveBundle);
-          if(progress.active)await tour.select(selected);
+          const repaired=await loadStudioImportRepair(selected);
+          const requiresReview=Boolean(repaired)&&!(await(await resolveBundle(selected)).loadBundle(selected,{program:false})).geometryApproved;
+          if(progress.active)await tour.select(selected,{requiresReview});
           await openPrint(selected);
           const adapter=await opened,state=await adapter.loadBundle(dir,{program:progress.active?false:'source'});
-          if(progress.active||state.program&&!state.programError)await confirmGeometryForToolpath(adapter,'Local user — print selected');
+          if(!requiresReview&&(progress.active||state.program&&!state.programError))await confirmGeometryForToolpath(adapter,'Local user — print selected');
           // Geometry stays visible in the STL lesson while a worker prepares its
           // selected part. Continuing commits this exact candidate.
           if(progress.active)prepare(await adapter.loadBundle(dir,{program:false}),dir);
@@ -335,7 +366,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan')await current.updatePlan(dir,data.plan,data.revision);
         else if(url.pathname==='/api/approve'){
-          const state=await current.approve(dir,{...data,program:'source'});
+          const state=await current.approve(dir,{stage:data.stage,actor:data.actor,revision:data.revision,program:'source'});
           const {revision,review,geometryApproved,planApproved,toolpathApproved}=state;
           send({ok:true,approval:{revision,review,geometryApproved,planApproved,toolpathApproved,
             programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,

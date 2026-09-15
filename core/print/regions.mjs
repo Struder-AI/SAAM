@@ -12,6 +12,7 @@ import {thickLipResult} from '../../skills/thick-lip/scripts/lip.mjs';
 import {drapedSkinResult,surveySurface,machineMaxAngle,bodyTopAt} from '../../skills/draped-skin/scripts/drape.mjs';
 import {spacingFactor} from '../path/spacing.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
+import {selectionsOverlap} from '../geom/selections.mjs';
 
 const has=(record,name)=>Object.hasOwn(record.assignment.skills,name);
 const planar=record=>has(record,'full-fill')||has(record,'planar-infill');
@@ -126,7 +127,7 @@ function publishSurface(record,results) {
     sourceOperationIds:[...ids(results),...(shell.processReservations??[]).map(r=>r.completion).filter(c=>c&&c.z>start+1e-8&&c.z<=end+1e-8).map(c=>c.operationId)],kind,sourceRegionId:record.assignment.id};
 }
 
-export function generateRegionResults({plan,machine,placed,componentShells}) {
+export function generateRegionResults({plan,machine,placed,componentShells,selections}) {
   const records=plan.composition.regions.map(assignment=>{
     const shell=componentShells?componentShells.get(assignment.part):placed;
     const localPlan=structuredClone(plan);localPlan.composition.regions=[];
@@ -152,7 +153,9 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     if(has(record,'vase-wall'))requireThat(Object.keys(assignment.skills).length===1,'A continuous outer-wall region cannot also assign another wall or interior owner; use separate material regions.');
     if(has(record,'thick-lip'))requireThat(Object.keys(assignment.skills).length===1,'A rim finish cannot also assign another wall or interior owner; use a separate material region.');
     if(has(record,'full-fill')&&has(record,'planar-infill'))requireThat(record.plan.skills['full-fill'].mode==='solid-surfaces','Overlapping body fill and sparse fill require complementary solid-surfaces ownership.');
-    for(const previous of records)if(previous!==record&&previous.assignment.part===assignment.part) {
+    for(const previous of records)if(previous!==record&&(selections
+      ?selectionsOverlap(selections.get(previous.assignment.part),selections.get(assignment.part))
+      :previous.assignment.part===assignment.part)) {
       const overlap=Math.min(previous.end,record.end)-Math.max(previous.start,record.start);
       requireThat(overlap<=1e-8||assignment.lowerSurfaceFrom===previous.assignment.id||previous.assignment.lowerSurfaceFrom===assignment.id,
         'Overlapping material regions need an explicit consumed lower surface; put complementary sparse and solid masks in one region.');
@@ -175,7 +178,10 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
     if(assignment.lowerSurfaceFrom) {
       requireThat(lowerSurface,'The referenced region does not publish a consumable material top; finish its boundary transition first.');
       const minimum=lowerSurface.field.values.reduce((best,row)=>row.reduce((min,z)=>Math.min(min,z),best),Infinity);
-      requireThat(start<=minimum+1e-6,'Consumer start skips material above the lower surface; start at or below its minimum height.');
+      // A planar consumer starts on a global horizontal layer grid. A curved
+      // skin instead begins above its local support at each sampled stroke;
+      // valleys outside its footprint must not constrain its bounding-box Z.
+      if(planar(record))requireThat(start<=minimum+1e-6,'Consumer start skips material above the lower surface; start at or below its minimum height.');
     }
     if(start>shell.bounds.min[2]+1e-8&&!lowerSurface)requireThat(touching.length,'Region starts above unassigned material; assign its supporting region or consume a published lower surface.');
     for(const previous of touching)if(has(previous,'vase-wall')) {
@@ -206,7 +212,10 @@ export function generateRegionResults({plan,machine,placed,componentShells}) {
       const supports=[...ordered,record].filter(r=>planar(r)).map(r=>({shell:r.shell,start:r.start,end:r.end,results:r.results}));
       const supportTopAt=lowerSurface?((x,y,ceiling)=>{
         const value=lowerSurface.topAt(x,y),z=typeof value==='number'?value:value?.zMm;
-        requireThat(Number.isFinite(z)&&z<=ceiling+1e-8,'Drape lower surface exceeds its reserved material boundary.');return z;
+        // The nominal reserve is not the first deposited surface. A measured
+        // support slightly above it gives a thinner first bead; samplePath
+        // checks the actual positive deposition gap against that support.
+        requireThat(Number.isFinite(z),'Drape lower surface does not cover the skin stroke.');return z;
       }):planarSupportTopAt(supports,plan.process);
       const skin=drapedSkinResult({shell,plan:localPlan,machine,survey:record.survey,id:prefix+':draped-skin',after:ids(record.results),supportTopAt});
       for(const op of skin.operations)for(const stroke of op.strokes)for(const point of stroke.points)

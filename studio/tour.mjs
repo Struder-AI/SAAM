@@ -31,7 +31,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
   const library=resolve(libraryRoot),progress=resolve(library,'.tour-progress.json'),base=resolve(library,'tour');
   const requests=createAgentRequests(library,{now,ownerId});
   let playbackAt=null;
-  const initial=()=>({imports:[],version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,watchedMs:0,startAt:null});
+  const initial=()=>({imports:[],version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,watchedMs:0,startAt:null,repairReviewRequired:false});
   async function read(){const value=await optional(progress);if(value?.deckVersion===2){value.deckVersion=TOUR_DECK_VERSION;if(value.step>=3)value.step++;value.gates=Object.fromEntries(Object.entries(value.gates??{}).map(([k,v])=>[Number(k)>=3?Number(k)+1:k,v]));await save(progress,value);}return value?.deckVersion===TOUR_DECK_VERSION?{...initial(),...value}:initial();}
   async function confined(name){
     if(!validPath(name))throw Error('Invalid saved tour path');
@@ -55,26 +55,43 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
   async function signature(data){
     if(!data.selected)return null;
     const dir=await confined(data.selected),plan=await json(resolve(dir,'plan.json'));
-    const {geometry,...settings}=plan;
-    return hash(canonical(data.step===0?geometry:{settings,machine:await json(resolve(dir,'machine.json'))}));
+    return hash(canonical([L.geometry,L.roof].includes(data.step)?plan.geometry:{plan,machine:await json(resolve(dir,'machine.json'))}));
+  }
+  async function editLessonBaseline(data,{entering=false}={}){
+    const printId=requests.printId(await confined(data.selected));
+    if(data.editLesson?.printId===printId)return false;
+    const records=await requests.list(),guidance=entering?null:records.find(r=>r.id===hash('tour-infill:'+data.copies.starter+':'+data.selected));
+    // Older saved lessons already captured the full input identity in their
+    // guidance request. Preserve it, including geometry, when resuming them.
+    data.editLesson={printId,inputKey:guidance?.baseline?.inputKey??await signature({...data,step:L.settings}),
+      priorRequestIds:records.filter(r=>r.printId===printId&&(!guidance||r.createdAt<=guidance.createdAt)).map(r=>r.id)};
+    data.baseline=data.editLesson.inputKey;
+    if(data.gates[L.settings]&&data.viewWork)data.viewSignature=data.viewWork.inputKey;
+    return true;
   }
   async function observed(){
     const data=await read();
-    if(data.active&&[L.geometry,L.settings].includes(data.step)&&data.gates[data.step]&&await signature(data)!==data.viewSignature){data.gates[data.step]=false;await save(progress,data);}
+    if(data.active&&data.step===L.settings&&await editLessonBaseline(data))await save(progress,data);
+    if(data.active&&[L.geometry,L.roof,L.settings].includes(data.step)&&data.gates[data.step]&&await signature(data)!==data.viewSignature){data.gates[data.step]=false;await save(progress,data);}
     return data;
   }
   async function describe(data){
     const gate=TOUR_STEPS[data.step]?.gate;
     const directory=data.selected?await confined(data.selected):null;
-    const waiting=data.active&&data.step===L.settings&&directory&&(await requests.list()).some(r=>r.printId===requests.printId(directory)&&['queued','working'].includes(r.status)&&!hasPresentedResult(r,data.viewWork));
+    const waiting=data.active&&[L.roof,L.settings].includes(data.step)&&directory&&(await requests.list()).some(r=>r.printId===requests.printId(directory)&&r.kind!=='guidance'&&(data.step===L.roof?r.status==='working':['queued','working'].includes(r.status))&&!hasPresentedResult(r,data.viewWork));
     return {...data,directory,canNext:!waiting&&(!gate||data.gates[data.step]===true),agentInstruction:tourAgentInstruction(data)};
   }
   async function enter(data,index){
     const step=TOUR_STEPS[index];data.step=index;data.active=true;data.completed=false;data.dismissed=false;playbackAt=null;
     if(step.demo){await ensure(step.demo,data);data.selected=data.copies[step.demo];}
     if(index===2){await ensure('starter',data);await ensure('surface-drape',data);}
-    if([L.geometry,L.settings].includes(index)&&!data.gates[index])data.baseline=await signature(data);
-    if(index===L.settings)await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',key:'tour-infill:'+data.copies.starter+':'+data.selected,instruction:tourAgentInstruction(data)});
+    if(index===L.roof){data.gates[index]=false;data.baseline=await signature(data);data.viewWork=null;}
+    if(index===L.playback)data.repairReviewRequired=false;
+    if(index===L.geometry&&!data.gates[index])data.baseline=await signature(data);
+    if(index===L.settings){
+      await editLessonBaseline(data,{entering:true});data.baseline=data.editLesson.inputKey;
+      await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',key:'tour-infill:'+data.copies.starter+':'+data.selected,instruction:tourAgentInstruction(data)});
+    }
   }
   return {
     async info(){return describe(await observed());},
@@ -82,25 +99,32 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
     async acknowledgeView(directory,seen,state){
       const data=await observed();
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
-      if(data.step===L.settings&&(!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash))return describe(data);
-      if([L.geometry,L.settings].includes(data.step)&&await signature(data)!==data.baseline){data.gates[data.step]=true;data.viewSignature=await signature(data);data.viewWork=workSnapshot(state);await save(progress,data);}
+      if(data.step===L.settings){
+        if(seen.stage!=='toolpath'||!state.geometryApproved||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
+        const shown={...workSnapshot(state),stage:'toolpath'},baseline=data.editLesson;
+        const requested=(await requests.list()).some(r=>r.printId===baseline.printId&&r.source==='agent'&&r.kind!=='guidance'
+          &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)
+          &&r.baseline?.inputKey!==shown.inputKey&&hasPresentedResult({...r,presented:false},shown));
+        if(!requested)return describe(data);
+      }
+      if([L.geometry,L.roof,L.settings].includes(data.step)&&await signature(data)!==data.baseline){data.gates[data.step]=true;data.viewSignature=await signature(data);data.viewWork={...workSnapshot(state),stage:seen.stage};await save(progress,data);}
       return describe(data);
     },
     async landing(){const data=await read();if(!data.selected){await ensure('starter',data);data.selected=data.copies.starter;}await save(progress,data);return confined(data.selected);},
     async setStartAt(startAt){if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('startAt.layer must be an infill layer after the first layer.');const data=await read();data.startAt={layer:startAt.layer};await save(progress,data);return describe(data);},
-    async select(directory){
+    async select(directory,{requiresReview=false}={}){
       const data=await observed();if(!data.active||data.step!==2)throw Error('Open a print during the print-switching lesson.');
-      if(!data.startAt)throw Error('Ask your agent to set startAt to an infill layer before choosing a print.');
       const target=await realpath(directory),allowed=await Promise.all([...Object.values(data.copies),...data.imports].map(confined));
       if(!allowed.includes(target))throw Error('Choose one of the two prints from this tour.');
-      data.selected=relative(base,target).split(sep).join('/');data.gates[2]=true;await enter(data,L.import);await save(progress,data);return describe(data);
+      data.selected=relative(base,target).split(sep).join('/');data.repairReviewRequired=requiresReview;data.gates[2]=true;await enter(data,L.import);await save(progress,data);return describe(data);
     },
-    async imported(directory){
+    async imported(directory,{requiresReview=false}={}){
       const data=await observed();if(!data.active||data.step!==L.import)throw Error('Import an STL during the mesh lesson.');
       const name=relative(base,resolve(directory)).split(sep).join('/');await confined(name);
       if(!data.imports.includes(name))data.imports.push(name);data.selected=name;data.startAt=null;data.watchedMs=0;data.gates[L.playback]=false;data.gates[L.settings]=false;
       await save(resolve(directory,'.tour-reference.json'),{id:'imported',version:TOUR_VERSION});
-      await enter(data,L.playback);await save(progress,data);
+      data.repairReviewRequired=requiresReview;
+      await enter(data,requiresReview?L.import:L.playback);await save(progress,data);
       return describe(data);
     },
     async requestStartLayer(){
@@ -110,7 +134,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
     },
     async playback(event){
       const data=await observed(),time=now();
-      if(!data.active||data.step!==L.playback||!data.startAt){playbackAt=null;return describe(data);}
+      if(!data.active||data.step!==L.playback){playbackAt=null;return describe(data);}
       if(playbackAt!==null)data.watchedMs+=Math.max(0,Math.min(1000,time-playbackAt));
       playbackAt=event==='play'||event==='tick'&&playbackAt!==null?time:null;
       if(data.watchedMs>=5000)data.gates[L.playback]=true;

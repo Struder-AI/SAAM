@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
 import {createTourUI,needsTourToolpath} from '../../studio/tour-ui.mjs';
+
+for(const lesson of [4,5,6,7])test('geometry review returns to the same toolpath lesson '+lesson,async t=>{
+  const saved={document:globalThis.document,setInterval:globalThis.setInterval};
+  t.after(()=>Object.assign(globalThis,saved));
+  const elements=new Map();
+  const element=id=>{
+    if(!elements.has(id))elements.set(id,{textContent:'',parentElement:{dataset:{}},querySelectorAll:()=>[],classList:{add(){},remove(){},toggle(){}}});
+    return elements.get(id);
+  };
+  globalThis.document={getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
+  globalThis.setInterval=()=>0;
+  const state={localPrintDirectory:'part',printId:'part',geometryApproved:false,programError:'Old toolpath is stale',
+    tour:{active:true,directory:'part',step:lesson,canNext:true,gates:{}}};
+  let shown;
+  const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab:tab=>{shown=tab;},seek:()=>({layer:1})});
+  ui.render(state);await Promise.resolve();
+  assert.equal(shown,'geometry');assert.equal(element('confirm').disabled,false);
+  assert.equal(element('confirm').textContent,'Confirm geometry & return to lesson');
+  assert.match(element('tour-status').textContent,/Waiting for geometry confirmation/);
+  assert.equal(element('tour-next').disabled,true);assert.equal(element('tour-back').disabled,true);
+  state.geometryApproved=true;delete state.programError;
+  ui.render(state);await Promise.resolve();
+  assert.equal(state.tour.step,lesson);assert.equal(state.localPrintDirectory,'part');
+  assert.equal(shown,'toolpath');assert.equal(needsTourToolpath(state),true);
+  state.program={};ui.render(state);await Promise.resolve();
+  assert.equal(shown,'toolpath');assert.equal(needsTourToolpath(state),false);
+  assert.equal(element('tour-next').disabled,false);
+});
 
 test('tour recipe edits trigger generation only for the selected confirmed toolpath lesson',()=>{
   const state={tour:{active:true,step:4,directory:'part'},localPrintDirectory:'part',geometryApproved:true};
@@ -83,7 +113,7 @@ test('playback leaves geometry before a program exists, seeks when ready, and re
   globalThis.document={getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
   globalThis.setInterval=()=>0;
   let progress={active:true,step:4,directory:'part',startAt:{layer:12},canNext:false};
-  const state={tour:progress,localPrintDirectory:'part',printId:'part',tourExample:{}};
+  const state={tour:progress,localPrintDirectory:'part',printId:'part',tourExample:{},geometryApproved:true};
   let shown='geometry',seeks=0,ui;
   globalThis.fetch=async()=>({ok:true,json:async()=>progress});
   ui=createTourUI({state:()=>state,isBusy:()=>false,working:async(_text,task)=>task(),
@@ -104,4 +134,82 @@ test('playback leaves geometry before a program exists, seeks when ready, and re
   assert.equal(element('tour-status').textContent,'Concrete generation failure');
   progress={active:false,completed:true};await ui.load();
   assert.equal(state.tour.completed,true,'completion updates the panel without reloading the source');
+});
+
+for(const fallbackLayer of [1,0])test('missing agent layer uses fallback playback without a late jump (resolved layer '+fallbackLayer+')',async t=>{
+  const saved={document:globalThis.document,setInterval:globalThis.setInterval};
+  t.after(()=>Object.assign(globalThis,saved));
+  const elements=new Map(),seeks=[],requests=[],tabs=[];let tick;
+  const element=id=>{
+    if(!elements.has(id))elements.set(id,{textContent:'',parentElement:{dataset:{}},querySelectorAll:()=>[],classList:{add(){},remove(){},toggle(){}}});
+    return elements.get(id);
+  };
+  globalThis.document={hidden:false,getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
+  globalThis.setInterval=callback=>{tick=callback;return 0;};
+  const state={localPrintDirectory:'part',printId:'part',program:{},geometryApproved:true,tour:{active:true,directory:'part',step:4,startAt:null,gates:{}}};
+  const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab:tab=>tabs.push(tab),
+    seek:startAt=>{seeks.push(startAt);return {layer:startAt.fallback?fallbackLayer:startAt.layer};},
+    post:async(route,data)=>{requests.push({route,...data});return {json:async()=>state.tour};}});
+  ui.render(state);await Promise.resolve();
+  assert.deepEqual(seeks,[{layer:1,fallback:true}],'human layer 2 is zero-based layer 1');
+  assert.match(element('tour-status').textContent,/Press Play/);
+  await ui.playback('play');await tick();
+  assert.deepEqual(requests,[{route:'tour-playback',event:'play'},{route:'tour-playback',event:'tick'}],
+    'fallback readiness sends both Play and visible playback ticks');
+  state.tour={...state.tour,startAt:{layer:12}};ui.render(state);await Promise.resolve();
+  assert.equal(seeks.length,1,'late agent layer does not move playback after Play');
+  assert.equal(tabs.length,1,'late layer does not reset the playing viewer through setTab');
+  await ui.playback('pause');state.tour={...state.tour,startAt:{layer:18}};ui.render(state);await Promise.resolve();
+  assert.equal(seeks.length,1,'pausing after the first Play does not reopen automatic seeking');
+});
+
+test('browser fallback seeks deposited layer 2 or the only layer while explicit agent layers require sparse infill',async()=>{
+  const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
+  const registration=app.slice(app.indexOf('tourUI=createTourUI('),app.indexOf("\nworking('Opening Studio"));
+  const scrub={},noop=()=>{},context=vm.createContext({createTourUI:({seek})=>seek,
+    api:noop,refresh:noop,working:noop,setTab:noop,stop:noop,layerFade:{reset:noop},requestDraw:noop,$:()=>scrub,
+    state:{program:{moves:[{layer:1,extruding:false,startSeconds:0},
+      {layer:0,extruding:true,operation:'walls',startSeconds:1},
+      {layer:1,extruding:true,operation:'solid-infill',startSeconds:4},
+      {layer:1,extruding:true,operation:'planar-infill',startSeconds:8}]}}});
+  vm.runInContext(registration,context);
+  assert.equal(context.tourUI({layer:1,fallback:true}).layer,1);
+  assert.equal(scrub.value,4,'fallback starts at solid deposited material on human layer 2');
+  assert.equal(context.tourUI({layer:1}).layer,1);assert.equal(scrub.value,8,'explicit choice skips solid infill');
+  context.state.program.moves=context.state.program.moves.slice(0,3);
+  assert.throws(()=>context.tourUI({layer:1}),/no sparse infill/);
+  context.state.program.moves=[{layer:0,extruding:true,operation:'walls',startSeconds:2}];
+  assert.equal(context.tourUI({layer:1,fallback:true}).layer,0);assert.equal(scrub.value,2,'single-layer print remains playable');
+});
+
+test('edit cues are limited to the first two slides and Play stops blinking on first use',async t=>{
+  const saved={document:globalThis.document,setInterval:globalThis.setInterval};
+  t.after(()=>Object.assign(globalThis,saved));
+  const elements=new Map();
+  const element=id=>{
+    if(!elements.has(id)){const classes=new Set();elements.set(id,{id,classes,parentElement:{dataset:{}},querySelectorAll:()=>[],
+      classList:{add:name=>classes.add(name),remove:name=>classes.delete(name),toggle:(name,on)=>on?classes.add(name):classes.delete(name)}});}
+    return elements.get(id);
+  };
+  globalThis.document={getElementById:element,addEventListener(){},querySelectorAll:selector=>selector==='.tour-highlight'?[...elements.values()].filter(e=>e.classes.has('tour-highlight')):[]};
+  globalThis.setInterval=()=>0;
+  const state={localPrintDirectory:'part',printId:'part',program:{},geometryApproved:true,tour:{active:true,directory:'part',step:0,canNext:false,gates:{}}};
+  const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab(){},seek(){},post:async()=>({json:async()=>state.tour})});
+  const highlighted=id=>element(id).classes.has('tour-highlight');
+  ui.render(state);assert.equal(highlighted('tour-next'),false);
+  state.tour.canNext=true;state.tour.gates[0]=true;ui.render(state);assert.equal(highlighted('tour-next'),true);
+  state.tour.step=1;ui.render(state);assert.equal(element('tour-next').disabled,false);assert.equal(highlighted('tour-next'),false);
+  ui.activity(true);assert.equal(element('tour-next').disabled,true,'locks in the same update as dots/fade');
+  state.tour.gates[1]=true;ui.render(state);assert.equal(highlighted('tour-next'),false,'a saved result still loading must not blink');
+  ui.activity(false);assert.equal(element('tour-next').disabled,false);assert.equal(highlighted('tour-next'),true);
+  state.tour.step=2;ui.render(state);assert.equal(highlighted('tour-next'),false);
+  state.tour.step=3;state.tour.repairReviewRequired=true;ui.render(state);
+  assert.equal(element('tour-next').textContent,'Confirm repaired geometry & continue');
+  assert.match(element('tour-body').textContent,/Inspect the repaired shape/);
+  state.tour.repairReviewRequired=false;
+  state.tour.step=4;state.tour.startAt={layer:12};ui.render(state);await Promise.resolve();
+  assert.equal(highlighted('play'),true);
+  await ui.playback('play');assert.equal(highlighted('play'),false);
+  await ui.playback('pause');ui.render(state);assert.equal(highlighted('play'),false,'pausing does not restart the cue');
+  state.tour.step=5;state.tour.gates[5]=true;ui.render(state);assert.equal(highlighted('tour-next'),false);
 });

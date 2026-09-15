@@ -86,7 +86,10 @@ If import or reopening reports invalid mesh geometry, read the
 [mesh-tools manual](../../skills/mesh-tools/SKILL.md) with the reported failure.
 It explains how to assess the available correction tools and their effect on
 the part. Import itself preserves the supplied geometry; repair is a
-separate operation whose result needs geometry review. Missing files, wrong
+separate operation whose result needs geometry review. Studio's file-picker flow
+automatically invokes that operation for recognized mesh defects, preserves both
+files and the report, and requires confirmation of the repaired geometry before
+continuing. CLI/MCP import retains strict validation. Missing files, wrong
 units and machine incompatibility need their own corrections.
 
 ### Add or remove text material
@@ -95,6 +98,9 @@ Use the [text skill](../../skills/text/SKILL.md) for raised or recessed letterin
 standalone text and independent spline guides. `shell text` / MCP `apply_text`
 rebuild the selected part through the same geometry and review lifecycle. Its
 manual owns font input, placement, reference-surface and relief settings.
+Prepared lettering exposes separate base and raised-feature material selections
+for regional printing patterns. Changing those assignments preserves the reviewed
+geometry; see [text material selections](../../skills/text/SKILL.md#material-selections-and-printing-patterns).
 
 ## Open and resume review
 
@@ -121,6 +127,25 @@ geometry and reports `planComplete:false`.
 CLI `adjust` returns a compact checked summary and revision instead of echoing
 the entire geometry-bearing plan. The complete editable recipe remains in
 `plan.json`.
+
+### Record explicit geometry confirmation from chat
+
+The person can confirm the current resulting shape in Studio or explicitly in
+chat. After a chat confirmation, use `confirm-geometry Prints/my-part confirmation.json`
+(MCP: `confirm_geometry`). Read the current revision and `geometryHash` from
+CLI `check` or MCP `get_print` first. The confirmation JSON contains:
+
+```json
+{"actor":"Human reviewer","expectedRevision":"CURRENT_REVISION","geometryHash":"CURRENT_GEOMETRY_HASH","statement":"EXACT HUMAN APPROVAL TEXT","chatReference":"CONVERSATION AND MESSAGE REFERENCE"}
+```
+
+Record only explicit approval of that resulting shape. A request to change it,
+an acknowledgement, or permission to continue editing is not geometry approval.
+The agent judges that meaning; validation cannot infer human intent from text.
+The shared operation rejects a stale revision or different geometry hash and
+records the exact statement and chat reference with the selected directory,
+revision and geometry hash. Geometry edits invalidate it normally. This records
+no settings or toolpath approval; those remain a combined human review in Studio.
 
 ## Adjust the recipe
 
@@ -172,6 +197,13 @@ surface fitting and composition behavior.
 
 ## Check, generate and deliver
 
+Every interpreted toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory).
+Read `shortTravel` in generation checks/MCP print state or the program summary
+in CLI/toolkit state. Studio also sends an `advisory` through the existing request
+listener once per displayed export with findings. Preserve its source/operation
+evidence for deferred producer improvement, acknowledge it as completed, and
+continue the user's task. It requests no repair, regeneration or extra approval.
+
 | Operation | CLI suffix after `node core/print/cli.mjs` | MCP tool | Result |
 |---|---|---|---|
 | Read checked state | `check Prints/my-part` | `check_print` | Checks saved inputs and any stored export; reports approval state without generation. |
@@ -182,7 +214,8 @@ surface fitting and composition behavior.
 Studio also supports generation and final export in its review flow. Read the
 current state before repeating a timed-out operation: work may have completed.
 Changed inputs or a stale/edited export require the affected generation and
-reviews again. Only the person enters approvals in Studio. Delivery preserves
+reviews again. Geometry confirmation may also record explicit human chat approval
+as described above; settings/toolpath confirmation belongs in Studio. Delivery preserves
 the selected machine's filename and extension and does not send a job to hardware.
 An unchanged checked development export can become production after geometry
 confirmation without slicing again; final settings/toolpath confirmation remains

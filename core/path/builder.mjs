@@ -14,6 +14,7 @@
 
 import { requireThat, distance, TOLERANCE } from '../geom/tolerance.mjs';
 import {combRoute,combSegment,prepareCombCorners} from './comb.mjs';
+import {materialRegion} from './material.mjs';
 import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
 import {requireProcessControl} from './process-controls.mjs';
 
@@ -206,13 +207,15 @@ export class PathBuilder {
   canComb(target, policy, distanceLimit) {
     // A policy may decide for itself: a draped skin travels over a curved
     // surface, where "same height" is the wrong question.
-    if (policy.canTravelDirect) return policy.canTravelDirect(this.position, target, distanceLimit);
+    if (policy.canTravelDirect) return policy.canTravelDirect(this.position, target, distanceLimit)
+      &&(!policy.combRegion||combSegment(this.position,target,{...policy,combClearanceMm:policy.directClearanceMm??policy.combClearanceMm}))
+      &&(!policy.isTravelClear||policy.isTravelClear(this.position,target));
     const maxDistance=distanceLimit??policy.maxCombMm;
     if (!policy.combRegion || !(maxDistance > 0)) return false;
     if (Math.abs(target[2] - this.position[2]) > 1e-9) return false;
     const span = Math.hypot(target[0] - this.position[0], target[1] - this.position[1]);
     if (span > maxDistance) return false;
-    return combSegment(this.position,target,policy);
+    return combSegment(this.position,target,policy)&&(!policy.isTravelClear||policy.isTravelClear(this.position,target));
   }
 
   toPath(summary = {}) {
@@ -249,14 +252,51 @@ function mergeableMove(run,next) {
 
 // Travel policy for one planar layer: comb inside the layer's own outline.
 export function planarPolicy(loops, { layerZ, liftMm, maxCombMm, lineWidthMm }) {
+  const index=new SegmentIndex(loops,Math.max(lineWidthMm,0.5));
   return {
     combRegion: loops,
-    combIndex: new SegmentIndex(loops, Math.max(lineWidthMm, 0.5)),
+    combIndex: index,
     combClearanceMm: lineWidthMm / 2,
     combCorners: prepareCombCorners(loops,lineWidthMm/2),
     maxCombMm,
+    material: materialRegion(loops,{maxZ:layerZ,index}),
     constantClearanceZ: layerZ + liftMm,
     clearanceFor: () => layerZ + liftMm
+  };
+}
+
+// Any single-valued XY surface can share the same footprint routing as a flat
+// layer. The producer owns height validity, sampling and permitted chord sag.
+export function surfacePolicy(loops,{surfaceZ,maxZ,maxCombMm,lineWidthMm,liftMm,sampleStepMm=0.5,sagMm=0}) {
+  requireThat(typeof surfaceZ==='function'&&Number.isFinite(sampleStepMm)&&sampleStepMm>0&&Number.isFinite(sagMm)&&sagMm>=0,'Surface travel needs a height query, positive sampling step and nonnegative sag.');
+  const index=loops?new SegmentIndex(loops,Math.max(lineWidthMm,0.5)):undefined;
+  const heightAlong=(from,to)=>{
+    const steps=Math.max(2,Math.ceil(Math.hypot(to[0]-from[0],to[1]-from[1])/sampleStepMm));
+    let high=-Infinity;
+    for(let i=0;i<=steps;i++){
+      const t=i/steps,z=surfaceZ(from[0]+(to[0]-from[0])*t,from[1]+(to[1]-from[1])*t);
+      if(Number.isFinite(z))high=Math.max(high,z);
+    }
+    return high;
+  };
+  return {
+    combRegion:loops,combIndex:index,
+    // Preserve the surface's existing centerline/chord allowance for direct
+    // connections. New detours retain the inset used by shared comb routing.
+    directClearanceMm:0,combClearanceMm:lineWidthMm/2,combCorners:loops?prepareCombCorners(loops,lineWidthMm/2):undefined,
+    combSurfaceZ:surfaceZ,combStepMm:sampleStepMm,maxCombMm,
+    ...(loops?{material:materialRegion(loops,{heightAt:surfaceZ,maxZ,sampleStepMm,index})}:{}),
+    heightAlong,clearanceFor:(from,to)=>Math.max(from[2],to[2],heightAlong(from,to))+liftMm,
+    canTravelDirect:(from,to,limit=maxCombMm)=>{
+      const span=Math.hypot(to[0]-from[0],to[1]-from[1]);
+      if(!(limit>0)||span>limit)return false;
+      const steps=Math.max(2,Math.ceil(span/sampleStepMm));
+      for(let i=0;i<=steps;i++){
+        const t=i/steps,z=surfaceZ(from[0]+(to[0]-from[0])*t,from[1]+(to[1]-from[1])*t);
+        if(!Number.isFinite(z)||from[2]+(to[2]-from[2])*t<z-sagMm-TOLERANCE.plane)return false;
+      }
+      return true;
+    }
   };
 }
 

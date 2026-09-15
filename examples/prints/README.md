@@ -26,9 +26,9 @@ choose **Resume tour** when paused. Refreshing an active viewer keeps its lesson
 | Lesson | Unlocks Next |
 |---|---|
 | A simple block with a raised fin | Ask the agent to change its geometry; Next unlocks after the changed geometry is displayed. |
-| The wavy roof | Change it or proceed immediately. |
+| The wavy roof | Change it or proceed immediately. Active work locks Next; displaying the changed geometry unlocks and highlights it. |
 | Open print | Choose one of the two saved parts. Studio immediately advances to the optional STL lesson, keeping geometry visible. |
-| Import STL | Optionally load an STL with units assumed from its size, which advances automatically; Next keeps the selected part. Both routes lead to playback. |
+| Import STL | Optionally load an STL with units assumed from its size. A clean import advances automatically; an automatically repaired import stays in geometry review until confirmed. Next otherwise keeps the selected part. |
 | Playback | Press Play and watch for five seconds. Scrubbing and speed remain free. |
 | Chat guidance | The agent offers infill patterns or another toolpath change; Next unlocks after the regenerated toolpath is loaded and displayed. |
 | Printer and material | Ultimaker S5 and PLA are the initial choices. Keep them or ask the agent to change them. |
@@ -36,8 +36,9 @@ choose **Resume tour** when paused. Refreshing an active viewer keeps its lesson
 
 The agent explicitly chooses `startAt: {layer: 12}` (zero-based layer index)
 for the playback lesson. Choose an actual sparse-infill layer after the first
-layer; Studio seeks to its infill move. This parameter is required only in the
-tour. If edits remove infill from that layer, choose another. The participant can
+layer; Studio seeks to its infill move. If no layer is supplied, Studio starts
+at layer 2, or the first deposited layer for a one-layer model. If edits remove
+infill from an explicitly chosen layer, choose another. The participant can
 then move the slider freely; the gate measures five seconds of visible playback
 in wall time, regardless of speed or position.
 
@@ -69,8 +70,10 @@ downloaded file, and ask what she wants to make next. These messages belong in
 ordinary text chat. Never use a generic question box or request-user-input tool
 for completion. Prioritize this message over status checks and bookkeeping.
 
-Imported models reset the start layer: the maker agent chooses an actual sparse
-infill layer for the new geometry before playback can count. Saved part names
+Imported models reset the start layer: the maker agent can choose an actual sparse
+infill layer for the new geometry, while the layer-2 fallback allows playback
+and its five-second timer to proceed without waiting. A late choice does not
+reset playback after the participant has started watching. Saved part names
 and download filenames describe their shapes and lettering, such as
 **Named handle · Nave**. Existing bundle directory names are preserved. Tour
 highlights blink with a simple slate-blue outline. All tour small text uses the
@@ -84,7 +87,9 @@ with this part** uses that candidate and opens playback. Import creates another
 saved part; it does not replace the part already selected. **Open print** can
 reopen either saved copy later.
 Selecting an STL during its tour lesson confirms that imported geometry before
-its preview is generated; skipping keeps the already confirmed selected part.
+its preview is generated when no repair was needed; repaired geometry requires
+the explicit **Confirm repaired geometry & continue** action. Both versions and
+the repair report remain saved. Skipping keeps the already confirmed selected part.
 The finished panel says “Congratulations!” and directs the participant back to
 chat for the next project. The final confirmation approves the displayed settings and exact toolpath,
 downloads that checked production output without reslicing. Production output

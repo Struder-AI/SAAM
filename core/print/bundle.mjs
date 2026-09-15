@@ -10,7 +10,7 @@ const RUNTIME_FILES = [
   '../../skills/wave-overhangs/scripts/wave.mjs',
   '../../skills/gridfinity/scripts/record.mjs','../../skills/gridfinity/scripts/gridfinity.mjs','../../skills/gridfinity/scripts/bundle.mjs',
   '../path/deposition.mjs','../geom/contour-path.mjs','../../skills/vase-wall/scripts/paths.mjs',
-  '../geom/text-record.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',
+  '../geom/text-record.mjs','../geom/selections.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',
   '../../skills/text/scripts/text.mjs','./text.mjs','../../node_modules/manifold-3d/manifold.js','../../node_modules/manifold-3d/manifold.wasm',
   '../../node_modules/fontkit/dist/module.mjs',
   '../path/spacing.mjs',
@@ -56,7 +56,7 @@ const limitationsFor = (plan, machine) => {
 };
 
 
-export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine, upgradeBundle}=createBundleWorkflow({
+export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, runtimeHash, proposedPlan, initBundle, loadBundle, bundleFingerprint, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, confirmGeometryFromChat, deliver, changeMachine, upgradeBundle}=createBundleWorkflow({
   kind:'shell',defaults,validatePlan,geometryTemplate,createGeometry,verifyGeometry,
   generatePath:async(plan,machine,options)=>generatePath(plan,machine,await rhino(),options),
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',machineFile:'machines/ultimaker-s5.json',

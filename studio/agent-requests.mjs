@@ -27,18 +27,18 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
   function printId(directory,{optional=false}={}){const name=relative(root,resolve(directory)).split('\\').join('/');if(!name||name==='..'||name.startsWith('../')||isAbsolute(name)){if(optional)return null;throw Error('Agent requests must refer to a print in this library.');}return name;}
   async function list(){let names;try{names=await readdir(folder);}catch(e){if(e.code==='ENOENT')return [];throw e;}
     const records=await Promise.all(names.filter(n=>n.endsWith('.json')).map(n=>get(n.slice(0,-5))));
-    return records.map(r=>!r.presented&&['queued','working'].includes(r.status)&&r.expiresAt<=now()?{...r,status:'failed',timedOut:true,error:'The agent did not respond. Retry the request or return to chat.'}:r).sort((a,b)=>a.createdAt-b.createdAt);
+    return records.map(r=>r.kind!=='advisory'&&!r.presented&&['queued','working'].includes(r.status)&&r.expiresAt<=now()?{...r,status:'failed',timedOut:true,error:'The agent did not respond. Retry the request or return to chat.'}:r).sort((a,b)=>a.createdAt-b.createdAt);
   }
   return {list,printId,
-    async begin({directory,instruction,source='agent',key,kind='edit'}){
+    async begin({directory,instruction,source='agent',key,kind='edit',evidence}){
       if(disconnected)throw Error('Agent connection closed.');
       if(typeof instruction!=='string'||!instruction.trim()||instruction.length>8000)throw Error('Describe the requested agent work.');
       const id=key?createHash('sha256').update(key).digest('hex'):randomUUID();
       if(key)try{return await get(id);}catch(e){if(e.code!=='ENOENT')throw e;}
-      if(!['edit','guidance'].includes(kind))throw Error('Unknown Studio work kind.');
-      const currentId=printId(directory),overlapping=kind==='edit'?(await list()).filter(r=>r.printId===currentId&&r.kind!=='guidance'&&!r.presented&&['queued','working','waiting'].includes(r.status)):[];
+      if(!['edit','guidance','advisory'].includes(kind))throw Error('Unknown Studio work kind.');
+      const currentId=printId(directory),overlapping=kind==='edit'?(await list()).filter(r=>r.printId===currentId&&!['guidance','advisory'].includes(r.kind)&&!r.presented&&['queued','working','waiting'].includes(r.status)):[];
       for(const record of overlapping)await save({...await get(record.id),requiresTarget:true});
-      return save({id,printId:currentId,instruction,source,kind,baseline:await snapshot(directory),requiresTarget:overlapping.length>0,ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now(),expiresAt:now()+600000});
+      return save({id,printId:currentId,instruction,source,kind,...(kind==='advisory'?{evidence}:{}),baseline:await snapshot(directory),requiresTarget:overlapping.length>0,ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now(),expiresAt:now()+600000});
     },
     async update(id,{status='completed',message='',resultStage}={}){
       if(disconnected)throw Error('Agent connection closed.');

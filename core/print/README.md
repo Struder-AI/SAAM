@@ -17,6 +17,10 @@ confirmation. `approve(stage: "toolpath")` records the settings hash and export
 hash in one human event; the persisted `approvals.plan`/`planApproved` fields remain
 for record compatibility. Production generation requires geometry confirmation;
 production delivery still requires the exact current final confirmation.
+`confirmGeometryFromChat` records an explicit human shape approval through the
+same geometry transition. It checks the current revision and geometry hash and
+retains the statement and chat reference as evidence; it cannot grant final
+settings/toolpath approval. See the [chat confirmation command](USAGE.md#record-explicit-geometry-confirmation-from-chat).
 
 The [text preparation entry](text.mjs) compiles editable font/surface features
 into the same native mesh geometry used by Studio and slicing, then calls

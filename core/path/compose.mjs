@@ -79,7 +79,6 @@ export function composeResults(builder, results, rules = {}, onProgress) {
   const operations = scheduleOperations(results, rules);
   const remaining = new Map(), elapsed = new Map();
   const deposited=[];
-  let constantClearance=-Infinity;
   let completed=0;
   onProgress?.({stage:'Planning print moves',completed,total:operations.length});
   for (const op of operations) remaining.set(op.layerId, (remaining.get(op.layerId) ?? 0) + 1);
@@ -100,10 +99,10 @@ export function composeResults(builder, results, rules = {}, onProgress) {
       const policy = { ...op.travelPolicy };
       // Geometry queries, not the scheduling rank, decide whether an earlier
       // operation blocks direct travel. Rank need not mean physical height.
-      const destinationClearance=op.travelPolicy.clearanceFor(builder.position,stroke.points[0]);
-      if(constantClearance>destinationClearance+1e-9||deposited.some(previous=>previous.travelPolicy.clearanceFor(builder.position,stroke.points[0])>destinationClearance+1e-9)) {
-        policy.canTravelDirect=()=>false; policy.maxCombMm=0;
-      }
+      policy.isTravelClear=(from,to)=> (!op.travelPolicy.isTravelClear||op.travelPolicy.isTravelClear(from,to))
+        &&!deposited.some(previous=>previous.material
+          ?previous.material.blocksSegment(from,to)
+          :previous.clearanceFor(from,to)>op.travelPolicy.clearanceFor(from,to)+1e-9);
       builder.travelTo(stroke.points[0], policy,stroke.poses?.[0]);
       if(stroke.stationaryExtrusion){
         requireThat(stroke.points.length===1&&!stroke.closed&&!stroke.poses,'Stationary extrusion needs one unoriented point.');
@@ -120,8 +119,7 @@ export function composeResults(builder, results, rules = {}, onProgress) {
       }
     }
     if(op.nozzleC!==undefined){builder.park();builder.nozzle(op.restoreNozzleC);}
-    if(op.travelPolicy.constantClearanceZ!==undefined)constantClearance=Math.max(constantClearance,op.travelPolicy.constantClearanceZ);
-    else deposited.push(op);
+    deposited.push(op.travelPolicy);
     elapsed.set(op.layerId, builder.layerSeconds);
     remaining.set(op.layerId, remaining.get(op.layerId) - 1);
     if (remaining.get(op.layerId) === 0 && !op.continuous) builder.finishLayer();

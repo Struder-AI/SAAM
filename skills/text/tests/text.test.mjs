@@ -135,6 +135,10 @@ test('text on an imported mesh retains and checks the original STL source',async
   const state=await applyText(dir,{feature:feature({mode:'recessed'})});
   assert.equal(state.plan.geometry.base.shape,'mesh');assert.deepEqual(await readFile(join(dir,'geometry/source.stl')),bytes);
   assert.ok(regionArea(sectionMesh(makeMesh(state.plan.geometry.vertices,state.plan.geometry.triangles),2.7).loops)<240);
+  const standalone=await applyText(dir,{standalone:true,feature:feature({text:'O',reference:{kind:'top'},overlapMm:0})});
+  assert.equal(standalone.plan.geometry.standalone,true);
+  assert.equal(standalone.plan.geometry.base.shape,'mesh');
+  assert.ok(standalone.geometry.boundsMm.min[2]>=3,'standalone text consumes the retained imported top without its substrate');
   await writeFile(join(dir,'geometry/source.stl'),Buffer.concat([bytes,Buffer.from('\n')]));
   await assert.rejects(loadBundle(dir,{program:false}),/source changed/);
 });

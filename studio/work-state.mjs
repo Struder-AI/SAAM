@@ -1,7 +1,7 @@
 // Visible work is separate from the agent's request bookkeeping. A newer,
 // presented result can be ready before the agent sends its final acknowledgement.
 export function hasPresentedResult(request,snapshot){
-  if(request.kind==='guidance'||!request.baseline||!snapshot)return false;
+  if(['guidance','advisory'].includes(request.kind)||!request.baseline||!snapshot)return false;
   if(request.presented)return true;
   if(request.target)return request.target.inputKey===snapshot.inputKey
     &&(request.target.stage==='geometry'||snapshot.stage==='toolpath')
@@ -11,13 +11,16 @@ export function hasPresentedResult(request,snapshot){
 }
 
 export function agentIndicator(requests,{now=Date.now(),closedOwners=new Set(),view}={}){
-  const records=requests.filter(r=>!view?.printId||r.printId===view.printId).map(r=>{
+  const records=requests.filter(r=>r.kind!=='advisory'&&(!view?.printId||r.printId===view.printId)).map(r=>{
     if(r.presented||view?.ready&&hasPresentedResult(r,view.snapshot))return {...r,status:'completed',timedOut:false,connectionClosed:false};
     if(!['queued','working'].includes(r.status))return r;
     if(closedOwners.has(r.ownerId))return {...r,status:'failed',connectionClosed:true,updatedAt:now};
     return r.expiresAt<=now?{...r,status:'failed',timedOut:true}:r;
   });
   const active=Boolean(view?.loading)||records.some(r=>{
+    // A displayed new shape is waiting on the person, even if the request's
+    // final target is a toolpath. Keep that target pending until it is rendered.
+    if(view?.ready&&view.awaitingConfirmation&&r.baseline?.inputKey!==view.snapshot?.inputKey)return false;
     if(r.presented||view?.ready&&hasPresentedResult(r,view.snapshot))return false;
     if(view?.errorAt&&r.updatedAt<=view.errorAt)return false;
     if(r.status==='working')return true;

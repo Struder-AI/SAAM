@@ -276,12 +276,23 @@ interface. Publication describes planned material, not measured cavity filling.
 
 `composition.regions` assigns skills to regions of native geometry. An empty
 array retains the original whole-component recipe. Each assignment carries
-`id`, `part` (null for a single component), `zStartMm`, nullable `zEndMm`,
+`id`, `part` (null for a whole single component), `zStartMm`, nullable `zEndMm`,
 `skills` and nullable `lowerSurfaceFrom`. Heights are relative
 to the component's minimum Z. The skill map selects the skills and holds partial
 setting overrides; it resolves against the other settings locked in that plan.
 It supersedes global enabled flags. Regions own selection and height bounds;
 overrides cannot independently change those fields.
+
+Prepared text exposes `base` and `text/<feature-id>` material selections; in an
+assembly prefix these with `<component-id>/`. Whole-component selectors retain
+their existing meaning. [Geometry selections](../geom/selections.mjs) resolves
+each selection with its component placement. Height bounds are relative to the
+selected material's minimum Z. Disjoint partitions may share height ranges;
+whole/partition or repeated-partition overlap needs the same explicit consumed
+lower-surface relationship as overlapping whole-component assignments. Selection
+is a process choice and does not change geometry approval. The
+[text manual](../../skills/text/SKILL.md#material-selections-and-printing-patterns)
+owns creation and editing of these prepared partitions.
 
 `core/print/regions.mjs` resolves those assignments through the existing skill
 generators. Full-fill can own separate base and cap regions; planar-infill and
@@ -303,6 +314,15 @@ the other boundaries. A referenced surface must cover the requested region;
 unknown areas are rejected instead of silently omitted. Published sparse or rim
 support is distinguished from area support. Native components can describe the
 intermediate roof and enclosing upper volume of the same manufactured part.
+
+A draped-only consumer can occupy a thin curved component above that surface,
+including a raised-text material selection. Its local first-bead gap replaces the planar
+consumer's global start-height requirement; valleys outside its footprint do not
+constrain its minimum Z. The nominal skin reserve is not a deposited boundary:
+support slightly above it produces a thinner first bead. Each sampled stroke
+must have a finite supporting height and a positive gap to its first skin.
+The normal skin spacing and the top geometry still determine the remaining
+layers. Missing support and deposition into already finished material fail.
 
 `core/region/reservation.mjs` clips only material inside a roof's actual footprint,
 preserving other components. It also clips sections above consumed surfaces and

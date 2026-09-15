@@ -60,6 +60,7 @@ export function createBundleWorkflow(adapter) {
       new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
       new URL('./program-handoff.mjs',import.meta.url),
       new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
+      new URL('../export/travel-advisory.mjs',import.meta.url),
       new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
       new URL('../export/gcode-lines.mjs',import.meta.url),
       new URL('../export/denso.mjs',import.meta.url),new URL('../export/denso-player.mjs',import.meta.url),new URL('../machine/denso.mjs',import.meta.url),new URL('../path/pose.mjs',import.meta.url),
@@ -357,7 +358,7 @@ async function generateBundle(directory, { development = false, onProgress } = {
   }
   const prepared=await prepareProgram(state,onProgress);
   requireThat((await loadBundle(directory,{program:false})).planHash===state.planHash,'The print changed during generation. Review the updated print.');
-  onProgress?.({stage:'Saving the checked toolpath'});
+  onProgress?.({stage:'Saving your toolpath'});
   const {bytes:code,program,summary}=prepared;
   const checks = {
     schema: 'saam-checks/1', result: 'pass', mode: development ? 'development' : 'production',
@@ -366,6 +367,7 @@ async function generateBundle(directory, { development = false, onProgress } = {
     volumeMm3: Number(program.volumeMm3.toFixed(3)),
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
     travel: summary.travel,
+    shortTravel: program.summary.shortTravel,
     nonplanarLimit: summary.nonplanarLimit ?? null,
     checks: ['plan-inputs', 'closed-geometry', 'native-geometry-round-trip', 'declared-output', ...(program.checks??(program.envelope?['fixed-firmware-envelope','archive-integrity','strict-print-body-interpretation']:['strict-gcode-interpretation'])),
       ...(state.machine.motionChecks==='deferred'?[]:['xyz-bounds','axis-feed']), ...(program.summary.materialModel==='relay-estimate'?['commanded-flow-intent']:['extrusion-flow','temperature-state'])],
@@ -389,11 +391,26 @@ async function generateBundle(directory, { development = false, onProgress } = {
   return checks;
 }
 
-async function approve(directory, { stage, actor, revision, program = true }) {
+async function confirmGeometryFromChat(directory, {actor,expectedRevision,geometryHash,statement,chatReference}={}) {
+  requireThat(typeof statement==='string'&&statement.trim().length>0&&statement.length<=8000,'Record the exact human geometry-confirmation statement.');
+  requireThat(typeof chatReference==='string'&&chatReference.trim().length>0&&chatReference.length<=2000,'Identify the chat conversation and confirmation message.');
+  requireThat(typeof geometryHash==='string'&&geometryHash.length>0,'Supply the geometry hash the person confirmed.');
+  const state=await loadBundle(directory,{program:false});
+  requireThat(expectedRevision===state.revision,'This review is stale. Reload before approving.');
+  requireThat(geometryHash===state.geometryHash,'The confirmed geometry changed. Review the current shape before approving.');
+  // This records a human decision already made in chat; it cannot determine
+  // whether arbitrary words actually express approval. The caller owns that judgment.
+  return approve(directory,{stage:'geometry',actor,revision:expectedRevision,program:false},
+    {source:'chat',statement,chatReference,directory:state.dir,revision:expectedRevision,geometryHash});
+}
+
+async function approve(directory, { stage, actor, revision, program = true }, chatEvidence) {
   requireThat(['geometry', 'toolpath'].includes(stage), 'Confirm geometry first, then settings and toolpath together.');
   requireThat(typeof actor === 'string' && actor.trim().length >= 2 && actor.length <= 100, 'Enter the human reviewer’s name.');
   const state = await loadBundle(directory,{program});
   requireThat(revision === state.revision, 'This review is stale. Reload before approving.');
+  if(chatEvidence)requireThat(stage==='geometry'&&chatEvidence.geometryHash===state.geometryHash&&chatEvidence.directory===state.dir,
+    'Chat confirmation applies only to the exact selected geometry.');
   if (stage === 'toolpath') requireThat(state.geometryApproved && state.program && !state.programError
     && state.review.generation?.mode === 'production',
   'Generate and check the approved production plan before toolpath approval.');
@@ -401,6 +418,7 @@ async function approve(directory, { stage, actor, revision, program = true }) {
     actor: actor.trim(), time: new Date().toISOString(),
     hash: stage === 'geometry' ? state.geometryHash : state.exportHash
   };
+  if(chatEvidence)record.evidence=chatEvidence;
   if (stage === 'toolpath') {
     record.planHash = state.planHash;
     record.scope = ['settings','toolpath'];
@@ -472,5 +490,5 @@ async function upgradeBundle(directory) {
   await save(resolve(directory,'machine.json'),machine);
   await save(resolve(directory,'review.json'),review);
 }
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine,upgradeBundle};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,confirmGeometryFromChat,deliver,changeMachine,upgradeBundle};
 }

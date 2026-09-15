@@ -24,6 +24,7 @@ import {pipeMesh} from '../geom/cylinder.mjs';
 import {validateSplineTube} from '../geom/spline-tube.mjs';
 import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
+import {geometrySelections} from '../geom/selections.mjs';
 import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
@@ -94,10 +95,10 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
-export function geometryTemplate(shape) {
+export function geometryTemplate(shape,geometry) {
   if(shape==='heat-set')return heatSetTemplate();
   if(shape==='gridfinity')return gridfinityTemplate();
-  if(shape==='text')return textTemplate();
+  if(shape==='text')return textTemplate(geometry);
   if(shape==='spline-tube')return {shape,innerRadiusMm:8,heightMm:24,controlPoints:[]};
   if(shape==='pipe')return {shape:'pipe',innerRadiusMm:8,outerRadiusMm:10.4,heightMm:12,toleranceMm:0.01};
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
@@ -157,7 +158,7 @@ export function validatePlan(plan, machine) {
   const regional=plan.composition.regions.length>0;
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
-  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape) };
+  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
   // Older recipes retain their original spacing. Regional overrides use these
   // same settings through the ordinary child-plan validation below.
   for(const name of SPACING_SKILLS){
@@ -331,14 +332,14 @@ export function validatePlan(plan, machine) {
   if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
   if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
-  const regionIds=new Set();
+  const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {
     if(region&&typeof region==='object')region.lowerSurfaceFrom??=null;
     // Retired supportPolicy is accepted only for reading old plans; it has no effect.
     requireThat(region&&Object.keys(region).filter(key=>key!=='supportPolicy').sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
-    const part=geometry.shape==='assembly'?geometry.parts.find(p=>p.id===region.part):null;
-    requireThat(geometry.shape==='assembly'?Boolean(part):region.part===null,'Region must select its geometry component.');
+    const part=selections.get(region.part);
+    requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
     number(region.zStartMm,0,1000,'Region start');
     requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm&&region.zEndMm<=1000),'Region end must exceed its start or be null.');
     requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
