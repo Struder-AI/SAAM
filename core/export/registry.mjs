@@ -3,6 +3,7 @@ import {exportBambu,interpretBambu,exportAndInterpretBambu} from './bambu.mjs';
 import {exportDobot,interpretDobot} from './dobot.mjs';
 import {exportDenso,interpretDenso} from './denso.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
+import {withTravelAdvisory} from './travel-advisory.mjs';
 const adapters={
   'denso-pacscript':{export:exportDenso,interpret:interpretDenso},
   'griffin-gcode':{export:exportGriffin,interpret:(bytes,plan,machine)=>interpretGriffin(Buffer.isBuffer(bytes)?bytes.toString('utf8'):bytes,plan,machine)},
@@ -19,14 +20,17 @@ export const exportProgram=(path,plan,machine,release)=>{
   requireThat(plan.output==='denso-pacscript'||!path.initialPose&&!path.actions.some(a=>a.pose),'Selected output cannot represent oriented/rotary motion.');
   return outputAdapter(plan,machine).export(path,plan,machine,release);
 };
-export const interpretProgram=(code,plan,machine)=>outputAdapter(plan,machine).interpret(code,plan,machine);
+export const interpretProgram=(code,plan,machine)=>withTravelAdvisory(outputAdapter(plan,machine).interpret(code,plan,machine));
 
 // One shared lifecycle entry point: adapters that need interpretation while
 // exporting may carry that exact result forward. Others interpret once here.
 export function exportAndInterpretProgram(path,plan,machine,release){
   requireThat(plan.output==='denso-pacscript'||!path.initialPose&&!path.actions.some(a=>a.pose),'Selected output cannot represent oriented/rotary motion.');
   const adapter=outputAdapter(plan,machine);
-  if(adapter.exportAndInterpret)return adapter.exportAndInterpret(path,plan,machine,release);
+  if(adapter.exportAndInterpret){
+    const result=adapter.exportAndInterpret(path,plan,machine,release);
+    withTravelAdvisory(result.program);return result;
+  }
   const bytes=adapter.export(path,plan,machine,release);
-  return {bytes,program:adapter.interpret(bytes,plan,machine)};
+  return {bytes,program:withTravelAdvisory(adapter.interpret(bytes,plan,machine))};
 }

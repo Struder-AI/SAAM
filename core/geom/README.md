@@ -271,6 +271,22 @@ without rerunning font shaping or booleans. Text edits rebuild through
 affected reviews. Text's original STL source hash remains checked. Assembly edits
 retain the selected component id and other components' representations.
 
+New text records also save digest-bound `materialParts`: `base` and
+`text/<feature-id>`. Raised additions exclude existing material; later recessed
+cuts subtract from every partition. Empty partitions are omitted. An uncut base
+uses `geometry: null` to retain the original native geometry and its queries;
+other partitions store their resulting mesh. Their boolean construction uses the
+same tessellation approximation as the final solid. `standalone: true` retains
+the source only as a reference and exposes no base material or base preparation
+details. Older records without these optional fields remain valid whole solids.
+
+[Geometry selections](selections.mjs) exposes these partitions to regional
+consumers, prefixing their names with the assembly component id where present.
+The final merged mesh remains the default whole-solid selection and review model.
+Changing the selected material or printing pattern leaves the geometry record
+unchanged. The [region contract](../region/README.md#material-regions-and-shared-interfaces)
+owns assignment and overlap rules.
+
 Upstream contracts: [Fontkit](https://github.com/foliojs/fontkit),
 [Manifold](https://manifoldcad.org/docs/jsapi/documents/Using_Manifold.html).
 SAAM tests cover analytical boolean and lettering volumes, counters, curved
@@ -298,7 +314,9 @@ The [mesh-tools manual](../../skills/mesh-tools/SKILL.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
 source, runs exact cleanup, and uses the [native CGAL adapter](mesh-native.mjs)
 when cleanup alone does not yield a valid mesh. Import validates supplied geometry;
-repair is an explicit preparation operation.
+repair is a separate preparation operation. Studio's file-picker importer invokes
+it automatically for recognized mesh defects, then requires review and confirmation
+of the repaired geometry; shared CLI/MCP import keeps strict validation.
 
 [Cleanup](mesh-repair.mjs) merges identical coordinates and removes duplicate,
 degenerate and unused elements. Collapsed faces can leave a long boundary edge

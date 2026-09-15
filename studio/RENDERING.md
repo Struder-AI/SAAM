@@ -51,6 +51,12 @@ presentation. Both starting shapes initialize from source recipes and show
 geometry before toolpath generation. At toolpath review, the normal worker and
 source interpreter supply playback and material instances. Generated display
 caches and machine programs are not bundled in the repository.
+The browser retains one decoded playback and material scene for the selected
+print while a tour returns to geometry-only lessons. Continuing or explicitly
+reopening that same print reuses those buffers when print, plan and export
+identity match. Changed identity discards or rebuilds the cache; approval-only
+metadata changes rebind the machine session. This does not skip the server's
+current-source checks or fetch program data during an initial geometry lesson.
 
 ### Visually verified toolpath colors
 

@@ -15,7 +15,7 @@ let tourUI;
 let generationTarget=null,progressPolling=false;
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentUI} from './agent-ui.mjs';
-const agentUI=createAgentUI();
+const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active)});
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
@@ -27,6 +27,7 @@ let materialScene,materialRenderer,materialError='';
 const layerFade=createLayerFade();
 let movieController=null,movieUrl=null;
 let machineSession=null,playbackEpoch=0,requestingPose=null;
+let playbackCache=null;
 let manualValues=null,manualJog=null,manualDescriptor=null;
 const cameras=machineCameras();
 const cameraState=()=>({yaw,tilt,zoom,pan:[...pan],fitBounds});
@@ -111,6 +112,7 @@ function requestDraw(){
   if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
 }
 function clearProgramView(){
+  playbackCache=null;
   clearManual();
   if(cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));
   cameras.reset();
@@ -158,7 +160,7 @@ async function working(text,task){
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   let failure;
   try{return await task();}catch(error){failure=error;throw error;}
-  finally{busy=false;agentUI.settled(failure||state?.generationError||state?.programError);activity();$('#open-print').disabled=false;if(state)render();}
+  finally{busy=false;agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
 }
 
 // Studio reviews more than one kind of print. Everything that depends on which
@@ -311,36 +313,44 @@ async function pollPreparation(){
     const response=await fetch('/api/preparation');if(!response.ok)return;
     const job=await response.json();
     if(generationTarget!==target||job.printId!==target.printId||target.planHash&&job.planHash!==target.planHash)return;
-    if(job.progress&&['preparing','generating'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
+    if(job.progress&&['preparing','generating','importing'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
 setInterval(pollPreparation,250);
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
-  const next=await response.json(),previous=!reopen&&state?.printId===next.printId?state:null;
+  const next=await response.json(),loaded=state?.printId===next.printId?state:null,previous=!reopen?loaded:null;
   agentUI.received(next.work);
   if(!previous||previous.revision!==next.revision||previous.exportHash!==next.exportHash)clearManual();
   if(next.program){
     // Rebind serializable metadata before attaching the proxy-backed move store.
-    if(previous?.program&&previous.exportHash===next.exportHash&&previous.planHash===next.planHash){await machineSession?.bind(next);next.program=previous.program;}
+    if(playbackCache?.printId===next.printId&&playbackCache.exportHash===next.exportHash&&playbackCache.planHash===next.planHash){await machineSession?.bind(next);next.program=playbackCache.program;}
     else try{
       const decoded=await decodeInWorker(next);
       next.program={...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}};
     }catch(error){next.programError=error.message;delete next.program;next.toolpathApproved=false;}
   }
   state=next;
+  const tourActive=state.tour?.active&&state.tour.directory===state.localPrintDirectory;
+  const chatConfirmed=follow&&previous&&!previous.geometryApproved&&state.geometryApproved&&!tourActive;
   // Metadata can change while the exact same source/move buffers are reused.
   $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
   $('#skin-label').textContent=view().skinLabel;
   document.title='SAAM Studio · '+state.printName;
   $('#open-print').title='Open print: '+state.printName;
-  if(!geometryScene||previous?.geometry.geometryVersion!==state.geometry.geometryVersion){
+  if(!geometryScene||loaded?.geometry.geometryVersion!==state.geometry.geometryVersion){
     geometryScene=buildGeometryView(state.geometry,35,state.tourExample?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
   }
-  if(!state.program)clearProgramView();
-  else if(previous?.program?.moves!==state.program.moves)pathView=buildToolpathView(state.program.moves);
+  // Geometry-only tour responses deliberately omit source. Retain at most the
+  // current print's decoded view so Back/Continue can reuse unchanged bytes.
+  if(!state.program){
+    if(!(state.tour?.active&&state.tour.step<L.playback&&playbackCache?.printId===state.printId&&playbackCache.planHash===state.planHash))clearProgramView();
+  }else{
+    if(pathView?.moves!==state.program.moves)pathView=buildToolpathView(state.program.moves);
+    playbackCache={printId:state.printId,planHash:state.planHash,exportHash:state.exportHash,program:state.program};
+  }
   if(state.program&&materialScene?.moves!==state.program.moves){
     materialError='';
     try{
@@ -360,7 +370,8 @@ async function refresh(follow=false,reopen=false) {
     tab=state.tourExample?(tourUI?.initialTab()??'geometry'):state.program?'toolpath':state.geometryApproved?'toolpath':'geometry';
     if(!state.tourExample)restoreView();
   }
-  else if(follow&&previous.planHash!==state.planHash){if(!(state.tour?.active&&state.tour.directory===state.localPrintDirectory))tab=state.geometryApproved?'toolpath':'geometry';message('Updated from chat.');}
+  else if(follow&&previous.planHash!==state.planHash){if(!tourActive||!state.geometryApproved)tab=state.geometryApproved?'toolpath':'geometry';message('Updated from chat.');}
+  else if(chatConfirmed)tab='toolpath';
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
   if(!selected||!state.geometry.labels.includes(selected)&&(!geometryScene.edgeFeatures.has(selected)||previous?.geometry.geometryVersion!==state.geometry.geometryVersion))selectFeature(null);
   machineColors=machineTheme();
@@ -370,22 +381,24 @@ async function refresh(follow=false,reopen=false) {
     await machineSession.sample(seconds,{manual:manualValues,jog:manualJog});
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
-  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  const viewReady=!needsTourToolpath(state)&&!state.generationError&&!state.programError
-    &&(tab==='geometry'&&(!state.geometryApproved||state.tour?.active&&state.tour.step<L.playback)
-      ||tab==='toolpath'&&Boolean(state.program));
-  if(viewReady){
-    agentUI.present({...state.work,snapshot:{...state.work.snapshot,stage:tab}});
-    await tourUI?.acknowledgeView(state,tab);
-  }
-  if(needsTourToolpath(state)){
+  await acknowledgeDisplayedView();
+  if(needsTourToolpath(state)||chatConfirmed&&(!state.program||state.programError)){
     activity('Preparing your toolpath…');
     try{await api('generate',{development:false,planHash:state.planHash});return refresh(follow);}
     catch(error){state.generationError=error.message;message(error.message,true);render();}
   }
 }
+async function acknowledgeDisplayedView(){
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  const geometryReady=tab==='geometry'&&(!state.geometryApproved||state.tour?.active&&state.tour.step<L.playback);
+  const viewReady=geometryReady||!needsTourToolpath(state)&&!state.generationError&&!state.programError&&tab==='toolpath'&&Boolean(state.program);
+  if(viewReady){
+    agentUI.present({...state.work,snapshot:{...state.work.snapshot,stage:tab},awaitingConfirmation:geometryReady&&!state.geometryApproved});
+    await tourUI?.acknowledgeView(state,tab);
+  }
+}
 async function decodeInWorker(snapshot){
-  activity('Loading the checked toolpath…');
+  activity('Loading your toolpath…');
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,sourceTransport:snapshot.sourceTransport,
@@ -397,6 +410,8 @@ function table(entries) {
   return dl;
 }
 function render() {
+  $('#repair-review').hidden=tab!=='geometry'||!state.importRepair||state.geometryApproved;
+  $('#repair-summary').textContent=state.importRepair??'';
   $('#stage-label').hidden=!state.inspection;
   $('#view-title').textContent={geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
   $('#guidance').textContent={geometry:'Check the shape and dimensions.',toolpath:'Inspect the full toolpath before exporting.'}[tab];
@@ -631,7 +646,7 @@ async function download(route='deliver',data={}){
 }
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
-  if(tourUI?.active()){
+  if(tourUI?.active()&&tab!=='geometry'){
     if(state.tour?.step!==L.export)return;
     try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();});}
     catch(e){message(e.message,true);await refresh(false);}return;
@@ -640,10 +655,10 @@ $('#confirm').onclick=async()=>{
     await working(tab==='toolpath'?'Checking your toolpath…':'Saving geometry confirmation…',async()=>{
     if(tab==='geometry'){
       if(!state.geometryApproved)await approval('geometry');
-      if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});await refresh();}
-      tab='toolpath';
+      if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
+      else{setTab('toolpath');await acknowledgeDisplayedView();}
     }
-    else if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});await refresh();tab='toolpath';}
+    else if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
     else {if(!state.toolpathApproved)await approval('toolpath');await download();}
     message('');
     });
@@ -673,7 +688,10 @@ $('#stl-file').onchange=async()=>{
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
     const query=new URLSearchParams({name:file.name,printId:state.printId});
-    const response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});
+    const target={printId:state.printId,planHash:null};generationTarget=target;
+    let response;
+    try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}
+    finally{if(generationTarget===target)generationTarget=null;}
     if(!response.ok)throw Error((await response.json()).error);
     await tourUI.load();await refresh(false,true);message('');
   });}catch(error){message(error.message,true);await tourUI.load();await refresh(false,true);}
@@ -748,9 +766,14 @@ async function poll(){
 }
 tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,seek:startAt=>{
   if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('Your agent must choose an infill layer for this tour.');
-  let move;for(const candidate of state.program?.moves??[])if(candidate.extruding&&candidate.layer===startAt.layer&&/infill/.test(candidate.operation??'')&&!/solid|walls/.test(candidate.operation??'')){move=candidate;break;}
+  let move,first;for(const candidate of state.program?.moves??[])if(candidate.extruding){
+    first??=candidate;
+    if(candidate.layer===startAt.layer&&(startAt.fallback||/infill/.test(candidate.operation??'')&&!/solid|walls/.test(candidate.operation??''))){move=candidate;break;}
+  }
+  if(!move&&startAt.fallback)move=first;
   if(!move)throw Error('That layer has no sparse infill. Ask your agent to choose another startAt layer.');
   stop();seconds=move.startSeconds;$('#scrub').value=seconds;layerFade.reset();requestDraw();
+  return {layer:move.layer};
 }});
 working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
 let changeTimer;

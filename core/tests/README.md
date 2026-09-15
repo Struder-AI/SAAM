@@ -30,6 +30,11 @@ failures within the selected scope before publication.
 
 ## Worthwhile tests
 
+`material-travel.test.mjs` covers local planar/surface obstacles, thin crossings,
+holes and disconnected regions, descending travel, curved comb detours and
+per-edge collision checks. `travel.test.mjs` retains planar routing and global
+lift-height compatibility; draped-skin and curved-text tests exercise producers.
+
 A test earns its cost by distinguishing a plausible wrong result from the intended
 behavior. Prefer an analytical answer, independently produced reference, observed
 defect, or externally visible state transition. A round trip checks agreement;
@@ -61,6 +66,19 @@ demonstrate the failure they protect against without requiring an extra checklis
 
 ## Test registry
 
+[Curved text composition](../../skills/text/tests/draped-text.test.mjs) covers
+four draped glyph layers above a native wavy roof, holes and disconnected glyphs,
+support-derived first-bead volumes, ordering, machine-command preservation and
+missing or intersecting support. Regional planar start-height checks remain in
+[regions.test.mjs](regions.test.mjs).
+
+[Text interoperability](../../skills/text/tests/interoperability.test.mjs) covers
+geometry approval across pattern changes, disjoint raised/engraved ownership,
+translated assembly selections, retained standalone references, atomic feature
+and region edits, legacy records and whole-solid side lettering. The main
+[text suite](../../skills/text/tests/text.test.mjs) also checks imported mesh
+reference retention and source hashes.
+
 [Heat-set tests](../../skills/heat-set-inserts/tests/heat-set.test.mjs) cover
 catalog-sized blind bores, six local loops independent of global settings,
 reserved interior material, sparse/solid composition, translated assembly and
@@ -74,6 +92,17 @@ Tour speed regressions cover current-byte production reuse and stage progress in
 [studio-tour-ui.test.mjs](studio-tour-ui.test.mjs), and compact material-buffer
 equivalence across chunk boundaries in [studio-material.test.mjs](studio-material.test.mjs).
 These are software checks; real agent response latency requires a timed tour pass.
+
+[studio-view-readiness.test.mjs](studio-view-readiness.test.mjs) exercises ordinary
+geometry confirmation through rendered toolpath acknowledgement and activity
+settling. [studio-playback-cache.test.mjs](studio-playback-cache.test.mjs) covers
+Back/Continue and same-print reopen reuse, plus invalidation on changed inputs.
+[studio-import.test.mjs](studio-import.test.mjs) covers worker responsiveness,
+failed-import cleanup, selection preservation and tour generation recovery.
+[chat-geometry-confirmation.test.mjs](chat-geometry-confirmation.test.mjs) covers
+shared, CLI and MCP evidence binding and stale confirmation rejection. Tour
+recovery tests cover both confirmation inputs, same-lesson return, geometry-only
+edit completion and waiting-state visibility.
 
 Shared line spacing is covered by [spacing.test.mjs](spacing.test.mjs):
 all seven producers, density and solid-mask independence, sparse surface
@@ -114,6 +143,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/print/workflow.mjs`, bundles, approvals, reopening and exact delivery | [workflow.test.mjs](workflow.test.mjs), [program-cache.test.mjs](program-cache.test.mjs), [regional-workflow.test.mjs](regional-workflow.test.mjs) | Wedge lifecycle, machine-specific delivery and MCP callers |
 | `core/export/griffin.mjs`: S5 templates, G-code interpretation | [export.test.mjs](export.test.mjs) | Pipeline and wedge Griffin round trips |
 | Shared modal G-code fields and final-export checks | [modal-export.test.mjs](modal-export.test.mjs) | S5/H2D, wedge, cold bundle reopening |
+| Nonblocking short-travel advisories, complete trip endpoints and bounded evidence | [travel-advisory.test.mjs](travel-advisory.test.mjs), [program-cache.test.mjs](program-cache.test.mjs), [studio-open.test.mjs](studio-open.test.mjs) | S5/H2D interpretation, saved-source reuse, listener deduplication and unchanged approval/delivery |
 | `core/export/bambu.mjs`, H2D profile and ZIP output | [bambu.test.mjs](bambu.test.mjs) | [h2d.test.mjs](../../skills/wedge-demo/tests/h2d.test.mjs) |
 | `core/export/`: streamed G-code lines and chunk-boundary errors | [gcode-stream.test.mjs](gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
 | Large move counts and G-code/ZIP size boundaries (explicit stress run) | [stress/large-export.test.mjs](stress/large-export.test.mjs), [stress/large-program.test.mjs](stress/large-program.test.mjs) | `npm run test:stress`; real former size and call-stack boundaries |

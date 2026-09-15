@@ -75,7 +75,7 @@ test('MCP correlates ordinary maker work and receives Studio requests without ap
   assert.equal((await call('get_print',{printId:'ordinary'})).approvals.geometry,false);
 });
 
-test('MCP follows tour chat gates and generates only a development preview for its active print',async t=>{
+test('MCP follows tour chat gates and requires geometry confirmation before production generation',async t=>{
   const {call,printsRoot}=await fixture(t),tour=createTour(printsRoot);
   await tour.action('resume');const before=await call('get_tour');
   assert.equal(before.step,0);assert.equal(before.canNext,false);
@@ -84,12 +84,16 @@ test('MCP follows tour chat gates and generates only a development preview for i
   saved.plan.geometry.parts[1].geometry.heightMm=11;
   await call('adjust_print',{printId:'tour/handle',expectedRevision:saved.revision,patch:{geometry:saved.plan.geometry}});
   const after=await call('get_tour',{after:before.cursor,waitMs:50});assert.equal(after.canNext,false,'wait for the browser to render the edit');
-  const generated=await call('generate_print',{printId:'tour/handle'});assert.equal(generated.checks.mode,'development');
+  await call('generate_print',{printId:'tour/handle'},/Approve the geometry/);
+  const ready=await call('get_print',{printId:'tour/handle'});
+  await call('confirm_geometry',{printId:'tour/handle',expectedRevision:ready.revision,geometryHash:ready.geometryHash,
+    actor:'SYNTHETIC TEST reviewer',statement:'I approve this shape.',chatReference:'Synthetic integration conversation, message 1'});
+  const generated=await call('generate_print',{printId:'tour/handle'});assert.equal(generated.checks.mode,'production');
   await call('deliver_print',{printId:'tour/handle'},/Exit the tour/);
   await tour.action('exit');
   const current=await call('get_print',{printId:'tour/handle'});
   const changed=await call('change_machine',{printId:'tour/handle',machineId:'bambu-h2d',expectedRevision:current.revision});
-  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.approvals.geometry,false);
+  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.approvals.geometry,true);
 });
 
 
@@ -107,7 +111,7 @@ test('MCP text task edits actual geometry with a local font and stale-revision p
   assert.equal((await call('get_print',{printId:'text-sample',includeGeometry:true})).plan.geometry.features[0].text,'O');
 });
 
-test('MCP SDK lists known manuals and profiles; creates persistent isolated bundles with strict inputs and no approval tools', async t => {
+test('MCP SDK lists known manuals and profiles; creates persistent isolated bundles with strict inputs and no final approval tools', async t => {
   const { call, client, printsRoot } = await fixture(t);
   const names = (await client.listTools()).tools.map(tool => tool.name);
   assert.ok(names.includes('request_review'));

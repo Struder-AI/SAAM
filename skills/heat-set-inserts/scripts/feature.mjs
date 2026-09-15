@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {requireThat} from '../../../core/geom/tolerance.mjs';
 import {INSERT_CATALOG} from './catalog.mjs';
+import {geometrySelections} from '../../../core/geom/selections.mjs';
 
 export const HEAT_SET_DEFAULTS={id:'insert',insertId:'spirol-29-m3-long',positionMm:[15,15,12],depthMm:null,diameterAdjustmentMm:0,finCount:6,finLengthMm:4,finWidthMm:0.8,finAngleDeg:0};
 export function heatSetFeature(input){
@@ -37,7 +38,7 @@ export function validateHeatSetRecord(record){
 }
 // Text keeps its editable base, allowing insertion details to survive lettering.
 export function heatSetFeatures(geometry){
-  return [...(geometry?.shape==='heat-set'?geometry.features:[]),...(geometry?.base?heatSetFeatures(geometry.base):[])];
+  return [...(geometry?.shape==='heat-set'?geometry.features:[]),...(geometry?.base&&!geometry.standalone?heatSetFeatures(geometry.base):[])];
 }
 
 export function validateHeatSetAssignments(plan){
@@ -50,9 +51,15 @@ export function validateHeatSetAssignments(plan){
     }else{
       // Region heights are relative to component bounds; compiled hosts can
       // have nonzero native Z, so use their actual vertex minimum.
-      const origin=part.geometry.vertices?Math.min(...part.geometry.vertices.map(p=>p[2])):0;
-      const spans=plan.composition.regions.filter(r=>r.part===part.id&&('full-fill' in r.skills||'planar-infill' in r.skills))
-        .map(r=>[origin+r.zStartMm,r.zEndMm===null?Infinity:origin+r.zEndMm]).sort((a,b)=>a[0]-b[0]);
+      const selections=geometrySelections(plan.geometry);
+      const spans=plan.composition.regions.filter(r=>{
+        const selection=selections.get(r.part);
+        return selection?.owner===part.id&&(selection.material===null||selection.material==='base')&&('full-fill' in r.skills||'planar-infill' in r.skills);
+      }).map(r=>{
+        const geometry=selections.get(r.part).geometry;
+        const origin=geometry.vertices?Math.min(...geometry.vertices.map(p=>p[2])):0;
+        return [origin+r.zStartMm,r.zEndMm===null?Infinity:origin+r.zEndMm];
+      }).sort((a,b)=>a[0]-b[0]);
       let covered=start;for(const [a,b] of spans)if(a<=covered+1e-7)covered=Math.max(covered,b);
       requireThat(covered>=end-1e-7,`Heat-set ${f.id} needs planar material regions covering its entire bore depth.`);
     }

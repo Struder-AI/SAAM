@@ -10,6 +10,12 @@ metadata:
 Mesh processing is preparation work. Accepted geometry returns to the
 [shared import and review workflow](../../core/print/USAGE.md).
 
+Studio's file picker automatically invokes this repair workflow for recognized
+mesh defects after strict import fails. It preserves both STLs and the report in
+the new print's `repair/` folder and shows the repaired geometry for confirmation,
+including during the tour. It uses no hole filling. CLI/MCP imports remain strict;
+use the explicit command below when working through those entry points.
+
 ## Diagnose and repair
 
 | Finding | Operation |

@@ -15,6 +15,30 @@ Read the contract for the output being changed:
 
 ## Machine interoperability design
 
+### Short-travel advisory
+
+Shared export/interpretation attaches `summary.shortTravel` to every program,
+including saved programs reopened in Studio. A travel is a maximal sequence of
+non-depositing moves: lifts, traverses, descents, detours and sampled robot moves
+remain one trip. Process-only events do not split it; stationary deposition does.
+Initial and final travels are included. The check flags straight-line XYZ distance
+between trip endpoints **at or below 2 mm**, including coincident endpoints,
+regardless of the distance traveled along the route.
+
+This is a bad-path advisory for later producer improvement, not a validity gate
+or automatic repair. The report includes total/count, operation counts and up to
+20 examples with endpoints and source file/line, phase, layer and adjacent
+operation labels. Missing labels remain unknown; recipe skills alone do not prove
+which producer caused a travel. The check is one linear scan of interpreted moves,
+cached with the owning program and included in source-only worker handoff.
+Generation records it as `checks.json.shortTravel`; CLI/toolkit summaries and MCP
+print state expose it. Review, approvals, delivery and emitted bytes are unchanged
+by the finding. Browser playback does not rerun the check.
+Studio's read-only machine-study adapter applies the same advisory to its authored
+motion and caches it by source text.
+
+### Output compatibility
+
 `core/machine/profile.mjs` validates selected tool bounds, nozzle/core, filament,
 material temperatures, flow/retraction and required skill capabilities. Profiles
 own setup defaults; remembered setup is separate per machine. Skills target

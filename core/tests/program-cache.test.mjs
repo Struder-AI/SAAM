@@ -50,6 +50,10 @@ test('warm and cold opening check the export without reslicing or an intermediat
  t.after(()=>rm(dir,{recursive:true,force:true}));
  await workflow.initBundle(dir);await workflow.generateBundle(dir,{development:true});
  const first=await workflow.loadBundle(dir);assert.ok(first.program);assert.equal(generations,1);
+ assert.ok(first.program.summary.shortTravel.count>0);
+ const advisory=structuredClone(first.program.summary.shortTravel);
+ assert.deepEqual((await workflow.loadBundle(dir,{program:'source'})).program.summary.shortTravel,advisory);
+ assert.deepEqual((await make().loadBundle(dir,{program:'source'})).program.summary.shortTravel,advisory);
  first.program.moves[0].to[0]=99999;first.pathSummary.tampered=true;
  const second=await workflow.loadBundle(dir);assert.notEqual(second.program.moves[0].to[0],99999);assert.equal(second.pathSummary.tampered,undefined);
  assert.equal(generations,1,'warm load must not reslice');
@@ -109,6 +113,10 @@ test('confirmed development output becomes production without reslicing or chang
  assert.equal(state.geometryApproved,true);assert.equal(state.toolpathApproved,false);
  assert.equal(state.review.history.at(-1).event,'generation-reused');
  await assert.rejects(workflow.deliver(dir),/Confirm|Approve|approval/i);
+ assert.ok(checks.shortTravel.count>0);assert.equal(checks.result,'pass');
+ state=await workflow.approve(dir,{stage:'toolpath',actor:'SYNTHETIC advisory test',revision:state.revision});
+ assert.equal(state.toolpathApproved,true);
+ assert.deepEqual(await readFile(await workflow.deliver(dir)),before,'advisories allow exact-byte delivery');
  // Edited bytes cannot be promoted; regenerate the current plan instead.
  await workflow.generateBundle(dir,{development:true});
  await writeFile(file,Buffer.concat([before,Buffer.from('; changed\n')]));

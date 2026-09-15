@@ -31,6 +31,7 @@ import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
+import {geometrySelections} from '../geom/selections.mjs';
 
 export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
@@ -124,7 +125,18 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   const results=[];
   let survey = null;
   if(plan.composition.regions.length) {
-    const regional=generateRegionResults({plan,machine,placed,componentShells});
+    const selections=geometrySelections(plan.geometry),regionShells=new Map();
+    for(const assignment of plan.composition.regions){
+      if(regionShells.has(assignment.part))continue;
+      const part=selections.get(assignment.part);
+      let shell=buildShell(rhino,part.geometry);
+      if(part.detailsFrom){
+        const features=heatSetFeatures(part.detailsFrom);
+        if(features.length)shell.planarDetails=heatSetDetails(features);
+      }
+      regionShells.set(assignment.part,translateShell(shell,plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm));
+    }
+    const regional=generateRegionResults({plan,machine,placed,componentShells:regionShells,selections});
     results.push(...regional.results);Object.assign(summary,regional.summary);
   } else {
   requireThat(!plan.skills['thick-lip'].enabled,'thick-lip only applies through composition.regions, assigned directly above a level-ended vase-wall region.');

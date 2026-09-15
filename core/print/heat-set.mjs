@@ -13,7 +13,7 @@ export async function applyHeatSet(directory,request,{expectedRevision}={}){
   const plan=structuredClone(state.plan),owner=request.part?plan.geometry.parts?.find(p=>p.id===request.part):plan;
   requireThat(owner&&owner.geometry.shape!=='assembly','Select an existing assembly part before applying heat-set inserts.');
   const wrappers=[];let geometry=owner.geometry;
-  while(geometry.shape==='text'&&geometry.base){wrappers.push(geometry);geometry=geometry.base;}
+  while(geometry.shape==='text'&&geometry.base&&!geometry.standalone){wrappers.push(geometry);geometry=geometry.base;}
   const old=geometry.shape==='heat-set'?geometry:null,base=old?old.base:geometry;
   const features=structuredClone(old?.features??[]);
   if(request.remove){const index=features.findIndex(f=>f.id===request.remove);requireThat(index>=0,'Heat-set feature not found.');features.splice(index,1);}

@@ -1,0 +1,125 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import vm from 'node:vm';
+import {agentIndicator} from '../../studio/work-state.mjs';
+import {needsTourToolpath} from '../../studio/tour-ui.mjs';
+import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
+
+const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
+const agentSource=(await readFile(new URL('../../studio/agent-ui.mjs',import.meta.url),'utf8'))
+  .replace(/^import .*\n/gm,'').replace(/^export \{.*\n/gm,'').replace('export function createAgentUI','function createAgentUI');
+function section(start,end){
+  const from=app.indexOf(start),to=app.indexOf(end,from);
+  if(from<0||to<0)throw Error('Browser test extraction boundary changed: '+start);
+  return app.slice(from,to);
+}
+const browserCode=[
+  section('async function working(text,task){','\n// Studio reviews'),
+  section('async function acknowledgeDisplayedView(){','\nasync function decodeInWorker'),
+  section('function setTab(next){','\n'),
+  section('async function approval(stage){','\nasync function download'),
+  section("$('#confirm').onclick=async()=>{",'\nasync function openPrint')
+].join('\n');
+
+function element(){
+  const classes=new Set();
+  return {hidden:false,disabled:false,textContent:'',setAttribute(){},
+    classList:{toggle(name,enabled){if(enabled)classes.add(name);else classes.delete(name);},contains:name=>classes.has(name)}};
+}
+
+// Exercise the real click handler, readiness acknowledgement, busy lifecycle and
+// agent indicator together. Network generation and drawing are controlled seams;
+// the refresh seam presents its loaded snapshot through the real readiness code.
+async function confirmationHarness({stored=false,generationError,tour=false}={}){
+  const nodes=new Map(),events=[],calls=[];
+  const get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};
+  get('agent-status').querySelector=()=>get('typing-dots');
+  const request={id:'edit',printId:'part',status:'working',updatedAt:1,expiresAt:Date.now()+60000,
+    baseline:{inputKey:'before',generationKey:null},target:{inputKey:'current',stage:'toolpath'}};
+  const snapshot={inputKey:'current',generationKey:stored?'generated':null};
+  const state={printId:'part',revision:'review-1',geometryApproved:false,planHash:'plan',
+    ...(tour?{localPrintDirectory:'part',tour:{active:true,step:5,directory:'part'}}:{}),
+    work:{printId:'part',snapshot,requests:[request]},review:{generation:stored?{mode:'production'}:null},
+    ...(stored?{program:{},exportHash:'export'}:{})};
+  let context;
+  context=vm.createContext({state,busy:false,tab:'geometry',L,needsTourToolpath,agentIndicator,
+    document:{getElementById:get},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
+    fetch:async()=>({ok:true,json:async()=>({requests:[request]})}),
+    requestAnimationFrame:callback=>queueMicrotask(()=>{events.push('paint:'+context.tab);callback();}),
+    stop(){},clearManual(){},clearProgramView(){},cameras:{mode:'ghost'},layerFade:{reset(){}},
+    activity(){},message(text,error){if(error)events.push('error:'+text);},
+    render(){events.push('render:'+context.tab);},
+    tourUI:{active:()=>tour,async acknowledgeView(current,stage){
+      events.push('ack:'+stage);
+      assert.equal(context.busy,true,'the loading lifecycle remains active until acknowledgement finishes');
+      assert.equal(get('typing-dots').hidden,false);
+      assert.equal(current.program!==undefined,true);
+    }},
+    async api(route){
+      calls.push(route);
+      if(route==='approve')return {json:async()=>({approval:{geometryApproved:true,programAvailable:stored}})};
+      if(route==='generate'){
+        if(generationError)throw Error(generationError);
+        return {};
+      }
+      throw Error('Unexpected mutation: '+route);
+    },
+    async refresh(){
+      events.push('refresh:'+context.tab);
+      context.state={...context.state,program:{},exportHash:'export',review:{generation:{mode:'production'}},
+        work:{...context.state.work,snapshot:{inputKey:'current',generationKey:'generated'}}};
+      context.agentUI.received(context.state.work);
+      context.render();
+      await vm.runInContext('acknowledgeDisplayedView()',context);
+    }
+  });
+  vm.runInContext(agentSource+'\nagentUI=createAgentUI();\n'+browserCode,context);
+  await context.agentUI.refresh();
+  context.agentUI.received(state.work);
+  await get('confirm').onclick();
+  return {context,nodes,events,calls};
+}
+
+for(const stored of [false,true])test('geometry confirmation acknowledges rendered '+(stored?'stored':'newly generated')+' toolpath and clears waiting state',async()=>{
+  const {context,nodes,events,calls}=await confirmationHarness({stored});
+  assert.deepEqual(calls,stored?['approve']:['approve','generate']);
+  assert.equal(context.tab,'toolpath');
+  const displayed=events.indexOf('render:toolpath'),ack=events.indexOf('ack:toolpath');
+  assert.ok(displayed>=0&&ack>displayed,'toolpath renders before its acknowledgement');
+  assert.ok(events.slice(displayed+1,ack).filter(event=>event==='paint:toolpath').length>=2,
+    'acknowledgement waits for the rendered view to paint');
+  assert.equal(events.filter(event=>event.startsWith('ack:')).length,1);
+  assert.equal(context.busy,false);
+  assert.equal(nodes.get('open-print').disabled,false);
+  assert.equal(nodes.get('typing-dots').hidden,true,'the still-working request is satisfied by its displayed result');
+  assert.equal(nodes.get('canvas').classList.contains('work-faded'),false);
+});
+
+test('tour geometry confirmation uses normal approval and generation without changing the lesson',async()=>{
+  const {context,nodes,calls}=await confirmationHarness({tour:true});
+  assert.deepEqual(calls,['approve','generate']);
+  assert.equal(context.state.tour.step,5);assert.equal(context.tab,'toolpath');
+  assert.equal(nodes.get('typing-dots').hidden,true);
+});
+
+test('new geometry awaiting confirmation clears work fade without satisfying the pending toolpath',()=>{
+  const request={status:'working',updatedAt:1,expiresAt:Date.now()+60000,
+    baseline:{inputKey:'before'},target:{inputKey:'after',stage:'toolpath'}};
+  const view={ready:true,awaitingConfirmation:true,snapshot:{inputKey:'after',stage:'geometry'}};
+  assert.equal(agentIndicator([request],{view}).active,false);
+  assert.equal(agentIndicator([request],{view:{...view,loading:true}}).active,true);
+  assert.equal(agentIndicator([{...request,baseline:{inputKey:'after'}}],{view}).active,true,'new work on this reviewed shape remains visible');
+  assert.equal(agentIndicator([request],{view:{...view,awaitingConfirmation:false}}).active,true,'toolpath target is still pending');
+});
+
+test('failed generation settles loading without acknowledging an absent toolpath',async()=>{
+  const {context,nodes,events,calls}=await confirmationHarness({generationError:'Synthetic generation failure'});
+  assert.deepEqual(calls,['approve','generate']);
+  assert.equal(events.some(event=>event.startsWith('ack:')),false);
+  assert.ok(events.includes('error:Synthetic generation failure'));
+  assert.equal(context.busy,false);
+  assert.equal(nodes.get('open-print').disabled,false);
+  assert.equal(nodes.get('typing-dots').hidden,true);
+  assert.equal(nodes.get('canvas').classList.contains('work-faded'),false);
+});

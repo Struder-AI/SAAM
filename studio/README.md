@@ -192,6 +192,14 @@ chat; changes invalidate the combined confirmation.
 
 ### Geometry and program views
 
+Every displayed toolpath uses the shared [short-travel advisory](../core/export/README.md#short-travel-advisory).
+When a matching toolpath view is acknowledged, findings create one `advisory`
+notification per print/export through the agent request listener. It preserves
+the export identity, recipe skills and diagnostic evidence for later generator
+improvement. Advisories do not show busy dots, time out into UI errors, overlap
+edit work or block review/export. Agents acknowledge receipt without repairing
+the path. Reopening the same export does not resend an acknowledged advisory.
+
 The wedge viewer provides click-to-select faces and matching feature buttons.
 Features identify the geometry version and native object UUID or mesh face identity. Geometry edits
 recreate those identifiers and invalidate both confirmations.
@@ -229,11 +237,25 @@ STL lesson. Step 4 starts speculative preparation of the selected part while
 geometry remains visible; earlier lessons omit program data and do not start
 workers. Continuing commits the candidate for the exact current plan and loads
 playback. Importing creates a separate saved part and prepares that selection.
+Reopening the same selected print retains its matching preparation candidate.
+The first continuation after a completed preparation diagnostic reports it without
+repeating it; an explicit retry can start preparation again. Crashed workers
+restart on an explicit generation request. Choosing an STL
+stops the previous selection's preparation before importing.
+Preparation workers are currently per Studio server, with no priority coordinator
+across Studio, CLI and MCP processes; starting earlier or preparing alternative
+choices would need that coordination to avoid competing with foreground work.
 During toolpath lessons, saved process or machine edits automatically trigger
 generation for the selected, geometry-confirmed part. A failed generation stays
 actionable until inputs change or an explicit retry succeeds.
-A toolpath lesson switches the viewer to toolpath immediately, showing preparation
-status while no program is available. Generation failures remain visible after
+A changed, unconfirmed shape temporarily shows the normal geometry review and
+dimensions within the current toolpath lesson. **Confirm geometry & return to lesson**
+or an explicit human chat confirmation resumes that same lesson and generates its
+current toolpath. Back, Next and Resume do not approve geometry; the import lesson's
+explicit **Continue with this part** selection remains a confirmation action.
+The review says it is waiting for geometry confirmation and clears work dots/fading
+once the new shape is displayed, while the requested toolpath remains pending.
+A confirmed toolpath lesson shows preparation status while no program is available. Generation failures remain visible after
 the saved lesson is refreshed. Playback seeking waits until the program loads.
 Outside the tour, a fresh print without a current export still opens in geometry
 review and uses the normal Confirm geometry click. Unchanged approvals
@@ -270,7 +292,8 @@ instructions and status. A response resolves only its matching request; a
 ten-minute lease bounds abandoned work. Disk-change events push request and print
 updates to open viewers, with polling as fallback. The geometry lesson unlocks
 as soon as the exact edited geometry is displayed, without waiting for a chat
-acknowledgement. The toolpath-edit lesson requires a rendered current export;
+acknowledgement. The toolpath-edit lesson accepts any participant-requested change,
+including geometry, once its confirmed current toolpath is rendered;
 another actively unfinished request can still hold Next. Claiming renews that lease. MCP requests
 carry their connection's ownership; that connection's close handler fails only
 its unfinished work. Studio-originated requests inherit ownership when Studio
@@ -279,6 +302,14 @@ Studio servers the adapter pushes the close event to open viewers. Independently
 launched Studio sees persisted failures by polling. An ended chat turn is not
 always a transport close, and a killed process may provide no callback. Browser
 timeout rendering continues from cached request expiry even if polling fails.
+
+Next blinks after the displayed geometry edit in the first lesson. The optional
+roof lesson starts with an enabled, unhighlighted Next; active work disables it
+with the dots and fade, and a displayed geometry change enables its completion
+cue. These cues apply only to those two edit lessons. The playback lesson stops
+highlighting Play on its first use and does not restart the cue on Pause.
+Ordinary geometry confirmation switches to the rendered toolpath before sending
+its view acknowledgement, so completed loading clears the dots and fade.
 
 The maker agent calls MCP begin_studio_work as its FIRST operation, before even
 a chat acknowledgement, status lookup or analysis. It may omit printId for the
@@ -362,8 +393,28 @@ The provisional policy is [D-030](../DECISIONS.md#d-030--provisional-stl-units-a
 Studio preserves source bytes and uses the
 [shared importer](../core/print/USAGE.md#import-an-stl), current printer and
 remembered setup. Ordinary imports open a new unapproved geometry for review.
-The optional tour lesson treats file selection as geometry confirmation, records
-it before generating checked production output for review, advances to playback, and asks the
-agent to choose a suitable infill start layer. Next skips importing and retains
+For an STL accepted without repairs, the optional tour lesson treats file selection
+as geometry confirmation, records it before generating production output for review,
+advances to playback, and asks the agent to choose a suitable infill start layer.
+Next skips importing and retains
 the selected part. Failed mesh validation retains its diagnostic and does not
 replace the selected print. Importing alone never approves settings or the toolpath.
+Parsing, mesh validation and bundle creation run in a worker so request listeners
+remain responsive. For recognized mesh defects, Studio automatically runs the
+existing [mesh-tools repair](../skills/mesh-tools/SKILL.md), using exact cleanup
+and native patch repair when needed, without filling holes. Malformed files,
+resource limits and unrelated errors retain their own diagnostics. Failed imports
+remove only their newly reserved destination; existing prints are preserved.
+Repair requires the optional native backend when exact cleanup is insufficient.
+The original STL, repaired STL and complete change report remain in the print's
+`repair/` folder. Studio shows the repair summary and unapproved geometry in both
+modes. The tour stays on its import lesson with **Confirm repaired geometry &
+continue**; ordinary Studio uses **Confirm geometry**. Reopening an unconfirmed
+repaired import does not approve it through print selection. Only explicit geometry
+confirmation continues to its toolpath. Import progress distinguishes checking,
+repairing and opening the model. Without an agent-supplied start layer, playback
+starts at layer 2 (the first deposited layer for a one-layer model), and the
+viewing timer still works. Later agent guidance does not reposition playback
+after the participant has pressed Play for the current source.
+If a tour import succeeds but generation fails, successful regeneration queues
+the missing infill start-layer request so playback can recover.

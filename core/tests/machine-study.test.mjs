@@ -17,6 +17,10 @@ test('machine study uses source transport and cannot approve or deliver; changed
   t.after(()=>new Promise(done=>server.close(done)));const origin=`http://127.0.0.1:${server.address().port}`;
   const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state=await(await fetch(origin+'/api/state')).json();assert.equal(state.inspection.note.startsWith('Simulation only'),true);
+  assert.ok(state.program.summary.shortTravel);
+  const advisory=structuredClone(state.program.summary.shortTravel);
+  const full=await loadBundle(dir);full.program.summary.shortTravel.count=-1;
+  assert.deepEqual((await loadBundle(dir,{program:'source'})).program.summary.shortTravel,advisory);
   const sources=await fetchSources(state,path=>fetch(origin+path)),program=decodeSource(sources,state.plan,state.machine);
   assert.equal(program.moves.length,48);assert.equal(program.seconds,24);
   for(const route of ['approve','deliver','generate']){

@@ -95,13 +95,15 @@ function mappedSolid(kernel,loops,map,lower,upper,{maxEdgeMm,toleranceMm,normalS
   }finally{solid.delete();}
 }
 
-export async function compileText(base,features,{buildGeometry,toleranceMm=0.02,maxEdgeMm=1}={}){
+export async function compileText(base,features,{buildGeometry,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){
   requireThat(typeof buildGeometry==='function'&&Array.isArray(features)&&features.length>0&&features.length<=40,'Text needs a geometry builder and 1–40 features.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxEdgeMm)&&maxEdgeMm>0,'Text toleranceMm and maxEdgeMm must be positive.');
   const normalized=features.map(textFeature);
   requireThat(new Set(normalized.map(f=>f.id)).size===normalized.length,'Text feature ids must be unique.');
   const kernel=await solidKernel(),target=base?buildGeometry(base):null;
-  let result=target?solidFromMesh(kernel,tessellateShell(target,{toleranceMm})):null;
+  let result=target&&!standalone?solidFromMesh(kernel,tessellateShell(target,{toleranceMm})):null;
+  const materials=new Map();let baseUncut=Boolean(result);
+  if(result)materials.set('base',result.translate([0,0,0]));
   try{
     for(const f of normalized){
       requireThat(result||f.mode==='raised','Standalone text must begin with a raised feature.');
@@ -114,12 +116,26 @@ export async function compileText(base,features,{buildGeometry,toleranceMm=0.02,
           const next=mappedSolid(kernel,placed.loops,mapper(reference,placed.anchor),lower,upper,{maxEdgeMm,toleranceMm,normalSide:f.reference.normalSide??1});
           if(textSolid){const joined=combineSolids(textSolid,next,'add');textSolid.delete();next.delete();textSolid=joined;}else textSolid=next;
         }
+        if(f.mode==='raised'){
+          // Earlier material owns overlaps. Store only this feature's added
+          // volume, so selecting adjacent/overlapping labels cannot print twice.
+          materials.set('text/'+f.id,result?textSolid.subtract(result):textSolid.translate([0,0,0]));
+        }else{
+          baseUncut=false;
+          for(const [id,material] of materials){const cut=material.subtract(textSolid);material.delete();materials.set(id,cut);}
+        }
         if(result){const next=combineSolids(result,textSolid,f.mode==='raised'?'add':'subtract');result.delete();result=next;}
         else {result=textSolid;textSolid=null;}
       }finally{textSolid?.delete();}
     }
     const mesh=meshFromSolid(result),record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh.vertices,triangles:mesh.triangles};
+    record.materialParts=[];
+    for(const [id,solid] of materials)if(!solid.isEmpty()){
+      if(id==='base'&&baseUncut)record.materialParts.push({id,geometry:null});
+      else{const mesh=meshFromSolid(solid);record.materialParts.push({id,geometry:{shape:'mesh',source:null,vertices:mesh.vertices,triangles:mesh.triangles}});}
+    }
+    if(standalone)record.standalone=true;
     record.compiledHash=textDigest(record);
     return record;
-  }finally{result?.delete();}
+  }finally{result?.delete();for(const material of materials.values())material.delete();}
 }

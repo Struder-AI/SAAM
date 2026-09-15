@@ -9,7 +9,7 @@ import {compileText} from '../../skills/text/scripts/text.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 
 export async function applyText(directory,request,{expectedRevision}={}){
-  requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
+  requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','regions','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one feature to add/update, or remove its id.');
   const state=await loadBundle(directory,{program:false});
   requireThat(expectedRevision===undefined||expectedRevision===state.revision,'This review is stale. Reload before changing text.');
@@ -21,7 +21,10 @@ export async function applyText(directory,request,{expectedRevision}={}){
   requireThat(request.standalone===undefined||typeof request.standalone==='boolean','standalone must be a boolean.');
   requireThat(!request.standalone||!request.remove,'Cannot remove a feature while replacing the target with standalone text.');
   const old=geometry.shape==='text'&&!request.standalone?geometry:null;
-  const base=request.standalone?null:old?old.base:geometry;
+  const standalone=request.standalone??old?.standalone??false;
+  // Standalone removes the substrate from material, not from the reference.
+  // Preserve a native/mesh top so callers never have to copy its control net.
+  const base=old?old.base:geometry.shape==='text'?(geometry.base??geometry):geometry;
   const features=structuredClone(old?.features??[]);
   if(request.remove){
     const index=features.findIndex(f=>f.id===request.remove);requireThat(index>=0,'Text feature id not found.');features.splice(index,1);
@@ -38,10 +41,17 @@ export async function applyText(directory,request,{expectedRevision}={}){
     const next={...(index>=0?features[index]:{}),...feature};
     if(index>=0)features[index]=next;else features.push(next);
   }
-  if(!features.length){requireThat(base,'Removing the last standalone text feature would leave no geometry.');owner.geometry=base;}
+  if(!features.length){requireThat(base&&!standalone,'Removing the last standalone text feature would leave no geometry.');owner.geometry=base;}
   else {
     const r=await rhino();
-    owner.geometry=await compileText(base,features,{buildGeometry:g=>buildShell(r,g),toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
+    owner.geometry=await compileText(base,features,{buildGeometry:g=>buildShell(r,g),standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
+  }
+  // A removed/changed feature may invalidate a region selector. Let the caller
+  // replace those assignments in the same validated edit, without an invalid
+  // intermediate bundle or silently deleting dependent printing operations.
+  if(request.regions!==undefined){
+    requireThat(Array.isArray(request.regions),'Text regions must be an array of material assignments.');
+    plan.composition.regions=structuredClone(request.regions);
   }
   return updatePlan(directory,plan,state.revision);
 }

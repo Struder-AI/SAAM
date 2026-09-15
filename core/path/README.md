@@ -15,8 +15,9 @@ a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
 `rank` for ordering within a height batch, and `after` dependencies. Rank is a scheduling
 coordinate, not universally Z: planar fill uses layer height. Operations also
 provide strokes (3D points, speed, role, and either uniform bead area or per-segment
-volume/metadata) and travel-policy queries. Existing `clearanceFor` queries
-constrain combing against previous operations; legacy operation `clearanceZ`
+volume/metadata) and travel-policy queries. Local `material` queries constrain
+combing against completed operations; policies without them retain their
+conservative `clearanceFor` comparison. Legacy operation `clearanceZ`
 metadata does not set lifted travel or cooling height. An operation is
 atomic; expose smaller operations when within-layer interleaving is permitted.
 These runtime results are not separate machine files or a persisted preview
@@ -179,7 +180,9 @@ Ordinary factor-1 recipes retain their existing deposition behavior.
 ## Whole-plan travel requirement
 
 Travel minimization is a design responsibility for every skill and shared
-component, not another check or rejection gate. Think about where the nozzle
+component. The explicitly authorized [short-travel advisory](../export/README.md#short-travel-advisory)
+flags complete travel endpoints within 2 mm for later skill/shared-function
+improvement. It does not reject or repair a path. Think about where the nozzle
 finishes each stroke and where the next useful deposition can start. Choose
 nearby open endpoints and nearby entry points on closed contours; consider the
 next wall, neighboring component and following layer when deciding seams and
@@ -263,12 +266,47 @@ explicit with the selected absolute/relative convention. The interpreter checks
 the final commands; regression tests compare their coordinates and volume with
 the generator's transient motion objects.
 
-Planar combing checks boundary crossings and standoff, then can route around
-holes via a bounded visibility graph (256 offset corners, `maxCombMm` route
-length); otherwise it hops. Earlier operation queries can forbid combing.
-Drape retains its own local surface query for direct moves. These conservative
-policies are not a full swept-head collision or support model. The wedge retains
-its bounded nearby/direct policy; its lifts use the shared deposited height.
+Planar and height-field surface combing check boundary crossings,
+then can route around holes via a bounded visibility graph (256 offset corners
+in the endpoints' connected component, `maxCombMm` XYZ route length); otherwise
+they hop. Disconnected components cannot be joined by combing. Every candidate
+edge checks both the destination policy and completed material, including edges
+of a detour. Lifted moves retain the global deposited-height clearance above.
+The wedge retains its bounded nearby/direct policy through the same builder.
+
+`planarPolicy` publishes the layer's actual region and height, preserving holes
+and disconnected footprints. `surfacePolicy` accepts an XY footprint, a local
+`surfaceZ(x,y)` query, a conservative `maxZ`, `sampleStepMm`, and permitted
+`sagMm`. Producers must return a nonfinite height for an absent or invalid
+surface. Drape supplies its surveyed allowed footprint and each skin's own
+height, sampling step and sag limit. Routing lifts intermediate samples to that
+surface while preserving the exact requested endpoints. Direct moves remain
+straight chords checked against the same surface limits. Surface direct
+connections retain their centerline edge allowance (`directClearanceMm: 0`),
+with exact footprint-crossing checks even between surface samples. Planar direct
+moves and all detours retain the half-line-width boundary standoff.
+Chord sag applies only to the destination surface; it does not permit travel
+below another operation's deposited material.
+
+`materialRegion` in [material.mjs](material.mjs) clips candidate travel to each
+completed operation's footprint through the shared Clipper2 open-path tool.
+Planar heights are compared at clipped endpoints, so a descending move cannot
+hide a low collision behind its high endpoint. Surface heights are sampled
+within each clipped interval. A numerical plane-tolerance expansion includes
+boundary contact; it is not nozzle-width expansion. A missing height inside
+declared material blocks travel. Bounds and maximum height skip irrelevant
+queries; the shared boundary index resolves segments with constant footprint
+membership without clipping. Route-length lower bounds prune unreachable
+corners before surface evaluation. Material remains local rather than being collapsed into a global
+planar obstacle. The composer installs `isTravelClear` for both direct and
+routed segments; legacy policies without material geometry remain conservative.
+
+These are nominal operation regions, not reconstructed individual beads, full
+swept-head collision checks or proof of support. Sparse regions retain a
+conservative occupied envelope. Surface sampling can miss between-sample
+features; arbitrary overhangs, fixtures and oriented robot routing require
+their existing separate policies. The Studio advisory remains a nonblocking
+way to report additional travel cases.
 
 ### Travel planning
 

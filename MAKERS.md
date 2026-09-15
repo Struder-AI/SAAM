@@ -185,9 +185,12 @@ printability.
 
 ## Maker interaction flow
 
-The person gives two confirmations in Studio: geometry, then settings and the
-exact toolpath together. Agents prepare the work and read confirmation status;
-the person enters each confirmation.
+The person confirms geometry, then settings and the exact toolpath together.
+Geometry can be confirmed in Studio or by an explicit chat statement approving
+the current resulting shape. Record chat approval with the shared
+[geometry confirmation command](core/print/USAGE.md), including its current revision,
+geometry hash and chat reference; permission to make an edit is not approval of
+its result. Final settings/toolpath confirmation stays in Studio.
 
 1. **Prepare the first preview.** Initialize the print and show its geometry as
    soon as a reasonable shape is available. State the proposed dimensions and
@@ -201,7 +204,8 @@ the person enters each confirmation.
    of the checked machine commands. The person may request infill, material,
    printer or other changes here. Apply them, regenerate the affected toolpath
    and show the result in the same view. Changed geometry returns to geometry
-   confirmation; settings-only changes keep it.
+   confirmation; settings-only changes keep it. In a tour, geometry review temporarily
+   replaces the view and either confirmation input returns to the same lesson.
 4. **Confirm and export.** The final confirmation covers both the current settings
    and the exact toolpath. Deliver those bytes unchanged. Explain the relevant
    transfer method: for the Ultimaker example, download the machine file, copy it

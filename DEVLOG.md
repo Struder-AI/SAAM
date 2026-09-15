@@ -1,5 +1,209 @@
 # Development log
 
+## 2026-09-15 — Publication preparation
+
+Prepared the shared Studio, text-material and travel changes for the user's
+requested commit and push on `codex/provisional-goalpost`. The remote branch
+had been deleted after PR #10; its merge on main introduced no further file
+changes, so the local branch fast-forwarded to that base. Generated .NET
+benchmark `obj` files are removed from tracking and retained locally; `obj`
+and `bin` output directories are now ignored.
+
+Reused the focused software and browser verification recorded below, with no
+implementation changes during preparation. `git diff --check HEAD` passed.
+The repository documentation check found and prompted correction of BR-049's
+status punctuation and work-record field. Six pre-existing diagnostics remain:
+BR-045 status punctuation and five stale links to removed BR-005, BR-018,
+BR-023 and BR-039 headings. These do not represent software test failures.
+The other generator improvements in BR-049 remain explicitly deferred.
+
+## 2026-09-15 — Local material clearance and curved comb routing
+
+The user authorized a general shared repair after the wavy roof with draped
+lettering exposed 1,281 locally permitted short connections blocked by the
+highest prior planar layer, regardless of its footprint. The implementation
+keeps planar footprints and heights in shared material queries and adds a
+height-field surface policy reusable by producers. Drape supplies its allowed
+footprint and each skin's own height. Shared combing samples curved edges,
+checks every emitted segment against completed operations, and routes within
+the endpoints' connected component. Global lifted clearance is unchanged;
+policies without local material geometry retain conservative legacy checks.
+
+Nine new analytical regressions cover holes/islands, collinear contact, narrow
+obstacles, large translations, descending crossings, surface heights, curved
+detours, blocked route edges, disconnected components and legacy policies.
+All 68 selected tests passed across those checks, existing travel/composition,
+straight moves, reservations, spacing, full-fill, planar-infill, draped-skin
+and curved text. The surface adapter uses the producer's sampling step and sag
+limit; this remains a nominal material-region model, with sampled surface
+limits rather than a full swept-head or physical clearance validation.
+
+The exact local wavy-roof/lettering fixture was regenerated before and after
+the shared changes (`Prints/development/text-material-demo-verification`, plan
+SHA-256 `e4338e63f3e0a2e2761af5ad6ac20295993f6e94a058b1a427efa5da82e06744`).
+The same recipe, placement and deposition ordering were used for both runs.
+
+| Measurement | Before | After |
+|---|---:|---:|
+| Whole-print retract/lift cycles | 3,144 | 1,332 |
+| Whole-print travel, mm | 96,156.585 | 72,158.716 |
+| Lettering retract/lift cycles | 1,428 | 60 |
+| Lettering cycles with endpoints within 1 mm | 1,290 | 6 |
+| Lettering travel, mm | 19,864.000 | 1,859.840 |
+
+All 2,257,835 depositing moves retained identical start/end coordinates,
+speed, volume and metadata: SHA-256
+`28272dd558f605a5ee6e3eefad4be98238db024d293280ac2c7bb316fd0fda47`.
+Total deposited volume stayed 33,105.96831755667 mm³. A flat 12 × 10 × 2 mm
+box retained its entire path object, including all travel, exactly. These
+comparisons are software evidence, not a physical print. Single generation
+measurements were 331.8 seconds before and 654.8 seconds after, taken alongside
+other local diagnostic/test work; they are not a controlled performance benchmark.
+The local comparison scripts and compact measurements are retained under
+`.local/travel-*`. Other advisory-identified generator cases remain deferred in
+BR-049; the advisory continues to report without blocking or repairing exports.
+
+## 2026-09-15 — Advisory for travel endpoints within 2 mm
+
+The user explicitly authorized a runtime toolpath check despite the normal
+guidance against additional check burden: report bad paths to the agent, without
+blocking or repairing them. The implementation uses an inclusive 2 mm XYZ
+endpoint threshold on complete non-depositing trips, including lifts/detours and
+robot sampling. Shared machine interpretation and Studio machine studies return
+bounded source examples and operation counts; cached source metadata retains the
+result. Matching displayed exports notify the agent once through an advisory
+request, preserving evidence without busy dots or timeout errors. Generation,
+approval and exact-byte delivery retain their existing behavior.
+
+Generator improvements requested “at some point” remain deferred in BR-049.
+All 47 selected software tests passed across `travel-advisory`, `program-cache`,
+`studio-open`, `machine-study`, `studio-work` and `mcp`. These cover analytical
+endpoint cases, S5/H2D source parity,
+warm/cold reuse, advisory listener delivery/deduplication and approval/delivery
+with findings. No physical print or generator repair was performed.
+
+## 2026-09-15 — Lettering material interoperability
+
+The user redirected a wavy-roof lettering experiment to improving the text skill
+across applicable printing patterns. Text compilation now retains separately
+selectable base and raised-feature material with one merged review solid.
+Earlier material owns overlaps; later engraving cuts all affected partitions.
+Regional plans resolve those selections with assembly placement and detect
+whole/partition ownership conflicts. Changing the deposition pattern preserves
+geometry approval. Legacy records remain readable and gain partitions on rebuild.
+Standalone text retains its original surface as an unprinted guide through edits.
+Feature removal can replace dependent regions in the same validated operation.
+
+Draped-only regions consume finished lower surfaces using their actual first-bead
+gap, including curved glyphs above a native roof. Removed planar start-height and
+nominal-reserve restrictions that incorrectly rejected those skins; missing
+support and nonpositive deposited gaps still fail. Lettering selections preserve
+heat-set reinforcement metadata and its planar-owner validation, while standalone
+reference bodies contribute no reinforcement. Other skills' selection interfaces
+were not broadened.
+
+Focused checks passed: the text suite (13 tests), interoperability suite (6),
+curved-text suite (2), existing regional suite (5), and heat-set suite (7), using
+reused results where inputs were unchanged. Checks cover holes/disconnected
+glyphs, four curved layers, measured first-bead gaps, operation order and exported
+curved moves; disjoint volumes/sections; translated assembly; retained approvals;
+atomic edits; imported references/source hashes; legacy records; side lettering;
+and preserved insert loops/fins. The public draped example created an unapproved
+`remettub` plan using native `top` and `base` / `text/label` selections. These are
+software results; no physical print or nozzle-clearance validation was performed.
+
+A side-letter O trial with continuous vase-wall generation failed at contour
+subdivision; planar side lettering passes. Pattern limits remain explicit. The
+user-requested read-only subagent sweep identified independent follow-up candidates
+in Gridfinity construction partitions, heat-set feature selection, wave surface
+publication and thick-lip continuation. They were handed off as findings, not
+added as authorized implementation work or represented as reproduced failures.
+
+## 2026-09-15 — Tour cues, repaired STL review and playback reuse
+
+Approved follow-ups add one temporary geometry review within any toolpath lesson.
+The selected print and lesson stay fixed; explicit geometry confirmation returns
+to that lesson. Generic navigation grants no approval. The import lesson's
+explicit continue/confirm action now checks the displayed revision and geometry
+hash before approving. Both ordinary Studio and the tour also accept explicit
+human chat geometry confirmation through a narrow shared CLI/MCP operation,
+retaining the statement and chat reference against the current revision/hash.
+Final settings/exact-toolpath approval remains in Studio; MCP tour generation
+cannot bypass geometry confirmation through development mode.
+
+The chat-edit lesson accepts geometry or settings changes after their confirmed
+current toolpath is displayed. Existing request baselines distinguish participant
+edits from unchanged/automatic work and survive temporary review and resume.
+Queued guidance does not block a completed edit; pending edits still do. New
+geometry awaiting human confirmation clears work fading while keeping a requested
+toolpath pending. Browser checks exercised button and chat recovery in an isolated
+synthetic library. Focused tests cover stale confirmations, CLI/MCP scope, every
+toolpath lesson's review UI, same-lesson generation, early-tour preservation,
+request correlation, import review and ordinary readiness/cache behavior.
+
+The user requested eight tour-focused fixes and investigations, then added the
+ordinary geometry-confirmation acknowledgement bug and approved automatic STL
+repair followed by explicit geometry review. They also requested layer 2 as a
+fallback when the agent supplies no playback layer.
+
+Tour-only changes: Next highlights after displayed edits on the first two
+geometry lessons; the optional roof lesson locks Next with active-work dots and
+fading. Removed the preparation sentence from the optional STL lesson. Play's
+highlight stops on first use. Missing agent layer selection uses the second
+deposited layer (or the only layer), counts normal viewing time and does not
+reposition an already-started playback when late guidance arrives. Model selection
+does not depend on a playback layer. A repaired import stays on the geometry
+lesson until **Confirm repaired geometry & continue**; switching away and back
+does not bypass that review. Successful generation recovery queues a missing
+start-layer request.
+
+General Studio changes: ordinary geometry confirmation renders the toolpath
+before sending its view receipt, clearing activity after successful loading.
+One current-print playback cache reuses source decoding and material scenes on
+same-print reopening and tour Back/Continue, with plan/export/print invalidation.
+Same-directory reopening retains preparation. A completed speculative diagnostic
+is surfaced once without repeating its calculation; crashed workers and explicit
+retries remain recoverable. Visible loading/saving copy no longer calls the
+toolpath "checked". Choosing an STL stops the previous selection's speculation.
+
+STL import now runs off the server event loop. It first validates normally, then
+automatically applies the existing exact-cleanup/native repair operation to
+recognized mesh defects. No hole filling is enabled. Original/repaired STLs and
+the existing repair report remain in the print; repair results are unapproved
+geometry in both modes. Progress names checking, repair and opening; failed
+imports clean only their reserved destination. CLI/MCP import remains strict.
+Real native self-intersection repair ran successfully in the focused tests.
+The participant's exact original failing STL was not supplied, so that particular
+file is not claimed as reproduced.
+
+The surprise-slide investigation found an agent-initiated process change in the
+local Claude transcript: it disabled draped skin after requested roof lettering,
+created another edit request to keep the part generatable, and explained the
+workaround afterward. Geometry approval remained valid. A later lettering move
+was explicitly requested. No evidence showed a Studio geometry mutation on
+entering the saved-print lesson. The proposed guidance correction—ask before a
+compatibility workaround changes the intended shape/process, and use read-only
+status for revision retrieval—was left awaiting the user's requested approval.
+Private transcript content was not copied into shared files.
+
+Verification used the focused Studio tour, agent, import, opening, readiness,
+playback-cache and program-cache suites. The latest affected-server/tour/import
+run passed 35 tests; browser readiness/cache tests and unchanged-byte lifecycle
+checks also passed. Browser checks on an isolated library verified both edit
+cues, roof locking/fade, Play/Pause highlighting, Back/Continue, import loading,
+failed-import selection preservation, repaired-geometry confirmation, and layer-2
+playback completing without an agent layer. The final browser had no warning/error
+logs. These are software results, not physical-print evidence. Test viewers and
+their owned server sessions were closed.
+
+The prework audit confirmed that worker checking and generation share their
+candidate, and current development-to-production promotion/export do not reslice.
+The remaining priority gap is cross-process: separate Studio/CLI/MCP jobs have no
+shared computation coordinator. Proposed follow-up: one bounded, cancellable
+speculative job that foreground work can adopt or preempt, before starting earlier
+or alternative-choice preparation. Another optional improvement is a before/after
+repair comparison view. These are proposals, not newly authorized backlog work.
+
 ## 2026-09-14 — Goalpost setup fix and removal of extra mesh CI
 
 The user confirmed the intended branch rule as "at most one active pending

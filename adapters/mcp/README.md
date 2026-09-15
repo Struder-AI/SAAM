@@ -68,7 +68,8 @@ saved IDs; there is no single global plan that overwrites another job.
 | `upgrade_print` | Run the owning adapter's explicit migration for an old bundle, preserving delivered files and invalidating affected approvals. |
 | `request_review` | Start/reuse the shared Studio for this print and return its loopback URL. |
 | `get_approval_status` | Read the two hash-bound confirmations from disk; `plan` remains a compatibility field for the combined confirmation. |
-| `generate_print` | Generate and check the machine export from confirmed geometry and complete settings; the active tour print uses a development preview. |
+| `confirm_geometry` | Record explicit human chat approval of the current shape with `expectedRevision`, `geometryHash`, `actor`, the exact `statement`, and its `chatReference`. Never approves settings or toolpath. |
+| `generate_print` | Generate and check the machine export from confirmed geometry and complete settings, including during a tour; no development-mode bypass. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
 The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
@@ -119,9 +120,15 @@ request timeout remains the fallback. Use separate adapters for independent agen
 A separately launched CLI Studio remains independent and is never terminated by
 this adapter.
 
-Only the person confirms geometry, then settings and the exact toolpath together
-in Studio. No MCP tool can approve, accept approval fields, select
-development generation, write arbitrary files, or send a job to a machine.
+Only the person confirms geometry, either in Studio or explicitly in chat.
+`confirm_geometry` records that existing human decision, bound to the selected
+print, current revision and geometry hash returned by `get_print`. It preserves
+the exact statement and conversation/message reference. The agent must judge
+whether the words approve the resulting shape; validation cannot infer intent.
+A change request or acknowledgement is not approval. Stale confirmations are
+rejected. Settings and the exact toolpath are still confirmed together in Studio.
+No MCP tool can grant that final approval, accept approval fields in recipes,
+select development generation, write arbitrary files, or send a job to a machine.
 Status is loaded from disk rather than accepted from the agent. Recipe edits
 invalidate the affected shared approval hashes. Delivery adds no further approval
 and does not regenerate. A catalog entry or passing software checks do not
