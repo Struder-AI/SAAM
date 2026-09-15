@@ -46,7 +46,7 @@ export async function checkSetup({log=console.log}={}) {
       const page=await fetch(origin,{signal:AbortSignal.timeout(10000)});
       assert.equal(page.status,200);assert.match(await page.text(),/saam-token/);
       const response=await fetch(origin+'/api/state',{signal:AbortSignal.timeout(10000)});
-      assert.equal(response.status,200);const state=await response.json();
+      const state=await response.json();assert.equal(response.status,200,state.error);
       assert.ok(state.geometry);assert.equal(state.geometryApproved,false);
       assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
       assert.equal(state.program,undefined);
