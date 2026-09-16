@@ -4,6 +4,7 @@ import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './pla
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
 import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
+  '../geom/offset-curvature.mjs',
   '../geom/mesh-distance.mjs','../geom/surface-offset.mjs','../geom/sleeve-frame.mjs','../geom/directional-contour.mjs','../geom/prepared-radial-contact.mjs',
   '../geom/sleeve-contact.mjs','../geom/mesh-sleeve.mjs','../geom/least-squares.mjs','../region/stroke.mjs','../../skills/vase-wall/scripts/reference.mjs',
   '../../skills/plastic-weld/scripts/weld.mjs',

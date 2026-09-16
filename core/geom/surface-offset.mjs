@@ -1,6 +1,7 @@
 // Fixed-size loose NURBS offsets and a functional continuum to unit normals.
 import {evaluate} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
+import {prepareOffsetCurvature} from './offset-curvature.mjs';
 
 export function prepareSurfaceOffsets({patch,mode='normal',periodicU=false,periodicV=false}){
   requireThat(patch&&['horizontal','normal','projected-normal'].includes(mode)&&typeof periodicU==='boolean'&&typeof periodicV==='boolean',
@@ -41,6 +42,12 @@ export function prepareSurfaceOffsets({patch,mode='normal',periodicU=false,perio
     directions.set([normal[0]*w,normal[1]*w,normal[2]*w,w],k);
   }
   const directionPatch={...patch,cp:directions};
+  let curvature;
+  const limitedPatch=depth=>{
+    if(depth===0)return null;
+    curvature??=prepareOffsetCurvature(patch,directions,{periodicU,periodicV});
+    return curvature.needsLimit(depth)?curvature.limitedPatch(depth):null;
+  };
   let queries=0,minLength=Infinity,maxLength=0,minTightness=Infinity,maxTightness=0;
   const frameAt=(u,v,tightness=0)=>{
     requireThat(Number.isFinite(tightness)&&tightness>=0&&tightness<=1,'Surface offset tightness must be between zero and one.');
@@ -55,15 +62,24 @@ export function prepareSurfaceOffsets({patch,mode='normal',periodicU=false,perio
   const offsetPatch=(depth,tightness=0)=>{
     requireThat(Number.isFinite(depth),'Surface offset depth must be finite.');
     requireThat(tightness===0,'Only zero tightness has a fixed-size NURBS offset patch; other tightness values are evaluated functionally without control-point fitting.');
+    const limited=limitedPatch(depth);
+    if(limited)return {...limited,cp:limited.cp.slice()};
     const cp=patch.cp.slice();
     for(let i=0;i<cp.length;i+=4)for(let k=0;k<3;k++)cp[i+k]+=depth*directions[i+k];
     return {...patch,cp};
   };
   return {frameAt,offsetPatch,at:(u,v,depth=0,tightness=0)=>{
     requireThat(Number.isFinite(depth),'Surface offset depth must be finite.');
-    const {point,direction}=frameAt(u,v,tightness);return point.map((p,k)=>p+depth*direction[k]);
+    const {point,direction}=frameAt(u,v,tightness),limited=tightness<1?limitedPatch(depth):null;
+    if(!limited)return point.map((p,k)=>p+depth*direction[k]);
+    [u,v]=parameters(u,v);
+    const loose=evaluate(limited,u,v,false).point;
+    if(tightness===0)return loose;
+    const normal=unitDirection(u,v);
+    return loose.map((p,k)=>p+tightness*(point[k]+depth*normal[k]-p));
   },report:()=>({frameQueries:queries,frameMapping:`${mode} Greville-normal loose control field blended with exact unit reference normals`,
     offsetControlCount:patch.nu*patch.nv,offsetOrderU:patch.orderU,offsetOrderV:patch.orderV,periodicU,periodicV,
     sampledDirectionLengthRange:queries?[minLength,maxLength]:null,queriedTightnessRange:queries?[minTightness,maxTightness]:null,
-    frameScope:'Control count, knots, degrees and weights are preserved. Loose vectors are not renormalized; depth approximates constant normal distance. Tight queries use exact unit reference normals without fitting more control points. Reference Greville normals and queried finite coordinates are checked; offset folds are permitted. No global injectivity or clearance certificate.'})};
+    ...curvature?.report,
+    frameScope:'Control count, knots, degrees and weights are preserved. Loose control depths are locally reduced at sampled over-curvature; requested depth is approximate. Tight queries retain exact unit reference normals and can fold. Intermediate values blend limited loose positions with the tight offset. No global injectivity or clearance certificate.'})};
 }

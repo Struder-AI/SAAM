@@ -1,5 +1,104 @@
 # Development log
 
+## 2026-09-16 — Stress mesh hi-fi completion and separate vase manuals
+
+The user established **stress mesh** as the term for the local Spiral Vase input
+and requested the single hi-fi alias for full mesh fidelity. They also explicitly
+chose separate standard/advanced vase manuals and separate skill-digest entries,
+clarifying that the distinction is in discovery and documentation. Standard
+`vase-wall` and `advanced-vase-wall` now have separate manuals/catalog entries
+while retaining the same `skills.vase-wall` recipe and generation implementation.
+[D-032](DECISIONS.md#d-032--separate-standard-and-advanced-vase-mode-manuals) records
+that instruction; the glossary identifies the stress mesh and both modes.
+
+The latest saved recipe from the previous evening was
+`.local/motif-speed/worktree/Prints/development/correct-cgal-medium-fidelity`.
+It retained the repaired 8,076-triangle stress mesh, the 33-point motif with
+4.8 mm depth, 36 cells per turn and 579 body courses plus two flat ends.
+The motif hash is `734d7f601aadcdebdb4f1b5d7d92f07d4ef9142b69f5ee2ad3c61bd2e90fc99b`.
+Only `meshSleeve.fidelity` changed from 0.5 to 1; the latest recipe's independent
+0.2 mm detail tolerance, loose offsets, Bambu H2D and PLA settings were retained.
+The prior 0.1 mm contact-detail rejection therefore does not describe this recipe.
+
+Public bundle initialization preserved source bytes and left the old print intact.
+Development generation at `Prints/development/stress-mesh-hi-fi-20260916`
+completed all 581 courses at 125.242 s, composition at 127.726 s, and checked
+export/persistence at 143.475 s. It produced 2,163,709 checked moves, with export
+SHA-256 `b6caeff64020e151a3e5497748f1cfd221c6c88ca78b4133349698092059d285`.
+The complete observed slicing time was 2 minutes 23 seconds; no remaining-time
+extrapolation was needed when completion was reported. This is a development
+preview with no new human approvals or physical print result. Progress and the
+result record are under `.local/vase-speed-20260916/stress-hifi-*`.
+
+The three skill-digest tests passed, and the regenerated digest includes both
+manuals. The repository documentation check reported no errors for the new
+manuals/catalog or relocated references; it still reported unrelated existing
+backlog status and stale backlog-anchor errors.
+
+## 2026-09-16 — Vase contact speed and local loose-offset curvature limiting
+
+The user requested a bounded high-fidelity motif-vase timing run, followed by
+slicer speed improvements, then requested over-curvature handling that preserves
+one smooth sleeve by limiting offsets locally. The shared manuals define motif
+mapping and numeric fidelity, but do not identify a named “gauntlet” example or
+“hi-fi” preset. The diagnostic therefore used the saved repaired stress-vase
+candidate at `.local/motif-speed/worktree/Prints/development/correct-cgal-full-fidelity`;
+that identification remains provisional. Its source is the 8,076-triangle CGAL
+repair `aec0bf6018d998ce743c2c4cdb4158e47c37caca7ae20a60d8fb803b46ecd0db`,
+with fidelity 1, 0.1 mm contact detail, 36 cells per turn and 581 total courses.
+
+On Node v24.19.0 / Intel i7-9750H, the initial generation rejected a source-contour
+fold at Z 27.565625 mm after 108.210 s; a repeated baseline reached the same
+rejection in 89.344 s. Early throughput suggested approximately 5–10 minutes for
+a complete job if subsequent geometry were accepted, but the actual rejection
+precludes a completion estimate for that unchanged recipe. A separate bounded
+CPU profile attributed roughly half its sampled time to triangle-distance
+arithmetic and temporary vectors during mesh-ledge validation. Scalar arithmetic
+replaced those vector allocations without changing the distance method or budgets.
+The same full-height input then reached the identical rejection in 46.088 s.
+
+A separate 26.8 mm / 131-course fixture retained the source, motif, fidelity and
+tolerances for a completed-output comparison. Generation changed from 75.052 s
+to 43.767 s, and checked export from 4.017 s to 4.095 s: 79.069 s versus 47.862 s
+after geometry load (1.65× faster). Plan/machine hashes matched between trials,
+as did all 564,318 checked moves, travel metrics and the 9,156,497-byte export:
+`53f4112814c63f5f353280fedc710e7708f2b3fe4a6444a65c0fd7f6a14e7a3e`.
+The final trial includes the curvature limiter. These are individual local
+measurements, not a statistical hardware comparison or a full-height success.
+Evidence and original module snapshots are under `.local/vase-speed-20260916`.
+
+The loose-offset implementation now reduces local control depths when its sampled
+Jacobian would fold, preserving the same NURBS control layout and periodic seam.
+It checks the displacement path as well as its endpoint, retains ordinary offsets,
+and reports reductions. This is separate from source-mesh contact; it does not
+resolve the source-contour rejection above or certify global self-intersections.
+The shared geometry manual owns the algorithm and limits. All 27 selected distance,
+contact, loose-offset, sleeve, vase, cladding and rimming tests passed, including
+deep over-curvature, local retention, seam/weight preservation and checked export.
+The benchmark now retains progress, errors and CPU profiles after cooperative
+time-budget interruption. No saved print approvals or source bundles were changed,
+and no machine execution or physical validation occurred.
+
+## 2026-09-15 — Browser control and download completion
+
+The inherited download investigation reproduced canceled ordinary agent clicks
+for both the small text control and the streamed medium-vase package. Installed
+Codex desktop 26.908.4834.0 cancels ordinary downloads during agent browser
+control unless its supported download action has registered the download. That
+action reached save-path assignment but reported a local-policy block in this
+session. No security settings were changed.
+
+After browser control returned to the person, the same streamed package saved
+successfully to the configured Desktop folder without Save As. The browser
+record reports completion and 31,991,449 bytes; the saved file SHA-256 matches
+the approved package:
+`0c24656319d52d7e064c0cf4e94565bd59046c93f7eca9987ba4deace3cb7310`.
+This establishes successful large-file delivery and a control-state failure
+in the automated reproduction. It does not establish the cause of every earlier
+human-click failure or retest Studio's final confirmation button. The working
+procedure is documented at Studio's client guidance; no further download code
+change was required for this successful transfer.
+
 ## 2026-09-15 — Shared checkpoint and publication
 
 The user requested committing and pushing the checkout's pending work on
@@ -69,7 +168,7 @@ the measured profile certificate from the interpolation allowance. Narrow ledge
 transitions use sampled distance checks against the original triangles. Larger
 folds still reject; the medium result does not establish that every mesh or the
 strict full-fidelity setting is supported. Current contracts live in the
-[vase manual](skills/vase-wall/SKILL.md) and
+[advanced vase manual](skills/advanced-vase-wall/SKILL.md) and
 [prepared contact reference](core/geom/README.md#prepared-mesh-contact).
 
 Browser delivery remains unresolved. User-clicked 1 KB text saved, while both
@@ -2342,7 +2441,7 @@ incomplete work; component references and skill manuals describe present behavio
 - Added signed per-point contour offsets to sleeve motifs, continuous rising
   lead-ins for raised first motifs, offset-aware endpoint matching and Studio
   offset summaries. Pattern slope is reported without a tilt gate. The plain
-  spiral retains its existing angle behavior. The [manual](skills/vase-wall/SKILL.md#sleeve-patterns)
+  spiral retains its existing angle behavior. The [manual](skills/advanced-vase-wall/SKILL.md#sleeve-patterns)
   owns the current mapping and extrusion conventions.
 - The full example exposed false offset micro-holes from triangle seams and
   unbounded retention of section/offset curves. Pattern contours now remove
@@ -3211,7 +3310,7 @@ not full bundle generation, export or Studio. The manual owns pattern limits.
   endpoint matching includes periodic seams and repetition boundaries. Solid
   and single-bore sleeve hosts share the same mesh/spline query path. Old XYZ
   recipes fail explicitly rather than silently acquiring different geometry.
-  The [manual](skills/vase-wall/SKILL.md#sleeve-patterns) owns the coordinate,
+  The [manual](skills/advanced-vase-wall/SKILL.md#sleeve-patterns) owns the coordinate,
   extrusion-height, sampling and endpoint conventions.
 - Verified all 406 tests at the implementation checkpoint, then all 18 focused
   vase tests after adding an explicitly tapered-host fixture. Coverage includes
@@ -3234,7 +3333,7 @@ sleeve-pattern follow-up. They are no longer the current skill contract.
 - Source: current user selected vase-wall generalization, proposed tilted overlapping loops, then clarified that paths may instead be open noncrossing zigzags or other shapes, with an agent-chosen endpoint/travel convention. Follow-up explicitly requires vase mode to retain continuous extrusion and a separate name when travel is needed.
 - Implemented: [arc-length contour traversal](core/geom/contour-path.mjs) replaces the fixed interior polar origin for automatic walls, supporting concave mesh/spline sections while their inset remains one outer loop. The first seam is selected geometrically and projected onto subsequent contours. Existing actual-Z queries, offsets, boundary sampling, volume ramps, level ending, operation composition and exporters remain shared.
 - Authored paths: the existing skill accepts ordered XYZ polylines and constant or pointwise bead heights through `paths`. `pathMode: continuous` requires consecutive shared endpoints; `segmented` is presented as **segmented paths** and permits the shared composer to travel across gaps. All segments inside a path deposit; closure is explicit; no automatic closure, reversal or hidden travel is added. Shared deposition construction integrates linear bead height. Both positive and negative slopes respect the machine limit. Plan/regional validation, source identity, CLI/MCP adjustment, Studio labels and review/delivery use the current lifecycle.
-- Limits: automatic section splits, islands and holes remain unsupported. Arc-length correspondence is not arbitrary feature tracking or topology matching. Authored paths are explicit approximating polylines, not an automatic contact/overlap or structural-strength solver; they publish no fictitious area or rim support. The [manual](skills/vase-wall/SKILL.md#sleeve-patterns) owns coordinates, height and continuity conventions.
+- Limits: automatic section splits, islands and holes remain unsupported. Arc-length correspondence is not arbitrary feature tracking or topology matching. Authored paths are explicit approximating polylines, not an automatic contact/overlap or structural-strength solver; they publish no fictitious area or rim support. The [manual](skills/advanced-vase-wall/SKILL.md#sleeve-patterns) owns coordinates, height and continuity conventions.
 - Development examples: `Prints/development/continuous-zigzag` uses tapered alternating open passes; `Prints/development/segmented-zigzag` uses level passes with shared travel. Both reach 3.2 mm and use an S5 reference box. Checked exports have 5740 and 160 interpreted moves respectively; counts differ because tapered volumes retain subdivisions and constant-volume collinear paths compact. Both reopen through the public CLI with all approvals false. Studio source playback and travel visibility were inspected.
 - Verification: all 389 tests passed in the full suite. After final Studio label changes, 20 focused path/settings/material tests passed. Coverage includes concave mesh/spline geometry, cyclic contour ordering, open endpoints, continuous joins, segmented travel, variable-volume integrals, descent limits, translated regions, S5/H2D/configured Dobot source round trips and synthetic exact-byte delivery. Repository documentation/whitespace checks pass. No human print approvals, hardware execution, physical strength validation, staging, commit or publication.
 

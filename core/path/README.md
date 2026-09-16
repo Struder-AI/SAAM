@@ -90,7 +90,7 @@ different regions of the same part can use the other skills. The manual owns
 standoff, sampling and point-budget limits. Turn-to-turn bead overlap is a
 geometry/process judgment for the agent and maker, not a generation gate.
 
-The same package also accepts [sleeve motifs](../../skills/vase-wall/SKILL.md#sleeve-patterns).
+The same package also implements [advanced vase mode](../../skills/advanced-vase-wall/SKILL.md#sleeve-patterns).
 The ordinary recipe keeps one cell curve plus cells per turn, course rise,
 course count and tilt. Its regular reference-strip tiler joins identical cell
 endpoints, adds rise, and feeds the existing mapper one connected stroke per

@@ -28,7 +28,7 @@ into the same native mesh geometry used by Studio and slicing, then calls
 recipe. Reopening checks the saved result without rerunning its construction;
 text edits reconstruct from the retained source and invalidate geometry review.
 
-The [mesh vase preparation tool](../../skills/vase-wall/SKILL.md#mesh-input-workflow)
+The [mesh vase preparation tool](../../skills/advanced-vase-wall/SKILL.md#mesh-input-workflow)
 authors sleeve-fit, motif and base settings on an imported mesh through
 `adjustBundle`, using the expected revision. It preserves the source geometry
 and selected machine, and rejects conflicting composition instead of replacing

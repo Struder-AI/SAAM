@@ -28,3 +28,21 @@ test('generic nonperiodic rational surface offsets retain layout and support loo
   const base=evaluate(source,3,0,false).point;
   for(const t of [0,.5,1])assert.equal(horizontal.at(3,0,3,t)[2],base[2]);
 });
+
+test('normal offsets cannot pass through a double curvature reversal to an apparently positive final Jacobian',()=>{
+  const cp=[];
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)cp.push(2*i-2,2*j-2,[4,-4,4][i]+[4,-4,4][j],1);
+  const source={nu:3,nv:3,orderU:3,orderV:3,domainU:[0,1],domainV:[0,1],
+    knotsU:new Float64Array([0,0,0,1,1,1]),knotsV:new Float64Array([0,0,0,1,1,1]),cp:new Float64Array(cp)};
+  const field=prepareSurfaceOffsets({patch:source}),limited=field.offsetPatch(20);
+  assert.ok(field.report().curvatureLimitedPatches>0);
+  for(let i=0;i<=27;i++)for(let j=0;j<=27;j++){
+    const a=evaluate(source,i/27,j/27),b=evaluate(limited,i/27,j/27);
+    assert.ok(a.normal.every((x,k)=>Number.isFinite(b.normal?.[k])));
+    assert.ok(a.normal.reduce((s,x,k)=>s+x*b.normal[k],0)>0);
+  }
+  for(const t of [0,.37,1]){
+    const p=field.at(.5,.5,20,t),loose=field.at(.5,.5,20,0),tight=field.at(.5,.5,20,1);
+    for(let k=0;k<3;k++)assert.ok(Math.abs(p[k]-(loose[k]+t*(tight[k]-loose[k])))<1e-10);
+  }
+});

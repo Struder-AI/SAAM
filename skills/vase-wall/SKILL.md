@@ -1,207 +1,67 @@
 ---
 name: vase-wall
-description: Print a hollow vase or tube with a continuous spiral or reusable looping motif mapped from a regular perimeter strip onto an analytical or mesh fitted sleeve with one-sided mesh conformance.
+description: Print a conventional hollow vase or tube with one continuous rising spiral wall and an optional solid base. Use advanced vase mode for motifs, authored patterns and fitted mesh sleeves.
 ---
 
-# Vase wall
+# Standard vase mode
 
-Use for an open single-wall vessel or tube. The selected solid or closed sleeve
-is a reference envelope; vase-wall deposits the wall and leaves the interior and
-roof open. A modeled bore is unnecessary. A base is a separate full-fill choice.
-A looping motif can resemble a gyroid; it is a self-crossing toolpath, not an
-implicit gyroid solid. The motif may leave openings between deposited strokes.
+Use for conventional vase printing: one continuous spiral wall, an open top,
+and an optional solid base. The input describes the vessel's exterior; the
+recipe leaves the interior hollow. No motif or fitted reference sleeve is needed.
+For repeated loops, authored patterns or adjustable mesh conformance, choose
+[advanced vase mode](../advanced-vase-wall/SKILL.md).
+
+Both manuals use the existing `skills.vase-wall` recipe and slicer. Their separate
+skill-digest entries guide selection; they do not introduce another recipe key.
 
 ## Workflow
 
-Use the [shared print tools](../../core/print/USAGE.md) for import, recipe changes, generation, Studio review
-and delivery. Enable `skills.vase-wall` and select an optional full-fill base.
-For a base, set a positive `zStartMm` aligned to the process layer grid. Set
-`zEndMm` explicitly when the upper geometry is unsuitable; generation never
-shortens a requested wall.
+Use the [shared print tools](../../core/print/USAGE.md) to create/import a print,
+adjust its recipe, generate and review it in Studio. Enable `skills.vase-wall`,
+set `pattern: null`, `pathMode: "continuous"` and `meshSleeve: null`.
+When converting an advanced recipe, reset all three explicitly.
+Disable other wall/interior producers on the same material region.
 
-### Mesh input workflow
+For a solid base, enable [full-fill](../full-fill/SKILL.md) and set a positive
+`zStartMm` on the process layer grid. The vase wall begins above that base.
+Without a base, disable full-fill and use `zStartMm: 0`.
+Disable unwanted default skills, including draped-skin, through ordinary recipe
+adjustment. A closed top is not part of standard vase mode.
 
-For an imported mesh, prepare a fitted sleeve before generation:
-
-```sh
-node skills/vase-wall/scripts/prepare-mesh.mjs Prints/PART --options mesh-vase-options.json
-```
-
-Example `mesh-vase-options.json` for a dense, wide-loop fit:
-
-```json
-{
-  "loop": {"widthCells": 2.6, "depthMm": 4.8, "samples": 64},
-  "cellsPerTurn": 36,
-  "tiltDeg": 0,
-  "endTransition": "level",
-  "meshSleeve": {
-    "fidelity": 0.5,
-    "detailToleranceMm": 0.2,
-    "offsetTightness": 0,
-    "contactSide": "inside",
-    "circumferentialControls": 12,
-    "heightControls": 6
-  }
-}
-```
-
-Omitting `repeats` on a newly selected motif derives a complete course count for
-the detected interval; omitting `courseRiseMm` uses the process layer height.
-The helper derives a base from the process settings unless `baseHeightMm` is
-specified. These are example shape choices, not universal print settings.
-
-The preparation command detects one dominant outer sleeve, chooses an explicit
-usable height interval, preserves the source mesh, and writes a normal recipe
-revision. `--expected-revision REV` protects a caller's revision. Preparation
-does not generate a program or grant approval. Existing motif/repeat choices are
-retained unless explicitly replaced; conflicting producers and regional plans
-must be changed through the ordinary recipe tools.
-
-Use `composition.regions` for a same-part stack: assign full-fill to a base or
-cap, vase-wall to the intervening wall, and later skills to their own material
-regions. The [shared lifecycle](../../core/print/README.md) carries geometry, operation dependencies, machine
-checks, Studio review and the exact delivered machine bytes.
+For a same-part stack, use `composition.regions` to assign full-fill to the base
+and vase-wall to the wall above it. An optional [thick lip](../thick-lip/SKILL.md)
+can follow a level-ended wall through that regional workflow.
 
 ## Input geometry: normally a solid
 
-The normal input is a validated closed mesh or an untrimmed closed spline shell
-with one outer section throughout the selected interval. One bore is allowed.
-Concave sections are supported while every requested inward or outward contour
-remains one closed loop. Multiple islands, split/collapsed contours, arbitrary
-trimmed CAD faces and open uncapped mesh surfaces are unsupported.
+Use a validated closed mesh or a supported untrimmed closed spline shell with
+one outer section throughout the selected interval. A modeled bore is unnecessary;
+one bore is allowed. Concave sections work while the requested inset remains one
+closed loop. Multiple islands, split/collapsed contours, arbitrary trimmed CAD
+faces and open uncapped meshes are unsupported.
 
-### Settings
+Standard mode follows changing-height geometry sections directly. It does not
+use the advanced mesh-fitting helper. Choose `zEndMm` explicitly if the upper
+geometry is unsuitable; generation never silently shortens the wall.
+
+## Settings
 
 | Setting | Meaning |
 |---|---|
-| `zStartMm`, `zEndMm` | Wall interval above the selected component base; `zEndMm: null` uses the geometry top. |
-| `endTransition` | `level` adds complete flat motif courses at both ends; `spiral` retains the authored rising ending. Plain spirals use a level rim by default. |
-| `pattern` | `null` for a plain spiral, one regular repeated motif, or advanced authored paths. |
-| `pathMode` | `continuous` requires connected deposition; `segmented` permits explicit travel between authored gaps. |
-| `sampleStepMm`, `toleranceMm` | Emitted segment and contour subdivision limits. |
+| `zStartMm`, `zEndMm` | Wall interval above the component base; `zEndMm: null` uses the geometry top. |
+| `endTransition` | `level` finishes with a level rim; `spiral` retains the rising ending. New recipes default to `level`. |
+| `pattern`, `pathMode`, `meshSleeve` | Use `null`, `continuous`, `null` for standard vase mode. |
+| `sampleStepMm`, `toleranceMm` | Emitted segment length and contour subdivision limits. |
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
-| `maxPoints` | Bounded section, mapping and path construction allowance. Exhaustion fails with no partial wall. |
+| `maxPoints` | Construction allowance; exhaustion fails without a partial wall. |
 
-`meshSleeve` enables a smooth periodic cubic fit over changing-Z mesh sections:
-`fidelity` is continuous from 0 to 1, `contactSide` is `inside` or `outside`,
-`circumferentialControls` and `heightControls` control the fitted reference, and
-`detailToleranceMm` controls sampled mesh contact. Fit resolution and contact
-fidelity are separate. The default fit is 12 by 6 independent controls (72;
-90 stored with periodic seam duplicates); supported ranges are 8–48 circumferential and
-4–32 height controls.
+The process layer height controls rise per turn; line width controls the nominal
+wall bead. Cooling can slow the continuous stroke rather than parking between
+turns. The machine must support XYZ extrusion and the required nonplanar motion;
+the spiral's slope is checked against its declared angle limit.
 
-`meshSleeve.offsetTightness` is independent of mesh fidelity. It defaults to `0` for a
-fitted sleeve. At zero, the loose offset preserves the fitted NURBS control
-count, degrees, knots and weights. At one, queries use the exact unit-normal
-offset. Intermediate values blend the direction fields at query time; they do
-not refit or add control points. The loose endpoint is an actual same-structure
-NURBS patch; intermediate values are functional evaluators. Loose distance is
-an approximate standoff and its direction-length range is reported.
-
-## Sleeve patterns
-
-### One motif, a regular tiler, then sleeve mapping
-
-Author one motif in the regular, unwrapped perimeter/height strip. A motif is a
-continuous curve in one cell, with points `[cell fraction, local height mm]`.
-The first and last cell fractions must be 0 and 1, with equal height, offset
-and bead height so tiled joins meet exactly. `offsetMm` is signed depth and
-`beadHeightMm` is deposited bead height; each accepts a scalar or one value per
-point. Interior cell fractions may go outside 0–1 to overlap adjacent cells.
-The mapper then queries actual host
-sections at sampled Z and flow-maps the strip to normalized perimeter phase.
-Motif points are not world XYZ.
-
-One regular course is one complete circuit around the sleeve. The tiler repeats
-the authored motif row across the fixed `cellsPerTurn`, applies `courseRiseMm`,
-and repeats the requested number of complete courses. A smaller perimeter makes
-each fixed cell narrower; motif depth remains an independent millimetre value
-and is not rescaled with cell width. The motif is deposited; the strip and
-reference sleeve are not extra material.
-
-Continuous mode requires endpoints to meet between motif paths and repeat
-boundaries. It adds no guide wall, connector, ring, hidden travel or automatic
-support solver. Segmented mode is the explicit alternative when travel across
-gaps is intended.
-
-For a reusable loop, `skills/vase-wall/scripts/motif.mjs` provides
-`loopMotif({widthCells, depthMm, samples, beadHeightMm, exterior})`; place that
-motif in a pattern with `cellsPerTurn`, `courseRiseMm`, `repeats` and `tiltDeg`.
-The mesh preparation helper accepts the same loop through its `--options` JSON,
-or accepts a complete `pattern` for an authored layout.
-
-`widthCells` controls how far loops overlap neighboring cells; increase it for
-more crossings. `tiltDeg` rotates motif depth and local height before adding
-the course rise. `exterior` accepts `smooth`, `scalloped` or `both-scalloped`;
-mesh preparation chooses the first for inside contact and the second for outside
-contact unless overridden. For native geometry, set the same pattern through
-normal recipe adjustment. [irregular-demo.mjs](scripts/irregular-demo.mjs)
-provides a reproducible irregular native sleeve example.
-
-Advanced `pattern: {paths, advance, repeats}` accepts explicit strokes using
-the same point/depth/bead-height fields, with perimeter phase measured in turns.
-`advance: [turns, riseMm]` translates successive repeats. Prefer a single tiled
-motif when that expresses the requested shape.
-
-With the default `endTransition: level`, the wall has a complete flat motif
-course at its starting height, the requested body courses, and a complete flat
-motif course at its ending height. Boundary transitions taper nominal bead
-height to fill the remaining gap without doubling the boundary bead. Level
-patterns publish only their actual final deposited footprint for later regions;
-they do not publish a filled guide surface. `spiral` preserves authored endings
-and publishes no flat rim.
-Legacy recipes that omit `endTransition` retain `spiral`; set `level` explicitly
-when updating one to flat ends.
-
-## Mesh fitting and continuous fidelity
-
-### Mesh contact and limits
-
-Mesh fidelity is unilateral contact applied after smooth sleeve mapping. The
-fitted reference remains the mapping foundation. At fidelity 1, only points on
-the forbidden side are compressed toward the selected mesh boundary; the backs
-of loops retain their smooth mapped shape. Intermediate fidelity blends the
-smooth and constrained positions. Fidelity 0 skips contact and retains only the
-smooth mapped loops. Inside contact pulls protruding fronts inward; outside
-contact pushes intruding fronts outward. Allowed-side points stay unchanged.
-Contact constrains path centers; the bead can extend past that limit by its
-half width. Contact is evaluated around the actual fitted
-centerline using bounded polar unfolding and fixed 16,384-sample profiles.
-Profiles must make one counterclockwise turn with positive, bounded radial
-progression. Folds that cannot be unfolded within `detailToleranceMm` fail.
-Short intervals across a horizontal 3D ledge may use sampled source-distance
-checks and bounded transition subdivision. These checks cover queried sections
-and transitions only; they do not certify every unsampled height, global mesh
-error, or physical contact.
-
-The source mesh remains authoritative for contact queries. Small detached detail
-may be excluded under the [sleeve detector's section-area threshold](../../core/geom/README.md#mesh-reference-sleeves)
-(0.1% by default); significant branches, islands, multiple bores or separated
-usable height intervals fail. The fitted
-sleeve and contact preparation use bounded caches and report fit residuals,
-selected topology, contact displacement, sampled limits and construction counts.
-Sharp corners, unsampled features, overhang behavior, swept-head clearance and
-physical bead overlap still require Studio and maker judgment.
-
-Use a machine profile that supports XYZ extrusion and the required nonplanar
-motion. The nominal angle and slope reports are software checks, not clearance
-ratings. Dobot relay output stops at segment boundaries and does not establish
-continuous robot motion or calibrated variable flow. No physical vase print has
-been validated; software generation, review and export do not approve hardware.
-
-### Quality and generation cost
-
-Choose fit control counts for the smooth envelope, `fidelity` for the strength of
-one-sided contact, and `detailToleranceMm` for its sampled detail allowance.
-The helper defaults to fidelity 1 and detail tolerance 0.05 mm; these can be much
-more expensive or reject folds that a looser allowance accepts. Fidelity 0
-isolates smooth mapping cost; a middle fidelity with a coarser explicit detail
-tolerance is a useful preview choice. Final path chord tolerance remains separate.
-
-Use Studio's generation progress and reports before changing quality or budgets.
-Changing a tolerance changes the numerical allowance; a larger `maxPoints`
-only increases construction capacity. Neither permits silently trimming a wall.
-Reuse current checked output through the shared lifecycle instead of generating
-duplicate jobs. [Prepared contact](../../core/geom/README.md#prepared-mesh-contact)
-owns the numerical limits; [the devlog](../../DEVLOG.md) holds measured examples.
+Review geometry, process settings and the actual toolpath in Studio before
+delivery. Software generation does not establish physical clearance, support,
+watertightness or a successful print. [MAKERS](../../MAKERS.md) owns review and
+approval; the [shared lifecycle](../../core/print/README.md) owns generation and
+delivery of the checked machine bytes.

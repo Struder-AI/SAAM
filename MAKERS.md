@@ -178,6 +178,8 @@ For ordinary planar walls, hollow vessels or patterned fill, start with [planar-
 For continuous vase mode, normally use a solid model: the printing recipe makes
 the hollow wall, so the model needs no hole. See [vase-wall input geometry](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)
 for the distinction between the solid guide and the printed wall.
+For motifs, authored patterns or fitted mesh sleeves, use the separate
+[advanced vase mode manual](skills/advanced-vase-wall/SKILL.md).
 
 Follow additional references when the part needs them:
 

@@ -105,6 +105,14 @@ apply. Do not scan for and kill all Node processes. Leave a viewer open while
 the person is expected to review it. Existing manufacturing approvals still
 belong to the person.
 
+For Codex download testing, return browser control to the person before their
+download click. Ordinary clicks during agent control can be canceled by the
+desktop host. Agents should use the browser tool's supported download action;
+if the host reports a policy block, preserve it and let the person try with
+control returned. A completed HTTP response does not establish a saved file.
+Check browser completion or the saved bytes before reporting delivery success;
+see the [observed download behavior](../DEVLOG.md#2026-09-15--browser-control-and-download-completion).
+
 These allowances trust the launcher and its imported repository code; they are
 command matches, not an OS boundary restricting the process to previews or the
 print argument to `Prints/`. They do not pin a code hash or a working directory.

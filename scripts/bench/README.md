@@ -13,6 +13,7 @@ actual generator and checked exporter without changing the bundle or approvals:
 ```sh
 node scripts/bench/print.mjs Prints/my-print --out .local/print-timing
 node scripts/bench/print.mjs Prints/my-print --out .local/print-profile --cpu
+node scripts/bench/print.mjs Prints/my-print --out .local/print-bounded --max-seconds 180
 ```
 
 Choose an output directory outside the print bundle. `timing.json` separates
@@ -24,6 +25,14 @@ is generation plus checked export, excluding Studio transport/rendering and
 physical execution. Compare identical input hashes under comparable machine
 load. This is an opt-in development tool, not an automatic production check,
 latency gate or a substitute for the existing human review workflow.
+
+Generation progress is printed about every five seconds and retained with elapsed
+times in the report. `--max-seconds` stops generation at its next progress callback
+after the requested time, so this is a cooperative limit, not a hard wall-clock
+timeout. Interrupted or rejected runs retain stage timings, last course progress,
+the error and any CPU profile, but produce no complete program or export hash.
+Course throughput is only a provisional time estimate: mesh ledges, local folds,
+composition and checked export can change the remaining cost or reject the job.
 
 `scripts/bench/slicing.mjs` is an opt-in development measurement harness over
 the existing geometry queries, full-fill, planar-infill, draped-skin, composer,

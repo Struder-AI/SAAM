@@ -206,8 +206,8 @@ XY projection of the full normal, retaining planar rimming's direction on
 charts whose U tangent rises in Z.
 
 `at(u, v, depth, tightness = 0)` evaluates the offset continuum. Zero uses the
-loose direction field without renormalizing its evaluated vectors; one uses
-the unit reference normal at the query. Intermediate values blend the vectors.
+loose control field with local depth limiting at over-curvature; one uses
+the unit reference normal at the query. Intermediate values blend these positions.
 Reference parameters are retained across depths without reparameterization.
 This setting is independent of subsequent mesh-contact fidelity.
 
@@ -217,10 +217,24 @@ above zero uses a functional evaluator; it is not claimed to be an exact
 same-size NURBS offset. No control points are added or refitted. Adaptive path
 samples are separate from the control net. Input controls remain unchanged.
 
-Reports expose sampled loose direction lengths and queried tightness. Loose
-depth approximates normal distance; these samples are not a global error
-certificate. Offset folds and crossings are allowed, without an injectivity
-or clearance guarantee.
+[Local curvature limiting](offset-curvature.mjs) retains one smooth patch rather
+than trimming away loops or splitting its topology. At knot quarter-span samples,
+the oriented surface area must retain at least 5% of its reference value throughout
+the displacement from the source to the loose offset. The area is quadratic in
+that displacement, so checking its first limiting root also catches offsets that
+would pass through two reversals and end with a positive Jacobian. Failing samples
+reduce the depths of their supporting controls together; periodic duplicate
+controls share reductions. The bounded iteration fails explicitly if it cannot
+converge. Safe offsets retain their original control displacements.
+
+Preparation is reused per reference; at most 128 limited depth patches are cached.
+Reports expose sample count, area floor, limited-patch construction count, maximum
+control-depth reduction, unscaled direction lengths and queried tightness. Loose
+depth is approximate, and limiting can reduce it further. This sampled local
+regularity check does not certify unsampled folds, global self-intersections or
+clearance. Exact normal offsets and blends toward them can still fold. The
+depth-independent `frameAt` exposes the original field; consumers requiring the
+limited geometry use `at` or `offsetPatch`.
 
 `prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes this API for
 periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`
