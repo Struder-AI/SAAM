@@ -37,38 +37,72 @@ function loopFootprintSpanMm(tangentRadius,advanceMm){
   return advanceMm*(2*v1-1)+2*tangentRadius*Math.sin(2*Math.PI*v1);
 }
 
-// Default loop width so adjacent loops touch by one normal line width instead
-// of leaving a gap at the seam between them, giving the overlap a second
-// bonding surface rather than a single point of contact. Numerically solved
-// since the footprint span above has no closed-form inverse.
-export function touchingMotifWidthMm({perimeter,loopsPerTurn,lineWidthMm}){
+// Default loop width so adjacent loops are exactly tangent — touching at a
+// single point with no overlap into each other's interior. The physical bead
+// width already gives that point a real bonding surface, so the centerlines
+// themselves should not also overlap. Numerically solved since the footprint
+// span above has no closed-form inverse.
+export function touchingMotifWidthMm({perimeter,loopsPerTurn}){
   const advance=perimeter/loopsPerTurn;
   let lo=advance/(2*Math.PI)+1e-6,hi=advance*4;
   for(let i=0;i<60;i++){
     const mid=(lo+hi)/2;
-    if(loopFootprintSpanMm(mid,advance)<advance+lineWidthMm)lo=mid;else hi=mid;
+    if(loopFootprintSpanMm(mid,advance)<advance)lo=mid;else hi=mid;
   }
   return lo+hi;
 }
 
-export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
+// Inverse of touchingMotifWidthMm: given a fixed loop half-width, the
+// tangential advance at which adjacent loops of that size are exactly
+// tangent. footprintSpan-advance falls from 2*tangentRadius (a stationary
+// loop) to negative (a flattened one) as advance grows, so this root — where
+// it crosses zero — is unique.
+function touchingAdvanceMm({tangentRadius}){
+  let lo=1e-6,hi=2*Math.PI*tangentRadius-1e-6;
+  for(let i=0;i<60;i++){
+    const mid=(lo+hi)/2;
+    if(loopFootprintSpanMm(tangentRadius,mid)-mid>0)lo=mid;else hi=mid;
+  }
+  return (lo+hi)/2;
+}
+
+// A loop's own tangential width should stay a fixed, small multiple of the
+// requested wall depth (its length:width ratio) so every loop reads as the
+// same tight coil regardless of the host's local diameter. Picking a loop
+// *count* first and letting width be whatever touching that spacing implies
+// does the opposite: the same loopsPerTurn stretches loops thin on a wide
+// host and crowds them on a narrow one, since nothing then ties width to
+// depth at all. Here width is fixed first; loopsPerTurn is just how many of
+// these fixed-size, touching loops fit around the actual local perimeter.
+export function tightLoopMotif({perimeter,motifDepthMm,lengthToWidthRatio=3}){
+  const motifWidthMm=lengthToWidthRatio*motifDepthMm;
+  const advance=touchingAdvanceMm({tangentRadius:motifWidthMm/2});
+  return {motifWidthMm,loopsPerTurn:Math.max(1,Math.ceil(perimeter/advance))};
+}
+
+export function loopDemoPlan({courses=24,loopsPerTurn=null,samplesPerLoop=64,
   radius=14,motifDepthMm=4.8,motifWidthMm=null,exterior='smooth',waveDepthMm=0}={}){
   if(!['smooth','scalloped','both-scalloped'].includes(exterior))throw new Error('Choose smooth, scalloped or both-scalloped.');
   const plan=defaults();
   const perimeter=2*Math.PI*(radius-plan.process.lineWidthMm/2),rise=plan.process.layerMm;
-  const width=motifWidthMm??touchingMotifWidthMm({perimeter,loopsPerTurn,lineWidthMm:plan.process.lineWidthMm});
+  // Neither given: size loops by the fixed length:width ratio. Only
+  // loopsPerTurn given: keep the old period-first behavior (width touching
+  // that specific spacing) for callers that still want to pick a count.
+  const tight=tightLoopMotif({perimeter,motifDepthMm});
+  const turnsPerCourse=loopsPerTurn??tight.loopsPerTurn;
+  const width=motifWidthMm??(loopsPerTurn!=null?touchingMotifWidthMm({perimeter,loopsPerTurn:turnsPerCourse}):tight.motifWidthMm);
   const tangentRadius=width/2;
   const points=[],offsets=[];
   // The advance is part of the looping curve itself. There is no separate
   // circumference stroke, closing circle, or straight connector between loops.
-  for(let i=0;i<=loopsPerTurn*samplesPerLoop;i++){
-    const phase=i/(loopsPerTurn*samplesPerLoop),fraction=(i%samplesPerLoop)/samplesPerLoop;
+  for(let i=0;i<=turnsPerCourse*samplesPerLoop;i++){
+    const phase=i/(turnsPerCourse*samplesPerLoop),fraction=(i%samplesPerLoop)/samplesPerLoop;
     const angle=2*Math.PI*fraction,x=tangentRadius*Math.sin(angle);
     const depth=motifDepthMm*(1-Math.cos(angle))/2;
     const offset=exterior==='both-scalloped'?motifDepthMm/2-depth:exterior==='scalloped'?depth:-depth;
     points.push([phase+x/perimeter,rise*phase+.03*depth]);offsets.push(offset);
   }
-  const top=plan.process.firstLayerMm+Math.max(...points.map(p=>p[1]))+(courses-1)*rise;
+  const top=plan.process.firstLayerMm+points.reduce((max,p)=>Math.max(max,p[1]),0)+(courses-1)*rise;
   plan.geometry=loopHost({radius,heightMm:top,waveDepthMm});
   plan.placement={xMm:125,yMm:105};
   for(const settings of Object.values(plan.skills))settings.enabled=false;

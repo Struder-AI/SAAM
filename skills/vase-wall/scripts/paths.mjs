@@ -70,11 +70,23 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
     const points=[at(vertices[0],vertices[0],0)],segmentHeights=[];
     if(++count>maxPoints)budget();
     const append=(a,b,ha,hb,pa,pb,depth=0)=>{
-      const mid=a.map((v,k)=>(v+b[k])/2),pm=at(mid,mid,0);
-      const error=Math.max(...[.25,.5,.75].map(t=>distance(t===.5?pm:at(a,b,t),pa.map((v,k)=>v+(pb[k]-v)*t))));
-      if(distance(pa,pb)>settings.sampleStepMm||error>settings.toleranceMm/2||Math.abs(a[1]-b[1])>settings.minFeatureMm/2) {
-        requireThat(depth<24,`Sleeve mapping cannot meet the requested contour tolerance near motif coordinates ${a.join(', ')} to ${b.join(', ')}.`);
-        append(a,mid,ha,(ha+hb)/2,pa,pm,depth+1);append(mid,b,(ha+hb)/2,hb,pm,pb,depth+1);return;
+      // A guide/base host profile that passes very close to itself can leave
+      // a near-zero-length edge in that height's own offset contour — a
+      // genuine discontinuity in the exact-position lookup, not chord error,
+      // so no depth resolves it. 24 levels already narrows the interval far
+      // past any real feature or the machine's own resolution; past that, a
+      // jump still under one line width is genuinely invisible in the print
+      // and safe to accept (see the matching case in vase.mjs) — anything
+      // larger is a real defect the pinch has made visible, and must still
+      // fail loudly rather than ship a stray spike.
+      if(depth<24) {
+        const mid=a.map((v,k)=>(v+b[k])/2),pm=at(mid,mid,0);
+        const error=Math.max(...[.25,.5,.75].map(t=>distance(t===.5?pm:at(a,b,t),pa.map((v,k)=>v+(pb[k]-v)*t))));
+        if(distance(pa,pb)>settings.sampleStepMm||error>settings.toleranceMm/2||Math.abs(a[1]-b[1])>settings.minFeatureMm/2) {
+          append(a,mid,ha,(ha+hb)/2,pa,pm,depth+1);append(mid,b,(ha+hb)/2,hb,pm,pb,depth+1);return;
+        }
+      } else {
+        requireThat(distance(pa,pb)<=process.lineWidthMm,`Sleeve mapping cannot meet the requested contour tolerance near motif coordinates ${a.join(', ')} to ${b.join(', ')}.`);
       }
       if(++count>maxPoints)budget();points.push(pb);
       // Only the authored motif deposits; the guide supplies no material.

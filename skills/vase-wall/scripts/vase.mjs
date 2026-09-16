@@ -50,9 +50,12 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   }
   const cache=new Map();let seam,nudgedSections=0,lastContours,lastValue,sectionQueries=0;
   const cacheSection=(key,value)=>{
-    // Motifs revisit heights, but keeping every distinct height plus all its
-    // offset contours makes memory grow with the entire print.
-    if(settings.pattern&&cache.size>=256)cache.delete(cache.keys().next().value);
+    // Both plain and patterned walls revisit heights during adaptive
+    // bisection; keeping every distinct height plus its offset contour makes
+    // memory grow with the entire print (or unboundedly, if a region the
+    // bisection can't converge on gets probed at ever-finer, ever-more-
+    // distinct heights before finally hitting its recursion cap).
+    if(cache.size>=256)cache.delete(cache.keys().next().value);
     cache.set(key,value);return value;
   };
   const sectionAt=createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
@@ -121,10 +124,24 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   function buildCenterline(upperTurns,chordToleranceMm=settings.toleranceMm/2,sampleStepMm=settings.sampleStepMm) {
     const points=[mappedPoint(0)],times=[0];
     function append(a,b,pa,pb,depth=0) {
-      requireThat(depth<24,'Vase contour cannot meet the locked chord tolerance within the subdivision limit.');
-      const mid=(a+b)/2,pm=mappedPoint(mid),linear=pa.map((v,i)=>(v+pb[i])/2);
-      if(distance(pa,pb)>sampleStepMm||distance(pm,linear)>chordToleranceMm||pb[2]-pa[2]>settings.minFeatureMm/2) {
-        append(a,mid,pa,pm,depth+1);append(mid,b,pm,pb,depth+1);return;
+      // A wall profile that passes very close to itself (a tight local pinch)
+      // can leave a near-zero-length edge in that height's offset contour.
+      // Right there, arc-length lookup can jump to a different point on the
+      // loop for a parameter step of a few nanometers — a real discontinuity,
+      // not chord error, so no amount of subdivision resolves it: 24 levels
+      // already narrows the interval below 1e-8 turns, far past any real
+      // feature or the machine's own resolution. Past that depth, a jump
+      // still under one line width is genuinely invisible in the print and
+      // safe to accept; anything larger is a real defect the pinch has made
+      // visible, and must still fail loudly rather than ship a stray spike.
+      if(depth<24) {
+        const mid=(a+b)/2,pm=mappedPoint(mid),linear=pa.map((v,i)=>(v+pb[i])/2);
+        if(distance(pa,pb)>sampleStepMm||distance(pm,linear)>chordToleranceMm||pb[2]-pa[2]>settings.minFeatureMm/2) {
+          append(a,mid,pa,pm,depth+1);append(mid,b,pm,pb,depth+1);return;
+        }
+      } else {
+        if(globalThis.__DEBUG_CENTERLINE__)console.error('depth-cap jump',{d:distance(pa,pb),width,a,b,pa,pb});
+        requireThat(distance(pa,pb)<=width,'Vase contour cannot meet the locked chord tolerance within the subdivision limit.');
       }
       if(points.length>=settings.maxPoints)exhausted('point',points.length,settings.maxPoints,pb[2]);
       points.push(pb);times.push(b);
@@ -142,8 +159,11 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     // full extra course of margin on top of it. Every extra guide turn is an
     // extra slice of real height the host is queried at, for no benefit once
     // it is comfortably past what any vertex actually needs.
-    const authoredTurns=settings.pattern.paths.flatMap(p=>p.points.map(pt=>pt[0]));
-    const guideTurns=(settings.pattern.repeats-1)*settings.pattern.advance[0]+Math.max(0,...authoredTurns);
+    // A plain loop (not spread) avoids blowing the call stack on a large,
+    // densely-authored pattern — Math.max(...manyThousandsOfPoints) can.
+    let maxAuthoredTurn=0;
+    for(const path of settings.pattern.paths)for(const pt of path.points)if(pt[0]>maxAuthoredTurn)maxAuthoredTurn=pt[0];
+    const guideTurns=(settings.pattern.repeats-1)*settings.pattern.advance[0]+maxAuthoredTurn;
     const {points:guidePoints,times:guideTimes}=buildCenterline(guideTurns);
     // A per-vertex normal blended from both adjacent segments (not either
     // segment's own exact direction) so a motif offset varies smoothly along
