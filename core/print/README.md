@@ -28,6 +28,12 @@ into the same native mesh geometry used by Studio and slicing, then calls
 recipe. Reopening checks the saved result without rerunning its construction;
 text edits reconstruct from the retained source and invalidate geometry review.
 
+The [mesh vase preparation tool](../../skills/vase-wall/SKILL.md#mesh-input-workflow)
+authors sleeve-fit, motif and base settings on an imported mesh through
+`adjustBundle`, using the expected revision. It preserves the source geometry
+and selected machine, and rejects conflicting composition instead of replacing
+it. The resulting recipe uses the same generation, review and delivery lifecycle.
+
 After geometry confirmation, generate the machine-declared export from the complete plan,
 using transient motion objects. Check its actual commands before Studio plays
 that export for combined settings/toolpath confirmation. Delivery copies those reviewed bytes unchanged.

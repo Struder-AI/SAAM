@@ -41,11 +41,11 @@ export function booleanPaths(subject,clip,operation,{open=false}={}){
     return decode(result);
   }finally{for(const object of owned.reverse())object.delete();}
 }
-export function inflatePaths(paths,delta,{join,miterLimit,arcTolerance}){
+export function inflatePaths(paths,delta,{join,miterLimit,arcTolerance,end='Polygon'}){
   const input=encode(paths);let result;
   try{
     result=clipper.InflatePaths64(input,delta,clipper.JoinType[{round:'Round',square:'Square',miter:'Miter'}[join]],
-      clipper.EndType.Polygon,miterLimit,arcTolerance);
+      clipper.EndType[end],miterLimit,arcTolerance);
     return decode(result);
   }finally{result?.delete();input.delete();}
 }

@@ -98,6 +98,15 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     programError:state.programError??null,exportHash:state.exportHash??null});
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
+  // Authenticated delivery issues a bounded, short-lived read-only capability.
+  // Its HTTP attachment avoids browser-specific blob URL download handling.
+  const downloadLinks=new Map();
+  const stageDownload=(file,name,bytes)=>{
+    const now=Date.now();for(const [key,value] of downloadLinks)if(value.expiresAt<=now)downloadLinks.delete(key);
+    if(downloadLinks.size>=16)downloadLinks.delete(downloadLinks.keys().next().value);
+    const key=randomBytes(24).toString('hex'),exportHash=createHash('sha256').update(bytes).digest('hex'),expiresAt=now+10*60*1000;
+    downloadLinks.set(key,{file,name,exportHash,expiresAt});return {url:'/api/download/'+key,name,exportHash,expiresAt};
+  };
   const printId=()=>createHash('sha256').update(dir).digest('hex');
   // Resolved on the first request; the no-op catch keeps an unopened print
   // from raising an unhandled rejection before a request reports it.
@@ -209,6 +218,16 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const url=new URL(req.url,origin);
     const send=(data,status=200)=>{res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));};
     try {
+      if(req.method==='GET'&&url.pathname.startsWith('/api/download/')){
+        if(req.headers.origin&&req.headers.origin!==origin){send({error:'Invalid local session'},403);return;}
+        const staged=downloadLinks.get(url.pathname.slice('/api/download/'.length));
+        if(!staged||staged.expiresAt<=Date.now()){send({error:'Download link expired or unavailable. Export the reviewed file again.'},404);return;}
+        const bytes=await readFile(staged.file);
+        if(createHash('sha256').update(bytes).digest('hex')!==staged.exportHash)throw Error('The staged delivery changed. Export the reviewed file again.');
+        res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':bytes.length,
+          'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(staged.name)}`,'Referrer-Policy':'no-referrer'});
+        res.end(bytes);return;
+      }
       if(req.method==='GET'&&url.pathname==='/api/viewer'){
         if(url.searchParams.get('token')!==token||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
         lifetime.attach(res);return;
@@ -367,6 +386,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             if(!state.toolpathApproved)state=await current.approve(dir,{stage:'toolpath',actor:'Local user — tour export',revision:state.revision,program:'source'});
             const file=await current.deliver(dir),name=downloadName(await printName(dir),basename(file)),bytes=await readFile(file);
             await tour.downloaded(state.exportHash);
+            if(data.downloadLink===true){send(stageDownload(file,name,bytes));return;}
             res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name)}`});res.end(bytes);return;
           }finally{await tour.restoreReference(dir);}
         }
@@ -426,6 +446,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         }
         else if(url.pathname==='/api/deliver') {
           const file=await current.deliver(dir),name=basename(file);
+          if(data.downloadLink===true){send(stageDownload(file,downloadName(await printName(dir),name),await readFile(file)));return;}
           const contentType=name.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':name.endsWith('.zip')?'application/zip':'text/plain';
           res.writeHead(200,{'Content-Type':contentType,'Content-Disposition':`attachment; filename="${name}"`});res.end(await readFile(file));return;
         } else throw new Error('Unknown operation.');

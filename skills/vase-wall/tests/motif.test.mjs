@@ -18,7 +18,7 @@ const pattern=()=>({motif:{points:[[0,0],[.5,.02],[1,0]],offsetMm:[0,-.5,0],bead
 function recipe(machine=loadMachine()){
   const p=defaults(machine);p.geometry=boxMesh(20,15,2);
   for(const s of Object.values(p.skills))s.enabled=false;
-  Object.assign(p.skills['vase-wall'],{enabled:true,pattern:pattern()});return p;
+  Object.assign(p.skills['vase-wall'],{enabled:true,endTransition:'spiral',pattern:pattern()});return p;
 }
 const wall=p=>p.actions.filter(a=>a.role==='vase-wall');
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} differs from ${b}`);

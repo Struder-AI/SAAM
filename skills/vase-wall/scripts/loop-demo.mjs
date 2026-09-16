@@ -38,7 +38,7 @@ export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
   plan.geometry=loopHost({radius,heightMm:top,waveDepthMm});
   plan.placement={xMm:125,yMm:105};
   for(const settings of Object.values(plan.skills))settings.enabled=false;
-  Object.assign(plan.skills['vase-wall'],{enabled:true,pathMode:'continuous',pattern});
+  Object.assign(plan.skills['vase-wall'],{enabled:true,endTransition:'spiral',pathMode:'continuous',pattern});
   return plan;
 }
 

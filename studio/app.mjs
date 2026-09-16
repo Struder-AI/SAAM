@@ -92,7 +92,7 @@ const viewStorageKey=()=> 'saam-view:'+state?.printId;
 function saveView(){
   if(!state||movieController)return;
   try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({exportHash:state.exportHash,yaw,tilt,zoom,pan,fitBounds,seconds,tab,
-    speed:Number($('#playback-speed').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
+    speed:Number($('#playback-speed').value),previousLayerOpacity:Number($('#previous-layer-opacity').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
 }
 function restoreView(){
   try{
@@ -101,6 +101,8 @@ function restoreView(){
     if(Array.isArray(saved.pan)&&saved.pan.length===2&&saved.pan.every(Number.isFinite))pan=saved.pan;
     if(Number.isFinite(saved.speed))$('#playback-speed').value=saved.speed;
     $('#speed-label').value=$('#playback-speed').value+'×';
+    if(Number.isFinite(saved.previousLayerOpacity))$('#previous-layer-opacity').value=saved.previousLayerOpacity;
+    $('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';
     $('#travel').checked=saved.travel===true;$('#follow-plate').checked=saved.followPlate!==false;
     if(saved.exportHash===state.exportHash){
       if(Number.isFinite(saved.seconds))seconds=Math.max(0,Math.min(duration(),saved.seconds));
@@ -465,11 +467,12 @@ function render() {
   const ready=tab==='geometry'||(tab==='toolpath'&&state.geometryApproved);
   $('#confirm').disabled=!ready||busy;
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'View toolpath':'Confirm geometry'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
+  if($('#reviewed-download'))$('#reviewed-download').hidden=$('#reviewed-download').dataset.exportKey!==exportKey();
   $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':!state.geometryApproved?'Confirm geometry before reviewing this as a real print.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#play').disabled=busy||!state.program||Boolean(state.programError);
   $('#selection').hidden=tab==='toolpath';
-  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Current layer is dark; earlier layers are faded. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
+  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
@@ -515,7 +518,8 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     const {xMm,yMm}=state.plan.placement,q=transform(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);
     return project([q[0]-xMm,q[1]-yMm,q[2]]);
   }:project;
-  const strokeScale={lineWidthMm:state.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm};
+  const previousLayerOpacity=Number($('#previous-layer-opacity').value)/100;
+  const strokeScale={lineWidthMm:state.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity};
   ctx.globalAlpha=1;
   for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
@@ -569,7 +573,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     const fade=fadeState.frame(currentLayer,now,remainingLayerMs(pathView,at.active,seconds,playbackSpeed)),styles=new Map();
     if(solidView){
       try{
-        materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,machine,machineMode:cameras.mode,machinePalette:machineColors});
+        materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity,machine,machineMode:cameras.mode,machinePalette:machineColors});
         ctx.drawImage(materialRenderer.canvas,0,0,width,height);
       }catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;requestDraw();}
     }
@@ -656,11 +660,16 @@ async function approval(stage){
   if(!result.approval.programAvailable){delete state.program;clearProgramView();}
 }
 async function download(route='deliver',data={}){
-  const response=await api(route,data);
+  const key=exportKey(),response=await api(route,{...data,downloadLink:true});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
-  const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');
-  a.href=url;a.download=state.downloadName??state.exportName??view().exportName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  exportedThisSession.add(exportKey());
+  const attachment=await response.json();
+  let a=$('#reviewed-download');
+  if(!a){a=document.createElement('a');a.id='reviewed-download';$('#confirm').insertAdjacentElement('afterend',a);}
+  a.href=attachment.url;a.download=attachment.name;a.dataset.exportKey=key;a.hidden=false;
+  a.textContent='Download reviewed file';a.title='If the download did not start, use this link. Available for ten minutes.';
+  // This requests a native browser download. Browser/host save completion is
+  // not observable here; leave a real link for a direct user-initiated retry.
+  a.click();exportedThisSession.add(key);
 }
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
@@ -718,6 +727,7 @@ $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path
 $('#travel').onchange=requestDraw;
 $('#follow-plate').onchange=()=>{const fit=mode=>mode==='machine'?fitMachine():fitDisplayedPart();cameras.refit(fit);fitBounds=fit(cameras.mode);$('#fit-program').textContent='Fit all moves';saveView();requestDraw();};
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
+$('#previous-layer-opacity').oninput=()=>{$('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';saveView();requestDraw();};
 $('#manual-reset').onclick=()=>{clearManual();requestDraw();};
 $('#scrub').oninput=()=>{clearManual();stop();layerFade.reset();seconds=Number($('#scrub').value);requestDraw();};
 function stepLayer(direction){

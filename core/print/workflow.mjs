@@ -278,6 +278,11 @@ function merge(target, changes) {
   requireThat(changes && typeof changes === 'object' && !Array.isArray(changes), 'Adjustment must be an object.');
   for (const [key, value] of Object.entries(changes)) {
     requireThat(Object.hasOwn(target, key), `Unknown setting: ${key}`);
+    // Optional records begin at null. Installing a complete record is a
+    // replacement; validatePlan owns its fields. Subsequent patches merge.
+    if(target[key]===null&&value&&typeof value==='object'&&!Array.isArray(value)){
+      target[key]=structuredClone(value);continue;
+    }
     // Surface selectors are discriminated records, including a legacy null.
     // Replace the complete selection and let validatePlan check its schema.
     if(key==='surface'&&value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'kind')){

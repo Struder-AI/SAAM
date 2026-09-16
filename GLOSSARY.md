@@ -21,6 +21,9 @@ starting vocabulary for the ontology we develop together.
 | Tool | A callable script or function supplied by a skill. |
 | Motif | One reusable curve, such as a looping stroke or zigzag. Vase tiling joins its cell endpoints, repeats it along a regular reference strip and upward, then maps the strip onto actual sleeve sections; see [single-motif tiling](skills/vase-wall/SKILL.md#one-motif-a-regular-tiler-then-sleeve-mapping). |
 | Motif tiler | The regular parameter layout that repeats a motif with connected cell/course endpoints before sleeve mapping. It does not create an additional printed wall or require registration with the course below. |
+| Motif course | One complete circuit around the sleeve containing a row of motif cells. A fixed cell count per turn makes physical cell widths shrink with the sleeve circumference; motif depth is a separate setting. Body courses rise, while flat boundary courses stay at one height. |
+| Reference sleeve | The open side surface around a vase-like shape, excluding its bottom and top caps. It may be reduced from a solid envelope or detected as the outer side of a closed hollow vessel. It guides motif placement; it is not itself deposited material or proof that the print has a continuous wall. |
+| Sleeve fitting | Estimating a smooth periodic spline reference sleeve from mesh sections while retaining the source mesh for separate contact/conformance queries. Fit detail and mesh contact fidelity are separate choices. |
 | Process plan | The recipe for making a part: geometry reference, selected skills, their settings, and machine/setup choices. |
 | Locked process plan | The complete version of the recipe submitted for approval; generation introduces no further process choices. |
 | Toolpath | The route and associated printing actions the machine will follow. |

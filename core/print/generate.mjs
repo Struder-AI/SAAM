@@ -190,7 +190,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   if(vase.enabled) {
     requireThat(vaseShell,'No component selected for vase wall.');
     const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id)),onProgress});
-    if(vase.pattern==null)publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
+    if(vase.pattern==null&&!vase.meshSleeve)publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
       endMm:result.report.endMm-(vase.endTransition==='level'?0:process.layerMm),toleranceMm:vase.boundaryToleranceMm});
     results.push(result);summary.vaseWall=result.report;
   }

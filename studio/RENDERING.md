@@ -36,7 +36,11 @@ Studio uses a right-handed orthographic camera: top view shows +X right and
 +Y up (toward the back of the bed), with +Z toward the viewer. Orbit, side and
 top views share this projection without perspective scaling. Playback has a
 1×–30× slider, initially 10×; inactive toolpath layers draw at 50% opacity with
-one-third of the original color lightening. Current material uses shaded oval
+one-third of the original color lightening by default. **Previous layer opacity**
+adjusts completed layers from that 50% default to 100%, where opacity and color
+strength match the active layer. It updates the paused or playing view immediately,
+is retained with same-tab view settings, and also applies to exported movies.
+Current material uses shaded oval
 beads in WebGL2, with physical dimensions that scale with viewport zoom. Width
 comes from commanded volume per distance divided by the nominal layer thickness,
 falling back to the plan's line width. Planar and bounded wedge beads sit below

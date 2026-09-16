@@ -7,8 +7,10 @@ import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 import {contourPath} from '../../../core/geom/contour-path.mjs';
 import {depositionStroke,maximumPathAngle} from '../../../core/path/deposition.mjs';
 import {mappedPatternResult} from './paths.mjs';
+import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
+import {createVaseMeshReference} from './reference.mjs';
 
-export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'spiral',pattern:null,pathMode:'continuous',sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,maxPoints:100000};
+export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,maxPoints:100000};
 // Ten-nanometer integer grid: independent of contour/chord and boundary
 // tolerances; shared Clipper2 offsets use this same grid by default.
 const OFFSET_PRECISION_MM=0.00001;
@@ -69,7 +71,9 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     if(settings.pattern&&cache.size>=256)cache.delete(cache.keys().next().value);
     cache.set(key,value);return value;
   };
-  const sectionAt=createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
+  const reference=createVaseMeshReference({shell,settings,start,end,width,onProgress});
+  const centerlineOffset=reference&&settings.meshSleeve.contactSide==='outside'?width/2:-width/2;
+  const sectionAt=reference?.sectionAt??createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
     if(sectionQueries>=maxSectionQueries)exhausted('section query',sectionQueries,maxSectionQueries,z);
@@ -84,12 +88,17 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
       loop.length===lastContours[i].length&&loop.every((p,j)=>p[0]===lastContours[i][j][0]&&p[1]===lastContours[i][j][1]))){
       return cacheSection(key,lastValue);
     }
-    const rawOuter=outerLoop(cut.loops),outer=settings.pattern?motifContour(rawOuter,Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4):rawOuter;
-    const offsetLoops=offsetRegion([outer],-width/2,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
+    // Fitted spline sections already have chord-controlled contours. A second,
+    // coarser per-height RDP pass can switch retained vertices discontinuously
+    // and defeat the tighter prepared-map allowance, forcing thousands of
+    // offset rebuilds. Keep its original contour; mesh cuts still need removal
+    // of collinear triangle seams before quantization and offsets.
+    const rawOuter=outerLoop(cut.loops),outer=settings.pattern&&!reference?motifContour(rawOuter,Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4):rawOuter;
+    const offsetLoops=offsetRegion([outer],centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     // A motif follows only the outer boundary. Interior offset holes do not
     // supply another wall; multiple outer components still cannot be mapped.
     const inset=settings.pattern?offsetLoops.filter(loop=>loopArea(loop)>0):offsetLoops;
-    requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall inward offset is empty, split or collapsed at Z ${z} mm for bead width ${width} mm.`);
+    requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall ${centerlineOffset<0?'inward':'outward'} offset is empty, split or collapsed at Z ${z} mm for bead width ${width} mm.`);
     const loop=dedupe(inset[0]);
     requireThat(loop.length>=3,'Vase wall section collapsed.');
     const curve=contourPath(loop,seam);
@@ -102,7 +111,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const holes=cut.loops.filter(loop=>loopArea(loop)<0);
     const value={outer,loop,curve,holes};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
   }
-  section(start);
+  if(!reference)section(start);
   // t=0..1 is a flat foundation ring; subsequent turns rise by exactly pitch.
   const spiralTurns=1+(end-start)/pitch,turns=spiralTurns+(settings.endTransition==='level'?1:0);
   const zAt=t=>t<=1?start:Math.min(end,start+(t-1)*pitch);
@@ -116,7 +125,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
       let curves=offsetCurves.get(frame);if(!curves){curves=new Map();offsetCurves.set(frame,curves);}
       let parallel=curves.get(offsetMm);
       if(!parallel){
-        const loops=offsetRegion([outer],offsetMm-width/2,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4}).filter(loop=>loopArea(loop)>0);
+        const loops=offsetRegion([outer],offsetMm+centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4}).filter(loop=>loopArea(loop)>0);
         requireThat(loops.length===1&&loopArea(loops[0])>0,`Motif offset contour split or collapsed at Z ${z} mm, offset ${offsetMm} mm; revise offsetMm or the host.`);
         parallel=contourPath(dedupe(loops[0]),[seam[0]+offsetMm,seam[1]]);
         if(curves.size>=32)curves.delete(curves.keys().next().value);
@@ -126,9 +135,28 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     }
     return [...xy,z];
   }
-  if(settings.pattern!==null)return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,mappedPoint,budgetSetting,onProgress,
-    sectionReport:()=>({sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM})});
-  const point=t=>mappedPoint(t,zAt(t));
+  if(settings.pattern!==null){
+    if(reference)return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,
+      referenceLengthMm:reference.referenceLengthMm,mappedPoint:(u,z,offset)=>reference.map(reference.pointAt(u,z,offset)),
+      mappingErrorMm:0,budgetSetting,onProgress,sectionReport:()=>({sectionQueries:0,maxSectionQueries,nudgedSections:0,...reference.report()})});
+    const validatedFrames=new WeakSet();
+    const curveAt=(z,offset)=>{
+      const frame=section(z);
+      if(!validatedFrames.has(frame)){
+        for(const u of frame.curve.knots())mappedPoint(u,z,0);
+        validatedFrames.add(frame);
+      }
+      if(offset===0)return frame.curve;
+      mappedPoint(0,z,offset);
+      return offsetCurves.get(frame).get(offset);
+    };
+    const mappingErrorMm=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
+    const prepared=prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm});
+    return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm:section(start).curve.length,
+      mappedPoint:(u,z,offset)=>{const p=[...prepared.at(u,z,offset),z];return reference?reference.map(p):p;},mappingErrorMm,budgetSetting,onProgress,
+      sectionReport:()=>({sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report,...reference?.report()})});
+  }
+  const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
   const points=[point(0)],times=[0];
   function append(a,b,pa,pb,depth=0) {
     requireThat(depth<24,'Vase contour cannot meet the locked chord tolerance within the subdivision limit.');
@@ -164,10 +192,13 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   const stroke=depositionStroke({role:'vase-wall',points,heightsMm,widthMm:width,speedMmS:speed,
     segmentMetadata:times.slice(1).map((t,i)=>({layer:Math.floor((times[i]+t)/2)}))});
   const volumesMm3=stroke.volumesMm3;
-  return {id,operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
+  const rimStart=settings.endTransition==='level'?times.findIndex(t=>t>=spiralTurns-1e-9):-1;
+  const levelBoundary=rimStart>=0?{zMm:end,widthMm:width,strokes:[{...stroke,points:points.slice(rimStart),
+    volumesMm3:volumesMm3.slice(rimStart),segmentMetadata:stroke.segmentMetadata.slice(rimStart)}]}:null;
+  return {id,...(levelBoundary?{levelBoundary}:{}),operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
     after,strokes:[stroke],order:'given',continuous:true,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,clearanceFor:()=>end+process.liftMm},clearanceZ:end+process.liftMm}],
     report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,maxPoints:settings.maxPoints,sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
-      volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,
+      volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,...reference?.report(),
       scope:'One outer section with arc-length correspondence from a fixed projected seam; concavity is supported while the inset remains one loop. Sampled topology and boundary checks; no physical validation.'}};
 }

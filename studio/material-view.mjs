@@ -169,7 +169,7 @@ export function createMaterialRenderer(documentApi=document){
   }
   return {
     canvas,
-    draw(next,{at,current,fade,project,width,height,ratio,skinPhase,machine=null,machineMode='ghost',machinePalette}){
+    draw(next,{at,current,fade,project,width,height,ratio,skinPhase,previousLayerOpacity=0.5,machine=null,machineMode='ghost',machinePalette}){
       if(lost)throw new Error('3D graphics context was lost. Refresh Studio to restore material rendering.');
       if(scene!==next)reset(next);
       // A fitted bead may be narrower than one screen pixel. Render enough
@@ -186,7 +186,7 @@ export function createMaterialRenderer(documentApi=document){
         let low=0,high=group.indices.length;
         while(low<high){const mid=(low+high)>>1;if(group.indices[mid]<at.completed)low=mid+1;else high=mid;}
         commands.push({entry:buffers.get(group),count:low,detail:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0,
-          style:toolpathStyle(group.move,current,skinPhase,fade.weights.get(group.layerKey)??0)});
+          style:toolpathStyle(group.move,current,skinPhase,fade.weights.get(group.layerKey)??0,{previousLayerOpacity})});
       }
       const move=scene.moves[at.active];
       if(move?.extruding&&at.fraction<1){const section=beadSection(move,scene.plan,scene.geometry,move.from,at.point);

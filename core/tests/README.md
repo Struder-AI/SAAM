@@ -73,6 +73,24 @@ demonstrate the failure they protect against without requiring an extra checklis
 
 ## Test registry
 
+[Prepared contour mapping](prepared-contours.test.mjs) covers exact mesh-band
+reuse, independent sampled mapping errors, twisting and concave sections,
+mesh/spline sources, fallback and bounded caches. [Mesh sleeves](mesh-sleeve.test.mjs)
+covers periodic least-squares fitting, broad-shape retention, sleeve interval
+detection, source preservation and unsupported branches. [Directional contact](sleeve-contact.test.mjs)
+covers one-sided compression, continuous fidelity, reversed sides and rejected
+radial folds. The vase skill's [mesh integration](../../skills/vase-wall/tests/mesh-reference.test.mjs)
+and [preparation workflow](../../skills/vase-wall/tests/prepare-mesh.test.mjs)
+exercise normal plans, review settings, imported source preservation and checked
+machine output.
+
+[Prepared radial contact](prepared-radial-contact.test.mjs) covers bounded sampled
+profiles, continuous source-side compression, and the horizontal 3D-ledge
+transition. [Sleeve frame offsets](sleeve-frame.test.mjs) covers fixed-size loose
+NURBS offsets, periodic phase and signed depth. [Surface offset continuum](loose-surface-offset.test.mjs)
+covers loose, intermediate and exact offset evaluation
+without control-point growth.
+
 [Vase motif tiling](../../skills/vase-wall/tests/motif.test.mjs) covers compact
 single-cell recipes, exact cell/course joins, tilt before mapping, guide-side
 placement, changing host sections, course progress, authoring-form changes and
@@ -161,7 +179,10 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/geom/polyline.mjs`: numerical contour seams before offsets and deposition | [contour-cleanup.test.mjs](contour-cleanup.test.mjs) | Mesh sections, full-fill and planar-infill |
 | `core/region/offset.mjs`, Clipper normalization and offset compatibility | [offset.test.mjs](offset.test.mjs), [offset-junctions.test.mjs](offset-junctions.test.mjs), [offset-remnants.test.mjs](offset-remnants.test.mjs) | Fill, infill, drape, vase and wedge consumers as affected |
 | `core/region/perimeters.mjs`: coincident closed wall fronts | [perimeters.test.mjs](perimeters.test.mjs) | [perimeter-wall.test.mjs](../../skills/full-fill/tests/perimeter-wall.test.mjs) covers full-fill, planar-infill, solid masks and S5/H2D export |
-| `core/region/surface-offset.mjs`, surface derivatives | [surface-offset.test.mjs](surface-offset.test.mjs) | [Wave overhangs](../../skills/wave-overhangs/tests/wave.test.mjs) exercises constrained growth, physical spacing and surface composition |
+| `core/region/surface-offset.mjs`: intrinsic/geodesic region offsets and surface derivatives | [surface-offset.test.mjs](surface-offset.test.mjs) | [Wave overhangs](../../skills/wave-overhangs/tests/wave.test.mjs) exercises constrained growth, physical spacing and surface composition |
+| `core/geom/surface-offset.mjs`: loose/intermediate/exact NURBS offsets and fixed-size structure | [loose-surface-offset.test.mjs](loose-surface-offset.test.mjs), [sleeve-frame.test.mjs](sleeve-frame.test.mjs) | Pipe cladding and both rimming skills exercise opt-in spline offsets |
+| `core/geom/sleeve-contact.mjs`, `prepared-radial-contact.mjs`: directional mesh contact and sampled 3D transitions | [sleeve-contact.test.mjs](sleeve-contact.test.mjs), [prepared-radial-contact.test.mjs](prepared-radial-contact.test.mjs) | Vase mesh-reference and fitted-material integration |
+| `core/geom/directional-contour.mjs`, mesh distance and cladding tightness | [directional-contour.test.mjs](directional-contour.test.mjs), [mesh-distance.test.mjs](mesh-distance.test.mjs), [cladding-offset-tightness.test.mjs](cladding-offset-tightness.test.mjs) | Vase mesh fitting/contact and pipe-cladding spline surface coverage |
 | `core/region/intersection.mjs`, closed planar booleans | [intersection.test.mjs](intersection.test.mjs) | Infill masks, reservations and regional composition |
 | `core/region/region2d.mjs`, `core/path/builder.mjs`: scanline cells and closest-entry ordering, segment-preserving reversal | [scanline-cells.test.mjs](scanline-cells.test.mjs), [geometry.test.mjs](geometry.test.mjs) | Full-fill, line-based planar-infill and draped-skin |
 | `core/path/`: travel, combing, deposited height, move coalescing | [travel.test.mjs](travel.test.mjs), [straight-moves.test.mjs](straight-moves.test.mjs), [interoperability.test.mjs](interoperability.test.mjs) | Affected skill paths, composition and machine round trips |
@@ -179,7 +200,7 @@ All file names in the core column below are relative to `core/tests/`.
 | Nominal MG400 FK/IK | [dobot-kinematics.test.mjs](dobot-kinematics.test.mjs) | Shared Studio model coverage |
 | Shared machine presentation providers, constrained jogging, nominal DENSO model and read-only study source/bundles | [machine-presentation.test.mjs](machine-presentation.test.mjs), [machine-jog.test.mjs](machine-jog.test.mjs), [machine-study.test.mjs](machine-study.test.mjs) | Source-time playback, actual-source transport and Studio machine-view checks |
 | VP-6242 / RC8, oriented/rotary motion, native pipe cladding and both Studio frames | [denso.test.mjs](denso.test.mjs) | Shared mesh/spline regional skills, wedge, composition, browser source and exact-byte lifecycle |
-| Periodic spline tube, selected surface charts, normal-offset cladding and partial courses | [surface-cladding.test.mjs](surface-cladding.test.mjs) | Native spline/bore, explicit mesh strips, three-perimeter interaction, RC8 lifecycle, bead orientation and ZIP32 helper counts |
+| Periodic spline tube, selected surface charts, normal-offset cladding, loose/exact spline offsets and partial courses | [surface-cladding.test.mjs](surface-cladding.test.mjs) | Native spline/bore, explicit mesh strips, three-perimeter interaction, RC8 lifecycle, bead orientation and ZIP32 helper counts |
 | `studio/`: camera, display detail, mesh visibility, playback and offline movies | [studio-camera.test.mjs](studio-camera.test.mjs), [studio-detail.test.mjs](studio-detail.test.mjs), [studio-visibility.test.mjs](studio-visibility.test.mjs), [studio-geometry.test.mjs](studio-geometry.test.mjs), [studio-material.test.mjs](studio-material.test.mjs), [studio-movie.test.mjs](studio-movie.test.mjs), [robot-playback.test.mjs](robot-playback.test.mjs) | Wedge playback; browser inspection when visual behavior changes |
 | Studio settings, server and saved-print opening | [studio-settings.test.mjs](studio-settings.test.mjs), [studio-open.test.mjs](studio-open.test.mjs), [studio-lifetime.test.mjs](studio-lifetime.test.mjs), [studio-tour-ui.test.mjs](studio-tour-ui.test.mjs), [studio-reconnect.test.mjs](studio-reconnect.test.mjs) | Viewer lifetime/owner isolation, workflow, regional workflow and machine-specific Studio delivery |
 | Studio active-work dots and viewport fade, prepared results, overlapping requests and interruption | [studio-work.test.mjs](studio-work.test.mjs), [studio-agent-ui.test.mjs](studio-agent-ui.test.mjs), [studio-agent.test.mjs](studio-agent.test.mjs) | MCP request coordination; tour readiness and completion cues |
@@ -193,7 +214,7 @@ All file names in the core column below are relative to `core/tests/`.
 | Explicit conventional/tree supports, interfaces and support-before-part ordering | Pipeline, workflow, regional and machine tests as affected | [supports.test.mjs](../../skills/supports/tests/supports.test.mjs) |
 | Bivariate support surfaces, horizontal/normal section offsets and rimming composition | Shared geometry, plan, workflow and machine boundaries | [rimming.test.mjs](../../skills/rimming-planar/tests/rimming.test.mjs) covers both rimming skills |
 | Draped skin, normal spacing, slope exclusion and support | Shared surface/reservation and pipeline tests as affected | [draped-skin.test.mjs](../../skills/draped-skin/tests/draped-skin.test.mjs) |
-| Vase wall, contour correspondence including expanding sections, topology, offset rounding, budgets and level ending; repeated sleeve motifs, inward tilted loops, continuous/segmented mapping and bead-height integration | Regional composition, travel, Studio settings and machine tests as affected | [vase.test.mjs](../../skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](../../skills/vase-wall/tests/paths.test.mjs) |
+| Vase wall, contour correspondence including expanding sections, topology, offset rounding, budgets and level ending; repeated sleeve motifs, inward tilted loops, continuous/segmented mapping, loose/exact offset options and bead-height integration | Regional composition, travel, Studio settings and machine tests as affected | [vase.test.mjs](../../skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](../../skills/vase-wall/tests/paths.test.mjs), [offset-options.test.mjs](../../skills/vase-wall/tests/offset-options.test.mjs), [mesh-reference.test.mjs](../../skills/vase-wall/tests/mesh-reference.test.mjs), [fitted-material.test.mjs](../../skills/vase-wall/tests/fitted-material.test.mjs) |
 | Bounded eight-point wedge geometry, generator and lifecycle | Shared travel, export and workflow tests as affected | [eight-point.test.mjs](../../skills/wedge-demo/tests/eight-point.test.mjs), [wedge.test.mjs](../../skills/wedge-demo/tests/wedge.test.mjs), H2D/Dobot wedge tests above |
 | Skill catalog, generated digest freshness and coverage | [skill-digest.test.mjs](skill-digest.test.mjs) | MCP catalog tests when shared discovery changes |
 | [gridfinity](../../skills/gridfinity/SKILL.md) | | [gridfinity](../../skills/gridfinity/tests/gridfinity.test.mjs), [gridfinity](../../skills/gridfinity/tests/access.test.mjs) |

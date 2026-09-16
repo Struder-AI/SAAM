@@ -42,8 +42,8 @@ export function clipPaths(subject, clip = [], operation = 'union', fill = 'pftNo
   return booleanPaths(subject,clip,kind);
 }
 
-export function offsetPaths(paths, delta, { join, miterLimit, arcTolerance }) {
-  return inflatePaths(paths,delta,{join,miterLimit,arcTolerance});
+export function offsetPaths(paths, delta, { join, miterLimit, arcTolerance, end='Polygon' }) {
+  return inflatePaths(paths,delta,{join,miterLimit,arcTolerance,end});
 }
 
 export function normalizedOffsetPaths(paths,delta,{join,miterLimit,arcTolerance}){

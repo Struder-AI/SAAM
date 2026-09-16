@@ -157,6 +157,77 @@ bounded eight-point wedge remains an explicit geometry/generation exception:
 its planar roof is derived directly from validated corner points, with shared
 mesh validation, scanline fill, export and review.
 
+### Prepared contour mapping
+
+[Contour correspondence](contour-path.mjs) assigns normalized arc length from a
+fixed projected seam to a closed polygon; it does not require a star-shaped or
+convex section. [Prepared contour families](prepared-contours.mjs) reuse that
+correspondence over height and signed offset before repeated motifs are mapped.
+The caller supplies the exact section/offset query and a separate millimetre
+mapping-error allowance. Bilinear cells interpolate both height and offset;
+they never change the source mesh, curve or motif.
+
+Each cell checks edge quarter-points and nine interior points against the exact
+query, targeting half the reserved allowance to leave margin between samples.
+At each check, a sweep of the union of all contour parameter breakpoints
+finds the maximum discrepancy around the entire perimeter: between breakpoints
+the discrepancy is linear. Height/offset checks remain sampled, so this is not
+a certified global error bound for arbitrary geometry or hidden topology
+changes. Failing cells refine locally up to eight subdivisions, then use the
+exact query. Invalid off-path samples cause refinement; an invalid requested
+query retains the source diagnostic. Consumers must reserve the mapping
+allowance inside their overall path tolerance and preserve topology/range
+checks at the source query.
+
+`at(u,z,offset)` maps a point. `curveAt(z,offset)` exposes the identical mapping
+through `at(u)`, `knots()` and lazy `breakpoints()` for contour consumers. The
+breakpoint grid includes the seam at both 0 and 1. Prepared maps belong to one
+fixed geometry/query instance and must be rebuilt after its inputs change.
+Four height slabs are retained, each with at most 512 cell entries and 512
+source-query cache entries. A successful cell retains four source contours;
+failed cells retain no contours. Memory therefore depends on bounded contour
+complexity and these fixed caches, not the total printed height or motif count.
+
+The mesh section query separately caches edge connectivity in eight vertex-height
+bands. Coordinates are still interpolated on the original triangle edges at
+each requested cut, including the existing boundary nudge. This exact reuse
+preserves holes, contour order and section bytes; it is independent of the
+optional approximate contour preparation.
+
+### Loose and tight spline offsets
+
+`prepareSurfaceOffsets` in `surface-offset.mjs` accepts a NURBS patch,
+`mode: 'normal' | 'horizontal' | 'projected-normal'`, and explicit periodic U/V
+flags. It builds a direction control net from unit reference normals at the
+Greville parameters. Nonperiodic outer Greville values are clamped to the active
+domain. Horizontal mode uses the clockwise XY perpendicular to the U tangent;
+normal mode uses the full surface normal. Projected-normal mode normalizes the
+XY projection of the full normal, retaining planar rimming's direction on
+charts whose U tangent rises in Z.
+
+`at(u, v, depth, tightness = 0)` evaluates the offset continuum. Zero uses the
+loose direction field without renormalizing its evaluated vectors; one uses
+the unit reference normal at the query. Intermediate values blend the vectors.
+Reference parameters are retained across depths without reparameterization.
+This setting is independent of subsequent mesh-contact fidelity.
+
+`offsetPatch(depth)` returns the loose NURBS patch, preserving control counts,
+degrees, knots, domains and weights, including periodic duplicates. Tightness
+above zero uses a functional evaluator; it is not claimed to be an exact
+same-size NURBS offset. No control points are added or refitted. Adaptive path
+samples are separate from the control net. Input controls remain unchanged.
+
+Reports expose sampled loose direction lengths and queried tightness. Loose
+depth approximates normal distance; these samples are not a global error
+certificate. Offset folds and crossings are allowed, without an injectivity
+or clearance guarantee.
+
+`prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes this API for
+periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`
+preserves authored Z. Vase mapping adds the signed nominal half-bead offset
+to motif depth, evaluates the field, then applies unilateral mesh contact.
+A loose half-bead offset gives approximate standoff.
+
 ### Geometry contract
 
 The **spline backend** accepts a closed shell of untrimmed bivariate spline
@@ -207,6 +278,110 @@ self-touches) or flush with a whole face is genuinely ambiguous. Both are
 resolved the way slicers resolve them, by displacing the plane by up to 0.1 um
 and re-cutting; the displacement is reported. A section that still will not
 close raises rather than returning a part with a gap in it.
+
+## Mesh reference sleeves
+
+`mesh-sleeve.mjs` exposes `fitMeshSleeve(mesh, options)` for an already validated
+triangle mesh. A **reference sleeve** is the open side surface of a vase-like
+envelope, with its top and bottom caps excluded. It is independent of material
+coverage: fitting a solid, or the outer side of a hollow vessel, does not fill its
+interior or create another printed wall. The source geometry is unchanged.
+
+`detectMeshSleeveInterval(mesh, {marginMm, toleranceMm, sampleCount,
+maxSecondaryAreaFraction, zMinMm, zMaxMm})` is an **authoring-time proposal** for
+usable sleeve bounds. It scans 25 heights by default, retains valid end sections
+exactly, and proposes an inward cut only when an end section collapses. The first
+inward proposal and cap-bracket refinement use `marginMm` (default 0.4 mm; callers
+should derive it from their chosen bead width/layer pitch). Branches, significant
+islands and separated usable height intervals are rejected. This sampled scan
+does not certify every intermediate section; the fitter/source queries keep
+checking newly encountered heights. The returned `rangeMm` is absolute Z;
+`report` includes the source range, excluded bottom/top heights, margin, sample
+count, source section count and secondary-feature areas. Set the accepted range
+explicitly in the authored recipe and derive a complete motif count for it.
+Never call this detector to silently shorten an already requested/generated
+path. A valid flat-ended cylinder therefore loses no height, whereas a mesh with
+collapsed extreme caps receives an explicit cap-exclusion proposal.
+
+The detector uses horizontal source sections over a selected `zMinMm`–`zMaxMm`
+interval. One dominant outer contour is required at each queried height. Small
+secondary islands may account for at most `maxSecondaryAreaFraction` of its area
+(default 0.001, or 0.1%); set zero to reject every secondary island. All source
+loops remain available. Reported maximum secondary area/count and pore area make
+that reference-envelope reduction explicit. A hole above that area fraction is
+a bore; at most one substantial bore is supported. A base may close the bore at
+lower heights. Multiple significant islands, branches or bores, and collapsed
+tips, fail with the height of the unsupported section. Choose a suitable sleeve
+interval or different geometry instead of treating those failures as mesh repair.
+This is section-based detection, not a global topological classification proof.
+
+The fit is an actual nonrational bicubic tensor-product B-spline, periodic around
+the perimeter and clamped in height. Source rings are sampled at a stable +X seam
+and normalized arc length. Uniform product-grid observations are fit in X and Y
+by separable least squares; the control net uses Greville abscissae to preserve
+Z exactly. `nurbs.mjs` owns the basis/evaluation algorithms. The bounded dense
+solver in `least-squares.mjs` implements Householder QR (Golub and Van Loan,
+*Matrix Computations*, 4th ed., §5.2), factors each sampling matrix once, and
+rejects rank-deficient inputs. This is an original implementation of that
+standard algorithm, not a vendored solver or a new geometry kernel. It avoids
+the squared condition number of normal equations. The test checks affine
+recovery and residual orthogonality independently of the fitted mesh.
+
+| Option | Meaning and default |
+|---|---|
+| `circumferentialControls`, `heightControls` | Independent fit resolution; defaults 12 and 6. Fewer controls smooth local texture; increasing them permits more detail in the underlying estimate. Both accept 4–64. |
+| `circumferentialSamples`, `heightSamples` | Uniform observation grid, defaults 96 and 25. At least twice as many circumferential samples as controls, and at least as many height samples as controls, are required. These are fit samples, not a certified mesh-error bound. |
+| `toleranceMm` | Bounded chord deviation for polyline sections of the fitted polynomial spline, default 0.02 mm. It is independent of fit residual and source-mesh detail. |
+| `maxSectionPoints` | Construction allowance per complete fitted section, default 16,384; exceeding it fails without returning a truncated section. |
+
+The result contains `patch` (the existing shared NURBS patch representation),
+`pointAt(u,z)` (periodic U, actual millimetre Z), `sectionAt(z)` (a smooth outer
+reference loop), and `sourceSectionAt(z)` (original cut loops, selected `outer`,
+enclosed `holes`, significant `bores`, `secondaryOuters` and a contour query).
+`rangeMm` gives the fitted interval. Source and fitted sections each retain at
+most 64 cached heights. Newly constructed fitted polylines are normalized through
+shared Clipper2 to reject detected self-crossings, reversals and collapse.
+Every height uses the same uniform U grid. For this unit-weight periodic cubic,
+the maximum norm of its second-derivative control vectors bounds the XY second
+derivative at every height. A grid interval of length `h` has linear chord
+error at most `M*h*h/8`. `sectionSegments` and `sectionChordBoundMm` report this
+construction. Fixed parameter samples avoid vertex-selection changes between
+adjacent rings. The sampled topology checks remain construction checks, not a
+continuous surface-validity certificate or a bound on source-mesh fit error.
+
+`report` distinguishes sampled RMS/maximum **fit residual** from section chord
+tolerance, source classification and ignored reference details. The source query
+continues to check each newly requested height, so an unsupported feature between
+fit observations fails when encountered rather than silently becoming printable.
+Mesh conformance belongs after the regular motif has been mapped onto this smooth
+reference: callers retain the original source query for directional contact.
+Do not stretch every motif point between the smooth and detailed surfaces or
+interpret the reference sleeve as a filled material boundary.
+
+Focused regressions cover periodic position and tangent continuity, second
+derivative agreement, suppression of fine flutes, leaning envelopes, translated
+parts, hollow sleeves, preserved small pores/islands and explicit rejection of
+significant disconnected sections. Authoring regressions retain flat caps and
+exclude only collapsed poles, and reject separated height intervals. These establish the tested software scope,
+not physical support or machine clearance.
+
+### Prepared mesh contact
+
+`directional-contour.mjs` unfolds one-turn section contours into ordered polar
+profiles within the selected planar correspondence allowance. Larger folds
+reject. `prepared-radial-contact.mjs` uses 16,384 fixed samples per profile and
+interpolates their ordered correspondence across height. At sampled validation
+heights, the actual profile certificate is deducted before allocating the
+remaining detail tolerance to interpolation. This avoids an unnecessarily
+fixed five-percent interpolation budget.
+
+Narrow horizontal ledges can use radial transitions checked against the original
+triangles through `mesh-distance.mjs` and the shared triangle hierarchy. Checks
+sample quarter and midpoint heights and adapt angular subdivisions. Their
+reported errors do not establish a global mesh Hausdorff bound or cover every
+unsampled height. Contact constrains path centers; the deposited bead may extend
+past the boundary by its half width. Neither the smooth reference nor its contact
+boundary is an additional deposited wall.
 
 ## Text and solid modifiers
 

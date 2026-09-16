@@ -1,5 +1,187 @@
 # Development log
 
+## 2026-09-15 — Shared checkpoint and publication
+
+The user requested committing and pushing the checkout's pending work on
+`codex/provisional-goalpost`. Existing geometry and workflow verification above
+was reused. Focused Studio material, settings and movie checks passed (19 tests)
+for the pending playback changes; the diff whitespace check passed. Large-file
+browser download completion remains unresolved as described below.
+
+## 2026-09-15 — Loose spline mapping and full-height dense vase preview
+
+The approved extension to pipe cladding and both rimming skills is integrated.
+Their default remains exact-distance offsetting; explicit spline references can
+choose the loose/exact continuum. Independent review fixed an ownership guard
+that had skipped the cladding option during normal generation, and retained
+planar rimming's projected full-normal direction on rising-U charts. Mesh strips
+and circular pipe behavior remain unchanged. Root integration checks cover
+these cases, nominal material rims, composition, plan settings and checked
+mesh-motif export. A prior rim test assumed exact bead-width separation at the
+new loose default; it now checks the intended side/footprint contract, while
+the dedicated exact-offset tests retain distance assertions.
+
+The same-size Greville direction control field replaced repeated polygon offsets
+for fitted mesh sleeves. Its loose endpoint preserves spline degrees, knots,
+weights and all 90 stored controls (72 independent); intermediate offset
+tightness blends toward exact unit reference normals at query time. Mesh contact
+fidelity remains a separate parameter. The five-course reproduction near course
+465 completed in 2.327 seconds total, including 0.0734 seconds mapping, with
+7,651 output points. Loose distance is approximate and reported as such.
+
+The complete 117 mm preview then generated successfully at zero mesh fidelity.
+The user accepted it and requested three times the circumferential loop density.
+Changing 12 to 36 cells per course retained the motif, 581 courses, flat ends,
+height and tolerances. Normal Studio generation took 27.092 seconds on S5,
+producing 1,242,934 mapped points and 1,248,514 checked moves. Switching the same
+recipe to Bambu H2D completed in 28.378 seconds. These timings include the
+normal generation request, not browser rendering or download time.
+
+The user approved both exports in Studio, but reported failed browser downloads.
+Server delivery files existed: the S5 file was 57,394,818 bytes and the H2D
+package was 20,680,260 bytes, each matching its approved SHA-256 exactly. The
+browser used a temporary blob URL and marked export complete when its synthetic
+anchor click returned; that does not establish a successful host download.
+The approved H2D delivery file was supplied as a local link while the handoff
+was investigated. No new physical print result was reported.
+
+The current CGAL-repaired source was then evaluated separately, preserving the
+approved old-source print. Strict full fidelity with 0.1 mm contact detail failed
+on a local unfolding limit at Z 27.565625 mm after 91 seconds. The medium
+candidate used fidelity 0.5 and 0.2 mm contact detail and completed the entire
+581-course, 36-cell, flat-ended Bambu job in 250.469 seconds. It produced
+1,959,821 checked moves and a 31,991,449-byte package, SHA-256
+`0c24656319d52d7e064c0cf4e94565bd59046c93f7eca9987ba4deace3cb7310`.
+The source remains the current CGAL repair `aec0bf6018d998ce743c2c4cdb4158e47c37caca7ae20a60d8fb803b46ecd0db`.
+There were 2,638 contact profiles and 13 sampled 3D ledge transitions; maximum
+sampled combined profile error was 0.199711 mm and maximum sampled mesh distance
+on ledge checks was 0.072739 mm. These are sampled numerical checks, not a global
+mesh-error or physical-clearance guarantee. The completed preview was displayed
+in Studio, then accepted by the user and promoted to production without changing
+the export bytes. The user subsequently confirmed settings and toolpath in
+Studio; normal delivery succeeded. The exact approved package was also copied
+to the requested local Downloads folder and its hash verified. Its 758
+short-travel advisories remain recorded; no automatic geometry or process change
+was made. No physical result was reported.
+
+Contact preparation now permits bounded unfolding of section folds and deducts
+the measured profile certificate from the interpolation allowance. Narrow ledge
+transitions use sampled distance checks against the original triangles. Larger
+folds still reject; the medium result does not establish that every mesh or the
+strict full-fidelity setting is supported. Current contracts live in the
+[vase manual](skills/vase-wall/SKILL.md) and
+[prepared contact reference](core/geom/README.md#prepared-mesh-contact).
+
+Browser delivery remains unresolved. User-clicked 1 KB text saved, while both
+the approved 20.7 MB package and an independent 32 MB plain-text response showed
+“Stopped,” including on a fresh Studio instance. The HTTP attachment/retry path
+and compound filename fix are implemented and covered by focused checks, but
+are not evidence that the host saved a large file. A chunked-transfer diagnostic
+was prepared but no user result was obtained. On September 15 the user ended
+this task's download investigation and assigned further debugging and eventual
+commit/publication to other tasks; this team retains vase documentation work.
+The intended browser behavior remains one click to the default download folder.
+
+The vase manual was condensed and checked against the implemented settings. It
+includes a mesh preparation example, motif authoring and density, flat ends,
+separate fitting/contact/offset controls, composition and numerical limits.
+Shared lifecycle links and the discovery digest were updated; manual links,
+public anchors, example JSON and skill metadata checks passed. No runtime change
+or further generation was required for this documentation pass.
+
+## 2026-09-15 — Motif mapping performance, fitted mesh sleeves and artifact provenance
+
+After checkpoint `7638383`, the user requested a composable skill, flat motif
+courses at both ends, faster generation, and mesh inputs with a smooth fitted
+reference plus continuous one-sided conformance. Development was isolated under
+ignored `.local/motif-speed/worktree`; the downloaded irregular vase program
+was not edited. The owning vase, geometry and region manuals describe current
+settings and limits.
+
+The original 30 mm irregular-mesh recipe measured 239.773 seconds generation
+plus 1.195 seconds checked export. Exact mesh connectivity reuse and cheaper
+contour cleanup retained its program bytes. Prepared height/offset mapping then
+measured 43.263 seconds generation plus 1.383 seconds checked export with the
+same saved plan/machine inputs, using CPU profiling in both reported trials.
+Moves changed from 208,414 to 237,423 because the remaining chord budget caused
+more subdivision. Path length changed from 97,302.331 to 97,308.939 mm (0.00679%).
+No courses were trimmed or tolerances relaxed. A separate 10,000-point comparison
+against exact queries on the actual mesh measured 0.001196 mm maximum and
+0.0000587 mm RMS mapping discrepancy, within the reserved 0.0025 mm allowance.
+These are sampled comparisons, not global error certificates. Earlier faster
+experiments lacked the retained numerical margin and are not the final timing.
+
+The fitted mesh reference uses 12 periodic circumferential by 6 height controls
+by default: 72 independent controls, with three repeated seam columns. On the
+local 100,000-face stress artifact, isolated fitting took about 0.2 seconds after
+roughly 1.8 seconds loading/validation. The ordinary plan and imported-bundle
+tests exercise continuous fidelity, flat ends, source preservation, regional
+composition and checked machine output. At this stage, directional contact
+required a star-shaped contour about the fitted center; source folds failed explicitly.
+Full fidelity on the local legacy stress artifact fails this requirement at
+several sampled heights. Zero-fidelity fitting remains independent of that
+contact limitation. No physical mesh-motif print result was supplied.
+
+During preview review the user identified the selected stress artifact as the
+output of a purged repair. The source had been read from the older local SAAM
+checkout's ignored `prints/spiral-vase-h2d/geometry/source.stl`, not repaired in
+this task. Its repair report identifies `winding-grid-marching-tetrahedra/1`
+followed by `quadric-edge-collapse/1`; its SHA-256 is
+`39b8a8d0019d625833c92b31ab39a14ee61d6f9ad1b4136e08617720d25091c8`, identical
+to the retained preview source. Saved review history dates it to September 11,
+before the September 14 removal. Commit `c545d8f` removed `reconstructMesh` and
+the dependent simplifier; active source in both current checkouts contains no
+restored implementation or new repair calls. The separate root STL removal was
+`45d788f`; voxel authoring removal was `d686269`. Selecting the artifact without
+checking its repair provenance was an agent error. The user acknowledged the
+distinction and authorized continuing the preview with that artifact.
+
+The full 117 mm, 581-course zero-conformance preview exposed a downstream stall
+within course 186. The initial mesh fit was fast; a three-course CPU profile
+instead counted 12,771 polygon offsets. A shifted reproduction isolated the
+per-height simplification of the already smooth fitted sections as a source of
+repeated preparation. Removing that redundant simplification reduced a shifted
+three-course reproduction from 19.18 to 0.78 seconds of mapping, with 6,717 mapped
+points in both runs and unchanged tolerances. Offset preparations fell from
+11,708 to 550. A geometric regression compares the flat fitted ring to its
+independently constructed inset and detects the previous simplification error.
+The full preview retry is separate from the original-recipe benchmark above.
+
+That retry passed course 186 but slowed again around course 320. A bounded
+five-course shadow profile exceeded 45 seconds after only three courses.
+The fitted spline's own per-height adaptive tessellation still changed vertex
+selection. A shared U grid, sized from the periodic polynomial spline's global
+second-derivative bound, completed all five in 6.503 seconds (3.448 seconds of
+mapping), with 396 section segments and a 0.002473 mm chord bound against the
+0.0025 mm target. Fit coefficients and sampled residuals were unchanged. The
+bound was independently reviewed and tested across held-out heights and U
+positions. These shadow profiles ran alongside the preview and do not establish
+an isolated full-job speed ratio.
+
+The fixed-grid full run later slowed near course 465. A continuous offset-row
+atlas prototype exposed a 0.00128 mm projected-seam shift over a 0.000098 mm
+offset interval even though the corresponding contours retained 396 vertices
+and smoothly changing lengths. Thus repeated grid-rounded polygon offsets and
+seam reprojection still disrupted the reference correspondence. The user then
+explicitly required loose offsets with no growth in control-point count. The
+unfinished tight-offset run was cancelled through Studio's normal cancellation
+API. The replacement mapping must retain the fitted spline's control structure
+and U/Z correspondence; these cancelled runs are not completed preview results.
+
+The current CGAL patch repair was also rerun on the preserved original stress
+mesh in an isolated output directory. It reproduced the previously recorded
+8,076-face output SHA-256
+`aec0bf6018d998ce743c2c4cdb4158e47c37caca7ae20a60d8fb803b46ecd0db` in 1.90 seconds,
+with no holes filled. Its sleeve detector retained the full 0–117 mm interval.
+Directional-contact probes passed at four heights but rejected folds at three
+others, so the conformance limitation also affects the correctly repaired mesh.
+
+The user also reported a stationary Studio spinner. Live computed styles showed
+`prefers-reduced-motion: reduce`, `animation-name: none` and zero duration. The
+spinner now retains slow 2.4-second rotation in that mode, compared with its
+ordinary 0.8-second rotation. A focused regression and live computed-style
+inspection confirmed the fix; other motion preferences remain unchanged.
+
 ## 2026-09-15 — Irregular broad-loop example and pre-performance checkpoint
 
 The user requested a wider motif on an irregular sleeve, accepted the displayed
