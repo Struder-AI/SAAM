@@ -333,3 +333,21 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Approvals: Current user explicitly authorizes implementation and recording; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in the Studio tour task (01a0a19d-25eb-7fa3-9e55-d1b97ee544fc), 2026-09-14 local time: “Automatically choose reasonable units after load, based on part size. Can always be changed later if needed. This applies outside of tour as well. Note this in decisions - and we will likely change this policy later down the road.”
 - Scope: Active user-authorized implementation. The shared importer owns the size heuristic and records the assumption; [print-tool guidance](core/print/USAGE.md#import-an-stl) describes the current thresholds and correction tools. STL itself does not encode units. Formal contributor consensus is not inferred.
+
+## D-031 — Incremental C++ migration of selected compute components
+
+- Decision: Adopt incremental migration of selected performance-critical components from JavaScript to C++, retaining JavaScript for Studio, agent tools and print workflow coordination. Choose components through profiling of representative large slicing jobs and move substantial operations behind shared interfaces, using packed data and batched calls. Keep SAAM usable throughout the migration.
+- Status: proposed
+- Recorded: 2026-09-16T02:30:59Z
+- Approvals: Current user explicitly selects this direction and requests its recording; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in the language-migration assessment task (01a0a806-e5b6-7b92-8511-0aff0e79e159), 2026-09-15 local time: “Okay so we can to incremental migration of select components from javascript to c++? That seems like the ideal approach”. Follow-up: “Great, record that intent as a decision.”
+- Scope: Agreed migration intent; this request records the direction, without starting a component port or committing to a full application rewrite. The first component remains to be selected through current profiling. Before replacing an implementation, compare geometry, tolerance semantics and machine output against the existing behavior, and measure the complete workflow benefit, including data-transfer and memory costs. Preserve shared skill composition, generation identity, review and exact-byte delivery contracts. Existing compiled backends and avoidable repeated work must be accounted for when choosing a migration target. No speedup, schedule or contributor consensus is established by this record.
+
+## D-032 — Separate standard and advanced vase-mode manuals
+
+- Decision: Expose standard vase mode and advanced vase mode as separate manuals and separate references in the skills digest. Standard mode covers conventional continuous spiral walls; advanced mode covers motifs, patterns and fitted mesh sleeves. Both use the existing shared vase recipe and slicer.
+- Status: proposed
+- Recorded: 2026-09-16T17:02:13Z
+- Approvals: Current user explicitly authorizes this split; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in task 01a0ab09-9686-7160-a752-50132fd5baf7: “I've made the decision to have two "vase mode" skills (if we don't already). One is our a standard vase mode, similar to what all the other slicers would implement. The "advanced" vase mode uses our motif and pattern etc.” Clarification: “So have separate manuals, in other words, separate references in the skills digest”.
+- Scope: Active user-authorized manual/catalog split. It adds no independent recipe key, duplicated slicer or manufacturing approval; contributor consensus is not inferred.

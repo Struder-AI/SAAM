@@ -136,7 +136,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
       }
       regionShells.set(assignment.part,translateShell(shell,plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm));
     }
-    const regional=generateRegionResults({plan,machine,placed,componentShells:regionShells,selections});
+    const regional=generateRegionResults({plan,machine,placed,componentShells:regionShells,selections,onProgress});
     results.push(...regional.results);Object.assign(summary,regional.summary);
   } else {
   requireThat(!plan.skills['thick-lip'].enabled,'thick-lip only applies through composition.regions, assigned directly above a level-ended vase-wall region.');
@@ -189,8 +189,8 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   if(normalResults.length)summary.planarInfill={instances:normalResults.map(r=>({id:r.id,...r.report}))};
   if(vase.enabled) {
     requireThat(vaseShell,'No component selected for vase wall.');
-    const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id))});
-    if(vase.pattern==null)publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
+    const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id)),onProgress});
+    if(vase.pattern==null&&!vase.meshSleeve)publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
       endMm:result.report.endMm-(vase.endTransition==='level'?0:process.layerMm),toleranceMm:vase.boundaryToleranceMm});
     results.push(result);summary.vaseWall=result.report;
   }

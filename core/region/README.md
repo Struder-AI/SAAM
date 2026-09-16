@@ -5,6 +5,16 @@ Read the relevant operation contract below and the [geometry query boundary](../
 when changing its inputs. [Composition](../path/README.md) owns operation ordering
 and travel across those regions.
 
+## Deposition stroke footprints
+
+[strokeRegion](stroke.mjs) sweeps 2D open or explicitly closed polylines by a
+positive bead width using the shared Clipper2 kernel, round joins and round caps.
+The returned nonzero-winding region unions crossings while preserving unfilled
+spaces. It is a nominal XY bead footprint, not a measured deposited surface or
+support guarantee. Level motif rims use only final-course segments with positive
+extrusion; they never substitute the filled reference sleeve. Coordinate grid
+and arc-tolerance options remain separate, as for closed region offsets.
+
 ## Shared offset functions
 
 **Planar:** [offsetRegion](offset.mjs) accepts closed 2D loops in mm

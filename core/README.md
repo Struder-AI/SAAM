@@ -7,6 +7,10 @@ Use the relevant component reference for contracts and implementation details.
 The [agent CLI toolkit](agent/README.md) composes context reads, print preparation,
 Studio opening and request coordination around these existing owners.
 
+[File replacement](file-write.mjs) supplies unique temporary files and bounded
+Windows sharing-conflict retries to print and Studio persistence. It preserves
+complete individual files; it is not a lock or a multi-file transaction.
+
 ## Current organization
 
 The shell workflow follows geometry queries → material regions → skill operations

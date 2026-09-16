@@ -63,7 +63,7 @@ function relativePrint(library, directory) {
 function printSummary(state, {includeGeometry = false, programChecked = true} = {}) {
   const plan = structuredClone(state.plan);
   if (!includeGeometry) delete plan.geometry;
-  return {directory: state.dir, kind: state.kind, revision: state.revision,
+  return {directory: state.dir, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     plan, planComplete: includeGeometry,
     geometry: {boundsMm: state.geometry?.boundsMm, nativeFile: state.geometry?.nativeFile},
     machine: {id: state.machine.id, name: state.machine.name}, skills: state.skills,
@@ -171,10 +171,10 @@ export async function beginWork({target, library, instruction, requestId, includ
   const requests = createAgentRequests(libraryRoot);
   let directory = target ? resolve(target) : null, record;
   if (requestId) {
-    const existing = (await requests.list()).find(item => item.id === requestId);
+    const existing = await requests.get(requestId);
     if (!existing) throw Error('Unknown Studio request.');
     if (directory && relativePrint(libraryRoot, directory) !== existing.printId) throw Error('That request belongs to another print.');
-    if (!['queued', 'working', 'waiting'].includes(existing.status)) throw Error('That request is no longer pending.');
+    if (!['queued', 'working', 'waiting', 'failed'].includes(existing.status)) throw Error('That request is no longer pending.');
     directory = resolve(libraryRoot, existing.printId);
     relativePrint(libraryRoot, directory);
     record = await requests.update(requestId, {status: 'working'});
@@ -190,7 +190,7 @@ export async function beginWork({target, library, instruction, requestId, includ
   }
   const partial = {request: record};
   try {
-    partial.print = await readPrint(directory, {includeGeometry});
+    partial.print = await readPrint(directory, {includeGeometry, programChecked:false});
     const {createTour} = await import('../../studio/tour.mjs');
     const tour = await createTour(libraryRoot).info();
     partial.tour = tour.directory === directory ? tour : null;
@@ -214,10 +214,16 @@ export async function respondToRequest({library, requestId, status = 'completed'
   return createAgentRequests(libraryPath(library)).update(requestId, {status, message, resultStage});
 }
 
+export async function recordRequestActivity({library,requestId,target}){
+  const {createAgentRequests}=await import('../../studio/agent-requests.mjs');
+  return createAgentRequests(libraryPath(library)).activity(requestId,{directory:target&&resolve(target)});
+}
+
 export async function inspectFailure({target, library, requestId, includeGeometry = false}) {
   const directory = resolve(target), libraryRoot = libraryPath(library);
   const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  const requests = (await createAgentRequests(libraryRoot).list()).filter(record =>
+  const store=createAgentRequests(libraryRoot);
+  const requests = (requestId?[await store.get(requestId)]:await store.list({printId:store.printId(directory)})).filter(record =>
     resolve(libraryRoot, record.printId) === directory && (!requestId || record.id === requestId));
   if (requestId && !requests.length) throw Error('That request does not belong to this print.');
   const result = {directory, requests};

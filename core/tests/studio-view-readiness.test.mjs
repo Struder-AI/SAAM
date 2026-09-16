@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import {agentIndicator} from '../../studio/work-state.mjs';
+import {agentIndicator,hasPresentedResult} from '../../studio/work-state.mjs';
 import {needsTourToolpath} from '../../studio/tour-ui.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
 
@@ -14,8 +14,22 @@ function section(start,end){
   if(from<0||to<0)throw Error('Browser test extraction boundary changed: '+start);
   return app.slice(from,to);
 }
+
+test('compact review updates retain playback and avoid loading the scene again',async()=>{
+  let reloads=0,renders=0;
+  const state={fingerprint:'old-review',presentationFingerprint:'same-source',instanceId:'studio',seconds:12,tour:{active:false}};
+  const context=vm.createContext({state,polling:false,busy:false,reconnecting:false,movieController:null,URLSearchParams,
+    fetch:async()=>({ok:true,json:async()=>({instanceId:'studio',fingerprint:'new-review',presentationFingerprint:'same-source',
+      reviewUpdate:{revision:'approved',toolpathApproved:true},tour:{active:false}})}),
+    needsTourToolpath:()=>false,render:()=>renders++,working:async(_text,action)=>action(),refresh:()=>reloads++,
+    message(){},agentUI:{settled(){}},$:()=>({}),window:{location:{reload(){throw Error('Unexpected reload');}}}});
+  vm.runInContext(section('async function poll(){','\ntourUI=createTourUI'),context);
+  await context.poll();
+  assert.equal(reloads,0);assert.equal(renders,1);assert.equal(state.seconds,12);
+  assert.equal(state.toolpathApproved,true);assert.equal(state.revision,'approved');assert.equal(state.fingerprint,'new-review');
+});
 const browserCode=[
-  section('async function working(text,task){','\n// Studio reviews'),
+  section('async function working(text,task,','\n// Studio reviews'),
   section('async function acknowledgeDisplayedView(){','\nasync function decodeInWorker'),
   section('function setTab(next){','\n'),
   section('async function approval(stage){','\nasync function download'),
@@ -43,7 +57,7 @@ async function confirmationHarness({stored=false,generationError,tour=false}={})
     work:{printId:'part',snapshot,requests:[request]},review:{generation:stored?{mode:'production'}:null},
     ...(stored?{program:{},exportHash:'export'}:{})};
   let context;
-  context=vm.createContext({state,busy:false,tab:'geometry',L,needsTourToolpath,agentIndicator,
+  context=vm.createContext({state,busy:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,agentIndicator,hasPresentedResult,
     document:{getElementById:get},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
     fetch:async()=>({ok:true,json:async()=>({requests:[request]})}),
     requestAnimationFrame:callback=>queueMicrotask(()=>{events.push('paint:'+context.tab);callback();}),
@@ -109,7 +123,7 @@ test('new geometry awaiting confirmation clears work fade without satisfying the
   const view={ready:true,awaitingConfirmation:true,snapshot:{inputKey:'after',stage:'geometry'}};
   assert.equal(agentIndicator([request],{view}).active,false);
   assert.equal(agentIndicator([request],{view:{...view,loading:true}}).active,true);
-  assert.equal(agentIndicator([{...request,baseline:{inputKey:'after'}}],{view}).active,true,'new work on this reviewed shape remains visible');
+  assert.equal(agentIndicator([{...request,baseline:{inputKey:'after'},target:undefined}],{view}).active,true,'unprepared work on this reviewed shape remains visible');
   assert.equal(agentIndicator([request],{view:{...view,awaitingConfirmation:false}}).active,true,'toolpath target is still pending');
 });
 

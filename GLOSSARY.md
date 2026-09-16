@@ -19,7 +19,14 @@ starting vocabulary for the ontology we develop together.
 | Skill composition | Combining skills in one part, assigning material regions, connecting their boundaries and preserving printing order. |
 | Weaving | Interleaving compatible skill operations across layers or within a layer while preserving their dependencies. |
 | Tool | A callable script or function supplied by a skill. |
-| Motif | A small repeated curve, such as a loop or zigzag. A pattern arranges and connects motifs along its path; see [vase motifs](skills/vase-wall/SKILL.md#motifs-host-shape-and-exterior-finish). |
+| Standard vase mode | Conventional continuous spiral-wall printing, with an optional solid base; see the [standard vase manual](skills/vase-wall/SKILL.md). |
+| Advanced vase mode | Motifs and authored patterns mapped onto reference sleeves, including smooth mesh fitting and adjustable mesh conformance; see the [advanced vase manual](skills/advanced-vase-wall/SKILL.md). |
+| Stress mesh | The local `sotvl_Spiral-Vase.stl` mesh used for demanding geometry and slicing trials. Current trials use its CGAL-repaired derivative. The source and recipe provenance are recorded in [DEVLOG.md](DEVLOG.md#2026-09-16--vase-contact-speed-and-local-loose-offset-curvature-limiting); this is a local asset, not a bundled example. |
+| Motif | One reusable curve, such as a looping stroke or zigzag. Vase tiling joins its cell endpoints, repeats it along a regular reference strip and upward, then maps the strip onto actual sleeve sections; see [single-motif tiling](skills/advanced-vase-wall/SKILL.md#one-motif-a-regular-tiler-then-sleeve-mapping). |
+| Motif tiler | The regular parameter layout that repeats a motif with connected cell/course endpoints before sleeve mapping. It does not create an additional printed wall or require registration with the course below. |
+| Motif course | One complete circuit around the sleeve containing a row of motif cells. A fixed cell count per turn makes physical cell widths shrink with the sleeve circumference; motif depth is a separate setting. Body courses rise, while flat boundary courses stay at one height. |
+| Reference sleeve | The open side surface around a vase-like shape, excluding its bottom and top caps. It may be reduced from a solid envelope or detected as the outer side of a closed hollow vessel. It guides motif placement; it is not itself deposited material or proof that the print has a continuous wall. |
+| Sleeve fitting | Estimating a smooth periodic spline reference sleeve from mesh sections while retaining the source mesh for separate contact/conformance queries. Fit detail and mesh contact fidelity are separate choices. |
 | Process plan | The recipe for making a part: geometry reference, selected skills, their settings, and machine/setup choices. |
 | Locked process plan | The complete version of the recipe submitted for approval; generation introduces no further process choices. |
 | Toolpath | The route and associated printing actions the machine will follow. |

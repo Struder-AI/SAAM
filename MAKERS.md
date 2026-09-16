@@ -26,8 +26,8 @@ Reuse the existing Studio server and browser tab by default, including when swit
 
 ## Existing Studio work
 
-For work on an existing Studio print, call `begin_studio_work` immediately after receiving a maker
-request, BEFORE even an acknowledgement, analysis, status lookup or another
+For an edit to an existing Studio print, call `begin_studio_work` immediately after receiving the
+request, BEFORE an acknowledgement, status lookup or another
 tool. Omit MCP printId to use the active tour or sole open Studio. CLI agents use
 `node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "Requested change"`;
 omit the directory for the active tour, or use `--request ID` to claim
@@ -35,16 +35,26 @@ Studio-originated work. Add `--include-geometry` when the edit needs the complet
 geometry recipe. The bundled CLI returns the current recipe and revision after
 marking work pending; use those instead of another status/read call. The returned
 print ID identifies the target; use it instead of an earlier chat reference.
-Apply the requested update (geometry-only edits do not need toolpath generation
-in early tour lessons). Send its acknowledgement immediately in chat commentary,
-or send the requested lesson guidance there, then resolve that exact ID with `respond_to_studio_request`. Report failures and resolve them
-as failed rather than leaving the working indicator on. Multiple requests remain
-independent. The [Studio coordination contract](studio/README.md#agent-request-coordination)
-provides the local CLI equivalents and waiting behavior.
+Beginning an edit reads geometry and recipe context without checking the old
+export; its returned `programChecked: false` is not a failed toolpath check.
 
-Use the [Studio coordination contract](studio/README.md#agent-request-coordination)
-to bind saved edits to their requests, distinguish guidance, and pause or resolve
-activity; optional intermediate previews never create a delivery obligation.
+Use one request through its work, result and response:
+
+| Situation | Agent action |
+|---|---|
+| Inputs are still being edited | Keep the request working. Combine related changes before publishing a result target. |
+| Saved inputs are ready to show | Bind that request with `status: working` and `resultStage: geometry` or `toolpath`. Bind every request included in a combined result. This is a readiness signal, not an approval. |
+| Only geometry or proposed settings need review now | Target geometry and show it; do not slice merely to finish the request. Complete after acknowledging the displayed change. |
+| The requested result needs a toolpath | Target toolpath. During a confirmed tour toolpath lesson Studio generates after that signal; outside the tour use explicit generation once. Verify the current result is displayed. |
+| A choice or shape confirmation is needed first | Explain what is ready and what input is needed immediately, then mark the request `waiting`. Do not wait silently for a result that requires that input. Resume the same ID when work can continue; its saved target is retained. |
+| A question needs an answer, without an edit | Answer in chat. For Studio-issued guidance, claim and complete its guidance request. Advice does not dim the preview or require generation. |
+| Work finishes, fails or is superseded | Send the concrete outcome in chat, then resolve that ID as completed, failed or cancelled. Do not leave working requests behind. |
+
+Send the acknowledgement or guidance before a listener wait. Keep tour listeners
+active between lessons; an ordinary preview can be left for the person's next
+chat request. Optional intermediate previews create no obligation to finish
+superseded results. The [Studio coordination contract](studio/README.md#agent-request-coordination)
+owns the CLI equivalents, result identity and waiting behavior.
 
 ## Tour startup
 
@@ -100,7 +110,7 @@ after completion. A development status update must not become an extra maker
 instruction or move the participant into the next lesson.
 
 During a toolpath lesson, Studio automatically generates after saved process or
-machine changes and keeps its viewport busy through loading. Do not launch a
+machine changes have a published request target and keeps its viewport busy through loading. Do not launch a
 second CLI generation alongside it or wait for an unstarted task. Check the
 current rendered toolpath before resolving the request. Outside the tour, use
 the ordinary explicit generation flow.
@@ -128,6 +138,14 @@ call; do not claim them again. Read each returned request, send its
 guidance or complete silent preparation, and resolve it. Repeat empty bounded
 waits while the tour is active. Only the designated infill and completion lessons
 initiate chat teaching; the early lessons remain Studio-led.
+
+Signals may accumulate while another request is being handled. Check their
+relevance against the current print and lesson context before acting. Cancel
+obsolete lesson guidance instead of teaching a lesson the participant has left;
+diagnose generation failures against the current recipe rather than blindly
+replaying an old request. Renew a working request before its ten-minute lease
+expires if long-running agent work is still active; waiting for the person uses
+`waiting`, not repeated claims.
 
 Load STL files without a units popup or pre-import units question. The shared
 importer assumes reasonable units from size unless the person specified them;
@@ -160,6 +178,8 @@ For ordinary planar walls, hollow vessels or patterned fill, start with [planar-
 For continuous vase mode, normally use a solid model: the printing recipe makes
 the hollow wall, so the model needs no hole. See [vase-wall input geometry](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)
 for the distinction between the solid guide and the printed wall.
+For motifs, authored patterns or fitted mesh sleeves, use the separate
+[advanced vase mode manual](skills/advanced-vase-wall/SKILL.md).
 
 Follow additional references when the part needs them:
 
@@ -184,6 +204,15 @@ Studio inspection inform this judgment; software checks alone do not establish
 printability.
 
 ## Maker interaction flow
+
+These are review dependencies, not capability restrictions. Outside a tour, a
+person can ask for any supported geometry, process, printer, material, inspection
+or export operation from any view. Apply supported changes when requested and
+invalidate only the affected confirmations. If a requested result depends on a
+human confirmation or missing machine setup, do the independent work now and
+explain that actual dependency. Never refuse supported functionality because the
+person is in the "wrong" step. Tour-only teaching limits live in the
+[tour participation manual](examples/prints/README.md#maker-agent-participation).
 
 The person confirms geometry, then settings and the exact toolpath together.
 Geometry can be confirmed in Studio or by an explicit chat statement approving

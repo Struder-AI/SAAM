@@ -36,6 +36,17 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-050 — Finish Studio coordination and read-path handoff
+
+- Status: in progress
+- Contributor: Current requester; account attribution unconfirmed.
+- Authorization: human requested — “read handoff and get to work,” with decisions explained and questions only for genuine ambiguity; then “2. I don't think it's worth it but start the rest.” SQLite adoption is withdrawn. Brief browser disconnects retain a tour until exit/cancel or Studio shutdown.
+- Session: Current Codex task; title and stable task ID unavailable in the supplied conversation.
+- Source: 2026-09-15 instructions above; [implementation and decisions](DEVLOG.md#2026-09-15--file-compatible-handoff-work-after-sqlite-withdrawal) and the earlier handoff in the same log.
+- Context: Request presentation, tour lifetime, operational polling and repeated source reads were identified in the Studio flow audit. File-compatible polling, scoped activity, Studio-worker cancellation, review metadata updates and normal-shutdown tour cleanup are implemented. No database or runtime migration was performed.
+- Remaining: Cross-process exclusive claims and atomic request/tour transitions; forced-process-death tour invalidation; a shared cancellation/supersession owner for CLI/MCP generation and edits queued behind generation; coordination of activity and cancellation writes across independent processes; concurrent verified-source reuse and remaining nested read/copy reductions. Complete the authorized audit for cold processes, large STL/native/source files, growing review history, worker costs, and simultaneous writers. Keep database adoption excluded unless separately authorized.
+- Completion: Implement and exercise the remaining ownership/recovery behavior without introducing competing persistent stores; record the remaining audit measurements and their limitations. Preserve current-byte validation at approval/delivery boundaries and separate software evidence from physical results.
+
 ### BR-049 — Improve generators identified by short-travel advisories
 
 - Status: open

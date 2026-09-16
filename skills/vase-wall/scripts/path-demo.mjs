@@ -9,7 +9,7 @@ plan.geometry={shape:'pipe',innerRadiusMm:12,outerRadiusMm:14,heightMm:10.5,tole
 for(const settings of Object.values(plan.skills))settings.enabled=false;
 plan.placement={xMm:125,yMm:105};
 const points=Array.from({length:33},(_,i)=>{const u=i/32;return [u,.2*u+(i%4===2?.06:0)];});
-Object.assign(plan.skills['vase-wall'],{enabled:true,pathMode:mode,pattern:{advance:[mode==='continuous'?1:1.0625,.2],repeats:50,paths:[{points,beadHeightMm:.2}]}});
+Object.assign(plan.skills['vase-wall'],{enabled:true,endTransition:'spiral',pathMode:mode,pattern:{advance:[mode==='continuous'?1:1.0625,.2],repeats:50,paths:[{points,beadHeightMm:.2}]}});
 const directory=resolve(process.argv[2]??`Prints/development/${mode}-sleeve-zigzag`);
 await initBundle(directory,plan);const checked=await generateBundle(directory,{development:true});
 console.log(JSON.stringify({directory,mode,moves:checked.moves,estimatedMinutes:checked.estimatedMinutes,

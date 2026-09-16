@@ -60,6 +60,12 @@ test('MCP correlates ordinary maker work and receives Studio requests without ap
   assert.equal(waiting.status,'waiting');
   const targeted=await call('respond_to_studio_request',{requestId:second.id,status:'working',resultStage:'geometry'});
   assert.equal(targeted.target.stage,'geometry');assert.ok(targeted.target.inputKey);
+  const activityStore=createAgentRequests(printsRoot);
+  const untouched=await activityStore.get(first.id);
+  await call('get_print',{printId:'ordinary',requestIds:[second.id]});
+  const activity=await activityStore.get(second.id);
+  assert.ok(activity.updatedAt>targeted.updatedAt);assert.deepEqual(activity.target,targeted.target);
+  assert.equal((await activityStore.get(first.id)).updatedAt,untouched.updatedAt,'another request on the same print receives no implicit renewal');
   await call('respond_to_studio_request',{requestId:first.id,message:'Done'});
   assert.deepEqual((await call('get_studio_requests')).requests.filter(r=>r.status==='working').map(r=>r.id),[second.id]);
   const queue=createAgentRequests(printsRoot),request=await queue.begin({directory:resolve(printsRoot,'ordinary'),source:'studio',instruction:'Offer infill options'});
@@ -77,9 +83,9 @@ test('MCP correlates ordinary maker work and receives Studio requests without ap
 
 test('MCP follows tour chat gates and requires geometry confirmation before production generation',async t=>{
   const {call,printsRoot}=await fixture(t),tour=createTour(printsRoot);
-  await tour.action('resume');const before=await call('get_tour');
+  await tour.action('fresh');const before=await call('get_tour');
   assert.equal(before.step,0);assert.equal(before.canNext,false);
-  await call('set_tour_start_at',{startAt:{layer:12}});
+  await call('set_tour_start_at',{startAt:{layer:12},runId:before.runId,lessonId:before.lessonId});
   const saved=await call('get_print',{printId:'tour/handle',includeGeometry:true});
   saved.plan.geometry.parts[1].geometry.heightMm=11;
   await call('adjust_print',{printId:'tour/handle',expectedRevision:saved.revision,patch:{geometry:saved.plan.geometry}});
@@ -400,7 +406,7 @@ test('MCP transport close persists scoped failure and pushes it to Studio before
 
 
 test('waiting for Studio does not block immediate dots, responses or tour metadata',async t=>{
-  const {call,printsRoot}=await fixture(t),tour=createTour(printsRoot);await tour.action('resume');
+  const {call,printsRoot}=await fixture(t),tour=createTour(printsRoot);await tour.action('fresh');
   const waiting=call('wait_for_studio_request',{waitMs:4000});
   await new Promise(r=>setTimeout(r,30));const started=Date.now();
   const work=await call('begin_studio_work',{instruction:'Change this shape'});
@@ -413,7 +419,7 @@ test('waiting for Studio does not block immediate dots, responses or tour metada
 
 test('a queued Studio request is pushed to the MCP client and included in the next tool result',async t=>{
   const {LoggingMessageNotificationSchema}=await import('@modelcontextprotocol/sdk/types.js');
-  const {call,client,printsRoot}=await fixture(t),tour=createTour(printsRoot),{directory}=await tour.action('resume');
+  const {call,client,printsRoot}=await fixture(t),tour=createTour(printsRoot),{directory}=await tour.action('fresh');
   let resolveNotice;const notice=new Promise(resolve=>{resolveNotice=resolve;});
   client.setNotificationHandler(LoggingMessageNotificationSchema,message=>{if(message.params.logger==='saam.studio')resolveNotice(message.params.data);});
   const record=await createAgentRequests(printsRoot).begin({directory,source:'studio',instruction:'Offer infill options now'});

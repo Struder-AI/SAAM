@@ -131,6 +131,9 @@ test('begin-work marks pending before context reads, correlates claims, and fail
   assert.equal(begun.request.status, 'working');
   assert.ok(begun.print.plan.geometry);
   assert.equal(begun.print.planComplete, true);
+  assert.equal(begun.print.generation.programChecked,false,'beginning an edit defers old-export validation');
+  assert.equal(begun.print.approvals.toolpath,null);
+  assert.ok(begun.print.geometryHash,'shape confirmation can use the same context packet');
   const queue = createAgentRequests(f.library);
   const queued = await queue.begin({directory: target, source: 'studio', instruction: 'SYNTHETIC failure: discontinuous roof'});
   const waited = await waitForRequests({library: f.library, waitMs: 0, claim: true});

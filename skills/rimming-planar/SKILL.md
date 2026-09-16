@@ -96,6 +96,7 @@ the barbell prints successfully.
 | `toleranceMm` | `0.01` | Offset-curve midpoint chord target. |
 | `minFeatureMm` | `0.2` | Native section sampling feature scale. |
 | `maxPoints` | `100000` | Per-surface emitted point budget, also bounding each offset calculation; raise explicitly when needed. |
+| `offsetTightness` | `1` | Blend a fixed-size loose NURBS offset field (`0`) toward the exact section offset (`1`). Exact is the default; use loose values only for exploratory spline support geometry. |
 
 This implementation requires each control row to rise strictly in Z along V,
 which makes section-offset refinement well-defined; it does not impose an angle

@@ -2,7 +2,7 @@
 import {parseArgs} from 'node:util';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {onboarding, readSkill, contextPacket, preview, beginWork, waitForRequests, respondToRequest, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
+import {onboarding, readSkill, contextPacket, preview, beginWork, waitForRequests, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
 
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
@@ -16,6 +16,7 @@ const schemas = {
   'begin-studio-work': {library: string, instruction: string, request: string, kind: string, 'include-geometry': boolean},
   'wait-for-studio-request': {library: string, after: many, 'wait-ms': string, claim: boolean},
   'respond-to-studio-request': {library: string, status: string, message: string, 'result-stage': string},
+  'record-request-activity': {library:string},
   'inspect-generation-failure': {library: string, request: string, 'include-geometry': boolean}
 };
 export const help = {
@@ -30,6 +31,7 @@ export const help = {
     'begin-studio-work [DIRECTORY] [--instruction TEXT | --request ID] [--kind edit|guidance] [--include-geometry]': 'Start/claim work first, then read recipe, revision, confirmations and tour instruction.',
     'wait-for-studio-request [--claim] [--wait-ms 25000] [--after ID]': 'Bounded wait, optional claim, and next cursor.',
     'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT]': 'Record a prepared result or resolve the matching request through the shared coordination API.',
+    'record-request-activity ID': 'Record actual request-specific agent/tool activity without resuming work or changing its target. Never run as an idle heartbeat.',
     'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
   },
   developmentAreas: Object.keys(developmentAreas),
@@ -47,7 +49,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     if (!command || ['help', '--help', '-h'].includes(command)) {write({ok: true, ...help}); return;}
     if (!Object.hasOwn(schemas, command)) throw Error(`Unknown command: ${command}. Use --help.`);
     const {values: v, positionals} = parseArgs({args: rest, options: schemas[command], allowPositionals: true, strict: true});
-    const needsTarget = ['read-skill', 'read-guidance', 'open-print', 'create-preview', 'inspect-generation-failure', 'respond-to-studio-request'].includes(command);
+    const needsTarget = ['read-skill', 'read-guidance', 'open-print', 'create-preview', 'inspect-generation-failure', 'respond-to-studio-request','record-request-activity'].includes(command);
     const permitsTarget = needsTarget || command === 'begin-studio-work';
     if (positionals.length > (permitsTarget ? 1 : 0) || needsTarget && !positionals.length) throw Error('Unexpected or missing positional argument. Use --help.');
     if (command === 'create-preview' && v.units && !v.stl) throw Error('--units applies only to --stl.');
@@ -72,6 +74,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 25000) throw Error('--wait-ms must be an integer from 0 to 25000.');
       result = await waitForRequests({library: v.library, after: v.after, claim: v.claim, waitMs});
     } else if (command === 'respond-to-studio-request') result = await respondToRequest({library: v.library, requestId: positionals[0], status: v.status, message: v.message, resultStage: v['result-stage']});
+    else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0]});
     else result = await inspectFailure(options);
     write({ok: true, event: 'result', command, ...result});
     return liveServer;

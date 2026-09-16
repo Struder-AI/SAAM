@@ -4,6 +4,7 @@ import {requireThat} from '../geom/tolerance.mjs';
 import {sectionGeometry,topAt} from '../geom/query.mjs';
 import {pointInRegion,pointSegmentDistance,regionArea,loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
+import {strokeRegion} from '../region/stroke.mjs';
 import {difference,union,intersect} from '../region/boolean.mjs';
 import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
@@ -68,7 +69,7 @@ function surfaceField(shell,query,step=0.5) {
 }
 
 function publishSurface(record,results) {
-  const {shell,start,end,plan,survey}=record;let footprint,query,kind,solidFootprint=null;
+  const {shell,start,end,plan,survey}=record;let footprint,query,kind,field,solidFootprint=null;
   if(has(record,'draped-skin')) {
     const spaced=spacingFactor(plan.skills['draped-skin'])>1;
     footprint=survey.skinRegion;
@@ -86,11 +87,29 @@ function publishSurface(record,results) {
     }
     query=(x,y)=>{if(spaced&&!covered(x,y,footprint))return null;const top=topAt(shell,x,y);return top&&top.patch!=='bottom'&&top.slopeDeg<=survey.limitDeg+1e-8?top.zMm:null;};kind=spaced?'sparse':'area';
   } else if(has(record,'vase-wall')) {
-    if(plan.skills['vase-wall'].pattern!==null)return null;
     if(plan.skills['vase-wall'].endTransition!=='level')return null;
-    const section=sectionGeometry(shell,end).loops,outer=section.filter(loop=>loopArea(loop)>0);
-    footprint=intersect(section,difference(outer,offsetRegion(outer,-plan.process.lineWidthMm)));
-    query=(x,y)=>pointInRegion([x,y],footprint)?end:null;kind='rim';
+    if(plan.skills['vase-wall'].pattern!==null||plan.skills['vase-wall'].meshSleeve){
+      const boundary=results.find(r=>r.levelBoundary)?.levelBoundary;
+      if(!boundary)return null;
+      const paths=[];
+      for(const stroke of boundary.strokes){
+        let path=[];
+        for(let i=0;i<stroke.volumesMm3.length;i++){
+          if(stroke.volumesMm3[i]>0){
+            if(!path.length)path.push(stroke.points[i].slice(0,2));
+            path.push(stroke.points[i+1].slice(0,2));
+          }else if(path.length){paths.push(path);path=[];}
+        }
+        if(path.length)paths.push(path);
+      }
+      footprint=strokeRegion(paths,boundary.widthMm,{arcToleranceMm:plan.skills['vase-wall'].boundaryToleranceMm/4});
+    }else{
+      const section=sectionGeometry(shell,end).loops,outer=section.filter(loop=>loopArea(loop)>0);
+      footprint=intersect(section,difference(outer,offsetRegion(outer,-plan.process.lineWidthMm)));
+    }
+    query=(x,y)=>covered(x,y,footprint)?end:null;kind='rim';
+    // A constant plane needs no raster search for a narrow bead footprint.
+    field={xs:[shell.bounds.min[0],shell.bounds.max[0]],ys:[shell.bounds.min[1],shell.bounds.max[1]],values:[[end,end],[end,end]]};
   } else if(has(record,'thick-lip')) {
     // A rolled/thickened rim is a terminal finish: nothing is expected to
     // print above it, so it publishes no consumable material top.
@@ -122,12 +141,12 @@ function publishSurface(record,results) {
     footprint=seen;
     kind=Math.abs(regionArea(missing))<=1e-5?'area':'sparse';
   }
-  const field=surfaceField(shell,query,plan.skills['draped-skin'].surveyStepMm);
+  field??=surfaceField(shell,query,plan.skills['draped-skin'].surveyStepMm);
   return {footprint,solidFootprint:solidFootprint??footprint,topAt:query,field,
     sourceOperationIds:[...ids(results),...(shell.processReservations??[]).map(r=>r.completion).filter(c=>c&&c.z>start+1e-8&&c.z<=end+1e-8).map(c=>c.operationId)],kind,sourceRegionId:record.assignment.id};
 }
 
-export function generateRegionResults({plan,machine,placed,componentShells,selections}) {
+export function generateRegionResults({plan,machine,placed,componentShells,selections,onProgress}) {
   const records=plan.composition.regions.map(assignment=>{
     const shell=componentShells?componentShells.get(assignment.part):placed;
     const localPlan=structuredClone(plan);localPlan.composition.regions=[];
@@ -201,7 +220,7 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
     if(has(record,'vase-wall')) {
       requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
       const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,
-        budgetSetting:`composition.regions[${plan.composition.regions.indexOf(assignment)}].skills.vase-wall.maxPoints (region ${assignment.id})`});
+        budgetSetting:`composition.regions[${plan.composition.regions.indexOf(assignment)}].skills.vase-wall.maxPoints (region ${assignment.id})`,onProgress});
       record.results.push(result);
     }
     if(has(record,'thick-lip')) {
@@ -225,7 +244,7 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
     requireThat(record.results.some(result=>result.operations.some(op=>op.strokes.length)),'Assigned region produced no material.');
     for(const result of record.results){
       const wall=has(record,'vase-wall'),roof=result.operations.some(op=>op.phase==='draped-skin');
-      if(wall&&localPlan.skills['vase-wall'].pattern!=null)continue;
+      if(wall&&(localPlan.skills['vase-wall'].pattern!=null||localPlan.skills['vase-wall'].meshSleeve))continue;
       publishFinishedBoundary(result,{shell,startMm:start,endMm:end-(wall&&localPlan.skills['vase-wall'].endTransition!=='level'?plan.process.layerMm:0),
         boundary:wall?'side':roof?'top':'shell',maxSlopeDeg:record.survey?.limitDeg??90,
         coverage:result.operations.some(op=>op.materialCoverage==='sparse')||(roof&&localPlan.skills['draped-skin'].spacingFactor>1)?'sparse':'nominal'});

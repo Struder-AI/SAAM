@@ -18,7 +18,7 @@ import {vaseWallResult} from '../scripts/vase.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
-  plan.skills['full-fill'].enabled=false;plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;
+  plan.skills['full-fill'].enabled=false;plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;plan.skills['vase-wall'].endTransition='spiral';
   return plan;
 }
 const taperedSpline={shape:'spline-shell',runMm:8,widthMm:6,cpU:4,cpV:4,longSideInsetMm:0.1,shortSideOutsetMm:0.1,heightsMm:Array.from({length:4},()=>[1,1,1,1])};

@@ -45,9 +45,18 @@ saved local copies. Toolpaths are generated when the tour needs them.
 The header's **Tour** button opens a fresh tour directly at the handle geometry
 lesson when no tour is active; no welcome pane precedes the part view. While a
 tour is active, it toggles lesson guidance. Completion has a separate
-congratulations panel. Pass the saved print path to reopen an existing tour; the
-header's **Resume tour** explicitly
-continues a paused lesson. Use the client's managed terminal/background session so it can
+congratulations panel. Exit or cancellation ends the tour run. Starting again
+creates a new run at lesson one; there is no Resume control or resume action.
+Earlier example copies remain saved as ordinary prints. Teaching requests carry
+run and lesson-visit identities; leaving a lesson cancels its pending teaching,
+and returning creates a new request. Cancelling an individual edit does not end
+the tour. Brief browser disconnects retain the run during Studio's existing
+30-minute grace period. Shutdown of the owning Studio ends the run and cancels
+pending work; reopening its saved print does not restore a tour. Closing an
+observer or a Studio that owned an earlier run leaves another instance's current
+run alone. This cleanup runs after accepted work drains; forced process death
+and cross-process atomic transitions remain unresolved with the file-based store.
+Use the client's managed terminal/background session so it can
 retain the process handle. The human-facing `npm run studio` alias still works,
 but the shared permission targets the direct command. Shell wrappers, different
 script spellings, inline Node code and custom development launchers are outside
@@ -95,6 +104,14 @@ or send Ctrl+C through that session. A client's stop-tool permission can still
 apply. Do not scan for and kill all Node processes. Leave a viewer open while
 the person is expected to review it. Existing manufacturing approvals still
 belong to the person.
+
+For Codex download testing, return browser control to the person before their
+download click. Ordinary clicks during agent control can be canceled by the
+desktop host. Agents should use the browser tool's supported download action;
+if the host reports a policy block, preserve it and let the person try with
+control returned. A completed HTTP response does not establish a saved file.
+Check browser completion or the saved bytes before reporting delivery success;
+see the [observed download behavior](../DEVLOG.md#2026-09-15--browser-control-and-download-completion).
 
 These allowances trust the launcher and its imported repository code; they are
 command matches, not an OS boundary restricting the process to previews or the
@@ -245,13 +262,15 @@ stops the previous selection's preparation before importing.
 Preparation workers are currently per Studio server, with no priority coordinator
 across Studio, CLI and MCP processes; starting earlier or preparing alternative
 choices would need that coordination to avoid competing with foreground work.
-During toolpath lessons, saved process or machine edits automatically trigger
-generation for the selected, geometry-confirmed part. A failed generation stays
+During toolpath lessons, saved process or machine edits trigger generation for
+the selected, geometry-confirmed part after active edits publish their saved
+input targets. Ordinary state reads never start speculative slicing. Production
+generation checks geometry confirmation before starting a worker. A failed generation stays
 actionable until inputs change or an explicit retry succeeds.
 A changed, unconfirmed shape temporarily shows the normal geometry review and
 dimensions within the current toolpath lesson. **Confirm geometry & return to lesson**
 or an explicit human chat confirmation resumes that same lesson and generates its
-current toolpath. Back, Next and Resume do not approve geometry; the import lesson's
+current toolpath. Back and Next do not approve geometry; the import lesson's
 explicit **Continue with this part** selection remains a confirmation action.
 The review says it is waiting for geometry confirmation and clears work dots/fading
 once the new shape is displayed, while the requested toolpath remains pending.
@@ -277,14 +296,56 @@ binds progress to the current print and plan.
 
 ## Agent request coordination
 
-The three animated dots immediately right of the logo work throughout Studio,
-including ordinary print flows. They represent active work on the displayed print,
-including loading its requested result. Queued requests and requests marked
-`waiting` do not animate. The viewport preview fades to 28% opacity from the same
+JSON request files remain authoritative; no database, migration or Node minimum
+change is required. A process-local index watches changed records and reconciles
+file metadata every five seconds to recover missed notifications. Warm operational
+polls avoid history reads/scans and return unfinished work plus the latest edit
+outcome per print, including completed results still awaiting display.
+Studio polls select only its open print; the agent listener covers the library.
+Explicit `list()` / MCP `get_studio_requests` with `history: true` retains complete diagnostic
+history and forces reconciliation. Cold discovery and periodic reconciliation
+still scale with file count, and index memory scales with request history.
+This index does not make cross-process claims or read/modify/write operations
+transactional. Run one handling agent per request; independent writers can race.
+Print, request and tour writes use unique temporary files and bounded retries
+for Windows sharing conflicts; a failed replacement retains the previous file.
+
+MCP print tools accept `requestIds` for the specific owned requests they handle.
+Actual tool entry/exit renews those working requests' contact leases. The CLI
+equivalent is `record-request-activity ID` through the agent toolkit; use it only
+when performing that request's work, never from a timer or idle listener. Activity
+does not claim, resume, complete or replace a result target. A long tool without
+further observable activity can still lose contact. Studio worker progress is a
+separate signal about calculation, not evidence that the agent is reasoning.
+
+Studio exposes **Cancel calculation** while its toolpath worker is calculating.
+Cancellation bypasses the normal mutation queue and stops the worker before
+saving. Once saving has started, the checked file and review writes finish.
+Cancellation creates no repair request and suppresses automatic retries for those
+inputs; explicit Generate retries. Changes to the calculation's inputs observed
+from another writer cancel obsolete calculation. View changes alone do not do so.
+This control covers Studio workers; direct CLI/MCP generation and custom adapters
+do not yet share a cross-process cancellation owner.
+
+Review metadata has its own update path. Approval, delivery history and generation
+mode changes update controls after fresh validation without replacing unchanged
+geometry or motion. Input/export changes still reload the presentation. Generation
+identity other than mode remains part of the presentation fingerprint. This is
+change detection; approval and delivery retain their current-byte checks.
+Background `set_tour_start_at` calls must include the `runId` and `lessonId` from
+their request scope or `get_tour`; the tour rejects a choice for an ended lesson.
+
+The three animated dots immediately right of the logo and the dimmed viewport
+are **Updating preview**, throughout ordinary Studio and the tour. They represent
+active edits to the displayed part and loading the requested preview. They are
+not a signal that the model is thinking or that a file is being exported. Chat
+guidance, advisories, queued requests and requests marked `waiting` do not
+animate. Downloads use their own progress overlay. The viewport fades to 28% opacity from the same
 activity state. Both clear immediately when the requested result is displayed
 and ready to use; an agent's later acknowledgement does not extend them. There
 is no working-status caption. Expiration instead displays
-italic *(request timed out)*; an observed MCP transport closure displays italic
+italic *(lost contact)*: the lease expired, which does not prove the host stopped
+reasoning. An observed MCP transport closure displays italic
 *(connection closed)*. A new active request restores dots, and a later completion
 clears the prior notice. Other active requests take precedence over notices. Requests persist under the print
 library’s hidden .studio-requests directory and have independent IDs, print IDs,
@@ -311,10 +372,10 @@ highlighting Play on its first use and does not restart the cue on Pause.
 Ordinary geometry confirmation switches to the rendered toolpath before sending
 its view acknowledgement, so completed loading clears the dots and fade.
 
-The maker agent calls MCP begin_studio_work as its FIRST operation, before even
-a chat acknowledgement, status lookup or analysis. It may omit printId for the
+The maker agent calls MCP begin_studio_work as its first operation for an edit,
+before a chat acknowledgement or status lookup. It may omit printId for the
 active tour or sole open Studio. CLI tour agents use begin-active.
-Studio-created guidance requests stay quiet until claimed. The agent claims
+Studio-created guidance requests stay visually quiet, including when claimed. The agent claims
 the request, sends guidance in chat or generates the requested change, then calls
 respond_to_studio_request. While guiding a tour, keep wait_for_studio_request
 active and repeat its waits (at most 25 seconds). This supplies events to an
@@ -337,7 +398,7 @@ round trip. Use `claim` only for requests received without that flag.
 After saving an edit and before generating, bind its request to those inputs with
 `target` (`geometry` or `toolpath`). MCP uses `respond_to_studio_request` with
 `status: "working"` and `resultStage`. Beginning work records the starting inputs;
-overlapping edits require explicit targets so one result cannot clear another
+every new edit requires an explicit target so an intermediate save cannot clear a
 request. Bind every included request when combining changes into one result.
 An intermediate result remains playable while another request keeps the dots
 and fade active. Pausing that remaining work with `waiting` restores normal
@@ -347,7 +408,19 @@ latest combined result. Failed, interrupted or superseded work can be failed,
 paused or cancelled without displaying its target; only actual dependencies
 require finishing an earlier result before continuing.
 Use `kind: "guidance"` (CLI `begin-guidance`/`begin-active-guidance`) for advice;
-finish it after delivering the answer. A geometry update cannot satisfy advice.
+finish it after delivering the answer. Advice never dims the preview or blocks a
+completed lesson. Pausing and claiming the same request preserves its original
+baseline, target and presentation record; publish another target if inputs change.
+
+`work-state.mjs` owns request activity and presentation matching for the UI and
+tour gates. `agent-requests.mjs` persists those records; `agent-ui.mjs` merges
+request snapshots by update time, so an older response cannot revive finished
+work. `app.mjs` owns preview loading. Tour metadata (including lesson readiness
+and start-layer choices) updates without reloading source or stopping playback.
+Only changed bundle content or a changed geometry/program data requirement
+triggers a full refresh. Listener waits are agent coordination, not preview work.
+View-ready responses return the presentation receipts they wrote, so the browser
+can settle those requests without a second acknowledgement or full state read.
 
 Presentation is recorded separately from request completion, against the exact
 displayed inputs and required stage. This survives viewer reconnects without

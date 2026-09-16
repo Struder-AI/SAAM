@@ -72,6 +72,7 @@ uses unwrapped rotary angles, including many revolutions without a modulo reset.
 | `sampleStepMm` | `1` | Maximum axial/circumferential sample spacing. |
 | `toleranceMm` | `0.01` | Circumferential chord tolerance. |
 | `maxPoints` | `500000` | Explicit generation budget; increase if a larger plan needs it. |
+| `offsetTightness` | `1` | For explicit spline surfaces, blend a fixed-size loose NURBS offset field (`0`) toward the exact unit-normal offset (`1`). Mesh-strip surfaces retain their existing exact normal interpolation. |
 
 By default, shared line width sets track spacing and helix pitch; `skinSpeedMmS` controls
 cladding speed. Intent volume uses rectangular bead area. Axial centers stay

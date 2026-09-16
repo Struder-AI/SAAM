@@ -4,10 +4,11 @@ import {layerHeights} from '../../full-fill/scripts/fill.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 import {lineSpacing} from '../../../core/path/spacing.mjs';
 
-export const RIMMING_DEFAULTS={enabled:false,spacingFactor:1,surfaces:[],sampleStepMm:0.5,toleranceMm:0.01,minFeatureMm:0.2,maxPoints:100000};
+export const RIMMING_DEFAULTS={enabled:false,spacingFactor:1,surfaces:[],sampleStepMm:0.5,toleranceMm:0.01,minFeatureMm:0.2,maxPoints:100000,offsetTightness:1};
 export function validateRimming(settings){
   requireThat(typeof settings.enabled==='boolean'&&Array.isArray(settings.surfaces),'Invalid rimming selection.');
   for(const key of ['sampleStepMm','toleranceMm','minFeatureMm'])requireThat(Number.isFinite(settings[key])&&settings[key]>0,`Rimming ${key} must be positive.`);
+  requireThat(Number.isFinite(settings.offsetTightness)&&settings.offsetTightness>=0&&settings.offsetTightness<=1,'Rimming offsetTightness must be between zero and one.');
   requireThat(Number.isSafeInteger(settings.maxPoints)&&settings.maxPoints>0,'Rimming maxPoints must be a positive safe integer.');
   requireThat(!settings.enabled||settings.surfaces.length>0,'Enabled rimming needs explicitly assigned surfaces.');
   const ids=new Set();
@@ -50,7 +51,7 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
       if(!baseHeights.has(u))baseHeights.set(u,supportBoundaryAt(patch,u,'base')[2]);
       return baseHeights.get(u);
     };
-    const report={surface:spec.id,mode,baseEdge:spec.baseEdge,supportedEdge:spec.supportedEdge,reason:spec.reason,layers:0,points:0,
+    const report={surface:spec.id,mode,offsetTightness:settings.offsetTightness,baseEdge:spec.baseEdge,supportedEdge:spec.supportedEdge,reason:spec.reason,layers:0,points:0,
       minOffsetZMm:Infinity,maxOffsetZMm:-Infinity,referenceTopMm:patch.bounds.max[2],printedTopMm:-Infinity,
       physicalValidation:'not performed',boundaryMatching:'Agent-assigned spline boundaries; no general CAD edge-matching proof.'};
     report.ordering='Complete the entire base edge before starting the rim; complete the entire rim before starting supported operations. Ready operations weave by physical height; rim pairs retain increasing original section height.';
@@ -58,7 +59,7 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
       if(z<=patch.bounds.min[2]+1e-8)continue;
       const chains=supportSurfaceSection(patch,z,{minFeatureMm:settings.minFeatureMm}),strokes=[];
       for(const chain of chains)for(const [track,offset] of [width/2,width/2+lineSpacing(width,settings)].entries()){
-        const samples=offsetSurfaceSection(patch,chain,offset,{mode,side:spec.outwardSide,toleranceMm:settings.toleranceMm,maxStepMm:settings.sampleStepMm,maxPoints:settings.maxPoints-pointCount});
+        const samples=offsetSurfaceSection(patch,chain,offset,{mode,side:spec.outwardSide,offsetTightness:settings.offsetTightness,toleranceMm:settings.toleranceMm,maxStepMm:settings.sampleStepMm,maxPoints:settings.maxPoints-pointCount});
         if(samples.length<2)continue;
         pointCount+=samples.length;requireThat(pointCount<=settings.maxPoints,`Rim ${spec.id} exhausted maxPoints=${settings.maxPoints}; increase ${skillId}.maxPoints.`);
         const volumes=[];
