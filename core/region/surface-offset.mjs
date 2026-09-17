@@ -7,7 +7,7 @@
 // collapse. This is not a constant UV offset. UV is retained throughout; there
 // are no closest-point searches, global flattening or inverse remapping passes.
 // Numerical integration/subdivision are construction work, not an independent
-// runtime validation pass. See DEVELOP.md for limits and reference status.
+// runtime validation pass. See BUILDERS.md for limits and reference status.
 import { requireThat, dot, cross, normalize } from '../geom/tolerance.mjs';
 import { surfaceDerivatives } from '../geom/surface-derivatives.mjs';
 import { clipperContext, clipPaths } from './clipper.mjs';

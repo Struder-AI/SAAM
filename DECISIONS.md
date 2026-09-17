@@ -17,9 +17,11 @@ onward record explicit user direction without attributed contributor identity; `
 scope for implementation. Earlier attributed approvals remain historical
 records and are not extended to later wording. In particular, [D-027](#d-027--export-only-print-persistence)
 owns current print persistence; D-015 and D-019 preserve the earlier wording.
+[D-033](#d-033--three-agent-roles) owns the current agent roles and
+entry-point routing; D-002 and D-013 preserve the earlier two-context wording.
 Work history belongs in [DEVLOG.md](DEVLOG.md). Decision quotations, approval
 events and approved wording retain their historical tense and dates under the
-[provenance exception](DEVELOP.md#documentation-maintenance).
+[provenance exception](BUILDERS.md#documentation-maintenance).
 
 Use a `## D-NNN — Title` heading and record `Status`, `Decision`, `Recorded`,
 `Approvals` and `Source`. The recording timestamp uses UTC ISO 8601 format.
@@ -76,10 +78,11 @@ will be useful.” Source R8: remettub clarified the destination is directly
 ## D-002 — One entry point, two agent contexts
 
 - Decision: AGENTS.md holds shared context and routes use and development roles; developers also load use context when testing. CLAUDE.md only points to AGENTS.md.
-- Status: provisional
+- Status: superseded
 - Recorded: 2026-09-08T20:26:47Z
 - Approvals: remettub — R1; tkeller — not recorded
 - Source: R1, “AGENTS is the entry point for both”.
+- Scope: The single entry point and the CLAUDE.md pointer remain current; the two-context split is superseded by D-033, which routes maker, builder and developer. The original approval metadata is preserved and is not extended to the three-role wording.
 
 ## D-003 — Contributor approval determines decision status
 
@@ -166,10 +169,11 @@ will be useful.” Source R8: remettub clarified the destination is directly
 ## D-013 — Maker agents
 
 - Decision: Call agents using SAAM maker agents; development agents also take that role when testing.
-- Status: provisional
+- Status: superseded
 - Recorded: 2026-09-08T22:28:14Z
 - Approvals: remettub — R3; tkeller — not recorded
 - Source: R3, “Let's call them maker agents.”
+- Scope: The name maker agent remains current. The single development-agent role is superseded by D-033, which separates builder from developer; “development agent” now covers both where the distinction is not needed. Original approval metadata is preserved.
 
 ## D-014 — Skills package manuals and tools
 
@@ -279,7 +283,7 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Recorded: 2026-09-10T08:39:05Z
 - Approvals: Current user explicitly directed this behavior and requested its recording; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in the infill/support task: “I do NOT like how deterministic slicers automatically scan the whole part and assign support area based on angle, so we will not be doing that.” Follow-up in the same message: “Record the decision. We will be using judgement to assign support areas.”
-- Scope: Active implementation instruction, including the user's 2026-09-10 rimming and ordering clarifications. Local geometry queries construct assigned supports and clearances; they do not decide where support is needed. Rimming uses assigned bivariate spline surfaces, two outward bead paths and bed/edge bases, with separate horizontal-offset and surface-normal-offset skills for comparison. The 45-degree lean preference is guidance. Both skills wait for the entire base edge, then finish before anything they support starts; among ready operations, prefer similar printing heights across skills. Planar boundaries are the horizontal case of these rules. The [rimming specification](skills/rimming-planar/DEVELOP.md#rimming-support-specification) owns the construction details. The three job approvals remain unchanged.
+- Scope: Active implementation instruction, including the user's 2026-09-10 rimming and ordering clarifications. Local geometry queries construct assigned supports and clearances; they do not decide where support is needed. Rimming uses assigned bivariate spline surfaces, two outward bead paths and bed/edge bases, with separate horizontal-offset and surface-normal-offset skills for comparison. The 45-degree lean preference is guidance. Both skills wait for the entire base edge, then finish before anything they support starts; among ready operations, prefer similar printing heights across skills. Planar boundaries are the horizontal case of these rules. The [rimming specification](skills/rimming-planar/BUILDER.md#rimming-support-specification) owns the construction details. The three job approvals remain unchanged.
 
 ## D-026 — Closest region entry first; defer heat considerations
 
@@ -333,3 +337,39 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Approvals: Current user explicitly authorizes implementation and recording; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in the Studio tour task (01a0a19d-25eb-7fa3-9e55-d1b97ee544fc), 2026-09-14 local time: “Automatically choose reasonable units after load, based on part size. Can always be changed later if needed. This applies outside of tour as well. Note this in decisions - and we will likely change this policy later down the road.”
 - Scope: Active user-authorized implementation. The shared importer owns the size heuristic and records the assumption; [print-tool guidance](core/print/USAGE.md#import-an-stl) describes the current thresholds and correction tools. STL itself does not encode units. Formal contributor consensus is not inferred.
+
+## D-031 — Incremental C++ migration of selected compute components
+
+- Decision: Adopt incremental migration of selected performance-critical components from JavaScript to C++, retaining JavaScript for Studio, agent tools and print workflow coordination. Choose components through profiling of representative large slicing jobs and move substantial operations behind shared interfaces, using packed data and batched calls. Keep SAAM usable throughout the migration.
+- Status: proposed
+- Recorded: 2026-09-16T02:30:59Z
+- Approvals: Current user explicitly selects this direction and requests its recording; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in the language-migration assessment task (01a0a806-e5b6-7b92-8511-0aff0e79e159), 2026-09-15 local time: “Okay so we can to incremental migration of select components from javascript to c++? That seems like the ideal approach”. Follow-up: “Great, record that intent as a decision.”
+- Scope: Agreed migration intent; this request records the direction, without starting a component port or committing to a full application rewrite. The first component remains to be selected through current profiling. Before replacing an implementation, compare geometry, tolerance semantics and machine output against the existing behavior, and measure the complete workflow benefit, including data-transfer and memory costs. Preserve shared skill composition, generation identity, review and exact-byte delivery contracts. Existing compiled backends and avoidable repeated work must be accounted for when choosing a migration target. No speedup, schedule or contributor consensus is established by this record.
+
+## D-032 — Separate standard and advanced vase-mode manuals
+
+- Decision: Expose standard vase mode and advanced vase mode as separate manuals and separate references in the skills digest. Standard mode covers conventional continuous spiral walls; advanced mode covers motifs, patterns and fitted mesh sleeves. Both use the existing shared vase recipe and slicer.
+- Status: proposed
+- Recorded: 2026-09-16T17:02:13Z
+- Approvals: Current user explicitly authorizes this split; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User in task 01a0ab09-9686-7160-a752-50132fd5baf7: “I've made the decision to have two "vase mode" skills (if we don't already). One is our a standard vase mode, similar to what all the other slicers would implement. The "advanced" vase mode uses our motif and pattern etc.” Clarification: “So have separate manuals, in other words, separate references in the skills digest”.
+- Scope: Active user-authorized manual/catalog split. It adds no independent recipe key, duplicated slicer or manufacturing approval; contributor consensus is not inferred.
+
+## D-033 — Three agent roles
+
+- Decision: SAAM work is done by three agent roles rather than two. A maker uses skills, makes parts, gives printing advice and operates Studio, and changes no shared code. A builder changes skills, extends Studio, makes isolated local changes to core, and makes parts to test that work. A developer works on core and across components and owns cross-cutting design. Each role has its own onboarding command and starting reads. An agent determines its role from the initial request and defaults to maker when unclear; it escalates maker to builder on any build request, announced first; it reaches developer only on the person's explicit request or an accepted proposal for major core work. Maker and builder agents suggest a fresh session past roughly 250k tokens on an unrelated pivot; developers are exempt. AGENTS.md remains the single entry point.
+- Status: proposed
+- Recorded: 2026-09-17T16:29:11Z
+- Approvals: Current user explicitly directed the three-role split; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User direction recorded in [DEVLOG 2026-09-16](DEVLOG.md#2026-09-16--three-agent-roles-and-documentation-restructure) and the reconciliation approved in [DEVLOG 2026-09-17](DEVLOG.md#2026-09-17--reconcile-role-context-and-the-map-contract). This is a summary of the preserved direction, not a verbatim quotation; the originating transcript is not available to this record. Recorded retroactively during a documentation audit, so the timestamp is the recording moment rather than the instruction.
+- Scope: Active user-authorized structure. It supersedes the two-context split in D-002 and the single development-agent role in D-013, whose attributed approval metadata is preserved; formal contributor supersession remains unresolved. Inheritance between roles describes responsibility, not a requirement to load every lower-role manual. Escalation carries the original request's authorization and no more. No manufacturing approval or contributor consensus is inferred.
+
+## D-034 — Adopt the PackIT region map contract for core and Studio
+
+- Decision: Adopt PackIT's single region source and leveled flow-map approach as the primary structural account of core and Studio. One Markdown region file owns both the agent-readable map and the human rendering generated from it; a box resolves to a child page, a named code declaration or a shared component. A component may be shared only where every use carries the same input/output contract, including units, frames, preconditions, errors, mutation and ordering. Every occurrence exposes calculated references to all other mapped occurrences, drawn as red vertical arrows with node indexes and never authored by hand. Skill implementations and client adapters are callers outside the mapped boundary. PackIT's restrictions on shared code, comments and prose are not adopted.
+- Status: proposed
+- Recorded: 2026-09-17T16:29:11Z
+- Approvals: Current user reviewed offset and perimeter examples and approved continuation; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User direction and review recorded in [DEVLOG 2026-09-17](DEVLOG.md#2026-09-17--core-and-studio-developer-maps) and [DEVLOG 2026-09-17](DEVLOG.md#2026-09-17--reconcile-role-context-and-the-map-contract). This is a summary of the preserved direction, not a verbatim quotation. Recorded retroactively during a documentation audit, so the timestamp is the recording moment rather than the instruction.
+- Scope: Active user-authorized documentation structure, owned by the [map contract](BUILDERS.md#maps-and-local-documentation) and the [map guide](maps/README.md). Structural checks resolve anchors, hierarchy, boundaries and shared-use references; they establish neither behavioral truth nor complete caller coverage, and the supporting prose, wires and semantic contracts are authored and unverified. Drawing a map does not authorize refactoring code to make the picture cleaner. Dev maps cover core and Studio only. No manufacturing approval or contributor consensus is inferred.

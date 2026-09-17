@@ -54,9 +54,9 @@ same local workflow. Its manual covers available tools and local stdio connectio
 Give your agent this repository and describe what you want to make. Agents start
 at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
-For a manual development trial, follow [setup and checks](SETUP.md)
-and the [wedge demo manual](skills/wedge-demo/SKILL.md). The demo produces a
-development preview; human job approval remains separate.
+For a manual development trial, follow [setup and checks](SETUP.md) and create a
+preview from a skill recipe. It produces a development preview; human job approval
+remains separate.
 
 Ask your agent to **open the SAAM tour**, or launch Studio after setup:
 
@@ -73,8 +73,12 @@ own print or explore freely. Exploring a demo grants no printing approvals.
 
 ## Reading and contributing
 
-Start with the [developer orientation](DEVELOP.md) for code or documentation
-work. Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
+Start with [role selection](AGENTS.md#choose-your-role) for code or documentation
+work; [builder orientation](BUILDERS.md) supplies the shared engineering baseline.
+The [developer maps](maps/README.md) describe core and Studio. Build their viewer
+with `node scripts/dev-map.mjs build`; agents use `read-map PAGE` through the
+agent toolkit for current source references and calculated shared uses.
+Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
 contributor choices, the [build requests](build_request.md#outstanding-work)
 for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work
 and evidence.

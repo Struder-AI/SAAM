@@ -16,7 +16,7 @@ test('six-stage regional stack keeps ownership, transitions and horizontal wavy-
   const r=await rhino();
   for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])for(const backend of ['mesh','spline']) {
     const machine=loadMachine(id),plan=regionalStackPlan(machine,backend),path=generatePath(plan,machine,r);
-    const deposition=path.actions.filter(a=>a.volumeMm3>0),order=[...new Set(deposition.map(a=>a.region))];
+    const deposition=path.actions.filter(a=>a.volumeMm3>0),order=[...new Set(deposition.map(a=>a.region).filter(Boolean))];
     assert.deepEqual(order,['base','wall','cap','roof-finish','above-roof']);
     assert.ok(deposition.filter(a=>a.region==='base').every(a=>a.to[2]<=0.4+1e-8));
     assert.ok(deposition.filter(a=>a.region==='wall').every(a=>a.to[2]>=0.6-1e-8&&a.to[2]<=1.2+1e-8));

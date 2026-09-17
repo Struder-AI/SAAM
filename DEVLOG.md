@@ -1,5 +1,1314 @@
 # Development log
 
+## 2026-09-17 — Fast line-network dice and explicit H2D setup metadata
+
+Added an explicit planar line-network skill for sparse frames and reinforced
+courses, then used it to represent the six separate weld-together dice faces
+without filling their envelopes. The generator accepts layer-specific strokes,
+keeps each named panel together in the composition order and publishes only the
+deposited centerlines. Full-fill and planar-infill gained outer-only perimeter
+scope, overlapping line spacing down to a 0.5 factor and stronger wall/fill
+tie-in behavior needed by the earlier filled-panel trials.
+
+Extended the experimental H2D setup and archive metadata for standard hardened
+0.4, 0.6 and 0.8 mm nozzles on either tool. Mixed-nozzle packages retain both
+diameters, identify hardened-steel nozzle type and preserve compound
+`.gcode.3mf` download names. Optional filament color and AMS slot 1–4 now flow
+through the locked plan and package; the v3 startup envelope renders the chosen
+slot consistently into its `M620`, `T` and `M621` commands. A locked custom
+prime-line record can override profile priming for a print that needs a more
+aggressive flow-start recipe.
+
+Focused software coverage includes line-network course selection, perimeter
+scope and overlap, plan migration/adjustment, Studio presentation, 0.4/0.6/0.8
+H2D metadata on both tools, AMS slot 4 command rendering, archive round trips
+and compound filenames. The earlier 0.8 hardware attempt exposed build-plate,
+nozzle-identification and AMS-selection warnings; this update addresses their
+declared metadata and command selection but has not yet been physically retested.
+The 0.6/0.8 paths and high-flow demo settings remain experimental and do not
+establish safe universal flow or temperature limits.
+
+## 2026-09-17 — Live agent/Studio sessions and review completion
+
+Replaced managed agent/Studio directory polling with a live request channel. One
+agent-owned request store can serve multiple Studio instances, each Studio instance
+has exactly one owning agent, and explicit session tools list and close those
+instances. Opening the same print in more than one owned Studio requires an
+instance selection before work is begun. Print bundles remain the durable,
+shareable interface between agents and Studios; request files are retained as a
+recovery journal and as a compatibility path for independent external writers.
+
+Studio toolpath review now presents the agent-suggested print name in an editable
+field. A person can replace it before export while the server preserves validation,
+sanitization and compound machine-program extensions. Presentation acknowledgement
+continues after two animation frames in the application, but the pure geometry and
+toolpath readiness predicate now lives in `studio/work-state.mjs`; presentation
+receipts are scoped to the Studio instance that rendered the result.
+
+The agent toolkit, persistent launcher and MCP adapter carry owner and instance
+identity through request, response, activity and presentation operations. The
+managed launcher accepts correlated live commands over its existing process stream,
+and the MCP adapter exposes Studio-session inventory and closure. Updated the Studio,
+agent and protocol maps and rebuilt the generated viewer.
+
+Verification: 42 focused request-index, Studio, toolkit, naming, readiness and work
+state tests passed. Four focused MCP notification/session tests passed, including
+one agent owning multiple Studios and same-bundle disambiguation. `git diff --check`
+passed apart from line-ending notices. The map viewer rebuilt to 81 pages and
+`dev-map check --built --since 0b2e1f8` passed. These are software checks; no
+machine execution, physical print result or manufacturing approval is established.
+
+## 2026-09-17 — Map-owned core and Studio reference
+
+Implemented the requested single technical documentation structure for core and
+Studio. Migrated 21 component/verification manuals into region-owned references,
+preserving old paths and heading links as compatibility routes. Added the Studio
+state/worker protocol reference. The system map now routes responsibilities,
+contracts and representative changes; 57 pages expose implementation entry points.
+Every scanned core/Studio production JavaScript module has a mapped declaration.
+This does not assert that every helper or dynamic relationship is explained.
+
+`read-map` returns one page, with separate contract-section, node, resource-inventory
+and detailed-evidence reads. The viewer embeds the same 23 reference sources.
+Developer onboarding no longer preloads skill catalogs or a parallel component
+manual hierarchy. Skill-only builders retain their authoring material and consume
+shared API contracts without needing implementation maps. Makers need no dev maps;
+builders changing core/Studio use the affected maps. Skills and adapters remain
+outside implementation scope while contributing caller evidence.
+
+The containment view labels and orders expectations: required implementation with
+unassessed or missing representation first, other required implementation next,
+then supporting references and verification, with out-of-scope files last.
+Native implementation is required but not declaration-analyzed; assets and tests
+need owning references/evidence, not production function boxes. Ownership does not
+turn enclosed or unrepresented declarations into explained behavior. Inventories
+include native source, HTML/CSS, assets, contracts and verification files; freshness
+includes those resources and the separate guidance inventory.
+
+Validation: focused map, reference, context/onboarding and manual-path-security
+checks passed, including file ordering, contract section identity, fenced code,
+legacy redirects, missing ownership, stale links and non-JavaScript freshness.
+Repository link/metadata checks, map build and `check --since HEAD --built` passed.
+Static SVG review found and fixed overlapping disconnected boxes after layout
+clamping; a regression test covers that case. Browser policy blocked local-file
+viewer access, so this task used static visual inspection and local rendering/
+navigation tests, not a live browser verification. No manufacturing behavior or
+hardware outcome is established by these documentation checks.
+
+Completed the subsequent semantic completeness pass after the user identified
+that consolidation alone was insufficient. Audited the production-file inventory
+against responsibilities and existing contracts, and added 51 source-grounded
+change contracts covering all 134 core/Studio implementation files. Each records
+responsibility/invariants, failures and limits, coupled changes and focused
+verification scenarios with source/test links. This includes native repair,
+plan compatibility and regional publication, numerical/mesh/surface operations,
+motion state, dialects/archives, machine models, Studio workers/imports/requests,
+rendering/resources and agent context. Supporting native build inputs and browser
+assets have explicit reference routes. Private declarations can remain enclosed
+by their owning responsibility; inventory ownership is not semantic coverage.
+
+Added exact-file responsibility declarations, agent indexes and per-file viewer
+links. A new production file cannot inherit a change contract through a directory
+scope. Missing contracts, stale sections/source/test links, duplicate assignments
+and ownership mismatch fail validation. Change reports now include the relevant
+contract read command. Expanded system-map change routes to fourteen concrete
+development scenarios and traced their invariants/couplings/checks against source.
+Corrected the distinction between explicit solid-modifier tessellation and viewer
+proxies, and between recipe review formatting and persisted display settings.
+Contract-section reads now return only that section's navigation links.
+
+Verification for this pass: all 43 focused map/context tests passed; after the
+section-navigation fix, the affected 10 reference/generation tests and manual-path
+security case passed. The four maintenance tests and role-onboarding case passed
+after their affected changes. These checks verify reference delivery, coverage
+obligations and drift detection; the authored behavioral account was reviewed
+against source rather than inferred from a green structural check.
+Final artifact validation resolved all 134 containment-to-contract routes and
+979 rendered reference links, and checked the requested containment ordering.
+The rebuilt viewer contains 57 flow pages, 23 references and containment.
+Repository checks passed for 107 Markdown documents and 1,448 local links;
+`check --since HEAD --built` and the final build-freshness check passed.
+
+## 2026-09-17 — Containment and change-focused map maintenance
+
+Kept authored abstractions and contracts while generating a complete core/Studio
+containment inventory in the existing viewer. Module bars show direct, enclosed
+and unrepresented declarations as proportions of each module's total. Inventory
+includes wholly unmapped modules; existing gaps are not an approved baseline.
+
+Added `check --since REF` to focus review on changed modules, named callables,
+mapped state and authored regions, including additions and removals. AST comparison
+ignores formatting but preserves semantic line-break changes. Module-level code,
+callbacks and contracts still require review. Added hashed build inputs and outputs,
+cached unchanged builds, `check --built` freshness verification and a guard against
+inputs changing during rendering. Agent guidance owns the required change review;
+ordinary code edits do not require per-node tests or the extractor regression suite.
+
+Validation: all 32 focused map tests passed, including containment, change review,
+stale artifacts and concurrent input changes. Real build, cached rebuild and
+`check --since HEAD --built` succeeded. Browser navigation verified inventory
+links return to their mapped pages. This detects drift and reduces review scope;
+it does not certify semantic contracts or infer every dynamic relationship.
+
+## 2026-09-17 — Code-derived relationships drive developer maps
+
+Integrated the code graph into `loadModel()`, the common source for the existing
+human renderer, toolkit `read-map`, and onboarding maps. All 40 pages now use
+generated internal relationships; authored internal arrows survive only as
+explicit semantic claims in the Doc view and agent context. Grouping, hierarchy,
+labels, full component contracts and external/boundary interactions remain
+authored. The approved renderer, layout and viewer design were not changed.
+
+Extended the earlier extractor with finite returned-object registry dispatch,
+selection-aware value flow, local class methods, named message handlers and
+lexical state dependencies. Added the Studio source worker handler and retained
+program storage to the source page. Unknown alternatives remain reported beside
+known targets; direct alias mutations invalidate literal-object resolution.
+Calls, returned values, argument flow, state dependencies and possible worker
+delivery retain separate kinds and source evidence. Authored claims cannot keep
+a deleted call's wire visible. Shared red references still calculate all other
+occurrences, including same-page uses; unmapped callers receive no invented index.
+
+The build writes the viewer, SVGs, concise region context, full graph and coverage
+evidence. The supporting evidence command now consumes that same generated
+model. Current extraction scans 184 modules and projects 314 displayed internal
+endpoint pairs across 342 nodes. Core/Studio inventory is 162 direct, 2,673
+enclosed and 4,151 unrepresented declarations; the callable subset is 160 direct,
+739 enclosed and 1,541 unrepresented. These counts do not imply full behavioral
+coverage. There are 8,744 unresolved/partially resolved sites, including external
+APIs, and 249 discovered caller sites without direct mapped nodes.
+
+Validation: 28 focused tests passed across `dev-map.test.mjs`,
+`dev-map-evidence.test.mjs` and `dev-map-generation.test.mjs`. The code-only
+mutation fixture verifies changed SVG wiring and changed agent region output
+without changing the authored map; it also checks visible stale claims,
+unresolved calls and rendered same-page red references. Real toolkit CLI output
+matches the model's output and worker regions. The selected agent-toolkit
+onboarding-role integration test passed separately. Build/check resolved all
+40 pages. Browser inspection covered the real overview and rendered output,
+worker-state and shared-reference diagrams. User feedback accepted the visible
+appearance while explicitly not claiming code-accuracy verification.
+
+Remaining analysis limits are explicit in map context and the map guide:
+arbitrary callback/mutable dispatch, escaped mutations, inheritance, dynamic
+imports, native-thread worker channels and request/response correlation are not
+fully resolved. No execution order is inferred from sibling call order. Enclosed
+factory code is not individually explained; new functions enter inventory but
+do not automatically become boxes. Projection through unmapped helpers is
+bounded to six call/handoff steps. These are static software relationships,
+not runtime observations or physical evidence.
+
+## 2026-09-17 — Report-only code-derived developer-map pilot
+
+Implemented lexical/import/alias resolution and exact source evidence in
+`scripts/dev-map/graph.mjs`, with declaration containment, typed relationship
+projection and shared-caller reports in `scripts/dev-map/evidence.mjs`.
+`node scripts/dev-map-evidence.mjs` regenerates the ignored JSON graph, comparison
+report and readable report. The existing viewer, region wiring, red-link behavior
+and manufacturing implementation were left unchanged. The pilot operates in the
+saved checkout alongside the separately maintained human context maps.
+
+Measured 184 .mjs modules across core, Studio and inbound skill/adapter callers.
+Core/Studio inventory: 160 directly mapped declarations, 2,666 merely enclosed,
+and 4,160 unrepresented. The callable subset is 159 direct, 739 enclosed and
+1,542 unrepresented; local variables and callbacks explain why these denominators
+differ. Parameters/destructured bindings resolve scope but are excluded from the
+inventory. No combined coverage percentage is claimed.
+
+The graph derives 5,020 calls, 1,009 assigned/returned call results, 670 direct
+argument value flows and six possible worker handoffs. Of 451 authored wires,
+167 have structural endpoint evidence only, 187 are boundary claims, 93 have
+unresolved source sites and four lack established support in this extractor.
+There are 130 omitted typed page connections and 242 caller sites of mapped
+components without direct map nodes. Of 6,705 derived relationships, 458 occur
+in supporting endpoint paths and 6,247 are absent from the bounded comparisons;
+4,895 have an unrepresented endpoint. These are distinct measurements, not counts
+of proven runtime behaviors or declarations that require individual boxes.
+
+The 9,122 unresolved call/constructor sites comprise 7,287 dynamic members,
+942 external/unbound identifiers, 539 unresolved imports, 249 unresolved local
+values, 87 parameter targets, 13 mutated bindings and five unsupported callee
+expressions. External APIs and deliberate extractor limits contribute to this
+count. Unresolved is not absent; unsupported is not disproven.
+
+The 6_output pilot derives pipeline-to-outputAdapter and pipeline-to-advisory
+calls plus the adapter result return, while leaving object-dispatched exporters
+unresolved. The 7b_source pilot derives the fetch result supplied to decodeSource
+and paths from sourceSession through the Worker handler to fetch/decode/bind.
+Session-to-decode and session-to-bind endpoint paths are omitted from that page.
+Mutable program state, response-ID routing and control sequence are not inferred.
+The registry's interpretGriffin wrapper is an example of a discovered unmapped
+caller, separate from the two existing calculated mapped occurrences.
+
+Validation: 22 focused tests passed using
+`node --test core/tests/dev-map-evidence.test.mjs core/tests/dev-map.test.mjs`.
+They cover shadowing, aliases/imports/re-exports, mutation, default parameter
+scope, anonymous functions, value-flow evidence, both worker directions,
+reassigned workers, unsupported/unresolved/omitted cases, containment, all current
+map anchors, same-page shared indexes and non-mutation of the map model.
+Proposed relationship typing and evidence-backed authoring changes are reported
+for review; broad replacement of the forty authored pages was not performed.
+
+## 2026-09-17 — Documentation revamp audit
+
+Audited the three-role restructure and the dev maps. Verified against source:
+`dev-map check` reports the recorded 40 pages and 340 nodes; `check-repo` reports
+only the six known issues; 24 focused map/role/manual-access tests pass;
+onboarding context sets for maker, builder, builder `--area`, and developer
+`--area` match their manuals exactly; `read-map` on a child returns its whole
+owning region with shared contracts. 86 documents were link- and anchor-checked.
+
+Context maps corrected against the toolkit. The user's point was that the maps
+must reflect what onboarding actually returns. They did not. `builder-onboarding`
+returns six documents and no maps, but the map drew only three as delivered and
+showed MAKERS, print tools and skill authoring as merely mentioned; those three
+wires are now the blue-dashed delivered set, so all six read as one call. A panel
+now states the base set explicitly and tables every `--area` flag against the
+contracts and region maps it adds, and nodes were added for the area contracts that
+had none: MCP development, tests, machine models, plus benchmarks, the region
+verification reference and the fourth skill `DEVELOP.md`. On the maker map the tour
+path was invisible although it replaces onboarding and delivers a different set;
+`start-tour` now shows as its own action delivering MAKERS with tour participation,
+and the prose records that `begin-studio-work` returns no manuals at all.
+
+[Context-map tests](core/tests/context-map.test.mjs) now assert the blue-dashed sets
+equal the toolkit's maker and builder context sets exactly, that both return no maps,
+that every `--area` contract has a node, and that no node links to a missing file.
+Hand-drawn maps drifted twice; this makes the drift fail a check instead.
+
+Corrections made. The user spotted the stale context maps: the maker map's four
+slice tooltips still routed implementation content to the abolished developer bin
+and to a `DEVELOPER-CONTEXT.md` section that moved into `maps/9_agent.md`, while
+the same file's header prose had already been updated — they now name the owning
+region maps and `scripts/bench/region-reference.md`. The builder map's two map
+nodes had no wires at all, so nothing showed how a builder reaches them and hover
+did nothing; they are now wired from `BUILDERS.md` with a `read-map` action, a
+`maps/README.md` node was added because the map guide was unreachable, and the
+generated viewer node says to build first. Its legend gained the blue-dashed
+swatch its prose already promised.
+
+`GLOSSARY.md` still defined two agent roles and none of the map vocabulary; it now
+defines maker, builder and developer agents, keeps `development agent` as the
+umbrella for the latter two, and adds dev map, region, map page, operation address,
+shared component, shared-use reference and context map. Ownership entries were
+added for the map guide, the region index and the two context maps, which had no
+recorded owner. `dev-map.mjs read` was removed as a duplicate of `read-map`, and
+`maps/0_system.md` now points agents at `read-map`; the viewer was rebuilt.
+
+[D-033](DECISIONS.md#d-033--three-agent-roles) and
+[D-034](DECISIONS.md#d-034--adopt-the-packit-region-map-contract-for-core-and-studio)
+record the three-role split and the map-contract adoption, which had no decision
+records. D-002 and D-013 are marked superseded with their original approval
+metadata preserved. Both new records are retroactive summaries of DEVLOG-recorded
+direction, not verbatim quotations.
+
+Findings left open. `.github/workflows/test.yml` runs only `npm run setup:check`,
+so the map checks and `check-repo` — the mechanical half of the maps' freshness
+guarantee — are enforced only when a contributor runs them locally. `check-repo`
+walks `*.md` only, so the two context-map HTML files are never link- or
+coverage-checked; that is why the stale nodes survived. The viewer's Doc pane
+renders region-prose Markdown links as literal text, because `md_to_html` in
+`scripts/dev-map/viewer.py` handles code, bold and italic but not links, so the
+routing half of the map contract does not reach people. The builder map still
+omits nodes for the test reference, benchmarks, MCP development, machine models
+and `skills/wave-overhangs/DEVELOP.md`. `--area path` returns `core/path/README.md`
+without `2_generation`, whose caller contract is that same file. No skill has a
+`DEVELOPER.md`, so `read-skill --developer` is a documented but empty tier.
+Smaller text errors remain in `core/agent/README.md` ("both examples" for three
+tour examples, a mislabeled `maps/9_agent.md` link, `record-request-activity`
+absent from the command table) and in `core/region/README.md` (two links to the
+benchmark reference labelled "developer maps"). No code or manufacturing behavior
+changed; nothing physical was tested.
+
+## 2026-09-17 — Core and Studio developer maps
+
+Implemented 40 pages (340 nodes) from ten region Markdown sources, using the
+PackIT leveled layout and viewer. The user reviewed offset/perimeter examples
+and approved continuation. The system overview leads to lifecycle, generation,
+geometry, regions, motion, output, Studio, machine presentation and agent tools.
+Skill implementations and client adapters remain outside the mapped boundary.
+
+The generator resolves named JavaScript declarations through Acorn, checks
+hierarchy and boundary labels, rejects two-node pages and ambiguous/raw repeated
+anchors, and calculates every other mapped occurrence for each shared component.
+Human diagrams show those occurrences as red downward arrows and indexes;
+agent packets expose the same references with the shared input/output contracts.
+The viewer retains the exemplar layout and optional code/Doc interactions;
+supporting prose stays behind Doc. Generated artifacts are ignored and rebuilt
+from source, while agent reads resolve the current checkout without Python.
+
+Added `read-map PAGE` and selected-area map packets to onboarding. Developers
+receive the system overview; skill-only builders and makers receive no maps.
+Repeated regions are deduplicated. Developer onboarding does not force maker
+workflow or individual skill manuals. The implementation bin is absorbed into
+region context, with numerical reference procedures under benchmark guidance.
+Both role context viewers and owning manuals now point to these sources.
+
+Tracing the maps corrected a draft travel sequence: recovery precedes combed
+travel and follows clearance travel. No manufacturing implementation changed.
+Maps and checks establish a structural account, not a proof of behavior or an
+exhaustive inventory of every helper/caller.
+
+Verification: all 40 pages built and passed declaration/boundary/shared-use
+checks; 17 focused tests passed for map drift/reuse, role/context selection and
+manual access. All 89 checked guidance links and headings resolved. Browser
+review covered overview, offset/perimeter recovery, radial contact, travel and
+Studio drawing layouts, navigation, declaration code and shared references.
+
+## 2026-09-17 — Selective skill-role reads
+
+`read-skill ID` now accepts independent `--maker`, `--builder` and `--developer`
+flags, selecting package `SKILL.md`, optional `DEVELOP.md` and optional
+`DEVELOPER.md`. No flags preserves the maker read. Combined flags return only
+the selected source documents; missing optional roles are reported explicitly.
+The existing file split is reused rather than duplicating manual content.
+Builder guidance now requires maps for core/Studio changes or investigation of
+their internals, not every skill-script change. Dev maps cover core and Studio.
+
+Verification: focused CLI onboarding and role-selection tests passed (2 tests),
+including combined reads, builder-only reads, source equality, absent optional
+manuals and rejection of unknown skills. No manufacturing behavior changed.
+
+## 2026-09-17 — Reconcile role context and the map contract
+
+The user approved the documentation reconciliation after reviewing checkpoint
+`04f66db`, with no temporary map-unavailability routing. [AGENTS.md](AGENTS.md)
+and [BUILDERS.md](BUILDERS.md#maps-and-local-documentation) distinguish inherited
+responsibilities from required reads. Builders read relevant maps for skill,
+Studio and isolated core changes; reading an implementation reference does not
+change their role. Caller-facing contracts remain available to the roles using
+them instead of classifying whole mixed manuals as developer-only.
+
+The map contract records one region source for agent text and human rendering,
+shared components only under the same input/output semantics, and calculated
+red vertical arrows listing every other map occurrence by node index. Both agent
+and human views must expose these references. Structural checks do not establish
+behavioral truth or caller completeness. Maps carry the structural account;
+comments/docstrings assume the map has been read and require specific local
+value. Concise useful rationale and contracts remain permitted. PackIT's region
+source, vision and style were the reference; its strict documentation and
+atomization policies were not adopted.
+
+The [developer bin](DEVELOPER-CONTEXT.md) now contains the implementation slices
+previously left in its manifest: region kernel/construction and verification
+details, Studio request indexing/presentation, and output dispatch/validation
+integration. Owning manuals retain caller behavior, limitations and links.
+The scoped reference index includes machine presentation and distinguishes
+contracts from internal mechanics. Developer onboarding reads only the bin's
+orientation/index; implementation slices are separate existing `read-guidance`
+section reads. Role labels and both documentation-navigation HTML maps were
+reconciled. No code-anchored region maps or new skill-section flags were built.
+
+Verification: the focused three-role CLI onboarding test passed, including exact
+orientation text and a selected implementation-section read without neighboring
+sections. `git diff --check` passed. `check-repo` reports only existing issues:
+BR-045's `open.` status and five links to removed `build_request.md#br-*` anchors.
+No printing or physical behavior changed or was tested.
+
+## 2026-09-16 — Three agent roles and documentation restructure
+
+The current user directed a move from two agent contexts (maker, developer) to
+three: **maker** (uses skills, makes parts, gives printing advice, operates
+Studio; changes no shared code), **builder** (changes skills, extends Studio,
+makes isolated local core changes, makes test parts), and **developer** (works on
+core and across components; maps-native). The agent determines its role from the
+initial prompt, defaults to maker when unclear, escalates maker→builder on any
+build request (announced, then `builder-onboarding`), and reaches developer only
+on the person's explicit request or an accepted proposal for major core work.
+Maker and builder agents suggest a fresh session past ~250k tokens on an
+unrelated pivot; developers are exempt.
+
+Structure changes: [AGENTS.md](AGENTS.md) now routes by role, escalation and
+session-switch. `DEVELOP.md` moved to [BUILDERS.md](BUILDERS.md) (builder
+orientation, includes maker context) with its externally-referenced anchors
+preserved; all root `DEVELOP.md` links were repointed there (component
+`DEVELOP.md` files untouched). A new transitional [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md)
+is the developer handoff: it holds the developer-only sections physically lifted
+from `core/agent/README.md` (implementation and verification),
+`core/export/README.md` (stationary-extrusion motion writer) and
+`studio/README.md` (historical toolpath inspection), plus a dev-bin manifest
+that catalogues, with anchors, the interwoven dev-only material still living in
+the region READMEs (Clipper2 kernel, export interoperability internals, Studio
+request-index/work-state internals) for the dev maps to absorb, and an index of
+the wholesale developer-only documents.
+
+Onboarding now takes roles maker/builder/developer
+([core/agent/toolkit.mjs](core/agent/toolkit.mjs), [scripts/agent-toolkit.mjs](scripts/agent-toolkit.mjs));
+`developer-onboarding` was renamed to `builder-onboarding` and a new
+`developer-onboarding` added. [manuals.mjs](core/agent/manuals.mjs) admits the new
+root docs and aliases. The [agent toolkit manual](core/agent/README.md) documents
+all three. The [maker](maker-context-map.html) and [builder](builder-context-map.html)
+context maps were updated to the new state (the developer context map became the
+builder map); the code-anchored developer region maps are the next phase.
+
+Judgement call on the reorg depth: cleanly-detachable dev-only sections were
+physically moved to the handoff; large interwoven ones were catalogued in place
+with precise anchors rather than butchered, since the dev maps are meant to
+re-own that content and most of the handoff is expected to disappear once they
+exist. Verified: `agent-toolkit` (three-role onboarding) and `mcp` tests pass;
+`check-repo` shows only pre-existing `build_request.md#br-*` anchor issues. The
+prior working tree was checkpointed first (commit before this work).
+
+## 2026-09-16 — X1 Carbon, Ultimaker 2 Extended and Ultimaker 3 profile definitions
+
+The current user requested an X1 Carbon profile, confirmed the standard hardened
+0.4 mm nozzle with PLA, and clarified that materials must remain changeable.
+They also requested Ultimaker 2/3 profiles, correcting the installed 2-series
+model to the original "ultimaker 2 extended" after initially choosing 2+.
+The resulting IDs are `bambu-x1-carbon`, `ultimaker-2-extended` and `ultimaker-3`.
+
+The profiles declare hardware/coordinate bounds, conservative rectangular tool
+areas outside cutter/clip regions, temperature/feed limits, installed nozzle
+assumptions and editable PLA defaults. X1 also declares PETG, ABS, ASA, PC and
+95A-class TPU; both UltiMakers also declare ABS. These are bounded starting
+settings, not a general material-library port or physical calibration.
+Official Cura/Bambu profiles and manufacturer documents are linked in the files.
+Shell defaults now enable drape only for a machine declaring nonplanar support.
+
+The definitions are usable for geometry/setup review and remembered settings.
+All three explicitly declare unavailable output, and the shared lifecycle now
+reports the output reason before path generation. H2D firmware routines are not
+reused on X1; S5 startup is not reused on UM3; UM2 Extended's volumetric UltiGCode
+is not treated as filament-length Griffin. No startup position was invented.
+The remaining output work is [BR-051](build_request.md#br-051--complete-output-for-the-three-new-printer-profiles).
+
+Verification: all 9 tests in `printer-profiles.test.mjs` and
+`interoperability.test.mjs` passed, plus the focused MCP SDK catalog/persistence
+test. This covers material/temperature changes, remembered setup, tool-bound
+rejection, core/tool selection, planar defaults, early unavailable-output errors,
+and catalog discovery. Existing S5/H2D default and H2D export checks pass.
+No physical printing or new machine output was tested. Changes are uncommitted.
+
+## 2026-09-16 — S5 sacrificial priming before shell prints
+
+The user reported missing priming on the desktop `stress-mesh-hi-fi-20260916.gcode`.
+Inspection read only the first 3,072 and last 2,048 bytes of the 98,930,655-byte
+file, as requested. It starts with `G92 E0` and a stationary `G1 E6.5 F1500`
+before the first model wall; its last E move withdraws 6.5 mm. Thus that file
+already matches the configured terminal retraction, but has no sacrificial
+priming strokes. This does not establish any additional firmware withdrawal
+or the physical reason for failed initial extrusion.
+
+S5 profile revision 7 supplies two connected 100 mm passes to shell generation.
+The shared path helper places them outside geometry and generated stroke bounds,
+including supports, with 4 mm clearance and bead-width allowance at the bed edge.
+It uses locked first-layer settings and normal flow caps, restores the initial
+retraction at the prime, then retracts/lifts before entering the model. Ordinary
+SAAMpath/export interpretation includes prime material, timing, bounds and Studio
+playback. Insufficient space is reported rather than silently omitting priming.
+The bounded wedge retains its existing prime line; older snapshots and other
+profiles retain their startup. The desktop export was not modified or regenerated.
+
+All 26 selected tests passed across priming, pipeline, export, modal emission,
+travel and source playback. Coverage includes both S5 nozzles, zero/6.5 mm
+retraction, support extents, bed-edge fallback, no-space rejection, snapshot
+compatibility and exact-source Studio playback. No physical print was performed.
+
+## 2026-09-16 — Shared Thingi10K search and download
+
+The user requested built-in mesh retrieval for descriptive searches such as
+"fetch me a bunny", plus mirror lookup for supplied Thingiverse links and a
+manual-download fallback when absent. The existing preference for tailored
+geometry remains in MAKERS, clarified to apply when making it is attractive.
+Every downloaded mesh now returns a brief source notice and its license link;
+the maker guidance and [task manual](skills/thingi10k/SKILL.md) require that link
+in chat even when strict mesh import fails. The mirror provides unversioned
+per-file license labels, so the link goes to the original model's license section
+and no exact legal version is inferred.
+
+The shared skill implements keyword/name/tag/filename search, per-file selection,
+Thingiverse thing lookup, bounded individual HTTPS downloads and cached metadata
+from Hugging Face revision `2d5d3b2f3cd3711028ad75b12788c13b25559ec6`.
+CLI and MCP use the same library and STL importer. Downloads retain source bytes,
+hash and attribution; successful imports carry attribution in the saved source
+record and delivery copies it beside the reviewed machine program. Failed import
+retains the original for explicit preparation. No new dependency, remote scraping,
+automatic repair or manufacturing approval was introduced.
+
+Six skill tests and four existing MCP-access tests passed. Coverage includes
+quoted CSV names, keyword and Thingiverse/file identity, pagination, persisted
+cache reuse, incomplete metadata, network errors, redirects, download limits,
+interrupted streams, failed-import recovery, and the SDK MCP search/import/Studio
+review route. Synthetic fixture delivery preserved exact reviewed bytes and
+source attribution through unit correction. Live CLI checks found 67 bunny files,
+resolved Thingiverse thing 151081 to file 293137, and returned the user-download
+fallback for an absent thing. One upstream file (68807) lacks contextual metadata;
+it remains discoverable with an explicit missing-creator indication.
+
+The live import downloaded Low Poly Stanford Bunny by johnny6, listed as
+[CC BY-SA at its source](https://www.thingiverse.com/thing:151081#license), into an
+isolated unapproved local test bundle. Source SHA-256 was
+`4a222346223cf2c207c34d7a3d4e8ea297b004ff862b06b6e4c7c2eeac9f761a`.
+This establishes software download/import behavior, not physical printability.
+The refreshed capability digest and new manual links passed their relevant
+checks; the repository-wide documentation check still reports the pre-existing
+BR-045 status and stale backlog anchors for BR-005, BR-018, BR-023 and BR-039.
+
+## 2026-09-16 — Stress mesh hi-fi completion and separate vase manuals
+
+The user established **stress mesh** as the term for the local Spiral Vase input
+and requested the single hi-fi alias for full mesh fidelity. They also explicitly
+chose separate standard/advanced vase manuals and separate skill-digest entries,
+clarifying that the distinction is in discovery and documentation. Standard
+`vase-wall` and `advanced-vase-wall` now have separate manuals/catalog entries
+while retaining the same `skills.vase-wall` recipe and generation implementation.
+[D-032](DECISIONS.md#d-032--separate-standard-and-advanced-vase-mode-manuals) records
+that instruction; the glossary identifies the stress mesh and both modes.
+
+The latest saved recipe from the previous evening was
+`.local/motif-speed/worktree/Prints/development/correct-cgal-medium-fidelity`.
+It retained the repaired 8,076-triangle stress mesh, the 33-point motif with
+4.8 mm depth, 36 cells per turn and 579 body courses plus two flat ends.
+The motif hash is `734d7f601aadcdebdb4f1b5d7d92f07d4ef9142b69f5ee2ad3c61bd2e90fc99b`.
+Only `meshSleeve.fidelity` changed from 0.5 to 1; the latest recipe's independent
+0.2 mm detail tolerance, loose offsets, Bambu H2D and PLA settings were retained.
+The prior 0.1 mm contact-detail rejection therefore does not describe this recipe.
+
+Public bundle initialization preserved source bytes and left the old print intact.
+Development generation at `Prints/development/stress-mesh-hi-fi-20260916`
+completed all 581 courses at 125.242 s, composition at 127.726 s, and checked
+export/persistence at 143.475 s. It produced 2,163,709 checked moves, with export
+SHA-256 `b6caeff64020e151a3e5497748f1cfd221c6c88ca78b4133349698092059d285`.
+The complete observed slicing time was 2 minutes 23 seconds; no remaining-time
+extrapolation was needed when completion was reported. This is a development
+preview with no new human approvals or physical print result. Progress and the
+result record are under `.local/vase-speed-20260916/stress-hifi-*`.
+
+The three skill-digest tests passed, and the regenerated digest includes both
+manuals. The repository documentation check reported no errors for the new
+manuals/catalog or relocated references; it still reported unrelated existing
+backlog status and stale backlog-anchor errors.
+
+## 2026-09-16 — Vase contact speed and local loose-offset curvature limiting
+
+The user requested a bounded high-fidelity motif-vase timing run, followed by
+slicer speed improvements, then requested over-curvature handling that preserves
+one smooth sleeve by limiting offsets locally. The shared manuals define motif
+mapping and numeric fidelity, but do not identify a named “gauntlet” example or
+“hi-fi” preset. The diagnostic therefore used the saved repaired stress-vase
+candidate at `.local/motif-speed/worktree/Prints/development/correct-cgal-full-fidelity`;
+that identification remains provisional. Its source is the 8,076-triangle CGAL
+repair `aec0bf6018d998ce743c2c4cdb4158e47c37caca7ae20a60d8fb803b46ecd0db`,
+with fidelity 1, 0.1 mm contact detail, 36 cells per turn and 581 total courses.
+
+On Node v24.19.0 / Intel i7-9750H, the initial generation rejected a source-contour
+fold at Z 27.565625 mm after 108.210 s; a repeated baseline reached the same
+rejection in 89.344 s. Early throughput suggested approximately 5–10 minutes for
+a complete job if subsequent geometry were accepted, but the actual rejection
+precludes a completion estimate for that unchanged recipe. A separate bounded
+CPU profile attributed roughly half its sampled time to triangle-distance
+arithmetic and temporary vectors during mesh-ledge validation. Scalar arithmetic
+replaced those vector allocations without changing the distance method or budgets.
+The same full-height input then reached the identical rejection in 46.088 s.
+
+A separate 26.8 mm / 131-course fixture retained the source, motif, fidelity and
+tolerances for a completed-output comparison. Generation changed from 75.052 s
+to 43.767 s, and checked export from 4.017 s to 4.095 s: 79.069 s versus 47.862 s
+after geometry load (1.65× faster). Plan/machine hashes matched between trials,
+as did all 564,318 checked moves, travel metrics and the 9,156,497-byte export:
+`53f4112814c63f5f353280fedc710e7708f2b3fe4a6444a65c0fd7f6a14e7a3e`.
+The final trial includes the curvature limiter. These are individual local
+measurements, not a statistical hardware comparison or a full-height success.
+Evidence and original module snapshots are under `.local/vase-speed-20260916`.
+
+The loose-offset implementation now reduces local control depths when its sampled
+Jacobian would fold, preserving the same NURBS control layout and periodic seam.
+It checks the displacement path as well as its endpoint, retains ordinary offsets,
+and reports reductions. This is separate from source-mesh contact; it does not
+resolve the source-contour rejection above or certify global self-intersections.
+The shared geometry manual owns the algorithm and limits. All 27 selected distance,
+contact, loose-offset, sleeve, vase, cladding and rimming tests passed, including
+deep over-curvature, local retention, seam/weight preservation and checked export.
+The benchmark now retains progress, errors and CPU profiles after cooperative
+time-budget interruption. No saved print approvals or source bundles were changed,
+and no machine execution or physical validation occurred.
+
+## 2026-09-15 — Browser control and download completion
+
+The inherited download investigation reproduced canceled ordinary agent clicks
+for both the small text control and the streamed medium-vase package. Installed
+Codex desktop 26.908.4834.0 cancels ordinary downloads during agent browser
+control unless its supported download action has registered the download. That
+action reached save-path assignment but reported a local-policy block in this
+session. No security settings were changed.
+
+After browser control returned to the person, the same streamed package saved
+successfully to the configured Desktop folder without Save As. The browser
+record reports completion and 31,991,449 bytes; the saved file SHA-256 matches
+the approved package:
+`0c24656319d52d7e064c0cf4e94565bd59046c93f7eca9987ba4deace3cb7310`.
+This establishes successful large-file delivery and a control-state failure
+in the automated reproduction. It does not establish the cause of every earlier
+human-click failure or retest Studio's final confirmation button. The working
+procedure is documented at Studio's client guidance; no further download code
+change was required for this successful transfer.
+
+## 2026-09-15 — Shared checkpoint and publication
+
+The user requested committing and pushing the checkout's pending work on
+`codex/provisional-goalpost`. Existing geometry and workflow verification above
+was reused. Focused Studio material, settings and movie checks passed (19 tests)
+for the pending playback changes; the diff whitespace check passed. Large-file
+browser download completion remains unresolved as described below.
+
+## 2026-09-15 — Loose spline mapping and full-height dense vase preview
+
+The approved extension to pipe cladding and both rimming skills is integrated.
+Their default remains exact-distance offsetting; explicit spline references can
+choose the loose/exact continuum. Independent review fixed an ownership guard
+that had skipped the cladding option during normal generation, and retained
+planar rimming's projected full-normal direction on rising-U charts. Mesh strips
+and circular pipe behavior remain unchanged. Root integration checks cover
+these cases, nominal material rims, composition, plan settings and checked
+mesh-motif export. A prior rim test assumed exact bead-width separation at the
+new loose default; it now checks the intended side/footprint contract, while
+the dedicated exact-offset tests retain distance assertions.
+
+The same-size Greville direction control field replaced repeated polygon offsets
+for fitted mesh sleeves. Its loose endpoint preserves spline degrees, knots,
+weights and all 90 stored controls (72 independent); intermediate offset
+tightness blends toward exact unit reference normals at query time. Mesh contact
+fidelity remains a separate parameter. The five-course reproduction near course
+465 completed in 2.327 seconds total, including 0.0734 seconds mapping, with
+7,651 output points. Loose distance is approximate and reported as such.
+
+The complete 117 mm preview then generated successfully at zero mesh fidelity.
+The user accepted it and requested three times the circumferential loop density.
+Changing 12 to 36 cells per course retained the motif, 581 courses, flat ends,
+height and tolerances. Normal Studio generation took 27.092 seconds on S5,
+producing 1,242,934 mapped points and 1,248,514 checked moves. Switching the same
+recipe to Bambu H2D completed in 28.378 seconds. These timings include the
+normal generation request, not browser rendering or download time.
+
+The user approved both exports in Studio, but reported failed browser downloads.
+Server delivery files existed: the S5 file was 57,394,818 bytes and the H2D
+package was 20,680,260 bytes, each matching its approved SHA-256 exactly. The
+browser used a temporary blob URL and marked export complete when its synthetic
+anchor click returned; that does not establish a successful host download.
+The approved H2D delivery file was supplied as a local link while the handoff
+was investigated. No new physical print result was reported.
+
+The current CGAL-repaired source was then evaluated separately, preserving the
+approved old-source print. Strict full fidelity with 0.1 mm contact detail failed
+on a local unfolding limit at Z 27.565625 mm after 91 seconds. The medium
+candidate used fidelity 0.5 and 0.2 mm contact detail and completed the entire
+581-course, 36-cell, flat-ended Bambu job in 250.469 seconds. It produced
+1,959,821 checked moves and a 31,991,449-byte package, SHA-256
+`0c24656319d52d7e064c0cf4e94565bd59046c93f7eca9987ba4deace3cb7310`.
+The source remains the current CGAL repair `aec0bf6018d998ce743c2c4cdb4158e47c37caca7ae20a60d8fb803b46ecd0db`.
+There were 2,638 contact profiles and 13 sampled 3D ledge transitions; maximum
+sampled combined profile error was 0.199711 mm and maximum sampled mesh distance
+on ledge checks was 0.072739 mm. These are sampled numerical checks, not a global
+mesh-error or physical-clearance guarantee. The completed preview was displayed
+in Studio, then accepted by the user and promoted to production without changing
+the export bytes. The user subsequently confirmed settings and toolpath in
+Studio; normal delivery succeeded. The exact approved package was also copied
+to the requested local Downloads folder and its hash verified. Its 758
+short-travel advisories remain recorded; no automatic geometry or process change
+was made. No physical result was reported.
+
+Contact preparation now permits bounded unfolding of section folds and deducts
+the measured profile certificate from the interpolation allowance. Narrow ledge
+transitions use sampled distance checks against the original triangles. Larger
+folds still reject; the medium result does not establish that every mesh or the
+strict full-fidelity setting is supported. Current contracts live in the
+[advanced vase manual](skills/advanced-vase-wall/SKILL.md) and
+[prepared contact reference](core/geom/README.md#prepared-mesh-contact).
+
+Browser delivery remains unresolved. User-clicked 1 KB text saved, while both
+the approved 20.7 MB package and an independent 32 MB plain-text response showed
+“Stopped,” including on a fresh Studio instance. The HTTP attachment/retry path
+and compound filename fix are implemented and covered by focused checks, but
+are not evidence that the host saved a large file. A chunked-transfer diagnostic
+was prepared but no user result was obtained. On September 15 the user ended
+this task's download investigation and assigned further debugging and eventual
+commit/publication to other tasks; this team retains vase documentation work.
+The intended browser behavior remains one click to the default download folder.
+
+The vase manual was condensed and checked against the implemented settings. It
+includes a mesh preparation example, motif authoring and density, flat ends,
+separate fitting/contact/offset controls, composition and numerical limits.
+Shared lifecycle links and the discovery digest were updated; manual links,
+public anchors, example JSON and skill metadata checks passed. No runtime change
+or further generation was required for this documentation pass.
+
+## 2026-09-15 — Motif mapping performance, fitted mesh sleeves and artifact provenance
+
+After checkpoint `7638383`, the user requested a composable skill, flat motif
+courses at both ends, faster generation, and mesh inputs with a smooth fitted
+reference plus continuous one-sided conformance. Development was isolated under
+ignored `.local/motif-speed/worktree`; the downloaded irregular vase program
+was not edited. The owning vase, geometry and region manuals describe current
+settings and limits.
+
+The original 30 mm irregular-mesh recipe measured 239.773 seconds generation
+plus 1.195 seconds checked export. Exact mesh connectivity reuse and cheaper
+contour cleanup retained its program bytes. Prepared height/offset mapping then
+measured 43.263 seconds generation plus 1.383 seconds checked export with the
+same saved plan/machine inputs, using CPU profiling in both reported trials.
+Moves changed from 208,414 to 237,423 because the remaining chord budget caused
+more subdivision. Path length changed from 97,302.331 to 97,308.939 mm (0.00679%).
+No courses were trimmed or tolerances relaxed. A separate 10,000-point comparison
+against exact queries on the actual mesh measured 0.001196 mm maximum and
+0.0000587 mm RMS mapping discrepancy, within the reserved 0.0025 mm allowance.
+These are sampled comparisons, not global error certificates. Earlier faster
+experiments lacked the retained numerical margin and are not the final timing.
+
+The fitted mesh reference uses 12 periodic circumferential by 6 height controls
+by default: 72 independent controls, with three repeated seam columns. On the
+local 100,000-face stress artifact, isolated fitting took about 0.2 seconds after
+roughly 1.8 seconds loading/validation. The ordinary plan and imported-bundle
+tests exercise continuous fidelity, flat ends, source preservation, regional
+composition and checked machine output. At this stage, directional contact
+required a star-shaped contour about the fitted center; source folds failed explicitly.
+Full fidelity on the local legacy stress artifact fails this requirement at
+several sampled heights. Zero-fidelity fitting remains independent of that
+contact limitation. No physical mesh-motif print result was supplied.
+
+During preview review the user identified the selected stress artifact as the
+output of a purged repair. The source had been read from the older local SAAM
+checkout's ignored `prints/spiral-vase-h2d/geometry/source.stl`, not repaired in
+this task. Its repair report identifies `winding-grid-marching-tetrahedra/1`
+followed by `quadric-edge-collapse/1`; its SHA-256 is
+`39b8a8d0019d625833c92b31ab39a14ee61d6f9ad1b4136e08617720d25091c8`, identical
+to the retained preview source. Saved review history dates it to September 11,
+before the September 14 removal. Commit `c545d8f` removed `reconstructMesh` and
+the dependent simplifier; active source in both current checkouts contains no
+restored implementation or new repair calls. The separate root STL removal was
+`45d788f`; voxel authoring removal was `d686269`. Selecting the artifact without
+checking its repair provenance was an agent error. The user acknowledged the
+distinction and authorized continuing the preview with that artifact.
+
+The full 117 mm, 581-course zero-conformance preview exposed a downstream stall
+within course 186. The initial mesh fit was fast; a three-course CPU profile
+instead counted 12,771 polygon offsets. A shifted reproduction isolated the
+per-height simplification of the already smooth fitted sections as a source of
+repeated preparation. Removing that redundant simplification reduced a shifted
+three-course reproduction from 19.18 to 0.78 seconds of mapping, with 6,717 mapped
+points in both runs and unchanged tolerances. Offset preparations fell from
+11,708 to 550. A geometric regression compares the flat fitted ring to its
+independently constructed inset and detects the previous simplification error.
+The full preview retry is separate from the original-recipe benchmark above.
+
+That retry passed course 186 but slowed again around course 320. A bounded
+five-course shadow profile exceeded 45 seconds after only three courses.
+The fitted spline's own per-height adaptive tessellation still changed vertex
+selection. A shared U grid, sized from the periodic polynomial spline's global
+second-derivative bound, completed all five in 6.503 seconds (3.448 seconds of
+mapping), with 396 section segments and a 0.002473 mm chord bound against the
+0.0025 mm target. Fit coefficients and sampled residuals were unchanged. The
+bound was independently reviewed and tested across held-out heights and U
+positions. These shadow profiles ran alongside the preview and do not establish
+an isolated full-job speed ratio.
+
+The fixed-grid full run later slowed near course 465. A continuous offset-row
+atlas prototype exposed a 0.00128 mm projected-seam shift over a 0.000098 mm
+offset interval even though the corresponding contours retained 396 vertices
+and smoothly changing lengths. Thus repeated grid-rounded polygon offsets and
+seam reprojection still disrupted the reference correspondence. The user then
+explicitly required loose offsets with no growth in control-point count. The
+unfinished tight-offset run was cancelled through Studio's normal cancellation
+API. The replacement mapping must retain the fitted spline's control structure
+and U/Z correspondence; these cancelled runs are not completed preview results.
+
+The current CGAL patch repair was also rerun on the preserved original stress
+mesh in an isolated output directory. It reproduced the previously recorded
+8,076-face output SHA-256
+`aec0bf6018d998ce743c2c4cdb4158e47c37caca7ae20a60d8fb803b46ecd0db` in 1.90 seconds,
+with no holes filled. Its sleeve detector retained the full 0–117 mm interval.
+Directional-contact probes passed at four heights but rejected folds at three
+others, so the conformance limitation also affects the correctly repaired mesh.
+
+The user also reported a stationary Studio spinner. Live computed styles showed
+`prefers-reduced-motion: reduce`, `animation-name: none` and zero duration. The
+spinner now retains slow 2.4-second rotation in that mode, compared with its
+ordinary 0.8-second rotation. A focused regression and live computed-style
+inspection confirmed the fix; other motion preferences remain unchanged.
+
+## 2026-09-15 — Irregular broad-loop example and pre-performance checkpoint
+
+The user requested a wider motif on an irregular sleeve, accepted the displayed
+result and requested a checkpoint before investigating generation speed. The
+reusable vase-wall irregular demo now contains the exact demonstrated host and
+motif recipe: a waisted, leaning oval solid, 20 connected cells per course and
+145 full courses. The owning skill manual includes the command, adjustment
+entry point, progress, mapping limits and duplicate-generation guidance.
+
+The saved print generated 207,671 mapped motif points and 208,414 checked machine
+moves; the actual motif Z interval is 0.8–29.940035 mm. All shared generation
+checks passed. The 287 short-travel advisories were retained as nonblocking
+evidence in the private print. Geometry was confirmed by the human in Studio.
+The user intends to print; no physical result is yet recorded. An earlier host
+with rotating and changing-aspect oval sections failed the contour subdivision
+check near Z 2.23 mm; that trial generated no complete path. The displayed host
+retains oval aspect ratio while its section size and center change. No contour
+tolerance was relaxed and no course was trimmed.
+
+The checkpoint includes concurrent Studio coordination work as required by the
+repository's checkpoint policy; it is not a claim that all carried work is
+complete. Previous focused test evidence remains applicable. Performance work
+and any measurements begin after this checkpoint.
+
+## 2026-09-15 — File-compatible handoff work after SQLite withdrawal
+
+The user briefly approved SQLite while asking about update/version risks, then
+withdrew that option: **"2. I don't think it's worth it but start the rest."**
+Removed the partial database implementation before it was executed. No database,
+data migration, package dependency or Node engine change occurred. The existing
+JSON files and Node >=22 requirement remain. The earlier approved tour-disconnect
+policy remains in effect. Continued on the existing contributor branch without
+staging, committing or publishing, preserving concurrent skill/generator edits.
+
+### Implemented choices
+
+| Choice | Reason and boundary |
+|---|---|
+| Rebuildable request index in memory | Avoid migration and a second persistent authority. Normal queries retain unfinished work, undisplayed completed results and the latest edit outcome per print; full diagnostic history remains explicit. Watch hints plus five-second metadata reconciliation cover external changes. Cold scans and memory still scale with history; this does not provide cross-process transactions. |
+| Real request-specific activity | MCP print tools accept explicit `requestIds` and renew owned working requests at tool entry/exit. CLI agents can report actual work through `record-request-activity`. Waiting/listener helpers never renew leases; activity preserves pause, baseline and target. Long work with no observable contact may still expire. |
+| Cancel Studio calculation before saving | An authenticated cancel route bypasses the mutation queue and arbitrates with the worker using a shared atomic flag. If cancellation wins, the worker stops; if saving wins, its write sequence finishes. Cancellation does not queue generator repair or immediately auto-retry. Explicit retry works. Input-change notifications cancel obsolete Studio calculations. Direct CLI/MCP generation still needs a shared owner. |
+| Separate review updates from displayed-source identity | Approval, delivery history and generation-mode changes update controls after fresh validation. Compact updates omit accumulated history and retain playback/source state; input/export and other generation-identity changes still reload. Full approval/delivery byte checks remain. |
+| Reject late tour start-layer choices | MCP supplies the original run/lesson identities to the tour mutation. An ended or replaced lesson cannot accept that background choice. File-based cross-process read/modify/write races remain. |
+| Retry Windows file sharing conflicts | Browser verification reproduced EPERM while replacing review.json during generation. Shared single-file replacement now uses unique temporary names and bounded Windows EPERM/EACCES/EBUSY retries, preserving prior complete contents on failure. This is not a multi-file transaction. |
+
+### Verification and findings
+
+With 1,000 historical JSON requests, five warm operational queries performed zero
+file reads and zero directory scans. Explicit history remains complete, and the
+tests retain waiting requests and undisplayed results. Found and fixed a watcher
+startup gap (files created before attaching) and released idle watches for
+short-lived callers. Browser snapshots retire omitted resolved work while
+retaining updates that arrived after an older poll began.
+
+Selected software tests cover request discovery/activity, real SDK ownership and
+listeners, CLI participation, tour lifecycle, scoped stale choices, cancellation
+and retry, commit arbitration, exact-byte delivery, compact review updates,
+playback preservation, source invalidation, Windows retry/permanent failure and
+concurrent temporary-file isolation. The browser Cancel calculation action worked
+on an isolated synthetic 80 mm box. After the Windows fix and server restart,
+retry produced the playable toolpath and normal review controls. Browser warning
+and error logs were empty; the audit tab and its server were closed. No real
+manufacturing approval, hardware operation or physical print was performed.
+
+One earlier import/generation run reported a prepared-runtime mismatch while
+generator source was also changing in this shared checkout; subsequent stable
+runs passed. Reconnect test harnesses required the browser's URLSearchParams
+global after the poll URL gained a fingerprint parameter. These observations are
+not evidence of transactional safety. The documentation checker retains the six
+pre-existing status/link diagnostics. Remaining authorized ownership and broad
+read-audit work is tracked in [BR-050](build_request.md#br-050--finish-studio-coordination-and-read-path-handoff).
+
+## 2026-09-15 — Single-motif vase tiling made explicit
+
+The user specified one selected motif, mandatory cell endpoint connections,
+optional transverse tilt, upward repetition on a regular parameter strip, and
+mapping to the actual sleeve. They confirmed the displayed overlapping loops
+and authorized resolving either missing implementation or documentation. Session:
+`01a0a731-c52c-7f81-b60e-c20895d6661f`.
+
+Existing sleeve mapping and advanced repeated paths already supported the
+geometry. The loop demo authored a whole course, however, and saved no separate
+cell/layout recipe. Vase-wall now accepts one motif plus cells per turn, course
+rise, course count and tilt, expanding through the existing mapper. Cell joins
+are explicit and mandatory; course grouping retains cooling and layer identity.
+The loop demo uses that form. Normal recipe changes can switch authoring forms,
+and Studio reviews the cell layout. Skill discovery, the owning manual and the
+glossary describe the workflow and its actual-section mapping limits.
+
+Generation now reports completed motif courses through the existing progress
+callback, including regional work, instead of retaining the preceding base-fill
+stage. This adds progress visibility, not a slicing-performance claim.
+
+All 23 selected motif, mapped-path and Studio-settings tests passed. Coverage
+includes independently authored course equivalence, tilt, rejected gaps,
+inside/outside loop placement, changing hosts, persistence, form changes and
+S5/H2D/configured Dobot command interpretation. A saved development print retained
+one 17-point motif, tiled eight times per course across two courses, generated
+372 checked moves, and reported progress 0/2, 1/2 and 2/2. It had no human
+approvals. No physical printing or clearance validation is claimed.
+
+The repository-wide documentation scan reported an unrelated completed BR-045
+status and existing links to removed backlog headings BR-005, BR-018, BR-023 and
+BR-039. It reported no motif documentation or capability-digest errors.
+
+## 2026-09-15 — Tour disconnect policy approved and implemented
+
+The user answered **"1. yes"** to keeping a tour through brief browser disconnects
+and ending it on exit or Studio shutdown. For **"2. what is the case for it"**, the
+agent explained the proposed SQLite scope, atomic claims/indexed queries, the
+coordinator and file-lock alternatives, and schema/migration/runtime costs.
+That question is not approval to adopt SQLite or change the Node minimum.
+
+Studio now associates a live tour with its owning instance. The existing browser
+grace period retains that run across reconnection; owner shutdown clears it and
+cancels its pending work after accepted operations drain. Closing an observer or
+an older owner cannot end a later run owned by another Studio. Saved example
+prints remain, and opening one after shutdown does not restore the tour. Startup
+through the toolkit attaches the run created before server launch. New tours
+started through Studio record their owner directly.
+
+All 20 selected lifetime, reconnect, toolkit and tour-lifetime tests passed,
+including end-of-grace shutdown and cross-instance isolation. This implements
+normal shutdown and browser-disconnect behavior. Forced process death, atomic
+claims and cross-process mutation races remain part of coordination-store work;
+the file-backed owner field does not establish transactional ownership.
+
+## 2026-09-15 — Handoff implementation: tour scope and read boundaries
+
+The user asked to read the handoff, start work, explain decisions and ask about
+genuine ambiguity. Continued on the existing contributor branch and preserved
+the preceding uncommitted flow-audit work. This entry records the implemented
+portion; the broader coordination/read-path work remains in progress.
+
+### Choices implemented and their reasons
+
+| Choice | Alternatives considered and reason |
+|---|---|
+| Remove tour resume and identify runs/lesson visits. | Hiding the button alone would retain the API and obsolete teaching. Exit/cancel now clears an unfinished run; fresh starts create new example copies and a run ID. Leaving a lesson cancels scoped teaching, and revisiting creates a new lesson ID. Existing print copies remain saved. Individual edit cancellation does not end the tour. |
+| Select MCP read scope by operation. | Loading a full program and then shortening its response retains unnecessary decoding/copying. Discovery now returns names/machines/timestamps with unchecked export status. Checked summaries use the existing metadata-only program contract; edit dispatch omits old exports. Check/approval/delivery still verify bytes. |
+| Use catalog membership for selected manual reads. | Scanning every manual to establish a known ID adds no validity guarantee. A shared skill read now reads one manual; unknown IDs can consult the local extension. |
+| Retain the fresh mutation-boundary read. | Passing an earlier mutable snapshot into a writer without checking current inputs could accept stale edits. Adjustment now reuses updatePlan's returned state, while updatePlan retains its fresh revision check. Further snapshot reuse needs an owning concurrency contract. |
+| Separate geometry fingerprint scope from export scope. | A blanket cache bypass would repeat unrelated reads. Geometry fingerprints now omit exports while retaining original-STL integrity. Review and delivery still read current bytes. |
+| Share bounded file-digest reuse with machine studies. | Rehashing the motion source on every idle poll adds no new change information. Studies reuse metadata-bound digests and omit motion decoding for geometry-only reads; changed bytes still invalidate checked source. |
+| Report lease expiry as lost contact. | A helper heartbeat proves helper survival, not continued agent reasoning. No helper heartbeat was added. Ten-minute request leases remain; confirmed transport closure remains a distinct signal. |
+
+Also added direct request-ID lookup and malformed-JSON isolation, reused supplied
+plans for print names, shared a request snapshot within a tour state response,
+restricted the tour picker to its known example directories, removed duplicate
+signature reads, and stopped request-only events from scheduling generic revision
+polls (target publication still schedules needed generation). Runtime provenance
+keeps its manifest entries/order but reads repeated file paths once.
+
+### Additional read-path evidence
+
+The ignored `.local/read-path-followup.mjs` probe created its own small synthetic
+box, 1,000 historical requests and 21 ordinary prints. Its JSON report is
+`.local/read-path-followup-results.json`; results do not depend on private data.
+The application filesystem instrumentation records returned bytes, parsing,
+cloning and response sizes, not physical disk traffic or end-to-end user latency.
+Module/runtime caches were warmed by fixture construction. Concurrent filesystem
+notifications can contribute background reads; per-operation timings are not
+isolated microbenchmarks. Streams and worker processes are excluded.
+
+| Measured path | Result and disposition |
+|---|---|
+| Selected MCP `text` manual | One manual instead of the previously observed 17 reads. The manual response is about 30 KB; that is requested context, not a hidden full-catalog read. |
+| One/21-print discovery | 2/42 plan-and-machine content reads; no native geometry or exports. Responses approximately 120/2,600 bytes. Recursive link confinement remains and contributes metadata calls. |
+| Checked MCP summary | No motion arrays cloned; current program checks remain. |
+| Direct lookup with 1,000 historical requests | One record read, no directory scan. |
+| Operational request polling at that size | Approximately 534 KB response; full-history scanning and overlapping notification work remain. |
+| Tour geometry state | One request-directory scan shared by the state and lesson gate, but that scan still reads all history. The tour picker likewise still incurs gate-related request reads despite enumerating only its known prints. |
+| State → sources → view-ready | Approximately 88/88/101 KB read in this small fixture; source/geometry rereads remain across independently fresh boundaries. A shared verified-source handle remains a proposal. |
+| No-op/settings/geometry MCP edits | Old export reads removed. Nested geometry/recipe reads remain (19/23/23 readFile calls including metadata/notifications); eliminating them safely needs the mutation owner. |
+| Two simultaneous viewer state requests | Both perform their own reads; shared concurrent read work remains unimplemented. |
+
+The dedicated audit is **not complete**: fresh-process cold paths, large STL and
+native/source assets, growing review history, worker-side parsing/hashing/copies,
+generation cancellation/recovery, approval/delivery measurement and simultaneous
+agent-process ownership still need measurement. Existing software tests cover
+integrity and delivery, but are not latency measurements for those workloads.
+
+### Decisions awaiting clarification and remaining implementation
+
+1. **Disconnect policy:** asked whether a live tour should survive a brief browser
+   disconnect until explicit exit/cancel or Studio shutdown (recommended), or end
+   on browser disconnect. Shutdown/crash invalidation is not implemented in this
+   tranche; transient progress is still file-backed and can be observed by another
+   process. No resume UI/API remains, but that alone does not complete run lifetime.
+2. **Transactional storage compatibility:** compared an authoritative service
+   (requires discovery/startup and a standalone-CLI lifecycle), filesystem locks
+   (stale-lock ownership and crash recovery), and SQLite (atomic claims/indexed
+   queries with independent CLI operation). Recommended SQLite and asked whether
+   the minimum Node version may rise from 22 to 22.13 for its built-in module.
+   [Node's version history](https://nodejs.org/api/sqlite.html) records removal of
+   the startup flag in 22.13; the API remains experimental in that release.
+   No dependency or engine requirement has changed pending that answer.
+3. Indexed operational queries, atomic request/tour transitions, request-scoped
+   renewal from real tool activity, generation cancellation/supersession and compact
+   review updates remain. Implementing separate indexes or heartbeat helpers on the
+   existing nontransactional files would add a second consistency problem. These
+   should follow the chosen owner, retaining explicit history diagnostics and
+   completed work awaiting presentation. Late start-layer writes also need scope
+   validation at that owner, beyond cancellation of their guidance request.
+
+### Verification
+
+Targeted Studio tour/UI/import/agent tests, MCP tests, shared program-cache tests,
+machine-study tests, toolkit, geometry confirmation, work state, opening,
+reconnect and view-readiness tests passed across the relevant runs. New
+`read-scope.test.mjs` assertions cover scoped reads/copies, malformed request
+isolation, machine-study invalidation and altered-export rejection. An early MCP
+run hit an intermittent Windows EPERM replacing a request JSON file while a
+listener was active; the affected suite passed subsequently. This is further
+evidence for storage ownership, not evidence that the race is fixed.
+
+An isolated browser tour verified lesson-one geometry, absence of Resume, exit
+restoring ordinary controls, and Tour starting a fresh `handle-2` at lesson one.
+Browser warning/error logs were empty. Closed only the audit tab and managed
+server. All fixtures and approvals used here were synthetic software exercises;
+no physical print, hardware action or real manufacturing approval was performed.
+
+## 2026-09-15 — Studio flow audit and preview readiness
+
+Audited the user/agent/Studio boundary across startup, edits, guidance, imports,
+geometry confirmation, generation, playback, saved-print selection, export,
+tour navigation, failures, interruption and reconnect. The user's reported
+inconsistency had concrete sources: request completion, displayed-result
+identity, browser loading and lesson gating used different rules. The dots and
+dimmed viewport are now called **Updating preview**; the user rejected "print
+activity" because it sounds like exporting. Normal capabilities remain available
+from any view, subject to their actual inputs and human confirmation dependencies.
+Only the tour's teaching path narrows requests, with a gentle redirect and an
+explicit exit to ordinary work.
+
+### Findings addressed
+
+| Finding | Change and owning boundary |
+|---|---|
+| A single request could finish visually after any changed input, including an intermediate save or unchanged geometry after a settings change. | Every new edit requires a saved result target. The shared [work state](studio/work-state.mjs) matches the target's inputs and geometry/toolpath stage. Legacy inference is conservative. |
+| Waiting for one shape confirmation suppressed unrelated active edits; pausing and claiming work discarded its original baseline and target. | Waiting applies only to the matching prepared target. [Request persistence](studio/agent-requests.mjs) retains identity through pause/resume. |
+| Browser polling could replace newer request state with an older response, and targets published after rendering lacked a persisted display receipt. | [Agent UI](studio/agent-ui.mjs) merges by update time and asks the existing view-ready path to acknowledge already displayed targets without reloading. Presentation and disconnect writes advance update time. |
+| Early completion could leave an absent toolpath busy indefinitely; CLI begin-work could not reclaim a failed request. | Pending presentation has the request lease, and failed/expired work can be reclaimed. Successful presentation remains independent of final chat bookkeeping. |
+| Guidance dimmed usable geometry, and tour gates separately treated queued edits and advisories as blockers. | Guidance/advisories stay visually quiet. Tour gates consume the same request-activity function as the viewport; only active unfinished edit work blocks a delivered edit lesson. |
+| Ordinary geometry review started speculative workers; production generation could perform preparation before rejecting missing confirmation. | Ordinary state reads do not slice. Studio checks geometry confirmation before starting production work. Tour speculation is confined to the selected confirmed part in the import lesson. |
+| Tour auto-generation could slice intermediate saves while the agent was still assembling an edit. Geometry-only reads could also prepare an already generated part. | Automatic tour generation waits for active edits' published input targets. A matching stored generation suppresses speculation; later review still checks its bytes. |
+| Starting an edit checked the old export even though the agent was about to invalidate it. | [CLI begin-work](core/agent/toolkit.mjs) returns recipe/revision/geometry context without old-program validation and labels the unperformed check explicitly. It also returns the geometry hash. |
+| Lesson gates and late start-layer choices changed the full-view fingerprint, stopping playback and entering the loading state. | [Studio revision responses](studio/server.mjs) separate tour metadata from bundle/data-mode identity. [Browser polling](studio/app.mjs) updates metadata without source loading. Unchanged activity polls no longer rerender lesson guidance. Compact approval responses use that same fingerprint. |
+| Imported-model guidance could change settings and regenerate merely to find an infill layer; a now-invalid explicit layer could strand playback readiness. | Start-layer selection is quiet guidance over existing output. Missing or unavailable layers use deposited-layer fallback. It never requires a recipe change or reslice. |
+| Download progress implied preview work, and manuals mixed geometry completion, generation, chat replies and listener waits. | Downloads use their own progress state. [MAKERS](MAKERS.md#existing-studio-work) now owns an explicit situation/action table; toolkit, MCP and tour guidance point to compatible result-publication and response rules. |
+
+### Verification and limits of evidence
+
+All 81 selected software tests passed across `studio-work`, `studio-agent-ui`,
+`studio-view-readiness`, `studio-tour-ui`, `studio-tour`, `studio-agent`,
+`studio-open`, `studio-reconnect`, `agent-toolkit`, `mcp` and
+`chat-geometry-confirmation`. Coverage includes ordinary and tour edits,
+overlapping work, stale responses, same-lesson geometry recovery, worker failures,
+approval preservation, source reuse, S5/H2D/Dobot adapter paths and exact-byte
+delivery. After the final activity/receipt changes, their 52 affected
+Studio tests passed again. `git diff --check` passed.
+The repository documentation check reported the same six pre-existing diagnostics
+recorded in publication preparation below: BR-045 status punctuation and five
+links to removed backlog headings. It found no new link diagnostics for this work.
+
+An isolated browser run under ignored `Prints/studio-flow-audit-20260915` verified
+initial geometry, visible edit activity, an intermediate save remaining active,
+target publication clearing the indicator and unlocking Next before final agent
+completion, saved selection and generated playback. Changing the tour's start
+layer while playing preserved Pause, continued the timeline, and showed no busy
+indicator. Exiting restored ordinary geometry/toolpath, open, import and export
+controls. Browser error/warning logs were empty. Only the audit's tab and managed
+server were closed. These were synthetic software exercises, with no final
+manufacturing approval or physical print. No end-to-end latency benchmark or
+new evidence for the deposition algorithms was claimed.
+
+### Remaining structural findings and recommendations
+
+These are audit findings and proposals, not implemented capabilities or newly
+commissioned backlog work:
+
+1. **Shared storage has no transactional owner across processes.** Request and
+   tour files use atomic replacement, but read/modify/write transitions and claims
+   are not cross-process transactions. CLI, Studio and MCP can race; tour playback
+   writes can race a CLI start-layer change. Removing overlap rewrites and merging
+   browser responses reduces exposure but does not solve storage ownership.
+   Consolidating mutations behind one authoritative coordinator or transactional
+   store should precede claims of exclusive handling or simultaneous agents on
+   one part. The coordinator should own legal transitions and result receipts.
+2. **Generation is serialized but not user-cancellable.** Request/progress reads
+   stay responsive, while ordinary mutations queue behind a running generation
+   and the browser disables navigation. A changed recipe cannot receive an old
+   candidate, but obsolete computation may continue until that check. An explicit
+   cancellation/supersession contract at the generation owner would let a new
+   intent release obsolete work without restarting Studio. This needs coherent
+   CLI/MCP/Studio ownership, not a new lesson-specific exception.
+3. **The indicator observes request leases, not host reasoning.** A dead host
+   turn need not close MCP; conversely a live long edit can exceed the ten-minute
+   lease without renewing it. Geometry approval waits are now explicit, and the
+   maker guidance names renewal, but reliable host cancellation/heartbeat events
+   require client integration. An open viewer must not manufacture evidence that
+   its agent is still working.
+4. **Request history is scanned as a whole.** `list()` reads every saved record,
+   and UI polling returns the library's history. One malformed JSON record can
+   fail the batch. Bounded queries and per-record failure isolation belong with
+   the storage owner; no growth benchmark was performed in this audit.
+5. **Queued teaching can outlive its lesson.** Exit cancels tour work, but moving
+   back within a tour does not scope every queued signal to a live lesson. The
+   manual now tells agents to cancel obsolete guidance. Explicit event scope and
+   cancellation at the coordinator would make this independent of agent memory.
+6. **Review metadata and scene identity are still partly coupled.** Tour-only
+   metadata no longer causes reloads, and normal approval responses reconcile
+   their fingerprint. Tour export still changes review data and removes a marker,
+   so subsequent bundle polling can enter refresh, although matching source and
+   material buffers are reused. A shared compact review-state transition would
+   remove that remaining presentation detour without another export-only flag.
+
+### Follow-up handoff: tour lifetime, activity signals and design options
+
+The user specified the following tour intent after reviewing finding 5:
+**do not save tours for later resumption or expose resume in the UI.** Exiting
+or cancelling a tour ends that run; the next tour starts again from the beginning.
+Agent-mediated recovery on a specific user request remains a possibility to
+consider, not an approved exception or a required capability. This is recorded
+intent for follow-up implementation; the audit changes above do not implement it.
+
+Transient coordination state may still be needed while a tour is running; it
+must not become an implicit saved session. A recommended implementation is a
+unique run identity with lesson-scoped requests. Exit/cancellation invalidates
+that run and its pending teaching; starting again creates a new identity. Lesson
+changes must also invalidate obsolete teaching within a live run, so removing
+resume alone does not fully address finding 5. Whether a brief browser disconnect
+ends the run, and the exact treatment of unexpected host loss, remain unspecified.
+Cancelling an individual edit must remain distinct from cancelling the whole tour.
+
+For finding 3, the user proposed a cleanup listener launched with Studio and
+expressed a preference toward a heartbeat as the simpler approach. Neither is
+implemented by this handoff. A launcher-side listener can observe its own process
+and Studio work, but needs explicit host lifecycle events to know whether the
+agent's turn is active or cancelled. A heartbeat from a surviving helper proves
+only that helper is alive. The recommended portable fallback is request-scoped
+lease renewal on actual agent/tool activity, with expiration reported as lost
+contact rather than proof of model inactivity. Studio-owned workers can report
+their own liveness independently; geometry approval waits remain explicit states.
+A host adapter could add prompt cancellation signals without making host
+integration a prerequisite for ordinary use.
+
+The user found the remaining directions reasonable and asked to retain them as
+**suggestions, with explicit consideration of other options**. A follow-up
+implementer should compare alternatives against actual consumers, ownership,
+failure recovery and complexity before selecting a design. These suggestions
+are not fixed architecture decisions or a claim that the work is implemented:
+
+- **Storage ownership (1):** consider one authoritative coordinator for request
+  transitions and presentation receipts. Compare a coordinator process with
+  transactional storage, including CLI-only operation and process failure; do
+  not add both without a concrete need.
+- **Generation cancellation (2):** consider a shared cancellation/supersession
+  contract. The suggested product policy is that a newer edit supersedes obsolete
+  generation for the same print, while merely changing views does not cancel it.
+  Evaluate explicit cancellation and reuse of still-valid computation before
+  choosing worker and queue behavior.
+- **Agent liveness (3):** consider request leases as the portable baseline and
+  host lifecycle events as an optional improvement. Compare renewal sources and
+  timeout behavior; a helper's survival must not renew an agent request forever.
+  Tune expiration against observed workloads and distinguish lost contact from
+  confirmed cancellation, worker execution and waiting for a person.
+- **Request retrieval (4):** consider direct ID lookup, bounded operational
+  queries, change notifications and per-record failure isolation. Paginated
+  history is useful only where an actual diagnostic consumer needs it; do not
+  build a history feature merely to repair an inefficient active-request query.
+  Compare indexed storage with a bounded active set and optional archive.
+- **Tour scope (5):** apply the user's no-resume intent above. Run and lesson
+  identities are suggested mechanisms, not prescribed storage formats. Evaluate
+  brief-disconnect and host-loss behavior separately from explicit tour exit.
+- **Review updates (6):** consider updating review metadata independently of
+  geometry/toolpath loading through the shared state contract. Compare compact
+  updates with separated revision identities; avoid another export-only flag.
+
+#### Why history is currently read
+
+This is request-record history under `.studio-requests`, not chat transcripts or
+manufacturing review history. `list()` currently reads/parses every request file
+and normalizes lease expiration before consumers filter the returned records:
+
+| Consumer | Actual information needed |
+|---|---|
+| Studio browser polling (every 750 ms), state responses and disconnect notifications | Relevant request activity, pending presentation and failure notices. The server currently sends the library-wide list. |
+| CLI/MCP request wait loop (75 ms delay between scans while waiting), MCP queued-request notifications and queued-request checks | Queued requests; no completed history is needed for dispatch. |
+| CLI/MCP begin-work with a request ID | One request and its print identity; direct lookup would suffice. |
+| Presentation acknowledgements, owner disconnect cleanup and print cancellation | Unpresented work or cancellable requests for the relevant print/owner. A completed request awaiting presentation still belongs in the operational set. |
+| Tour lesson gating and edit evidence | Current work and qualifying edits within the lesson, including completed edits. Current code also collects prior IDs and recovers older saved-lesson baselines; those resume paths should be reconsidered under the new tour intent. |
+| Explicit failure inspection and MCP/CLI request listing | Selected historical records for diagnosis; explicit listing currently permits the full library history. |
+
+No recurring operational consumer inherently needs to scan all historical
+requests. Some need recently resolved records or current-lesson evidence, so
+filtering solely to `status === 'working'` would be incorrect. Preserve those
+semantics and explicit diagnostic access while avoiding full-history reads on
+the live path. This trace establishes unnecessary read scope, not a measured
+latency regression; no history-growth benchmark was run.
+
+### Follow-up: unnecessary reads and dedicated read-path audit
+
+The user challenged whether fixing request-history retrieval was enough. A
+follow-up source trace and isolated read-count probe found additional unnecessary
+scope and repeated work. The user then asked to adopt all findings/directions
+and recommend a dedicated read-path audit in this handoff. Carry the items below
+forward as accepted audit concerns and starting recommendations; compare other
+solutions before choosing implementation. This follow-up records evidence and
+intent, not implementation of these additional fixes. The earlier flow audit
+was broad behavioral coverage, not an exhaustive inventory of reads.
+
+#### Confirmed findings and suggested direction
+
+| Finding | Evidence and suggested direction |
+|---|---|
+| Request retrieval reads the whole library repeatedly. | The consumer trace above still applies. The probe observed five full scans in a 300 ms listener wait with existing IDs excluded, and two scans within one tour geometry state response. Use scoped operational queries/direct lookup and shared snapshots or notifications; retain pending-presentation and lesson evidence. |
+| MCP uses full bundle/program reads for operations that do not need the old toolpath. | `adapters/mcp/src/server.mjs` routes `adjust_print`, text/insert edits, machine changes, `check_path`, `remember_setup` and geometry confirmation through `read()`, which calls `loadBundle()` with full program decoding enabled. The owning operations then read their inputs again. Select read scope by operation; do not check/decode a soon-to-be-invalidated export merely to dispatch an edit. |
+| MCP listing and summaries load more than they return. | `list_prints` first enumerates summaries, then fully validates every bundle, including available programs. `get_print` also loads full motion even though its response omits motion arrays. Separate discovery/recipe metadata from explicitly requested validated export status, label unchecked fields, and use metadata-only checked program results where sufficient. Preserve the guarantees of explicit check/approval tools. |
+| Reading one MCP skill reads every skill first. | `read_skill` calls `skills()` to establish membership, which reads all 16 shared manuals, then reads the selected manual again. The probe confirmed 17 manual reads for one `text` request. Use the existing shared catalog for known IDs and a scoped local-extension lookup; listing metadata and reading a selected manual should not require the same full-manual scan. |
+| Nested workflow functions multiply input loads. | Even a no-op MCP recipe patch read native geometry, geometry descriptor, machine and review four times each; plan five times, plus the existing export once. `adjustBundle -> updatePlan -> loadBundle`, optional `rememberSetup`, and final summaries introduce separate loads. Evaluate one validated operation snapshot and reuse of returned results, retaining a fresh concurrency check at the actual mutation boundary. |
+| Preview preparation, transfer and acknowledgment repeat bundle reads. | A normal `/api/state -> /api/sources -> /api/view-ready` sequence rereads the native geometry and export at every endpoint. CLI preview launch also performs an initial geometry read and then a checked summary read for non-tour opens before the browser performs its own load. Consider a bounded verified snapshot/source handle shared by consumers, with explicit invalidation and freshness checks. Do not remove exact-byte protection across independently mutable files. |
+| Geometry-only reads can still discover/read export bytes through fingerprinting. | `readStableBundle(..., {program:false})` still calls the broad `bundleFingerprint()`, which includes the export and original STL. Thus omitting program loading does not ensure an export-free cold read. A cold revision probe read the saved export; the warm shared-workflow probe correctly reused its digest. Evaluate separate change identities/read scopes rather than a blanket cache bypass. |
+| Tour/library reads have excessive scope and duplicate derivation. | `tour.info()` reads persisted progress and resolves the saved selection even outside an active tour; active edit lessons also query requests and may reread the recipe for gate signatures. POST dispatch obtains progress before handlers that obtain it again. `/api/prints` scans all prints before filtering to known tour choices; `printName()` rereads a plan already read by listing/state code. Reuse per-operation inputs and list the known tour choices directly. The no-resume direction should remove inactive saved-tour dependencies. |
+| Polling and change notifications overlap. | Agent UI polls at 750 ms, revision polling at one second, request waits rescan after 75 ms, and generic Studio change events also schedule revision polling, including request-only changes. Playback adds its own tour updates. Evaluate one scoped notification/snapshot path with bounded fallback polling and no overlapping in-flight work; account for missed filesystem events and multiple processes. |
+| The machine-study adapter rereads the entire motion source on revision polls. | Its `bundleFingerprint()` reads plan, machine and `motion.json` contents each time, unlike the shared print workflow's metadata-assisted digest reuse. `loadBundle({program:false})` also reads/interprets motion to construct study metadata. Apply an equivalent change-detection contract and determine which study metadata truly requires decoding. This was source-traced, not measured in the probe. |
+
+Additional lower-priority evidence: the first shared-workflow state read hashes
+the broad runtime manifest, including unused skill dependencies, and overlapping
+manifest entries read some files twice. The probe's cold state read included 118
+`readFile` calls and about 2.51 MB total, including runtime identity inputs. This
+does not mean all 118 reads are unnecessary: runtime provenance is intentional
+and cached per adapter. Deduplicate identical entries and evaluate reuse across
+processes/adapters only with a sound code-change invalidation contract; do not
+silently narrow the generator identity to improve a benchmark.
+
+#### Probe evidence and limits
+
+An ignored local probe at `Prints/studio-read-audit-20260915/probe.mjs` copied the
+previous synthetic tour fixture into an isolated library and instrumented Node
+filesystem promise calls. Detailed counts are in that directory's `results.json`;
+these local artifacts are not required to read this handoff. Selected results:
+
+| Operation | Observed reads |
+|---|---|
+| Warm ordinary revision | Two `readFile` attempts (tour progress and absent tour marker), ten `stat` calls; no geometry/export content reread. |
+| Idle request listener, 300 ms, three existing IDs excluded | Five directory scans, 15 request-file reads. |
+| Tour geometry state | Two request-directory scans, each reading the same three records. |
+| MCP read `text` skill | All 16 distinct shared manuals, with `text` read a second time, plus one request scan. |
+| MCP list two prints | Each plan read four times; both native geometries and the one available export read. |
+| MCP no-op recipe edit | Four native-geometry reads, four descriptor/machine/review reads each, five plan reads, one existing-export read. |
+
+The generated handle's program was available with no program error. The probe
+used ordinary state/source/view-ready endpoints, tour geometry metadata/listing,
+an in-memory MCP client, and a no-op recipe patch. All owned servers/transports
+were closed. It performed no new generation, manufacturing approval, delivery
+or physical action. Counts are application filesystem calls and returned bytes,
+not physical disk traffic, CPU cost or end-to-end user latency; OS caching may
+serve reads. Instrumentation excludes module-loader internals, stream reads
+(including original-STL hashing), and separate worker processes. Shared process
+caches were warm for the later MCP probes, so these are not cold-client timings.
+
+#### Recommended dedicated audit still outstanding
+
+This follow-up is a partial read-path audit, **not completion of the dedicated
+audit**. Trace reads, parsing, hashing, decoding, copying and response payloads
+across CLI, MCP, Studio server, workers and browser. For each consumer record
+the minimum data, required freshness, purpose, trigger frequency and owner.
+Measure cold/warm startup, unchanged idle, geometry-only edits, settings-only
+edits, source loading, generation, approval/delivery, recovery and tour exit.
+Include large STL/native/source files, growing request/review history, many
+prints, machine studies, multiple viewers and simultaneous agent processes.
+Measure agent-facing payload/context size as well as runtime I/O: shorter output
+alone can hide expensive reads and decoding behind the summary.
+
+Distinguish unnecessary reads, repeated reads within one logical operation,
+premature reads that will be invalidated, and necessary freshness/approval checks.
+Protect original-STL integrity, exact reviewed export bytes, stale-revision
+rejection and path/link confinement. Compare scoped queries, shared operation
+snapshots, versioned source handles and event-driven invalidation; choose the
+simplest design that meets those contracts. Verify improvements against the
+measured paths and add targeted regressions for the specific repeated/unrelated
+reads removed. Do not treat fixing request-history access alone as completion.
+
 ## 2026-09-15 — Publication preparation
 
 Prepared the shared Studio, text-material and travel changes for the user's
@@ -941,7 +2250,7 @@ that the perpendicular glue jogs came from SAAM, not a requested exemplar.
   shared operations/export and catalog/Studio integration. The research dataset
   is CC BY 4.0; the Prusa/Orca integrations are AGPL-3.0. No third-party algorithm
   source or research assets were incorporated. Provenance and numerical limits
-  are at the [implementation owner](skills/wave-overhangs/DEVELOP.md).
+  are at the [implementation owner](skills/wave-overhangs/BUILDER.md).
 - Software evidence: physical-spacing checks on inclined/rescaled planes and
   an independently unrolled rational cylinder; doubly curved native surface,
   hole splitting/rejoining, disconnected seeds, budgets, component/slice ordering,
@@ -1081,7 +2390,7 @@ manufacturing regression suite was needed for these documentation/metadata edits
   recovery correction is implemented as described in the
   [S5 observations](#2026-09-08-to-2026-09-10--s5-startup-observations);
   its unreported physical outcome is part of the
-  [remaining S5 print](build_request.md#br-005--complete-the-requested-s5-wedge-print).
+  [S5 print record](#br-005--first-complete-print).
 
 ## 2026-09-14 — Ready examples and guided Studio tour
 
@@ -1676,7 +2985,7 @@ incomplete work; component references and skill manuals describe present behavio
 - Added signed per-point contour offsets to sleeve motifs, continuous rising
   lead-ins for raised first motifs, offset-aware endpoint matching and Studio
   offset summaries. Pattern slope is reported without a tilt gate. The plain
-  spiral retains its existing angle behavior. The [manual](skills/vase-wall/SKILL.md#sleeve-patterns)
+  spiral retains its existing angle behavior. The [manual](skills/advanced-vase-wall/SKILL.md#sleeve-patterns)
   owns the current mapping and extrusion conventions.
 - The full example exposed false offset micro-holes from triangle seams and
   unbounded retention of section/offset curves. Pattern contours now remove
@@ -1783,7 +3092,7 @@ were retained. This restart did not authorize adoption of the legacy runtime.
 All 114 archived files were checked against their original SHA-256 hashes.
 Initial checks covered document links, decision metadata and private-file
 exclusions; they did not validate manufacturing behavior. Current checks are
-described in the [check policy](DEVELOP.md#avoid-check-spirals).
+described in the [check policy](BUILDERS.md#avoid-check-spirals).
 
 ## BR-003 — Resolve native path versus machine file
 
@@ -1837,7 +3146,7 @@ described in the [check policy](DEVELOP.md#avoid-check-spirals).
 
 - Status: complete locally
 - Source: user correction during the S5 wedge conversation, 2026-09-08.
-- Historical result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. The instruction at this checkpoint defaulted unspecified agents to developer and required every developer to read both root files. Current context selection is in [AGENTS.md](AGENTS.md#choose-your-context) and the [developer orientation](DEVELOP.md).
+- Historical result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. The instruction at this checkpoint defaulted unspecified agents to developer and required every developer to read both root files. Current context selection is in [AGENTS.md](AGENTS.md#choose-your-role) and the [builder orientation](BUILDERS.md).
 - Approval scope: this records the user's development instruction, not an inferred contributor decision approval.
 
 ## BR-009 — Accessible chat-driven review and wedge refinement
@@ -2051,7 +3360,7 @@ Historical design snapshot; implementation followed in BR-017 and BR-018.
 - Task: Add a Bambu H2D machine profile and general machine interoperability. Move S5-specific setup validation out of shared plan code. Declare machine/tool/material capabilities and supported outputs; keep machine behavior out of pattern skills. Implement the H2D-compatible exporter/interpreter and packaging needed for the exact reviewed artifact, using verified machine documentation or a user-supplied known-good program for the intended configuration.
 - H2D scope to resolve before implementation: target nozzle/tool and material setup, firmware/output packaging, startup/shutdown behavior and machine limits. Do not copy the S5 Griffin envelope or assume an H2D profile alone enables support. No hardware execution is requested.
 - Verify: equivalent geometry across backends, material ownership, travel limits, deterministic generation, profile-specific setup rejection and supported machine-program interpretation. Exercise both machine profiles through the same skills, three approvals and exact-byte delivery. Report software checks separately from physical printing.
-- Design: [geometry](core/geom/README.md#geometry-interoperability-for-skill-authors), [travel](core/path/README.md#whole-plan-travel-requirement), [planar-infill](skills/planar-infill/DEVELOP.md#planar-infill-design), [machines](core/export/README.md#machine-interoperability-design).
+- Design: [geometry](core/geom/README.md#geometry-interoperability-for-skill-authors), [travel](core/path/README.md#whole-plan-travel-requirement), [planar-infill](skills/planar-infill/BUILDER.md#planar-infill-design), [machines](core/export/README.md#machine-interoperability-design).
 - Approval scope: records requested work, not contributor consensus or manufacturing-job approval. Existing runtime remains unchanged.
 
 ## BR-017 — Implement interoperability first, then planar infill and import
@@ -2404,7 +3713,7 @@ last export. No job approval or physical validation was performed.
 ## 2026-09-10 — Gyroid contour construction measurement
 
 - Date basis: BR-032 checkpoint f667205 (2026-09-10T02:51:13-07:00); exact run time is not recorded.
-- Original owner: [skills/planar-infill/DEVELOP.md](skills/planar-infill/DEVELOP.md). Preserved observation/checkpoint wording follows.
+- Original owner: [skills/planar-infill/BUILDER.md](skills/planar-infill/BUILDER.md). Preserved observation/checkpoint wording follows.
 
 A 48 mm square gyroid construction over 16 phases at 0.2 mm sampling and
 0.4 mm line width measured 24.60 s
@@ -2545,7 +3854,7 @@ not full bundle generation, export or Studio. The manual owns pattern limits.
   endpoint matching includes periodic seams and repetition boundaries. Solid
   and single-bore sleeve hosts share the same mesh/spline query path. Old XYZ
   recipes fail explicitly rather than silently acquiring different geometry.
-  The [manual](skills/vase-wall/SKILL.md#sleeve-patterns) owns the coordinate,
+  The [manual](skills/advanced-vase-wall/SKILL.md#sleeve-patterns) owns the coordinate,
   extrusion-height, sampling and endpoint conventions.
 - Verified all 406 tests at the implementation checkpoint, then all 18 focused
   vase tests after adding an explicitly tapered-host fixture. Coverage includes
@@ -2568,7 +3877,7 @@ sleeve-pattern follow-up. They are no longer the current skill contract.
 - Source: current user selected vase-wall generalization, proposed tilted overlapping loops, then clarified that paths may instead be open noncrossing zigzags or other shapes, with an agent-chosen endpoint/travel convention. Follow-up explicitly requires vase mode to retain continuous extrusion and a separate name when travel is needed.
 - Implemented: [arc-length contour traversal](core/geom/contour-path.mjs) replaces the fixed interior polar origin for automatic walls, supporting concave mesh/spline sections while their inset remains one outer loop. The first seam is selected geometrically and projected onto subsequent contours. Existing actual-Z queries, offsets, boundary sampling, volume ramps, level ending, operation composition and exporters remain shared.
 - Authored paths: the existing skill accepts ordered XYZ polylines and constant or pointwise bead heights through `paths`. `pathMode: continuous` requires consecutive shared endpoints; `segmented` is presented as **segmented paths** and permits the shared composer to travel across gaps. All segments inside a path deposit; closure is explicit; no automatic closure, reversal or hidden travel is added. Shared deposition construction integrates linear bead height. Both positive and negative slopes respect the machine limit. Plan/regional validation, source identity, CLI/MCP adjustment, Studio labels and review/delivery use the current lifecycle.
-- Limits: automatic section splits, islands and holes remain unsupported. Arc-length correspondence is not arbitrary feature tracking or topology matching. Authored paths are explicit approximating polylines, not an automatic contact/overlap or structural-strength solver; they publish no fictitious area or rim support. The [manual](skills/vase-wall/SKILL.md#sleeve-patterns) owns coordinates, height and continuity conventions.
+- Limits: automatic section splits, islands and holes remain unsupported. Arc-length correspondence is not arbitrary feature tracking or topology matching. Authored paths are explicit approximating polylines, not an automatic contact/overlap or structural-strength solver; they publish no fictitious area or rim support. The [manual](skills/advanced-vase-wall/SKILL.md#sleeve-patterns) owns coordinates, height and continuity conventions.
 - Development examples: `Prints/development/continuous-zigzag` uses tapered alternating open passes; `Prints/development/segmented-zigzag` uses level passes with shared travel. Both reach 3.2 mm and use an S5 reference box. Checked exports have 5740 and 160 interpreted moves respectively; counts differ because tapered volumes retain subdivisions and constant-volume collinear paths compact. Both reopen through the public CLI with all approvals false. Studio source playback and travel visibility were inspected.
 - Verification: all 389 tests passed in the full suite. After final Studio label changes, 20 focused path/settings/material tests passed. Coverage includes concave mesh/spline geometry, cyclic contour ordering, open endpoints, continuous joins, segmented travel, variable-volume integrals, descent limits, translated regions, S5/H2D/configured Dobot source round trips and synthetic exact-byte delivery. Repository documentation/whitespace checks pass. No human print approvals, hardware execution, physical strength validation, staging, commit or publication.
 

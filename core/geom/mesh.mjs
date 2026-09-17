@@ -135,14 +135,54 @@ export function createMeshSectionQuery(mesh) {
     // Preserve the original edge overwrite and contour traversal order exactly.
     return found.sort((a,b)=>a-b).map(i=>mesh.triangles[i]);
   };
-  return z=>cutMesh(mesh,z,nearVertex,trianglesAt);
+  // Between consecutive vertex heights the intersected edges and their
+  // connectivity are fixed. Reuse that topology, not sampled coordinates.
+  // A small cache also covers nonmonotonic cuts from adaptive surface paths.
+  const bands=new Map();
+  const contoursAt=cut=>{
+    let lo=0,hi=heights.length;
+    while(lo<hi){const mid=(lo+hi)>>1;if(heights[mid]<cut)lo=mid+1;else hi=mid;}
+    if(!bands.has(lo)){
+      const contours=meshContourEdges(mesh,cut,trianglesAt(cut));
+      if(bands.size>=8)bands.delete(bands.keys().next().value);
+      bands.set(lo,contours);
+    }
+    return bands.get(lo);
+  };
+  return z=>cutMesh(mesh,z,nearVertex,trianglesAt,contoursAt);
 }
 
 export function sectionMesh(mesh,z) {
   return cutMesh(mesh,z,cut=>mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10),()=>mesh.triangles);
 }
 
-function cutMesh(mesh,z,nearVertex,trianglesAt) {
+function meshContourEdges(mesh,cut,triangles){
+  const edges=new Map(),graph=new Map();
+  for(const t of triangles){
+    const hits=[];
+    for(let k=0;k<3;k++){
+      const a=t[k],b=t[(k+1)%3],p=mesh.vertices[a],q=mesh.vertices[b];
+      if((p[2]>cut)===(q[2]>cut))continue;
+      const key=edgeKey(a,b);
+      // Preserve the last triangle's edge orientation and interpolation order.
+      edges.set(key,[p,q]);hits.push(key);
+    }
+    if(hits.length===2)for(let k=0;k<2;k++){const list=graph.get(hits[k])??[];list.push(hits[1-k]);graph.set(hits[k],list);}
+  }
+  requireThat([...graph.values()].every(n=>n.length===2),'Mesh section is not a closed set of contours.');
+  const remaining=new Set(graph.keys()),contours=[];
+  while(remaining.size){
+    const start=remaining.values().next().value,loop=[];let previous=null,current=start;
+    do {
+      requireThat(remaining.delete(current),'Ambiguous mesh contour.');loop.push(edges.get(current));
+      const next=graph.get(current).find(k=>k!==previous);previous=current;current=next;
+    } while(current!==start);
+    contours.push(loop);
+  }
+  return contours;
+}
+
+function cutMesh(mesh,z,nearVertex,trianglesAt,contoursAt=null) {
   requireThat(Number.isFinite(z),'Section height must be finite.');
   // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
   // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
@@ -153,25 +193,9 @@ function cutMesh(mesh,z,nearVertex,trianglesAt) {
   for(const nudge of [0,-1e-6,1e-6,-1e-5,1e-5]) {
     const cut=z+nudge;
     if(cut<=mesh.bounds.min[2]||cut>=mesh.bounds.max[2]||nearVertex(cut))continue;
-    const points=new Map(),graph=new Map();
-    for(const t of trianglesAt(cut)){
-      const hits=[];
-      for(let k=0;k<3;k++){
-        const a=t[k],b=t[(k+1)%3],p=mesh.vertices[a],q=mesh.vertices[b];
-        if((p[2]>cut)===(q[2]>cut))continue;
-        const key=edgeKey(a,b),f=(cut-p[2])/(q[2]-p[2]);
-        points.set(key,[p[0]+f*(q[0]-p[0]),p[1]+f*(q[1]-p[1])]);hits.push(key);
-      }
-      if(hits.length===2)for(let k=0;k<2;k++){const list=graph.get(hits[k])??[];list.push(hits[1-k]);graph.set(hits[k],list);}
-    }
-    requireThat([...graph.values()].every(n=>n.length===2),'Mesh section is not a closed set of contours.');
-    const remaining=new Set(graph.keys()),loops=[];
-    while(remaining.size){
-      const start=remaining.values().next().value,loop=[];let previous=null,current=start;
-      do {
-        requireThat(remaining.delete(current),'Ambiguous mesh contour.');loop.push(points.get(current));
-        const next=graph.get(current).find(k=>k!==previous);previous=current;current=next;
-      } while(current!==start);
+    const contours=contoursAt?contoursAt(cut):meshContourEdges(mesh,cut,trianglesAt(cut)),loops=[];
+    for(const edges of contours){
+      const loop=edges.map(([p,q])=>{const f=(cut-p[2])/(q[2]-p[2]);return [p[0]+f*(q[0]-p[0]),p[1]+f*(q[1]-p[1])];});
       // Remove collinear triangle seams before offsetting regions.
       const clean=cleanPlanarLoop(loop);
       requireThat(clean.length>=3,'Mesh section collapsed below tolerance.');loops.push(clean);

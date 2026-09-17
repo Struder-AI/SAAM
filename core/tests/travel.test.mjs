@@ -8,8 +8,6 @@ import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {defaults as wedgeDefaults,validatePlan as validateWedge} from '../../skills/wedge-demo/scripts/model.mjs';
-import {generatePath as wedgePath} from '../../skills/wedge-demo/scripts/path.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 
 test('indexed travel queries retain boundary, hole and crossing decisions',()=>{
@@ -56,16 +54,15 @@ test('multiple strokes in one operation clear only the material already emitted'
   assert.equal(b.depositedMaxZ,20);
 });
 
-test('one millimeter is the default and zero clearance generates and round trips for shell and wedge',async()=>{
+test('one millimeter is the default and zero clearance generates and round trips for a shell',async()=>{
   const native=await rhino();
-  for(const id of ['ultimaker-s5','bambu-h2d'])for(const wedge of [false,true]) {
-    const machine=loadMachine(id),plan=wedge?wedgeDefaults(machine):defaults(machine);
+  for(const id of ['ultimaker-s5','bambu-h2d']) {
+    const machine=loadMachine(id),plan=defaults(machine);
     assert.equal(plan.process.liftMm,1);
     plan.process.liftMm=0;plan.process.minimumLayerSeconds=0;
-    if(wedge)plan.process.combTravelMm=0;
-    else {plan.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};plan.skills['draped-skin'].enabled=false;plan.process.maxCombMm=0;}
-    (wedge?validateWedge:validatePlan)(plan,machine);
-    const path=wedge?wedgePath(plan,machine):generatePath(plan,machine,native);
+    plan.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};plan.skills['draped-skin'].enabled=false;plan.process.maxCombMm=0;
+    validatePlan(plan,machine);
+    const path=generatePath(plan,machine,native);
     let from=path.initialPosition,high=0,atMaterialHeight=0;
     for(const a of path.actions)if(a.kind==='move') {
       if(a.volumeMm3>0)high=Math.max(high,from[2],a.to[2]);
@@ -76,7 +73,7 @@ test('one millimeter is the default and zero clearance generates and round trips
     assert.equal(from[2],high,'final park has zero clearance');
     const program=interpretProgram(exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'}),plan,machine);
     assert.equal(program.moves.length,path.actions.filter(a=>a.kind==='move').length);
-    plan.process.liftMm=-.1;assert.throws(()=>(wedge?validateWedge:validatePlan)(plan,machine),/liftMm/);
+    plan.process.liftMm=-.1;assert.throws(()=>validatePlan(plan,machine),/liftMm/);
   }
 });
 

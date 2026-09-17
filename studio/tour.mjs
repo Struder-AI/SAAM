@@ -1,4 +1,4 @@
-import {readFile,writeFile,mkdir,rename,stat,realpath,unlink} from 'node:fs/promises';
+import {readFile,mkdir,stat,realpath,unlink} from 'node:fs/promises';
 import {resolve,dirname,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
@@ -7,12 +7,13 @@ import {starterPlan} from '../examples/prints/starter/recipe.mjs';
 import {demos} from '../examples/prints/create.mjs';
 import {canonical} from '../core/print/plan.mjs';
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
-import {hasPresentedResult} from './work-state.mjs';
+import {hasPresentedResult,requestActivity} from './work-state.mjs';
+import {replaceFile} from '../core/file-write.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 async function optional(file){try{return await json(file);}catch(e){if(e.code==='ENOENT')return null;throw e;}}
-async function save(file,value){await mkdir(dirname(file),{recursive:true});const temp=file+'.'+randomUUID()+'.tmp';await writeFile(temp,JSON.stringify(value,null,2)+'\n');await rename(temp,file);}
+async function save(file,value){await replaceFile(file,JSON.stringify(value,null,2)+'\n');}
 function demo(id){if(!TOUR_DEMOS.some(d=>d.id===id))throw Error('Unknown tour example');return resolve(packages,id);}
 const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includes(':')&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..');
 export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&(marker.id==='imported'||TOUR_DEMOS.some(d=>d.id===marker.id))?{id:marker.id,version:marker.version}:null;}
@@ -20,19 +21,21 @@ export function referenceAdapter(live){
   return {...live,async loadBundle(directory,options={}){
     const example=await tourExample(directory),state=await live.loadBundle(directory,options);
     return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
-  },async bundleFingerprint(directory){return await live.bundleFingerprint(directory)+Boolean(await tourExample(directory));},
+  },async bundleFingerprint(directory,options){return await live.bundleFingerprint(directory,options)+(options?.presentation?'':Boolean(await tourExample(directory)));},
   ...Object.fromEntries(['approve','generateBundle','deliver'].map(method=>[method,async(directory,...args)=>{
     if(await tourExample(directory)&&method!=='generateBundle'&&!(method==='approve'&&args[0]?.stage==='geometry'))throw Error('Exit the tour before confirming a real print.');
     return live[method](directory,...args);
   }]))};
 }
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
-export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
+export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentRequests}={}){
   const library=resolve(libraryRoot),progress=resolve(library,'.tour-progress.json'),base=resolve(library,'tour');
-  const requests=createAgentRequests(library,{now,ownerId});
+  const requests=agentRequests??createAgentRequests(library,{now,ownerId}),ownsRequests=!agentRequests;
   let playbackAt=null;
-  const initial=()=>({imports:[],version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,watchedMs:0,startAt:null,repairReviewRequired:false});
-  async function read(){const value=await optional(progress);if(value?.deckVersion===2){value.deckVersion=TOUR_DECK_VERSION;if(value.step>=3)value.step++;value.gates=Object.fromEntries(Object.entries(value.gates??{}).map(([k,v])=>[Number(k)>=3?Number(k)+1:k,v]));await save(progress,value);}return value?.deckVersion===TOUR_DECK_VERSION?{...initial(),...value}:initial();}
+  const initial=()=>({imports:[],version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,runId:null,lessonId:null,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,watchedMs:0,startAt:null,repairReviewRequired:false});
+  async function read(){const value=await optional(progress);return value?.deckVersion===TOUR_DECK_VERSION&&value.runId?{...initial(),...value}:initial();}
+  const scope=data=>({runId:data.runId,lessonId:data.lessonId});
+  const studioOwner=()=>studioId?{instanceId:studioId}:null;
   async function confined(name){
     if(!validPath(name))throw Error('Invalid saved tour path');
     const [realBase,target]=await Promise.all([realpath(base),realpath(resolve(base,name))]);
@@ -57,14 +60,12 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
     const dir=await confined(data.selected),plan=await json(resolve(dir,'plan.json'));
     return hash(canonical([L.geometry,L.roof].includes(data.step)?plan.geometry:{plan,machine:await json(resolve(dir,'machine.json'))}));
   }
-  async function editLessonBaseline(data,{entering=false}={}){
+  async function editLessonBaseline(data){
     const printId=requests.printId(await confined(data.selected));
     if(data.editLesson?.printId===printId)return false;
-    const records=await requests.list(),guidance=entering?null:records.find(r=>r.id===hash('tour-infill:'+data.copies.starter+':'+data.selected));
-    // Older saved lessons already captured the full input identity in their
-    // guidance request. Preserve it, including geometry, when resuming them.
-    data.editLesson={printId,inputKey:guidance?.baseline?.inputKey??await signature({...data,step:L.settings}),
-      priorRequestIds:records.filter(r=>r.printId===printId&&(!guidance||r.createdAt<=guidance.createdAt)).map(r=>r.id)};
+    const records=await requests.list({printId});
+    data.editLesson={printId,inputKey:await signature({...data,step:L.settings}),
+      priorRequestIds:records.filter(r=>r.printId===printId).map(r=>r.id)};
     data.baseline=data.editLesson.inputKey;
     if(data.gates[L.settings]&&data.viewWork)data.viewSignature=data.viewWork.inputKey;
     return true;
@@ -75,26 +76,53 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
     if(data.active&&[L.geometry,L.roof,L.settings].includes(data.step)&&data.gates[data.step]&&await signature(data)!==data.viewSignature){data.gates[data.step]=false;await save(progress,data);}
     return data;
   }
-  async function describe(data){
+  async function describe(data,records){
     const gate=TOUR_STEPS[data.step]?.gate;
-    const directory=data.selected?await confined(data.selected):null;
-    const waiting=data.active&&[L.roof,L.settings].includes(data.step)&&directory&&(await requests.list()).some(r=>r.printId===requests.printId(directory)&&r.kind!=='guidance'&&(data.step===L.roof?r.status==='working':['queued','working'].includes(r.status))&&!hasPresentedResult(r,data.viewWork));
+    const directory=(data.active||data.completed)&&data.selected?await confined(data.selected):null;
+    const waiting=data.active&&[L.geometry,L.roof,L.settings].includes(data.step)&&directory&&(records??await requests.query({printId:requests.printId(directory)})).some(r=>
+      requestActivity(r,{now:now(),view:{printId:requests.printId(directory),ready:true,snapshot:data.viewWork}})==='working');
     return {...data,directory,canNext:!waiting&&(!gate||data.gates[data.step]===true),agentInstruction:tourAgentInstruction(data)};
   }
   async function enter(data,index){
-    const step=TOUR_STEPS[index];data.step=index;data.active=true;data.completed=false;data.dismissed=false;playbackAt=null;
+    if(data.lessonId)await requests.cancelScope(scope(data));
+    const step=TOUR_STEPS[index];data.lessonId=randomUUID();data.step=index;data.active=true;data.completed=false;data.dismissed=false;playbackAt=null;
     if(step.demo){await ensure(step.demo,data);data.selected=data.copies[step.demo];}
     if(index===2){await ensure('starter',data);await ensure('surface-drape',data);}
     if(index===L.roof){data.gates[index]=false;data.baseline=await signature(data);data.viewWork=null;}
     if(index===L.playback)data.repairReviewRequired=false;
     if(index===L.geometry&&!data.gates[index])data.baseline=await signature(data);
     if(index===L.settings){
-      await editLessonBaseline(data,{entering:true});data.baseline=data.editLesson.inputKey;
-      await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',key:'tour-infill:'+data.copies.starter+':'+data.selected,instruction:tourAgentInstruction(data)});
+      data.editLesson=null;data.gates[index]=false;
+      await editLessonBaseline(data);data.baseline=data.editLesson.inputKey;
+      await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:scope(data),key:'tour-infill:'+data.lessonId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
     }
   }
   return {
-    async info(){return describe(await observed());},
+    close(){if(ownsRequests)requests.close();},
+    async info({records}={}){return describe(await observed(),records);},
+    async attachStudio(directory){
+      if(!studioId)return;
+      const data=await read();
+      if(!data.active||data.studioOwner||!data.selected||await confined(data.selected)!==resolve(directory))return;
+      data.studioOwner=studioOwner();await save(progress,data);
+    },
+    async closeStudio(){
+      if(!studioId)return;
+      const data=await read();if(data.studioOwner?.instanceId!==studioId)return;
+      // End only this server's run. A later fresh run can belong to another
+      // Studio, and ordinary previews must never close somebody else's tour.
+      await save(progress,initial());playbackAt=null;
+      await requests.cancelScope({runId:data.runId});
+      for(const name of [...Object.values(data.copies),...data.imports]){
+        const directory=await confined(name);await useExample(directory);await requests.cancelFor(directory);
+      }
+    },
+    async restoreReference(directory){
+      const data=await read();if(!data.active)return;
+      const name=relative(base,resolve(directory)).split(sep).join('/');
+      const id=Object.entries(data.copies).find(([,copy])=>copy===name)?.[0]??(data.imports.includes(name)?'imported':null);
+      if(id)await save(resolve(await confined(name),'.tour-reference.json'),{id,version:TOUR_VERSION});
+    },
     async downloaded(exportHash){const data=await read();if(!data.active||data.step!==L.export)throw Error('Continue to the export lesson first.');data.downloadedHash=exportHash;await save(progress,data);},
     async acknowledgeView(directory,seen,state){
       const data=await observed();
@@ -102,16 +130,24 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
       if(data.step===L.settings){
         if(seen.stage!=='toolpath'||!state.geometryApproved||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
         const shown={...workSnapshot(state),stage:'toolpath'},baseline=data.editLesson;
-        const requested=(await requests.list()).some(r=>r.printId===baseline.printId&&r.source==='agent'&&r.kind!=='guidance'
+        const requested=(await requests.list({printId:baseline.printId})).some(r=>r.source==='agent'&&r.kind!=='guidance'
           &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)
           &&r.baseline?.inputKey!==shown.inputKey&&hasPresentedResult({...r,presented:false},shown));
         if(!requested)return describe(data);
       }
-      if([L.geometry,L.roof,L.settings].includes(data.step)&&await signature(data)!==data.baseline){data.gates[data.step]=true;data.viewSignature=await signature(data);data.viewWork={...workSnapshot(state),stage:seen.stage};await save(progress,data);}
+      if([L.geometry,L.roof,L.settings].includes(data.step)){
+        const current=await signature(data);
+        if(current!==data.baseline){data.gates[data.step]=true;data.viewSignature=current;data.viewWork={...workSnapshot(state),stage:seen.stage};await save(progress,data);}
+      }
       return describe(data);
     },
     async landing(){const data=await read();if(!data.selected){await ensure('starter',data);data.selected=data.copies.starter;}await save(progress,data);return confined(data.selected);},
-    async setStartAt(startAt){if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('startAt.layer must be an infill layer after the first layer.');const data=await read();data.startAt={layer:startAt.layer};await save(progress,data);return describe(data);},
+    async setStartAt(startAt,expected){
+      if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('startAt.layer must be an infill layer after the first layer.');
+      const data=await read();
+      if(expected&&(!data.active||data.runId!==expected.runId||data.lessonId!==expected.lessonId))throw Error('That tour lesson ended. Discard its start-layer choice.');
+      data.startAt={layer:startAt.layer};await save(progress,data);return describe(data);
+    },
     async select(directory,{requiresReview=false}={}){
       const data=await observed();if(!data.active||data.step!==2)throw Error('Open a print during the print-switching lesson.');
       const target=await realpath(directory),allowed=await Promise.all([...Object.values(data.copies),...data.imports].map(confined));
@@ -128,8 +164,9 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
       return describe(data);
     },
     async requestStartLayer(){
-      const data=await read(),directory=await confined(data.selected);
-      await requests.begin({directory,source:'studio',key:'tour-layer:'+data.copies.starter+':'+data.selected,instruction:'The participant imported an STL and advanced to playback. Inspect this selected print and its generated toolpath. Explicitly set startAt to a sparse-infill layer after the first layer using set_tour_start_at. If this model needs different settings to show infill, explain and make the appropriate change, regenerate, and choose that layer. Otherwise complete this preparation silently. Studio supplies the Play instruction; do not add an unsolicited chat prompt before the designated infill lesson.'});
+      const data=await read();if(!data.active||data.step!==L.playback)return describe(data);
+      const directory=await confined(data.selected);
+      await requests.begin({directory,source:'studio',kind:'guidance',scope:scope(data),key:'tour-layer:'+data.lessonId,studioInstanceId:studioId,instruction:'The participant imported an STL and advanced to playback. If its existing toolpath has a sparse-infill layer after the first layer, set startAt to that layer using set_tour_start_at. Otherwise keep Studio’s deposited-layer fallback. Do not change geometry or settings or regenerate solely to choose a viewing position. Complete this preparation silently; it must not delay playback. Studio supplies the Play instruction; chat teaching begins at the designated infill lesson.'});
       return describe(data);
     },
     async playback(event){
@@ -142,11 +179,11 @@ export function createTour(libraryRoot,{now=Date.now,ownerId}={}){
     },
     async action(action,step){
       let data=await observed();
-      if(action==='exit'||action==='pause'){data.active=false;if(action==='exit')data.dismissed=true;playbackAt=null;for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}}
-      else if(action==='finish'){if(data.step!==TOUR_STEPS.length-1||!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;playbackAt=null;for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',key:'tour-finish:'+data.copies.starter,instruction:tourAgentInstruction(data)});}
-      else if(action==='fresh'){for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}data=initial();await enter(data,0);await ensure('surface-drape',data);}
-      else if(action==='resume'){await enter(data,data.step);for(const [id,name]of Object.entries(data.copies))await save(resolve(await confined(name),'.tour-reference.json'),{id,version:TOUR_VERSION});for(const name of data.imports)await save(resolve(await confined(name),'.tour-reference.json'),{id:'imported',version:TOUR_VERSION});}
+      if(action==='exit'||action==='cancel'){data.active=false;data.dismissed=true;playbackAt=null;for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});if(!data.completed)data=initial();}
+      else if(action==='finish'){if(data.step!==TOUR_STEPS.length-1||!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;playbackAt=null;for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});}
+      else if(action==='fresh'){for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});data={...initial(),runId:randomUUID(),studioOwner:studioOwner()};await enter(data,0);await ensure('surface-drape',data);}
       else if(action==='step'){
+        if(!data.active)throw Error('Start a new tour first.');
         if(!Number.isInteger(step)||!TOUR_STEPS[step])throw Error('Unknown tour step');
         if(Math.abs(step-data.step)>1)throw Error('Use Next or Back to follow the tour.');
         if(step>data.step&&!(await describe(data)).canNext)throw Error('Complete this lesson before continuing.');

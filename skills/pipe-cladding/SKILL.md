@@ -6,7 +6,7 @@ description: Wrap a substrate with alternating lengthwise and helical cladding, 
 # Pipe cladding
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 This is a bounded development implementation for the DENSO VP-6242 with RC8 and
 an external rotary. RC8 is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
@@ -72,6 +72,7 @@ uses unwrapped rotary angles, including many revolutions without a modulo reset.
 | `sampleStepMm` | `1` | Maximum axial/circumferential sample spacing. |
 | `toleranceMm` | `0.01` | Circumferential chord tolerance. |
 | `maxPoints` | `500000` | Explicit generation budget; increase if a larger plan needs it. |
+| `offsetTightness` | `1` | For explicit spline surfaces, blend a fixed-size loose NURBS offset field (`0`) toward the exact unit-normal offset (`1`). Mesh-strip surfaces retain their existing exact normal interpolation. |
 
 By default, shared line width sets track spacing and helix pitch; `skinSpeedMmS` controls
 cladding speed. Intent volume uses rectangular bead area. Axial centers stay
@@ -164,8 +165,8 @@ calibration for an actual installation.
 
 Software coverage is in [denso.test.mjs](../../core/tests/denso.test.mjs): native
 geometry, radial ownership/order, unwrapped turns, tilted poses, source edits,
-relay behavior, both preview frames, mesh/spline predecessor skills, bounded
-wedge, cold reopen, synthetic approval invalidation and exact-byte delivery.
+relay behavior, both preview frames, mesh/spline predecessor skills, cold reopen,
+synthetic approval invalidation and exact-byte delivery.
 
 ## Finished-surface composition
 

@@ -1,8 +1,10 @@
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
+import {hasUnpreparedEdit} from './work-state.mjs';
 export const needsTourGeometryReview=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
   &&state.tour.step>=L.playback&&!state.geometryApproved);
 export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
-  &&state.tour.step>=L.playback&&state.geometryApproved&&!state.generationError&&(!state.program||state.programError));
+  &&state.tour.step>=L.playback&&state.geometryApproved&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability
+  &&!hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot)&&(!state.program||state.programError));
 export function createTourUI({post,refresh,working,setTab,isBusy,state:current,seek}){
   const $=id=>document.getElementById(id);let progress=null,expanded=null,applied=null,playbackActive=false,pending=false,startReady=false;
   const panel=$('tour-panel');let displayedStep=null,workActive=false,playStarted=false,playedSource=null;
@@ -19,7 +21,6 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     if(progress?.active&&progress.directory===current()?.localPrintDirectory){expanded=!expanded;render(current());}
     else await action('fresh',0);
   });
-  $('tour-resume').onclick=attempt(()=>action('resume',progress.step));
   $('tour-exit').onclick=attempt(()=>action('exit'));
   $('tour-back').onclick=attempt(()=>action('step',progress.step-1));
   $('tour-next').onclick=attempt(()=>action('step',progress.step+1));
@@ -46,8 +47,6 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     const completed=progress.completed&&progress.directory===state.localPrintDirectory&&!progress.dismissed;
     panel.hidden=!(active||completed)||!expanded;
     $('tour-complete').hidden=!completed;$('tour-lesson').hidden=!active;$('tour-exit').hidden=!active&&!completed;
-    $('tour-resume').hidden=progress.active||progress.completed||!progress.selected;
-    $('tour-resume').disabled=isBusy();
     $('canvas').classList.toggle('tour-faded',active&&progress.step===L.open);
     for(const id of ['import-stl','tour-next'])$(id).classList.toggle('tour-choice',active&&progress.step===L.import);
     $('tour-progress').textContent='SAAM TOUR · '+(progress.step+1)+' OF '+TOUR_STEPS.length;
@@ -60,7 +59,7 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     }
     for(const button of panel.querySelectorAll('button'))button.disabled=isBusy();
     $('tour-back').disabled=isBusy()||geometryReview||progress.step===0;
-    $('tour-next').disabled=isBusy()||geometryReview||!progress.canNext||(active&&progress.step===L.roof&&workActive);
+    $('tour-next').disabled=isBusy()||geometryReview||!progress.canNext||(active&&[L.geometry,L.roof,L.settings].includes(progress.step)&&workActive);
     $('tour-next').hidden=progress.step===TOUR_STEPS.length-1;
     $('tour-next').textContent=repairReview?'Confirm repaired geometry & continue':progress.step===L.import?'Continue with this part':'Next';
     $('import-stl').disabled=isBusy()||(active&&progress.step!==L.import);
@@ -89,8 +88,13 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
           if(desired==='toolpath'&&!state.program){$('tour-status').textContent=state.generationError??state.programError??'Preparing your toolpath…';return;}
           $('tour-status').textContent='';
           if(progress.step===L.playback){try{
-            const start=progress.startAt??{layer:1,fallback:true},landed=seek(start);startReady=true;
-            $('tour-status').textContent=(start.fallback?'Starting at layer '+((landed?.layer??1)+1)+'. ':'')+'Press Play and watch for five seconds. You can scrub or change the speed.';
+            const start=progress.startAt??{layer:1,fallback:true};let landed,fallback=start.fallback;
+            try{landed=seek(start);}catch(error){
+              if(start.fallback)throw error;
+              landed=seek({layer:1,fallback:true});fallback=true;
+            }
+            startReady=true;
+            $('tour-status').textContent=(fallback?'Starting at layer '+((landed?.layer??1)+1)+'. ':'')+'Press Play and watch for five seconds. You can scrub or change the speed.';
           }catch(e){$('tour-status').textContent=e.message;}}
         });
       }
@@ -98,7 +102,8 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
   }
   async function acknowledgeView(state,stage){
     const response=await post('view-ready',{revision:state.revision,exportHash:state.exportHash,stage});
-    progress=await response.json();state.tour=progress;render(state);
+    const {presentedRequests=[],...guide}=await response.json();
+    progress=guide;state.tour=progress;render(state);return presentedRequests;
   }
   return {load,render,playback,acknowledgeView,activity(active){workActive=active;render(current());},active:()=>Boolean(progress?.active&&progress.directory===current()?.localPrintDirectory),initialTab:()=>progress?.active?TOUR_STEPS[progress.step]?.tab:'geometry'};
 }

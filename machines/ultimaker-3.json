@@ -1,0 +1,47 @@
+{
+  "schema": "saam-machine/1",
+  "id": "ultimaker-3",
+  "name": "Ultimaker 3",
+  "revision": 1,
+  "units": "mm",
+  "planarWallToleranceMm": 0.01,
+  "kinematics": "cartesian-fixed-vertical-nozzle",
+  "capabilities": ["xyz-extrusion", "planar"],
+  "bounds": {"min": [0, 0, 0], "max": [233, 215, 200]},
+  "maxFeedMmS": {"x": 300, "y": 300, "z": 40, "e": 25},
+  "temperatureLimitsC": {"nozzle": [180, 280], "bed": [0, 100], "chamberMax": 0},
+  "filamentDiameterMm": 2.85,
+  "tools": [
+    {"index": 0, "label": "Left nozzle (#1)", "nominalOffsetMm": [0, 0], "bounds": {"min": [18, 10, 0], "max": [208, 207, 200]}, "cores": ["AA 0.4"], "nozzleDiametersMm": [0.4], "layerHeightMm": [0.06, 0.2]},
+    {"index": 1, "label": "Right nozzle (#2)", "nominalOffsetMm": [18, 0], "bounds": {"min": [18, 10, 0], "max": [208, 207, 200]}, "cores": ["AA 0.4"], "nozzleDiametersMm": [0.4], "layerHeightMm": [0.06, 0.2]}
+  ],
+  "materials": {
+    "PLA": {"nozzleC": [180, 230], "bedC": [0, 70], "maxFlowMm3S": 4, "maxRetractMm": 10},
+    "ABS": {"nozzleC": [230, 260], "bedC": [80, 100], "maxFlowMm3S": 4, "maxRetractMm": 10}
+  },
+  "defaultSetup": {
+    "tool": 0, "core": "AA 0.4", "nozzleMm": 0.4,
+    "material": "PLA", "filamentMm": 2.85, "nozzleC": 215, "bedC": 60,
+    "buildVolumeC": 0, "materialGuid": "506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9", "firmwareVersion": "", "startupVerified": false
+  },
+  "defaultProcess": {
+    "planarSpeedMmS": 35, "skinSpeedMmS": 20, "firstLayerSpeedMmS": 20,
+    "travelSpeedMmS": 120, "zSpeedMmS": 5, "retractMm": 6.5, "retractSpeedMmS": 25
+  },
+  "outputs": [{
+    "id": "griffin-gcode", "extension": ".gcode", "flavor": "Griffin", "extrusionUnits": "mm-filament",
+    "implemented": false,
+    "reason": "Ultimaker 3 export is not implemented. Its Griffin header, startup handoff and shutdown need a machine-specific contract; the S5 startup is not assumed compatible."
+  }],
+  "startup": {"protocol": "unconfigured", "validation": "Standard-height Ultimaker 3, not Extended or S3. No UM3 startup handoff has been established."},
+  "boundsBasis": "Cura uses a 233 x 215 x 200 mm coordinate envelope; the advertised single-nozzle volume is 215 x 215 x 200 mm. Both tools use a conservative shared rectangle x=18..208, y=10..207, inside their overlap and excluding Cura's front-right and glass-clip regions. This rectangle is not the full single-tool area.",
+  "processBasis": "PLA is an editable default; ABS is also declared. Flow/retraction caps are conservative SAAM choices. Select one installed AA 0.4 core per plan. A right-hand BB core must not be selected as AA. In-program tool changes, PVA/BB recipes and nonplanar clearance are not declared. Changing material also requires the matching material GUID before eventual Griffin output.",
+  "sources": [
+    "https://raw.githubusercontent.com/Ultimaker/Cura/master/resources/definitions/ultimaker3.def.json",
+    "https://raw.githubusercontent.com/Ultimaker/Cura/main/resources/extruders/ultimaker3_extruder_left.def.json",
+    "https://raw.githubusercontent.com/Ultimaker/Cura/main/resources/extruders/ultimaker3_extruder_right.def.json",
+    "https://um-support-files.ultimaker.com/manuals/user-manual/UM3/Ultimaker%203%20-%20User%20manual%20EN%20v1.4.pdf"
+  ],
+  "sourceChecked": "2026-09-16",
+  "validation": "Profile for geometry and setup review only; machine output and physical printing are unvalidated."
+}

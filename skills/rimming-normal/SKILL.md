@@ -17,6 +17,10 @@ outward sign. The source curves are still sections of the reference surface at
 the shared layer heights. Offsetting their points can change both XY and Z,
 creating nonplanar printing paths. The tool refines the actual offset curves
 through the same shared native spline evaluation and section-offset function.
+The shared `offsetTightness` setting is available for exploratory spline
+references: `1` keeps the exact unit-normal construction, while lower values
+blend from a fixed-size loose control field. Exact remains the default where
+edge spacing and anchorage are material-critical.
 
 The whole-base and whole-rim dependencies in the planar manual apply here too:
 all of the base edge prints before this rim starts, and this rim finishes before
@@ -46,7 +50,7 @@ configured Dobot software exports use the same composer and reviewed machine
 source as every other skill; normal offsets do not add a pipeline or approval.
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 The public callable is
 `rimmingNormalResults({plan, modelResults})` in `scripts/rimming.mjs`, delegating
 to the shared rimming producer. The paired tests live in

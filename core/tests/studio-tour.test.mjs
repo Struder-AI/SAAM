@@ -10,16 +10,40 @@ import {adjustBundle,loadBundle,generateBundle,approve} from '../print/bundle.mj
 import {createStudio} from '../../studio/server.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 async function library(t){const dir=await mkdtemp(join(tmpdir(),'saam-tour-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100}));return dir;}
-async function ready(tour,dir){const state=await loadBundle(dir,{program:'source'});return tour.acknowledgeView(dir,{revision:state.revision,exportHash:state.exportHash,stage:state.program?'toolpath':'geometry'},state);}
+async function ready(tour,dir){
+  const state=await loadBundle(dir,{program:'source'}),stage=state.program?'toolpath':'geometry';
+  const {workSnapshot}=await import('../../studio/agent-requests.mjs');
+  await createAgentRequests(join(dir,'../..'),{now:()=>0}).presented(dir,{...workSnapshot(state),stage});
+  return tour.acknowledgeView(dir,{revision:state.revision,exportHash:state.exportHash,stage},state);
+}
 async function editFin(copy){const {plan}=await loadBundle(copy,{program:false});plan.geometry.parts[1].geometry.heightMm+=1;await adjustBundle(copy,{geometry:plan.geometry});}
 
+test('lesson changes invalidate teaching while an individual edit cancellation leaves the tour active',async t=>{
+  const root=await library(t),tour=createTour(root),requests=createAgentRequests(root);
+  const {directory,data:first}=await tour.action('fresh');
+  await editFin(directory);await ready(tour,directory);await tour.action('step',1);await tour.action('step',2);
+  await tour.select(directory);await tour.action('step',4);await tour.requestStartLayer();
+  const old=(await requests.wait({waitMs:0})).requests[0];assert.equal(old.scope.runId,first.runId);
+  const edit=await requests.begin({directory,instruction:'An independent edit'});
+  await requests.update(edit.id,{status:'cancelled'});assert.equal((await tour.info()).active,true);
+  await tour.action('step',3);
+  assert.equal((await requests.get(old.id)).status,'cancelled');
+  assert.equal((await requests.update(old.id,{status:'working'})).status,'cancelled','late claims cannot revive old teaching');
+  await tour.action('step',4);await tour.requestStartLayer();
+  const next=(await requests.wait({waitMs:0})).requests[0];assert.notEqual(next.id,old.id);assert.notEqual(next.scope.lessonId,old.scope.lessonId);
+  await tour.action('cancel');assert.equal((await requests.get(next.id)).status,'cancelled');
+  assert.notEqual((await tour.action('fresh')).data.runId,first.runId);
+});
+
 test('tour gates require geometry edits, file selection, five seconds of playback and settings edits',async t=>{
-  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('resume');
+  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
   assert.equal((await tour.info()).canNext,false);
   await assert.rejects(tour.action('step',1),/Complete/);
   await adjustBundle(starter,{process:{planarSpeedMmS:30}});assert.equal((await tour.info()).canNext,false,'settings do not satisfy the geometry task');
   const editing=createAgentRequests(dir),editRequest=await editing.begin({directory:starter,instruction:'Change the fin'});
-  await editFin(starter);assert.equal((await tour.info()).canNext,false);await ready(tour,starter);assert.equal((await tour.info()).canNext,true,'visible geometry unlocks without waiting for the chat acknowledgement');
+  await editFin(starter);assert.equal((await tour.info()).canNext,false);
+  await editing.update(editRequest.id,{status:'working',resultStage:'geometry'});
+  await ready(tour,starter);assert.equal((await tour.info()).canNext,true,'visible geometry unlocks without waiting for the chat acknowledgement');
   await editing.update(editRequest.id);
   const {directory:roof}=await tour.action('step',1);assert.notEqual(roof,starter);
   assert.equal((await tour.info()).canNext,true);
@@ -29,6 +53,7 @@ test('tour gates require geometry edits, file selection, five seconds of playbac
   await assert.rejects(tour.action('step',2),/Complete/);
   const state=await loadBundle(roof,{program:false}),heightsMm=state.plan.geometry.heightsMm.map(row=>row.map(z=>z+.1));
   await adjustBundle(roof,{geometry:{heightsMm}});
+  await editing.update(roofRequest.id,{status:'working',resultStage:'geometry'});
   assert.equal((await tour.info()).canNext,false,'saving alone does not finish visible work');
   await ready(tour,roof);assert.equal((await tour.info()).canNext,true);assert.equal((await tour.info()).gates[1],true);
   await editing.update(roofRequest.id);
@@ -58,7 +83,7 @@ test('tour gates require geometry edits, file selection, five seconds of playbac
   assert.deepEqual((await loadBundle(roof,{program:false})).plan.geometry.heightsMm,heightsMm,'switching preserves roof edits');
 });
 test('chat edit lesson accepts requested geometry only after confirmation and current toolpath display',async t=>{
-  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('resume');
+  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
   const requests=createAgentRequests(dir,{now:()=>time});
   const early=await requests.begin({directory:starter,instruction:'The participant requests a taller initial fin'});
   await editFin(starter);await requests.update(early.id);await ready(tour,starter);
@@ -75,14 +100,10 @@ test('chat edit lesson accepts requested geometry only after confirmation and cu
   await requests.update(automatic.id,{status:'working'});
   await adjustBundle(starter,{process:{planarSpeedMmS:31}});await generateBundle(starter);await requests.update(automatic.id);
   await ready(tour,starter);assert.equal((await tour.info()).canNext,false,'automatic work and earlier participant requests cannot satisfy this lesson');
-  const progressFile=join(dir,'.tour-progress.json'),legacy=JSON.parse(await readFile(progressFile,'utf8'));
-  delete legacy.editLesson;legacy.baseline='legacy-settings-only-signature';await writeFile(progressFile,JSON.stringify(legacy));
-  assert.equal((await tour.info()).baseline,baseline,'saved older lessons recover their original full input baseline from guidance');
-  await ready(tour,starter);assert.equal((await tour.info()).canNext,false,'baseline migration cannot turn an unsolicited edit into lesson completion');
   const edit=await requests.begin({directory:starter,instruction:'The participant requests a taller fin instead of changing infill'});
   await editFin(starter);await ready(tour,starter);assert.equal((await tour.info()).canNext,false,'rendered geometry still requires review and a toolpath');
   await requests.update(edit.id,{status:'waiting',resultStage:'geometry'});
-  await tour.action('resume');assert.equal((await tour.info()).baseline,baseline,'geometry recovery and resume preserve the lesson baseline');
+  assert.equal((await createTour(dir).info()).baseline,baseline,'another participant in the live run preserves its baseline');
   await generateBundle(starter,{development:true});await ready(tour,starter);
   assert.equal((await tour.info()).canNext,false,'an unconfirmed development toolpath cannot complete geometry recovery');
   await approve(starter,{stage:'geometry',actor:'SYNTHETIC changed geometry confirmation',revision:(await loadBundle(starter,{program:false})).revision});
@@ -97,11 +118,13 @@ test('chat edit lesson accepts requested geometry only after confirmation and cu
   assert.equal((await requests.list()).find(r=>r.id===guidance.id).status,'queued');
   assert.equal((await tour.info()).canNext,true,'unfinished automatic infill guidance does not block a completed participant edit');
   const queued=await requests.begin({directory:starter,source:'studio',instruction:'The participant requests another edit'});
-  assert.equal((await tour.info()).canNext,false,'queued edit work still blocks Next');
+  assert.equal((await tour.info()).canNext,true,'unclaimed work does not block a delivered lesson');
+  await requests.update(queued.id,{status:'working'});
+  assert.equal((await tour.info()).canNext,false,'claimed edit work blocks Next');
   await requests.update(queued.id);assert.equal((await tour.info()).canNext,true);
 });
 test('five seconds of fallback playback unlocks the lesson without an agent-selected layer',async t=>{
-  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('resume');
+  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
   await editFin(starter);await ready(tour,starter);await tour.action('step',1);await tour.action('step',2);
   await tour.select(starter);await tour.action('step',4);
   assert.equal((await tour.info()).startAt,null);
@@ -115,8 +138,8 @@ test('five seconds of fallback playback unlocks the lesson without an agent-sele
   const progress=await tour.info();assert.equal(progress.startAt,null);assert.equal(progress.watchedMs,5000);assert.equal(progress.canNext,true);
   await tour.action('step',5);assert.equal((await tour.info()).step,5);
 });
-test('resuming and restarting preserve copies; exit is available at a locked step',async t=>{
-  const dir=await library(t),tour=createTour(dir),{directory:first}=await tour.action('resume');
+test('exit ends the run; restarting begins lesson one and preserves earlier print copies',async t=>{
+  const dir=await library(t),tour=createTour(dir),{directory:first}=await tour.action('fresh');
   const starterSource=await readFile(join(first,'plan.json'),'utf8');
   await editFin(first);await ready(tour,first);
   const {directory:roof}=await tour.action('step',1);
@@ -125,9 +148,9 @@ test('resuming and restarting preserve copies; exit is available at a locked ste
   const editedRoof=await readFile(join(roof,'plan.json'),'utf8');
   await tour.setStartAt({layer:12});
   await tour.action('exit');assert.equal((await tour.info()).active,false);
-  assert.equal((await tour.action('resume')).directory,roof);
-  assert.equal((await tour.info()).step,1,'explicit resume keeps the saved lesson');
-  assert.equal((await tour.info()).canNext,true);
+  assert.equal((await tour.info()).selected,null);
+  await assert.rejects(tour.action('resume'),/Unknown tour action/);
+  await assert.rejects(tour.action('step',1),/Start a new tour/);
   const {directory:second}=await tour.action('fresh');assert.notEqual(second,first);
   assert.equal((await tour.info()).step,0,'new tours always begin with the first lesson');
   assert.equal((await tour.info()).startAt,null,'a previous model’s playback layer is not inherited');
@@ -144,7 +167,7 @@ test('resuming and restarting preserve copies; exit is available at a locked ste
   assert.equal(await createTour(dir).landing(),second);
 });
 test('editing a recipe-created roof keeps the tour identity and edited copy',async t=>{
-  const dir=await library(t),tour=createTour(dir),{directory:starter}=await tour.action('resume');await editFin(starter);await ready(tour,starter);
+  const dir=await library(t),tour=createTour(dir),{directory:starter}=await tour.action('fresh');await editFin(starter);await ready(tour,starter);
   const {directory:roof}=await tour.action('step',1);
   await adjustBundle(roof,{process:{planarSpeedMmS:30}});
   const state=await referenceAdapter({loadBundle}).loadBundle(roof,{program:false});
@@ -153,7 +176,7 @@ test('editing a recipe-created roof keeps the tour identity and edited copy',asy
   assert.equal(await createTour(dir).landing(),roof);
 });
 test('Studio file selection confirms geometry; completing the STL lesson first loads toolpath',async t=>{
-  const dir=await library(t),tour=createTour(dir),{directory:starter}=await tour.action('resume');await editFin(starter);await ready(tour,starter);
+  const dir=await library(t),tour=createTour(dir),{directory:starter}=await tour.action('fresh');await editFin(starter);await ready(tour,starter);
   await tour.action('step',1);await tour.action('step',2);await tour.setStartAt({layer:12});
   const server=createStudio(starter,{libraryRoot:dir});t.after(()=>server.shutdown());server.listen(0,'127.0.0.1');await once(server,'listening');
   const url='http://127.0.0.1:'+server.address().port,html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
@@ -169,6 +192,10 @@ test('Studio file selection confirms geometry; completing the STL lesson first l
   assert.ok(preparation.progress.stage,'step 4 starts preparation while geometry remains visible');
   assert.equal((await post('tour',{action:'step',step:4,revision:state.revision,geometryHash:state.geometryHash})).status,200);
   state=await(await fetch(url+'/api/state')).json();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
+  await tour.setStartAt({layer:8});
+  const metadata=await(await fetch(url+'/api/revision')).json();
+  assert.equal(metadata.fingerprint,state.fingerprint,'start-layer metadata does not invalidate source or scenes');
+  assert.equal(metadata.tour.startAt.layer,8);
   assert.equal(state.toolpathApproved,false,'preparation does not confirm the final settings');
   assert.equal((await post('generate',{planHash:'stale',development:false})).status,400);
   assert.equal((await post('tour',{action:'step',step:5})).status,400);

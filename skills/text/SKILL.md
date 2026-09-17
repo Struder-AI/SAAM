@@ -16,8 +16,7 @@ Studio through the usual workflow.
 ## Tools and edits
 
 Start from an existing shared shell/mesh print, including imported STL. Select
-one `part` by id for an assembly. The bounded wedge-demo recipe is separate;
-use a shared shell wedge or mesh when lettering is needed.
+one `part` by id for an assembly.
 
 ```sh
 node core/print/cli.mjs text Prints/my-part text-request.json --revision REVISION

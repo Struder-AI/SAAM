@@ -162,7 +162,7 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   const view=await(await fetch(origin+'/api/state')).json();assert.equal(view.exportName,'part.gcode.3mf');assert.equal(view.code,undefined);assert.equal(view.program.code,undefined);
   assert.equal(await(await fetch(origin+'/api/gcode')).text(),unpackZip(bytes).get(GCODE).toString());
   const response=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});
-  assert.equal(response.status,200);assert.match(response.headers.get('content-disposition'),/part\.gcode\.3mf/);
+  assert.equal(response.status,200);assert.equal(response.headers.get('content-disposition'),`attachment; filename*=UTF-8''${encodeURIComponent(view.downloadName)}`);
   assert.deepEqual(Buffer.from(await response.arrayBuffer()),bytes);assert.deepEqual(await readFile(join(dir,'delivery/part.gcode.3mf')),bytes);
   const altered=Buffer.from(bytes);altered[90]^=1;await writeFile(exportFile,altered);
   assert.match((await loadBundle(dir)).programError,/changed/);await assert.rejects(deliver(dir),/approval/);

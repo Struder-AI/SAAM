@@ -55,6 +55,33 @@ test('curved base/top edges retain their spline boundaries and offset sampling c
   }
 });
 
+test('rimming accepts an opt-in loose spline offset while exact remains the default',()=>{
+  const spec=surface();spec.degreeU=3;spec.degreeV=2;
+  spec.controlPoints=[[[0,0,0],[0,-.2,2],[0,0,4]],[[3,-1,0],[3,-.5,2.5],[3,0,5]],[[7,-1,0],[7,-.5,2.5],[7,0,5]],[[10,0,0],[10,-.2,2],[10,0,4]]];
+  const patch=supportSurface(spec),chain=supportSurfaceSection(patch,3)[0];
+  const exact=offsetSurfaceSection(patch,chain,.6,{mode:'normal'});
+  const loose=offsetSurfaceSection(patch,chain,.6,{mode:'normal',offsetTightness:0});
+  assert.equal(loose.length,exact.length);
+  assert.ok(loose.every(p=>p.point.every(Number.isFinite)));
+  assert.ok(loose.some((p,i)=>Math.hypot(...p.point.map((v,k)=>v-exact[i].point[k]))>1e-8));
+  assert.throws(()=>offsetSurfaceSection(patch,chain,.6,{offsetTightness:1.1}),/between zero and one/);
+});
+
+test('planar rimming tightness approaches the same projected normal on a rising U chart',()=>{
+  const spec=surface();
+  spec.controlPoints=[[[0,0,0],[0,2,4]],[[10,0,1],[10,2,5]]];
+  const patch=supportSurface(spec),chain=supportSurfaceSection(patch,2)[0];
+  for(const side of [-1,1]){
+    const exact=offsetSurfaceSection(patch,chain,.6,{side}),explicit=offsetSurfaceSection(patch,chain,.6,{side,offsetTightness:1});
+    assert.deepEqual(exact,explicit);
+    for(const t of [0,.37,1-1e-9]){
+      const blended=offsetSurfaceSection(patch,chain,.6,{side,offsetTightness:t});
+      assert.equal(blended.length,exact.length);
+      for(let i=0;i<blended.length;i++)assert.ok(Math.hypot(...blended[i].point.map((x,k)=>x-exact[i].point[k]))<1e-9);
+    }
+  }
+});
+
 function barbellPlan(machine,skill){
   const plan=defaults(machine);if(machine.id==='dobot-mg400')syntheticDobotSetup(plan);
   plan.geometry={shape:'assembly',parts:[

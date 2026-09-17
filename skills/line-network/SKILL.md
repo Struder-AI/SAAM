@@ -1,3 +1,8 @@
+---
+name: line-network
+description: Print sparse planar frames and trusses directly from explicit centerline polylines, including layer-specific reinforcement strokes, without filling their enclosing area.
+---
+
 # Line network
 
 Prints explicit planar centerline networks as one deposited bead per supplied

@@ -7,7 +7,7 @@ description: Follow a sloping or curved roof with top-skin strokes instead of ap
 
 Use for top layers that follow a surface rather than stepping across it in flat
 layers. For maker work, read [MAKERS.md](../../MAKERS.md). For development, start
-with the [developer orientation](../../DEVELOP.md) and follow its task-specific
+with the [builder orientation](../../BUILDERS.md) and follow its task-specific
 references. Use the [shared tools](../../core/print/USAGE.md).
 
 The skill queries surface height and normals through the shared geometry

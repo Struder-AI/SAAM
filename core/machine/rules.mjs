@@ -7,6 +7,16 @@ export const toolFor=(machine,index)=>{
   requireThat(tool,'Selected tool is not declared by this machine.');return tool;
 };
 export const toolBounds=(machine,index)=>toolFor(machine,index).bounds??machine.bounds;
+// Default XY placement that centers a footprint on a cartesian build plate.
+// Placement is the part's near-corner offset (local geometry has its minimum
+// XY at the origin), so centering subtracts half the footprint from the plate
+// centre. Robot arms (denso, dobot) have no rectangular plate to centre on and
+// return null; those callers keep their own near-origin default.
+export function centeredPlacement(machine,index,{runMm,widthMm}){
+  if(!machine.kinematics?.startsWith('cartesian'))return null;
+  const b=toolBounds(machine,index);
+  return {xMm:(b.min[0]+b.max[0])/2-runMm/2,yMm:(b.min[1]+b.max[1])/2-widthMm/2};
+}
 const range=(v,limits,name)=>requireThat(Number.isFinite(v)&&Array.isArray(limits)&&v>=limits[0]&&v<=limits[1],`${name} outside profile limits.`);
 // Read the approved default without changing saved machine snapshot identity.
 export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undefined?0.01:machine.planarWallToleranceMm;

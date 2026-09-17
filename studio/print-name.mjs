@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
 import {resolve,basename} from 'node:path';
-export async function printName(directory){
-  let plan;try{plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));}catch{return basename(directory);}
+export async function printName(directory,plan){
+  if(!plan)try{plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));}catch{return basename(directory);}
   function named(g){return g?.shape==='text'?g.features?.map(f=>f.text).filter(Boolean).join(' & '):null;}
   const g=plan.geometry,base=g?.shape==='text'?g.base:g;
   const handle=g?.shape==='assembly'&&g.parts?.find(p=>p.id==='fin');
@@ -12,4 +12,10 @@ export async function printName(directory){
 export function downloadName(name,exportName){
   const clean=name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/,''),dot=exportName?.indexOf('.')??-1;
   return clean+(dot>=0?exportName.slice(dot):'');
+}
+export function requestedDownloadName(value,suggested,exportName){
+  const name=value===undefined?suggested:typeof value==='string'?value.trim():'';
+  if(!name)throw Error('Enter a print name before exporting.');
+  if(name.length>120)throw Error('Keep the print name to 120 characters or fewer.');
+  return downloadName(name,exportName);
 }

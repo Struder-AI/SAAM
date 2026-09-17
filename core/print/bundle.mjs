@@ -4,16 +4,19 @@ import { defaults,validatePlan,geometryTemplate,VERSION,BUILD_DATE } from './pla
 import { createGeometry,verifyGeometry,rhino } from './geometry.mjs';
 import { generatePath } from './generate.mjs';
 const RUNTIME_FILES = [
+  '../geom/offset-curvature.mjs',
+  '../geom/mesh-distance.mjs','../geom/surface-offset.mjs','../geom/sleeve-frame.mjs','../geom/directional-contour.mjs','../geom/prepared-radial-contact.mjs',
+  '../geom/sleeve-contact.mjs','../geom/mesh-sleeve.mjs','../geom/least-squares.mjs','../region/stroke.mjs','../../skills/vase-wall/scripts/reference.mjs',
   '../../skills/plastic-weld/scripts/weld.mjs',
   '../../skills/heat-set-inserts/scripts/feature.mjs','../../skills/heat-set-inserts/scripts/catalog.mjs',
   '../../skills/heat-set-inserts/scripts/geometry.mjs','../../skills/heat-set-inserts/scripts/reinforcement.mjs','./heat-set.mjs',
   '../../skills/wave-overhangs/scripts/wave.mjs',
   '../../skills/gridfinity/scripts/record.mjs','../../skills/gridfinity/scripts/gridfinity.mjs','../../skills/gridfinity/scripts/bundle.mjs',
-  '../path/deposition.mjs','../geom/contour-path.mjs','../../skills/vase-wall/scripts/paths.mjs',
+  '../path/deposition.mjs','../geom/contour-path.mjs','../geom/prepared-contours.mjs','../../skills/vase-wall/scripts/paths.mjs','../../skills/vase-wall/scripts/motif.mjs','../../skills/vase-wall/scripts/boundary-courses.mjs',
   '../geom/text-record.mjs','../geom/selections.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',
   '../../skills/text/scripts/text.mjs','./text.mjs','../../node_modules/manifold-3d/manifold.js','../../node_modules/manifold-3d/manifold.wasm',
   '../../node_modules/fontkit/dist/module.mjs',
-  '../path/spacing.mjs',
+  '../path/spacing.mjs','../path/prime.mjs',
   '../path/finished-surface.mjs',
   '../../skills/pipe-cladding/scripts/course.mjs',
   '../geom/spline-tube.mjs','../geom/surface-region.mjs','../region/normal-surface.mjs','../../skills/pipe-cladding/scripts/surface-clad.mjs',

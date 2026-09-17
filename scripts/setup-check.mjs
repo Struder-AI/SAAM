@@ -36,9 +36,10 @@ export async function checkSetup({log=console.log}={}) {
   await stage('unapproved geometry and Studio',async()=>{
     const directory=await mkdtemp(join(tmpdir(),'saam-setup-'));let server;
     try{
-      const wedge=await import('../skills/wedge-demo/scripts/bundle.mjs');
-      const {defaults}=await import('../skills/wedge-demo/scripts/model.mjs');
-      await wedge.initBundle(directory,defaults());
+      const {initBundle}=await import('../core/print/bundle.mjs');
+      const {defaults}=await import('../core/print/plan.mjs');
+      const plan=defaults();plan.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};plan.skills['draped-skin'].enabled=false;
+      await initBundle(directory,plan);
       const {createStudio}=await import('../studio/server.mjs');
       server=createStudio(directory);
       await new Promise((done,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',done);});

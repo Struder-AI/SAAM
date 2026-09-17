@@ -7,7 +7,7 @@ description: Print conventional flat-layer walls with a patterned interior, vary
 
 Use for conventional flat-layer printing with walls and a sparse interior.
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 Software tests cover the S5 and H2D profiles,
 mesh and restricted spline inputs. No physical print is validated. Both machines
 use the shared export/review/delivery workflow. H2D output is experimental; read

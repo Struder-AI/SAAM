@@ -59,7 +59,7 @@ test('CLI exposes the geometry hash and records fixed-scope chat confirmation fr
 });
 
 test('MCP records explicit shape confirmation and cannot bypass it for an active tour or approve final output',async t=>{
-  const {root}=await fixture(t),tour=createTour(root),{directory}=await tour.action('resume');
+  const {root}=await fixture(t),tour=createTour(root),{directory}=await tour.action('fresh');
   const adapter=createMcpAdapter({printsRoot:root,autoOpen:false});
   const [clientTransport,serverTransport]=InMemoryTransport.createLinkedPair(),client=new Client({name:'synthetic-chat-confirmation',version:'1'});
   await adapter.server.connect(serverTransport);await client.connect(clientTransport);

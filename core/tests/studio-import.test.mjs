@@ -85,7 +85,7 @@ test('native import repair resolves intersections and rejects unbounded holes wi
 
 test('tour import preserves selection on validation failure and requests its start layer after generation recovery',async t=>{
   const root=await library(t),tour=createTour(root),requests=createAgentRequests(root);
-  const {directory}=await tour.action('resume');
+  const {directory}=await tour.action('fresh');
   let state=await loadBundle(directory,{program:false});
   state.plan.geometry.parts[1].geometry.heightMm=11;
   await adjustBundle(directory,{geometry:state.plan.geometry});
@@ -134,7 +134,7 @@ test('tour import preserves selection on validation failure and requests its sta
 });
 
 test('repaired tour geometry requires confirmation across print switching and normal imports retain geometry review',async t=>{
-  const root=await library(t),tour=createTour(root),{directory}=await tour.action('resume');
+  const root=await library(t),tour=createTour(root),{directory}=await tour.action('fresh');
   let state=await loadBundle(directory,{program:false});
   state.plan.geometry.parts[1].geometry.heightMm=11;
   await adjustBundle(directory,{geometry:state.plan.geometry});

@@ -12,10 +12,15 @@ const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
-let generationTarget=null,progressPolling=false;
+let generationTarget=null,progressPolling=false,acknowledging=false;
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentUI} from './agent-ui.mjs';
-const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active)});
+import {presentableView} from './work-state.mjs';
+const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active),onRequests:requests=>{
+  if(!state?.work)return;
+  state.work.requests=requests;
+  if(needsTourToolpath(state))scheduleChange();
+},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));}});
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
@@ -28,6 +33,7 @@ const layerFade=createLayerFade();
 let movieController=null,movieUrl=null;
 let machineSession=null,playbackEpoch=0,requestingPose=null;
 let playbackCache=null;
+let exportNameState=null;
 let manualValues=null,manualJog=null,manualDescriptor=null;
 const cameras=machineCameras();
 const cameraState=()=>({yaw,tilt,zoom,pan:[...pan],fitBounds});
@@ -88,7 +94,7 @@ const viewStorageKey=()=> 'saam-view:'+state?.printId;
 function saveView(){
   if(!state||movieController)return;
   try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({exportHash:state.exportHash,yaw,tilt,zoom,pan,fitBounds,seconds,tab,
-    speed:Number($('#playback-speed').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
+    speed:Number($('#playback-speed').value),previousLayerOpacity:Number($('#previous-layer-opacity').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
 }
 function restoreView(){
   try{
@@ -97,6 +103,8 @@ function restoreView(){
     if(Array.isArray(saved.pan)&&saved.pan.length===2&&saved.pan.every(Number.isFinite))pan=saved.pan;
     if(Number.isFinite(saved.speed))$('#playback-speed').value=saved.speed;
     $('#speed-label').value=$('#playback-speed').value+'×';
+    if(Number.isFinite(saved.previousLayerOpacity))$('#previous-layer-opacity').value=saved.previousLayerOpacity;
+    $('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';
     $('#travel').checked=saved.travel===true;$('#follow-plate').checked=saved.followPlate!==false;
     if(saved.exportHash===state.exportHash){
       if(Number.isFinite(saved.seconds))seconds=Math.max(0,Math.min(duration(),saved.seconds));
@@ -154,13 +162,13 @@ function activity(text='',fraction=null){
   $('#activity-detail').textContent=measured?'Progress for this stage.':'Please wait. Studio is working.';
   $('main').setAttribute('aria-busy',String(!!text));
 }
-async function working(text,task){
-  if(busy)return;busy=true;stop();agentUI.loading();activity(text);if(state)render();$('#open-print').disabled=true;
+async function working(text,task,{preview=true}={}){
+  if(busy)return;busy=true;stop();if(preview)agentUI.loading();activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   let failure;
   try{return await task();}catch(error){failure=error;throw error;}
-  finally{busy=false;agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
+  finally{busy=false;if(preview)agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
 }
 
 // Studio reviews more than one kind of print. Everything that depends on which
@@ -302,9 +310,9 @@ async function api(route,data) {
   if(target)generationTarget=target;
   try{
     const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify({...data,printId:state?.printId})});
-    if(!response.ok)throw new Error((await response.json()).error);
+    if(!response.ok){const result=await response.json();throw Object.assign(new Error(result.error),{code:result.code});}
     return response;
-  }finally{if(target===generationTarget)generationTarget=null;}
+  }finally{if(target===generationTarget){generationTarget=null;$('#cancel-generation').hidden=true;}}
 }
 async function pollPreparation(){
   const target=generationTarget;if(!target||progressPolling)return;
@@ -313,10 +321,19 @@ async function pollPreparation(){
     const response=await fetch('/api/preparation');if(!response.ok)return;
     const job=await response.json();
     if(generationTarget!==target||job.printId!==target.printId||target.planHash&&job.planHash!==target.planHash)return;
+    target.planHash??=job.planHash;$('#cancel-generation').hidden=!job.cancellable;
     if(job.progress&&['preparing','generating','importing'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
 setInterval(pollPreparation,250);
+$('#cancel-generation').onclick=async()=>{
+  const target=generationTarget;if(!target)return;
+  $('#cancel-generation').disabled=true;
+  try{const result=await(await api('cancel-generation',{planHash:target.planHash})).json();
+    if(result.cancelled){if(state)state.generationCancelled=true;message('Toolpath calculation cancelled.');}
+    else if(result.committing)message('The calculation finished; saving its checked file.');
+  }catch(error){message(error.message,true);}finally{$('#cancel-generation').disabled=false;}
+};
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
   const next=await response.json(),loaded=state?.printId===next.printId?state:null,previous=!reopen?loaded:null;
@@ -389,13 +406,17 @@ async function refresh(follow=false,reopen=false) {
   }
 }
 async function acknowledgeDisplayedView(){
+  if(acknowledging)return;
+  acknowledging=true;
+  try{
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  const geometryReady=tab==='geometry'&&(!state.geometryApproved||state.tour?.active&&state.tour.step<L.playback);
-  const viewReady=geometryReady||!needsTourToolpath(state)&&!state.generationError&&!state.programError&&tab==='toolpath'&&Boolean(state.program);
-  if(viewReady){
-    agentUI.present({...state.work,snapshot:{...state.work.snapshot,stage:tab},awaitingConfirmation:geometryReady&&!state.geometryApproved});
-    await tourUI?.acknowledgeView(state,tab);
+  const view=presentableView(state,tab,{requiresToolpath:needsTourToolpath(state)});
+  if(view.ready){
+    agentUI.present({...state.work,...view});
+    const presented=await tourUI?.acknowledgeView(state,tab);
+    if(presented)agentUI.updated(presented);
   }
+  }finally{acknowledging=false;}
 }
 async function decodeInWorker(snapshot){
   activity('Loading your toolpath…');
@@ -420,6 +441,12 @@ function render() {
   $('#more-settings').hidden=tab!=='toolpath';
   $('#print-setup').hidden=tab!=='toolpath';
   $('#print-setup-values').textContent=state.machine.name+' · '+state.plan.setup.material;
+  const suggestedName=state.printName??'';
+  if(!exportNameState||exportNameState.printId!==state.printId)exportNameState={printId:state.printId,suggested:suggestedName,value:suggestedName,dirty:false};
+  else if(!exportNameState.dirty&&exportNameState.suggested!==suggestedName)Object.assign(exportNameState,{suggested:suggestedName,value:suggestedName});
+  const exportNameInput=$('#export-name');
+  if(document.activeElement!==exportNameInput)exportNameInput.value=exportNameState.value;
+  exportNameInput.disabled=busy;$('#export-name-row').hidden=tab!=='toolpath'||!state.program||Boolean(state.inspection);
   $('#settings-detail').replaceChildren(table([...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
   $('#planar-label').textContent=hasSkill(state.plan,'line-network')?'Line networks':hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
   $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
@@ -447,11 +474,12 @@ function render() {
   const ready=tab==='geometry'||(tab==='toolpath'&&state.geometryApproved);
   $('#confirm').disabled=!ready||busy;
   $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'View toolpath':'Confirm geometry'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
+  if($('#reviewed-download'))$('#reviewed-download').hidden=$('#reviewed-download').dataset.exportKey!==exportKey();
   $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':!state.geometryApproved?'Confirm geometry before reviewing this as a real print.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#play').disabled=busy||!state.program||Boolean(state.programError);
   $('#selection').hidden=tab==='toolpath';
-  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Current layer is dark; earlier layers are faded. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
+  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
@@ -497,7 +525,8 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     const {xMm,yMm}=state.plan.placement,q=transform(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);
     return project([q[0]-xMm,q[1]-yMm,q[2]]);
   }:project;
-  const strokeScale={lineWidthMm:state.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm};
+  const previousLayerOpacity=Number($('#previous-layer-opacity').value)/100;
+  const strokeScale={lineWidthMm:state.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity};
   ctx.globalAlpha=1;
   for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
@@ -551,7 +580,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     const fade=fadeState.frame(currentLayer,now,remainingLayerMs(pathView,at.active,seconds,playbackSpeed)),styles=new Map();
     if(solidView){
       try{
-        materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,machine,machineMode:cameras.mode,machinePalette:machineColors});
+        materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity,machine,machineMode:cameras.mode,machinePalette:machineColors});
         ctx.drawImage(materialRenderer.canvas,0,0,width,height);
       }catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;requestDraw();}
     }
@@ -638,17 +667,24 @@ async function approval(stage){
   if(!result.approval.programAvailable){delete state.program;clearProgramView();}
 }
 async function download(route='deliver',data={}){
-  const response=await api(route,data);
+  const name=$('#export-name').value.trim();if(!name)throw Error('Enter a print name before exporting.');
+  const key=exportKey(),response=await api(route,{...data,name,downloadLink:true});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
-  const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');
-  a.href=url;a.download=state.downloadName??state.exportName??view().exportName;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  exportedThisSession.add(exportKey());
+  const attachment=await response.json();
+  let a=$('#reviewed-download');
+  if(!a){a=document.createElement('a');a.id='reviewed-download';$('#confirm').insertAdjacentElement('afterend',a);}
+  a.href=attachment.url;a.download=attachment.name;a.dataset.exportKey=key;a.hidden=false;
+  a.textContent='Download reviewed file';a.title='If the download did not start, use this link. Available for ten minutes.';
+  // This requests a native browser download. Browser/host save completion is
+  // not observable here; leave a real link for a direct user-initiated retry.
+  a.click();exportedThisSession.add(key);
 }
+$('#export-name').oninput=event=>{if(!exportNameState)return;exportNameState.value=event.target.value;exportNameState.dirty=event.target.value!==exportNameState.suggested;};
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
   if(tourUI?.active()&&tab!=='geometry'){
     if(state.tour?.step!==L.export)return;
-    try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();});}
+    try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();},{preview:false});}
     catch(e){message(e.message,true);await refresh(false);}return;
   }
   try{
@@ -661,7 +697,7 @@ $('#confirm').onclick=async()=>{
     else if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
     else {if(!state.toolpathApproved)await approval('toolpath');await download();}
     message('');
-    });
+    },{preview:tab==='geometry'||!state.program||Boolean(state.programError)||state.review.generation?.mode!=='production'});
   }catch(e){message(e.message,true);}
 };
 async function openPrint(path){
@@ -700,6 +736,7 @@ $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path
 $('#travel').onchange=requestDraw;
 $('#follow-plate').onchange=()=>{const fit=mode=>mode==='machine'?fitMachine():fitDisplayedPart();cameras.refit(fit);fitBounds=fit(cameras.mode);$('#fit-program').textContent='Fit all moves';saveView();requestDraw();};
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
+$('#previous-layer-opacity').oninput=()=>{$('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';saveView();requestDraw();};
 $('#manual-reset').onclick=()=>{clearManual();requestDraw();};
 $('#scrub').oninput=()=>{clearManual();stop();layerFade.reset();seconds=Number($('#scrub').value);requestDraw();};
 function stepLayer(direction){
@@ -753,13 +790,21 @@ async function animate(now){
 async function poll(){
   if(polling||busy)return;polling=true;
   try{
-    const response=await fetch('/api/revision');if(!response.ok)throw new Error('Reconnecting to your print…');
+    const response=await fetch('/api/revision?'+new URLSearchParams({fingerprint:state?.fingerprint??''}));if(!response.ok)throw new Error('Reconnecting to your print…');
     const next=await response.json();if(movieController||busy)return;
     // Restarted servers have new session credentials. Reload the page and its
     // viewer connection instead of repeatedly posting with the previous token.
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
-    if(!state||reconnecting||next.fingerprint!==state.fingerprint)await working('Loading and checking the updated print…',()=>refresh(true));
+    if(state&&!reconnecting&&next.reviewUpdate&&next.presentationFingerprint===state.presentationFingerprint){
+      Object.assign(state,next.reviewUpdate,{fingerprint:next.fingerprint,tour:next.tour});render();
+    }
+    else if(!state||reconnecting||next.fingerprint!==state.fingerprint||needsTourToolpath(state))await working('Loading and checking the updated print…',()=>refresh(true));
+    else if(next.tour&&JSON.stringify(next.tour)!==JSON.stringify(state.tour)){
+      // Lesson gates, guidance and start-layer choices do not change the source.
+      // Updating them must not stop playback, fade the preview or rebuild scenes.
+      state.tour=next.tour;render();
+    }
     reconnecting=false;
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
@@ -778,7 +823,7 @@ tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>s
 working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
 let changeTimer;
 function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
-window.addEventListener('saam-studio-change',scheduleChange);
+window.addEventListener('saam-studio-change',event=>{if(event.detail.kinds.some(kind=>kind==='print'||kind==='tour'))scheduleChange();});
 setInterval(poll,1000);
 window.addEventListener('pagehide',()=>machineSession?.dispose());
 window.addEventListener('pageshow',event=>{if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));});

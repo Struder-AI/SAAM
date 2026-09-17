@@ -42,8 +42,11 @@ test('changing printer preserves geometry confirmation, clears the combined conf
   await generateBundle(dir);state=await loadBundle(dir);
   state=await approve(dir,{stage:'toolpath',actor:ACTOR,revision:state.revision});
   await assert.rejects(changeMachine(dir,'bambu-h2d',{expectedRevision:'stale'}),/stale/);
-  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision});
+  const setupFile=resolve(dir,'h2d-setup.json');
+  await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',amsSlot:4}}));
+  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,setupFile});
   assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
+  assert.equal(next.plan.setup.nozzleMm,0.6);assert.equal(next.plan.process.lineWidthMm,0.6);
   assert.equal(next.geometryApproved,true);assert.equal(next.planApproved,false);assert.equal(next.toolpathApproved,false);
   assert.deepEqual(next.plan.geometry,state.plan.geometry);
   await assert.rejects(changeMachine(dir,'missing-printer',{expectedRevision:next.revision}),/machine|Unknown/i);
@@ -248,6 +251,21 @@ test('Studio reviews a shell print and delivers it under its own export name', a
 
   const download = await post('/api/deliver', {});
   assert.equal(download.status, 200);
-  assert.match(download.headers.get('content-disposition'), /part\.gcode/);
+  assert.equal(download.headers.get('content-disposition'),`attachment; filename*=UTF-8''${encodeURIComponent(state.downloadName)}`);
   assert.equal(await download.text(), await readFile(resolve(dir, EXPORT_PATH), 'utf8'));
+  const unauthorized=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({downloadLink:true})});
+  assert.equal(unauthorized.status,403);
+  const staged=await post('/api/deliver',{downloadLink:true});assert.equal(staged.status,200);
+  const link=await staged.json();assert.match(link.url,/^\/api\/download\/[a-f0-9]{48}$/);
+  const native=await fetch(origin+link.url),bytes=await readFile(resolve(dir,EXPORT_PATH));
+  assert.equal(native.status,200);assert.match(native.headers.get('content-disposition'),/^attachment;/);
+  assert.equal(native.headers.get('content-length'),String(bytes.length));
+  assert.deepEqual(Buffer.from(await native.arrayBuffer()),bytes);
+  assert.equal((await fetch(origin+link.url,{headers:{Origin:'https://foreign.invalid'}})).status,403);
+  assert.equal((await fetch(origin+'/api/download/not-a-issued-capability')).status,404);
+  const before=await readFile(resolve(dir,'review.json'),'utf8');
+  assert.equal((await fetch(origin+link.url)).status,200,'the same capability permits a direct download retry');
+  assert.equal(await readFile(resolve(dir,'review.json'),'utf8'),before,'GET attachment does not mutate review or approval');
+  await writeFile(resolve(dir,'delivery/part.gcode'),'changed after staging');
+  const changed=await fetch(origin+link.url);assert.equal(changed.status,400);assert.match((await changed.json()).error,/staged delivery changed/);
 });

@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { FULL_FILL_DEFAULTS } from '../../skills/full-fill/scripts/fill.mjs';
 import { DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
-import {loadMachine,validateSetup,toolBounds,requireMachine} from '../machine/profile.mjs';
+import {loadMachine,validateSetup,toolBounds,requireMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
@@ -51,7 +51,7 @@ export function defaults(machine=loadMachine()) {
     schema: 'saam-shell-plan/1',
     generatorVersion: VERSION,
     geometry: { shape: 'spline-top', runMm: 40, widthMm: 30, cpU: 5, cpV: 5, heightsMm: domeHeights(5, 5) },
-    placement: { xMm: 140, yMm: 100 },
+    placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 40, widthMm: 30 }) ?? { xMm: 140, yMm: 100 },
     setup: structuredClone(machine.defaultSetup),
     process: {
       firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4,
@@ -75,7 +75,7 @@ export function defaults(machine=loadMachine()) {
       'line-network': structuredClone(LINE_NETWORK_DEFAULTS),
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
-      'draped-skin': { enabled: true, part: null, ...DRAPED_SKIN_DEFAULTS }
+      'draped-skin': { enabled: machine.capabilities.includes('nonplanar'), part: null, ...DRAPED_SKIN_DEFAULTS }
     },
     composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
     output: 'griffin-gcode'
@@ -126,6 +126,7 @@ export function validatePlan(plan, machine) {
   plan.skills['pipe-cladding']??=structuredClone(PIPE_CLADDING_DEFAULTS);
   plan.skills['wave-overhangs']??=structuredClone(WAVE_DEFAULTS);
   plan.skills['pipe-cladding'].surface??=null;
+  plan.skills['pipe-cladding'].offsetTightness??=PIPE_CLADDING_DEFAULTS.offsetTightness;
   if(plan.skills['pipe-cladding'].pattern===undefined)plan.skills['pipe-cladding'].pattern=PIPE_CLADDING_DEFAULTS.pattern;
   if(plan.skills['pipe-cladding'].part===undefined)plan.skills['pipe-cladding'].part=null;
   // Shell bundles created before the experimental setting existed retain the
@@ -140,7 +141,7 @@ export function validatePlan(plan, machine) {
   plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
   plan.skills['thick-lip']??={enabled:false,part:null,...THICK_LIP_DEFAULTS};
   plan.skills.supports??=structuredClone(SUPPORT_DEFAULTS);
-  for(const name of ['rimming-planar','rimming-normal'])plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);
+  for(const name of ['rimming-planar','rimming-normal']){plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);plan.skills[name].offsetTightness??=RIMMING_DEFAULTS.offsetTightness;}
   plan.skills['vase-wall'].endTransition??='spiral';
   if(Object.hasOwn(plan.skills['vase-wall'],'paths')){
     requireThat(plan.skills['vase-wall'].paths===null,'Standalone XYZ vase paths are retired. Recreate this recipe as a repeated sleeve pattern; XYZ paths are not reinterpreted.');
@@ -148,6 +149,7 @@ export function validatePlan(plan, machine) {
   }
   plan.skills['vase-wall'].pattern??=null;
   plan.skills['vase-wall'].pathMode??='continuous';
+  plan.skills['vase-wall'].meshSleeve??=null;
   // Preserve the old numerical boundary allowance when opening older recipes.
   // New plans lock this independently from contour subdivision tolerance.
   if(!Object.hasOwn(plan.skills['vase-wall'],'boundaryToleranceMm')) {
@@ -273,8 +275,21 @@ export function validatePlan(plan, machine) {
   requireThat(['continuous','segmented'].includes(vase.pathMode),'Path mode must be continuous or segmented.');
   validateVasePattern(vase.pattern,vase.pathMode);
   requireThat(vase.pattern!==null||vase.pathMode==='continuous','Segmented mode requires a sleeve pattern; ordinary vase walls are continuous.');
-  requireThat(vase.pattern===null||vase.endTransition==='spiral','Sleeve motifs define their own ending; use endTransition spiral. Automatic level rims apply only to plain spirals.');
   requireThat(['spiral','level'].includes(vase.endTransition),'Vase ending transition must be spiral or level.');
+  if(vase.meshSleeve!==null){
+    const fit=vase.meshSleeve;
+    requireThat(fit&&typeof fit==='object'&&!Array.isArray(fit)&&[
+      'circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls',
+      'circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls,offsetTightness'
+    ].includes(Object.keys(fit).sort().join()),
+      'Mesh sleeve settings require fidelity, contactSide, circumferentialControls, heightControls and detailToleranceMm, with optional offsetTightness.');
+    number(fit.fidelity,0,1,'Mesh sleeve fidelity');
+    if(Object.hasOwn(fit,'offsetTightness'))number(fit.offsetTightness,0,1,'Mesh sleeve offset tightness');
+    requireThat(['inside','outside'].includes(fit.contactSide),'Mesh sleeve contactSide must be inside or outside.');
+    requireThat(Number.isInteger(fit.circumferentialControls)&&fit.circumferentialControls>=8&&fit.circumferentialControls<=48,'Mesh sleeve circumferentialControls must be an integer from 8 to 48.');
+    requireThat(Number.isInteger(fit.heightControls)&&fit.heightControls>=4&&fit.heightControls<=32,'Mesh sleeve heightControls must be an integer from 4 to 32.');
+    number(fit.detailToleranceMm,.005,.5,'Mesh sleeve detail tolerance');
+  }
   requireThat(typeof vase.enabled==='boolean'&&(vase.part===null||typeof vase.part==='string'),'Invalid vase-wall selection.');
   number(vase.zStartMm,0,200,'Vase start height');
   requireThat(vase.zEndMm===null||(Number.isFinite(vase.zEndMm)&&vase.zEndMm>vase.zStartMm&&vase.zEndMm<=200),'Vase end height must be null or greater than its start, up to 200 mm.');
