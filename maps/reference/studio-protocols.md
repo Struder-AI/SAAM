@@ -62,10 +62,12 @@ Verification: [generation control](../../core/tests/studio-generation-control.te
 ## Request completion and display
 
 Request records and their state transitions are defined by the
-[agent coordination contract](studio.md#agent-request-coordination). JSON records
-are authoritative; the index is a process-local acceleration. Request completion
+[agent coordination contract](studio.md#agent-request-coordination). The shared
+agent-owned store is the live operational channel; JSON records are its durable
+recovery journal and the index reconciles independent processes. Request completion
 does not establish that the requested geometry or toolpath has been displayed.
-`work-state.mjs` compares result identity and stage with presentation receipts;
+`work-state.mjs` first derives the one presentable geometry/toolpath snapshot, then
+compares result identity and stage with presentation receipts;
 `agent-ui.mjs` orders snapshots by update time so an older response cannot revive
 completed activity. Library-wide agent listeners and the currently selected
 browser print intentionally have different selection scopes.
@@ -147,13 +149,13 @@ Sources: [server.mjs](../../studio/server.mjs), [changes.mjs](../../studio/chang
 
 Sources: [agent-requests.mjs](../../studio/agent-requests.mjs), [request-index.mjs](../../studio/request-index.mjs), [agent-ui.mjs](../../studio/agent-ui.mjs), [work-state.mjs](../../studio/work-state.mjs).
 
-**Contract.** Request records coordinate agent work with the exact print/revision/stage target. The index accepts valid request IDs, caches by file identity/size/timestamps, batches reads and periodically reconciles watcher hints. Work-state derives UI activity from request progress and target-matching presentation evidence. Agent completion and actual display of the requested result are separate transitions; advisory/guidance activity is not an edit.
+**Contract.** Request records coordinate agent work with the exact Studio instance, print, revision and stage target. One agent-owned request store may serve multiple Studio instances; each instance has one immutable owner and carries its ID on Studio-originated work. Direct subscribers and event-driven waits receive live changes from that store. The index accepts valid request IDs, caches by file identity/size/timestamps, batches reads and periodically reconciles watcher hints for restart and independent-process recovery. Work-state owns the pure presentability predicate as well as request activity and target matching. Agent completion and actual display of the requested result are separate transitions; advisory/guidance activity is not an edit.
 
-**Failures.** Malformed records become diagnostic failure state; missing directories are handled distinctly from parse errors. Stale or other-print presentation cannot complete the current request. Compatibility matching without an explicit target is limited to older records, not a bypass for requiresTarget.
+**Failures.** Malformed records become diagnostic failure state; missing directories are handled distinctly from parse errors. A Studio request cannot be claimed through another agent owner's live session. Stale, other-instance or other-print presentation cannot complete the current request. Compatibility matching without an explicit target is limited to older records, not a bypass for requiresTarget.
 
-**Change together.** Coordinate toolkit claim/completion, server events, request schema, print identity and browser presentation receipts. The index is a read cache, not a lock or authority to overwrite agent work.
+**Change together.** Coordinate toolkit streaming/control, MCP session management, server events, request schema, instance/print identity and browser presentation receipts. The index is a recovery/read cache, not the live transport, a lock or authority to overwrite agent work.
 
-**Verification.** Test file replacement, malformed IDs/JSON, reconciliation, multiple prints, completed-but-unpresented work and exact-target receipt matching. Checks: [request-index.test.mjs](../../core/tests/request-index.test.mjs), [studio-agent.test.mjs](../../core/tests/studio-agent.test.mjs), [studio-agent-ui.test.mjs](../../core/tests/studio-agent-ui.test.mjs), [studio-work.test.mjs](../../core/tests/studio-work.test.mjs).
+**Verification.** Test live wakeup without timed polling, file replacement, malformed IDs/JSON, reconciliation, multiple agents/instances/prints, completed-but-unpresented work and exact-target receipt matching. Checks: [request-index.test.mjs](../../core/tests/request-index.test.mjs), [studio-agent.test.mjs](../../core/tests/studio-agent.test.mjs), [studio-agent-ui.test.mjs](../../core/tests/studio-agent-ui.test.mjs), [studio-work.test.mjs](../../core/tests/studio-work.test.mjs), [agent-toolkit.test.mjs](../../core/tests/agent-toolkit.test.mjs), [mcp.test.mjs](../../core/tests/mcp.test.mjs).
 
 
 ## Changing generation workers

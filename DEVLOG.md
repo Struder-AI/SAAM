@@ -1,5 +1,35 @@
 # Development log
 
+## 2026-09-17 — Live agent/Studio sessions and review completion
+
+Replaced managed agent/Studio directory polling with a live request channel. One
+agent-owned request store can serve multiple Studio instances, each Studio instance
+has exactly one owning agent, and explicit session tools list and close those
+instances. Opening the same print in more than one owned Studio requires an
+instance selection before work is begun. Print bundles remain the durable,
+shareable interface between agents and Studios; request files are retained as a
+recovery journal and as a compatibility path for independent external writers.
+
+Studio toolpath review now presents the agent-suggested print name in an editable
+field. A person can replace it before export while the server preserves validation,
+sanitization and compound machine-program extensions. Presentation acknowledgement
+continues after two animation frames in the application, but the pure geometry and
+toolpath readiness predicate now lives in `studio/work-state.mjs`; presentation
+receipts are scoped to the Studio instance that rendered the result.
+
+The agent toolkit, persistent launcher and MCP adapter carry owner and instance
+identity through request, response, activity and presentation operations. The
+managed launcher accepts correlated live commands over its existing process stream,
+and the MCP adapter exposes Studio-session inventory and closure. Updated the Studio,
+agent and protocol maps and rebuilt the generated viewer.
+
+Verification: 42 focused request-index, Studio, toolkit, naming, readiness and work
+state tests passed. Four focused MCP notification/session tests passed, including
+one agent owning multiple Studios and same-bundle disambiguation. `git diff --check`
+passed apart from line-ending notices. The map viewer rebuilt to 81 pages and
+`dev-map check --built --since 0b2e1f8` passed. These are software checks; no
+machine execution, physical print result or manufacturing approval is established.
+
 ## 2026-09-17 — Map-owned core and Studio reference
 
 Implemented the requested single technical documentation structure for core and

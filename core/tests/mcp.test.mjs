@@ -187,6 +187,17 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
   const other=await clientFor(t,printsRoot);
   const a=await call('request_review',{printId:'owned'}),b=await other.call('request_review',{printId:'owned'});
   assert.notEqual(a.url,b.url,'separate adapters never adopt each other\'s listener');
+  assert.equal((await call('get_studio_sessions')).sessions[0].instanceId,a.studioInstanceId);
+  await other.call('close_studio_session',{studioInstanceId:a.studioInstanceId},/not owned/);
+  const duplicate=await call('request_review',{printId:'owned',newInstance:true});
+  assert.notEqual(duplicate.studioInstanceId,a.studioInstanceId,'one agent can open the same shared bundle in another owned Studio');
+  await call('begin_studio_work',{printId:'owned',instruction:'Ambiguous instance'},/Specify studioInstanceId/);
+  await call('close_studio_session',{studioInstanceId:duplicate.studioInstanceId});
+  await call('create_print',{printId:'owned-second',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(call)});
+  const secondStudio=await call('request_review',{printId:'owned-second'});
+  assert.equal((await call('get_studio_sessions')).sessions.length,2,'one agent can own multiple Studio instances');
+  assert.notEqual(secondStudio.studioInstanceId,a.studioInstanceId);
+  await call('close_studio_session',{studioInstanceId:secondStudio.studioInstanceId});
   const before=await readFile(resolve(printsRoot,'owned','review.json'));
   async function view(url){
     const token=(await(await fetch(url)).text()).match(/name="saam-token" content="([^"]+)"/)[1];

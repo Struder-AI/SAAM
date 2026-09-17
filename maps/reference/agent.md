@@ -59,11 +59,11 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | `read-skill ID [--maker] [--builder] [--developer]` | Read the selected role manuals for one cataloged skill; default to maker. | Text, source paths, hashes and links, selected `roles`, and `unavailableRoles` for absent optional manuals. |
 | `read-map PAGE` | Resolve one current page, region navigation and shared uses. | `maps`: compact page context and contract index. `--section ID#heading` returns contract text only; `--node ADDRESS` focuses a component; `--inventory` lists ownership; `--evidence` expands impact evidence. No Python or viewer build. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
-| `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start Studio; emit its URL; request browser opening; read participation guidance and tour state. | A live Studio session, initial recipe summary, MAKERS and tour-participation context, plus listener arguments/cursor. |
+| `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start an exclusively owned Studio; emit its URL/instance ID; request browser opening; read participation guidance and tour state. | A live bidirectional Studio session, initial recipe summary, MAKERS and tour-participation context, plus event-stream and recovery-listener details. |
 | `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
 | `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
 | `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, geometry confirmation and matching tour instruction without checking the old export. | The exact request ID and edit context, with `programChecked: false`. A context-read failure marks that request failed and reports it. |
-| `wait-for-studio-request` | Wait for queued requests for up to 25 seconds; optionally claim the returned requests in that call. | Requests, their status and an updated `after` list. |
+| `wait-for-studio-request` | Event-wait on the recovery journal for queued requests for up to 25 seconds; optionally restrict to a Studio instance and claim returned requests in that call. | Requests, their status and an updated `after` list. The original preview session is the primary live path. |
 | `respond-to-studio-request ID` | Record a prepared geometry/toolpath target, or update the matching request's response/status through the shared request API. | Updated request. Other outstanding work remains independent. |
 | `inspect-generation-failure DIRECTORY` | Read requests for that print; read current validated recipe/export status, retaining validation errors when loading fails; return generation guidance and links to the recipe's skill manuals. | Diagnostic evidence, settings, machine-configuration gaps, and skill references for individual follow-up reads. No correction, retry or request claim. |
 
@@ -152,8 +152,11 @@ file arguments resolve from the command's working directory.
 
 Studio commands stay alive in their managed command session. They emit a
 `studio-ready` JSON line immediately after listening, then a `result` line with
-the remaining state/context. Use an early yield where the client supports it,
-open the URL, retain the process/session handle, and leave review visible.
+the remaining state/context. Subsequent `studio-request` events identify the
+owning Studio instance; newline-delimited begin/respond/activity controls sent to
+stdin receive correlated `agent-response` events on stdout. Use an early yield
+where the client supports it, open the URL, retain the process/session handle,
+and leave review visible.
 Browser dispatch is reported as `browserOpenRequested`; it does not prove that
 the page rendered. Verify the view with the client's browser integration when
 needed. Studio retains its ordinary viewer lifetime and closes after its last
@@ -162,7 +165,7 @@ to close it immediately. The toolkit does not start detached background helpers
 or adopt another agent's server.
 
 Starting a tour does not conduct the interactive lessons or wake an ended chat.
-Keep the request listener active and follow [tour participation](../../MAKERS.md#tour-participation).
+Keep the returned live session active and follow [tour participation](../../MAKERS.md#tour-participation).
 The first screen is prepared before the remaining manuals are read; skill reads
 and slicing are not prerequisites for that first screen.
 
@@ -184,6 +187,15 @@ geometry is omitted by default and `planComplete` is false; use
 `--include-geometry` for a complete editable recipe. Pass the returned revision
 to the existing adjustment tools. [Studio coordination](studio.md#agent-request-coordination)
 owns prepared-result targeting and response timing.
+
+One agent may own several Studio instances. Each instance has one immutable
+agent owner and exposes its `studioInstanceId`; use that ID whenever selection
+would otherwise be ambiguous. Another agent may open the same persisted print
+bundle in a separately owned Studio, but it cannot adopt or control this session.
+MCP `request_review` can open another owned instance for the same bundle explicitly;
+work on an ambiguously displayed bundle must name its instance.
+JSON request records retain restart and independent-process recovery; they are not
+the primary transport for an owned live session.
 
 `respond-to-studio-request` defaults to `completed`; supported statuses are
 `working`, `completed`, `failed`, `waiting`, and `cancelled`. After preparation,

@@ -3,6 +3,7 @@
 ```saam-components
 requestActivity | @studio/work-state.mjs::requestActivity | request; time; closed owners; displayed view | activity classification | No persistence; expiry and matching presentation determine working/waiting/settled state.
 presented | @studio/work-state.mjs::hasPresentedResult | request; displayed snapshot | boolean match | Compares geometry/input/generation identity and stage; completion alone does not prove display.
+presentable | @studio/work-state.mjs::presentableView | Studio state; selected stage; toolpath requirement | ready view snapshot | Pure geometry/toolpath readiness; rendering still waits for two animation frames before acknowledgement.
 ```
 
 ```saam-page 7_studio
@@ -151,26 +152,28 @@ select > program | program metadata | data
 
 ```saam-page 7c_requests
 title 7.4 — Coordinate edits
-sub Level 2 · request JSON is authoritative
+sub Level 2 · live owned channel with durable recovery journal
 parent 7_studio requests
 in agent work
 out pending / presented
 port in | agent work
 box records | 7.4.1 | manage request records | @studio/agent-requests.mjs::createAgentRequests
-box index | 7.4.2 | reconcile changed files | @studio/request-index.mjs::createRequestIndex
+box index | 7.4.2 | reconcile recovery journal | @studio/request-index.mjs::createRequestIndex
 box save | 7.4.3 | replace request file | $save
 box ui | 7.4.4 | merge UI snapshots | @studio/agent-ui.mjs::createAgentUI
 box activity | 7.4.5 | classify activity | $requestActivity
-box shown | 7.4.6 | match presented result | $presented
+box ready | 7.4.6 | qualify presentable view | $presentable
+box shown | 7.4.7 | match presented result | $presented
 port out | pending / presented
 in > records | begin / claim / respond | data
-records > index | query and change hint | data
-index > records | changed records | data | norank
+records > index | recovery query and change hint | data
+index > records | externally changed records | data | norank
 records > save | updated JSON | data
 records > ui | request snapshots | data
 records > shown | view receipt | data
 ui > activity | merged requests | data
-ui > shown | displayed snapshot | data
+ui > ready | rendered state / stage | data
+ready > shown | presentable snapshot | data
 activity > ui | indicator state | data | norank
 shown > ui | display match | data | norank
 ui > out | current presentation | data
@@ -334,20 +337,25 @@ review and delivery boundary.
 
 Read [Studio contracts](reference/studio.md), [rendering](reference/rendering.md)
 or [kinematics](reference/presentation.md) when changing those boundaries.
-JSON records remain authoritative. The process-local index watches changes and
-reconciles metadata every five seconds. Warm operational polls avoid history
-reads/scans and retain unfinished work plus the latest edit outcome per print,
-including completed results awaiting display. Studio selects its open print;
-agent listeners cover the library. Explicit history listing forces reconciliation.
-Cold/reconciliation work and index memory still scale with history size. Claims
-are not transactional across processes: use one handling agent per request.
+An agent-owned live store is the operational channel shared by that agent's Studio
+instances, toolkit stream and MCP adapter. Saves publish directly to subscribers;
+bounded waits sleep on events rather than scanning on a timer. JSON records are the
+durable recovery journal. The process-local index watches independent writers and
+reconciles metadata every five seconds; explicit history listing forces a full
+reconciliation. One agent may own multiple identified Studio instances, while
+each Studio instance has one immutable agent owner. Print bundles, not Studio
+instances, are the sharing boundary between agents. Cold/reconciliation work and
+index memory still scale with history size. Claims are not transactional across
+processes: use one handling agent per request.
 Print, request and tour writes use unique temporary files and bounded Windows
 sharing retries; failed replacement preserves the previous file.
 
 ## Presentation identity
 
-`work-state.mjs` owns request activity and presentation matching for both UI and
-tour gates. `agent-ui.mjs` merges snapshots by update time, preventing old
+`work-state.mjs` owns the pure geometry/toolpath presentability predicate, request
+activity and presentation matching for both UI and tour gates. `app.mjs` retains
+the two-animation-frame wait before acknowledging a presentable snapshot.
+`agent-ui.mjs` merges snapshots by update time, preventing old
 responses from reviving finished work. `app.mjs` reloads only for changed bundle
 content or geometry/program requirements; tour readiness and start-layer metadata
 alone preserve playback. View-ready responses carry the receipts they wrote,

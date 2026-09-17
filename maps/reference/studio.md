@@ -286,11 +286,16 @@ binds progress to the current print and plan.
 
 ## Agent request coordination
 
-The Studio listener selects the open print; the agent listener covers the library.
-Operational waits return unfinished work and the latest edit outcome, including
-completed results awaiting display. Use `list()` / MCP `get_studio_requests` with
-`history: true` for complete diagnostic history. Run one handling agent per
-request: cross-process claims and read/modify/write operations are not transactional.
+The live request store belongs to one agent and may serve several explicitly
+identified Studio instances. A Studio instance has exactly one agent owner and
+cannot be adopted by another agent; print bundles remain shareable and another
+agent may open the same bundle in its own Studio. Studio selects its open print;
+the agent's request stream covers its owned instances. Operational waits are an
+event-driven recovery interface and return unfinished work plus the latest edit
+outcome, including completed results awaiting display. Use `list()` / MCP
+`get_studio_requests` with `history: true` for complete diagnostic history. Run
+one handling agent per request: cross-process claims and read/modify/write
+operations are not transactional.
 Indexing and file replacement mechanics live in the
 [developer maps](../7_studio.md#request-persistence).
 
@@ -332,10 +337,11 @@ italic *(lost contact)*: the lease expired, which does not prove the host stoppe
 reasoning. An observed MCP transport closure displays italic
 *(connection closed)*. A new active request restores dots, and a later completion
 clears the prior notice. Other active requests take precedence over notices. Requests persist under the print
-library’s hidden .studio-requests directory and have independent IDs, print IDs,
-instructions and status. A response resolves only its matching request; a
-ten-minute lease bounds abandoned work. Disk-change events push request and print
-updates to open viewers, with polling as fallback. The geometry lesson unlocks
+library’s hidden .studio-requests directory as a restart/recovery journal and have
+independent IDs, Studio instance IDs, print IDs, instructions and status. A response resolves only its matching request; a
+ten-minute lease bounds abandoned work. The owning process publishes request
+changes directly to the agent and its Studio instances; filesystem events reconcile
+independent writers and browser state polling remains reconnect fallback. The geometry lesson unlocks
 as soon as the exact edited geometry is displayed, without waiting for a chat
 acknowledgement. The toolpath-edit lesson accepts any participant-requested change,
 including geometry, once its confirmed current toolpath is rendered;
@@ -358,12 +364,17 @@ its view acknowledgement, so completed loading clears the dots and fade.
 
 The maker agent calls MCP begin_studio_work as its first operation for an edit,
 before a chat acknowledgement or status lookup. It may omit printId for the
-active tour or sole open Studio. CLI tour agents use begin-active.
+active tour or sole open Studio; with several instances it supplies the returned
+`studioInstanceId`; omission rejects when several owned instances display the
+same print. `request_review` can deliberately open another instance for a shared
+bundle with `newInstance`. CLI preview/tour agents receive `studio-request` events on the
+managed command stream and send begin/respond/activity control messages back on
+that stream. Separate CLI commands and bounded waits remain recovery options.
 Studio-created guidance requests stay visually quiet, including when claimed. The agent claims
 the request, sends guidance in chat or generates the requested change, then calls
-respond_to_studio_request. While guiding a tour, keep wait_for_studio_request
-active and repeat its waits (at most 25 seconds). This supplies events to an
-active connected agent; it cannot wake an ended or disconnected host chat.
+respond_to_studio_request. While guiding a tour, keep the live managed session
+active; MCP agents may use `wait_for_studio_request` as a bounded event-driven
+wait (at most 25 seconds). Neither path can wake an ended or disconnected host chat.
 
 Local equivalents, from the repository root:
 
@@ -398,7 +409,7 @@ baseline, target and presentation record; publish another target if inputs chang
 
 Tour metadata updates preserve source playback. Only changed bundle content or
 a changed geometry/program data requirement triggers a full preview refresh.
-Listener waits coordinate agents; they do not constitute preview work.
+Live request events and recovery waits coordinate agents; they do not constitute preview work.
 Presentation ownership and receipt handling live in the
 [developer maps](../7_studio.md#presentation-identity).
 
@@ -429,12 +440,12 @@ without reloading the full source and material scene. POST /api/view-ready ackno
 and export; saving or generating alone does not unlock edit lessons.
 
 Request begin/respond/wait calls run independently of MCP’s print-work queue.
-New queued requests also emit MCP logging notifications and appear in subsequent
+New queued requests publish immediately to the owning toolkit stream, emit MCP logging notifications and appear in subsequent
 ordinary object-valued tool responses as studioRequests. The pending-request
-list and wait endpoint remain authoritative; client handling of notifications
-does not guarantee that an ended host turn will wake. For CLI waits that return
-a running session, the agent must keep reading that session until its JSON
-result arrives. [Maker guidance](../../MAKERS.md) specifies acknowledgement-before-wait
+list and wait endpoint remain durable recovery interfaces; client handling of
+notifications does not guarantee that an ended host turn will wake. For CLI
+previews and tours, the agent keeps reading the original managed session for
+`studio-request` and correlated `agent-response` events. [Maker guidance](../../MAKERS.md) specifies acknowledgement-before-wait
 ordering and the active listener loop.
 
 ## Importing an STL in Studio
@@ -501,9 +512,9 @@ Sources: [import-stl.mjs](../../studio/import-stl.mjs), [import-worker.mjs](../.
 
 ## Changing Studio application coordination
 
-Sources: [app.mjs](../../studio/app.mjs).
+Sources: [app.mjs](../../studio/app.mjs), [work-state.mjs](../../studio/work-state.mjs).
 
-**Contract.** The application coordinates server snapshots, selected print/revision, geometry/source loading, view readiness and human actions. It installs asynchronous results only for the current load identity and reports presentation after the requested view is actually ready. Generation, agent work, source interpretation and machine presentation have distinct progress/availability states.
+**Contract.** The application coordinates server snapshots, selected print/revision, geometry/source loading, view readiness and human actions. `work-state.mjs` owns the pure predicate that turns loaded geometry/toolpath state into one presentable snapshot; `app.mjs` retains the double-animation-frame wait and acknowledgement side effects. It installs asynchronous results only for the current load identity and reports presentation after the requested view is actually ready. Generation, agent work, source interpretation and machine presentation have distinct progress/availability states.
 
 **Failures.** Stale responses and failed loads cannot leave an old preview presented as the new revision. Reconnect must reconcile current server state; cancelled work cannot restore a superseded spinner/result. Approval controls must follow the active target and required review state.
 
@@ -516,13 +527,13 @@ Sources: [app.mjs](../../studio/app.mjs).
 
 Sources: [settings.mjs](../../studio/settings.mjs), [print-name.mjs](../../studio/print-name.mjs).
 
-**Contract.** settings.mjs produces human-readable recipe, skill, regional and robot-setup rows from the locked plan. Regional overrides merge with skill defaults for display; support/global skills retain their separate scope. Material mass is a user-selected display estimate at 1.2 g/cm³, not measured material density. printName derives a friendly label from geometry or falls back to the directory basename; downloadName removes unsafe characters and retains the export extension, including .gcode.3mf.
+**Contract.** settings.mjs produces human-readable recipe, skill, regional and robot-setup rows from the locked plan. Regional overrides merge with skill defaults for display; support/global skills retain their separate scope. Material mass is a user-selected display estimate at 1.2 g/cm³, not measured material density. printName derives the agent-suggested friendly label from geometry or falls back to the directory basename. The toolpath review prefills that suggestion in an editable export-name field; the person's value is export-scoped and does not rename the bundle or alter its recipe. requestedDownloadName validates the chosen base name, removes unsafe characters and retains the export extension, including .gcode.3mf.
 
-**Failures.** Unavailable values must remain visibly not configured rather than acquire fabricated installation settings. Name derivation falls back when the plan cannot be read. These display helpers neither validate filesystem reservations nor rename directories; import/server own those boundaries.
+**Failures.** Unavailable values must remain visibly not configured rather than acquire fabricated installation settings. Name derivation falls back when the plan cannot be read; blank or overlong export names reject before download. These display helpers neither validate filesystem reservations nor rename directories; import/server own those boundaries.
 
 **Change together.** Coordinate plan/skill fields, regional override semantics, robot installation requirements and the application review/download UI. Every newly meaningful setting needs a readable row with correct units and caveats.
 
-**Verification.** Check global versus regional skill labels, merged overrides, missing installation fields, mass conversion, geometry-derived names, basename fallback and download extension/sanitization. Checks: [studio-settings.test.mjs](../../core/tests/studio-settings.test.mjs), [studio-print-name.test.mjs](../../core/tests/studio-print-name.test.mjs).
+**Verification.** Check global versus regional skill labels, merged overrides, missing installation fields, mass conversion, geometry-derived suggestions, user overrides, basename fallback and download extension/sanitization. Checks: [studio-settings.test.mjs](../../core/tests/studio-settings.test.mjs), [studio-print-name.test.mjs](../../core/tests/studio-print-name.test.mjs), [studio-agent.test.mjs](../../core/tests/studio-agent.test.mjs).
 
 
 ## Changing guided tours

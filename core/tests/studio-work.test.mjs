@@ -71,6 +71,12 @@ test('intermediate saves, unchanged geometry and unrelated work cannot satisfy o
     {active:false,message:'(lost contact)'},'early completion cannot leave an absent result busy forever');
 });
 
+test('one Studio instance cannot present another instance request for the same bundle',()=>{
+  const owned={...request,studioInstanceId:'studio-a',target:{...updated,stage:'toolpath'}};
+  assert.equal(hasPresentedResult(owned,{...updated,stage:'toolpath',studioInstanceId:'studio-b'}),false);
+  assert.equal(hasPresentedResult(owned,{...updated,stage:'toolpath',studioInstanceId:'studio-a'}),true);
+});
+
 test('generation waits for saved targets, with guidance and delivered work excluded',()=>{
   const current={...request,requiresTarget:true,expiresAt:Date.now()+60000};
   assert.equal(hasUnpreparedEdit([current],updated),true);

@@ -3,7 +3,7 @@
 import {readFile, access} from 'node:fs/promises';
 import {resolve, dirname, relative, isAbsolute} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {readGuidance} from './manuals.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
 
@@ -120,19 +120,21 @@ export class ToolkitError extends Error {
 
 // The caller owns this live server. No detached process or global session registry.
 export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
-  units = 'auto', startAtLayer = 12, noOpen = false, onReady = () => {}}) {
+  units = 'auto', startAtLayer = 12, noOpen = false, onReady = () => {},onRequest=()=>{}}) {
   if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
   if (kind !== 'shell') throw Error('Only shell/mesh prints are supported.');
   if (recipe && stl) throw Error('Choose either --recipe or --stl.');
   if (!['auto', 'mm', 'inch'].includes(units)) throw Error('Units must be auto, mm or inch.');
   if (!Number.isInteger(startAtLayer) || startAtLayer < 1) throw Error('Start layer must be a positive integer.');
   if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
-  const libraryRoot = libraryPath(library), partial = {command};
-  let stage = 'prepare', server;
+  const libraryRoot = libraryPath(library), partial = {command},ownerId=randomUUID();
+  const {createAgentRequests}=await import('../../studio/agent-requests.mjs');
+  const agentRequests=createAgentRequests(libraryRoot,{ownerId});
+  let stage = 'prepare', server,stopRequests=()=>{};
   try {
     const {bundleFor, createStudio, printDirectory} = await import('../../studio/server.mjs');
     const {createTour} = await import('../../studio/tour.mjs');
-    const tour = createTour(libraryRoot);
+    const tour = createTour(libraryRoot,{ownerId,agentRequests});
     if (command === 'start-tour') {
       const fresh = await tour.action('fresh');
       partial.directory = fresh.directory;
@@ -162,14 +164,19 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
     partial.print = printSummary(initial, {programChecked: false});
     if (stl) partial.assumptions.units = initial.plan.geometry.source;
     stage = 'launch-studio';
-    server = createStudio(partial.directory, {libraryRoot});
+    server = createStudio(partial.directory, {libraryRoot,agentOwnerId:ownerId,agentRequests,closeAgentRequests:true});
+    const session=server.agentSession();
+    stopRequests=agentRequests.subscribe(request=>{
+      if(request.source==='studio'&&request.studioInstanceId===session.instanceId)onRequest({studio:server.agentSession(),request});
+    });
+    server.once('close',stopRequests);
     await new Promise((done, reject) => {
       const failed = error => reject(error);
       server.once('error', failed);
       server.listen(0, '127.0.0.1', () => {server.off('error', failed); done();});
     });
     partial.studio = {url: `http://127.0.0.1:${server.address().port}`, pid: process.pid,
-      directory: partial.directory, browserOpenRequested: false};
+      directory: partial.directory,instanceId:session.instanceId,agentOwnerId:ownerId,browserOpenRequested: false};
     onReady({event: 'studio-ready', command, studio: {...partial.studio},
       nextStep: 'Open studio.url now with the client browser integration. Keep this managed command session alive; consume the result context after the viewer is open.'});
     stage = 'open-browser';
@@ -180,28 +187,33 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
     stage = 'context';
     if (command === 'start-tour') {
       partial.tour = await tour.info();
-      partial.listener = {command: 'wait-for-studio-request', library: libraryRoot, after: [], claim: true, waitMs: 25000};
+      partial.listener = {mode:'live',event:'studio-request',studioInstanceId:session.instanceId,
+        control:'Send newline-delimited JSON commands to this managed session stdin.',
+        command:'wait-for-studio-request',library:libraryRoot,after:[],claim:true,waitMs:25000,
+        fallback:{command:'wait-for-studio-request',library:libraryRoot,after:[],claim:true,waitMs:25000}};
       partial.context = await contextPacket(['MAKERS.md', 'examples/prints/README.md#maker-agent-participation']);
       partial.nextStep = 'Use the returned participation context directly; no maker-onboarding or repeated manual reads are needed. Keep the returned listener active, let Studio lead lesson one, and choose individual skill reads when an edit needs them.';
     } else {
       partial.print = await readPrint(partial.directory);
     }
-    return {result: partial, server};
+    return {result: partial, server,agent:{requests:agentRequests,ownerId,session:server.agentSession}};
   } catch (error) {
     if (server) await server.shutdown();
+    else agentRequests.close();
     if (partial.studio) partial.studio.closed = true;
     throw new ToolkitError(stage, error, partial);
   }
 }
 
-export async function beginWork({target, library, instruction, requestId, includeGeometry = false, kind = 'edit'}) {
+export async function beginWork({target, library, instruction, requestId, includeGeometry = false, kind = 'edit',requests:providedRequests,studioInstanceId,ownerId}) {
   const libraryRoot = libraryPath(library);
   const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  const requests = createAgentRequests(libraryRoot);
+  const requests = providedRequests??createAgentRequests(libraryRoot,{ownerId});
   let directory = target ? resolve(target) : null, record;
   if (requestId) {
     const existing = await requests.get(requestId);
     if (!existing) throw Error('Unknown Studio request.');
+    if(studioInstanceId&&existing.studioInstanceId&&existing.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');
     if (directory && relativePrint(libraryRoot, directory) !== existing.printId) throw Error('That request belongs to another print.');
     if (!['queued', 'working', 'waiting', 'failed'].includes(existing.status)) throw Error('That request is no longer pending.');
     directory = resolve(libraryRoot, existing.printId);
@@ -215,7 +227,7 @@ export async function beginWork({target, library, instruction, requestId, includ
       directory = resolve(libraryRoot, 'tour', progress.selected);
     }
     relativePrint(libraryRoot, directory);
-    record = await requests.begin({directory, instruction, kind});
+    record = await requests.begin({directory, instruction, kind,studioInstanceId});
   }
   const partial = {request: record};
   try {
@@ -230,22 +242,26 @@ export async function beginWork({target, library, instruction, requestId, includ
   }
 }
 
-export async function waitForRequests({library, after = [], waitMs = 25000, claim = false}) {
+export async function waitForRequests({library, after = [], waitMs = 25000, claim = false,requests:providedRequests,studioInstanceId,ownerId}) {
   const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  const result = await createAgentRequests(libraryPath(library)).wait({after, waitMs, claim});
+  const result = await (providedRequests??createAgentRequests(libraryPath(library),{ownerId})).wait({after, waitMs, claim,studioInstanceId});
   return {...result, after: [...new Set([...after, ...result.requests.map(request => request.id)])]};
 }
 
-export async function respondToRequest({library, requestId, status = 'completed', message = '', resultStage}) {
+export async function respondToRequest({library, requestId, status = 'completed', message = '', resultStage,requests:providedRequests,studioInstanceId,ownerId}) {
   if (!['working', 'completed', 'failed', 'cancelled', 'waiting'].includes(status)) throw Error('Choose working, completed, failed, cancelled or waiting.');
   if (resultStage && !['geometry', 'toolpath'].includes(resultStage)) throw Error('Choose geometry or toolpath for the result stage.');
   const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  return createAgentRequests(libraryPath(library)).update(requestId, {status, message, resultStage});
+  const requests=providedRequests??createAgentRequests(libraryPath(library),{ownerId}),record=await requests.get(requestId);
+  if(studioInstanceId&&record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');
+  return requests.update(requestId, {status, message, resultStage});
 }
 
-export async function recordRequestActivity({library,requestId,target}){
+export async function recordRequestActivity({library,requestId,target,requests:providedRequests,studioInstanceId,ownerId}){
   const {createAgentRequests}=await import('../../studio/agent-requests.mjs');
-  return createAgentRequests(libraryPath(library)).activity(requestId,{directory:target&&resolve(target)});
+  const requests=providedRequests??createAgentRequests(libraryPath(library),{ownerId}),record=await requests.get(requestId);
+  if(studioInstanceId&&record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');
+  return requests.activity(requestId,{directory:target&&resolve(target)});
 }
 
 export async function inspectFailure({target, library, requestId, includeGeometry = false}) {

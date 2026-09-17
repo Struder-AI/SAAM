@@ -15,6 +15,7 @@ let tourUI;
 let generationTarget=null,progressPolling=false,acknowledging=false;
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentUI} from './agent-ui.mjs';
+import {presentableView} from './work-state.mjs';
 const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active),onRequests:requests=>{
   if(!state?.work)return;
   state.work.requests=requests;
@@ -32,6 +33,7 @@ const layerFade=createLayerFade();
 let movieController=null,movieUrl=null;
 let machineSession=null,playbackEpoch=0,requestingPose=null;
 let playbackCache=null;
+let exportNameState=null;
 let manualValues=null,manualJog=null,manualDescriptor=null;
 const cameras=machineCameras();
 const cameraState=()=>({yaw,tilt,zoom,pan:[...pan],fitBounds});
@@ -408,10 +410,9 @@ async function acknowledgeDisplayedView(){
   acknowledging=true;
   try{
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  const geometryReady=tab==='geometry'&&Boolean(state.geometry);
-  const viewReady=geometryReady||!needsTourToolpath(state)&&!state.generationError&&!state.programError&&tab==='toolpath'&&Boolean(state.program);
-  if(viewReady){
-    agentUI.present({...state.work,snapshot:{...state.work.snapshot,stage:tab},awaitingConfirmation:geometryReady&&!state.geometryApproved});
+  const view=presentableView(state,tab,{requiresToolpath:needsTourToolpath(state)});
+  if(view.ready){
+    agentUI.present({...state.work,...view});
     const presented=await tourUI?.acknowledgeView(state,tab);
     if(presented)agentUI.updated(presented);
   }
@@ -440,6 +441,12 @@ function render() {
   $('#more-settings').hidden=tab!=='toolpath';
   $('#print-setup').hidden=tab!=='toolpath';
   $('#print-setup-values').textContent=state.machine.name+' · '+state.plan.setup.material;
+  const suggestedName=state.printName??'';
+  if(!exportNameState||exportNameState.printId!==state.printId)exportNameState={printId:state.printId,suggested:suggestedName,value:suggestedName,dirty:false};
+  else if(!exportNameState.dirty&&exportNameState.suggested!==suggestedName)Object.assign(exportNameState,{suggested:suggestedName,value:suggestedName});
+  const exportNameInput=$('#export-name');
+  if(document.activeElement!==exportNameInput)exportNameInput.value=exportNameState.value;
+  exportNameInput.disabled=busy;$('#export-name-row').hidden=tab!=='toolpath'||!state.program||Boolean(state.inspection);
   $('#settings-detail').replaceChildren(table([...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
   $('#planar-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
   $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
@@ -660,7 +667,8 @@ async function approval(stage){
   if(!result.approval.programAvailable){delete state.program;clearProgramView();}
 }
 async function download(route='deliver',data={}){
-  const key=exportKey(),response=await api(route,{...data,downloadLink:true});
+  const name=$('#export-name').value.trim();if(!name)throw Error('Enter a print name before exporting.');
+  const key=exportKey(),response=await api(route,{...data,name,downloadLink:true});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
   const attachment=await response.json();
   let a=$('#reviewed-download');
@@ -671,6 +679,7 @@ async function download(route='deliver',data={}){
   // not observable here; leave a real link for a direct user-initiated retry.
   a.click();exportedThisSession.add(key);
 }
+$('#export-name').oninput=event=>{if(!exportNameState)return;exportNameState.value=event.target.value;exportNameState.dirty=event.target.value!==exportNameState.suggested;};
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
   if(tourUI?.active()&&tab!=='geometry'){

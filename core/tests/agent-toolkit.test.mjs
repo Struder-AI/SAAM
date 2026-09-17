@@ -172,6 +172,20 @@ test('fresh tours keep earlier bundles and return lesson-one guidance and a list
   assert.ok(second.result.context.documents.some(doc => doc.path === 'examples/prints/README.md'));
 });
 
+test('an owned Studio streams requests and accepts responses through its live agent store',async t=>{
+  const f=await fixture(t);let resolveRequest;
+  const pushed=new Promise(resolve=>{resolveRequest=resolve;});
+  const opened=await f.open({command:'start-tour',onRequest:resolveRequest});
+  const html=await(await fetch(opened.result.studio.url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const response=await fetch(opened.result.studio.url+'/api/agent-request',{method:'POST',headers:{Origin:opened.result.studio.url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:'{}'});
+  assert.equal(response.status,200,await response.clone().text());
+  const event=await pushed;
+  assert.equal(event.studio.instanceId,opened.result.studio.instanceId);
+  assert.equal(event.request.studioInstanceId,opened.result.studio.instanceId);
+  const completed=await respondToRequest({requests:opened.agent.requests,studioInstanceId:opened.result.studio.instanceId,requestId:event.request.id,message:'Handled live'});
+  assert.equal(completed.status,'completed');
+});
+
 test('begin-work marks pending before context reads, correlates claims, and fails unreadable work', async t => {
   const f = await fixture(t), target = join(f.library, 'part');
   await f.open({command: 'create-preview', target, kind: 'shell'});

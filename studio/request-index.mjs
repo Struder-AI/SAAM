@@ -5,10 +5,11 @@ import {resolve} from 'node:path';
 const valid=name=>/^[a-f0-9-]{32,64}\.json$/.test(name);
 // Rebuildable process-local discovery. JSON files remain authoritative. Watches
 // are hints: periodically reconcile metadata, and always reread before a write.
-export function createRequestIndex(folder,{reconcileMs=5000,onChange=()=>{}}={}){
+export function createRequestIndex(folder,{reconcileMs=5000,onChange=()=>{},onHint=()=>{}}={}){
   const entries=new Map(),dirty=new Set();
-  let watcher,idle,scan=true,lastScan=0,pending,closed=false;
+  let watcher,idle,scan=true,lastScan=0,pending,closed=false,retained=0;
   function stopWatching(){clearTimeout(idle);watcher?.close();watcher=null;scan=true;}
+  function releaseLater(){clearTimeout(idle);if(watcher&&!retained){idle=setTimeout(stopWatching,2000);idle.unref();}}
   function drop(name){if(entries.delete(name))onChange(name.slice(0,-5),null);}
   async function read(name){
     const path=resolve(folder,name);
@@ -26,14 +27,15 @@ export function createRequestIndex(folder,{reconcileMs=5000,onChange=()=>{}}={})
     if(closed)return;
     if(!watcher&&!force)try{
       watcher=watch(folder,{persistent:false},(_event,name)=>{
-        if(!name){scan=true;return;}name=String(name);if(valid(name))dirty.add(name);
+        if(!name)scan=true;else{name=String(name);if(valid(name))dirty.add(name);}
+        onHint();
       });
       scan=true; // Include files created before this watch was attached.
-      watcher.on('error',stopWatching);
+      watcher.on('error',()=>{stopWatching();onHint();});
     }catch(error){if(error.code!=='ENOENT'&&error.code!=='ENOSYS'&&error.code!=='ENOSPC')throw error;}
     // Short-lived CLI callers need no explicit disposal, and an abandoned
     // index must not retain a directory watch after its library is removed.
-    clearTimeout(idle);if(watcher){idle=setTimeout(stopWatching,2000);idle.unref();}
+    releaseLater();
     if(force||scan||!watcher||Date.now()-lastScan>=reconcileMs){
       scan=false;lastScan=Date.now();
       let names;try{names=(await readdir(folder)).filter(valid);}catch(error){if(error.code!=='ENOENT')throw error;names=[];}
@@ -51,6 +53,11 @@ export function createRequestIndex(folder,{reconcileMs=5000,onChange=()=>{}}={})
       pending=refresh(force);try{await pending;}finally{pending=null;}
     },
     changed(id){dirty.add(id+'.json');},
+    retain(){
+      if(closed)return()=>{};
+      retained++;clearTimeout(idle);
+      return()=>{retained=Math.max(0,retained-1);releaseLater();};
+    },
     close(){closed=true;stopWatching();entries.clear();dirty.clear();}
   };
 }

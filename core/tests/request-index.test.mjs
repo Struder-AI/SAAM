@@ -7,7 +7,7 @@ import {resolve} from 'node:path';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {createTour} from '../../studio/tour.mjs';
 
-test('operational polling reuses history and retains waiting work and undisplayed results',async t=>{
+test('operational reads reuse history and retain waiting work and undisplayed results',async t=>{
   const root=await fs.mkdtemp(resolve(tmpdir(),'saam-request-index-')),folder=resolve(root,'.studio-requests');
   t.after(()=>fs.rm(root,{recursive:true,force:true,maxRetries:5}));await fs.mkdir(folder);
   const id=n=>n.toString(16).padStart(32,'0');
@@ -18,7 +18,7 @@ test('operational polling reuses history and retains waiting work and undisplaye
   fs.readFile=async(...args)=>{reads++;return readFile(...args);};fs.readdir=async(...args)=>{scans++;return readdir(...args);};syncBuiltinESMExports();
   t.after(()=>{fs.readFile=readFile;fs.readdir=readdir;syncBuiltinESMExports();});
   for(let n=0;n<5;n++)assert.equal((await requests.query()).length,1);
-  assert.deepEqual({reads,scans},{reads:0,scans:0},'warm operational polls neither parse nor enumerate history');
+  assert.deepEqual({reads,scans},{reads:0,scans:0},'warm operational reads neither parse nor enumerate history');
   const queued=await other.begin({directory:resolve(root,'part'),source:'studio',instruction:'External process work'});
   let seen=false;for(let n=0;n<100;n++){if((await requests.query()).some(r=>r.id===queued.id)){seen=true;break;}await new Promise(done=>setTimeout(done,10));}
   assert.ok(seen,'the watcher discovers another writer');
@@ -31,6 +31,17 @@ test('operational polling reuses history and retains waiting work and undisplaye
   const active=await requests.query();assert.ok(active.some(r=>r.id===pending.id));assert.ok(active.some(r=>r.id===queued.id));assert.ok(active.length<=3);
   active[0].status='cancelled';assert.notEqual((await requests.query())[0].status,'cancelled','callers cannot mutate the index');
   await fs.unlink(resolve(folder,pending.id+'.json'));await requests.list();assert.equal((await requests.query()).some(r=>r.id===pending.id),false);
+});
+
+test('a live wait wakes on a request event instead of polling the request directory',async t=>{
+  const root=await fs.mkdtemp(resolve(tmpdir(),'saam-request-live-'));t.after(()=>fs.rm(root,{recursive:true,force:true,maxRetries:5}));
+  const ownerId='agent',requests=createAgentRequests(root,{ownerId}),studio=createAgentRequests(root,{ownerId});
+  t.after(()=>{requests.close();studio.close();});
+  const waiting=requests.wait({waitMs:2000,studioInstanceId:'studio-one'}),started=Date.now();
+  await new Promise(done=>setTimeout(done,25));
+  const request=await studio.begin({directory:resolve(root,'part'),source:'studio',studioInstanceId:'studio-one',instruction:'Live request'});
+  const result=await waiting;
+  assert.equal(result.requests[0].id,request.id);assert.ok(Date.now()-started<1000,'the event wakes the waiter before its timeout');
 });
 
 test('actual activity renews only owned working requests, preserving pause, target and baseline',async t=>{
