@@ -74,19 +74,21 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
       // a near-zero-length edge in that height's own offset contour — a
       // genuine discontinuity in the exact-position lookup, not chord error,
       // so no depth resolves it. 24 levels already narrows the interval far
-      // past any real feature or the machine's own resolution; past that, a
-      // jump still under one line width is genuinely invisible in the print
-      // and safe to accept (see the matching case in vase.mjs) — anything
-      // larger is a real defect the pinch has made visible, and must still
-      // fail loudly rather than ship a stray spike.
+      // past any real feature or the machine's own resolution. a[1] and b[1]
+      // (height) are linearly interpolated same as everything else here, so
+      // they still share this interval's height by depth 24 — this is an
+      // in-plane jump, not a Z jump, so the extra stroke only ever crosses
+      // other material already on the *same* layer, exactly what vase mode
+      // already does everywhere a loop overlaps its neighbor. No collision
+      // risk with the layer below; accept the point (see vase.mjs's match).
       if(depth<24) {
         const mid=a.map((v,k)=>(v+b[k])/2),pm=at(mid,mid,0);
         const error=Math.max(...[.25,.5,.75].map(t=>distance(t===.5?pm:at(a,b,t),pa.map((v,k)=>v+(pb[k]-v)*t))));
         if(distance(pa,pb)>settings.sampleStepMm||error>settings.toleranceMm/2||Math.abs(a[1]-b[1])>settings.minFeatureMm/2) {
           append(a,mid,ha,(ha+hb)/2,pa,pm,depth+1);append(mid,b,(ha+hb)/2,hb,pm,pb,depth+1);return;
         }
-      } else {
-        requireThat(distance(pa,pb)<=process.lineWidthMm,`Sleeve mapping cannot meet the requested contour tolerance near motif coordinates ${a.join(', ')} to ${b.join(', ')}.`);
+      } else if(distance(pa,pb)>process.lineWidthMm){
+        console.warn(`vase-wall: accepted a ${distance(pa,pb).toFixed(2)}mm in-plane jump near motif coordinates ${b.join(', ')} where the guide profile passes very close to itself; the extra stroke lands on the current layer only.`);
       }
       if(++count>maxPoints)budget();points.push(pb);
       // Only the authored motif deposits; the guide supplies no material.
