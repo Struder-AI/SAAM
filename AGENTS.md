@@ -88,9 +88,10 @@ maps show documentation navigation; they are distinct from code-anchored maps.
 [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) holds the material for maps to absorb.
 
 Developers read the system overview, the affected region and the code it names.
-Builders read the relevant region maps when changing skills, Studio or isolated
-core behavior, including shared components and their other uses. They do not
-load every map. Makers operating existing tools need no code maps. Reading a
+Dev maps cover core and Studio. Builders read the relevant regions when changing
+those components or investigating their internals, including shared components
+and their other uses. Skill-script changes require the skill guidance and consumed
+API contracts, not an automatic map read. Makers operating existing tools need no code maps. Reading a
 map or shared contract does not itself change an agent's role or authorization.
 
 ## Getting to work

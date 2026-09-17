@@ -9,7 +9,7 @@ const schemas = {
   'maker-onboarding': {},
   'builder-onboarding': {area: many},
   'developer-onboarding': {area: many},
-  'read-skill': {},
+  'read-skill': {maker: boolean, builder: boolean, developer: boolean},
   'read-guidance': {},
   'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean},
   'open-print': {library: string, 'no-open': boolean},
@@ -25,7 +25,7 @@ export const help = {
     'maker-onboarding': 'Maker guidance, complete skill digest and print tools; choose follow-up reads for the task.',
     'builder-onboarding [--area AREA]': 'Builder orientation (includes maker context), core architecture, skill authoring and digest, and selected area references.',
     'developer-onboarding [--area AREA]': 'Developer bin orientation, core architecture, skill digest and selected area references; work map-first.',
-    'read-skill ID': 'Read one chosen skill manual, with links to further context.',
+    'read-skill ID [--maker] [--builder] [--developer]': 'Read only the selected skill roles; defaults to maker. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
     'start-tour [--start-at-layer 12] [--no-open]': 'Fresh tour copies, live Studio, browser dispatch and participation context.',
     'open-print DIRECTORY [--no-open]': 'Open saved geometry/toolpath and return current recipe/review state.',
@@ -61,7 +61,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       instruction: v.instruction, requestId: v.request, includeGeometry: v['include-geometry']};
     let result;
     if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area});
-    else if (command === 'read-skill') result = await readSkill(positionals[0]);
+    else if (command === 'read-skill') result = await readSkill(positionals[0], v);
     else if (command === 'read-guidance') result = await contextPacket([positionals[0]]);
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
       const opened = await preview({...options, onReady: write});

@@ -80,6 +80,29 @@ test('the three onboarding roles return the complete digest and leave skill manu
   });
 });
 
+test('skill role flags are independent, additive and report absent optional manuals', async () => {
+  const read = async (...args) => JSON.parse((await run(process.execPath, [cli, 'read-skill', ...args])).stdout);
+  const maker = await read('planar-infill', '--maker');
+  const implicit = await read('planar-infill');
+  assert.deepEqual(maker, implicit);
+  const both = await read('planar-infill', '--builder', '--maker');
+  assert.deepEqual(both.roles, ['maker', 'builder']);
+  assert.deepEqual(both.unavailableRoles, []);
+  assert.deepEqual(both.documents.map(doc => doc.path), ['skills/planar-infill/SKILL.md', 'skills/planar-infill/DEVELOP.md']);
+  const builder = await read('planar-infill', '--builder');
+  assert.deepEqual(builder.roles, ['builder']);
+  assert.deepEqual(builder.documents, [both.documents[1]]);
+  assert.equal(builder.documents[0].text, await readFile(resolve(root, 'skills/planar-infill/DEVELOP.md'), 'utf8'));
+  const absent = await read('gridfinity', '--builder', '--developer');
+  assert.deepEqual(absent.roles, ['builder', 'developer']);
+  assert.deepEqual(absent.unavailableRoles, ['builder', 'developer']);
+  assert.deepEqual(absent.documents, []);
+  const mixed = await read('planar-infill', '--maker', '--developer');
+  assert.deepEqual(mixed.documents, maker.documents);
+  assert.deepEqual(mixed.unavailableRoles, ['developer']);
+  await assert.rejects(run(process.execPath, [cli, 'read-skill', 'invented', '--builder']));
+});
+
 test('create-preview reuses isolated setup and opening preserves approved export bytes', async t => {
   const f = await fixture(t), target = join(f.library, 'My part');
   await mkdir(join(f.library, '.machine-setups'));

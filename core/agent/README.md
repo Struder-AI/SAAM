@@ -20,6 +20,8 @@ node scripts/agent-toolkit.mjs maker-onboarding
 node scripts/agent-toolkit.mjs builder-onboarding --area studio
 node scripts/agent-toolkit.mjs developer-onboarding --area geometry
 node scripts/agent-toolkit.mjs read-skill planar-infill
+node scripts/agent-toolkit.mjs read-skill planar-infill --maker --builder
+node scripts/agent-toolkit.mjs read-skill planar-infill --builder
 node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
 ```
 
@@ -45,7 +47,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
 | `builder-onboarding` | Read BUILDERS and the maker context it includes, core architecture, skill authoring and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with builder sources and an instruction to choose further reads and the region's map. |
 | `developer-onboarding` | Read the developer bin orientation and builder baseline, core architecture and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with developer sources and an instruction to work map-first. |
-| `read-skill ID` | Read one skill manual chosen by the agent from the catalog. | The manual's text, source path, hash and links for further reading. |
+| `read-skill ID [--maker] [--builder] [--developer]` | Read the selected role manuals for one cataloged skill; default to maker. | Text, source paths, hashes and links, selected `roles`, and `unavailableRoles` for absent optional manuals. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start Studio; emit its URL; request browser opening; read participation guidance and tour state. | A live Studio session, initial recipe summary, MAKERS and tour-participation context, plus listener arguments/cursor. |
 | `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
@@ -64,7 +66,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | Tour | Run the Studio `--toolkit start-tour --no-open` command immediately in a set-up checkout. | Open `studio.url` from `studio-ready`, then use the returned participation context and listener. |
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
 | Existing Studio print | Run `begin-studio-work` first, with the target or existing request ID. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
-| Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Read the region's dev map, then inspect the affected implementation and choose missing component/skill references. Load contribution guidance when checkpointing/publishing. |
+| Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Choose missing skill guidance and API contracts; read region maps when changing core/Studio or investigating their internals. Load contribution guidance when checkpointing/publishing. |
 | Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; select implementation slices through the developer bin index. |
 
 Developer onboarding returns only `DEVELOPER-CONTEXT.md#orientation`, with links
@@ -87,6 +89,14 @@ must judge which manuals and further references fit the task, then read those
 individually before using or changing a skill. Onboarding is starting context;
 it does not select skills or bundle their manuals. Tour participation guidance
 remains bundled with tour startup.
+
+Skill flags are additive and independent: `--maker` selects `SKILL.md`, `--builder`
+selects optional `DEVELOP.md`, and `--developer` selects optional `DEVELOPER.md`
+inside the selected skill package. No flags selects maker for compatibility.
+Use `--maker --builder` for both, or `--builder` alone if maker context was already
+consumed. Developer does not imply either lower-role read. An absent optional
+manual yields no document for that role and names it in `unavailableRoles`;
+unknown skills and unreadable existing manuals fail. No empty manuals are needed.
 
 Use `read-skill ID` for one chosen skill and `read-guidance PATH#HEADING` for one
 additional published reference or section. Onboarding has no `--skill` or `--guide`

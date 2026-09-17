@@ -19,8 +19,10 @@ once.
 [MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
 Developer onboarding supplies this engineering baseline; developers load maker
 workflow and skill-authoring guidance when their task needs it. Reuse prior reads.
-**Read the relevant region maps before changing skills, Studio or isolated core
-behavior**, including the shared components affected by the change. Follow the
+**Read the relevant region maps before changing core or Studio, or investigating
+their internals**, including shared components affected by the change. Changes
+confined to skill scripts need skill guidance and consumed API contracts; they
+do not automatically require maps. Dev maps cover core and Studio. Follow the
 [map contract](#maps-and-local-documentation); reading implementation context
 does not require a role change. The [developer bin](DEVELOPER-CONTEXT.md) indexes
 material by scope. When a maker or builder session grows past roughly 250k tokens

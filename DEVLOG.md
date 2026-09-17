@@ -1,5 +1,19 @@
 # Development log
 
+## 2026-09-17 — Selective skill-role reads
+
+`read-skill ID` now accepts independent `--maker`, `--builder` and `--developer`
+flags, selecting package `SKILL.md`, optional `DEVELOP.md` and optional
+`DEVELOPER.md`. No flags preserves the maker read. Combined flags return only
+the selected source documents; missing optional roles are reported explicitly.
+The existing file split is reused rather than duplicating manual content.
+Builder guidance now requires maps for core/Studio changes or investigation of
+their internals, not every skill-script change. Dev maps cover core and Studio.
+
+Verification: focused CLI onboarding and role-selection tests passed (2 tests),
+including combined reads, builder-only reads, source equality, absent optional
+manuals and rejection of unknown skills. No manufacturing behavior changed.
+
 ## 2026-09-17 — Reconcile role context and the map contract
 
 The user approved the documentation reconciliation after reviewing checkpoint

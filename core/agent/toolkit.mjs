@@ -39,9 +39,24 @@ async function environmentStatus() {
     clientPermissions: 'Not inspected; follow studio/README.md#studio-agent-permissions.'};
 }
 
-export async function readSkill(id) {
+export async function readSkill(id, {maker = false, builder = false, developer = false} = {}) {
   if (!SKILL_IDS.includes(id)) throw Error(`Unknown skill: ${id}. Known skills: ${SKILL_IDS.join(', ')}.`);
-  return contextPacket([`skills/${id}/SKILL.md`]);
+  const roles = {maker, builder, developer};
+  if (!Object.values(roles).some(Boolean)) roles.maker = true;
+  const files = {maker: 'SKILL.md', builder: 'DEVELOP.md', developer: 'DEVELOPER.md'};
+  const ids = [], unavailableRoles = [];
+  for (const role of Object.keys(roles).filter(role => roles[role])) {
+    const path = `skills/${id}/${files[role]}`;
+    try { await access(resolve(root, path)); }
+    catch (error) {
+      if (error.code !== 'ENOENT' || role === 'maker') throw error;
+      unavailableRoles.push(role);
+      continue;
+    }
+    ids.push(path);
+  }
+  return {skillId: id, roles: Object.keys(roles).filter(role => roles[role]), unavailableRoles,
+    ...await contextPacket(ids)};
 }
 
 export async function onboarding({role, areas = []}) {

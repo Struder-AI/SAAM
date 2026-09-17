@@ -9,7 +9,8 @@ bin material when absorbed rather than maintain two accounts.
 Read the system overview, the affected region maps, their shared-use references
 and the source they name. The [map contract](BUILDERS.md#maps-and-local-documentation)
 also governs useful supporting prose and local comments. Builders follow the same
-route for the skill, Studio or isolated core behavior they change. Role inheritance
+route when changing core/Studio or investigating their internals. Skill-script
+changes need skill guidance and consumed API contracts. Role inheritance
 is about responsibilities, not loading every manual. Developers load
 [MAKERS.md](MAKERS.md), [print tools](core/print/USAGE.md) or
 [skill authoring](skills/DEVELOP.md) when their task needs that context.
