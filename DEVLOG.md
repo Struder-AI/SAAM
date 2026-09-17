@@ -1,5 +1,58 @@
 # Development log
 
+## 2026-09-17 — Documentation revamp audit
+
+Audited the three-role restructure and the dev maps. Verified against source:
+`dev-map check` reports the recorded 40 pages and 340 nodes; `check-repo` reports
+only the six known issues; 24 focused map/role/manual-access tests pass;
+onboarding context sets for maker, builder, builder `--area`, and developer
+`--area` match their manuals exactly; `read-map` on a child returns its whole
+owning region with shared contracts. 86 documents were link- and anchor-checked.
+
+Corrections made. The user spotted the stale context maps: the maker map's four
+slice tooltips still routed implementation content to the abolished developer bin
+and to a `DEVELOPER-CONTEXT.md` section that moved into `maps/9_agent.md`, while
+the same file's header prose had already been updated — they now name the owning
+region maps and `scripts/bench/region-reference.md`. The builder map's two map
+nodes had no wires at all, so nothing showed how a builder reaches them and hover
+did nothing; they are now wired from `BUILDERS.md` with a `read-map` action, a
+`maps/README.md` node was added because the map guide was unreachable, and the
+generated viewer node says to build first. Its legend gained the blue-dashed
+swatch its prose already promised.
+
+`GLOSSARY.md` still defined two agent roles and none of the map vocabulary; it now
+defines maker, builder and developer agents, keeps `development agent` as the
+umbrella for the latter two, and adds dev map, region, map page, operation address,
+shared component, shared-use reference and context map. Ownership entries were
+added for the map guide, the region index and the two context maps, which had no
+recorded owner. `dev-map.mjs read` was removed as a duplicate of `read-map`, and
+`maps/0_system.md` now points agents at `read-map`; the viewer was rebuilt.
+
+[D-033](DECISIONS.md#d-033--three-agent-roles) and
+[D-034](DECISIONS.md#d-034--adopt-the-packit-region-map-contract-for-core-and-studio)
+record the three-role split and the map-contract adoption, which had no decision
+records. D-002 and D-013 are marked superseded with their original approval
+metadata preserved. Both new records are retroactive summaries of DEVLOG-recorded
+direction, not verbatim quotations.
+
+Findings left open. `.github/workflows/test.yml` runs only `npm run setup:check`,
+so the map checks and `check-repo` — the mechanical half of the maps' freshness
+guarantee — are enforced only when a contributor runs them locally. `check-repo`
+walks `*.md` only, so the two context-map HTML files are never link- or
+coverage-checked; that is why the stale nodes survived. The viewer's Doc pane
+renders region-prose Markdown links as literal text, because `md_to_html` in
+`scripts/dev-map/viewer.py` handles code, bold and italic but not links, so the
+routing half of the map contract does not reach people. The builder map still
+omits nodes for the test reference, benchmarks, MCP development, machine models
+and `skills/wave-overhangs/DEVELOP.md`. `--area path` returns `core/path/README.md`
+without `2_generation`, whose caller contract is that same file. No skill has a
+`DEVELOPER.md`, so `read-skill --developer` is a documented but empty tier.
+Smaller text errors remain in `core/agent/README.md` ("both examples" for three
+tour examples, a mislabeled `maps/9_agent.md` link, `record-request-activity`
+absent from the command table) and in `core/region/README.md` (two links to the
+benchmark reference labelled "developer maps"). No code or manufacturing behavior
+changed; nothing physical was tested.
+
 ## 2026-09-17 — Core and Studio developer maps
 
 Implemented 40 pages (340 nodes) from ten region Markdown sources, using the

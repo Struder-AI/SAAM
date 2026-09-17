@@ -84,18 +84,22 @@ supplies the agent-readable map and its human rendering; each box resolves to a
 child map or a code declaration. The [map contract](BUILDERS.md#maps-and-local-documentation)
 owns boundaries, shared components, calculated red links and documentation rules.
 The [maker](maker-context-map.html) and [builder](builder-context-map.html) context
-maps show documentation navigation; they are distinct from code-anchored maps.
-[Open the viewer](dev-map/index.html). Read current agent context with
-`node scripts/agent-toolkit.mjs read-map PAGE`; start at `0_system`.
-[Developer orientation](DEVELOPER-CONTEXT.md) indexes regions and caller contracts.
-The [map guide](maps/README.md) owns build/check commands and authoring syntax.
+maps draw documentation navigation for people; they are distinct from code-anchored
+maps, and no agent command returns them. There is no third drawing for developers:
+the dev maps are their navigation, indexed by [developer context](DEVELOPER-CONTEXT.md).
+Read current agent context with `node scripts/agent-toolkit.mjs read-map PAGE`,
+the only region read; start at `0_system`. Build the human
+[viewer](dev-map/index.html) with `node scripts/dev-map.mjs build` — it is
+generated and git-ignored. The [map guide](maps/README.md) owns build/check
+commands and authoring syntax.
 
 Developers read the system overview, the affected region and the code it names.
 Dev maps cover core and Studio. Builders read the relevant regions when changing
 those components or investigating their internals, including shared components
 and their other uses. Skill-script changes require the skill guidance and consumed
-API contracts, not an automatic map read. Makers operating existing tools need no code maps. Reading a
-map or shared contract does not itself change an agent's role or authorization.
+API contracts, not an automatic map read. Makers operating existing tools need no
+code maps. Reading a map or shared contract does not itself change an agent's role
+or authorization.
 
 ## Getting to work
 
@@ -158,6 +162,8 @@ result until relevant inputs change.
 - [Component references](core/README.md) own shared implementation contracts; [Studio](studio/README.md) owns its interaction and runtime behavior.
 - [Skill manuals](skills/README.md) own pattern and preparation-task tools, settings and limits; [shared print tools](core/print/USAGE.md) owns common operations.
 - [The MCP adapter manual](adapters/mcp/README.md) owns chat-client connection and tool use.
+- [The map guide](maps/README.md) owns region-map authoring syntax and the build/check commands; the [map contract](BUILDERS.md#maps-and-local-documentation) owns its reading and shared-use rules.
+- `maker-context-map.html` and `builder-context-map.html` own documentation navigation for people; they are a human reference, not an agent read.
 - [GLOSSARY.md](GLOSSARY.md) owns shared terms.
 - [DECISIONS.md](DECISIONS.md) owns contributor decisions and their approval status.
 - [build_request.md](build_request.md#outstanding-work) owns outstanding or incomplete work only.

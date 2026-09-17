@@ -10,16 +10,17 @@ From the repository root:
 node scripts/dev-map.mjs build
 node scripts/dev-map.mjs check
 node scripts/agent-toolkit.mjs read-map 4a_offset
-node scripts/dev-map.mjs read 4a_offset
 ```
 
-Install contributor dependencies with the normal `npm ci`. 
+Install contributor dependencies with the normal `npm ci`.
 Build uses Node and Python 3 and writes the self-contained viewer to
 `dev-map/index.html`, individual SVGs and machine-readable context. Set `PYTHON`
 if Python is not available as `python`. Generated `dev-map/` files are ignored;
-rebuild after mapped code or region sources change. Agent reads resolve current
-source directly and need no Python or prior viewer build. Read returns the requested page's owning
-region, its shared contracts, source locations and calculated other-use indexes.
+rebuild after mapped code or region sources change. `read-map` is the only region
+read: it resolves current source directly and needs no Python or prior viewer
+build, and returns the requested page's owning region, its shared contracts,
+source locations and calculated other-use indexes. `dev-map.mjs` only builds and
+checks.
 
 Region Markdown owns both agent context and the human rendering. A `saam-page`
 block defines boxes, boundaries and wires. A box resolves to a child page (`>key`),

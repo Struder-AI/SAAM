@@ -29,8 +29,9 @@ them. Responsibilities do not require every lower-role manual.
 
 The [map guide](maps/README.md) owns commands and source syntax; the
 [map contract](BUILDERS.md#maps-and-local-documentation) owns reading, shared-use
-and documentation rules. [Open the viewer](dev-map/index.html) for the same
-source rendered for people. Its Doc button shows the owning region's supporting
+and documentation rules. Build the [viewer](dev-map/index.html) with
+`node scripts/dev-map.mjs build` for the same source rendered for people; it is
+generated and git-ignored. Its Doc button shows the owning region's supporting
 context and shared contracts.
 
 The implementation bin has been absorbed into the region sources. Kernel

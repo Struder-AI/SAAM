@@ -17,6 +17,8 @@ onward record explicit user direction without attributed contributor identity; `
 scope for implementation. Earlier attributed approvals remain historical
 records and are not extended to later wording. In particular, [D-027](#d-027--export-only-print-persistence)
 owns current print persistence; D-015 and D-019 preserve the earlier wording.
+[D-033](#d-033--three-agent-roles) owns the current agent roles and
+entry-point routing; D-002 and D-013 preserve the earlier two-context wording.
 Work history belongs in [DEVLOG.md](DEVLOG.md). Decision quotations, approval
 events and approved wording retain their historical tense and dates under the
 [provenance exception](BUILDERS.md#documentation-maintenance).
@@ -76,10 +78,11 @@ will be useful.” Source R8: remettub clarified the destination is directly
 ## D-002 — One entry point, two agent contexts
 
 - Decision: AGENTS.md holds shared context and routes use and development roles; developers also load use context when testing. CLAUDE.md only points to AGENTS.md.
-- Status: provisional
+- Status: superseded
 - Recorded: 2026-09-08T20:26:47Z
 - Approvals: remettub — R1; tkeller — not recorded
 - Source: R1, “AGENTS is the entry point for both”.
+- Scope: The single entry point and the CLAUDE.md pointer remain current; the two-context split is superseded by D-033, which routes maker, builder and developer. The original approval metadata is preserved and is not extended to the three-role wording.
 
 ## D-003 — Contributor approval determines decision status
 
@@ -166,10 +169,11 @@ will be useful.” Source R8: remettub clarified the destination is directly
 ## D-013 — Maker agents
 
 - Decision: Call agents using SAAM maker agents; development agents also take that role when testing.
-- Status: provisional
+- Status: superseded
 - Recorded: 2026-09-08T22:28:14Z
 - Approvals: remettub — R3; tkeller — not recorded
 - Source: R3, “Let's call them maker agents.”
+- Scope: The name maker agent remains current. The single development-agent role is superseded by D-033, which separates builder from developer; “development agent” now covers both where the distinction is not needed. Original approval metadata is preserved.
 
 ## D-014 — Skills package manuals and tools
 
@@ -351,3 +355,21 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 - Approvals: Current user explicitly authorizes this split; remettub — not attributed in this conversation; tkeller — not recorded.
 - Source: User in task 01a0ab09-9686-7160-a752-50132fd5baf7: “I've made the decision to have two "vase mode" skills (if we don't already). One is our a standard vase mode, similar to what all the other slicers would implement. The "advanced" vase mode uses our motif and pattern etc.” Clarification: “So have separate manuals, in other words, separate references in the skills digest”.
 - Scope: Active user-authorized manual/catalog split. It adds no independent recipe key, duplicated slicer or manufacturing approval; contributor consensus is not inferred.
+
+## D-033 — Three agent roles
+
+- Decision: SAAM work is done by three agent roles rather than two. A maker uses skills, makes parts, gives printing advice and operates Studio, and changes no shared code. A builder changes skills, extends Studio, makes isolated local changes to core, and makes parts to test that work. A developer works on core and across components and owns cross-cutting design. Each role has its own onboarding command and starting reads. An agent determines its role from the initial request and defaults to maker when unclear; it escalates maker to builder on any build request, announced first; it reaches developer only on the person's explicit request or an accepted proposal for major core work. Maker and builder agents suggest a fresh session past roughly 250k tokens on an unrelated pivot; developers are exempt. AGENTS.md remains the single entry point.
+- Status: proposed
+- Recorded: 2026-09-17T16:29:11Z
+- Approvals: Current user explicitly directed the three-role split; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User direction recorded in [DEVLOG 2026-09-16](DEVLOG.md#2026-09-16--three-agent-roles-and-documentation-restructure) and the reconciliation approved in [DEVLOG 2026-09-17](DEVLOG.md#2026-09-17--reconcile-role-context-and-the-map-contract). This is a summary of the preserved direction, not a verbatim quotation; the originating transcript is not available to this record. Recorded retroactively during a documentation audit, so the timestamp is the recording moment rather than the instruction.
+- Scope: Active user-authorized structure. It supersedes the two-context split in D-002 and the single development-agent role in D-013, whose attributed approval metadata is preserved; formal contributor supersession remains unresolved. Inheritance between roles describes responsibility, not a requirement to load every lower-role manual. Escalation carries the original request's authorization and no more. No manufacturing approval or contributor consensus is inferred.
+
+## D-034 — Adopt the PackIT region map contract for core and Studio
+
+- Decision: Adopt PackIT's single region source and leveled flow-map approach as the primary structural account of core and Studio. One Markdown region file owns both the agent-readable map and the human rendering generated from it; a box resolves to a child page, a named code declaration or a shared component. A component may be shared only where every use carries the same input/output contract, including units, frames, preconditions, errors, mutation and ordering. Every occurrence exposes calculated references to all other mapped occurrences, drawn as red vertical arrows with node indexes and never authored by hand. Skill implementations and client adapters are callers outside the mapped boundary. PackIT's restrictions on shared code, comments and prose are not adopted.
+- Status: proposed
+- Recorded: 2026-09-17T16:29:11Z
+- Approvals: Current user reviewed offset and perimeter examples and approved continuation; remettub — not attributed in this conversation; tkeller — not recorded.
+- Source: User direction and review recorded in [DEVLOG 2026-09-17](DEVLOG.md#2026-09-17--core-and-studio-developer-maps) and [DEVLOG 2026-09-17](DEVLOG.md#2026-09-17--reconcile-role-context-and-the-map-contract). This is a summary of the preserved direction, not a verbatim quotation. Recorded retroactively during a documentation audit, so the timestamp is the recording moment rather than the instruction.
+- Scope: Active user-authorized documentation structure, owned by the [map contract](BUILDERS.md#maps-and-local-documentation) and the [map guide](maps/README.md). Structural checks resolve anchors, hierarchy, boundaries and shared-use references; they establish neither behavioral truth nor complete caller coverage, and the supporting prose, wires and semantic contracts are authored and unverified. Drawing a map does not authorize refactoring code to make the picture cleaner. Dev maps cover core and Studio only. No manufacturing approval or contributor consensus is inferred.

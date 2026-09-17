@@ -1,11 +1,12 @@
 # Core and Studio
 
-Read the affected region through `node scripts/dev-map.mjs read PAGE` so the
-calculated shared-use references accompany its graph. Open `dev-map/index.html`
-for the same source rendered with PackIT's layout. Skills and client adapters
-are callers at the boundary; their implementations are outside these maps.
-Solid wires carry data/calls, dashed red wires carry conditions. Vertical red
-arrows list every other mapped use of the same component contract.
+Read the affected region through `node scripts/agent-toolkit.mjs read-map PAGE`
+so the calculated shared-use references accompany its graph. Build
+`dev-map/index.html` with `node scripts/dev-map.mjs build` for the same source
+rendered with PackIT's layout. Skills and client adapters are callers at the
+boundary; their implementations are outside these maps. Solid wires carry
+data/calls, dashed red wires carry conditions. Vertical red arrows list every
+other mapped use of the same component contract.
 
 ```saam-page 0_system
 title 0 — Core and Studio
