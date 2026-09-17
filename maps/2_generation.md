@@ -1,5 +1,13 @@
 # Generation
 
+Plan schema and dispatch change contracts are in `generation`; lifecycle state
+is in the map-owned `lifecycle` contract; operation
+results and scheduling are in `motion`, and material assignment in `regions`.
+Read any of these with `read-map 2_generation --section ID#heading`; their owning
+regions remain explicit in the returned packet. The `testing` contract locates
+regional workflow, composition and interoperability checks. Pattern internals
+remain in the selected skill's authoring references.
+
 ```saam-components
 buildShell | @core/print/generate.mjs::buildShell | Rhino runtime; geometry recipe | mesh, spline shell or assembly | Model coordinates in mm; backend selected by recipe; rejects unsupported closure.
 ```
@@ -83,5 +91,23 @@ The source declaration at 2.1 includes the whole-part dispatch. Skin surveys run
 before their supporting body to establish its reservation; regional assignments
 use 2.5. Skill implementations and their own scripts are outside dev-map scope.
 The normal pipeline also includes selected supports, rims, waves and welds;
-their results join the same composer. See [composition contracts](../core/path/README.md)
+their results join the same composer. See [composition contracts](reference/motion.md)
 and the selected skill's role-specific manual.
+
+
+```saam-scope
+core/print/generate.mjs | Whole-part dispatch and common generation
+core/print/regions.mjs | Regional assignment and finished-surface publication
+core/print/plan.mjs | Plan schema, defaults and validation
+```
+
+```saam-references
+generation | maps/reference/generation.md | Plan schema, whole-part dispatch, regional dependencies and change verification
+```
+
+
+```saam-responsibilities
+plan-schema | core/print/plan.mjs | generation#changing-plan-schema-and-compatibility | core/tests/pipeline.test.mjs, core/tests/regional-workflow.test.mjs, core/tests/printer-profiles.test.mjs
+dispatch | core/print/generate.mjs | generation#changing-generation-orchestration | core/tests/pipeline.test.mjs, core/tests/interoperability.test.mjs, core/tests/composition.test.mjs, core/tests/prime.test.mjs
+regional-dispatch | core/print/regions.mjs | generation#changing-regional-material-publication | core/tests/regions.test.mjs, core/tests/regional-workflow.test.mjs, core/tests/reservation-surface.test.mjs, core/tests/assembly-reservation.test.mjs, core/tests/finished-cladding.test.mjs
+```

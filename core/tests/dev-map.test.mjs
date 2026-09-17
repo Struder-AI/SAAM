@@ -49,8 +49,9 @@ test('shared uses include every other occurrence on the same and different pages
   for(const node of uses) assert.deepEqual(node.shared.map(u=>u.address),uses.filter(n=>n!==node).map(n=>n.num));
   const context=regionContext(model,'child');
   assert.equal(context.components.length,1);
-  assert.equal(context.pages[1].nodes[1].shared.length,3);
-  assert.equal(context.pages[1].nodes[1].anchor,'core/test.mjs::shared');
+  assert.equal(context.pages.length,1);
+  assert.equal(context.pages[0].nodes[1].shared.length,3);
+  assert.equal(context.pages[0].nodes[1].anchor,'core/test.mjs::shared');
 });
 
 test('map checks reject drift in anchors, reuse, hierarchy and boundaries',async t=>{
@@ -73,7 +74,7 @@ test('map reads recalculate declaration locations and all-use references after s
   await writeFile(join(options.repo,'core/test.mjs'),'\n\n'+fixtureSource);
   await writeFile(join(options.repo,'maps/0_test.md'),fixtureMap.replace('box d | 3.2 | fourth use | $shared\n','').replace('c > d | value\nd > e | value','c > e | value').replace('box e | 3.3','box extra | 3.4 | another use | $shared\nbox e | 3.3').replace('c > e | value','c > extra | value\nextra > e | value'));
   const after=regionContext(await loadModel(options),'child');
-  const a=before.pages[0].nodes.find(n=>n.id==='a'),b=after.pages[0].nodes.find(n=>n.id==='a');
+  const a=before.pages[0].nodes.find(n=>n.id==='c'),b=after.pages[0].nodes.find(n=>n.id==='c');
   assert.equal(b.line,a.line+2);
   assert.ok(b.shared.some(use=>use.address==='3.4'));
   assert.ok(!b.shared.some(use=>use.address==='3.2'));

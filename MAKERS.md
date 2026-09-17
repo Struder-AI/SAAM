@@ -71,7 +71,7 @@ For a tour request in an already set-up checkout, the first useful result is
 Studio showing lesson one. Launch
 `node studio/server.mjs --toolkit start-tour --no-open` through the client's managed command
 session, and open the returned URL with its browser integration. The
-[toolkit](core/agent/README.md) creates fresh copies, sets playback layer 12,
+toolkit creates fresh copies, sets playback layer 12,
 returns the URL first, then bundles the remaining participation guidance and
 listener arguments. The direct `node studio/server.mjs --start-at-layer 12`
 launcher remains available. Request an early

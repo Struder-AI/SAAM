@@ -48,7 +48,7 @@ function headings(markdown) {
   return result;
 }
 
-function manualLinks(markdown, path) {
+export function guidanceLinks(markdown, path) {
   const links = [];
   for (const match of markdown.matchAll(/\[([^\]]*)\]\(([^)]+)\)/g)) {
     const [target, anchor] = match[2].split('#');
@@ -61,7 +61,17 @@ function manualLinks(markdown, path) {
   return links;
 }
 
-export async function readGuidance(root, guidanceId) {
+export function guidanceSection(markdown, anchor) {
+  if (!anchor) return markdown;
+  const sections = headings(markdown), index = sections.findIndex(section => section.anchor === anchor);
+  if (index < 0) throw new Error(`Unknown heading #${anchor}. Read the document for its headings.`);
+  const section = sections[index], next = sections.slice(index + 1).find(item => item.level <= section.level);
+  return markdown.slice(section.offset, next?.offset ?? markdown.length);
+}
+
+export async function readGuidance(root, guidanceId, seen = new Set()) {
+  if(seen.has(guidanceId)||seen.size>8)throw new Error('Documentation redirect cycle.');
+  seen.add(guidanceId);
   const [requested, encodedAnchor] = guidanceId.split('#');
   let path, anchor;
   try {
@@ -77,14 +87,13 @@ export async function readGuidance(root, guidanceId) {
       throw new Error('Documentation paths cannot contain symbolic links, junctions or hard-linked files.');
   }
   const markdown = await readFile(current, 'utf8');
-  const sections = headings(markdown);
-  let text = markdown;
-  if (anchor) {
-    const index = sections.findIndex(section => section.anchor === anchor);
-    if (index < 0) throw new Error(`Unknown heading #${anchor} in ${path}. Read the document for its headings.`);
-    const section = sections[index], next = sections.slice(index + 1).find(item => item.level <= section.level);
-    text = markdown.slice(section.offset, next?.offset ?? markdown.length);
+  const redirect=/^<!-- saam-map-reference: (maps\/reference\/[a-z0-9-]+\.md) -->/.exec(markdown)?.[1];
+  if(redirect) {
+    const document=await readGuidance(root,redirect+(anchor?'#'+anchor:''),seen);
+    return {...document,guidanceId,redirectedFrom:path};
   }
+  const sections = headings(markdown);
+  const text = guidanceSection(markdown, anchor);
   return { guidanceId, path, text, headings: sections.map(({ title, anchor }) => ({ title, guidanceId: `${path}#${anchor}` })),
-    links: manualLinks(text, path), guidanceIds };
+    links: guidanceLinks(text, path), guidanceIds };
 }

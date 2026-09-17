@@ -1,5 +1,196 @@
 # Development log
 
+## 2026-09-17 — Map-owned core and Studio reference
+
+Implemented the requested single technical documentation structure for core and
+Studio. Migrated 21 component/verification manuals into region-owned references,
+preserving old paths and heading links as compatibility routes. Added the Studio
+state/worker protocol reference. The system map now routes responsibilities,
+contracts and representative changes; 57 pages expose implementation entry points.
+Every scanned core/Studio production JavaScript module has a mapped declaration.
+This does not assert that every helper or dynamic relationship is explained.
+
+`read-map` returns one page, with separate contract-section, node, resource-inventory
+and detailed-evidence reads. The viewer embeds the same 23 reference sources.
+Developer onboarding no longer preloads skill catalogs or a parallel component
+manual hierarchy. Skill-only builders retain their authoring material and consume
+shared API contracts without needing implementation maps. Makers need no dev maps;
+builders changing core/Studio use the affected maps. Skills and adapters remain
+outside implementation scope while contributing caller evidence.
+
+The containment view labels and orders expectations: required implementation with
+unassessed or missing representation first, other required implementation next,
+then supporting references and verification, with out-of-scope files last.
+Native implementation is required but not declaration-analyzed; assets and tests
+need owning references/evidence, not production function boxes. Ownership does not
+turn enclosed or unrepresented declarations into explained behavior. Inventories
+include native source, HTML/CSS, assets, contracts and verification files; freshness
+includes those resources and the separate guidance inventory.
+
+Validation: focused map, reference, context/onboarding and manual-path-security
+checks passed, including file ordering, contract section identity, fenced code,
+legacy redirects, missing ownership, stale links and non-JavaScript freshness.
+Repository link/metadata checks, map build and `check --since HEAD --built` passed.
+Static SVG review found and fixed overlapping disconnected boxes after layout
+clamping; a regression test covers that case. Browser policy blocked local-file
+viewer access, so this task used static visual inspection and local rendering/
+navigation tests, not a live browser verification. No manufacturing behavior or
+hardware outcome is established by these documentation checks.
+
+Completed the subsequent semantic completeness pass after the user identified
+that consolidation alone was insufficient. Audited the production-file inventory
+against responsibilities and existing contracts, and added 51 source-grounded
+change contracts covering all 134 core/Studio implementation files. Each records
+responsibility/invariants, failures and limits, coupled changes and focused
+verification scenarios with source/test links. This includes native repair,
+plan compatibility and regional publication, numerical/mesh/surface operations,
+motion state, dialects/archives, machine models, Studio workers/imports/requests,
+rendering/resources and agent context. Supporting native build inputs and browser
+assets have explicit reference routes. Private declarations can remain enclosed
+by their owning responsibility; inventory ownership is not semantic coverage.
+
+Added exact-file responsibility declarations, agent indexes and per-file viewer
+links. A new production file cannot inherit a change contract through a directory
+scope. Missing contracts, stale sections/source/test links, duplicate assignments
+and ownership mismatch fail validation. Change reports now include the relevant
+contract read command. Expanded system-map change routes to fourteen concrete
+development scenarios and traced their invariants/couplings/checks against source.
+Corrected the distinction between explicit solid-modifier tessellation and viewer
+proxies, and between recipe review formatting and persisted display settings.
+Contract-section reads now return only that section's navigation links.
+
+Verification for this pass: all 43 focused map/context tests passed; after the
+section-navigation fix, the affected 10 reference/generation tests and manual-path
+security case passed. The four maintenance tests and role-onboarding case passed
+after their affected changes. These checks verify reference delivery, coverage
+obligations and drift detection; the authored behavioral account was reviewed
+against source rather than inferred from a green structural check.
+Final artifact validation resolved all 134 containment-to-contract routes and
+979 rendered reference links, and checked the requested containment ordering.
+The rebuilt viewer contains 57 flow pages, 23 references and containment.
+Repository checks passed for 107 Markdown documents and 1,448 local links;
+`check --since HEAD --built` and the final build-freshness check passed.
+
+## 2026-09-17 — Containment and change-focused map maintenance
+
+Kept authored abstractions and contracts while generating a complete core/Studio
+containment inventory in the existing viewer. Module bars show direct, enclosed
+and unrepresented declarations as proportions of each module's total. Inventory
+includes wholly unmapped modules; existing gaps are not an approved baseline.
+
+Added `check --since REF` to focus review on changed modules, named callables,
+mapped state and authored regions, including additions and removals. AST comparison
+ignores formatting but preserves semantic line-break changes. Module-level code,
+callbacks and contracts still require review. Added hashed build inputs and outputs,
+cached unchanged builds, `check --built` freshness verification and a guard against
+inputs changing during rendering. Agent guidance owns the required change review;
+ordinary code edits do not require per-node tests or the extractor regression suite.
+
+Validation: all 32 focused map tests passed, including containment, change review,
+stale artifacts and concurrent input changes. Real build, cached rebuild and
+`check --since HEAD --built` succeeded. Browser navigation verified inventory
+links return to their mapped pages. This detects drift and reduces review scope;
+it does not certify semantic contracts or infer every dynamic relationship.
+
+## 2026-09-17 — Code-derived relationships drive developer maps
+
+Integrated the code graph into `loadModel()`, the common source for the existing
+human renderer, toolkit `read-map`, and onboarding maps. All 40 pages now use
+generated internal relationships; authored internal arrows survive only as
+explicit semantic claims in the Doc view and agent context. Grouping, hierarchy,
+labels, full component contracts and external/boundary interactions remain
+authored. The approved renderer, layout and viewer design were not changed.
+
+Extended the earlier extractor with finite returned-object registry dispatch,
+selection-aware value flow, local class methods, named message handlers and
+lexical state dependencies. Added the Studio source worker handler and retained
+program storage to the source page. Unknown alternatives remain reported beside
+known targets; direct alias mutations invalidate literal-object resolution.
+Calls, returned values, argument flow, state dependencies and possible worker
+delivery retain separate kinds and source evidence. Authored claims cannot keep
+a deleted call's wire visible. Shared red references still calculate all other
+occurrences, including same-page uses; unmapped callers receive no invented index.
+
+The build writes the viewer, SVGs, concise region context, full graph and coverage
+evidence. The supporting evidence command now consumes that same generated
+model. Current extraction scans 184 modules and projects 314 displayed internal
+endpoint pairs across 342 nodes. Core/Studio inventory is 162 direct, 2,673
+enclosed and 4,151 unrepresented declarations; the callable subset is 160 direct,
+739 enclosed and 1,541 unrepresented. These counts do not imply full behavioral
+coverage. There are 8,744 unresolved/partially resolved sites, including external
+APIs, and 249 discovered caller sites without direct mapped nodes.
+
+Validation: 28 focused tests passed across `dev-map.test.mjs`,
+`dev-map-evidence.test.mjs` and `dev-map-generation.test.mjs`. The code-only
+mutation fixture verifies changed SVG wiring and changed agent region output
+without changing the authored map; it also checks visible stale claims,
+unresolved calls and rendered same-page red references. Real toolkit CLI output
+matches the model's output and worker regions. The selected agent-toolkit
+onboarding-role integration test passed separately. Build/check resolved all
+40 pages. Browser inspection covered the real overview and rendered output,
+worker-state and shared-reference diagrams. User feedback accepted the visible
+appearance while explicitly not claiming code-accuracy verification.
+
+Remaining analysis limits are explicit in map context and the map guide:
+arbitrary callback/mutable dispatch, escaped mutations, inheritance, dynamic
+imports, native-thread worker channels and request/response correlation are not
+fully resolved. No execution order is inferred from sibling call order. Enclosed
+factory code is not individually explained; new functions enter inventory but
+do not automatically become boxes. Projection through unmapped helpers is
+bounded to six call/handoff steps. These are static software relationships,
+not runtime observations or physical evidence.
+
+## 2026-09-17 — Report-only code-derived developer-map pilot
+
+Implemented lexical/import/alias resolution and exact source evidence in
+`scripts/dev-map/graph.mjs`, with declaration containment, typed relationship
+projection and shared-caller reports in `scripts/dev-map/evidence.mjs`.
+`node scripts/dev-map-evidence.mjs` regenerates the ignored JSON graph, comparison
+report and readable report. The existing viewer, region wiring, red-link behavior
+and manufacturing implementation were left unchanged. The pilot operates in the
+saved checkout alongside the separately maintained human context maps.
+
+Measured 184 .mjs modules across core, Studio and inbound skill/adapter callers.
+Core/Studio inventory: 160 directly mapped declarations, 2,666 merely enclosed,
+and 4,160 unrepresented. The callable subset is 159 direct, 739 enclosed and
+1,542 unrepresented; local variables and callbacks explain why these denominators
+differ. Parameters/destructured bindings resolve scope but are excluded from the
+inventory. No combined coverage percentage is claimed.
+
+The graph derives 5,020 calls, 1,009 assigned/returned call results, 670 direct
+argument value flows and six possible worker handoffs. Of 451 authored wires,
+167 have structural endpoint evidence only, 187 are boundary claims, 93 have
+unresolved source sites and four lack established support in this extractor.
+There are 130 omitted typed page connections and 242 caller sites of mapped
+components without direct map nodes. Of 6,705 derived relationships, 458 occur
+in supporting endpoint paths and 6,247 are absent from the bounded comparisons;
+4,895 have an unrepresented endpoint. These are distinct measurements, not counts
+of proven runtime behaviors or declarations that require individual boxes.
+
+The 9,122 unresolved call/constructor sites comprise 7,287 dynamic members,
+942 external/unbound identifiers, 539 unresolved imports, 249 unresolved local
+values, 87 parameter targets, 13 mutated bindings and five unsupported callee
+expressions. External APIs and deliberate extractor limits contribute to this
+count. Unresolved is not absent; unsupported is not disproven.
+
+The 6_output pilot derives pipeline-to-outputAdapter and pipeline-to-advisory
+calls plus the adapter result return, while leaving object-dispatched exporters
+unresolved. The 7b_source pilot derives the fetch result supplied to decodeSource
+and paths from sourceSession through the Worker handler to fetch/decode/bind.
+Session-to-decode and session-to-bind endpoint paths are omitted from that page.
+Mutable program state, response-ID routing and control sequence are not inferred.
+The registry's interpretGriffin wrapper is an example of a discovered unmapped
+caller, separate from the two existing calculated mapped occurrences.
+
+Validation: 22 focused tests passed using
+`node --test core/tests/dev-map-evidence.test.mjs core/tests/dev-map.test.mjs`.
+They cover shadowing, aliases/imports/re-exports, mutation, default parameter
+scope, anonymous functions, value-flow evidence, both worker directions,
+reassigned workers, unsupported/unresolved/omitted cases, containment, all current
+map anchors, same-page shared indexes and non-mutation of the map model.
+Proposed relationship typing and evidence-backed authoring changes are reported
+for review; broad replacement of the forty authored pages was not performed.
+
 ## 2026-09-17 — Documentation revamp audit
 
 Audited the three-role restructure and the dev maps. Verified against source:
@@ -8,6 +199,24 @@ only the six known issues; 24 focused map/role/manual-access tests pass;
 onboarding context sets for maker, builder, builder `--area`, and developer
 `--area` match their manuals exactly; `read-map` on a child returns its whole
 owning region with shared contracts. 86 documents were link- and anchor-checked.
+
+Context maps corrected against the toolkit. The user's point was that the maps
+must reflect what onboarding actually returns. They did not. `builder-onboarding`
+returns six documents and no maps, but the map drew only three as delivered and
+showed MAKERS, print tools and skill authoring as merely mentioned; those three
+wires are now the blue-dashed delivered set, so all six read as one call. A panel
+now states the base set explicitly and tables every `--area` flag against the
+contracts and region maps it adds, and nodes were added for the area contracts that
+had none: MCP development, tests, machine models, plus benchmarks, the region
+verification reference and the fourth skill `DEVELOP.md`. On the maker map the tour
+path was invisible although it replaces onboarding and delivers a different set;
+`start-tour` now shows as its own action delivering MAKERS with tour participation,
+and the prose records that `begin-studio-work` returns no manuals at all.
+
+[Context-map tests](core/tests/context-map.test.mjs) now assert the blue-dashed sets
+equal the toolkit's maker and builder context sets exactly, that both return no maps,
+that every `--area` contract has a node, and that no node links to a missing file.
+Hand-drawn maps drifted twice; this makes the drift fail a check instead.
 
 Corrections made. The user spotted the stale context maps: the maker map's four
 slice tooltips still routed implementation content to the abolished developer bin
@@ -1983,7 +2192,7 @@ that the perpendicular glue jogs came from SAAM, not a requested exemplar.
   shared operations/export and catalog/Studio integration. The research dataset
   is CC BY 4.0; the Prusa/Orca integrations are AGPL-3.0. No third-party algorithm
   source or research assets were incorporated. Provenance and numerical limits
-  are at the [implementation owner](skills/wave-overhangs/DEVELOP.md).
+  are at the [implementation owner](skills/wave-overhangs/BUILDER.md).
 - Software evidence: physical-spacing checks on inclined/rescaled planes and
   an independently unrolled rational cylinder; doubly curved native surface,
   hole splitting/rejoining, disconnected seeds, budgets, component/slice ordering,
@@ -2123,7 +2332,7 @@ manufacturing regression suite was needed for these documentation/metadata edits
   recovery correction is implemented as described in the
   [S5 observations](#2026-09-08-to-2026-09-10--s5-startup-observations);
   its unreported physical outcome is part of the
-  [remaining S5 print](build_request.md#br-005--complete-the-requested-s5-wedge-print).
+  [S5 print record](#br-005--first-complete-print).
 
 ## 2026-09-14 — Ready examples and guided Studio tour
 
@@ -3093,7 +3302,7 @@ Historical design snapshot; implementation followed in BR-017 and BR-018.
 - Task: Add a Bambu H2D machine profile and general machine interoperability. Move S5-specific setup validation out of shared plan code. Declare machine/tool/material capabilities and supported outputs; keep machine behavior out of pattern skills. Implement the H2D-compatible exporter/interpreter and packaging needed for the exact reviewed artifact, using verified machine documentation or a user-supplied known-good program for the intended configuration.
 - H2D scope to resolve before implementation: target nozzle/tool and material setup, firmware/output packaging, startup/shutdown behavior and machine limits. Do not copy the S5 Griffin envelope or assume an H2D profile alone enables support. No hardware execution is requested.
 - Verify: equivalent geometry across backends, material ownership, travel limits, deterministic generation, profile-specific setup rejection and supported machine-program interpretation. Exercise both machine profiles through the same skills, three approvals and exact-byte delivery. Report software checks separately from physical printing.
-- Design: [geometry](core/geom/README.md#geometry-interoperability-for-skill-authors), [travel](core/path/README.md#whole-plan-travel-requirement), [planar-infill](skills/planar-infill/DEVELOP.md#planar-infill-design), [machines](core/export/README.md#machine-interoperability-design).
+- Design: [geometry](core/geom/README.md#geometry-interoperability-for-skill-authors), [travel](core/path/README.md#whole-plan-travel-requirement), [planar-infill](skills/planar-infill/BUILDER.md#planar-infill-design), [machines](core/export/README.md#machine-interoperability-design).
 - Approval scope: records requested work, not contributor consensus or manufacturing-job approval. Existing runtime remains unchanged.
 
 ## BR-017 — Implement interoperability first, then planar infill and import
@@ -3446,7 +3655,7 @@ last export. No job approval or physical validation was performed.
 ## 2026-09-10 — Gyroid contour construction measurement
 
 - Date basis: BR-032 checkpoint f667205 (2026-09-10T02:51:13-07:00); exact run time is not recorded.
-- Original owner: [skills/planar-infill/DEVELOP.md](skills/planar-infill/DEVELOP.md). Preserved observation/checkpoint wording follows.
+- Original owner: [skills/planar-infill/BUILDER.md](skills/planar-infill/BUILDER.md). Preserved observation/checkpoint wording follows.
 
 A 48 mm square gyroid construction over 16 phases at 0.2 mm sampling and
 0.4 mm line width measured 24.60 s

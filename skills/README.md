@@ -66,10 +66,10 @@ For machine setup and export limitations, follow the
 Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
 discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).
 Builders and developers start at [BUILDERS.md](../BUILDERS.md) for shared geometry, numerical,
-composition, travel and machine requirements. [Skill development](DEVELOP.md)
+composition, travel and machine requirements. [Skill development](AUTHORING.md)
 owns manual authorship and discovery metadata.
 
-Package implementation notes cover [planar infill](planar-infill/DEVELOP.md),
-[assigned supports](supports/DEVELOP.md) and the shared
-[rimming design](rimming-planar/DEVELOP.md). Read these when changing the relevant
+Package implementation notes cover [planar infill](planar-infill/BUILDER.md),
+[assigned supports](supports/BUILDER.md) and the shared
+[rimming design](rimming-planar/BUILDER.md). Read these when changing the relevant
 producer or its integration with shared components.

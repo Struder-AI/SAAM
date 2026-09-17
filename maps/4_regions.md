@@ -29,6 +29,14 @@ boolean > result | clipped loops | data
 wall > result | tracks | data
 surface > result | UV regions | data
 reserve > result | printable region | data
+box 4e | 4.6 | query region topology | >4e_queries
+ext 4eCaller | shared callers
+4eCaller > 4e | loops / sampled field | data
+4e > 4eCaller | membership / paths / coverage | data | norank
+box 4f | 4.7 | sample normal-offset curves | >4f_normal
+ext 4fCaller | shared callers
+4fCaller > 4f | surface chart / curve | data
+4f > 4fCaller | offset samples | data | norank
 ```
 
 ```saam-page 4a_offset
@@ -130,7 +138,7 @@ recover > out | loops plus center tracks | data
 
 ## Planar kernel
 
-Caller contracts: [regions](../core/region/README.md). The shared kernel is
+Caller contracts: [regions](reference/regions.md). The shared kernel is
 `clipper2-wasm@0.4.0`, C++ Clipper2 2.0.1. One initialized WASM instance serves
 synchronous offsets and booleans through bulk integer-coordinate transfer.
 It uses `Clipper64`, `NonZero`, `PreserveCollinear=false`; packaged Z is unused.
@@ -159,4 +167,69 @@ boundary strips and round sectors; Clipper2 resolves their topology. No Rhino
 output fixture establishes equivalence. RhinoCommon's public wrapper delegates
 to a native routine whose implementation is not public. Test limits, kernel
 provenance and reference regeneration live in
-[region verification](../scripts/bench/region-reference.md).
+[region verification](reference/region-verification.md).
+
+
+```saam-scope
+core/region/ | Region construction, offsets, booleans and material boundaries
+```
+
+```saam-references
+regions | maps/reference/regions.md | Offsets, intersections, ownership and surface interfaces
+region-verification | maps/reference/region-verification.md | Kernel reference fixtures and reproduction procedures
+```
+
+
+```saam-page 4e_queries
+title 4.6 — query region topology
+sub Shared responsibility · contracts remain with the owning region
+parent 4_regions 4e
+in loops / sampled field
+out membership / paths / coverage
+port in | loops / sampled field
+port out | membership / paths / coverage
+box n0 | 4.6.1 | index region edges | @core/region/region2d.mjs::SegmentIndex
+in > n0 | index region edges inputs | data
+n0 > out | index region edges result | data
+box n1 | 4.6.2 | split material components | @core/region/region2d.mjs::regionComponents
+in > n1 | split material components inputs | data
+n1 > out | split material components result | data
+box n2 | 4.6.3 | fill scanline cells | @core/region/region2d.mjs::scanlineFill
+in > n2 | fill scanline cells inputs | data
+n2 > out | fill scanline cells result | data
+box n3 | 4.6.4 | extract field region | @core/region/boolean.mjs::levelSetRegion
+in > n3 | extract field region inputs | data
+n3 > out | extract field region result | data
+box n4 | 4.6.5 | expand stroke footprint | @core/region/stroke.mjs::strokeRegion
+in > n4 | expand stroke footprint inputs | data
+n4 > out | expand stroke footprint result | data
+```
+
+
+```saam-page 4f_normal
+title 4.7 — sample normal-offset curves
+sub Shared responsibility · contracts remain with the owning region
+parent 4_regions 4f
+in surface chart / curve
+out offset samples
+port in | surface chart / curve
+port out | offset samples
+box n0 | 4.7.1 | offset surface section | @core/region/section-offset.mjs::offsetSurfaceSection
+in > n0 | offset surface section inputs | data
+n0 > out | offset surface section result | data
+box n1 | 4.7.2 | sample surface curve | @core/region/normal-surface.mjs::sampleSurfaceCurve
+in > n1 | sample surface curve inputs | data
+n1 > out | sample surface curve result | data
+box n2 | 4.7.3 | offset along normal | @core/region/normal-surface.mjs::normalSurfacePoint
+in > n2 | offset along normal inputs | data
+n2 > out | offset along normal result | data
+```
+
+
+```saam-responsibilities
+planar-kernel | core/region/boolean.mjs, core/region/clipper.mjs, core/region/clipper2.mjs, core/region/intersection.mjs, core/region/offset.mjs, core/region/stroke.mjs | regions#changing-planar-region-algebra | core/tests/intersection.test.mjs, core/tests/offset.test.mjs, core/tests/offset-junctions.test.mjs, core/tests/offset-remnants.test.mjs
+region-perimeters | core/region/region2d.mjs, core/region/perimeters.mjs | regions#changing-region-identity-and-perimeter-recovery | core/tests/regions.test.mjs, core/tests/perimeters.test.mjs, core/tests/scanline-cells.test.mjs
+intrinsic-offset | core/region/surface-offset.mjs | regions#changing-intrinsic-surface-offsets | core/tests/surface-offset.test.mjs, core/tests/surface-cladding.test.mjs
+ambient-offset | core/region/normal-surface.mjs, core/region/section-offset.mjs | regions#changing-ambient-normal-and-section-offsets | core/tests/surface-offset.test.mjs, core/tests/reservation-surface.test.mjs
+reservations | core/region/reservation.mjs | regions#changing-regional-reservations-and-publication | core/tests/assembly-reservation.test.mjs, core/tests/reservation-surface.test.mjs, core/tests/regional-workflow.test.mjs
+```

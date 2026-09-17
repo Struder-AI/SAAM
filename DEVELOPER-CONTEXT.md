@@ -2,43 +2,47 @@
 
 ## Orientation
 
-Start with the system map and the affected region, then read the source it names.
-Developer onboarding supplies the system map and maps for selected `--area`
-values. Use `node scripts/agent-toolkit.mjs read-map PAGE` for missing regions;
-the returned context includes the calculated references to every other mapped
-use of a shared component. Reuse regions already consumed.
+Dev maps are the technical reference for core and Studio: responsibilities,
+contracts, algorithms, state/protocols, source and verification. Start with
+`0_system`, then read the affected page and the contract sections it lists.
+There is no parallel core/Studio manual hierarchy. The old manual paths are
+compatibility routes to map-owned reference text.
 
-Dev maps cover core and Studio. Builders read affected maps when changing or
-investigating those internals. Skill-script work needs skill guidance and the
-consumed API contracts; it does not automatically require dev maps. Developers
-load maker workflow, print tools and skill-authoring manuals when the task needs
-them. Responsibilities do not require every lower-role manual.
+```sh
+node scripts/agent-toolkit.mjs read-map 0_system
+node scripts/agent-toolkit.mjs read-map 7b_source
+node scripts/agent-toolkit.mjs read-map 7_studio --section studio-protocols#source-session-and-stale-replies
+node scripts/agent-toolkit.mjs read-map 7_studio --node 7.4.1 --evidence
+node scripts/agent-toolkit.mjs read-map 3_geometry --inventory
+```
 
-| Scope | Map key | Caller contract |
-|---|---|---|
-| System | `0_system` | [Core boundaries](core/README.md) |
-| Print lifecycle | `1_lifecycle` | [Lifecycle](core/print/README.md) |
-| Generation | `2_generation` | [Plan and composition](core/path/README.md) |
-| Geometry | `3_geometry` | [Geometry](core/geom/README.md) |
-| Regions | `4_regions` | [Regions](core/region/README.md) |
-| Motion | `5_motion` | [Composition](core/path/README.md) |
-| Output | `6_output` | [Output](core/export/README.md) |
-| Studio | `7_studio` | [Studio](studio/README.md) |
-| Machine presentation | `8_machine` | [Models](core/machine/README.md) |
-| Agent tools | `9_agent` | [Toolkit](core/agent/README.md) |
+A normal read returns one page, concise region context, shared component contracts,
+calculated other-use addresses and the map-owned reference index. Select a contract
+or heading with `--section`; this returns only that contract text. Use `--evidence`
+for detailed relationships/callers and `--inventory` for owned source, native code,
+page assets and verification resources. Reuse context already read.
 
-The [map guide](maps/README.md) owns commands and source syntax; the
-[map contract](BUILDERS.md#maps-and-local-documentation) owns reading, shared-use
-and documentation rules. Build the [viewer](dev-map/index.html) with
-`node scripts/dev-map.mjs build` for the same source rendered for people; it is
-generated and git-ignored. Its Doc button shows the owning region's supporting
-context and shared contracts.
+Each region's `responsibilities` index maps exact production files to change
+contracts: invariants, failures/limits, coupled changes and verification. The
+containment view links the same contract for each file, including native code.
+New implementation files cannot pass the map check through directory ownership
+alone. Follow the system map's change routes, then inspect the linked source and
+tests for the particular edit.
 
-The implementation bin has been absorbed into the region sources. Kernel
-verification and reference-generation procedures now live with
-[region benchmarks](scripts/bench/region-reference.md). Consult
-[tests](core/tests/README.md) for a concrete verification task. Client adapters
-and skill implementations remain outside dev-map scope: use
-[MCP development](adapters/mcp/DEVELOP.md), [skill authoring](skills/DEVELOP.md)
-and the selected skill's role manuals. Machine declarations remain in
-[machine files](machines/README.md).
+The system map provides the region index and verification routes. Build the
+[human viewer](dev-map/index.html) with `node scripts/dev-map.mjs build`; its
+maps, reference pages, code and containment use the same model as agent reads.
+The [map guide](maps/README.md) owns authoring and maintenance commands.
+
+Scope follows components, not roles. Makers operate existing tools and need no
+dev maps. Builders changing skills use [skill authoring](skills/AUTHORING.md), the
+selected skill's role manual and consumed API contracts; contract-only reads do
+not require implementation maps. Builders changing or investigating core/Studio
+use the affected maps. Developers use maps for core/Studio and load maker or skill
+context when their work needs it. Skills and [client adapters](adapters/mcp/DEVELOP.md)
+retain separate implementation references and remain visible as external callers.
+
+Repository policy, setup, contribution procedures, decisions and historical
+evidence retain their existing owners. Onboarding supplies engineering policy;
+it does not preload skill catalogs or every technical contract. Source remains
+authoritative for implementation; software checks do not establish physical results.

@@ -28,7 +28,7 @@ async function fixture(t) {
   }};
 }
 
-test('the three onboarding roles return the complete digest and leave skill manuals for individual reads', async t => {
+test('onboarding selects context by role and component; maps and contracts are selective reads', async t => {
   const {library} = await fixture(t);
   const {stdout} = await run(process.execPath, [cli, 'maker-onboarding'], {cwd: library});
   const maker = JSON.parse(stdout);
@@ -39,7 +39,7 @@ test('the three onboarding roles return the complete digest and leave skill manu
   const builder = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'skills'])).stdout);
   assert.ok(builder.documents.some(doc => doc.path === 'BUILDERS.md'));
   assert.ok(builder.documents.some(doc => doc.path === 'MAKERS.md'), 'builder context includes maker context');
-  assert.ok(builder.documents.some(doc => doc.path === 'core/README.md'));
+  assert.ok(!builder.documents.some(doc => doc.path === 'core/README.md'));
   const dev = JSON.parse((await run(process.execPath, [cli, 'developer-onboarding', '--area', 'mcp', '--area', 'setup', '--area', 'mcp'])).stdout);
   assert.ok(!dev.documents.some(doc => doc.path === 'AGENTS.md'), 'entry-point instructions are already loaded');
   assert.equal(new Set(dev.documents.map(doc => doc.path)).size, dev.documents.length);
@@ -50,12 +50,14 @@ test('the three onboarding roles return the complete digest and leave skill manu
   assert.deepEqual(maker.maps, []);
   assert.deepEqual(builder.maps, [], 'skill-only builders need no dev maps');
   assert.deepEqual(dev.maps.map(map => map.source), ['maps/0_system.md']);
-  assert.ok(!dev.documents.some(doc => ['MAKERS.md','core/print/USAGE.md','skills/DEVELOP.md'].includes(doc.path)), 'developers load workflow context when needed');
+  assert.ok(!dev.documents.some(doc => ['MAKERS.md','core/print/USAGE.md','skills/AUTHORING.md'].includes(doc.path)), 'developers load workflow context when needed');
   const mapped = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'regions', '--area', 'regions'])).stdout);
   assert.deepEqual(mapped.maps.map(map => map.source), ['maps/4_regions.md']);
   const region = JSON.parse((await run(process.execPath, [cli, 'read-map', '4d_perimeters'], {cwd: library})).stdout);
-  assert.deepEqual(region.maps, mapped.maps);
-  assert.ok(region.maps[0].pages.find(page => page.key === '4a_offset').nodes.find(node => node.id === 'offset').shared.some(use => use.page === '4d_perimeters'));
+  assert.equal(region.maps[0].pages.length,1);
+  assert.equal(region.maps[0].pages[0].key,'4d_perimeters');
+  assert.ok(region.maps[0].pages[0].nodes.find(node => node.component === 'offset').shared.some(use => use.page === '4a_offset'));
+  assert.ok(!dev.documents.some(doc=>doc.path==='skills/README.md'));
   const sliceId = 'maps/4_regions.md#planar-kernel';
   const slice = JSON.parse((await run(process.execPath, [cli, 'read-guidance', sliceId])).stdout);
   assert.equal(slice.documents[0].text, (await readGuidance(root, sliceId)).text);
@@ -64,7 +66,7 @@ test('the three onboarding roles return the complete digest and leave skill manu
   await assert.rejects(run(process.execPath, [cli, 'read-map', 'invented']));
   assert.ok(dev.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'SETUP.md'));
-  for (const packet of [maker, builder, dev]) {
+  for (const packet of [maker, builder]) {
     assert.ok(!packet.documents.some(doc => doc.path.endsWith('/SKILL.md')));
     const digest = packet.documents.find(doc => doc.path === 'skills/README.md');
     assert.equal(digest.text, await readFile(resolve(root, 'skills/README.md'), 'utf8'));
@@ -97,11 +99,11 @@ test('skill role flags are independent, additive and report absent optional manu
   const both = await read('planar-infill', '--builder', '--maker');
   assert.deepEqual(both.roles, ['maker', 'builder']);
   assert.deepEqual(both.unavailableRoles, []);
-  assert.deepEqual(both.documents.map(doc => doc.path), ['skills/planar-infill/SKILL.md', 'skills/planar-infill/DEVELOP.md']);
+  assert.deepEqual(both.documents.map(doc => doc.path), ['skills/planar-infill/SKILL.md', 'skills/planar-infill/BUILDER.md']);
   const builder = await read('planar-infill', '--builder');
   assert.deepEqual(builder.roles, ['builder']);
   assert.deepEqual(builder.documents, [both.documents[1]]);
-  assert.equal(builder.documents[0].text, await readFile(resolve(root, 'skills/planar-infill/DEVELOP.md'), 'utf8'));
+  assert.equal(builder.documents[0].text, await readFile(resolve(root, 'skills/planar-infill/BUILDER.md'), 'utf8'));
   const absent = await read('gridfinity', '--builder', '--developer');
   assert.deepEqual(absent.roles, ['builder', 'developer']);
   assert.deepEqual(absent.unavailableRoles, ['builder', 'developer']);

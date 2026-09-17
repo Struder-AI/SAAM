@@ -8,8 +8,8 @@ test that work in development. For core or cross-cutting work, see the
 For builder work with missing context, run
 `node scripts/agent-toolkit.mjs builder-onboarding` directly; use `--area AREA`
 when the affected component is already known. The command returns this manual,
-maker context, core architecture and the complete skill digest, plus the
-requested area contracts and core/Studio maps. Use that returned text without
+maker context, skill authoring and the complete skill digest, plus selected
+core/Studio map pages or references for areas outside that scope. Use that returned text without
 reading the same sources before or after the command. If builder context is
 already loaded, continue from it and read only missing task-specific references.
 Individual skill manuals remain separate choices. A client without command access
@@ -119,8 +119,14 @@ comments and prose are not SAAM rules. The [map guide](maps/README.md) owns
 source syntax, build/check commands and the [viewer](dev-map/index.html), which
 is generated and must be built before it can be opened.
 
-One region file owns its map and the supporting context for that scope. Generate
-the human diagram from that source. A page shows one abstraction level, with
+Each region owns deliberate grouping, semantic contracts, supporting context and
+map-owned references for its scope. Core/Studio technical reference text lives
+under maps/reference, declared once by its owning region; former manual paths
+are compatibility routes. Contract-only reads serve skill authors without
+requiring implementation maps. Parsed code supplies declarations and internal relationships
+to one generated model for human diagrams and agent reads. Authored internal
+arrows remain visible semantic claims, never fallback wiring; boundary ports
+remain authored contracts. A page shows one abstraction level, with
 operation labels and stable node addresses; a box resolves to a child map or a
 named code declaration. Show what crosses the region boundary and distinguish
 data, control, state, conditions and side effects where the distinction matters.
@@ -155,7 +161,7 @@ actual control and data paths in source, including conditional paths and state,
 and account for callers omitted from the current map scope. A plausible diagram
 with invented arrows is incorrect even if every anchor resolves.
 
-Maps carry the structural explanation and route to the owning contracts. Remove
+Maps own both the structural explanation and the technical contracts. Remove
 prose they replace rather than maintain a second account. Keep concise supporting
 text when it carries specific value that the graph and source do not convey:
 for example a numerical assumption, a machine limitation, a non-obvious invariant,
@@ -173,16 +179,56 @@ Mapping can reveal poor boundaries or hidden dependencies. Record the concrete
 finding and handle it within the authorized scope; drawing a map does not itself
 authorize refactoring code to make the picture cleaner.
 
+### Keeping maps current
+
+Keep flow-map component selection and semantic contracts curated; code generates
+internal wiring and the containment inventory. Do not hand-author mirrors of the
+call graph or add per-box tests. The generated **Code containment** view exposes
+direct, enclosed and unrepresented declarations; enclosure is not proof that a
+large factory's behavior has been explained. Every production core/Studio file
+also belongs to an explicit change contract, indexed in the region's
+`saam-responsibilities` block: responsibility/invariants, failures, coupled changes
+and verification. Directory ownership cannot substitute for this account. The
+[map guide](maps/README.md#contract-and-resource-ownership) owns the checked syntax.
+
+After changing core/Studio code or a map region, run
+`node scripts/dev-map.mjs check --since BASE`, where BASE is the task's starting
+commit (`HEAD` suffices while all task changes remain uncommitted). Use the change
+report to review affected nodes, shared contracts, boundary semantics and new
+responsibilities. A small helper can remain enclosed; a new responsibility or
+cross-region interface may need a box or submap. Investigate newly unrepresented
+declarations, including new files, rather than silently treating them as covered.
+Review changed callbacks/module-level logic even when the named-declaration list
+is empty. Explain a meaningful deliberate omission at the owning region when
+that rationale will help future maintainers; do not maintain a second entity list
+or a blanket list of approved gaps. Existing gaps are observations, not approvals.
+
+The check catches structural drift and focuses semantic review; it does not prove
+labels, units, preconditions or dynamic behavior. Correct affected authored claims
+and contracts when their meaning changes. No map edit is required merely because
+generated connections changed, and ordinary code edits do not require rerunning
+the extractor's regression suite. Run those tests when changing extraction,
+projection, rendering or their contracts, or when investigating a specific defect.
+
+Run `node scripts/dev-map.mjs build` before presenting the viewer. It reuses an
+unchanged complete build and regenerates after source, region, tooling or output
+changes. `check --built` fails if the saved viewer is stale or damaged; use it
+when verifying an existing artifact. Agent page and contract reads always resolve current
+source. Use --section ID#heading for contracts, --node ADDRESS for a component,
+--inventory for owned files and --evidence for detailed impact analysis. Offline/open browser views remain snapshots and need a refresh after a
+rebuild. The [map guide](maps/README.md) owns command details and analysis limits.
+
 ## Context ownership
 
 Role describes the work, not exclusive access to documents. Maker-facing manuals
 own settings, supported behavior and recovery. Caller-facing contracts belong
 to every builder or developer using that interface, including skill results,
-geometry queries and Studio extension boundaries. Implementation mechanics belong
-with the region and its source. Select context by the boundary being consumed or
+geometry queries and Studio extension boundaries. Core/Studio implementation mechanics and caller contracts belong
+with their map region and its reference sources. Skills and adapters retain
+their separate implementation references. Select context by the boundary being consumed or
 changed, rather than labeling an entire mixed component manual developer-only.
 
-Keep present behavior and contracts in their owning manuals, future work and
+Keep core/Studio behavior and contracts in their owning map references, future work and
 proposals clearly marked at their owners, and past work and observations in
 [DEVLOG.md](DEVLOG.md). Future possibilities must not read as implemented
 capabilities. Implement current requests directly; do not create a build-request
@@ -335,11 +381,12 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Installation and first-use capability | [SETUP.md](SETUP.md) |
 | Checkpointing and remote contribution | [Contribution guidance](CONTRIBUTING-AGENTS.md), at that stage |
 | Test design and coverage selection | [Test reference](core/tests/README.md) |
-| Implementation contracts | [Core](core/README.md), [Studio](studio/README.md), [adapter](adapters/mcp/DEVELOP.md) and their owning references |
+| Core/Studio technical reference | [Dev maps](maps/0_system.md), including their map-owned contracts and verification routes; skill callers may read contracts independently |
+| Adapter implementation | [MCP development](adapters/mcp/DEVELOP.md) |
 | Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/README.md) |
-| Skill authorship and catalog maintenance | [Skill development](skills/DEVELOP.md) |
+| Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
 | Region map sources, authoring syntax and build/check | [Map guide](maps/README.md) and the [map contract](#maps-and-local-documentation) |
-| Region index and scoped caller contracts | [Developer context](DEVELOPER-CONTEXT.md) |
+| Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the system map owns technical navigation |
 | Documentation navigation for each role (human reference) | `maker-context-map.html` and `builder-context-map.html` |
 | Shared terms | [GLOSSARY.md](GLOSSARY.md) |
 | Contributor decisions and approval status | [DECISIONS.md](DECISIONS.md) |
@@ -371,19 +418,19 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Task | Start here |
 |---|---|
 | Unused checkout | [Setup](SETUP.md) |
-| Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then [test reference](core/tests/README.md) |
+| Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then the map-owned [test reference](maps/reference/testing.md) |
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
-| Skill authoring and discovery metadata | [Skill development](skills/DEVELOP.md) |
-| Trace the system or change an interface | [Core architecture](core/README.md) |
-| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) |
-| Offsets, intersections or material ownership | [Regions](core/region/README.md) |
-| Skill operations, scheduling or travel | [Composition and travel](core/path/README.md), then the relevant [skill](skills/README.md) |
-| Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md) |
+| Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
+| Trace the system or change an interface | [System map](maps/0_system.md) |
+| Geometry representation, queries, precision or mesh repair | [Geometry map](maps/3_geometry.md) and its contract sections |
+| Offsets, intersections or material ownership | [Regions map](maps/4_regions.md) and its contract sections |
+| Skill operations, scheduling or travel | [Motion map](maps/5_motion.md), then the relevant [skill](skills/README.md); skill-only callers can read the [motion contract](maps/reference/motion.md) independently |
+| Plans, validation, persistence, generation or delivery | [Lifecycle map](maps/1_lifecycle.md) and its contract sections |
 | Using shared print commands or changing their task guidance | [Print tools](core/print/USAGE.md) |
-| Machine capabilities, emission or interpretation | [Machine output](core/export/README.md), then the selected machine contract |
-| Studio interaction, lifetime or rendering | [Studio](studio/README.md) |
+| Machine capabilities, emission or interpretation | [Output map](maps/6_output.md), [machine map](maps/8_machine.md) and their selected contracts |
+| Studio interaction, lifetime or rendering | [Studio map](maps/7_studio.md) and its contract sections |
 | Chat-client connection or adapter tools | [MCP](adapters/mcp/README.md) and its [implementation notes](adapters/mcp/DEVELOP.md) |
-| Performance measurement | [Benchmarks](scripts/bench/README.md) and the owning component |
+| Performance measurement | Map-owned [performance reference](maps/reference/performance.md) and the owning region |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](#testing-through-the-use-context) |
 | Documentation | [Ownership and maintenance](#documentation-maintenance) |
 | Project direction, outstanding work, history or terminology | Relevant [decisions](DECISIONS.md), [requests](build_request.md#outstanding-work), [devlog](DEVLOG.md) or [terms](GLOSSARY.md) |

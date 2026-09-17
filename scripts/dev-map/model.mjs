@@ -2,6 +2,9 @@ import {readFile, readdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parse} from 'acorn';
+import {generateModel} from './generate.mjs';
+import {loadReferences,referenceSection} from './reference.mjs';
+import {guidanceLinks} from '../../core/agent/manuals.mjs';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 const cells = text => text.split('|').map(s => s.trim());
@@ -14,6 +17,8 @@ export function declarations(text, path) {
     let name;
     if (['FunctionDeclaration', 'ClassDeclaration'].includes(node.type)) name = node.id?.name;
     if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') name = node.id.name;
+    if (node.type === 'AssignmentExpression' && node.left.type === 'MemberExpression'
+      && !node.left.computed && /FunctionExpression/.test(node.right.type)) name = node.left.property.name;
     if (['MethodDefinition', 'Property'].includes(node.type) && !node.computed
       && (node.type === 'MethodDefinition' || /FunctionExpression/.test(node.value?.type))) name = node.key.name ?? node.key.value;
     const next = name ? [...scope, name] : scope;
@@ -35,23 +40,28 @@ export function declarations(text, path) {
 }
 
 export function parseRegion(text, source) {
-  const pages = [], components = [], prose = [];
-  let page, componentBlock = false;
+  const pages = [], components = [], prose = [], references = [], scopes = [], responsibilities = [];
+  let page, componentBlock = false, resourceBlock;
   for (const raw of text.split(/\r?\n/)) {
     const start = /^```saam-page\s+(\S+)\s*$/.exec(raw);
     if (start) {
-      if (page || componentBlock) fail(`${source}: nested map fence`);
+      if (page || componentBlock || resourceBlock) fail(`${source}: nested map fence`);
       page = {key:start[1], source, title:start[1], subtitle:'', nodes:[], edges:[], inputs:[], outputs:[]};
       continue;
     }
-    if (raw === '```saam-components') {componentBlock = true; continue;}
-    if (raw.trim() === '```' && (page || componentBlock)) {
-      if (page) pages.push(page);
-      page = null; componentBlock = false; continue;
+    if (/^```saam-(references|scope|responsibilities)$/.test(raw)) {
+      if(page||componentBlock||resourceBlock)fail(`${source}: nested map fence`);
+      resourceBlock=raw.endsWith('references')?references:raw.endsWith('responsibilities')?responsibilities:scopes;continue;
     }
-    if (!page && !componentBlock) {prose.push(raw);continue;}
+    if (raw === '```saam-components') {componentBlock = true; continue;}
+    if (raw.trim() === '```' && (page || componentBlock || resourceBlock)) {
+      if (page) pages.push(page);
+      page = null; componentBlock = false; resourceBlock = null; continue;
+    }
+    if (!page && !componentBlock && !resourceBlock) {prose.push(raw);continue;}
     const line = raw.trim();
     if (!line || line.startsWith('#')) continue;
+    if (resourceBlock) {resourceBlock.push(cells(line));continue;}
     if (componentBlock) {
       const [id,anchor,input,output,semantics] = cells(line);
       if (!id || !anchor?.startsWith('@') || !input || !output || !semantics) fail(`${source}: incomplete component contract`);
@@ -73,15 +83,15 @@ export function parseRegion(text, source) {
       page.nodes.push({id,num,label,target:target??'',note:note??'',kind:word==='box'?'stage':word});
     } else fail(`${source} [${page.key}]: unknown directive ${word}`);
   }
-  if (page || componentBlock) fail(`${source}: unclosed map fence`);
-  return {pages,components,prose:prose.join('\n')};
+  if (page || componentBlock || resourceBlock) fail(`${source}: unclosed map fence`);
+  return {source,pages,components,references,scopes,responsibilities,prose:prose.join('\n')};
 }
 
 export async function loadModel({repo=root, directory='maps'}={}) {
-  const pages = [], contracts = new Map(), specs = {};
+  const pages = [], contracts = new Map(), specs = {}, regions = [];
   for (const name of (await readdir(resolve(repo,directory))).filter(n=>/^\d.*\.md$/.test(n)).sort()) {
     const source = `${directory}/${name}`, text = await readFile(resolve(repo,source),'utf8');
-    const parsed = parseRegion(text,source); specs[source] = parsed.prose;
+    const parsed = parseRegion(text,source); specs[source] = parsed.prose; regions.push(parsed);
     pages.push(...parsed.pages);
     for (const component of parsed.components) {
       if (contracts.has(component.id)) fail(`Duplicate component ${component.id}`);
@@ -128,7 +138,6 @@ export async function loadModel({repo=root, directory='maps'}={}) {
       if (!ids.has(edge.src)||!ids.has(edge.dst)) fail(`${page.key}: dangling wire ${edge.src} > ${edge.dst}`);
       if (!['data','gate','io'].includes(edge.kind)) fail(`${page.key}: invalid edge kind ${edge.kind}`);
     }
-    for (const node of page.nodes) if (!page.edges.some(e=>e.src===node.id||e.dst===node.id)) fail(`${page.key}: disconnected ${node.id}`);
   }
   const equalSet=(a,b)=>JSON.stringify([...new Set(a)].sort())===JSON.stringify([...new Set(b)].sort());
   for (const page of pages) {
@@ -160,14 +169,50 @@ export async function loadModel({repo=root, directory='maps'}={}) {
     if (uses.length>1 && (!uses[0].node.component || uses.some(use=>use.node.component!==uses[0].node.component))) fail(`Repeated anchor requires one shared component contract: ${anchor}`);
     for (const use of uses) use.node.shared=uses.filter(other=>other!==use).map(other=>({page:other.page,address:other.node.num}));
   }
-  return {pages,contracts:[...contracts.values()],specs,code};
+  const reference = await loadReferences(repo,regions);
+  return generateModel({pages,contracts:[...contracts.values()],specs,authoredSpecs:{...specs},code,...reference},repo);
 }
 
-export function regionContext(model, key) {
+export function regionContext(model, key, {section,node,inventory=false,evidence=false}={}) {
   const page=model.pages.find(p=>p.key===key), source=page?.source??Object.keys(model.specs).find(s=>s===key||s.endsWith('/'+key));
   if (!source) fail(`Unknown map ${key}; choose ${model.pages.map(p=>p.key).join(', ')}`);
-  const pages=model.pages.filter(p=>p.source===source);
+  const regionPages=model.pages.filter(p=>p.source===source);
+  const pages=node?regionPages.filter(p=>p.nodes.some(n=>n.num===node)):[page??regionPages[0]];
+  if(!pages.length)fail(`Unknown node ${node} in ${key}`);
   const used=new Set(pages.flatMap(p=>p.nodes.map(n=>n.component)).filter(Boolean));
-  return {source,prose:model.specs[source],components:model.contracts.filter(c=>used.has(c.id)),
-    pages:pages.map(p=>({...p,nodes:p.nodes.map(({contract,...node})=>node)}))};
+  const claim=({unresolvedSites=[],evidence=[],claim,...c})=>({...c,
+    evidenceKinds:evidence.map(e=>e.kind),unresolvedCount:unresolvedSites.length});
+  const edge=({evidence=[],paths,...e})=>({...e,...(paths?{
+    derivation:{pathCount:paths.length,examplePaths:paths.slice(0,3),
+      relationIds:[...new Set(paths.flat())],
+      exampleSites:[...new Map(evidence.flatMap(r=>r.evidence).map(s=>[`${s.file}:${s.start}`,s])).values()].slice(0,4)}}:{})});
+  const refs=(model.references??[]).filter(r=>r.source===source);
+  let selected;
+  if(section) {
+    const [id,anchor]=section.split('#');
+    const reference=(model.references??[]).find(r=>r.id===id);
+    if(!reference)fail(`Unknown contract ${id}; use a reference ID from the map.`);
+    const text=referenceSection(reference,anchor);
+    selected={id,path:reference.path,owner:reference.owner,sha256:reference.sha256,text,links:guidanceLinks(text,reference.path)};
+    return {source:reference.source,page:reference.owner,section:selected,
+      nextRead:`read-map ${reference.owner} returns the implementation overview. Skill callers can use this contract independently.`};
+  }
+  const resources=(model.resources??[]).filter(r=>source.endsWith('/0_system.md')||r.source===source);
+  const analysis=model.analysis?.regions[source];
+  return {source,page:pages[0].key,prose:model.authoredSpecs?.[source]??model.specs[source],
+    navigation:regionPages.map(p=>({key:p.key,title:p.title,...(p.parent?{parent:p.parent}:{})})),
+    references:refs.map(({text,links,source,...r})=>({...r,read:`read-map ${pages[0].key} --section ${r.id}`})),
+    responsibilities:(model.responsibilities??[]).filter(r=>r.source===source).map(({source,...r})=>r),
+    ...(selected?{section:selected}:{}),
+    ...(inventory?{resources,containment:analysis?.containment,
+      ...(pages[0].key==='0_system'?{externalResources:model.externalResources??[]}: {})}:{}),
+    ownership:{files:resources.length,scope:'Core and Studio implementation; skills and adapters are external callers with separate references.'},
+    components:model.contracts.filter(c=>used.has(c.id)),
+    ...(evidence?{analysis}:{}),
+    pages:pages.map(p=>({key:p.key,title:p.title,...(p.parent?{parent:p.parent}:{}),inputs:p.inputs,outputs:p.outputs,
+      nodes:p.nodes.filter(n=>!node||n.num===node).map(({contract,...n})=>({...n,...(node&&n.anchor_ref?{implementation:model.code[n.anchor_ref]}:{})})),
+      edges:p.edges.filter(e=>!node||p.nodes.some(n=>n.num===node&&(n.id===e.src||n.id===e.dst))).map(e=>evidence?edge(e):({src:e.src,dst:e.dst,label:e.label,origin:e.origin,...(e.relationships?{relationships:e.relationships}:{})})),
+      claims:p.claims?.map(claim).map(c=>evidence?c:({src:c.src,dst:c.dst,label:c.label,status:c.status})),
+      ...(evidence?{analysis:p.analysis?{...p.analysis,claims:p.analysis.claims.map(claim)}:undefined}:{})})),
+    nextRead:'Read a child page or --node ADDRESS; --section ID#heading reads a map-owned contract, --inventory lists owned files, --evidence expands generated analysis.'};
 }

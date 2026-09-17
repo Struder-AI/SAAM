@@ -1,5 +1,17 @@
 # Agent toolkit
 
+The map-owned `agent` reference specifies the command interface. The shared
+manual reader also resolves old component-manual paths to their canonical
+map-owned text, retaining section identity and rejecting unsafe filesystem paths.
+The thin CLI in `scripts/agent-toolkit.mjs` owns argument parsing and process
+lifetime. `core/local-extension.mjs` loads only the explicit checkout extension;
+local experiments and their manuals are not published as shared capabilities.
+
+Map implementation is maintained through [the map guide](README.md): model parsing
+and reference ownership, graph extraction, evidence projection, maintenance and
+the Python renderer all feed one model. These development tools support this
+documentation structure; they do not expand the core/Studio runtime boundary.
+
 ```saam-page 9_agent
 title 9 — Assist
 sub Level 1 · CLI commands compose existing workflow owners
@@ -53,11 +65,12 @@ skill > packet | selected manuals | data
 packet > read | unique document / heading | data
 read > packet | current text and links | data | norank
 packet > agent | text / source / hash | data
+box local | 9.1.6 | load checkout extension | @core/local-extension.mjs::loadLocalExtension
 ```
 
 ## Implementation and checks
 
-[CLI contracts](../core/agent/README.md) own flags and returned packets. The thin
+[CLI contracts](reference/agent.md) own flags and returned packets. The thin
 launcher validates arguments and process lifetime; the toolkit composes owning
 APIs. The manual reader is shared with MCP. Preview commands retain their live
 server and request listener; a tour emits `studio-ready` before its context so
@@ -69,3 +82,19 @@ context, role selection, setup reuse, reopening approvals/exports, STL imports,
 tours, coordination, partial failure and the managed CLI launcher. Manual-access,
 MCP and Studio request tests exercise the shared boundaries. Select checks for
 the change under [check policy](../BUILDERS.md#avoid-check-spirals).
+
+
+```saam-scope
+core/agent/ | Agent context and workflow toolkit
+core/local-extension.mjs | Explicit local extension loading boundary
+```
+
+```saam-references
+agent | maps/reference/agent.md | Toolkit command and response contracts
+```
+
+
+```saam-responsibilities
+guidance | core/agent/manuals.mjs | agent#changing-guidance-and-map-reads | core/tests/mcp-access.test.mjs, core/tests/dev-map-reference.test.mjs
+toolkit | core/agent/toolkit.mjs, core/local-extension.mjs | agent#changing-toolkit-context-and-workflow-composition | core/tests/agent-toolkit.test.mjs, core/tests/context-map.test.mjs
+```

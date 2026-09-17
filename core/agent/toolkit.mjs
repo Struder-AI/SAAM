@@ -9,11 +9,11 @@ import {SKILL_IDS} from '../../skills/catalog.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 export const developmentAreas = {
-  geometry: ['core/geom/README.md'], regions: ['core/region/README.md'],
-  path: ['core/path/README.md'], print: ['core/print/README.md'],
-  machine: ['core/machine/README.md', 'core/export/README.md'],
-  studio: ['studio/README.md'], mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
-  skills: ['skills/DEVELOP.md'], tests: ['core/tests/README.md'], setup: ['SETUP.md'], agent: ['core/agent/README.md']
+  geometry: ['maps/reference/geometry.md'], regions: ['maps/reference/regions.md'],
+  path: ['maps/reference/motion.md'], print: ['maps/reference/lifecycle.md'],
+  machine: ['maps/reference/machine.md', 'maps/reference/output.md'],
+  studio: ['maps/reference/studio.md'], mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
+  skills: ['skills/AUTHORING.md'], tests: ['maps/reference/testing.md'], setup: ['SETUP.md'], agent: ['maps/reference/agent.md']
 };
 const areaMaps = {geometry: ['3_geometry'], regions: ['4_regions'], path: ['5_motion'],
   print: ['1_lifecycle', '2_generation'], machine: ['6_output', '8_machine'], studio: ['7_studio'], agent: ['9_agent']};
@@ -45,7 +45,7 @@ export async function readSkill(id, {maker = false, builder = false, developer =
   if (!SKILL_IDS.includes(id)) throw Error(`Unknown skill: ${id}. Known skills: ${SKILL_IDS.join(', ')}.`);
   const roles = {maker, builder, developer};
   if (!Object.values(roles).some(Boolean)) roles.maker = true;
-  const files = {maker: 'SKILL.md', builder: 'DEVELOP.md', developer: 'DEVELOPER.md'};
+  const files = {maker: 'SKILL.md', builder: 'BUILDER.md', developer: 'DEVELOPER.md'};
   const ids = [], unavailableRoles = [];
   for (const role of Object.keys(roles).filter(role => roles[role])) {
     const path = `skills/${id}/${files[role]}`;
@@ -61,12 +61,12 @@ export async function readSkill(id, {maker = false, builder = false, developer =
     ...await contextPacket(ids)};
 }
 
-export async function readMaps(keys) {
+export async function readMaps(keys, options = {}) {
   const {loadModel, regionContext} = await import('../../scripts/dev-map/model.mjs');
   const model = await loadModel(), regions = new Map();
   for (const key of keys) {
-    const region = regionContext(model, key);
-    regions.set(region.source, region);
+    const region = regionContext(model, key, options);
+    regions.set(region.page, region);
   }
   return [...regions.values()];
 }
@@ -74,14 +74,14 @@ export async function readMaps(keys) {
 export async function onboarding({role, areas = []}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
   for (const area of areas) if (!Object.hasOwn(developmentAreas, area)) throw Error(`Unknown development area: ${area}.`);
-  const areaIds = areas.flatMap(area => developmentAreas[area]);
+  const areaIds = areas.filter(area=>!areaMaps[area]&&area!=='tests').flatMap(area => developmentAreas[area]);
   const ids = role === 'maker' ? ['MAKERS.md', 'skills/README.md', 'core/print/USAGE.md']
-    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/README.md', 'core/print/USAGE.md', 'core/README.md', 'skills/DEVELOP.md', ...areaIds]
-    : ['DEVELOPER-CONTEXT.md#orientation', 'BUILDERS.md', 'core/README.md', 'skills/README.md', ...areaIds];
-  const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0_system'] : []), ...areas.flatMap(area => areaMaps[area] ?? [])];
+    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/README.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...areaIds]
+    : ['DEVELOPER-CONTEXT.md#orientation', 'BUILDERS.md', ...areaIds];
+  const mapKeys = role === 'maker' ? [] : [...(role === 'developer'||areas.includes('tests') ? ['0_system'] : []), ...areas.flatMap(area => areaMaps[area] ?? [])];
   const [context, environment, maps] = await Promise.all([contextPacket(ids), environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
   return {role, environment, ...context, maps,
-    nextStep: 'The returned document text satisfies those reads; use it directly and do not reread it or rerun onboarding while it remains available and current. Use the complete skill digest to judge which capabilities and references fit this task. Read missing selected skill manuals separately with read-skill before using or changing them; follow relevant missing references with read-guidance. This onboarding is orientation, not sufficient task context.'};
+    nextStep: 'Reuse the returned context. For core or Studio, read the affected map page and its map-owned contract sections with read-map PAGE --section ID#heading. Use --inventory for file ownership and --evidence for detailed impact evidence. Skills and adapters keep separate authoring references; skill-only builders read consumed map contracts without implementation maps. Maker workflow and skill manuals are selective reads for developers.'};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }

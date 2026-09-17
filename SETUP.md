@@ -3,8 +3,7 @@
 For a checkout that has not been used yet, complete setup before either role's
 work; the person need not request it separately:
 
-1. Run `node --version`. Node.js 22+ is required. If it is missing or older,
-   direct the person to the Node.js 22+ installer for their operating system.
+1. Run `node --version`. Node.js 22+ is required. If it is missing or older, inform the user, and install.
 2. Run `npm ci` from the repository root unless `node_modules/` is already
    present, as in a packaged download.
 3. Run `npm run setup:check` to verify dependency loading, geometry kernels and

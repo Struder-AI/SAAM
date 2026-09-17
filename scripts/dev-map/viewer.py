@@ -141,9 +141,12 @@ body{display:flex;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;
 #docpane ul{margin:6px 0 10px;padding-left:20px}
 #docpane code{font-family:ui-monospace,Consolas,monospace;background:#f1f5f9;
               border-radius:3px;padding:1px 4px;font-size:11.5px}
-#docpane table{border-collapse:collapse;margin:8px 0 14px;font-size:11.5px;width:100%}
-#docpane th,#docpane td{border:1px solid #e2e8f0;padding:3px 7px;text-align:left}
-#docpane th{background:#f8fafc}
+#docpane table,#doc table{border-collapse:collapse;margin:8px 0 14px;font-size:11.5px;width:100%}
+#docpane th,#docpane td,#doc th,#doc td{border:1px solid #e2e8f0;padding:3px 7px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+#docpane th,#doc th{background:#f8fafc}
+#docpane pre,#doc pre{overflow:auto;padding:12px;background:#e2e8f0;border-radius:5px;white-space:pre}
+#docpane pre code,#doc pre code{padding:0;background:transparent;border-radius:0}
+#docpane p,#docpane li,#doc p,#doc li{overflow-wrap:anywhere}
 /* The code a box IS, beside the box. Same slot as the doc pane and mutually exclusive
    with it: both answer "what is behind this page", and two of them side by side would
    leave the drawing a sliver. Wider than the doc pane because a Kotlin line is. */
@@ -195,14 +198,14 @@ function apply(){canvas.style.transform=
   `translate(${view.x}px,${view.y}px) scale(${view.k})`;
   zoomLbl.textContent=Math.round(view.k*100)+'%';}
 
-function fit(){const s=canvas.firstElementChild;if(!s)return;
+function fit(){const s=canvas.firstElementChild;if(!s||PAGES[cur]?.doc)return;
   const w=s.width.baseVal.value,h=s.height.baseVal.value,
         r=stage.getBoundingClientRect(),
         k=Math.min((r.width-48)/w,(r.height-48)/h);
   view.k=Math.min(k,1);
   view.x=(r.width-w*view.k)/2;view.y=(r.height-h*view.k)/2;apply();}
 
-function actual(){const r=stage.getBoundingClientRect(),s=canvas.firstElementChild;
+function actual(){if(PAGES[cur]?.doc)return;const r=stage.getBoundingClientRect(),s=canvas.firstElementChild;
   view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=24;apply();}
 
 function show(key,keepView){const p=PAGES[key];if(!p)return;
@@ -379,7 +382,18 @@ addEventListener('keydown',e=>{
   if((e.key==='Backspace'||e.key==='u')&&PAGES[cur].parent)show(PAGES[cur].parent.key);});
 /* No refit on resize: it would throw away wherever the reader had panned to. `f` refits. */
 
+function followMapLink(hash){const [key,heading]=hash.replace(/^#/,'').split('/');
+  if(!PAGES[key])return false;
+  show(key);
+  if(heading){
+    if(!PAGES[key].doc&&PAGES[key].spec)toggleDoc();
+    const container=PAGES[key].doc?canvas:docPane;
+    const target=container.querySelector(`[id="${CSS.escape(decodeURIComponent(heading))}"]`);target?.scrollIntoView();}
+  return true;}
+document.addEventListener('click',e=>{const a=e.target.closest('a[href^="#"]');if(!a)return;
+  if(followMapLink(a.getAttribute('href'))){e.preventDefault();history.replaceState(null,'',a.getAttribute('href'));}});
 show(FIRST);
+if(location.hash)followMapLink(location.hash);
 """
 
 
@@ -389,7 +403,7 @@ def _js(obj) -> str:
     return json.dumps(obj).replace("</", r"<\/")
 
 
-def md_to_html(text):
+def md_to_html(text, resolve_link=None):
     """Enough Markdown for a region spec's prose: headings, lists, tables, paragraphs and
     inline code/bold/italic. The spec is the documentation, so the viewer has to show it --
     the human reads the map and the prose in one place, the same way the agent does."""
@@ -398,12 +412,21 @@ def md_to_html(text):
 
     def inline(t):
         t = _h.escape(t)
+        def link(match):
+            target = _h.unescape(match[2])
+            if resolve_link:
+                target = resolve_link(target)
+            if _re.match(r'^[a-z][a-z0-9+.-]*:', target, _re.I) and not _re.match(r'^(https?|mailto):', target, _re.I):
+                return match[1]
+            return '<a href="' + _h.escape(target, quote=True) + '">' + match[1] + '</a>'
+        t = _re.sub(r'\[([^\]]+)\]\(([^)]+)\)', link, t)
         t = _re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
         t = _re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
         t = _re.sub(r"(?<![*\w])\*([^*]+)\*", r"<i>\1</i>", t)
         return t
 
     out, para, rows, lst, item = [], [], [], False, []
+    fence, code, headings = None, [], {}
 
     def close_item():
         """Emit the bullet being accumulated. Wrapped bullets are the common case in a
@@ -436,6 +459,18 @@ def md_to_html(text):
 
     for line in text.splitlines():
         st = line.strip()
+        marker = _re.match(r'^(`{3,}|~{3,})', st)
+        if fence:
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence):
+                out.append('<pre><code>' + _h.escape('\n'.join(code)) + '</code></pre>')
+                fence, code = None, []
+            else:
+                code.append(line)
+            continue
+        if marker:
+            flush()
+            fence = marker[1]
+            continue
         if st.startswith("|"):
             if not rows:
                 flush()
@@ -445,10 +480,15 @@ def md_to_html(text):
             flush()
         if not st:
             flush()
-        elif st.startswith("#"):
+        elif _re.match(r'^(#{1,6})\s+(.+?)(?:\s+#+)?\s*$', st):
             flush()
-            lvl = len(st) - len(st.lstrip("#"))
-            out.append(f"<h{min(lvl + 1, 5)}>{inline(st.lstrip('# '))}</h{min(lvl + 1, 5)}>")
+            heading = _re.match(r'^(#{1,6})\s+(.+?)(?:\s+#+)?\s*$', st)
+            lvl, title = len(heading[1]), heading[2]
+            base = _re.sub(r'\s', '-', _re.sub(r'[^\w\-\s]', '', _re.sub(r'<[^>]*>', '', title.lower())))
+            count = headings.get(base, 0)
+            headings[base] = count + 1
+            anchor = base + (f'-{count}' if count else '')
+            out.append(f'<h{min(lvl + 1, 5)} id="{_h.escape(anchor, quote=True)}">{inline(title)}</h{min(lvl + 1, 5)}>')
         elif st.startswith(("- ", "* ")):
             close_item()
             if not lst:
@@ -464,6 +504,8 @@ def md_to_html(text):
                 flush()
             para.append(st)
     flush()
+    if fence:
+        out.append('<pre><code>' + _h.escape('\n'.join(code)) + '</code></pre>')
     return "".join(out)
 
 
@@ -478,7 +520,7 @@ def emit(out: pathlib.Path, sections, specs=None, ide_port: int = IDE_PORT, dest
         tree.append(f'<div class="grp">{group}</div>')
         for p in entries:
             pages[p["key"]] = {k: p.get(k) for k in ("title", "subtitle", "parent",
-                                                     "sources", "spec")}
+                                                     "sources", "spec", "doc")}
             cls = "kid" if p.get("kid") else ""
             # Indent by nesting depth, so a page under a page reads as one.
             pad = f' style="padding-left:{14 + 14 * p.get("depth", 0)}px"' if p.get("kid") else ""

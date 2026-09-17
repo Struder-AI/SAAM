@@ -22,7 +22,7 @@ box view | 7.2 | refresh preview | >7a_preview
 box source | 7.3 | decode source | >7b_source
 box requests | 7.4 | coordinate edits | >7c_requests
 box tour | 7.5 | guide lessons | >7d_tour
-box lifetime | 7.6 | retain live viewer | @studio/lifetime.mjs::viewerLifetime
+box lifetime | 7.6 | retain live viewer | >7l_session
 port actions | review actions
 port time | source / time
 session > server | launch | data
@@ -38,6 +38,14 @@ server > tour | lesson action | data
 tour > view | lesson metadata | data
 view > actions | human confirmations | io
 server > lifetime | session server | data
+box 7j | 7.7 | play and export movies | >7j_playback
+ext 7jCaller | shared callers
+7jCaller > 7j | decoded moves / frame clock | data
+7j > 7jCaller | display frames / WebM | data | norank
+box 7k | 7.8 | present recipe and tour | >7k_controls
+ext 7kCaller | shared callers
+7kCaller > 7k | plan / setup / tour state | data
+7k > 7kCaller | review controls and labels | data | norank
 ```
 
 ```saam-page 7a_preview
@@ -97,6 +105,8 @@ box fetch | 7.3.1 | fetch and hash sources | @studio/source-player.mjs::fetchSou
 box decode | 7.3.2 | decode dialect | >7e_dialects
 box session | 7.3.3 | load worker session | @studio/machine-session.mjs::sourceSession
 box bind | 7.3.4 | bind machine model | @studio/source-worker.mjs::bind
+box worker | 7.3.5 | handle worker request | @studio/source-worker.mjs::onmessage
+state program | 7.3.6 | decoded program | @studio/source-worker.mjs::program
 port moves | decoded moves
 port time | program and time
 in > session | print / revision / export | data
@@ -222,6 +232,7 @@ server > changes | library root | data
 changes > server | change notification | data | norank
 server > lesson | tour route | data
 server > lifetime | live HTTP server | data
+box study | 7.1.6 | read simulation study | @studio/machine-study.mjs::loadBundle
 ```
 
 ```saam-page 7g_generation
@@ -321,8 +332,8 @@ review and delivery boundary.
 
 ## Request persistence
 
-Read [Studio contracts](../studio/README.md), [rendering](../studio/RENDERING.md)
-or [kinematics](../studio/KINEMATICS.md) when changing those boundaries.
+Read [Studio contracts](reference/studio.md), [rendering](reference/rendering.md)
+or [kinematics](reference/presentation.md) when changing those boundaries.
 JSON records remain authoritative. The process-local index watches changes and
 reconciles metadata every five seconds. Warm operational polls avoid history
 reads/scans and retain unfinished work plus the latest edit outcome per print,
@@ -353,3 +364,101 @@ stroke geometry from current export assumptions.
 Record original settings as well, and compare interpreted deposition with the
 source generator. Injection is an explicit development choice; default CLI and
 known adapters retain their normal behavior.
+
+
+```saam-scope
+studio/ | Browser presentation, local API, worker sessions and request coordination
+```
+
+```saam-references
+studio-protocols | maps/reference/studio-protocols.md | State ownership, worker correlation, cancellation, disposal and focused verification
+studio | maps/reference/studio.md | Studio interaction, serving, review and agent coordination
+rendering | maps/reference/rendering.md | Rendering, playback, display resources and movie export
+```
+
+
+```saam-page 7j_playback
+title 7.7 — play and export movies
+sub Shared responsibility · contracts remain with the owning region
+parent 7_studio 7j
+in decoded moves / frame clock
+out display frames / WebM
+port in | decoded moves / frame clock
+port out | display frames / WebM
+box n0 | 7.7.1 | retain compact moves | @studio/move-store.mjs::moveStore
+in > n0 | retain compact moves inputs | data
+n0 > out | retain compact moves result | data
+box n1 | 7.7.2 | advance source clock | @studio/playback.mjs::advancePlayback
+in > n1 | advance source clock inputs | data
+n1 > out | advance source clock result | data
+box n2 | 7.7.3 | export movie | @studio/playback.mjs::exportMovie
+in > n2 | export movie inputs | data
+n2 > out | export movie result | data
+box n3 | 7.7.4 | schedule movie frames | @studio/playback.mjs::movieTimeline
+in > n3 | schedule movie frames inputs | data
+n3 > out | schedule movie frames result | data
+box n4 | 7.7.5 | package WebM | @studio/playback.mjs::createMovieWebM
+in > n4 | package WebM inputs | data
+n4 > out | package WebM result | data
+```
+
+
+```saam-page 7k_controls
+title 7.8 — present recipe and tour
+sub Shared responsibility · contracts remain with the owning region
+parent 7_studio 7k
+in plan / setup / tour state
+out review controls and labels
+port in | plan / setup / tour state
+port out | review controls and labels
+box n0 | 7.8.1 | describe recipe | @studio/settings.mjs::recipeRows
+in > n0 | describe recipe inputs | data
+n0 > out | describe recipe result | data
+box n1 | 7.8.2 | describe regional skills | @studio/settings.mjs::regionRows
+in > n1 | describe regional skills inputs | data
+n1 > out | describe regional skills result | data
+box n2 | 7.8.3 | describe robot setup | @studio/settings.mjs::robotRows
+in > n2 | describe robot setup inputs | data
+n2 > out | describe robot setup result | data
+box n3 | 7.8.4 | operate tour controls | @studio/tour-ui.mjs::createTourUI
+in > n3 | operate tour controls inputs | data
+n3 > out | operate tour controls result | data
+box n4 | 7.8.5 | describe lesson task | @studio/tour-catalog.mjs::tourAgentInstruction
+in > n4 | describe lesson task inputs | data
+n4 > out | describe lesson task result | data
+box n5 | 7.8.6 | name download | @studio/print-name.mjs::downloadName
+in > n5 | name download inputs | data
+n5 > out | name download result | data
+```
+
+
+```saam-page 7l_session
+title 7.6 — Retain live viewer
+sub Server lifetime, host browser dispatch and browser reconnection
+parent 7_studio lifetime
+in session server
+port server | session server
+box lifetime | 7.6.1 | retain viewers and sockets | @studio/lifetime.mjs::viewerLifetime
+box open | 7.6.2 | dispatch host browser | @studio/browser.mjs::openBrowser
+box connect | 7.6.3 | reconnect browser events | @studio/viewer-session.mjs::connect
+ext browser | browser page lifetime
+server > lifetime | live HTTP server | data
+server > open | Studio URL | data
+browser > connect | load / restored page | data
+```
+
+
+```saam-responsibilities
+studio-server | studio/server.mjs, studio/changes.mjs | studio-protocols#changing-studio-http-and-change-notifications | core/tests/studio-agent.test.mjs, core/tests/studio-work.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-generation-control.test.mjs
+studio-lifetime | studio/browser.mjs, studio/lifetime.mjs, studio/viewer-session.mjs | studio#changing-browser-and-viewer-lifetime | core/tests/studio-open.test.mjs, core/tests/studio-lifetime.test.mjs, core/tests/studio-tour-lifetime.test.mjs, core/tests/studio-visibility.test.mjs
+studio-requests | studio/agent-requests.mjs, studio/request-index.mjs, studio/agent-ui.mjs, studio/work-state.mjs | studio-protocols#changing-agent-request-state-and-presentation | core/tests/request-index.test.mjs, core/tests/studio-agent.test.mjs, core/tests/studio-agent-ui.test.mjs, core/tests/studio-work.test.mjs
+studio-generation | studio/generation-worker.mjs | studio-protocols#changing-generation-workers | core/tests/studio-generation-control.test.mjs, core/tests/program-cache.test.mjs
+studio-import | studio/import-stl.mjs, studio/import-worker.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
+studio-source | studio/source-player.mjs, studio/source-worker.mjs, studio/machine-session.mjs | studio-protocols#changing-source-workers-and-machine-sessions | core/tests/source-player.test.mjs, core/tests/studio-kinematics.test.mjs, core/tests/studio-generation-control.test.mjs
+studio-app | studio/app.mjs | studio#changing-studio-application-coordination | core/tests/studio-view-readiness.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-spinner.test.mjs, core/tests/studio-work.test.mjs
+studio-rendering | studio/camera.mjs, studio/material-view.mjs, studio/mesh-view.mjs, studio/toolpath-view.mjs, studio/machine-view.mjs | rendering#changing-camera-and-displayed-geometry | core/tests/studio-camera.test.mjs, core/tests/studio-material.test.mjs, core/tests/studio-detail.test.mjs, core/tests/studio-geometry.test.mjs, core/tests/studio-kinematics.test.mjs
+studio-playback | studio/move-store.mjs, studio/playback.mjs | studio-protocols#changing-compact-moves-and-playback-caches | core/tests/studio-movie.test.mjs, core/tests/studio-playback-cache.test.mjs, core/tests/source-player.test.mjs
+studio-controls | studio/settings.mjs, studio/print-name.mjs | studio#changing-recipe-review-and-display-names | core/tests/studio-settings.test.mjs, core/tests/studio-print-name.test.mjs
+studio-tours | studio/tour-catalog.mjs, studio/tour-ui.mjs, studio/tour.mjs | studio#changing-guided-tours | core/tests/studio-tour.test.mjs, core/tests/studio-tour-ui.test.mjs, core/tests/studio-tour-lifetime.test.mjs
+studio-studies | studio/machine-study.mjs | studio#changing-the-mechanism-study-adapter | core/tests/machine-study.test.mjs, core/tests/machine-jog.test.mjs
+```

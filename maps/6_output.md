@@ -28,6 +28,14 @@ cartesian > pipeline | bytes and interpretation | data | norank
 robot > pipeline | bytes and interpretation | data | norank
 pipeline > advisory | checked program | data
 advisory > out | bytes; moves; checks | data
+box 6c | 6.6 | interpret bounded Lua | >6c_lua
+ext 6cCaller | shared callers
+6cCaller > 6c | Lua sources / bound globals | data
+6c > 6cCaller | program results / error | data | norank
+box 6d | 6.7 | package source archives | >6d_archive
+ext 6dCaller | shared callers
+6dCaller > 6d | entries / ZIP bytes | data
+6d > 6dCaller | archive / decoded entries | data | norank
 ```
 
 ```saam-page 6a_gcode
@@ -54,6 +62,7 @@ h2d > body | body source | data
 body > h2d | totals / thumbnail motion | data | norank
 decode > out | Griffin bytes / program | data
 h2d > out | archive / program | data
+box lines | 6.3.6 | iterate source lines | @core/export/gcode-lines.mjs::gcodeLines
 ```
 
 ```saam-page 6b_robot
@@ -78,7 +87,7 @@ checkDenso > out | bytes / commands / estimates | data
 
 ## Process actions
 
-[Output contracts](../core/export/README.md) own supported dialects and limits.
+[Output contracts](reference/output.md) own supported dialects and limits.
 Griffin/H2D stationary deposition uses E-only commands; interpretation resolves
 retraction debt before counting volume and records zero-length injection moves.
 Injection events retain position, volume, temperature and source time.
@@ -97,3 +106,69 @@ including selected-tool limits. `checkMachinePath` remains available to tests;
 Dobot uses it on commands reconstructed from Lua. The bounded wedge shares
 profile validation and output selection through its own eight-point generator.
 Registry dispatch rejects unavailable declared outputs.
+
+
+```saam-scope
+core/export/ | Machine program writing, decoding, packaging and checking
+```
+
+```saam-references
+output | maps/reference/output.md | Output compatibility, process actions and validation
+griffin | maps/reference/griffin.md | Griffin emission and interpretation
+bambu | maps/reference/bambu.md | Bambu packaging and interpretation
+dobot | maps/reference/dobot.md | Dobot Lua output and interpreter limits
+denso | maps/reference/denso.md | DENSO output and interpreter limits
+```
+
+
+```saam-page 6c_lua
+title 6.6 — interpret bounded Lua
+sub Shared responsibility · contracts remain with the owning region
+parent 6_output 6c
+in Lua sources / bound globals
+out program results / error
+port in | Lua sources / bound globals
+port out | program results / error
+box n0 | 6.6.1 | tokenize Lua | @core/export/dobot-lua-subset.mjs::tokenize
+in > n0 | tokenize Lua inputs | data
+n0 > out | tokenize Lua result | data
+box n1 | 6.6.2 | parse Lua subset | @core/export/dobot-lua-subset.mjs::parse
+in > n1 | parse Lua subset inputs | data
+n1 > out | parse Lua subset result | data
+box n2 | 6.6.3 | execute bounded runtime | @core/export/dobot-lua-subset.mjs::LuaRuntime
+in > n2 | execute bounded runtime inputs | data
+n2 > out | execute bounded runtime result | data
+box n3 | 6.6.4 | provide standard library | @core/export/dobot-lua-subset.mjs::standardLibrary
+in > n3 | provide standard library inputs | data
+n3 > out | provide standard library result | data
+```
+
+
+```saam-page 6d_archive
+title 6.7 — package source archives
+sub Shared responsibility · contracts remain with the owning region
+parent 6_output 6d
+in entries / ZIP bytes
+out archive / decoded entries
+port in | entries / ZIP bytes
+port out | archive / decoded entries
+box n0 | 6.7.1 | write ZIP | @core/export/zip.mjs::packZip
+in > n0 | write ZIP inputs | data
+n0 > out | write ZIP result | data
+box n1 | 6.7.2 | read ZIP | @core/export/zip.mjs::unpackZip
+in > n1 | read ZIP inputs | data
+n1 > out | read ZIP result | data
+box n2 | 6.7.3 | check entry checksum | @core/export/zip.mjs::crc32
+in > n2 | check entry checksum inputs | data
+n2 > out | check entry checksum result | data
+```
+
+
+```saam-responsibilities
+output-selection | core/export/registry.mjs | output#changing-output-selection-and-shared-checking | core/tests/export.test.mjs, core/tests/printer-profiles.test.mjs, core/tests/interoperability.test.mjs
+gcode-dialects | core/export/griffin.mjs, core/export/bambu.mjs, core/export/bambu-player.mjs, core/export/gcode-lines.mjs | output#changing-g-code-writers-and-readers | core/tests/export.test.mjs, core/tests/bambu.test.mjs, core/tests/modal-export.test.mjs, core/tests/gcode-stream.test.mjs
+robot-dialects | core/export/dobot.mjs, core/export/dobot-player.mjs, core/export/dobot-lua-subset.mjs, core/export/denso.mjs, core/export/denso-player.mjs | output#changing-robot-source-and-bounded-interpretation | core/tests/dobot.test.mjs, core/tests/denso.test.mjs, core/tests/robot-playback.test.mjs
+archives | core/export/zip.mjs | output#changing-archive-containers | core/tests/bambu.test.mjs, core/tests/dobot.test.mjs, core/tests/denso.test.mjs
+source-time | core/export/source-time.mjs, core/export/travel-advisory.mjs | output#changing-shared-source-time-and-travel-advisories | core/tests/source-player.test.mjs, core/tests/travel-advisory.test.mjs, core/tests/robot-playback.test.mjs
+study-source | core/export/machine-study.mjs | output#changing-mechanism-study-source | core/tests/machine-study.test.mjs
+```

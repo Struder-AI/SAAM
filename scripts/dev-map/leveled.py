@@ -397,6 +397,15 @@ class Page:
                 for n in ns:
                     if not same[n.id]:
                         n.y = min(max(n.y, row_lo), max(row_lo, row_hi - n.h))
+                # Several disconnected nodes can clamp to the same position.
+                # Restore column separation once, after clamping, without another
+                # relaxation loop or any invented graph connections.
+                for l in b:
+                    grp = columns[l]
+                    self._pack(grp, [n.y + n.h / 2 for n in grp])
+                lo = min(n.y for n in ns)
+                for n in ns:
+                    n.y += top_y - lo
             self._squeeze(ns)
             top_y = max(n.y + n.h for n in ns) + ROW_GAP
 

@@ -43,6 +43,9 @@ path > generate | generated path | data
 generate > emit | path and settings | data
 checked > generate | bytes and checks | data
 generate > bundle | saved generation | data
+box runtime | 1.6 | bind runtime and commands | >1d_runtime
+ext bootstrap | CLI / module initialization
+bootstrap > runtime | command and runtime dependencies | data
 ```
 
 ```saam-page 1a_read
@@ -68,6 +71,7 @@ handoff > load | matching checked source | data | norank
 load > decode | cold / full read | gate
 decode > load | interpreted program | data | norank
 load > result | hashes and approvals | data
+box snapshot | 1.3.5 | snapshot file identity | @core/print/file-snapshot.mjs::createFileSnapshot
 ```
 
 ```saam-page 1b_generate
@@ -127,7 +131,39 @@ approve > done | recorded decision | data
 deliver > done | verified delivery file | data
 ```
 
-Caller contracts: [print lifecycle](../core/print/README.md). The workflow factory
+Caller contracts: [print lifecycle](reference/lifecycle.md). The workflow factory
 binds geometry and generator adapters; the shell and bounded wedge share its
 approval, identity and delivery behavior. Development generation does not create
 human approval. Identity includes runtime and actual file bytes, not mtimes.
+
+
+```saam-scope
+core/print/ | Bundle lifecycle, persistence and command entry points
+core/file-write.mjs | Atomic individual-file replacement shared with Studio
+```
+
+```saam-references
+lifecycle | maps/reference/lifecycle.md | Bundle formats, identity, validation, approval and delivery
+```
+
+
+```saam-page 1d_runtime
+title 1.6 — Bind runtime and commands
+sub Shared workflow configuration and command dispatch
+parent 1_lifecycle runtime
+in command and runtime dependencies
+port in | command and runtime dependencies
+state dependencies | 1.6.1 | fingerprint runtime inputs | @core/print/bundle.mjs::RUNTIME_FILES
+box limits | 1.6.2 | select declared limitations | @core/print/bundle.mjs::limitationsFor
+box command | 1.6.3 | dispatch print command | @core/print/cli.mjs::run
+in > command | arguments / revision guard | data
+in > dependencies | bound module dependencies | data
+in > limits | plan / machine | data
+```
+
+
+```saam-responsibilities
+workflow | core/print/workflow.mjs, core/print/bundle.mjs, core/print/cli.mjs | lifecycle#changing-lifecycle-identity-and-persistence | core/tests/workflow.test.mjs, core/tests/chat-geometry-confirmation.test.mjs, core/tests/read-scope.test.mjs
+file-state | core/file-write.mjs, core/print/file-snapshot.mjs | lifecycle#changing-file-replacement-and-refresh-snapshots | core/tests/file-write.test.mjs, core/tests/program-cache.test.mjs, core/tests/read-scope.test.mjs
+generation-handoff | core/print/generation-control.mjs, core/print/program-handoff.mjs | studio-protocols#changing-cancellation-and-checked-source-reuse | core/tests/studio-generation-control.test.mjs, core/tests/program-cache.test.mjs
+```
