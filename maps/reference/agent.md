@@ -132,12 +132,12 @@ experiments and redirected paths stay outside this reader.
 
 ```sh
 node studio/server.mjs --toolkit create-preview Prints/imported --stl part.stl
-node studio/server.mjs --toolkit create-preview Prints/wedge --kind wedge --machine ultimaker-s5
+node studio/server.mjs --toolkit create-preview Prints/part --recipe recipe.json --machine ultimaker-s5
 node studio/server.mjs --toolkit start-tour --start-at-layer 12 --no-open
 ```
 
-`create-preview` accepts either `--recipe FILE` or `--stl FILE`. `--kind` defaults
-to `shell`; STL creates a shell print. `--units auto|mm|inch` applies to STL only
+`create-preview` accepts either `--recipe FILE` or `--stl FILE`.
+STL creates a shell print. `--units auto|mm|inch` applies to STL only
 and defaults to automatic size-based inference. Without a recipe or STL, the
 owning adapter's proposed recipe and remembered/default machine setup apply.
 The shell template includes full-fill and draped-skin; select a complete recipe

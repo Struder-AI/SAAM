@@ -52,7 +52,7 @@ The [devlog](../../DEVLOG.md#2026-09-08-to-2026-09-10--s5-startup-observations)
 preserves the revision-specific reports of leveling, unused-nozzle heating and
 initial under-extrusion. They do not establish behavior on every S5 installation.
 
-Shell and wedge generation share the interpreter's S5 startup-state rule:
+Shell generation follows the interpreter's S5 startup-state rule:
 recover the configured retraction once at the first deposition location without
 another initial withdrawal. H2D uses an unretracted handoff; zero retraction and
 relay output add no recovery. Physical confirmation of this correction is open.
@@ -65,8 +65,7 @@ reports insufficient space rather than silently omitting the prime. It uses the
 locked first-layer height, line width and speed, capped by the normal flow limit.
 The first unretract occurs at the prime; the nozzle retracts and lifts before
 approaching the part. These are ordinary `prime`-phase SAAMpath moves, included
-in exported material, time, bounds and Studio playback. The bounded wedge keeps
-its existing sacrificial line. Priming does not establish the firmware's hidden
+in exported material, time, bounds and Studio playback. Priming does not establish the firmware's hidden
 retraction state or guarantee physical extrusion recovery.
 
 Saved machine snapshots without this setting retain their existing paths.

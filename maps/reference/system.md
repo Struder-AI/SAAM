@@ -21,8 +21,6 @@ entry points; shared interfaces and the exceptions below remain caller context.
 
 [Skill manuals](../../skills/README.md) own pattern-specific tools and limits. Client
 adapters use the same lifecycle; see [MCP implementation](../../adapters/mcp/DEVELOP.md).
-The bounded wedge uses its own geometry and generator within that lifecycle,
-as described below.
 
 The [machine presentation boundary](presentation.md) lets the
 kinematic-model and Studio tasks work independently. Models supply resolved
@@ -58,8 +56,7 @@ wavy bottom. Region interfaces therefore include nonflat surfaces as well as
 height bands; see [material regions](regions.md#material-regions-and-shared-interfaces).
 
 Mesh and NURBS backends share geometry queries, downstream regions, composition,
-motion, export and review. The [bounded wedge](geometry.md#rhino-geometry) retains its own
-geometry and generator while using the common exporter and print lifecycle.
+motion, export and review.
 
 Developer experiments use these same components; [historical inspection](studio.md#historical-toolpath-inspection)
 is a scoped example. A proposed parallel pipeline needs a reason the shared

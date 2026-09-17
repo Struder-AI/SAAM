@@ -101,7 +101,7 @@ The producer uses the same composer, oriented travel, RC8 export and approval
 workflow. General inward reservations, arbitrary chart unwrapping and multi-patch
 cladding remain unimplemented.
 Tests include the existing mesh/spline base-vase-cap-infill-drape stack at fixed
-orientation on RC8, bounded wedge and ordinary pipe geometry on S5.
+orientation on RC8 and ordinary pipe geometry on S5.
 
 Large RC8 programs can exceed 64 helper files. Shared ZIP output uses the
 ZIP32 non-sentinel entry limit of 65,534 while retaining CRC, path, size, overlap

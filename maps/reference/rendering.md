@@ -43,7 +43,7 @@ is retained with same-tab view settings, and also applies to exported movies.
 Current material uses shaded oval
 beads in WebGL2, with physical dimensions that scale with viewport zoom. Width
 comes from commanded volume per distance divided by the nominal layer thickness,
-falling back to the plan's line width. Planar and bounded wedge beads sit below
+falling back to the plan's line width. Planar beads sit below
 the nozzle; pipe cladding uses radial thickness around its commanded bead center.
 Lighting distinguishes adjacent current tracks without an artificial gap.
 This is a nominal display cross-section, not measured filament spread.
@@ -120,7 +120,7 @@ appearance. Same-tab view settings survive refresh in session storage; tabs
 opened before this feature must have their settings reselected once. Movie
 export does not generate machine code, approve a job, or modify its bundle.
 
-S5 and H2D profiles supply new shell and wedge plans with 40/20/24 mm/s
+S5 and H2D profiles supply new shell plans with 40/20/24 mm/s
 planar/skin/first-layer targets, 120 mm/s XY travel and 10 mm/s Z travel.
 Existing locked plans, material flow limits, retraction and firmware service
 speeds are unchanged; actual deposition remains capped by flow and axis limits.

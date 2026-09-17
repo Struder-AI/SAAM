@@ -44,8 +44,8 @@ current plan revision. Source metadata does not confer a printing approval.
 Implement the two human confirmations in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
 geometry, then settings and the exact toolpath together. `core/print/workflow.mjs` owns
 initialization, verification, revision hashes, adjustment, approvals, generation,
-reopening, setup reuse, upgrades and delivery. Shell and wedge adapters supply
-their recipe validation, geometry, generator, limitations and release metadata.
+reopening, setup reuse, upgrades and delivery. The shell adapter supplies
+recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema. There is no standalone settings
 confirmation. `approve(stage: "toolpath")` records the settings hash and export
 hash in one human event; the persisted `approvals.plan`/`planApproved` fields remain
@@ -158,7 +158,7 @@ exist. See the [validation work record](../../DEVLOG.md#br-039--remove-repeated-
 
 ## Print bundle and current formats
 
-The shared workflow stores one directory per print (wedge filenames shown):
+The shared workflow stores one directory per print:
 
 ```text
 Prints/<name>/
@@ -166,22 +166,17 @@ Prints/<name>/
   machine.json
   geometry/model.mesh.json
   geometry/model.json
-  exports/griffin-gcode/wedge.gcode
+  exports/griffin-gcode/part.gcode
   checks.json
   review.json
-  delivery/wedge.gcode
+  delivery/part.gcode
 ```
 
-`delivery/` exists only after approval and delivery. Geometry and plan schemas remain adapter-specific; lifecycle and SAAMpath formats are shared:
+`delivery/` exists only after approval and delivery. The lifecycle and SAAMpath formats are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
 
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
   and the declared firmware startup contract. Output options carry program
   header, start and end templates; these are part of the locked machine snapshot.
-- `saam-wedge-plan/1`: eight source points in `geometry.points`, placement, setup, complete process
-  settings, generator version and selected output. Its lock hash also includes
-  the native geometry, machine snapshot and generating runtime source hash.
-- `saam-wedge-geometry/1`: native mesh file hash, source points, roof coefficients, mesh display and
-  geometry-version-specific face references.
 - `saampath/1`: transient motion objects during generation. Moves carry absolute XYZ millimeters,
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
@@ -241,13 +236,12 @@ approval. Do not rewrite a person's existing export or delivery as a migration.
   selected shape. Generation introduces no further process choices.
 - `saam-shell-geometry/1`: native file hash, shape parameters, geometry version,
   per-patch control-net hash, named face references and the display proxy.
-- The bundle layout matches the wedge's, with `exports/griffin-gcode/part.gcode`
-  and `delivery/part.gcode` in place of `wedge.gcode`. `saampath/1`,
+- The bundle layout is the shared one above. `saampath/1`,
   `saam-review/1` and `saam-checks/1` are unchanged.
 - The machine file gains `nonplanar.maxAngleDeg` (15 for the S5): the surface
   slope beyond which a fixed vertical nozzle cannot follow. It is a declared
   software limit, not a measured clearance rating, and no collision model exists.
-- SAAMpath and the Griffin export follow the same contracts as the wedge,
+- SAAMpath and the Griffin export follow the shared contracts,
   including machine-owned header/start/end templates and the header fields the printer's reader requires. The exporter reads
   `startup.zAfterStartupMm`, falling back to the older `zAfterPrimeMm`.
 - XYZ moves shorter than `1e-4` mm are omitted only when all coordinates collapse

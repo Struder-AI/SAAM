@@ -37,9 +37,8 @@ and a signed distance: positive expands material, negative erodes it. Pass the
 whole region together, including CCW outer/island loops and CW holes. Nonzero
 winding determines material; loop order and seams do not assign ownership.
 The `region2d.mjs` compatibility export is an alias to this exact function. Full-fill,
-planar-infill, draped-skin, vase-wall, shared rim coverage/travel and the bounded
-wedge all use it. The wedge retains its eight-point section generator and nearby-travel
-policy while using shared boundary insets. Draped-skin uses an XY footprint inset.
+planar-infill, draped-skin, vase-wall and shared rim coverage/travel all use it.
+Draped-skin uses an XY footprint inset.
 
 Offsets return closed material polygons: an inset yields remaining material,
 not a stroke band on both sides of a boundary. Kernel implementation is in the

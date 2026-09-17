@@ -104,8 +104,7 @@ studio > machine | source / time | data
 machine > studio | poses | data | norank
 ```
 
-Scope is the implemented shared workflow. The bounded wedge supplies a separate
-skill generator through the same lifecycle. A map anchor establishes location;
+Scope is the implemented shared workflow. A map anchor establishes location;
 it does not prove an arrow's behavior or enumerate every possible caller.
 Follow calculated shared uses before editing a reused component, and inspect
 source callers outside the mapped core/Studio boundary.

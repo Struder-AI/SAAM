@@ -103,8 +103,7 @@ commands; physical operation needs its own evidence.
 [Machine profile validation](../core/machine/profile.mjs) owns capability checks.
 Production bounds, feed and flow checks consume interpreted export commands,
 including selected-tool limits. `checkMachinePath` remains available to tests;
-Dobot uses it on commands reconstructed from Lua. The bounded wedge shares
-profile validation and output selection through its own eight-point generator.
+Dobot uses it on commands reconstructed from Lua.
 Registry dispatch rejects unavailable declared outputs.
 
 

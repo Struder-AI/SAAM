@@ -166,9 +166,7 @@ Mesh conversion is not required before SAAMpath generation.
 Native mesh assets use `geometry/model.mesh.json` with `saam-native-geometry/1`,
 millimeter indexed triangles, original source provenance and shape parameters.
 Mixed assemblies retain spline recipes for spline components. Existing spline
-bundles continue using `geometry/model.3dm`. New wedges store indexed meshes;
-explicit wedge upgrade converts the former four-parameter/3DM recipe and
-invalidates both confirmations while preserving old artifacts. No silent migration occurs.
+bundles continue using `geometry/model.3dm`.
 STL import accepts ASCII and binary with explicit mm/inch units, indexes exact
 shared vertices, records translation onto the bed, and retains `geometry/source.stl`
 and its hash. File changes invalidate review. STL does not supply semantic CAD
@@ -188,10 +186,7 @@ segments above its angle limit are rejected. Sampling and bead-width limits rema
 
 Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
 regions, machine checks, native-file integrity, approvals and exact-byte S5
-export delivery. Add equivalent backend tests for each general skill. The
-bounded eight-point wedge remains an explicit geometry/generation exception:
-its planar roof is derived directly from validated corner points, with shared
-mesh validation, scanline fill, export and review.
+export delivery. Add equivalent backend tests for each general skill.
 
 ### Prepared contour mapping
 
@@ -525,13 +520,9 @@ or physical printability.
 The spline backend uses Rhino and native 3DM files. Imported meshes use
 [native indexed geometry](#geometry-interoperability-for-skill-authors), with
 the user-confirmed shared interface preserving direct spline slicing.
-The bounded wedge retains `skills/wedge-demo/` and its eight-point generator;
-do not substitute the shell slicer. New wedges use indexed meshes with six named planar faces, an
-axis-aligned rectangular base and vertical sides. The planar roof may slope in
-any direction. Their native file is `geometry/model.mesh.json`; the wedge uses
-rhino3dm only to verify older 3DM files during explicit upgrade. General edited-3DM import,
-spline-surface intersections and full Rhino computation remain deferred.
-rhino3dm is a geometry/file library, not the complete Rhino computation engine.
+General edited-3DM import, spline-surface intersections and full Rhino
+computation remain deferred. rhino3dm is a geometry/file library, not the
+complete Rhino computation engine.
 
 ## Explicit mesh repair
 

@@ -42,7 +42,7 @@ fixture is not yet a shape accepted by the public plan parser. It calls skill
 producers on prepared geometry; it does **not** time a complete public bundle
 generation or Studio load. Geometry construction/validation, section queries,
 roof queries, skill production, composition/checks and export/interpretation
-have separate measurements. The bounded wedge generator is not replaced.
+have separate measurements.
 
 ```sh
 node scripts/bench/slicing.mjs --out .local/slicing-bench --trials 3

@@ -132,7 +132,7 @@ deliver > done | verified delivery file | data
 ```
 
 Caller contracts: [print lifecycle](reference/lifecycle.md). The workflow factory
-binds geometry and generator adapters; the shell and bounded wedge share its
+binds geometry and generator adapters; the shell adapter uses its
 approval, identity and delivery behavior. Development generation does not create
 human approval. Identity includes runtime and actual file bytes, not mtimes.
 

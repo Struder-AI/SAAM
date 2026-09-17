@@ -76,7 +76,7 @@ Row order and stroke direction can reverse independently, providing up to four
 entry choices. Reversing strokes also reverses per-segment volumes/metadata.
 Equal distances retain producer order. This mode requires open strokes without
 tool poses and does not reorder operations or split continuous operations.
-Concentric/gyroid paths and the bounded wedge keep their existing ordering.
+Concentric/gyroid paths keep their existing ordering.
 No lookahead, travel-time scoring or heat balancing is included; see
 [D-026](../../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations).
 An assembly's `geometry.parts` holds named components with `geometry` and
@@ -183,8 +183,7 @@ and space successive walls inward; rimming retains its contacting bead and
 separates the paired bead. Planar infill's complementary solid masks use the
 full-fill factor. Cladding uses its own factor for axial cells and helix pitch,
 while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
-unchanged. Vase-wall's vertical spiral progression and the bounded wedge's
-separate recipe are outside this interface.
+unchanged. Vase-wall's vertical spiral progression is outside this interface.
 
 Circular track counts and native surface metrics still fit local bead widths;
 course-cell width is divided by the factor before computing extrusion. Edge
@@ -220,7 +219,7 @@ still routes the transitions that remain. Nearest-entry guidance does not
 claim a globally optimal route or implement lookahead by itself.
 
 `PathBuilder.travelTo` is the shared travel method for full-fill, planar-infill,
-draped-skin, vase-wall and the bounded wedge. The builder updates the highest
+draped-skin and vase-wall. The builder updates the highest
 deposited Z from both endpoints of every emitted positive-volume segment,
 including prime lines, sloping strokes and previous components. Travel without
 deposition never raises this material height. The initial material height is
@@ -233,8 +232,7 @@ floor avoids descending before traversing from a higher startup/park position or
 toward a higher destination. Cooling and final SAAMpath parking use the same
 height calculation. Required clearance above the selected tool's Z bounds is
 rejected. Existing recipes retain their explicit locked clearance value.
-Compose all results together so one builder carries chronology across skills;
-the wedge retains its bounded eight-point generator and delegates motion to it.
+Compose all results together so one builder carries chronology across skills.
 Machine firmware service routines (including H2D shutdown) retain their separate
 export contracts; they are not ordinary SAAMpath travel.
 
@@ -242,7 +240,7 @@ Nearest wall starts, alternating infill and verified combing reduce travel.
 The shared scanline fill completes disconnected components and splits each
 connected component into uninterrupted runs of rows at interval splits/merges.
 This also orders the sides of holes and concavities, rather than crossing each
-hole on every row. Full-fill, planar-infill, draped-skin and the bounded wedge
+hole on every row. Full-fill, planar-infill and draped-skin
 use the same scanline implementation. Ordering changes neither row endpoints
 nor deposition coverage; connections still use the shared travel checks.
 
@@ -292,7 +290,6 @@ in the endpoints' connected component, `maxCombMm` XYZ route length); otherwise
 they hop. Disconnected components cannot be joined by combing. Every candidate
 edge checks both the destination policy and completed material, including edges
 of a detour. Lifted moves retain the global deposited-height clearance above.
-The wedge retains its bounded nearby/direct policy through the same builder.
 
 `planarPolicy` publishes the layer's actual region and height, preserving holes
 and disconnected footprints. `surfacePolicy` accepts an XY footprint, a local
@@ -333,9 +330,8 @@ way to report additional travel cases.
 `core/path/builder.mjs` classifies each move as joined, combed or hopped.
 The shared PathBuilder tracks deposited height; local callbacks decide direct/combed
 eligibility. See [travel requirements](#whole-plan-travel-requirement). Fill
-strokes alternate their direction to keep neighbouring endpoints close. The wedge
-retains its bounded nearby-start policy through the same PathBuilder; longer
-moves lift above material deposited so far. Both use the shared export and checks.
+strokes alternate their direction to keep neighbouring endpoints close. Longer
+moves lift above material deposited so far, using the shared export and checks.
 
 
 ## Changing operation composition
