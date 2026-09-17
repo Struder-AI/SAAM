@@ -66,8 +66,8 @@ Request records and their state transitions are defined by the
 agent-owned store is the live operational channel; JSON records are its durable
 recovery journal and the index reconciles independent processes. Request completion
 does not establish that the requested geometry or toolpath has been displayed.
-`work-state.mjs` first derives the one presentable geometry/toolpath snapshot, then
-compares result identity and stage with presentation receipts;
+`work-state.mjs` classifies activity, receipt matching and confirmation waiting
+from one normalized geometry/toolpath view and request context;
 `agent-ui.mjs` orders snapshots by update time so an older response cannot revive
 completed activity. Library-wide agent listeners and the currently selected
 browser print intentionally have different selection scopes.
@@ -149,7 +149,7 @@ Sources: [server.mjs](../../studio/server.mjs), [changes.mjs](../../studio/chang
 
 Sources: [agent-requests.mjs](../../studio/agent-requests.mjs), [request-index.mjs](../../studio/request-index.mjs), [agent-ui.mjs](../../studio/agent-ui.mjs), [work-state.mjs](../../studio/work-state.mjs).
 
-**Contract.** Request records coordinate agent work with the exact Studio instance, print, revision and stage target. One agent-owned request store may serve multiple Studio instances; each instance has one immutable owner and carries its ID on Studio-originated work. Direct subscribers and event-driven waits receive live changes from that store. The index accepts valid request IDs, caches by file identity/size/timestamps, batches reads and periodically reconciles watcher hints for restart and independent-process recovery. Work-state owns the pure presentability predicate as well as request activity and target matching. Agent completion and actual display of the requested result are separate transitions; advisory/guidance activity is not an edit.
+**Contract.** Request records coordinate agent work with the exact Studio instance, print, revision and stage target. One agent-owned request store may serve multiple Studio instances; each instance has one immutable owner and carries its ID on Studio-originated work. Direct subscribers and event-driven waits receive live changes from that store. The index accepts valid request IDs, caches by file identity/size/timestamps, batches reads and periodically reconciles watcher hints for restart and independent-process recovery. Work-state owns one pure classifier returning activity, receipt and confirmation-wait state from a request and normalized displayed view. Agent completion and actual display of the requested result are separate transitions; advisory/guidance activity is not an edit.
 
 **Failures.** Malformed records become diagnostic failure state; missing directories are handled distinctly from parse errors. A Studio request cannot be claimed through another agent owner's live session. Stale, other-instance or other-print presentation cannot complete the current request. Compatibility matching without an explicit target is limited to older records, not a bypass for requiresTarget.
 

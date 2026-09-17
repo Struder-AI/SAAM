@@ -22,7 +22,7 @@ test('tour geometry recovery preserves the lesson and requires explicit confirma
   await tour.action('step',1);await tour.action('step',2);await tour.select(directory);await tour.action('step',4);
   await approve(directory,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC selected geometry'});
   await generateBundle(directory);
-  await tour.playback('play');for(let i=0;i<5;i++){time+=1000;await tour.playback('tick');}
+  await tour.playback('play');
   await tour.action('step',5);
   const edit=await requests.begin({directory,instruction:'SYNTHETIC participant requests a taller handle'});
   state=await loadBundle(directory,{program:false});state.plan.geometry.parts[1].geometry.heightMm=12;
@@ -78,7 +78,7 @@ test('explicit generation failures alert the agent with the cause and clear afte
   const state=await(await fetch(url+'/api/state')).json();assert.ok(state.program);assert.equal(state.generationError,undefined);
   assert.equal((await requests.list())[0].status,'working','agent resolves recovery after verifying the displayed result');
 });
-test('STL lesson imports into playback; normal import stays unapproved in geometry review',async t=>{
+test('active tours block STL import; normal import stays unapproved in geometry review',async t=>{
   const root=await fixture(t),tour=createTour(root),{directory}=await tour.action('fresh');
   let state=await loadBundle(directory,{program:false});state.plan.geometry.parts[1].geometry.heightMm=11;await adjustBundle(directory,{geometry:state.plan.geometry});
   state=await loadBundle(directory,{program:false});await tour.acknowledgeView(directory,{revision:state.revision},state);
@@ -87,12 +87,10 @@ test('STL lesson imports into playback; normal import stays unapproved in geomet
   const url='http://127.0.0.1:'+server.address().port,html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const mesh=boxMesh(12,10,4),bytes=Buffer.from('solid test\n'+mesh.triangles.map(tri=>'facet normal 0 0 0\nouter loop\n'+tri.map(i=>'vertex '+mesh.vertices[i].join(' ')).join('\n')+'\nendloop\nendfacet').join('\n')+'\nendsolid test\n');
   const upload=(name,units,body=bytes)=>fetch(url+'/api/import-stl?'+new URLSearchParams({name,units}),{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body});
-  assert.equal((await upload('Sample.stl','unknown')).status,400);assert.equal((await tour.info()).step,3);
-  assert.equal((await upload('Broken.stl','mm',Buffer.from('not a mesh'))).status,400);assert.equal((await tour.info()).step,3);
-  const imported=await upload('Sample model.stl','mm');assert.equal(imported.status,200,await imported.text());
-  state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.step,4);assert.equal(state.tour.startAt,null);assert.ok(state.program);assert.equal(state.geometryApproved,true);
-  assert.equal(state.printName,'Sample model');assert.deepEqual(await readFile(join(state.localPrintDirectory,'geometry/source.stl')),bytes);
-  assert.match((await createAgentRequests(root).wait({waitMs:0})).requests[0].instruction,/sparse-infill/);
+  const blocked=await upload('Sample model.stl','mm');assert.equal(blocked.status,400);
+  assert.match((await blocked.json()).error,/available after you finish or exit the tour/);
+  state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.step,3);
+  assert.equal(state.localPrintDirectory,directory);assert.equal(state.geometryApproved,false);
   await tour.action('exit');assert.equal((await upload('Normal model.stl','mm')).status,200);
   state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);assert.equal(state.geometryApproved,false);assert.equal(Boolean(state.program),false);
 });
@@ -114,8 +112,8 @@ test('tour queues chat guidance and exports exact reviewed bytes before completi
   state.plan.geometry.parts[1].geometry.heightMm=11;await adjustBundle(directory,{geometry:state.plan.geometry});
   state=await loadBundle(directory,{program:false});await tour.acknowledgeView(directory,{revision:state.revision},state);
   await tour.action('step',1);await tour.action('step',2);await tour.setStartAt({layer:12});await tour.select(directory);await tour.action('step',4);
-  await tour.playback('play');for(let i=0;i<5;i++){time+=1000;await tour.playback('tick');}
-  await tour.action('step',5);const pending=(await requests.list())[0];assert.match(pending.instruction,/gyroid/);assert.equal(pending.printId,'tour/handle');
+  await tour.playback('play');
+  await tour.action('step',5);const pending=(await requests.list())[0];assert.match(pending.instruction,/toolpath controls how the confirmed shape is built/);assert.equal(pending.printId,'tour/handle');
   await requests.update(pending.id,{status:'completed',message:'Offered patterns in chat'});
   const edit=await requests.begin({directory,instruction:'SYNTHETIC participant requests gyroid infill'});
   await adjustBundle(directory,{skills:{'planar-infill':{pattern:'gyroid'}}});

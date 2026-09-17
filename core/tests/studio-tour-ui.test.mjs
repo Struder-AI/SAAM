@@ -3,6 +3,20 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {createTourUI,needsTourToolpath} from '../../studio/tour-ui.mjs';
+import {TOUR_LESSONS,TOUR_STEPS} from '../../studio/tour-catalog.mjs';
+
+test('tour UI teaches toolpath changes without suggesting geometry',async()=>{
+  const visibleCopy=TOUR_STEPS.flatMap(step=>[step.title,step.body,step.try]).join(' ');
+  assert.doesNotMatch(visibleCopy,/\binfill\b/i);
+  const lesson=TOUR_STEPS[TOUR_LESSONS.settings];
+  assert.match(lesson.title,/change how this part prints/i);
+  assert.match(lesson.body,/toolpath decides how it is built/i);
+  assert.match(lesson.body,/strength, finish, print time or material use/i);
+  assert.doesNotMatch(lesson.body+' '+lesson.try,/geometry|shape change/i);
+  const css=await readFile(new URL('../../studio/style.css',import.meta.url),'utf8');
+  assert.match(css,/#import-stl\.tour-choice\{background:#f7f8fb/);
+  assert.doesNotMatch(css,/#tour-next\.tour-choice\{background:/,'Continue retains the primary orange button style');
+});
 
 for(const lesson of [4,5,6,7])test('geometry review returns to the same toolpath lesson '+lesson,async t=>{
   const saved={document:globalThis.document,setInterval:globalThis.setInterval};
@@ -96,8 +110,12 @@ test('tour cues follow their lessons and Exit dismisses congratulations while re
   state.tour=progress={...progress,step:2};ui.render(state);assert.ok(element('canvas').classes.has('tour-faded'));
   state.tour=progress={...progress,step:3};ui.render(state);
   assert.ok(!element('canvas').classes.has('tour-faded'));
+  assert.equal(element('import-stl').disabled,true,'tour points out import without enabling it');
   for(const id of ['import-stl','tour-next'])assert.ok(element(id).classes.has('tour-choice'));
   for(const id of ['import-stl','tour-next'])assert.ok(element(id).classes.has('tour-highlight'),'both paths blink');
+  element('import-stl').onpointerenter();
+  assert.ok(!element('import-stl').classes.has('tour-highlight'),'hover retires the import cue');
+  assert.ok(element('tour-next').classes.has('tour-highlight'),'Continue remains the only blinking cue');
   state.tour=progress={...progress,step:7,active:false,completed:true};ui.render(state);
   assert.equal(element('tour-exit').hidden,false);assert.equal(element('tour-panel').hidden,false);
   assert.equal(element('tour-complete').hidden,false);assert.equal(element('tour-lesson').hidden,true);
@@ -144,13 +162,13 @@ test('playback leaves geometry before a program exists, seeks when ready, and re
 for(const startAt of [null,{layer:999}])for(const fallbackLayer of [1,0])test((startAt?'unavailable':'missing')+' agent layer uses fallback playback without a late jump (resolved layer '+fallbackLayer+')',async t=>{
   const saved={document:globalThis.document,setInterval:globalThis.setInterval};
   t.after(()=>Object.assign(globalThis,saved));
-  const elements=new Map(),seeks=[],requests=[],tabs=[];let tick;
+  const elements=new Map(),seeks=[],requests=[],tabs=[];
   const element=id=>{
     if(!elements.has(id))elements.set(id,{textContent:'',parentElement:{dataset:{}},querySelectorAll:()=>[],classList:{add(){},remove(){},toggle(){}}});
     return elements.get(id);
   };
   globalThis.document={hidden:false,getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
-  globalThis.setInterval=callback=>{tick=callback;return 0;};
+  globalThis.setInterval=()=>0;
   const state={localPrintDirectory:'part',printId:'part',program:{},geometryApproved:true,tour:{active:true,directory:'part',step:4,startAt,gates:{}}};
   const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab:tab=>tabs.push(tab),
     seek:startAt=>{seeks.push(startAt);if(startAt.layer===999)throw Error('No sparse infill here');return {layer:startAt.fallback?fallbackLayer:startAt.layer};},
@@ -159,9 +177,9 @@ for(const startAt of [null,{layer:999}])for(const fallbackLayer of [1,0])test((s
   assert.deepEqual(seeks,[...(startAt?[startAt]:[]),{layer:1,fallback:true}],'human layer 2 is zero-based layer 1');
   const initialSeeks=seeks.length;
   assert.match(element('tour-status').textContent,/Press Play/);
-  await ui.playback('play');await tick();
-  assert.deepEqual(requests,[{route:'tour-playback',event:'play'},{route:'tour-playback',event:'tick'}],
-    'fallback readiness sends both Play and visible playback ticks');
+  await ui.playback('play');
+  assert.deepEqual(requests,[{route:'tour-playback',event:'play'}],
+    'the first Play is the only event needed to unlock the lesson');
   state.tour={...state.tour,startAt:{layer:12}};ui.render(state);await Promise.resolve();
   assert.equal(seeks.length,initialSeeks,'late agent layer does not move playback after Play');
   assert.equal(tabs.length,1,'late layer does not reset the playing viewer through setTab');
@@ -209,10 +227,12 @@ test('edit cues are limited to the first two slides and Play stops blinking on f
   state.tour.gates[1]=true;ui.render(state);assert.equal(highlighted('tour-next'),false,'a saved result still loading must not blink');
   ui.activity(false);assert.equal(element('tour-next').disabled,false);assert.equal(highlighted('tour-next'),true);
   state.tour.step=2;ui.render(state);assert.equal(highlighted('tour-next'),false);
-  state.tour.step=3;state.tour.repairReviewRequired=true;ui.render(state);
-  assert.equal(element('tour-next').textContent,'Confirm repaired geometry & continue');
-  assert.match(element('tour-body').textContent,/Inspect the repaired shape/);
-  state.tour.repairReviewRequired=false;
+  state.tour.step=3;ui.render(state);
+  assert.equal(element('tour-next').textContent,'Continue with this part');
+  assert.equal(element('import-stl').disabled,true);
+  assert.equal(highlighted('import-stl'),true);assert.equal(highlighted('tour-next'),true);
+  element('import-stl').onpointerenter();
+  assert.equal(highlighted('import-stl'),false);assert.equal(highlighted('tour-next'),true);
   state.tour.step=4;state.tour.startAt={layer:12};ui.render(state);await Promise.resolve();
   assert.equal(highlighted('play'),true);
   await ui.playback('play');assert.equal(highlighted('play'),false);

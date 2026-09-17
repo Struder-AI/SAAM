@@ -3,7 +3,7 @@ import {resolve,relative,isAbsolute} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {canonical} from '../core/print/plan.mjs';
-import {hasPresentedResult,requestActivity} from './work-state.mjs';
+import {requestReceiptState} from './work-state.mjs';
 import {createRequestIndex} from './request-index.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 
@@ -25,7 +25,8 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
   const root=resolve(libraryRoot),folder=resolve(root,'.studio-requests');
   const records=new Map(),byPrint=new Map(),pending=new Map(),latest=new Map(),listeners=new Set(),waiters=new Set(),emitted=new Map();let changeVersion=0;
   const latestKey=r=>`${r.printId}\0${r.ownerId??''}`;
-  const unfinished=r=>['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result&&hasPresentedResult(r,{...r.result,stage:r.target?.stage??'toolpath'});
+  const unfinished=r=>['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
+    &&requestReceiptState(r,{view:{ready:true,snapshot:{...r.result,stage:r.target?.stage??'toolpath'}}}).receipt;
   const wake=()=>{changeVersion++;for(const done of [...waiters])done();};
   const notify=record=>{
     if(!record)return;
@@ -57,7 +58,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
   async function save(record){await replaceFile(file(record.id),JSON.stringify(record)+'\n');accept(record.id,record);index.changed(record.id);return structuredClone(record);}
   async function get(id){return JSON.parse(await readFile(file(id),'utf8'));}
   function printId(directory,{optional=false}={}){const name=relative(root,resolve(directory)).split('\\').join('/');if(!name||name==='..'||name.startsWith('../')||isAbsolute(name)){if(optional)return null;throw Error('Agent requests must refer to a print in this library.');}return name;}
-  const normalized=r=>r.kind!=='advisory'&&!r.presented&&(requestActivity(r,{now:now()})==='expired'
+  const normalized=r=>r.kind!=='advisory'&&!r.presented&&(requestReceiptState(r,{now:now()}).activity==='expired'
       ||r.kind==='guidance'&&['queued','working'].includes(r.status)&&r.expiresAt<=now())
       ?{...r,status:'failed',timedOut:true,error:'Lost contact with the agent. Reconnect or reclaim this request to continue.'}:r;
   async function query({printId,status,since=0,history=false}={}){
@@ -98,7 +99,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
       if(!['working','waiting','completed','failed','cancelled'].includes(status))throw Error('Invalid agent response status.');
       const record=await get(id);
       if(ownerId&&record.ownerId&&record.ownerId!==ownerId&&record.studioInstanceId)throw Error('That Studio request belongs to another agent.');
-      if(record.status==='cancelled'||record.status==='completed'&&!(status==='working'&&requestActivity(record,{now:now()})==='expired'))return record;
+      if(record.status==='cancelled'||record.status==='completed'&&!(status==='working'&&requestReceiptState(record,{now:now()}).activity==='expired'))return record;
       const resuming=status==='working'&&record.status!=='working';
       // Pausing does not create a different request or discard an already saved
       // result. In particular, geometry confirmation must preserve its target.
@@ -113,9 +114,9 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
       const id=printId(directory,{optional:true}),updated=[];if(!id)return updated;
       for(const candidate of await query({printId:id}))if(['working','completed'].includes(candidate.status)
         &&(!candidate.studioInstanceId||candidate.studioInstanceId===shown.studioInstanceId)
-        &&!candidate.presented&&hasPresentedResult(candidate,shown)){
+        &&!candidate.presented&&requestReceiptState(candidate,{view:{ready:true,snapshot:shown}}).receipt){
         const record=await get(candidate.id);
-        if(['working','completed'].includes(record.status)&&!record.presented&&hasPresentedResult(record,shown))
+        if(['working','completed'].includes(record.status)&&!record.presented&&requestReceiptState(record,{view:{ready:true,snapshot:shown}}).receipt)
           updated.push(await save({...record,presented:true,updatedAt:Math.max(now(),record.updatedAt+1)}));
       }
       return updated;

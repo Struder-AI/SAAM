@@ -27,10 +27,10 @@ choose **Resume tour** when paused. Refreshing an active viewer keeps its lesson
 |---|---|
 | A simple block with a raised fin | Ask the agent to change its geometry; Next unlocks after the changed geometry is displayed. |
 | The wavy roof | Change it or proceed immediately. Active work locks Next; displaying the changed geometry unlocks and highlights it. |
-| Open print | Choose one of the two saved parts. Studio immediately advances to the optional STL lesson, keeping geometry visible. |
-| Import STL | Optionally load an STL with units assumed from its size. A clean import advances automatically; an automatically repaired import stays in geometry review until confirmed. Next otherwise keeps the selected part. |
-| Playback | Press Play and watch for five seconds. Scrubbing and speed remain free. |
-| Chat guidance | The agent offers infill patterns or another toolpath change; Next unlocks after the regenerated toolpath is loaded and displayed. |
+| Open print | Choose one of the two saved parts. Studio immediately advances to the STL introduction, keeping geometry visible. |
+| Import STL | Notice where normal Studio imports a model. Import is unavailable during the tour; Continue keeps the selected part. |
+| Playback | Press Play. Next unlocks immediately; continued playback, scrubbing and speed remain free. |
+| Chat guidance | The agent briefly explains the toolpath, then suggests contextual process changes and their practical effects; Next unlocks after the changed toolpath is loaded and displayed. |
 | Printer and material | Ultimaker S5 and PLA are the initial choices. Keep them or ask the agent to change them. |
 | Export | The highlighted control explains downloading a file to USB for the printer directly, rather than a separate slicer. Confirm settings & export downloads the reviewed file and completes the tour. There is no separate Finish button. |
 
@@ -38,20 +38,20 @@ The agent explicitly chooses `startAt: {layer: 12}` (zero-based layer index)
 for the playback lesson. Choose an actual sparse-infill layer after the first
 layer; Studio seeks to its infill move. If no layer is supplied, or an edit removes
 infill from the chosen layer, Studio starts at layer 2 or the first deposited
-layer for a one-layer model. The participant can
-then move the slider freely; the gate measures five seconds of visible playback
-in wall time, regardless of speed or position.
+layer for a one-layer model. Pressing Play unlocks Next immediately, and the
+participant can continue watching or move the slider freely.
 
 ### Maker agent participation
 
 The tour deliberately narrows the conversation to its current lesson. In the
-first two lessons, offer shape edits to the selected example; use Open print and
-Import STL in their designated lessons, playback controls while watching, recipe
+first two lessons, offer shape edits to the selected example; use Open print in
+its designated lesson, point out that STL import becomes available after the tour,
+use playback controls while watching, recipe
 changes in the chat lesson, printer/material changes in setup, and final export
 in the export lesson. Questions about the current lesson are always welcome.
 For an unrelated project, a new capability or an action belonging to another
 lesson, gently redirect: "We can do that outside the tour. For this lesson,
-let's change the fin's height; or choose Exit tour to work on your request now."
+let's stay with the current tour task; or choose Exit tour to work on your request now."
 Do not silently leave, skip lessons or edit another part. An explicit request to
 exit ends these teaching limits. Normal Studio accepts supported requests from
 any view; a tour restriction must never become a general capability refusal.
@@ -65,20 +65,26 @@ Keep requested edits in the current selected copy returned by begin-work or
 `get_tour`. Call `begin_studio_work` before editing, publish its saved result
 target, and resolve its ID after the requested preview is displayed
 with `respond_to_studio_request`. Keep `wait_for_studio_request` active between
-lessons, repeating its bounded waits. Studio queues requests for the infill
-lesson, an imported model’s explicit start layer, and completion. Claim each
-request and resolve it after doing its work. Prepare an imported model's start
-layer silently; Studio supplies the playback instructions. Give proactive chat
-guidance only for the designated infill lesson and completion. Before then, let
+lessons, repeating its bounded waits. Studio queues requests for the
+change-suggestion lesson, playback start-layer selection, and completion. Claim each
+request and resolve it after doing its work. Prepare the playback start layer
+silently; Studio supplies the playback instructions. Give proactive chat
+guidance only for the designated change-suggestion lesson and completion. Before then, let
 the participant read Studio and respond to her requested edits without adding
 introductory questions or repeating the UI's tasks. Local CLI equivalents are in
 [Studio coordination](../../studio/README.md#agent-request-coordination). An ended
 or disconnected chat is not automatically awakened. Local agents can read
 `node studio/tour.mjs status Prints` and choose the layer with
 `node studio/tour.mjs start-at Prints 12`.
-At the chat lesson, offer rectilinear (parallel), grid (crossed), triangles,
-gyroid (curving), or concentric (nested) infill, and mention other toolpath edits.
-Wait for her choice and apply it; Studio automatically regenerates the selected
+At the chat lesson, briefly explain that the toolpath controls how the confirmed
+shape is built. Immediately offer two or three toolpath or process changes suited
+to the selected print's recipe and choices already made, and describe each likely
+effect on strength, finish, print time or material use in plain language. Use known
+context and make at most one current-print read if essential context is missing;
+send the lesson before another listener wait, status check, browser inspection or
+unrelated request bookkeeping. Do not suggest geometry or repeat a settled choice.
+If the participant independently requests geometry, oblige and use the normal
+confirmation flow. Wait for her choice and apply it; Studio automatically regenerates the selected
 confirmed part at toolpath lessons. Verify the rendered result before resolving
 the edit request. At completion,
 immediately congratulate her, offer help with any difficulties printing the
@@ -86,9 +92,9 @@ downloaded file, and ask what she wants to make next. These messages belong in
 ordinary text chat. Never use a generic question box or request-user-input tool
 for completion. Prioritize this message over status checks and bookkeeping.
 
-Imported models reset the start layer: the maker agent can choose an actual sparse
-infill layer from the existing toolpath, while the layer-2 fallback allows playback
-and its five-second timer to proceed without waiting. A late choice does not
+Before playback, the maker agent can choose an actual sparse infill layer from
+the existing toolpath, while the layer-2 fallback allows playback to proceed
+without waiting. A late choice does not
 reset playback after the participant has started watching. An explicit layer that
 no longer has infill also uses the fallback. Never edit or reslice a part solely
 to provide a viewing position. Saved part names
@@ -99,15 +105,14 @@ selected bold treatment. Dots and highlights retain opacity/color animation,
 including under reduced-motion settings; they do not move or expand.
 
 Selecting a saved print confirms its current geometry and keeps geometry visible
-through the optional STL lesson. A worker prepares the selected part during
-that lesson without blocking geometry review or persisting output. **Continue
-with this part** uses that candidate and opens playback. Import creates another
-saved part; it does not replace the part already selected. **Open print** can
-reopen either saved copy later.
-Selecting an STL during its tour lesson confirms that imported geometry before
-its preview is generated when no repair was needed; repaired geometry requires
-the explicit **Confirm repaired geometry & continue** action. Both versions and
-the repair report remain saved. Skipping keeps the already confirmed selected part.
+through the STL introduction. A worker prepares the selected part during that
+lesson without blocking geometry review or persisting output. **Continue with
+this part** uses that candidate and opens playback. **Import STL** remains disabled
+while the tour is active and becomes available after completion or **Exit tour**.
+**Open print** can reopen either saved tour copy during its lesson. Import STL
+keeps the slate-blue teaching style while **Continue with this part** remains the
+normal orange primary action. Both blink initially; the first pointer hover over
+Import STL stops its blink and leaves only Continue blinking.
 The finished panel says “Congratulations!” and directs the participant back to
 chat for the next project. The final confirmation approves the displayed settings and exact toolpath,
 downloads that checked production output without reslicing. Production output
@@ -118,8 +123,8 @@ the browser; browser or OS download prompts remain under the person’s control.
 **Exit tour** leaves without marking completion and restores ordinary review.
 It is also available on the congratulations screen, where it dismisses the tour
 and retains the completed result. Step 3 fades the geometry until a print is
-selected; step 4 restores it and marks both choices with large arrows and the
-same slate-blue blinking outline and button colors.
+selected; step 4 restores it and marks both choices with large arrows and a
+slate-blue blinking outline until the hover handoff described above.
 
 ### Example recipes
 

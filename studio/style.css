@@ -26,8 +26,9 @@ aside[data-tour-step="6"] #facts,aside[data-tour-step="6"] #guidance,aside[data-
 /* Shared work fade and independent tour attention cue. Clear immediately when ready. */
 #canvas.work-faded,#canvas.tour-faded{opacity:.28}
 .tour-choice{position:relative}
-#import-stl.tour-choice,#tour-next.tour-choice{background:#f7f8fb;color:#33436d;border-color:#6474b5}
-#import-stl.tour-choice:hover,#tour-next.tour-choice:hover{background:#e5e9f5}
+#import-stl.tour-choice{background:#f7f8fb;color:#33436d;border-color:#6474b5}
+#import-stl.tour-choice:disabled{opacity:1}
+#import-stl.tour-choice:hover{background:#e5e9f5}
 .tour-choice::after{position:absolute;color:#6474b5;font-size:58px;line-height:1;font-weight:800;pointer-events:none;text-shadow:0 1px 3px #fafbf7}
 #import-stl.tour-choice::after{content:'↑';top:calc(100% + 5px);left:50%;transform:translateX(-50%)}
 #tour-next.tour-choice::after{content:'↓';bottom:calc(100% + 5px);left:50%;transform:translateX(-50%)}

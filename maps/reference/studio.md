@@ -240,15 +240,15 @@ with mutations, so an old tab cannot approve, generate or deliver the new print.
 Opening does not regenerate current stored files. Selecting a saved print
 confirms its current geometry before entering a valid stored toolpath; the tour
 selection also confirms geometry. It stays in geometry view through the optional
-STL lesson. Step 4 starts speculative preparation of the selected part while
+STL introduction. Step 4 starts speculative preparation of the selected part while
 geometry remains visible; earlier lessons omit program data and do not start
 workers. Continuing commits the candidate for the exact current plan and loads
-playback. Importing creates a separate saved part and prepares that selection.
+playback. The import control is highlighted but disabled for the active tour;
+normal Studio enables it after completion or exit.
 Reopening the same selected print retains its matching preparation candidate.
 The first continuation after a completed preparation diagnostic reports it without
 repeating it; an explicit retry can start preparation again. Crashed workers
-restart on an explicit generation request. Choosing an STL
-stops the previous selection's preparation before importing.
+restart on an explicit generation request.
 Preparation workers are currently per Studio server, with no priority coordinator
 across Studio, CLI and MCP processes; starting earlier or preparing alternative
 choices would need that coordination to avoid competing with foreground work.
@@ -260,7 +260,7 @@ actionable until inputs change or an explicit retry succeeds.
 A changed, unconfirmed shape temporarily shows the normal geometry review and
 dimensions within the current toolpath lesson. **Confirm geometry & return to lesson**
 or an explicit human chat confirmation resumes that same lesson and generates its
-current toolpath. Back and Next do not approve geometry; the import lesson's
+current toolpath. Back and Next do not approve geometry; the STL introduction's
 explicit **Continue with this part** selection remains a confirmation action.
 The review says it is waiting for geometry confirmation and clears work dots/fading
 once the new shape is displayed, while the requested toolpath remains pending.
@@ -343,8 +343,10 @@ ten-minute lease bounds abandoned work. The owning process publishes request
 changes directly to the agent and its Studio instances; filesystem events reconcile
 independent writers and browser state polling remains reconnect fallback. The geometry lesson unlocks
 as soon as the exact edited geometry is displayed, without waiting for a chat
-acknowledgement. The toolpath-edit lesson accepts any participant-requested change,
-including geometry, once its confirmed current toolpath is rendered;
+acknowledgement. The toolpath-edit lesson teaches how the confirmed shape is built
+and suggests only contextual toolpath or process changes with their practical
+effects. It still accepts any participant-requested change, including independently
+requested geometry, once its confirmed current toolpath is rendered;
 another actively unfinished request can still hold Next. Claiming renews that lease. MCP requests
 carry their connection's ownership; that connection's close handler fails only
 its unfinished work. Studio-originated requests inherit ownership when Studio
@@ -357,8 +359,12 @@ timeout rendering continues from cached request expiry even if polling fails.
 Next blinks after the displayed geometry edit in the first lesson. The optional
 roof lesson starts with an enabled, unhighlighted Next; active work disables it
 with the dots and fade, and a displayed geometry change enables its completion
-cue. These cues apply only to those two edit lessons. The playback lesson stops
-highlighting Play on its first use and does not restart the cue on Pause.
+cue. These cues apply only to those two edit lessons. The STL introduction points
+to the disabled Import STL control and the orange **Continue with this part**.
+Both initially blink; the first pointer hover over Import STL retires its cue so
+only Continue keeps blinking. The playback
+lesson stops highlighting Play and unlocks Next on its first use; Pause does not
+restart the cue.
 Ordinary geometry confirmation switches to the rendered toolpath before sending
 its view acknowledgement, so completed loading clears the dots and fade.
 
@@ -429,7 +435,7 @@ current state until inputs change or generation succeeds; speculative preparatio
 alone does not alert the maker agent.
 
 GET /api/agent-requests remains responsive during generation. Studio tour events
-queue infill guidance, imported-model start-layer selection and congratulations
+queue contextual toolpath/process guidance, playback start-layer selection and congratulations
 after downloading. Completion displays a finished tour panel with congratulations
 and an **Exit tour** button that dismisses it without erasing completion,
 and a direction to talk to the agent about the next project. The chat message
@@ -457,12 +463,11 @@ The provisional policy is [D-030](../../DECISIONS.md#d-030--provisional-stl-unit
 Studio preserves source bytes and uses the
 [shared importer](../../core/print/USAGE.md#import-an-stl), current printer and
 remembered setup. Ordinary imports open a new unapproved geometry for review.
-For an STL accepted without repairs, the optional tour lesson treats file selection
-as geometry confirmation, records it before generating production output for review,
-advances to playback, and asks the agent to choose a suitable infill start layer.
-Next skips importing and retains
-the selected part. Failed mesh validation retains its diagnostic and does not
-replace the selected print. Importing alone never approves settings or the toolpath.
+During an active tour, the browser disables **Import STL** and the server rejects
+direct import requests; the tour's STL introduction continues with the already
+selected example. Importing becomes available after tour completion or exit.
+Failed mesh validation retains its diagnostic and does not replace the selected
+print. Importing alone never approves settings or the toolpath.
 Parsing, mesh validation and bundle creation run in a worker so request listeners
 remain responsive. For recognized mesh defects, Studio automatically runs the
 existing [mesh-tools repair](../../skills/mesh-tools/SKILL.md), using exact cleanup
@@ -471,17 +476,9 @@ resource limits and unrelated errors retain their own diagnostics. Failed import
 remove only their newly reserved destination; existing prints are preserved.
 Repair requires the optional native backend when exact cleanup is insufficient.
 The original STL, repaired STL and complete change report remain in the print's
-`repair/` folder. Studio shows the repair summary and unapproved geometry in both
-modes. The tour stays on its import lesson with **Confirm repaired geometry &
-continue**; ordinary Studio uses **Confirm geometry**. Reopening an unconfirmed
-repaired import does not approve it through print selection. Only explicit geometry
-confirmation continues to its toolpath. Import progress distinguishes checking,
-repairing and opening the model. Without an agent-supplied start layer, playback
-starts at layer 2 (the first deposited layer for a one-layer model), and the
-viewing timer still works. Later agent guidance does not reposition playback
-after the participant has pressed Play for the current source.
-If a tour import succeeds but generation fails, successful regeneration queues
-the missing infill start-layer request so playback can recover.
+`repair/` folder. Studio shows the repair summary and unapproved geometry; normal
+Studio uses **Confirm geometry** before preparing its toolpath. Import progress
+distinguishes checking, repairing and opening the model.
 
 
 ## Changing browser and viewer lifetime
@@ -514,7 +511,7 @@ Sources: [import-stl.mjs](../../studio/import-stl.mjs), [import-worker.mjs](../.
 
 Sources: [app.mjs](../../studio/app.mjs), [work-state.mjs](../../studio/work-state.mjs).
 
-**Contract.** The application coordinates server snapshots, selected print/revision, geometry/source loading, view readiness and human actions. `work-state.mjs` owns the pure predicate that turns loaded geometry/toolpath state into one presentable snapshot; `app.mjs` retains the double-animation-frame wait and acknowledgement side effects. It installs asynchronous results only for the current load identity and reports presentation after the requested view is actually ready. Generation, agent work, source interpretation and machine presentation have distinct progress/availability states.
+**Contract.** The application coordinates server snapshots, selected print/revision, geometry/source loading, view readiness and human actions. `work-state.mjs` owns the pure receipt-state classifier; `agent-ui.mjs` turns loaded geometry/toolpath state into its normalized displayed-view context, and `app.mjs` retains the double-animation-frame wait and acknowledgement side effects. It installs asynchronous results only for the current load identity and reports presentation after the requested view is actually ready. Generation, agent work, source interpretation and machine presentation have distinct progress/availability states.
 
 **Failures.** Stale responses and failed loads cannot leave an old preview presented as the new revision. Reconnect must reconcile current server state; cancelled work cannot restore a superseded spinner/result. Approval controls must follow the active target and required review state.
 

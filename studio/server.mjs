@@ -258,7 +258,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
         const p=await tour.info(),prints=p.active
-          ?(await Promise.all([...Object.values(p.copies),...p.imports].map(name=>listPrints(resolve(libraryRoot,'tour',name),resolveBundle)))).flat()
+          ?(await Promise.all(Object.values(p.copies).map(name=>listPrints(resolve(libraryRoot,'tour',name),resolveBundle)))).flat()
           :await listPrints(libraryRoot,resolveBundle);
         send({prints});return;
       }
@@ -339,17 +339,15 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const current=await opened;
         const progress=await tour.info();
         if(importing){
-          if(progress.active&&progress.step!==L.import)throw Error('Use Import STL during the mesh lesson, or exit the tour.');
+          if(progress.active)throw Error('Import STL is available after you finish or exit the tour.');
           await discardPreparation();
           const state=await current.loadBundle(dir,{program:false});
           importProgress={printId:printId(),planHash:null,status:'importing',progress:{stage:'Checking your STL'}};
           let imported;
-          try{imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId:state.machine.id,tour:progress.active,
+          try{imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId:state.machine.id,
             onProgress:value=>{importProgress.progress=value;}});}
           finally{importProgress=null;}
-          if(progress.active)await tour.imported(imported.directory,{requiresReview:imported.repaired});
           await openPrint(imported.directory);
-          if(progress.active&&!imported.repaired){await confirmGeometryForToolpath(await opened,'Local user — STL selected for printing');await generate(await opened,false);}
           send({ok:true});return;
         }
         if(url.pathname==='/api/view-ready'){
@@ -422,12 +420,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         }
         else if(url.pathname==='/api/open'){
           const selected=await printDirectory(data.path,resolveBundle);
-          const repaired=await loadStudioImportRepair(selected);
-          const requiresReview=Boolean(repaired)&&!(await(await resolveBundle(selected)).loadBundle(selected,{program:false})).geometryApproved;
-          if(progress.active)await tour.select(selected,{requiresReview});
+          if(progress.active)await tour.select(selected);
           await openPrint(selected);
           const adapter=await opened,state=await adapter.loadBundle(dir,{program:progress.active?false:'source'});
-          if(!requiresReview&&(progress.active||state.program&&!state.programError))await confirmGeometryForToolpath(adapter,'Local user — print selected');
+          if(progress.active||state.program&&!state.programError)await confirmGeometryForToolpath(adapter,'Local user — print selected');
           // Geometry stays visible in the STL lesson while a worker prepares its
           // selected part. Continuing commits this exact candidate.
           if(progress.active&&state.geometryApproved)prepare(state,dir);
@@ -466,7 +462,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   };
   server.setStartAt=startAt=>tour.setStartAt(startAt);
   server.currentPrint=()=>dir;
-  const lifetime=viewerLifetime(server,{disconnectMs,onShutdown:async()=>{try{await attached;await queue;await tour.closeStudio();}finally{tour.close();if(closeAgentRequests)requests.close();}}});
+  const lifetime=viewerLifetime(server,{disconnectMs,onShutdown:async()=>{try{await attached;await queue;await tour.closeStudio();}finally{tour.close();if(ownsRequests||closeAgentRequests)requests.close();}}});
   const stopRequestFeed=requests.subscribe(record=>{
     if((!record.studioInstanceId||record.studioInstanceId===instanceId)&&record.printId===requests.printId(dir,{optional:true}))lifetime.notify('studio-change',{kinds:['requests'],instanceId});
   });
@@ -482,7 +478,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });
-  server.once('close',()=>{closed=true;stopWatching();stopRequestFeed();if(ownsRequests)requests.close();discardPreparation();});
+  server.once('close',()=>{closed=true;stopWatching();stopRequestFeed();discardPreparation();});
   server.shutdown=lifetime.shutdown;
   server.agentSession=()=>({instanceId,ownerId:sessionOwnerId,printId:requests.printId(dir,{optional:true}),directory:dir,connected:!closed});
   server.agentDisconnected=async ownerId=>lifetime.notify('agent-connection-closed',{ownerId,requests:await requests.query()});

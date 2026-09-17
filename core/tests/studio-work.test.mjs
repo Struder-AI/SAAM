@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {agentIndicator,hasPresentedResult,hasUnpreparedEdit} from '../../studio/work-state.mjs';
+import {agentIndicator,requestReceiptState,hasUnpreparedEdit} from '../../studio/work-state.mjs';
 import {createAgentRequests,workSnapshot} from '../../studio/agent-requests.mjs';
 import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -61,10 +61,13 @@ test('intermediate playback does not clear an overlapping edit; pausing it resto
 test('intermediate saves, unchanged geometry and unrelated work cannot satisfy or hide an edit',()=>{
   const unbound={...request,requiresTarget:true};
   assert.equal(active([unbound],{snapshot:updated}),true,'even a single edit must publish its intended result');
-  assert.equal(hasPresentedResult({...request,baseline:{...original,geometryKey:'same'}},
-    {...updated,geometryKey:'same',stage:'geometry'}),false,'legacy settings changes are not delivered by unchanged geometry');
+  assert.equal(requestReceiptState({...request,baseline:{...original,geometryKey:'same'}},{
+    view:{ready:true,snapshot:{...updated,geometryKey:'same',stage:'geometry'}}}).receipt,false,
+  'legacy settings changes are not delivered by unchanged geometry');
   const bound={...unbound,target:{...updated,stage:'toolpath'}};
   const waiting={snapshot:{...updated,stage:'geometry'},awaitingConfirmation:true};
+  assert.deepEqual(requestReceiptState(bound,{now:20,view:{...view,...waiting}}),
+    {activity:'waiting',receipt:false,awaitingConfirmation:true});
   assert.equal(active([bound],waiting),false,'the exact prepared result can wait for shape confirmation');
   assert.equal(active([bound,unbound],waiting),true,'that confirmation cannot hide an unrelated edit');
   assert.deepEqual(agentIndicator([{...bound,status:'completed',result:updated}],{now:1001,view}),
@@ -73,8 +76,8 @@ test('intermediate saves, unchanged geometry and unrelated work cannot satisfy o
 
 test('one Studio instance cannot present another instance request for the same bundle',()=>{
   const owned={...request,studioInstanceId:'studio-a',target:{...updated,stage:'toolpath'}};
-  assert.equal(hasPresentedResult(owned,{...updated,stage:'toolpath',studioInstanceId:'studio-b'}),false);
-  assert.equal(hasPresentedResult(owned,{...updated,stage:'toolpath',studioInstanceId:'studio-a'}),true);
+  assert.equal(requestReceiptState(owned,{view:{ready:true,snapshot:{...updated,stage:'toolpath',studioInstanceId:'studio-b'}}}).receipt,false);
+  assert.equal(requestReceiptState(owned,{view:{ready:true,snapshot:{...updated,stage:'toolpath',studioInstanceId:'studio-a'}}}).receipt,true);
 });
 
 test('generation waits for saved targets, with guidance and delivered work excluded',()=>{

@@ -1,9 +1,7 @@
 # Studio
 
 ```saam-components
-requestActivity | @studio/work-state.mjs::requestActivity | request; time; closed owners; displayed view | activity classification | No persistence; expiry and matching presentation determine working/waiting/settled state.
-presented | @studio/work-state.mjs::hasPresentedResult | request; displayed snapshot | boolean match | Compares geometry/input/generation identity and stage; completion alone does not prove display.
-presentable | @studio/work-state.mjs::presentableView | Studio state; selected stage; toolpath requirement | ready view snapshot | Pure geometry/toolpath readiness; rendering still waits for two animation frames before acknowledgement.
+receiptState | @studio/work-state.mjs::requestReceiptState | request; time; closed owners; Studio state or displayed view | activity; receipt; awaiting confirmation | Pure classification unifies geometry/toolpath readiness, exact result matching and working/waiting/settled state; completion alone does not prove display.
 ```
 
 ```saam-page 7_studio
@@ -161,21 +159,15 @@ box records | 7.4.1 | manage request records | @studio/agent-requests.mjs::creat
 box index | 7.4.2 | reconcile recovery journal | @studio/request-index.mjs::createRequestIndex
 box save | 7.4.3 | replace request file | $save
 box ui | 7.4.4 | merge UI snapshots | @studio/agent-ui.mjs::createAgentUI
-box activity | 7.4.5 | classify activity | $requestActivity
-box ready | 7.4.6 | qualify presentable view | $presentable
-box shown | 7.4.7 | match presented result | $presented
+box receipt | 7.4.5 | classify receipt state | $receiptState
 port out | pending / presented
 in > records | begin / claim / respond | data
 records > index | recovery query and change hint | data
 index > records | externally changed records | data | norank
 records > save | updated JSON | data
-records > ui | request snapshots | data
-records > shown | view receipt | data
-ui > activity | merged requests | data
-ui > ready | rendered state / stage | data
-ready > shown | presentable snapshot | data
-activity > ui | indicator state | data | norank
-shown > ui | display match | data | norank
+records > receipt | persisted request / view receipt | data
+ui > receipt | merged requests / rendered state | data
+receipt > ui | activity / receipt / confirmation | data | norank
 ui > out | current presentation | data
 ```
 
@@ -190,15 +182,13 @@ box tour | 7.5.1 | manage tour | @studio/tour.mjs::createTour
 box enter | 7.5.2 | enter lesson | @studio/tour.mjs::createTour::enter
 box ensure | 7.5.3 | prepare example | @studio/tour.mjs::createTour::ensure
 box describe | 7.5.4 | describe readiness | @studio/tour.mjs::createTour::describe
-box activity | 7.5.5 | inspect pending work | $requestActivity
+box receipt | 7.5.5 | inspect request receipt | $receiptState
 port out | lesson metadata
 in > tour | requested action | data
 tour > enter | accepted navigation | gate
 enter > ensure | selected example | data
-ensure > enter | confined copy | data | norank
 tour > describe | observed state | data
-describe > activity | matching requests | data
-activity > describe | working / settled | data | norank
+describe > receipt | matching requests | data
 describe > out | gates and agent instruction | data
 ```
 
@@ -352,8 +342,9 @@ sharing retries; failed replacement preserves the previous file.
 
 ## Presentation identity
 
-`work-state.mjs` owns the pure geometry/toolpath presentability predicate, request
-activity and presentation matching for both UI and tour gates. `app.mjs` retains
+`work-state.mjs` owns one pure receipt-state classifier for geometry/toolpath
+readiness, exact result matching, confirmation waits and request activity across
+the UI, persistence and tour gates. `app.mjs` retains
 the two-animation-frame wait before acknowledging a presentable snapshot.
 `agent-ui.mjs` merges snapshots by update time, preventing old
 responses from reviving finished work. `app.mjs` reloads only for changed bundle

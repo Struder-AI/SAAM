@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-09-17 — Guided-tour review and request receipt state
+
+Revised the guided tour after a live Studio walkthrough. The change-suggestion
+lesson now teaches how toolpath/process choices affect strength, finish, time and
+material use without proposing geometry; independently requested geometry remains
+supported through the normal confirmation return. The STL lesson points out a
+disabled importer and continues with the selected part, with an orange Continue
+action and a pointer-hover handoff that retires the importer blink. Playback
+unlocks Next on the first Play event. Tour and maker guidance, examples and the
+Studio contract were updated together, and the lesson deck version advanced.
+
+Collapsed request presentation matching into the pure `requestReceiptState`
+classifier, returning activity, receipt and confirmation-wait state for request
+coordination, UI presentation and tour gates. Updated `7c_requests` and `7d_tour`
+to retain only evidenced call/value-flow edges. Studio shutdown now cancels tour
+work before closing its owned request store. Active tours reject STL import while
+ordinary Studio retains the normal import transaction.
+
+Verification: 85 affected Studio request, readiness, import, lifetime, playback
+and tour tests passed. Syntax checks and `git diff --check` passed apart from
+line-ending notices. `dev-map check --since HEAD` passed; detailed evidence for
+`7c_requests` and `7d_tour` contains only supported structural flows and declared
+boundaries. The generated map viewer rebuilt to 81 pages. The live walkthrough
+exercised the revised tour sequence; it was software review, not a physical print
+or manufacturing approval.
+
 ## 2026-09-17 — Live agent/Studio sessions and review completion
 
 Replaced managed agent/Studio directory polling with a live request channel. One

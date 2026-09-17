@@ -15,7 +15,6 @@ let tourUI;
 let generationTarget=null,progressPolling=false,acknowledging=false;
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentUI} from './agent-ui.mjs';
-import {presentableView} from './work-state.mjs';
 const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active),onRequests:requests=>{
   if(!state?.work)return;
   state.work.requests=requests;
@@ -410,9 +409,7 @@ async function acknowledgeDisplayedView(){
   acknowledging=true;
   try{
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  const view=presentableView(state,tab,{requiresToolpath:needsTourToolpath(state)});
-  if(view.ready){
-    agentUI.present({...state.work,...view});
+  if(agentUI.presentState(state,tab,{requiresToolpath:needsTourToolpath(state)})){
     const presented=await tourUI?.acknowledgeView(state,tab);
     if(presented)agentUI.updated(presented);
   }
