@@ -6,7 +6,7 @@ description: Demonstrate horizontal body layers and inclined roof layers on a bo
 # Wedge demo
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../BUILDERS.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 
 This package creates the bounded eight-vertex wedge as a native triangle mesh
 with six named planar faces,

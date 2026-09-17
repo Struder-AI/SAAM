@@ -5,7 +5,7 @@ with a part. Printing skills describe deposition patterns; task skills operate
 on geometry or other preparation work. Follow the selected manuals for tools,
 settings and supported scope.
 
-Both onboarding paths include this complete catalog as starting context. Judge
+All three onboarding paths include this complete catalog as starting context. Judge
 which skills and references fit the task, then read each selected manual
 individually before using or changing the skill. Follow further references when
 their responsibilities affect the work; onboarding alone is not sufficient.
@@ -65,7 +65,7 @@ For machine setup and export limitations, follow the
 
 Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
 discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).
-Developers start at [DEVELOP.md](../BUILDERS.md) for shared geometry, numerical,
+Builders and developers start at [BUILDERS.md](../BUILDERS.md) for shared geometry, numerical,
 composition, travel and machine requirements. [Skill development](DEVELOP.md)
 owns manual authorship and discovery metadata.
 

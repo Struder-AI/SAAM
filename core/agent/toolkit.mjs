@@ -48,11 +48,9 @@ export async function onboarding({role, areas = []}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
   for (const area of areas) if (!Object.hasOwn(developmentAreas, area)) throw Error(`Unknown development area: ${area}.`);
   const areaIds = areas.flatMap(area => developmentAreas[area]);
-  // Builder context is a superset of maker context; developer context is map-first
-  // with the transitional handoff standing in for what the maps do not yet carry.
   const ids = role === 'maker' ? ['MAKERS.md', 'skills/README.md', 'core/print/USAGE.md']
     : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/README.md', 'core/print/USAGE.md', 'core/README.md', 'skills/DEVELOP.md', ...areaIds]
-    : ['DEVELOPER-CONTEXT.md', 'BUILDERS.md', 'core/README.md', 'skills/README.md', ...areaIds];
+    : ['DEVELOPER-CONTEXT.md#orientation', 'BUILDERS.md', 'core/README.md', 'skills/README.md', ...areaIds];
   const [context, environment] = await Promise.all([contextPacket(ids), environmentStatus()]);
   return {role, environment, ...context,
     nextStep: 'The returned document text satisfies those reads; use it directly and do not reread it or rerun onboarding while it remains available and current. Use the complete skill digest to judge which capabilities and references fit this task. Read missing selected skill manuals separately with read-skill before using or changing them; follow relevant missing references with read-guidance. This onboarding is orientation, not sufficient task context.'};

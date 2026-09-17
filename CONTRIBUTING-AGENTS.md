@@ -2,7 +2,7 @@
 
 Read this after doing the development work, immediately before an authorized
 checkpoint or remote activity. Read it earlier when the task itself concerns
-integration or publication. During-work guidance lives in [DEVELOP.md](BUILDERS.md).
+integration or publication. During-work guidance lives in [BUILDERS.md](BUILDERS.md).
 Reading this document does not trigger another verification pass.
 
 ## Reconcile the contribution

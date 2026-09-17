@@ -6,7 +6,7 @@ description: Add conventional supports beneath selected areas or explicitly plac
 # Assigned supports
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../BUILDERS.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 Use the [shared print tools](../../core/print/USAGE.md).
 Enable `skills.supports.enabled` and supply `assignments` before toolpath generation.
 The same export, two confirmations and delivery workflow applies. No hardware is run.

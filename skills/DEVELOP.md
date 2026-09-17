@@ -1,10 +1,20 @@
 # Developing skill manuals and discovery
 
-Follow [developer orientation](../BUILDERS.md) and the owning component contracts
+Follow [builder orientation](../BUILDERS.md) and the owning component contracts
 when implementing a skill. The task manual owns its available operations, settings,
 limits and recovery. Extend a related package or create a focused one when an
 operation lacks a suitable manual. Task skills can cover preparation and recovery
 as well as deposition patterns.
+
+Skill use and skill implementation are different reads. `SKILL.md` owns maker
+operations, settings, limits and recovery; package `DEVELOP.md` references own
+skill-authoring details. Shared geometry and composition contracts are builder
+context when the skill consumes them. Builders and developers changing a skill
+read its relevant region maps and the shared-use references before source edits.
+Map ownership and the value required of comments/docstrings are defined by the
+[map contract](../BUILDERS.md#maps-and-local-documentation). Do not copy the map's
+implementation account into a second skill narrative. Reuse skill context already
+read; the existing `read-guidance PATH#HEADING` command supports section reads.
 
 Task manuals declare `metadata.saam-kind: task` in frontmatter. The explicit
 [catalog](catalog.mjs) controls discovery and ordering; each manual owns its

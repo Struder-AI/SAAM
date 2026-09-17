@@ -15,14 +15,16 @@ it and read only missing task-specific references. Individual skill manuals rema
 separate choices. A client without command access reads the same sources directly
 once.
 
-**Builder context includes maker context.** Read [MAKERS.md](MAKERS.md) for the
-person-facing workflow you are extending and exercising. **Read the region's dev
-map before editing:** an isolated change is only isolated if you can see the
-boundary it must not cross ([maps](AGENTS.md#maps)). Deeper core internals that no
-map yet covers are catalogued in the transitional
-[developer context](DEVELOPER-CONTEXT.md); read the specific entry for the scope
-you touch. And when a session grows past roughly 250k tokens and the next request
-is an unrelated task or a substantial pivot, suggest the user start a fresh chat.
+**Builders inherit maker responsibilities.** Builder onboarding includes
+[MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
+Developer onboarding supplies this engineering baseline; developers load maker
+workflow and skill-authoring guidance when their task needs it. Reuse prior reads.
+**Read the relevant region maps before changing skills, Studio or isolated core
+behavior**, including the shared components affected by the change. Follow the
+[map contract](#maps-and-local-documentation); reading implementation context
+does not require a role change. The [developer bin](DEVELOPER-CONTEXT.md) indexes
+material by scope. When a maker or builder session grows past roughly 250k tokens
+and the next request is unrelated or a substantial pivot, suggest a fresh chat.
 
 SAAM is a composable slicing system operated through an AI agent. The product
 goal is to make advanced printing workflows accessible through conversation,
@@ -102,6 +104,77 @@ contracts, assumptions and algorithms that source alone does not convey. Distill
 exploratory conversation into precise current guidance, stated once at its owner.
 Correct that account when understanding changes. References should resolve
 conveniently to source using ordinary repository tools.
+
+## Maps and local documentation
+
+Maps serve four purposes: make the system understandable to the person, expose
+the wider effects of a code change, give agents a direct route to required
+context, and reduce reading. Adopt PackIT's single region source and leveled
+flow-map approach with the rules below. PackIT's restrictions on shared code,
+comments and prose are not SAAM rules.
+
+One region file owns its map and the supporting context for that scope. Generate
+the human diagram from that source. A page shows one abstraction level, with
+operation labels and stable node addresses; a box resolves to a child map or a
+named code declaration. Show what crosses the region boundary and distinguish
+data, control, state, conditions and side effects where the distinction matters.
+The system overview leads to affected regions, their contracts and source;
+shared-use references expose other affected flows without requiring every map.
+
+### Shared components and red links
+
+A component may appear more than once on a map or across maps **only when the
+same input/output contract applies to every use**. The contract includes units,
+coordinate frames, preconditions, errors, mutation and ordering requirements,
+not just parameter names or object shapes. Different argument values are normal
+reuse. Uses requiring different contracts should almost always be split into
+distinct components; do not hide different operations behind one nominal box.
+
+Give a shared component one identity and each map occurrence its own address.
+Calculate the other occurrences from those identities across the map set; never
+author reciprocal lists by hand. Every occurrence exposes all other occurrences,
+including those on the same map. On the human map render these as **red vertical
+arrows, up or down, with the other map node indexes as text**. No duplicate node
+boxes or connecting wires to those occurrences are needed. The agent-readable
+map context must expose the same calculated references. Red links mean shared
+implementation, not execution order or data flow. An editor follows them to
+assess affected consumers before changing the component.
+
+### Fidelity and supporting text
+
+Resolve source anchors mechanically; check parent/child boundaries and shared
+contract identity, and derive shared-use references. These checks establish
+structural consistency, not behavioral truth or complete caller coverage. Trace
+actual control and data paths in source, including conditional paths and state,
+and account for callers omitted from the current map scope. A plausible diagram
+with invented arrows is incorrect even if every anchor resolves.
+
+Maps carry the structural explanation and route to the owning contracts. Remove
+prose they replace rather than maintain a second account. Keep concise supporting
+text when it carries specific value that the graph and source do not convey:
+for example a numerical assumption, a machine limitation, a non-obvious invariant,
+or a reason needed to avoid an incorrect change. Keep evidence and its limits
+identifiable; past measurements belong in the devlog and approved decisions at
+their owner. Do not add commentary merely to fill a documentation template.
+
+**Assume the relevant map has already been read when writing a docstring or code
+comment.** Add one only for specific local value, such as a subtle precondition,
+unit convention, external behavior or non-obvious constraint at the point of use.
+Do not repeat the map's flow, component overview or what the code plainly says.
+There is no blanket ban on rationale, docstrings or prose and no required quota.
+
+Mapping can reveal poor boundaries or hidden dependencies. Record the concrete
+finding and handle it within the authorized scope; drawing a map does not itself
+authorize refactoring code to make the picture cleaner.
+
+## Context ownership
+
+Role describes the work, not exclusive access to documents. Maker-facing manuals
+own settings, supported behavior and recovery. Caller-facing contracts belong
+to every builder or developer using that interface, including skill results,
+geometry queries and Studio extension boundaries. Implementation mechanics belong
+with the region and its source. Select context by the boundary being consumed or
+changed, rather than labeling an entire mixed component manual developer-only.
 
 Keep present behavior and contracts in their owning manuals, future work and
 proposals clearly marked at their owners, and past work and observations in

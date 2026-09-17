@@ -6,7 +6,7 @@ description: Inject molten plastic into blind shafts with wider bottom basins to
 # Plastic weld / injected rivets
 
 For maker work read [MAKERS](../../MAKERS.md); for development start at
-[DEVELOP](../../BUILDERS.md). Use the [shared print tools](../../core/print/USAGE.md)
+[BUILDERS.md](../../BUILDERS.md). Use the [shared print tools](../../core/print/USAGE.md)
 and [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
 
 This skill prints a blind cavity, then injects molten plastic through its small

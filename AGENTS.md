@@ -41,13 +41,15 @@ not clearly call for more, **default to maker**.
 | Role | Does | Onboarding | Reads |
 |---|---|---|---|
 | **Maker** | Uses skills to make parts, gives printing advice, operates Studio for a person. Changes no shared code. | `node scripts/agent-toolkit.mjs maker-onboarding` | [MAKERS.md](MAKERS.md) and the maker context it bundles. No maps. |
-| **Builder** | Changes skills, adds functionality to Studio, and makes isolated, local changes to core; makes parts to test that work in development. | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` | [BUILDERS.md](BUILDERS.md) (which includes maker context) and the [dev maps](#maps) for the region being touched. |
-| **Developer** | Works on core and any other component as the work needs; owns cross-cutting design. Maps-native. | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` | The [dev maps](#maps) as the primary account, plus the transitional [developer context](DEVELOPER-CONTEXT.md) digest for what the maps do not yet carry. |
+| **Builder** | Changes skills, adds functionality to Studio, and makes isolated, local changes to core; makes parts to test that work in development. | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` | [BUILDERS.md](BUILDERS.md) (with maker workflow in onboarding) and the [dev maps](#maps) for the region being touched. |
+| **Developer** | Works on core and any other component as the work needs; owns cross-cutting design. Maps-native. | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` | The [dev maps](#maps) as the primary account, plus the [developer bin orientation](DEVELOPER-CONTEXT.md#orientation) for scoped implementation reads. |
 
-Builder context is a superset of maker context; developer context is a superset
-of builder context. Run the onboarding for your role once; its returned text
-satisfies the corresponding reads. Do not rerun onboarding for every request or
-reread a manual already present in context.
+Builders inherit maker responsibilities; developers inherit both maker and
+builder responsibilities. This is not a requirement to load every lower-role
+manual. Onboarding supplies the role's starting context; read additional workflow,
+skill and implementation context only when the task needs it. Reuse material
+already consumed, including when changing roles. Run onboarding once for missing
+role context; its returned text satisfies those reads.
 
 ### Determining and changing role
 
@@ -77,16 +79,19 @@ experienced management.
 
 ## Maps
 
-Dev maps are the developer-native account of the system: a region is one file
-that is both the map and its documentation, and each box resolves to a child map
-or to a code declaration. They are the structure that developer text is being
-migrated into. The [maker](maker-context-map.html) and
-[builder](builder-context-map.html) context maps show which documentation each
-role reads; the code-anchored region maps for core and Studio are built
-incrementally, and [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) holds the
-developer text not yet on a map. Builders read the map for the region they touch
-so an isolated change does not cross a boundary it cannot see; developers work
-map-first.
+Dev maps are the primary structural account of the system. One region file
+supplies the agent-readable map and its human rendering; each box resolves to a
+child map or a code declaration. The [map contract](BUILDERS.md#maps-and-local-documentation)
+owns boundaries, shared components, calculated red links and documentation rules.
+The [maker](maker-context-map.html) and [builder](builder-context-map.html) context
+maps show documentation navigation; they are distinct from code-anchored maps.
+[DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) holds the material for maps to absorb.
+
+Developers read the system overview, the affected region and the code it names.
+Builders read the relevant region maps when changing skills, Studio or isolated
+core behavior, including shared components and their other uses. They do not
+load every map. Makers operating existing tools need no code maps. Reading a
+map or shared contract does not itself change an agent's role or authorization.
 
 ## Getting to work
 
@@ -142,8 +147,8 @@ result until relevant inputs change.
 ## Find the owning source
 
 - [MAKERS.md](MAKERS.md) owns guidance for helping a person make a part (maker context).
-- [BUILDERS.md](BUILDERS.md) owns builder orientation — changing skills, extending Studio, isolated core changes — and routes to the relevant implementation references. It includes maker context.
-- [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) is the transitional developer handoff: deep core orientation and the developer-only material being migrated onto the dev maps.
+- [BUILDERS.md](BUILDERS.md) owns builder orientation — changing skills, extending Studio, isolated core changes — and routes to the relevant implementation references. Builder onboarding includes maker workflow context.
+- [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) indexes the implementation bin by scope; region maps absorb its matching content.
 - [SETUP.md](SETUP.md) owns installation and reusable first-use checks.
 - [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md) owns checkpoint and remote contribution guidance; read it after implementation, immediately before those activities, or earlier when they are the task.
 - [Component references](core/README.md) own shared implementation contracts; [Studio](studio/README.md) owns its interaction and runtime behavior.

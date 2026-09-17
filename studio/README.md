@@ -184,8 +184,8 @@ from another process, so concurrent agent work should use separate bundles.
 
 ### Historical toolpath inspection
 
-Historical toolpath inspection is a developer-only scratch launcher and has moved
-to [developer context](../DEVELOPER-CONTEXT.md#studio--historical-toolpath-inspection).
+The [developer bin](../DEVELOPER-CONTEXT.md#studio--historical-toolpath-inspection)
+owns the scratch-launcher contract for historical toolpath inspection.
 
 ### Remembered printer setup
 
@@ -286,19 +286,13 @@ binds progress to the current print and plan.
 
 ## Agent request coordination
 
-JSON request files remain authoritative; no database, migration or Node minimum
-change is required. A process-local index watches changed records and reconciles
-file metadata every five seconds to recover missed notifications. Warm operational
-polls avoid history reads/scans and return unfinished work plus the latest edit
-outcome per print, including completed results still awaiting display.
-Studio polls select only its open print; the agent listener covers the library.
-Explicit `list()` / MCP `get_studio_requests` with `history: true` retains complete diagnostic
-history and forces reconciliation. Cold discovery and periodic reconciliation
-still scale with file count, and index memory scales with request history.
-This index does not make cross-process claims or read/modify/write operations
-transactional. Run one handling agent per request; independent writers can race.
-Print, request and tour writes use unique temporary files and bounded retries
-for Windows sharing conflicts; a failed replacement retains the previous file.
+The Studio listener selects the open print; the agent listener covers the library.
+Operational waits return unfinished work and the latest edit outcome, including
+completed results awaiting display. Use `list()` / MCP `get_studio_requests` with
+`history: true` for complete diagnostic history. Run one handling agent per
+request: cross-process claims and read/modify/write operations are not transactional.
+Indexing and file replacement mechanics live in the
+[developer bin](../DEVELOPER-CONTEXT.md#studio--request-indexing-and-persistence).
 
 MCP print tools accept `requestIds` for the specific owned requests they handle.
 Actual tool entry/exit renews those working requests' contact leases. The CLI
@@ -402,15 +396,11 @@ finish it after delivering the answer. Advice never dims the preview or blocks a
 completed lesson. Pausing and claiming the same request preserves its original
 baseline, target and presentation record; publish another target if inputs change.
 
-`work-state.mjs` owns request activity and presentation matching for the UI and
-tour gates. `agent-requests.mjs` persists those records; `agent-ui.mjs` merges
-request snapshots by update time, so an older response cannot revive finished
-work. `app.mjs` owns preview loading. Tour metadata (including lesson readiness
-and start-layer choices) updates without reloading source or stopping playback.
-Only changed bundle content or a changed geometry/program data requirement
-triggers a full refresh. Listener waits are agent coordination, not preview work.
-View-ready responses return the presentation receipts they wrote, so the browser
-can settle those requests without a second acknowledgement or full state read.
+Tour metadata updates preserve source playback. Only changed bundle content or
+a changed geometry/program data requirement triggers a full preview refresh.
+Listener waits coordinate agents; they do not constitute preview work.
+Presentation ownership and receipt handling live in the
+[developer bin](../DEVELOPER-CONTEXT.md#studio--request-presentation-implementation).
 
 Presentation is recorded separately from request completion, against the exact
 displayed inputs and required stage. This survives viewer reconnects without

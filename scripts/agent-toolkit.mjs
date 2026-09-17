@@ -24,7 +24,7 @@ export const help = {
   commands: {
     'maker-onboarding': 'Maker guidance, complete skill digest and print tools; choose follow-up reads for the task.',
     'builder-onboarding [--area AREA]': 'Builder orientation (includes maker context), core architecture, skill authoring and digest, and selected area references.',
-    'developer-onboarding [--area AREA]': 'Developer handoff and orientation, core architecture, skill digest and selected area references; work map-first.',
+    'developer-onboarding [--area AREA]': 'Developer bin orientation, core architecture, skill digest and selected area references; work map-first.',
     'read-skill ID': 'Read one chosen skill manual, with links to further context.',
     'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
     'start-tour [--start-at-layer 12] [--no-open]': 'Fresh tour copies, live Studio, browser dispatch and participation context.',

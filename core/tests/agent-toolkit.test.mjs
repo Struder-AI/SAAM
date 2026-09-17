@@ -44,6 +44,15 @@ test('the three onboarding roles return the complete digest and leave skill manu
   assert.ok(!dev.documents.some(doc => doc.path === 'AGENTS.md'), 'entry-point instructions are already loaded');
   assert.equal(new Set(dev.documents.map(doc => doc.path)).size, dev.documents.length);
   assert.ok(dev.documents.some(doc => doc.path === 'DEVELOPER-CONTEXT.md'));
+  const orientation = dev.documents.find(doc => doc.path === 'DEVELOPER-CONTEXT.md');
+  assert.equal(orientation.guidanceId, 'DEVELOPER-CONTEXT.md#orientation');
+  assert.equal(orientation.text, (await readGuidance(root, orientation.guidanceId)).text);
+  assert.ok(!orientation.text.includes('## Implementation bin'), 'onboarding does not preload unrelated implementation slices');
+  const sliceId = orientation.links.find(link => link.title === 'Regions — planar offset kernel').guidanceId;
+  const slice = JSON.parse((await run(process.execPath, [cli, 'read-guidance', sliceId])).stdout);
+  assert.equal(slice.documents[0].text, (await readGuidance(root, sliceId)).text);
+  assert.ok(slice.documents[0].text.includes('WASM instance'));
+  assert.ok(!slice.documents[0].text.includes('### Regions — perimeter recovery'));
   assert.ok(dev.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'SETUP.md'));
   for (const packet of [maker, builder, dev]) {

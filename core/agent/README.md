@@ -3,13 +3,13 @@
 For a tour request, immediately run
 `node studio/server.mjs --toolkit start-tour --no-open` in the managed command
 session, open its returned Studio URL, then use its returned context and listener.
-The onboarding commands below apply to ordinary maker/developer work; they are
+The onboarding commands below apply to ordinary maker/builder/developer work; they are
 not prerequisites for a tour. Reuse completed setup and permissions.
 
 Small bundles of existing SAAM operations for agents using a command tool.
 [MAKERS](../../MAKERS.md) owns maker behavior, [BUILDERS](../../BUILDERS.md) owns
 builder guidance, [developer context](../../DEVELOPER-CONTEXT.md) is the developer
-handoff, and the [print lifecycle](../print/README.md) owns recipe validation and
+bin, and the [print lifecycle](../print/README.md) owns recipe validation and
 confirmations. These commands add no approval or generation path.
 
 Run from the checkout root:
@@ -44,7 +44,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 |---|---|---|
 | `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
 | `builder-onboarding` | Read BUILDERS and the maker context it includes, core architecture, skill authoring and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with builder sources and an instruction to choose further reads and the region's map. |
-| `developer-onboarding` | Read the developer handoff and builder baseline, core architecture and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with developer sources and an instruction to work map-first. |
+| `developer-onboarding` | Read the developer bin orientation and builder baseline, core architecture and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with developer sources and an instruction to work map-first. |
 | `read-skill ID` | Read one skill manual chosen by the agent from the catalog. | The manual's text, source path, hash and links for further reading. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start Studio; emit its URL; request browser opening; read participation guidance and tour state. | A live Studio session, initial recipe summary, MAKERS and tour-participation context, plus listener arguments/cursor. |
@@ -65,7 +65,12 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
 | Existing Studio print | Run `begin-studio-work` first, with the target or existing request ID. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
 | Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Read the region's dev map, then inspect the affected implementation and choose missing component/skill references. Load contribution guidance when checkpointing/publishing. |
-| Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; consult the developer handoff for what the maps do not yet carry. |
+| Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; select implementation slices through the developer bin index. |
+
+Developer onboarding returns only `DEVELOPER-CONTEXT.md#orientation`, with links
+to the implementation slices. It does not preload those slices or maker workflow
+manuals. Load maker workflow, print tools or skill-authoring context when the task
+needs them. Inherited responsibilities do not require every lower-role read.
 
 Returned text counts as reading its source. Do not precede onboarding with the
 manuals it supplies, repeat those reads through links, or rerun onboarding for
@@ -187,5 +192,4 @@ confirmation or hardware action.
 
 ## Implementation and verification
 
-The toolkit implementation and its test coverage are developer-only and have moved
-to [developer context](../../DEVELOPER-CONTEXT.md#agent-toolkit--implementation-and-verification).
+The toolkit implementation and its test coverage are indexed by scope in [developer context](../../DEVELOPER-CONTEXT.md#agent-toolkit--implementation-and-verification).

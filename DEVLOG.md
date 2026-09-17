@@ -1,5 +1,41 @@
 # Development log
 
+## 2026-09-17 — Reconcile role context and the map contract
+
+The user approved the documentation reconciliation after reviewing checkpoint
+`04f66db`, with no temporary map-unavailability routing. [AGENTS.md](AGENTS.md)
+and [BUILDERS.md](BUILDERS.md#maps-and-local-documentation) distinguish inherited
+responsibilities from required reads. Builders read relevant maps for skill,
+Studio and isolated core changes; reading an implementation reference does not
+change their role. Caller-facing contracts remain available to the roles using
+them instead of classifying whole mixed manuals as developer-only.
+
+The map contract records one region source for agent text and human rendering,
+shared components only under the same input/output semantics, and calculated
+red vertical arrows listing every other map occurrence by node index. Both agent
+and human views must expose these references. Structural checks do not establish
+behavioral truth or caller completeness. Maps carry the structural account;
+comments/docstrings assume the map has been read and require specific local
+value. Concise useful rationale and contracts remain permitted. PackIT's region
+source, vision and style were the reference; its strict documentation and
+atomization policies were not adopted.
+
+The [developer bin](DEVELOPER-CONTEXT.md) now contains the implementation slices
+previously left in its manifest: region kernel/construction and verification
+details, Studio request indexing/presentation, and output dispatch/validation
+integration. Owning manuals retain caller behavior, limitations and links.
+The scoped reference index includes machine presentation and distinguishes
+contracts from internal mechanics. Developer onboarding reads only the bin's
+orientation/index; implementation slices are separate existing `read-guidance`
+section reads. Role labels and both documentation-navigation HTML maps were
+reconciled. No code-anchored region maps or new skill-section flags were built.
+
+Verification: the focused three-role CLI onboarding test passed, including exact
+orientation text and a selected implementation-section read without neighboring
+sections. `git diff --check` passed. `check-repo` reports only existing issues:
+BR-045's `open.` status and five links to removed `build_request.md#br-*` anchors.
+No printing or physical behavior changed or was tested.
+
 ## 2026-09-16 — Three agent roles and documentation restructure
 
 The current user directed a move from two agent contexts (maker, developer) to

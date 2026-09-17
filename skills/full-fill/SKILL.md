@@ -8,7 +8,7 @@ description: Fill an entire body with solid planar layers, or add solid bases, c
 Use for a solid planar body or for solid top/bottom regions alongside
 [planar-infill](../planar-infill/SKILL.md). For maker work, read
 [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../BUILDERS.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 
 Supported geometry: validated indexed triangle meshes (including STL import),
 closed untrimmed spline shells from the existing shape builders, and assemblies

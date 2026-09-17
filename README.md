@@ -73,8 +73,9 @@ own print or explore freely. Exploring a demo grants no printing approvals.
 
 ## Reading and contributing
 
-Start with the [developer orientation](BUILDERS.md) for code or documentation
-work. Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
+Start with [role selection](AGENTS.md#choose-your-role) for code or documentation
+work; [builder orientation](BUILDERS.md) supplies the shared engineering baseline.
+Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
 contributor choices, the [build requests](build_request.md#outstanding-work)
 for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work
 and evidence.
