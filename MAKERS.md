@@ -166,8 +166,13 @@ starting points, and you should consider other uses and combinations when they
 serve the person's part, checking the relevant manuals for support and limits.
 
 Prefer creating geometry tailored to the person's request with the available
-tools. When that is not feasible, [Thingi10K's model collection](https://huggingface.co/datasets/Thingi10K/Thingi10K)
-is a potential source of existing parts for [STL import](core/print/USAGE.md#import-an-stl).
+tools when making it is an attractive option. When an existing mesh better serves
+the request, or the person asks to fetch a model or supplies a Thingiverse link,
+use the [Thingi10K skill](skills/thingi10k/SKILL.md) to search the mirror and import
+an individual STL. For a supplied Thingiverse link, check mirror membership first;
+if absent, ask the person to download the STL herself and provide it for import.
+For every downloaded mesh, briefly identify its source in chat unless obvious
+from the request, and always provide a clickable link to that file's license.
 Check each model's exact license and intended-use permissions; preserve its
 creator, source link, license and required change notices with shared results.
 Prefer verified public-domain or CC BY models; CC BY-SA also requires compatible

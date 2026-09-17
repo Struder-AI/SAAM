@@ -13,6 +13,13 @@ Read the contract for the output being changed:
 [Machine files](../../machines/README.md) hold capabilities and setup declarations.
 [Print lifecycle](../print/README.md) owns review and delivery of the checked output.
 
+X1 Carbon, Ultimaker 2 Extended and Ultimaker 3 have
+[geometry/setup profiles](../../machines/README.md#profiles-for-geometry-and-setup-review),
+but no implemented output contract. The H2D envelope does not apply to X1, and
+S5 startup is not assumed for UM3. UM2 Extended uses volumetric UltiGCode rather
+than the filament-length extrusion used by Griffin. Their declared output
+limitations are reported before path generation; catalog presence is not export support.
+
 ## Machine interoperability design
 
 ### Short-travel advisory

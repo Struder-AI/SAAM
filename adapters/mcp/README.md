@@ -51,6 +51,8 @@ saved IDs; there is no single global plan that overwrites another job.
 | `get_plan_template` | Read a complete proposed shell or wedge recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
+| `search_thingi10k` | Search descriptive keywords, a numeric file ID or a Thingiverse thing URL in the mirror. Returns per-file source/license links and pagination. Read the [Thingi10K manual](../../skills/thingi10k/SKILL.md). |
+| `import_thingi10k_print` | Download `fileId` on the SAAM host into a new `printId`, with `machineId` and optional `units`. Return attribution and the mandatory chat license notice, including when strict import fails. Review successful imports with `request_review`. |
 | `list_prints`, `get_print` | `list_prints` discovers names and machines with `programChecked:false`; it does not validate exports. `get_print` reads checked status/recipe, omitting geometry and marking `planComplete:false` unless `includeGeometry:true` is supplied. Neither returns motion arrays. |
 | `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
 | `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates geometry confirmation. |
@@ -142,6 +144,14 @@ and feasibility without becoming a separate preview or approval route. STL
 import reads only the chosen source; it writes the new bundle inside the configured
 Prints root. `upgrade_print` remains available when current-version validation
 prevents normal reopening; it does not silently migrate on read.
+
+Thingi10K tools additionally read a pinned public mirror over HTTPS and cache its
+metadata/downloads under the configured Prints root's `.thingi10k/` folder. They
+accept model identifiers, not arbitrary download URLs. A Thingiverse link is
+looked up in that index; it is not scraped or downloaded directly. The
+[task manual](../../skills/thingi10k/SKILL.md) owns limits, absent-model fallback,
+per-download chat notices and attribution. This works for an MCP-only client
+when the SAAM host can reach Hugging Face and its CDN.
 
 Use `create_print` / `adjust_print`, the shared approvals and `generate_print`;
 `check_print` verifies the persisted print and `deliver_print` delivers its

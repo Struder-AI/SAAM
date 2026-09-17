@@ -80,6 +80,15 @@ requires a geometry-specific edit instead.
 The source must be an absolute local `.stl` file on the SAAM computer and no
 larger than 64 MiB. A path on a remote chat device is not a local source.
 
+### Find and download an existing mesh
+
+The [Thingi10K skill](../../skills/thingi10k/SKILL.md) owns keyword search,
+Thingiverse-link lookup and individual downloads. MCP `search_thingi10k` finds
+files and `import_thingi10k_print` downloads on the SAAM host before using this
+same STL importer. The skill supplies CLI equivalents, license/source reporting
+and recovery. Successful imports preserve attribution with the original source;
+delivery includes a neighboring `source-attribution.json` for shared results.
+
 ### When mesh validation fails
 
 If import or reopening reports invalid mesh geometry, read the

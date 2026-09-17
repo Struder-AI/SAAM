@@ -73,6 +73,14 @@ demonstrate the failure they protect against without requiring an extra checklis
 
 ## Test registry
 
+`printer-profiles.test.mjs` covers X1 Carbon, original Ultimaker 2 Extended and
+Ultimaker 3 profile selection, material changes and remembered setup, reduced
+tool bounds, planar defaults, and refusal of unavailable output before slicing.
+
+`prime.test.mjs` covers profile-owned S5 sacrificial strokes before shell
+deposition, both nozzles, startup/final retraction, zero retraction, generated
+support extents, bed-edge placement, insufficient space and older snapshots.
+
 [Prepared contour mapping](prepared-contours.test.mjs) covers exact mesh-band
 reuse, independent sampled mapping errors, twisting and concave sections,
 mesh/spline sources, fallback and bounded caches. [Mesh sleeves](mesh-sleeve.test.mjs)

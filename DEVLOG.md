@@ -1,5 +1,100 @@
 # Development log
 
+## 2026-09-16 — X1 Carbon, Ultimaker 2 Extended and Ultimaker 3 profile definitions
+
+The current user requested an X1 Carbon profile, confirmed the standard hardened
+0.4 mm nozzle with PLA, and clarified that materials must remain changeable.
+They also requested Ultimaker 2/3 profiles, correcting the installed 2-series
+model to the original "ultimaker 2 extended" after initially choosing 2+.
+The resulting IDs are `bambu-x1-carbon`, `ultimaker-2-extended` and `ultimaker-3`.
+
+The profiles declare hardware/coordinate bounds, conservative rectangular tool
+areas outside cutter/clip regions, temperature/feed limits, installed nozzle
+assumptions and editable PLA defaults. X1 also declares PETG, ABS, ASA, PC and
+95A-class TPU; both UltiMakers also declare ABS. These are bounded starting
+settings, not a general material-library port or physical calibration.
+Official Cura/Bambu profiles and manufacturer documents are linked in the files.
+Shell defaults now enable drape only for a machine declaring nonplanar support.
+
+The definitions are usable for geometry/setup review and remembered settings.
+All three explicitly declare unavailable output, and the shared lifecycle now
+reports the output reason before path generation. H2D firmware routines are not
+reused on X1; S5 startup is not reused on UM3; UM2 Extended's volumetric UltiGCode
+is not treated as filament-length Griffin. No startup position was invented.
+The remaining output work is [BR-051](build_request.md#br-051--complete-output-for-the-three-new-printer-profiles).
+
+Verification: all 9 tests in `printer-profiles.test.mjs` and
+`interoperability.test.mjs` passed, plus the focused MCP SDK catalog/persistence
+test. This covers material/temperature changes, remembered setup, tool-bound
+rejection, core/tool selection, planar defaults, early unavailable-output errors,
+and catalog discovery. Existing S5/H2D default and H2D export checks pass.
+No physical printing or new machine output was tested. Changes are uncommitted.
+
+## 2026-09-16 — S5 sacrificial priming before shell prints
+
+The user reported missing priming on the desktop `stress-mesh-hi-fi-20260916.gcode`.
+Inspection read only the first 3,072 and last 2,048 bytes of the 98,930,655-byte
+file, as requested. It starts with `G92 E0` and a stationary `G1 E6.5 F1500`
+before the first model wall; its last E move withdraws 6.5 mm. Thus that file
+already matches the configured terminal retraction, but has no sacrificial
+priming strokes. This does not establish any additional firmware withdrawal
+or the physical reason for failed initial extrusion.
+
+S5 profile revision 7 supplies two connected 100 mm passes to shell generation.
+The shared path helper places them outside geometry and generated stroke bounds,
+including supports, with 4 mm clearance and bead-width allowance at the bed edge.
+It uses locked first-layer settings and normal flow caps, restores the initial
+retraction at the prime, then retracts/lifts before entering the model. Ordinary
+SAAMpath/export interpretation includes prime material, timing, bounds and Studio
+playback. Insufficient space is reported rather than silently omitting priming.
+The bounded wedge retains its existing prime line; older snapshots and other
+profiles retain their startup. The desktop export was not modified or regenerated.
+
+All 26 selected tests passed across priming, pipeline, export, modal emission,
+travel and source playback. Coverage includes both S5 nozzles, zero/6.5 mm
+retraction, support extents, bed-edge fallback, no-space rejection, snapshot
+compatibility and exact-source Studio playback. No physical print was performed.
+
+## 2026-09-16 — Shared Thingi10K search and download
+
+The user requested built-in mesh retrieval for descriptive searches such as
+"fetch me a bunny", plus mirror lookup for supplied Thingiverse links and a
+manual-download fallback when absent. The existing preference for tailored
+geometry remains in MAKERS, clarified to apply when making it is attractive.
+Every downloaded mesh now returns a brief source notice and its license link;
+the maker guidance and [task manual](skills/thingi10k/SKILL.md) require that link
+in chat even when strict mesh import fails. The mirror provides unversioned
+per-file license labels, so the link goes to the original model's license section
+and no exact legal version is inferred.
+
+The shared skill implements keyword/name/tag/filename search, per-file selection,
+Thingiverse thing lookup, bounded individual HTTPS downloads and cached metadata
+from Hugging Face revision `2d5d3b2f3cd3711028ad75b12788c13b25559ec6`.
+CLI and MCP use the same library and STL importer. Downloads retain source bytes,
+hash and attribution; successful imports carry attribution in the saved source
+record and delivery copies it beside the reviewed machine program. Failed import
+retains the original for explicit preparation. No new dependency, remote scraping,
+automatic repair or manufacturing approval was introduced.
+
+Six skill tests and four existing MCP-access tests passed. Coverage includes
+quoted CSV names, keyword and Thingiverse/file identity, pagination, persisted
+cache reuse, incomplete metadata, network errors, redirects, download limits,
+interrupted streams, failed-import recovery, and the SDK MCP search/import/Studio
+review route. Synthetic fixture delivery preserved exact reviewed bytes and
+source attribution through unit correction. Live CLI checks found 67 bunny files,
+resolved Thingiverse thing 151081 to file 293137, and returned the user-download
+fallback for an absent thing. One upstream file (68807) lacks contextual metadata;
+it remains discoverable with an explicit missing-creator indication.
+
+The live import downloaded Low Poly Stanford Bunny by johnny6, listed as
+[CC BY-SA at its source](https://www.thingiverse.com/thing:151081#license), into an
+isolated unapproved local test bundle. Source SHA-256 was
+`4a222346223cf2c207c34d7a3d4e8ea297b004ff862b06b6e4c7c2eeac9f761a`.
+This establishes software download/import behavior, not physical printability.
+The refreshed capability digest and new manual links passed their relevant
+checks; the repository-wide documentation check still reports the pre-existing
+BR-045 status and stale backlog anchors for BR-005, BR-018, BR-023 and BR-039.
+
 ## 2026-09-16 — Stress mesh hi-fi completion and separate vase manuals
 
 The user established **stress mesh** as the term for the local Spiral Vase input

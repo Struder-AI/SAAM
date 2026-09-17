@@ -71,7 +71,7 @@ export function defaults(machine=loadMachine()) {
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
-      'draped-skin': { enabled: true, part: null, ...DRAPED_SKIN_DEFAULTS }
+      'draped-skin': { enabled: machine.capabilities.includes('nonplanar'), part: null, ...DRAPED_SKIN_DEFAULTS }
     },
     composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
     output: 'griffin-gcode'

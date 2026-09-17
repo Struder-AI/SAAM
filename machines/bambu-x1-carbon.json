@@ -1,0 +1,56 @@
+{
+  "schema": "saam-machine/1",
+  "id": "bambu-x1-carbon",
+  "name": "Bambu Lab X1 Carbon",
+  "revision": 1,
+  "units": "mm",
+  "planarWallToleranceMm": 0.01,
+  "kinematics": "cartesian-fixed-vertical-nozzle",
+  "capabilities": ["xyz-extrusion", "planar"],
+  "bounds": {"min": [0, 0, 0], "max": [256, 256, 256]},
+  "maxFeedMmS": {"x": 500, "y": 500, "z": 20, "e": 30},
+  "temperatureLimitsC": {"nozzle": [0, 300], "bed": [0, 110], "chamberMax": 0},
+  "filamentDiameterMm": 1.75,
+  "tools": [{
+    "index": 0,
+    "label": "Single nozzle",
+    "bounds": {"min": [18, 0, 0], "max": [256, 256, 256]},
+    "cores": ["Hardened steel 0.4"],
+    "nozzleDiametersMm": [0.4],
+    "layerHeightMm": [0.08, 0.28]
+  }],
+  "materials": {
+    "PLA": {"nozzleC": [190, 230], "bedC": [0, 70], "maxFlowMm3S": 4, "maxRetractMm": 2},
+    "PETG": {"nozzleC": [230, 270], "bedC": [60, 80], "maxFlowMm3S": 4, "maxRetractMm": 2},
+    "ABS": {"nozzleC": [240, 280], "bedC": [90, 100], "maxFlowMm3S": 4, "maxRetractMm": 2},
+    "ASA": {"nozzleC": [240, 280], "bedC": [90, 100], "maxFlowMm3S": 4, "maxRetractMm": 2},
+    "PC": {"nozzleC": [260, 290], "bedC": [90, 110], "maxFlowMm3S": 4, "maxRetractMm": 2},
+    "TPU": {"nozzleC": [220, 240], "bedC": [30, 45], "maxFlowMm3S": 2, "maxRetractMm": 1}
+  },
+  "defaultSetup": {
+    "tool": 0, "core": "Hardened steel 0.4", "nozzleMm": 0.4,
+    "material": "PLA", "filamentMm": 1.75, "nozzleC": 215, "bedC": 60,
+    "buildVolumeC": 0, "materialGuid": null, "firmwareVersion": "", "startupVerified": false
+  },
+  "defaultProcess": {
+    "planarSpeedMmS": 40, "skinSpeedMmS": 20, "firstLayerSpeedMmS": 24,
+    "travelSpeedMmS": 120, "zSpeedMmS": 10, "retractMm": 0.8, "retractSpeedMmS": 30
+  },
+  "outputs": [{
+    "id": "bambu-gcode", "extension": ".gcode.3mf", "flavor": "Bambu",
+    "implemented": false, "constraints": {"chamberC": 0},
+    "reason": "X1 Carbon export is not implemented. An X1-specific startup/shutdown and sliced-3MF contract is required; the H2D envelope is incompatible."
+  }],
+  "startup": {"protocol": "unconfigured", "validation": "No X1 Carbon startup handoff or firmware service envelope has been established."},
+  "boundsBasis": "Nominal 256 mm cube. Selected-tool bounds conservatively exclude the entire x < 18 mm strip to avoid the official x=0..18, y=0..28 cutter exclusion without claiming polygon-aware clearance.",
+  "processBasis": "PLA is an editable default. Material temperature windows are bounded starting ranges, not spool-specific tuning. Flow/retraction caps are conservative SAAM choices; TPU denotes 95A-class material and needs maxFlowMm3S <= 2. Bed ceiling is conservatively 110 C across supply-voltage variants. No active chamber heating, AMS changes or nonplanar clearance is declared.",
+  "sources": [
+    "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/Bambu%20Lab%20X1%20Carbon%200.4%20nozzle.json",
+    "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/fdm_bbl_3dp_001_common.json",
+    "https://public-cdn.bambulab.com/store/bambulab-X1-carbon-tech-specs.pdf?v=20241214042009",
+    "https://bambulab.com/it/filament-guide",
+    "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/filament/Generic%20PETG%20%40base.json"
+  ],
+  "sourceChecked": "2026-09-16",
+  "validation": "Profile for geometry and setup review only; machine output and physical printing are unvalidated."
+}

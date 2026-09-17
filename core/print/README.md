@@ -5,6 +5,16 @@ The [maker workflow](../../MAKERS.md#maker-interaction-flow) defines the human i
 [composition](../path/README.md) and [export](../export/README.md) provide the
 operations and checked program used by this lifecycle.
 
+## Downloaded mesh attribution
+
+The [Thingi10K preparation skill](../../skills/thingi10k/SKILL.md) downloads a
+selected STL and calls the shared importer with hash-matched attribution.
+The importer retains that record in `geometry.source.attribution`, alongside
+the original source hash and bytes. Unit corrections and wrappers retaining
+the base geometry preserve it. Delivery writes `source-attribution.json`
+beside the exact reviewed machine program, including its source record and
+current plan revision. Source metadata does not confer a printing approval.
+
 ## Generation and review
 
 Implement the two human confirmations in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):

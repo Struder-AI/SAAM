@@ -57,6 +57,22 @@ recover the configured retraction once at the first deposition location without
 another initial withdrawal. H2D uses an unretracted handoff; zero retraction and
 relay output add no recovery. Physical confirmation of this correction is open.
 
+S5 profile revision 7 also supplies `startup.primingStrokes` to shell generation:
+two connected 100 mm sacrificial passes, with 4 mm clearance outside the complete
+geometry and generated stroke footprint (including supports). The generator
+chooses a fitting side within selected-tool bounds, including bead width, and
+reports insufficient space rather than silently omitting the prime. It uses the
+locked first-layer height, line width and speed, capped by the normal flow limit.
+The first unretract occurs at the prime; the nozzle retracts and lifts before
+approaching the part. These are ordinary `prime`-phase SAAMpath moves, included
+in exported material, time, bounds and Studio playback. The bounded wedge keeps
+its existing sacrificial line. Priming does not establish the firmware's hidden
+retraction state or guarantee physical extrusion recovery.
+
+Saved machine snapshots without this setting retain their existing paths.
+Upgrade the print's machine snapshot and regenerate/review to obtain the new
+strokes; an existing exported or delivered file does not change automatically.
+
 Absence of explicit leveling or unused-heater commands does not establish that
 Griffin firmware skips those actions. The [recovered diagnosis](../../DEVLOG.md#br-043--s5-startup-diagnosis)
 records the checked export and subsequent report of automatic firmware leveling;

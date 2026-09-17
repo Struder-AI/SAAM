@@ -36,6 +36,17 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-051 — Complete output for the three new printer profiles
+
+- Status: open
+- Contributor: Current requester; account attribution unconfirmed.
+- Authorization: human requested — add Bambu X1 Carbon and Ultimaker 2/3 profiles, keep materials changeable, then correct the 2-series model to Ultimaker 2 Extended.
+- Session: Current Codex task; exact title and stable task ID unavailable in supplied conversation.
+- Source: 2026-09-16 messages: "We need to add a bambu x1 carbon profile", "We can change materials, though, right? That's just the default, right?", "We also need a profile for the ultimaker 2 and 3 (same?)", and "actually it says 'ultimaker 2 extended'". [Implemented definitions and verification](DEVLOG.md#2026-09-16--x1-carbon-ultimaker-2-extended-and-ultimaker-3-profile-definitions).
+- Context: Machine definitions, material choices, catalog registration and geometry/setup persistence are implemented. The profiles explicitly declare output unavailable; no compatible startup handoff or full machine-program contract has been established for these models.
+- Remaining: Establish X1-specific startup/shutdown and sliced-3MF metadata with material-correct settings; implement the original UM2 Extended's volumetric UltiGCode semantics and firmware-managed startup; establish UM3-specific Griffin startup/shutdown. Use representative vendor-sliced exports and owning firmware/slicer sources to resolve these contracts. Do not inherit H2D/S5 service routines by model-name substitution. Enable each output only with matching exporter/interpreter and shared lifecycle coverage.
+- Completion: Each requested profile generates a machine-specific program that can be reopened, reviewed and delivered through the shared lifecycle, with material selection reflected consistently and software checks recorded separately from any physical trial. No hardware execution is authorized by this request.
+
 ### BR-050 — Finish Studio coordination and read-path handoff
 
 - Status: in progress

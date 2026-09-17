@@ -15,6 +15,8 @@ import {createTour} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {watchStudioChanges} from '../../../studio/changes.mjs';
 import { importSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
+import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
+import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
 import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
@@ -80,8 +82,9 @@ function summary(printId, state) {
   };
 }
 
-export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension } = {}) {
+export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient } = {}) {
   const libraryRoot = resolve(printsRoot);
+  const meshLibrary=thingi10kClient??createThingi10KClient({cacheDirectory:resolve(libraryRoot,'.thingi10k')});
   const ownerId=randomUUID();
   const tour=createTour(libraryRoot,{ownerId});
   const agentRequests=createAgentRequests(libraryRoot,{ownerId});
@@ -147,12 +150,12 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
   const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_tour']);
-  function tool(name, description, shape, action, readOnly = true) {
+  function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.printId)&&!immediateTools.has(name);
     // Passing the full strict schema makes unexpected top-level approval data an
     // error instead of letting Zod silently discard it.
     server.registerTool(name, { description, inputSchema: z.object({...shape,...(tracked?{requestIds:z.array(z.string()).max(32).optional()}: {})}).strict(),
-      annotations: { readOnlyHint: readOnly, destructiveHint: false, openWorldHint: false } }, async args => {
+      annotations: { readOnlyHint: readOnly, destructiveHint: false, openWorldHint: openWorld } }, async args => {
       const execute=async()=>{
         try {
           const {requestIds,...input}=args;
@@ -236,6 +239,16 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       await importSTLBundle(dir, sourcePath, { units, machineId, setupFile: await setupFile(machineId) });
       return summary(printId, await (await bundles.shell()).loadBundle(dir));
     }, false);
+  tool('search_thingi10k', 'Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',
+    {query:z.string().min(1).max(500),limit:z.number().int().min(1).max(50).default(10),offset:z.number().int().min(0).max(10000).default(0)},
+    async args=>meshLibrary.search(args),true,true);
+  tool('import_thingi10k_print', 'Download a selected Thingi10K STL file ID on the SAAM host and import an unapproved print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Returns attribution and a retained download even if strict mesh import fails. Review geometry with request_review after successful import.',
+    {printId:printIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},
+    async({printId,fileId,machineId,units})=>{
+      const dir=await directory(printId,{create:true});
+      const result=await importThingi10KBundle(meshLibrary,dir,fileId,{machineId,units,setupFile:await setupFile(machineId)});
+      return {...result,...(result.imported?summary(printId,await (await bundles.shell()).loadBundle(dir)):{printId})};
+    },false,true);
   localExtension.registerMcp?.({tool,z,printIdSchema,objectSchema,idSchema,read,noApprovalFields});
   tool('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',
     {printId:printIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({printId,units,expectedRevision})=>{

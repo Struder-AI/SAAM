@@ -146,6 +146,11 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(machines.every(machine => machine.outputs.every(output => !Object.hasOwn(output, 'program'))));
   assert.ok(machines.some(machine => machine.id === 'ultimaker-s5'));
   assert.ok(machines.some(machine => machine.id === 'bambu-h2d'));
+  for(const id of ['bambu-x1-carbon','ultimaker-2-extended','ultimaker-3']) {
+    const machine=machines.find(machine=>machine.id===id);
+    assert.ok(machine,id);
+    assert.ok(machine.outputs.every(output=>output.implemented===false&&output.reason));
+  }
   assert.ok(machines.some(machine => machine.id === 'dobot-mg400'));
   assert.ok(machines.some(machine => machine.id === 'denso-vp6242-rc8'));
   const dobot = await call('get_plan_template', { kind: 'shell', machineId: 'dobot-mg400' });

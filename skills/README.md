@@ -34,6 +34,7 @@ their responsibilities affect the work; onboarding alone is not sufficient.
 
 | Skill | Capability and value |
 |---|---|
+| [thingi10k](thingi10k/SKILL.md) | Find meshes by descriptive keywords or a Thingiverse link, then download individual STL files from the Thingi10K mirror for Studio review. Preserve attribution and always link the file's license in chat; prefer tailored geometry when making it is attractive. |
 | [mesh-tools](mesh-tools/SKILL.md) | Diagnose mesh import failures, clean duplicate or collapsed facets, and repair self-intersections with CGAL local patches. Supports explicitly bounded hole filling, preserves source files and reports shape changes for geometry review. |
 | [text](text/SKILL.md) | Add raised or recessed lettering to a part, or create standalone text, using a supplied outline font. Lay out lettering flat, optionally along a spline baseline, then bend its solid onto a part surface or an independent spline guide. The resulting mesh goes through the shared printing and Studio review workflow. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
