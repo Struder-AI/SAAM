@@ -22,8 +22,6 @@ import {frameAtTime,displayPoint} from '../../studio/playback.mjs';
 import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
-import {defaults as wedgeDefaults} from '../../skills/wedge-demo/scripts/model.mjs';
-import {generatePath as wedgePath} from '../../skills/wedge-demo/scripts/path.mjs';
 const machine=loadMachine('denso-vp6242-rc8'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 const small=()=>{const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
@@ -67,7 +65,7 @@ test('three-loop pipe body survives shared composition and RC8 source interpreta
   for(const rings of radii.values())assert.equal(rings.size,3);
 });
 
-test('existing mesh/spline regional skills and bounded wedge use RC8 at fixed orientation',async()=>{
+test('existing mesh/spline regional skills use RC8 at fixed orientation',async()=>{
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
     const path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
@@ -75,9 +73,6 @@ test('existing mesh/spline regional skills and bounded wedge use RC8 at fixed or
     assert.ok(program.moves.every(m=>m.rotaryToDeg===0&&m.toolAxisTo[2]===-1));
     near(program.volumeMm3,path.actions.reduce((sum,a)=>sum+(a.volumeMm3??0),0));
   }
-  const plan=wedgeDefaults(machine);plan.setup=small().setup;
-  const program=interpretProgram(exportProgram(wedgePath(plan,machine),plan,machine),plan,machine);
-  assert.ok(program.moves.some(m=>m.extruding&&m.phase==='inclined'));
 });
 
 test('oriented motion preserves pose-only actions and unsupported outputs reject rather than flatten',()=>{

@@ -33,7 +33,6 @@ const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mj
 // workflow implementation in core/print/workflow.mjs.
 const bundles={
   'saam-machine-study/1':()=>import('./machine-study.mjs'),
-  'saam-wedge-plan/1':()=>import('../skills/wedge-demo/scripts/bundle.mjs'),
   'saam-shell-plan/1':()=>import('../core/print/bundle.mjs')
 };
 export async function bundleFor(directory) {

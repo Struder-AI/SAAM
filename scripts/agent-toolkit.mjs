@@ -31,7 +31,7 @@ export const help = {
     'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
     'start-tour [--start-at-layer 12] [--no-open]': 'Fresh tour copies, live Studio, browser dispatch and participation context.',
     'open-print DIRECTORY [--no-open]': 'Open saved geometry/toolpath and return current recipe/review state.',
-    'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--kind shell|wedge] [--machine ID] [--units auto|mm|inch] [--no-open]': 'Create/import unapproved geometry, open Studio and report assumptions.',
+    'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open]': 'Create/import unapproved geometry, open Studio and report assumptions.',
     'begin-studio-work [DIRECTORY] [--instruction TEXT | --request ID] [--kind edit|guidance] [--include-geometry]': 'Start/claim work first, then read recipe, revision, confirmations and tour instruction.',
     'wait-for-studio-request [--claim] [--wait-ms 25000] [--after ID]': 'Bounded wait, optional claim, and next cursor.',
     'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT]': 'Record a prepared result or resolve the matching request through the shared coordination API.',

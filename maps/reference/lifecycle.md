@@ -21,8 +21,7 @@ explains the cancellation/commit boundary and checked-worker handoff.
 
 When changing an identity field, trace geometry confirmation, settings/toolpath
 confirmation, cached interpretation, presentation receipts and delivery together.
-Use [workflow tests](../../core/tests/workflow.test.mjs),
-[cache tests](../../core/tests/program-cache.test.mjs), and the
+Use [workflow tests](../../core/tests/workflow.test.mjs) and the
 [test registry](testing.md#test-registry) to select the affected checks.
 
 Plans, revision identity, validation ownership, generation, reopening and delivery.
@@ -295,4 +294,4 @@ Sources: [file-write.mjs](../../core/file-write.mjs), [file-snapshot.mjs](../../
 
 **Change together.** Inspect workflow current-byte validation, Studio revision polling, machine-study fingerprints and every file-replacement consumer. Preserve temporary-name uniqueness and cleanup on both successful and failed replacement.
 
-**Verification.** Check old destination preservation on failed replacement, sharing-conflict retry bounds, changed/deleted files, and unchanged snapshots without redundant parsing. Checks: [file-write.test.mjs](../../core/tests/file-write.test.mjs), [program-cache.test.mjs](../../core/tests/program-cache.test.mjs), [read-scope.test.mjs](../../core/tests/read-scope.test.mjs).
+**Verification.** Check old destination preservation on failed replacement, sharing-conflict retry bounds, changed/deleted files, and unchanged snapshots without redundant parsing. Checks: [file-write.test.mjs](../../core/tests/file-write.test.mjs), [read-scope.test.mjs](../../core/tests/read-scope.test.mjs).

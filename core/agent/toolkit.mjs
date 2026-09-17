@@ -122,9 +122,8 @@ export class ToolkitError extends Error {
 export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
   units = 'auto', startAtLayer = 12, noOpen = false, onReady = () => {}}) {
   if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
-  if (!['shell', 'wedge'].includes(kind)) throw Error('Choose shell or wedge.');
+  if (kind !== 'shell') throw Error('Only shell/mesh prints are supported.');
   if (recipe && stl) throw Error('Choose either --recipe or --stl.');
-  if (stl && kind !== 'shell') throw Error('STL import creates a shell print.');
   if (!['auto', 'mm', 'inch'].includes(units)) throw Error('Units must be auto, mm or inch.');
   if (!Number.isInteger(startAtLayer) || startAtLayer < 1) throw Error('Start layer must be a positive integer.');
   if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
@@ -150,7 +149,7 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
         const {importSTLBundle} = await import('../print/import-stl.mjs');
         await importSTLBundle(partial.directory, resolve(stl), {...options, units});
       } else {
-        const adapter = kind === 'wedge' ? await import('../../skills/wedge-demo/scripts/bundle.mjs') : await import('../print/bundle.mjs');
+        const adapter = await import('../print/bundle.mjs');
         await adapter.initBundle(partial.directory, recipe ? await json(resolve(recipe)) : undefined, options);
       }
       partial.created = true;
@@ -264,7 +263,7 @@ export async function inspectFailure({target, library, requestId, includeGeometr
     result.validationError = error.message;
     try {
       const plan = await json(resolve(directory, 'plan.json'));
-      skills = plan.schema === 'saam-wedge-plan/1' ? ['wedge-demo'] : Object.keys(plan.skills ?? {});
+      skills = Object.keys(plan.skills ?? {});
       result.unvalidatedRecipe = {...plan};
       if (!includeGeometry) delete result.unvalidatedRecipe.geometry;
       result.planComplete = includeGeometry;

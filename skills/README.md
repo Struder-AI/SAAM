@@ -28,7 +28,6 @@ their responsibilities affect the work; onboarding alone is not sufficient.
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Print repeating motifs and authored patterns mapped onto a reference sleeve, with optional smooth mesh fitting, adjustable mesh fidelity and loose offsets. Use standard vase mode for a conventional continuous spiral. |
 | [thick-lip](thick-lip/SKILL.md) | Thicken a vase-wall's top edge into a rigid, optionally rolled rim instead of leaving a single spiral or level-ended bead. Use when the operator asks for a rim, brim, bead, rolled edge, round-over or a more durable/rigid lip on a vase-mode print. |
 | [pipe-cladding](pipe-cladding/SKILL.md) | Wrap a substrate with alternating lengthwise and helical cladding, or opposite-handed helices for a crossed exterior pattern. Supports circular pipes and explicitly mapped periodic spline or mesh surfaces; this development capability requires a configured DENSO RC8 robot and external rotary. |
-| [wedge-demo](wedge-demo/SKILL.md) | Demonstrate horizontal body layers and inclined roof layers on a bounded eight-point wedge. Uses its own generator for a rectangular base, vertical sides and one planar sloping roof, providing a small example for exploring inclined deposition. |
 
 ## Geometry processing
 

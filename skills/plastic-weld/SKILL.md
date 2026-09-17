@@ -45,7 +45,7 @@ Supported combinations:
   Studio review and exact-byte delivery. Higher operations wait for injection.
 - S5 Griffin and experimental H2D output. The robot relay exporters cannot yet
   represent metered stationary extrusion or nozzle-temperature changes; they
-  reject this skill. The bounded wedge's separate recipe is not a host adapter.
+  reject this skill.
 
 The skill does not insert arbitrary holes into a one-bead vase wall, infer
 pressure-tightness from spaced fill, or turn supports into permanent rivets.

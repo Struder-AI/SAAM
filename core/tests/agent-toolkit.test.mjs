@@ -9,7 +9,7 @@ import {promisify} from 'node:util';
 import {once} from 'node:events';
 import {preview, beginWork, waitForRequests, inspectFailure, respondToRequest} from '../agent/toolkit.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
-import * as wedge from '../../skills/wedge-demo/scripts/bundle.mjs';
+import * as shell from '../print/bundle.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
 import {readGuidance} from '../agent/manuals.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
@@ -117,25 +117,25 @@ test('skill role flags are independent, additive and report absent optional manu
 test('create-preview reuses isolated setup and opening preserves approved export bytes', async t => {
   const f = await fixture(t), target = join(f.library, 'My part');
   await mkdir(join(f.library, '.machine-setups'));
-  const defaults = await wedge.proposedPlan('ultimaker-s5', {setupFile: join(f.library, 'absent.json')});
+  const defaults = await shell.proposedPlan('ultimaker-s5', {setupFile: join(f.library, 'absent.json')});
   await writeFile(join(f.library, '.machine-setups/ultimaker-s5.json'), JSON.stringify({schema: 'saam-machine-setup/1', machineId: 'ultimaker-s5', setup: {...defaults.setup, bedC: 67}, source: 'SYNTHETIC TEST ONLY'}));
   const ready = [];
-  const made = await f.open({command: 'create-preview', target, kind: 'wedge', onReady: event => ready.push(event)});
+  const made = await f.open({command: 'create-preview', target, kind: 'shell', onReady: event => ready.push(event)});
   assert.equal(ready.length, 1);
   assert.equal(made.result.print.plan.setup.bedC, 67);
   assert.equal(made.result.print.generation.current, false);
   assert.deepEqual(made.result.print.approvals, {geometry: false, settings: false, toolpath: false});
-  let state = await wedge.loadBundle(target);
-  await wedge.approve(target, {stage: 'geometry', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
-  await wedge.generateBundle(target);
-  state = await wedge.loadBundle(target);
-  await wedge.approve(target, {stage: 'toolpath', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
-  const saved = await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/wedge.gcode'].map(name => readFile(join(target, name))));
+  let state = await shell.loadBundle(target);
+  await shell.approve(target, {stage: 'geometry', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
+  await shell.generateBundle(target);
+  state = await shell.loadBundle(target);
+  await shell.approve(target, {stage: 'toolpath', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
+  const saved = await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name))));
   const reopened = await f.open({command: 'open-print', target: join(target, 'plan.json')});
   assert.equal(reopened.result.print.approvals.toolpath, true);
   assert.equal(reopened.result.print.generation.current, true);
-  assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/wedge.gcode'].map(name => readFile(join(target, name)))), saved);
-  await assert.rejects(f.open({command: 'create-preview', target, kind: 'wedge'}), /already exists/);
+  assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name)))), saved);
+  await assert.rejects(f.open({command: 'create-preview', target, kind: 'shell'}), /already exists/);
 });
 
 test('STL preview preserves original bytes and reports inferred units without approval', async t => {
@@ -174,7 +174,7 @@ test('fresh tours keep earlier bundles and return lesson-one guidance and a list
 
 test('begin-work marks pending before context reads, correlates claims, and fails unreadable work', async t => {
   const f = await fixture(t), target = join(f.library, 'part');
-  await f.open({command: 'create-preview', target, kind: 'wedge'});
+  await f.open({command: 'create-preview', target, kind: 'shell'});
   const begun = await beginWork({target, library: f.library, instruction: 'SYNTHETIC edit', includeGeometry: true});
   assert.equal(begun.request.status, 'working');
   assert.ok(begun.print.plan.geometry);
@@ -199,7 +199,7 @@ test('begin-work marks pending before context reads, correlates claims, and fail
   const diagnostics = await inspectFailure({target, library: f.library, requestId: queued.id});
   assert.match(diagnostics.requests[0].instruction, /discontinuous roof/);
   assert.ok(!diagnostics.context.documents.some(doc => doc.path.endsWith('/SKILL.md')));
-  assert.ok(diagnostics.skillReferences.some(ref => ref.skillId === 'wedge-demo' && ref.guidanceId === 'skills/wedge-demo/SKILL.md'));
+  assert.ok(diagnostics.skillReferences.some(ref => ref.skillId === 'full-fill' && ref.guidanceId === 'skills/full-fill/SKILL.md'));
   await respondToRequest({library: f.library, requestId: queued.id, message: 'SYNTHETIC handled'});
   assert.equal((await queue.list()).find(r => r.id === begun.request.id).status, 'working');
   await assert.rejects(beginWork({target: join(f.library, 'missing'), library: f.library, instruction: 'SYNTHETIC broken'}), error => {
@@ -215,14 +215,14 @@ test('begin-work marks pending before context reads, correlates claims, and fail
 test('failure after creation reports retained bundle and closes only its own server', async t => {
   const f = await fixture(t), target = join(f.library, 'Retained');
   let url;
-  await assert.rejects(preview({command: 'create-preview', target, library: f.library, kind: 'wedge', noOpen: true,
+  await assert.rejects(preview({command: 'create-preview', target, library: f.library, kind: 'shell', noOpen: true,
     onReady: event => {url = event.studio.url; throw Error('SYNTHETIC readiness notification failure');}}), error => {
     assert.equal(error.partial.created, true);
     assert.equal(error.partial.directory, target);
     assert.equal(error.partial.studio.closed, true);
     return true;
   });
-  assert.equal((await wedge.loadBundle(target)).geometryApproved, false);
+  assert.equal((await shell.loadBundle(target)).geometryApproved, false);
   await assert.rejects(fetch(url));
 });
 

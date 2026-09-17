@@ -54,9 +54,9 @@ same local workflow. Its manual covers available tools and local stdio connectio
 Give your agent this repository and describe what you want to make. Agents start
 at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
-For a manual development trial, follow [setup and checks](SETUP.md)
-and the [wedge demo manual](skills/wedge-demo/SKILL.md). The demo produces a
-development preview; human job approval remains separate.
+For a manual development trial, follow [setup and checks](SETUP.md) and create a
+preview from a skill recipe. It produces a development preview; human job approval
+remains separate.
 
 Ask your agent to **open the SAAM tour**, or launch Studio after setup:
 

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import {shortTravelAdvisory} from '../export/travel-advisory.mjs';
 import {exportAndInterpretProgram,interpretProgram} from '../export/registry.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {defaults} from '../../skills/wedge-demo/scripts/model.mjs';
-import {generatePath} from '../../skills/wedge-demo/scripts/path.mjs';
+import {defaults} from '../print/plan.mjs';
+import {generatePath} from '../print/generate.mjs';
+import {rhino} from '../print/geometry.mjs';
 
 const move=(from,to,extruding=false,extra={})=>({from,to,extruding,...extra});
 test('travel advisory measures complete XYZ trips, includes 2 mm, and retains producer/source context',()=>{
@@ -35,8 +36,8 @@ test('sampling long robot travels does not flag each small segment; stationary d
   assert.equal(report.count,25);assert.equal(report.samples.length,20);assert.equal(report.omittedSamples,5);
   assert.equal(shortTravelAdvisory([]).count,0);
 });
-for(const id of ['ultimaker-s5','bambu-h2d'])test(`${id} generation and saved-source interpretation carry identical advisories`,()=>{
-  const machine=loadMachine(id),plan=defaults(machine),path=generatePath(plan,machine);
+test('generation and saved-source interpretation carry identical advisories',async()=>{
+  const machine=loadMachine('ultimaker-s5'),plan=defaults(machine),path=generatePath(plan,machine,await rhino());
   const {bytes,program}=exportAndInterpretProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-15'});
   assert.ok(program.summary.shortTravel.count>0);
   assert.deepEqual(interpretProgram(bytes,plan,machine).summary.shortTravel,program.summary.shortTravel);

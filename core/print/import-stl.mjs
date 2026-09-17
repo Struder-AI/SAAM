@@ -4,7 +4,7 @@ import { initBundle, proposedPlan, loadBundle, updatePlan } from './bundle.mjs';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import { hash } from './plan.mjs';
-import { loadMachine, toolBounds } from '../machine/profile.mjs';
+import { loadMachine, toolBounds, centeredPlacement } from '../machine/profile.mjs';
 import { parseSTL,makeMesh } from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
 
@@ -33,7 +33,10 @@ export async function importSTLBundle(directory, sourceBytes, { units='auto', ma
     if(attribution.sha256!==plan.geometry.source.sha256)throw Error('Mesh attribution does not match the downloaded source hash.');
     plan.geometry.source.attribution=structuredClone(attribution);
   }
-  plan.placement = { xMm: bounds.min[0] + 5, yMm: bounds.min[1] + 5 };
+  // Centre the imported mesh on the plate. Its vertices were translated to put
+  // the minimum XY at the origin, so the footprint size is the vertex span.
+  const footprint=[0,1].map(k=>{let mn=Infinity,mx=-Infinity;for(const p of plan.geometry.vertices){mn=Math.min(mn,p[k]);mx=Math.max(mx,p[k]);}return mx-mn;});
+  plan.placement = centeredPlacement(machine, plan.setup.tool, { runMm: footprint[0], widthMm: footprint[1] }) ?? { xMm: bounds.min[0] + 5, yMm: bounds.min[1] + 5 };
   plan.skills['draped-skin'].enabled = false;
   return initBundle(directory, plan, { machineId: machine.id, setupFile, ...(file?{sourcePath:resolve(sourceBytes)}:{sourceBytes}) });
 }

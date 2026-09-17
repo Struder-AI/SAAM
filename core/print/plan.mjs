@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { FULL_FILL_DEFAULTS } from '../../skills/full-fill/scripts/fill.mjs';
 import { DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
-import {loadMachine,validateSetup,toolBounds,requireMachine} from '../machine/profile.mjs';
+import {loadMachine,validateSetup,toolBounds,requireMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
@@ -50,7 +50,7 @@ export function defaults(machine=loadMachine()) {
     schema: 'saam-shell-plan/1',
     generatorVersion: VERSION,
     geometry: { shape: 'spline-top', runMm: 40, widthMm: 30, cpU: 5, cpV: 5, heightsMm: domeHeights(5, 5) },
-    placement: { xMm: 140, yMm: 100 },
+    placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 40, widthMm: 30 }) ?? { xMm: 140, yMm: 100 },
     setup: structuredClone(machine.defaultSetup),
     process: {
       firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4,

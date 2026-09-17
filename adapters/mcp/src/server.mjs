@@ -36,15 +36,15 @@ const printIdSchema = z.string().min(1).max(384).refine(id => {
     && !/^[.]|[. ]$|[\\:*?"<>|\x00-\x1f]/.test(part)
     && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part));
 }, 'Invalid print name: use up to three relative folder names, without traversal, reserved names or Windows path characters.');
-const kindSchema = z.enum(['shell', 'wedge']);
+// Shell/mesh is the only bundle kind; the parameter is retained (and defaults)
+// so the tool surface stays stable.
+const kindSchema = z.enum(['shell']).default('shell');
 const objectSchema = z.record(z.string(), z.unknown());
 const bundles = {
-  shell: () => import('../../../core/print/bundle.mjs'),
-  wedge: () => import('../../../skills/wedge-demo/scripts/bundle.mjs')
+  shell: () => import('../../../core/print/bundle.mjs')
 };
 const recipes = {
-  shell: () => import('../../../core/print/plan.mjs'),
-  wedge: () => import('../../../skills/wedge-demo/scripts/model.mjs')
+  shell: () => import('../../../core/print/plan.mjs')
 };
 
 function noApprovalFields(value) {
@@ -216,10 +216,10 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     const plan = structuredClone(state.plan);
     if (!includeGeometry) delete plan.geometry;
     return { ...summary(printId, state), plan, planComplete: includeGeometry,
-      ...(!includeGeometry ? { geometry: { omitted: true, shape: state.plan.geometry.shape ?? 'eight-point-wedge',
+      ...(!includeGeometry ? { geometry: { omitted: true, shape: state.plan.geometry.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   });
-  tool('create_print', 'Create an unapproved persistent bundle. Use the wedge kind for the bounded eight-point wedge. Optional plan is a complete recipe, never an approval. Then request_review.',
+  tool('create_print', 'Create an unapproved persistent bundle. Optional plan is a complete recipe, never an approval. Then request_review.',
     { printId: printIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema.optional() }, async ({ printId, kind, machineId, plan }) => {
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipes[kind]();
@@ -273,7 +273,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(printId,{program:false});
-      if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints; the bounded wedge demo uses its own geometry workflow.');
+      if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
       return summary(printId,await applyText(dir,request,{expectedRevision}));
     },false);
   tool('heat_set_catalog', 'Read the packaged heat-set insert profiles and their dimensions. Use an exact insert ID with apply_heat_set and read the heat-set-inserts skill for geometry and reinforcement limits.',
@@ -282,7 +282,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(printId,{program:false});
-      if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints; the bounded wedge demo uses its own geometry workflow.');
+      if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
       return summary(printId,await applyHeatSet(dir,request,{expectedRevision}));
     },false);
   tool('adjust_print', 'Apply a validated chat recipe patch at expectedRevision. Geometry edits invalidate all approvals; process edits retain geometry approval. Read fresh state if stale.',

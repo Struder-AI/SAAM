@@ -11,31 +11,25 @@ import { importSTLBundle } from '../print/import-stl.mjs';
 import { initBundle, loadBundle, proposedPlan } from '../print/bundle.mjs';
 import { defaults as shellDefaults } from '../print/plan.mjs';
 import { loadMachine } from '../machine/profile.mjs';
-import * as wedge from '../../skills/wedge-demo/scripts/bundle.mjs';
-import { defaults } from '../../skills/wedge-demo/scripts/model.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import { readGuidance } from '../../adapters/mcp/src/manuals.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..'), run = promisify(execFile);
 
-test('both public CLIs expose unresolved robot setup before first generation', async t => {
+test('the public CLI exposes unresolved robot setup before first generation', async t => {
   const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-setup-status-'));
   t.after(() => rm(scratch, { recursive: true, force: true }));
   for (const machineId of ['denso-vp6242-rc8', 'dobot-mg400']) {
-    const machine = loadMachine(machineId);
-    for (const kind of ['shell', 'wedge']) {
-      const dir = resolve(scratch, machineId, kind);
-      const plan = kind === 'shell' ? shellDefaults(machine) : defaults(machine);
-      await (kind === 'shell' ? initBundle : wedge.initBundle)(dir, plan, { machineId });
-      const script = resolve(root, kind === 'shell' ? 'core/print/cli.mjs' : 'skills/wedge-demo/scripts/cli.mjs');
-      const checked = JSON.parse((await run(process.execPath, [script, 'check', dir])).stdout);
-      assert.match(checked.outputAvailability, /unconfigured/);
-      assert.equal(checked.machineConfiguration.configured, false);
-      assert.ok(checked.machineConfiguration.missing.includes('toolFrame'));
-      assert.equal(checked.toolpathApproved, false);
-      const state = await (kind === 'shell' ? loadBundle : wedge.loadBundle)(dir);
-      assert.equal(state.review.generation, null);
-    }
+    const machine = loadMachine(machineId), dir = resolve(scratch, machineId);
+    await initBundle(dir, shellDefaults(machine), { machineId });
+    const script = resolve(root, 'core/print/cli.mjs');
+    const checked = JSON.parse((await run(process.execPath, [script, 'check', dir])).stdout);
+    assert.match(checked.outputAvailability, /unconfigured/);
+    assert.equal(checked.machineConfiguration.configured, false);
+    assert.ok(checked.machineConfiguration.missing.includes('toolFrame'));
+    assert.equal(checked.toolpathApproved, false);
+    const state = await loadBundle(dir);
+    assert.equal(state.review.generation, null);
   }
 });
 
@@ -75,9 +69,8 @@ test('shared STL importer and both recipe adapters resolve the same remembered s
   t.after(() => rm(scratch, { recursive: true, force: true }));
   const setupFile = resolve(scratch, 'setup.json');
   await writeFile(setupFile, JSON.stringify({ schema: 'saam-machine-setup/1', machineId: 'ultimaker-s5',
-    setup: { ...defaults().setup, bedC: 67 }, source: 'SYNTHETIC TEST ONLY' }));
+    setup: { ...shellDefaults().setup, bedC: 67 }, source: 'SYNTHETIC TEST ONLY' }));
   assert.equal((await proposedPlan('ultimaker-s5', { setupFile })).setup.bedC, 67);
-  assert.equal((await wedge.proposedPlan('ultimaker-s5', { setupFile })).setup.bedC, 67);
   const mesh = boxMesh(8, 6, 1);
   const bytes = Buffer.from('solid test\n' + mesh.triangles.map(triangle => 'facet normal 0 0 0\nouter loop\n'
     + triangle.map(i => 'vertex ' + mesh.vertices[i].join(' ')).join('\n') + '\nendloop\nendfacet').join('\n') + '\nendsolid test');
@@ -92,20 +85,22 @@ test('shared STL importer and both recipe adapters resolve the same remembered s
   assert.equal((await loadBundle(inferred)).plan.geometry.source.unitsInferred, true);
 });
 
-test('public wedge CLI checks ungenerated geometry and rejects stale chat revisions', async t => {
+test('the public CLI checks ungenerated geometry and rejects stale chat revisions', async t => {
   const dir = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-cli-access-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  const plan = defaults();
+  const plan = shellDefaults();
+  plan.geometry = { shape: 'box', runMm: 12, widthMm: 10, heightMm: 1 };
+  plan.skills['draped-skin'].enabled = false;
   plan.process.minimumLayerSeconds = 0;
-  await wedge.initBundle(dir, plan);
-  const script = resolve(root, 'skills/wedge-demo/scripts/cli.mjs');
+  await initBundle(dir, plan);
+  const script = resolve(root, 'core/print/cli.mjs');
   const checked = JSON.parse((await run(process.execPath, [script, 'check', dir])).stdout);
-  assert.equal(checked.summary, null);
+  assert.equal(checked.program, null);
   const patch = resolve(dir, 'patch.json');
   await writeFile(patch, JSON.stringify({ process: { planarSpeedMmS: 23 } }));
   await assert.rejects(run(process.execPath, [script, 'adjust', dir, patch, '--revision', 'stale']), error => /stale/.test(error.stderr));
   await run(process.execPath, [script, 'adjust', dir, patch, '--revision', checked.revision]);
-  const after = await wedge.loadBundle(dir);
+  const after = await loadBundle(dir);
   assert.equal(after.plan.process.planarSpeedMmS, 23);
   assert.deepEqual(after.review.approvals, {});
 });

@@ -56,8 +56,7 @@ retains metadata and source strings, excludes moves/events, and returns defensiv
 copies. It is process-local reuse of an owning check, not an API for trusting a
 caller's assertion of validity.
 
-Verification: [generation control](../../core/tests/studio-generation-control.test.mjs),
-[program cache and handoff](../../core/tests/program-cache.test.mjs), and
+Verification: [generation control](../../core/tests/studio-generation-control.test.mjs) and
 [workflow](../../core/tests/workflow.test.mjs).
 
 ## Request completion and display
@@ -128,7 +127,7 @@ Sources: [generation-control.mjs](../../core/print/generation-control.mjs), [pro
 
 **Change together.** Trace Studio preparation attachment/disposal, worker generated messages, workflow commit ordering and source-only readers together. Never broaden the handoff to accept arbitrary caller-provided checked flags.
 
-**Verification.** Exercise cancellation before and after commit, replacement by another candidate, malformed/wrong-hash handoffs and cold reads after worker reuse is unavailable. Checks: [studio-generation-control.test.mjs](../../core/tests/studio-generation-control.test.mjs), [program-cache.test.mjs](../../core/tests/program-cache.test.mjs).
+**Verification.** Exercise cancellation before and after commit, replacement by another candidate, malformed/wrong-hash handoffs and cold reads after worker reuse is unavailable. Checks: [studio-generation-control.test.mjs](../../core/tests/studio-generation-control.test.mjs).
 
 
 ## Changing Studio HTTP and change notifications
@@ -167,7 +166,7 @@ Sources: [generation-worker.mjs](../../studio/generation-worker.mjs).
 
 **Change together.** Keep lifecycle generation-control/program-handoff, server queue/cancellation, bundle caching and source receipt fields aligned.
 
-**Verification.** Exercise cancellation before/during/after work, plan changes between preparation and execution, stale worker messages and checked-source reuse without a second interpretation. Checks: [studio-generation-control.test.mjs](../../core/tests/studio-generation-control.test.mjs), [program-cache.test.mjs](../../core/tests/program-cache.test.mjs).
+**Verification.** Exercise cancellation before/during/after work, plan changes between preparation and execution, stale worker messages and checked-source reuse without a second interpretation. Checks: [studio-generation-control.test.mjs](../../core/tests/studio-generation-control.test.mjs).
 
 
 ## Changing source workers and machine sessions

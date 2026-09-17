@@ -1,6 +1,6 @@
 # MCP access to local SAAM
 
-This stdio adapter lets an MCP client use SAAM's existing shell/wedge bundles
+This stdio adapter lets an MCP client use SAAM's existing shell/mesh bundles
 and SAAM Studio. It has no compiler, private review bridge, model calls, or
 hardware connection. Machine outputs and skill compatibility remain governed
 by the shared plan, generation and interpreter checks.
@@ -48,7 +48,7 @@ saved IDs; there is no single global plan that overwrites another job.
 |---|---|
 | `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish printing patterns from task skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
-| `get_plan_template` | Read a complete proposed shell or wedge recipe, reusing remembered setup. |
+| `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
 | `search_thingi10k` | Search descriptive keywords, a numeric file ID or a Thingiverse thing URL in the mirror. Returns per-file source/license links and pagination. Read the [Thingi10K manual](../../skills/thingi10k/SKILL.md). |
@@ -88,8 +88,7 @@ and its subsections. This follows the same Markdown files as a local collaborato
 The reader accepts public root manuals and Markdown in the component, skill,
 Studio, machine, adapter and script trees. Private/hidden paths, dependencies,
 build output, source code, traversal and filesystem links are unavailable.
-Existing `wedge-generation` and `wedge-s5-export` aliases still resolve for clients
-that saved them; the selected skill's links provide the normal reference route.
+The selected skill's links provide the normal reference route.
 
 For a tour request in a client with command access, first run
 `node studio/server.mjs --toolkit start-tour --no-open`, open its Studio URL,

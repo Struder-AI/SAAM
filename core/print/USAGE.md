@@ -16,9 +16,7 @@ failure inspection. It delegates to the operations described here.
 
 Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
 Use a named directory under ignored `Prints/`; quote paths containing spaces.
-The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns. The
-[bounded wedge demo](../../skills/wedge-demo/SKILL.md#setup-and-tools) has its own
-CLI and initialization format, with the same review and delivery lifecycle.
+The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns.
 
 Connected agents use the corresponding MCP tools below. Their `printId` is
 relative to the configured Prints root, so `Prints/my-part` in a CLI example is
@@ -47,9 +45,8 @@ The shell template enables full-fill **and draped-skin**; explicitly disable
 unwanted patterns when choosing another recipe (STL and Gridfinity
 creation already disable draped-skin).
 
-Through MCP, get a complete editable recipe with `get_plan_template`, selecting
-`kind: "shell"` and the machine, then pass the proposed recipe to `create_print`.
-`kind: "wedge"` selects the bounded demo when that is the intended workflow.
+Through MCP, get a complete editable recipe with `get_plan_template` for the
+machine, then pass the proposed recipe to `create_print`.
 Creation stores unapproved geometry and settings; open Studio for review.
 
 ### Import an STL
@@ -198,7 +195,7 @@ line spacing without tripling bead width or extrusion per unit length:
 
 This applies to full-fill, planar-infill, draped-skin, supports, both rimming
 patterns and pipe-cladding, including regional overrides where supported.
-Single-wall vase spirals and the bounded wedge demo do not use this setting.
+Single-wall vase spirals do not use this setting.
 Ordinary recipes need no additional setting. Studio shows a nondefault factor
 in plan review; changing it follows the existing process review lifecycle.
 See the [shared spacing contract](../path/README.md#line-spacing) for density,
@@ -277,4 +274,3 @@ old-version validation prevents normal reopening. The shell adapter installs
 the current machine snapshot, retains unchanged geometry approval and invalidates
 plan/toolpath approvals. Existing exports and delivery files remain unchanged.
 Reopen Studio and complete the affected reviews before generating new output.
-The wedge adapter's additional geometry migration is described in its own manual.

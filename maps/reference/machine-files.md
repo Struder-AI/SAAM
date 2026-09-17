@@ -45,11 +45,10 @@ provide a read-only route for machines without controller output.
 `griffin-gcode` output. It contains nominal motion limits, tool offsets and the
 startup contract. The locked plan selects the installed tool and material.
 Exporting introduces no new process choices. Physical clearance is delegated
-to the operator for the wedge demo; no general 15° clearance rating is claimed.
+to the operator; no general 15° clearance rating is claimed.
 
 Standard S5 startup is assumed; firmware version is optional metadata.
 Physical printing remains unvalidated.
-See [S5 export notes](../../skills/wedge-demo/references/s5-export.md).
 
 [denso-vp6242-rc8.json](../../machines/denso-vp6242-rc8.json) describes the six-axis VP-6242 with
 RC8 and an external rotary for the [pipe demo](../../skills/pipe-cladding/SKILL.md).

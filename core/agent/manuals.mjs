@@ -9,12 +9,9 @@ const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
   makers: 'MAKERS.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
   'developer-context': 'DEVELOPER-CONTEXT.md', glossary: 'GLOSSARY.md',
-  mcp: 'adapters/mcp/README.md', 'print-tools': 'core/print/USAGE.md',
-  // Existing clients may retain these IDs; normal navigation follows file links.
-  'wedge-generation': 'skills/wedge-demo/references/generation.md',
-  'wedge-s5-export': 'skills/wedge-demo/references/s5-export.md'
+  mcp: 'adapters/mcp/README.md', 'print-tools': 'core/print/USAGE.md'
 };
-export const guidanceIds = Object.keys(aliases).filter(id => !id.startsWith('wedge-'));
+export const guidanceIds = Object.keys(aliases);
 
 function publishedPath(path) {
   const parts = path.split('/');

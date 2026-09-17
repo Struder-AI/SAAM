@@ -164,6 +164,6 @@ in > limits | plan / machine | data
 
 ```saam-responsibilities
 workflow | core/print/workflow.mjs, core/print/bundle.mjs, core/print/cli.mjs | lifecycle#changing-lifecycle-identity-and-persistence | core/tests/workflow.test.mjs, core/tests/chat-geometry-confirmation.test.mjs, core/tests/read-scope.test.mjs
-file-state | core/file-write.mjs, core/print/file-snapshot.mjs | lifecycle#changing-file-replacement-and-refresh-snapshots | core/tests/file-write.test.mjs, core/tests/program-cache.test.mjs, core/tests/read-scope.test.mjs
-generation-handoff | core/print/generation-control.mjs, core/print/program-handoff.mjs | studio-protocols#changing-cancellation-and-checked-source-reuse | core/tests/studio-generation-control.test.mjs, core/tests/program-cache.test.mjs
+file-state | core/file-write.mjs, core/print/file-snapshot.mjs | lifecycle#changing-file-replacement-and-refresh-snapshots | core/tests/file-write.test.mjs, core/tests/read-scope.test.mjs
+generation-handoff | core/print/generation-control.mjs, core/print/program-handoff.mjs | studio-protocols#changing-cancellation-and-checked-source-reuse | core/tests/studio-generation-control.test.mjs
 ```

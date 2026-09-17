@@ -14,7 +14,7 @@ work; the person need not request it separately:
    the shared launcher permission and browser access.
 
 Report a failure as a setup problem and stop there. Setup does not create a
-manufacturing approval. Git is needed only to clone; the wedge requires no
+manufacturing approval. Git is needed only to clone; generation requires no
 Rhino desktop installation or Compute server. After setup, use the
 [Avoid check spirals](BUILDERS.md#avoid-check-spirals) policy for development work.
 

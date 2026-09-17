@@ -165,8 +165,8 @@ calibration for an actual installation.
 
 Software coverage is in [denso.test.mjs](../../core/tests/denso.test.mjs): native
 geometry, radial ownership/order, unwrapped turns, tilted poses, source edits,
-relay behavior, both preview frames, mesh/spline predecessor skills, bounded
-wedge, cold reopen, synthetic approval invalidation and exact-byte delivery.
+relay behavior, both preview frames, mesh/spline predecessor skills, cold reopen,
+synthetic approval invalidation and exact-byte delivery.
 
 ## Finished-surface composition
 
