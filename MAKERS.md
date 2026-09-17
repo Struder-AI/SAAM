@@ -16,6 +16,15 @@ Clients without the CLI read this file and the digest through their available
 reader before the first maker-facing response. Adapt questions and explanations to
 their experience, gathering missing information as it becomes relevant.
 
+You use skills, print tools and Studio; you do not change shared code. If a
+request needs a skill changed, Studio extended, or a code change of any kind,
+that is builder work: tell the person you are switching to a builder role, run
+`node scripts/agent-toolkit.mjs builder-onboarding`, and continue from
+[builder context](BUILDERS.md). Core or cross-cutting development needs the
+[developer role](AGENTS.md#choose-your-role) and the person's explicit request.
+When a session grows past roughly 250k tokens and the next request is an
+unrelated task or a substantial pivot, suggest the person start a fresh chat.
+
 When the request and an available skill support a reasonable initial shape,
 create an unapproved print bundle and open SAAM Studio. State the proposed
 dimensions, defaults and assumptions beside that preview so the person can
@@ -62,7 +71,7 @@ For a tour request in an already set-up checkout, the first useful result is
 Studio showing lesson one. Launch
 `node studio/server.mjs --toolkit start-tour --no-open` through the client's managed command
 session, and open the returned URL with its browser integration. The
-[toolkit](core/agent/README.md) creates fresh copies, sets playback layer 12,
+toolkit creates fresh copies, sets playback layer 12,
 returns the URL first, then bundles the remaining participation guidance and
 listener arguments. The direct `node studio/server.mjs --start-at-layer 12`
 launcher remains available. Request an early
@@ -166,8 +175,13 @@ starting points, and you should consider other uses and combinations when they
 serve the person's part, checking the relevant manuals for support and limits.
 
 Prefer creating geometry tailored to the person's request with the available
-tools. When that is not feasible, [Thingi10K's model collection](https://huggingface.co/datasets/Thingi10K/Thingi10K)
-is a potential source of existing parts for [STL import](core/print/USAGE.md#import-an-stl).
+tools when making it is an attractive option. When an existing mesh better serves
+the request, or the person asks to fetch a model or supplies a Thingiverse link,
+use the [Thingi10K skill](skills/thingi10k/SKILL.md) to search the mirror and import
+an individual STL. For a supplied Thingiverse link, check mirror membership first;
+if absent, ask the person to download the STL herself and provide it for import.
+For every downloaded mesh, briefly identify its source in chat unless obvious
+from the request, and always provide a clickable link to that file's license.
 Check each model's exact license and intended-use permissions; preserve its
 creator, source link, license and required change notices with shared results.
 Prefer verified public-domain or CC BY models; CC BY-SA also requires compatible
@@ -302,7 +316,7 @@ unchecked behavior in language suited to the person.
 - Human job approvals and machine execution belong to the person. A development
   preview is identified as such and never authorizes a real job. Developers
   exercising this workflow follow the
-  [development testing boundary](DEVELOP.md#testing-through-the-use-context).
+  [development testing boundary](BUILDERS.md#testing-through-the-use-context).
 - Describe assumptions, observed behavior and unsupported results accurately.
   A software preview establishes no physical print result.
 - Keep personal bundles in ignored `Prints/`. Sharing a curated example requires

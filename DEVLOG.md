@@ -1,5 +1,521 @@
 # Development log
 
+## 2026-09-17 — Live agent/Studio sessions and review completion
+
+Replaced managed agent/Studio directory polling with a live request channel. One
+agent-owned request store can serve multiple Studio instances, each Studio instance
+has exactly one owning agent, and explicit session tools list and close those
+instances. Opening the same print in more than one owned Studio requires an
+instance selection before work is begun. Print bundles remain the durable,
+shareable interface between agents and Studios; request files are retained as a
+recovery journal and as a compatibility path for independent external writers.
+
+Studio toolpath review now presents the agent-suggested print name in an editable
+field. A person can replace it before export while the server preserves validation,
+sanitization and compound machine-program extensions. Presentation acknowledgement
+continues after two animation frames in the application, but the pure geometry and
+toolpath readiness predicate now lives in `studio/work-state.mjs`; presentation
+receipts are scoped to the Studio instance that rendered the result.
+
+The agent toolkit, persistent launcher and MCP adapter carry owner and instance
+identity through request, response, activity and presentation operations. The
+managed launcher accepts correlated live commands over its existing process stream,
+and the MCP adapter exposes Studio-session inventory and closure. Updated the Studio,
+agent and protocol maps and rebuilt the generated viewer.
+
+Verification: 42 focused request-index, Studio, toolkit, naming, readiness and work
+state tests passed. Four focused MCP notification/session tests passed, including
+one agent owning multiple Studios and same-bundle disambiguation. `git diff --check`
+passed apart from line-ending notices. The map viewer rebuilt to 81 pages and
+`dev-map check --built --since 0b2e1f8` passed. These are software checks; no
+machine execution, physical print result or manufacturing approval is established.
+
+## 2026-09-17 — Map-owned core and Studio reference
+
+Implemented the requested single technical documentation structure for core and
+Studio. Migrated 21 component/verification manuals into region-owned references,
+preserving old paths and heading links as compatibility routes. Added the Studio
+state/worker protocol reference. The system map now routes responsibilities,
+contracts and representative changes; 57 pages expose implementation entry points.
+Every scanned core/Studio production JavaScript module has a mapped declaration.
+This does not assert that every helper or dynamic relationship is explained.
+
+`read-map` returns one page, with separate contract-section, node, resource-inventory
+and detailed-evidence reads. The viewer embeds the same 23 reference sources.
+Developer onboarding no longer preloads skill catalogs or a parallel component
+manual hierarchy. Skill-only builders retain their authoring material and consume
+shared API contracts without needing implementation maps. Makers need no dev maps;
+builders changing core/Studio use the affected maps. Skills and adapters remain
+outside implementation scope while contributing caller evidence.
+
+The containment view labels and orders expectations: required implementation with
+unassessed or missing representation first, other required implementation next,
+then supporting references and verification, with out-of-scope files last.
+Native implementation is required but not declaration-analyzed; assets and tests
+need owning references/evidence, not production function boxes. Ownership does not
+turn enclosed or unrepresented declarations into explained behavior. Inventories
+include native source, HTML/CSS, assets, contracts and verification files; freshness
+includes those resources and the separate guidance inventory.
+
+Validation: focused map, reference, context/onboarding and manual-path-security
+checks passed, including file ordering, contract section identity, fenced code,
+legacy redirects, missing ownership, stale links and non-JavaScript freshness.
+Repository link/metadata checks, map build and `check --since HEAD --built` passed.
+Static SVG review found and fixed overlapping disconnected boxes after layout
+clamping; a regression test covers that case. Browser policy blocked local-file
+viewer access, so this task used static visual inspection and local rendering/
+navigation tests, not a live browser verification. No manufacturing behavior or
+hardware outcome is established by these documentation checks.
+
+Completed the subsequent semantic completeness pass after the user identified
+that consolidation alone was insufficient. Audited the production-file inventory
+against responsibilities and existing contracts, and added 51 source-grounded
+change contracts covering all 134 core/Studio implementation files. Each records
+responsibility/invariants, failures and limits, coupled changes and focused
+verification scenarios with source/test links. This includes native repair,
+plan compatibility and regional publication, numerical/mesh/surface operations,
+motion state, dialects/archives, machine models, Studio workers/imports/requests,
+rendering/resources and agent context. Supporting native build inputs and browser
+assets have explicit reference routes. Private declarations can remain enclosed
+by their owning responsibility; inventory ownership is not semantic coverage.
+
+Added exact-file responsibility declarations, agent indexes and per-file viewer
+links. A new production file cannot inherit a change contract through a directory
+scope. Missing contracts, stale sections/source/test links, duplicate assignments
+and ownership mismatch fail validation. Change reports now include the relevant
+contract read command. Expanded system-map change routes to fourteen concrete
+development scenarios and traced their invariants/couplings/checks against source.
+Corrected the distinction between explicit solid-modifier tessellation and viewer
+proxies, and between recipe review formatting and persisted display settings.
+Contract-section reads now return only that section's navigation links.
+
+Verification for this pass: all 43 focused map/context tests passed; after the
+section-navigation fix, the affected 10 reference/generation tests and manual-path
+security case passed. The four maintenance tests and role-onboarding case passed
+after their affected changes. These checks verify reference delivery, coverage
+obligations and drift detection; the authored behavioral account was reviewed
+against source rather than inferred from a green structural check.
+Final artifact validation resolved all 134 containment-to-contract routes and
+979 rendered reference links, and checked the requested containment ordering.
+The rebuilt viewer contains 57 flow pages, 23 references and containment.
+Repository checks passed for 107 Markdown documents and 1,448 local links;
+`check --since HEAD --built` and the final build-freshness check passed.
+
+## 2026-09-17 — Containment and change-focused map maintenance
+
+Kept authored abstractions and contracts while generating a complete core/Studio
+containment inventory in the existing viewer. Module bars show direct, enclosed
+and unrepresented declarations as proportions of each module's total. Inventory
+includes wholly unmapped modules; existing gaps are not an approved baseline.
+
+Added `check --since REF` to focus review on changed modules, named callables,
+mapped state and authored regions, including additions and removals. AST comparison
+ignores formatting but preserves semantic line-break changes. Module-level code,
+callbacks and contracts still require review. Added hashed build inputs and outputs,
+cached unchanged builds, `check --built` freshness verification and a guard against
+inputs changing during rendering. Agent guidance owns the required change review;
+ordinary code edits do not require per-node tests or the extractor regression suite.
+
+Validation: all 32 focused map tests passed, including containment, change review,
+stale artifacts and concurrent input changes. Real build, cached rebuild and
+`check --since HEAD --built` succeeded. Browser navigation verified inventory
+links return to their mapped pages. This detects drift and reduces review scope;
+it does not certify semantic contracts or infer every dynamic relationship.
+
+## 2026-09-17 — Code-derived relationships drive developer maps
+
+Integrated the code graph into `loadModel()`, the common source for the existing
+human renderer, toolkit `read-map`, and onboarding maps. All 40 pages now use
+generated internal relationships; authored internal arrows survive only as
+explicit semantic claims in the Doc view and agent context. Grouping, hierarchy,
+labels, full component contracts and external/boundary interactions remain
+authored. The approved renderer, layout and viewer design were not changed.
+
+Extended the earlier extractor with finite returned-object registry dispatch,
+selection-aware value flow, local class methods, named message handlers and
+lexical state dependencies. Added the Studio source worker handler and retained
+program storage to the source page. Unknown alternatives remain reported beside
+known targets; direct alias mutations invalidate literal-object resolution.
+Calls, returned values, argument flow, state dependencies and possible worker
+delivery retain separate kinds and source evidence. Authored claims cannot keep
+a deleted call's wire visible. Shared red references still calculate all other
+occurrences, including same-page uses; unmapped callers receive no invented index.
+
+The build writes the viewer, SVGs, concise region context, full graph and coverage
+evidence. The supporting evidence command now consumes that same generated
+model. Current extraction scans 184 modules and projects 314 displayed internal
+endpoint pairs across 342 nodes. Core/Studio inventory is 162 direct, 2,673
+enclosed and 4,151 unrepresented declarations; the callable subset is 160 direct,
+739 enclosed and 1,541 unrepresented. These counts do not imply full behavioral
+coverage. There are 8,744 unresolved/partially resolved sites, including external
+APIs, and 249 discovered caller sites without direct mapped nodes.
+
+Validation: 28 focused tests passed across `dev-map.test.mjs`,
+`dev-map-evidence.test.mjs` and `dev-map-generation.test.mjs`. The code-only
+mutation fixture verifies changed SVG wiring and changed agent region output
+without changing the authored map; it also checks visible stale claims,
+unresolved calls and rendered same-page red references. Real toolkit CLI output
+matches the model's output and worker regions. The selected agent-toolkit
+onboarding-role integration test passed separately. Build/check resolved all
+40 pages. Browser inspection covered the real overview and rendered output,
+worker-state and shared-reference diagrams. User feedback accepted the visible
+appearance while explicitly not claiming code-accuracy verification.
+
+Remaining analysis limits are explicit in map context and the map guide:
+arbitrary callback/mutable dispatch, escaped mutations, inheritance, dynamic
+imports, native-thread worker channels and request/response correlation are not
+fully resolved. No execution order is inferred from sibling call order. Enclosed
+factory code is not individually explained; new functions enter inventory but
+do not automatically become boxes. Projection through unmapped helpers is
+bounded to six call/handoff steps. These are static software relationships,
+not runtime observations or physical evidence.
+
+## 2026-09-17 — Report-only code-derived developer-map pilot
+
+Implemented lexical/import/alias resolution and exact source evidence in
+`scripts/dev-map/graph.mjs`, with declaration containment, typed relationship
+projection and shared-caller reports in `scripts/dev-map/evidence.mjs`.
+`node scripts/dev-map-evidence.mjs` regenerates the ignored JSON graph, comparison
+report and readable report. The existing viewer, region wiring, red-link behavior
+and manufacturing implementation were left unchanged. The pilot operates in the
+saved checkout alongside the separately maintained human context maps.
+
+Measured 184 .mjs modules across core, Studio and inbound skill/adapter callers.
+Core/Studio inventory: 160 directly mapped declarations, 2,666 merely enclosed,
+and 4,160 unrepresented. The callable subset is 159 direct, 739 enclosed and
+1,542 unrepresented; local variables and callbacks explain why these denominators
+differ. Parameters/destructured bindings resolve scope but are excluded from the
+inventory. No combined coverage percentage is claimed.
+
+The graph derives 5,020 calls, 1,009 assigned/returned call results, 670 direct
+argument value flows and six possible worker handoffs. Of 451 authored wires,
+167 have structural endpoint evidence only, 187 are boundary claims, 93 have
+unresolved source sites and four lack established support in this extractor.
+There are 130 omitted typed page connections and 242 caller sites of mapped
+components without direct map nodes. Of 6,705 derived relationships, 458 occur
+in supporting endpoint paths and 6,247 are absent from the bounded comparisons;
+4,895 have an unrepresented endpoint. These are distinct measurements, not counts
+of proven runtime behaviors or declarations that require individual boxes.
+
+The 9,122 unresolved call/constructor sites comprise 7,287 dynamic members,
+942 external/unbound identifiers, 539 unresolved imports, 249 unresolved local
+values, 87 parameter targets, 13 mutated bindings and five unsupported callee
+expressions. External APIs and deliberate extractor limits contribute to this
+count. Unresolved is not absent; unsupported is not disproven.
+
+The 6_output pilot derives pipeline-to-outputAdapter and pipeline-to-advisory
+calls plus the adapter result return, while leaving object-dispatched exporters
+unresolved. The 7b_source pilot derives the fetch result supplied to decodeSource
+and paths from sourceSession through the Worker handler to fetch/decode/bind.
+Session-to-decode and session-to-bind endpoint paths are omitted from that page.
+Mutable program state, response-ID routing and control sequence are not inferred.
+The registry's interpretGriffin wrapper is an example of a discovered unmapped
+caller, separate from the two existing calculated mapped occurrences.
+
+Validation: 22 focused tests passed using
+`node --test core/tests/dev-map-evidence.test.mjs core/tests/dev-map.test.mjs`.
+They cover shadowing, aliases/imports/re-exports, mutation, default parameter
+scope, anonymous functions, value-flow evidence, both worker directions,
+reassigned workers, unsupported/unresolved/omitted cases, containment, all current
+map anchors, same-page shared indexes and non-mutation of the map model.
+Proposed relationship typing and evidence-backed authoring changes are reported
+for review; broad replacement of the forty authored pages was not performed.
+
+## 2026-09-17 — Documentation revamp audit
+
+Audited the three-role restructure and the dev maps. Verified against source:
+`dev-map check` reports the recorded 40 pages and 340 nodes; `check-repo` reports
+only the six known issues; 24 focused map/role/manual-access tests pass;
+onboarding context sets for maker, builder, builder `--area`, and developer
+`--area` match their manuals exactly; `read-map` on a child returns its whole
+owning region with shared contracts. 86 documents were link- and anchor-checked.
+
+Context maps corrected against the toolkit. The user's point was that the maps
+must reflect what onboarding actually returns. They did not. `builder-onboarding`
+returns six documents and no maps, but the map drew only three as delivered and
+showed MAKERS, print tools and skill authoring as merely mentioned; those three
+wires are now the blue-dashed delivered set, so all six read as one call. A panel
+now states the base set explicitly and tables every `--area` flag against the
+contracts and region maps it adds, and nodes were added for the area contracts that
+had none: MCP development, tests, machine models, plus benchmarks, the region
+verification reference and the fourth skill `DEVELOP.md`. On the maker map the tour
+path was invisible although it replaces onboarding and delivers a different set;
+`start-tour` now shows as its own action delivering MAKERS with tour participation,
+and the prose records that `begin-studio-work` returns no manuals at all.
+
+[Context-map tests](core/tests/context-map.test.mjs) now assert the blue-dashed sets
+equal the toolkit's maker and builder context sets exactly, that both return no maps,
+that every `--area` contract has a node, and that no node links to a missing file.
+Hand-drawn maps drifted twice; this makes the drift fail a check instead.
+
+Corrections made. The user spotted the stale context maps: the maker map's four
+slice tooltips still routed implementation content to the abolished developer bin
+and to a `DEVELOPER-CONTEXT.md` section that moved into `maps/9_agent.md`, while
+the same file's header prose had already been updated — they now name the owning
+region maps and `scripts/bench/region-reference.md`. The builder map's two map
+nodes had no wires at all, so nothing showed how a builder reaches them and hover
+did nothing; they are now wired from `BUILDERS.md` with a `read-map` action, a
+`maps/README.md` node was added because the map guide was unreachable, and the
+generated viewer node says to build first. Its legend gained the blue-dashed
+swatch its prose already promised.
+
+`GLOSSARY.md` still defined two agent roles and none of the map vocabulary; it now
+defines maker, builder and developer agents, keeps `development agent` as the
+umbrella for the latter two, and adds dev map, region, map page, operation address,
+shared component, shared-use reference and context map. Ownership entries were
+added for the map guide, the region index and the two context maps, which had no
+recorded owner. `dev-map.mjs read` was removed as a duplicate of `read-map`, and
+`maps/0_system.md` now points agents at `read-map`; the viewer was rebuilt.
+
+[D-033](DECISIONS.md#d-033--three-agent-roles) and
+[D-034](DECISIONS.md#d-034--adopt-the-packit-region-map-contract-for-core-and-studio)
+record the three-role split and the map-contract adoption, which had no decision
+records. D-002 and D-013 are marked superseded with their original approval
+metadata preserved. Both new records are retroactive summaries of DEVLOG-recorded
+direction, not verbatim quotations.
+
+Findings left open. `.github/workflows/test.yml` runs only `npm run setup:check`,
+so the map checks and `check-repo` — the mechanical half of the maps' freshness
+guarantee — are enforced only when a contributor runs them locally. `check-repo`
+walks `*.md` only, so the two context-map HTML files are never link- or
+coverage-checked; that is why the stale nodes survived. The viewer's Doc pane
+renders region-prose Markdown links as literal text, because `md_to_html` in
+`scripts/dev-map/viewer.py` handles code, bold and italic but not links, so the
+routing half of the map contract does not reach people. The builder map still
+omits nodes for the test reference, benchmarks, MCP development, machine models
+and `skills/wave-overhangs/DEVELOP.md`. `--area path` returns `core/path/README.md`
+without `2_generation`, whose caller contract is that same file. No skill has a
+`DEVELOPER.md`, so `read-skill --developer` is a documented but empty tier.
+Smaller text errors remain in `core/agent/README.md` ("both examples" for three
+tour examples, a mislabeled `maps/9_agent.md` link, `record-request-activity`
+absent from the command table) and in `core/region/README.md` (two links to the
+benchmark reference labelled "developer maps"). No code or manufacturing behavior
+changed; nothing physical was tested.
+
+## 2026-09-17 — Core and Studio developer maps
+
+Implemented 40 pages (340 nodes) from ten region Markdown sources, using the
+PackIT leveled layout and viewer. The user reviewed offset/perimeter examples
+and approved continuation. The system overview leads to lifecycle, generation,
+geometry, regions, motion, output, Studio, machine presentation and agent tools.
+Skill implementations and client adapters remain outside the mapped boundary.
+
+The generator resolves named JavaScript declarations through Acorn, checks
+hierarchy and boundary labels, rejects two-node pages and ambiguous/raw repeated
+anchors, and calculates every other mapped occurrence for each shared component.
+Human diagrams show those occurrences as red downward arrows and indexes;
+agent packets expose the same references with the shared input/output contracts.
+The viewer retains the exemplar layout and optional code/Doc interactions;
+supporting prose stays behind Doc. Generated artifacts are ignored and rebuilt
+from source, while agent reads resolve the current checkout without Python.
+
+Added `read-map PAGE` and selected-area map packets to onboarding. Developers
+receive the system overview; skill-only builders and makers receive no maps.
+Repeated regions are deduplicated. Developer onboarding does not force maker
+workflow or individual skill manuals. The implementation bin is absorbed into
+region context, with numerical reference procedures under benchmark guidance.
+Both role context viewers and owning manuals now point to these sources.
+
+Tracing the maps corrected a draft travel sequence: recovery precedes combed
+travel and follows clearance travel. No manufacturing implementation changed.
+Maps and checks establish a structural account, not a proof of behavior or an
+exhaustive inventory of every helper/caller.
+
+Verification: all 40 pages built and passed declaration/boundary/shared-use
+checks; 17 focused tests passed for map drift/reuse, role/context selection and
+manual access. All 89 checked guidance links and headings resolved. Browser
+review covered overview, offset/perimeter recovery, radial contact, travel and
+Studio drawing layouts, navigation, declaration code and shared references.
+
+## 2026-09-17 — Selective skill-role reads
+
+`read-skill ID` now accepts independent `--maker`, `--builder` and `--developer`
+flags, selecting package `SKILL.md`, optional `DEVELOP.md` and optional
+`DEVELOPER.md`. No flags preserves the maker read. Combined flags return only
+the selected source documents; missing optional roles are reported explicitly.
+The existing file split is reused rather than duplicating manual content.
+Builder guidance now requires maps for core/Studio changes or investigation of
+their internals, not every skill-script change. Dev maps cover core and Studio.
+
+Verification: focused CLI onboarding and role-selection tests passed (2 tests),
+including combined reads, builder-only reads, source equality, absent optional
+manuals and rejection of unknown skills. No manufacturing behavior changed.
+
+## 2026-09-17 — Reconcile role context and the map contract
+
+The user approved the documentation reconciliation after reviewing checkpoint
+`04f66db`, with no temporary map-unavailability routing. [AGENTS.md](AGENTS.md)
+and [BUILDERS.md](BUILDERS.md#maps-and-local-documentation) distinguish inherited
+responsibilities from required reads. Builders read relevant maps for skill,
+Studio and isolated core changes; reading an implementation reference does not
+change their role. Caller-facing contracts remain available to the roles using
+them instead of classifying whole mixed manuals as developer-only.
+
+The map contract records one region source for agent text and human rendering,
+shared components only under the same input/output semantics, and calculated
+red vertical arrows listing every other map occurrence by node index. Both agent
+and human views must expose these references. Structural checks do not establish
+behavioral truth or caller completeness. Maps carry the structural account;
+comments/docstrings assume the map has been read and require specific local
+value. Concise useful rationale and contracts remain permitted. PackIT's region
+source, vision and style were the reference; its strict documentation and
+atomization policies were not adopted.
+
+The [developer bin](DEVELOPER-CONTEXT.md) now contains the implementation slices
+previously left in its manifest: region kernel/construction and verification
+details, Studio request indexing/presentation, and output dispatch/validation
+integration. Owning manuals retain caller behavior, limitations and links.
+The scoped reference index includes machine presentation and distinguishes
+contracts from internal mechanics. Developer onboarding reads only the bin's
+orientation/index; implementation slices are separate existing `read-guidance`
+section reads. Role labels and both documentation-navigation HTML maps were
+reconciled. No code-anchored region maps or new skill-section flags were built.
+
+Verification: the focused three-role CLI onboarding test passed, including exact
+orientation text and a selected implementation-section read without neighboring
+sections. `git diff --check` passed. `check-repo` reports only existing issues:
+BR-045's `open.` status and five links to removed `build_request.md#br-*` anchors.
+No printing or physical behavior changed or was tested.
+
+## 2026-09-16 — Three agent roles and documentation restructure
+
+The current user directed a move from two agent contexts (maker, developer) to
+three: **maker** (uses skills, makes parts, gives printing advice, operates
+Studio; changes no shared code), **builder** (changes skills, extends Studio,
+makes isolated local core changes, makes test parts), and **developer** (works on
+core and across components; maps-native). The agent determines its role from the
+initial prompt, defaults to maker when unclear, escalates maker→builder on any
+build request (announced, then `builder-onboarding`), and reaches developer only
+on the person's explicit request or an accepted proposal for major core work.
+Maker and builder agents suggest a fresh session past ~250k tokens on an
+unrelated pivot; developers are exempt.
+
+Structure changes: [AGENTS.md](AGENTS.md) now routes by role, escalation and
+session-switch. `DEVELOP.md` moved to [BUILDERS.md](BUILDERS.md) (builder
+orientation, includes maker context) with its externally-referenced anchors
+preserved; all root `DEVELOP.md` links were repointed there (component
+`DEVELOP.md` files untouched). A new transitional [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md)
+is the developer handoff: it holds the developer-only sections physically lifted
+from `core/agent/README.md` (implementation and verification),
+`core/export/README.md` (stationary-extrusion motion writer) and
+`studio/README.md` (historical toolpath inspection), plus a dev-bin manifest
+that catalogues, with anchors, the interwoven dev-only material still living in
+the region READMEs (Clipper2 kernel, export interoperability internals, Studio
+request-index/work-state internals) for the dev maps to absorb, and an index of
+the wholesale developer-only documents.
+
+Onboarding now takes roles maker/builder/developer
+([core/agent/toolkit.mjs](core/agent/toolkit.mjs), [scripts/agent-toolkit.mjs](scripts/agent-toolkit.mjs));
+`developer-onboarding` was renamed to `builder-onboarding` and a new
+`developer-onboarding` added. [manuals.mjs](core/agent/manuals.mjs) admits the new
+root docs and aliases. The [agent toolkit manual](core/agent/README.md) documents
+all three. The [maker](maker-context-map.html) and [builder](builder-context-map.html)
+context maps were updated to the new state (the developer context map became the
+builder map); the code-anchored developer region maps are the next phase.
+
+Judgement call on the reorg depth: cleanly-detachable dev-only sections were
+physically moved to the handoff; large interwoven ones were catalogued in place
+with precise anchors rather than butchered, since the dev maps are meant to
+re-own that content and most of the handoff is expected to disappear once they
+exist. Verified: `agent-toolkit` (three-role onboarding) and `mcp` tests pass;
+`check-repo` shows only pre-existing `build_request.md#br-*` anchor issues. The
+prior working tree was checkpointed first (commit before this work).
+
+## 2026-09-16 — X1 Carbon, Ultimaker 2 Extended and Ultimaker 3 profile definitions
+
+The current user requested an X1 Carbon profile, confirmed the standard hardened
+0.4 mm nozzle with PLA, and clarified that materials must remain changeable.
+They also requested Ultimaker 2/3 profiles, correcting the installed 2-series
+model to the original "ultimaker 2 extended" after initially choosing 2+.
+The resulting IDs are `bambu-x1-carbon`, `ultimaker-2-extended` and `ultimaker-3`.
+
+The profiles declare hardware/coordinate bounds, conservative rectangular tool
+areas outside cutter/clip regions, temperature/feed limits, installed nozzle
+assumptions and editable PLA defaults. X1 also declares PETG, ABS, ASA, PC and
+95A-class TPU; both UltiMakers also declare ABS. These are bounded starting
+settings, not a general material-library port or physical calibration.
+Official Cura/Bambu profiles and manufacturer documents are linked in the files.
+Shell defaults now enable drape only for a machine declaring nonplanar support.
+
+The definitions are usable for geometry/setup review and remembered settings.
+All three explicitly declare unavailable output, and the shared lifecycle now
+reports the output reason before path generation. H2D firmware routines are not
+reused on X1; S5 startup is not reused on UM3; UM2 Extended's volumetric UltiGCode
+is not treated as filament-length Griffin. No startup position was invented.
+The remaining output work is [BR-051](build_request.md#br-051--complete-output-for-the-three-new-printer-profiles).
+
+Verification: all 9 tests in `printer-profiles.test.mjs` and
+`interoperability.test.mjs` passed, plus the focused MCP SDK catalog/persistence
+test. This covers material/temperature changes, remembered setup, tool-bound
+rejection, core/tool selection, planar defaults, early unavailable-output errors,
+and catalog discovery. Existing S5/H2D default and H2D export checks pass.
+No physical printing or new machine output was tested. Changes are uncommitted.
+
+## 2026-09-16 — S5 sacrificial priming before shell prints
+
+The user reported missing priming on the desktop `stress-mesh-hi-fi-20260916.gcode`.
+Inspection read only the first 3,072 and last 2,048 bytes of the 98,930,655-byte
+file, as requested. It starts with `G92 E0` and a stationary `G1 E6.5 F1500`
+before the first model wall; its last E move withdraws 6.5 mm. Thus that file
+already matches the configured terminal retraction, but has no sacrificial
+priming strokes. This does not establish any additional firmware withdrawal
+or the physical reason for failed initial extrusion.
+
+S5 profile revision 7 supplies two connected 100 mm passes to shell generation.
+The shared path helper places them outside geometry and generated stroke bounds,
+including supports, with 4 mm clearance and bead-width allowance at the bed edge.
+It uses locked first-layer settings and normal flow caps, restores the initial
+retraction at the prime, then retracts/lifts before entering the model. Ordinary
+SAAMpath/export interpretation includes prime material, timing, bounds and Studio
+playback. Insufficient space is reported rather than silently omitting priming.
+The bounded wedge retains its existing prime line; older snapshots and other
+profiles retain their startup. The desktop export was not modified or regenerated.
+
+All 26 selected tests passed across priming, pipeline, export, modal emission,
+travel and source playback. Coverage includes both S5 nozzles, zero/6.5 mm
+retraction, support extents, bed-edge fallback, no-space rejection, snapshot
+compatibility and exact-source Studio playback. No physical print was performed.
+
+## 2026-09-16 — Shared Thingi10K search and download
+
+The user requested built-in mesh retrieval for descriptive searches such as
+"fetch me a bunny", plus mirror lookup for supplied Thingiverse links and a
+manual-download fallback when absent. The existing preference for tailored
+geometry remains in MAKERS, clarified to apply when making it is attractive.
+Every downloaded mesh now returns a brief source notice and its license link;
+the maker guidance and [task manual](skills/thingi10k/SKILL.md) require that link
+in chat even when strict mesh import fails. The mirror provides unversioned
+per-file license labels, so the link goes to the original model's license section
+and no exact legal version is inferred.
+
+The shared skill implements keyword/name/tag/filename search, per-file selection,
+Thingiverse thing lookup, bounded individual HTTPS downloads and cached metadata
+from Hugging Face revision `2d5d3b2f3cd3711028ad75b12788c13b25559ec6`.
+CLI and MCP use the same library and STL importer. Downloads retain source bytes,
+hash and attribution; successful imports carry attribution in the saved source
+record and delivery copies it beside the reviewed machine program. Failed import
+retains the original for explicit preparation. No new dependency, remote scraping,
+automatic repair or manufacturing approval was introduced.
+
+Six skill tests and four existing MCP-access tests passed. Coverage includes
+quoted CSV names, keyword and Thingiverse/file identity, pagination, persisted
+cache reuse, incomplete metadata, network errors, redirects, download limits,
+interrupted streams, failed-import recovery, and the SDK MCP search/import/Studio
+review route. Synthetic fixture delivery preserved exact reviewed bytes and
+source attribution through unit correction. Live CLI checks found 67 bunny files,
+resolved Thingiverse thing 151081 to file 293137, and returned the user-download
+fallback for an absent thing. One upstream file (68807) lacks contextual metadata;
+it remains discoverable with an explicit missing-creator indication.
+
+The live import downloaded Low Poly Stanford Bunny by johnny6, listed as
+[CC BY-SA at its source](https://www.thingiverse.com/thing:151081#license), into an
+isolated unapproved local test bundle. Source SHA-256 was
+`4a222346223cf2c207c34d7a3d4e8ea297b004ff862b06b6e4c7c2eeac9f761a`.
+This establishes software download/import behavior, not physical printability.
+The refreshed capability digest and new manual links passed their relevant
+checks; the repository-wide documentation check still reports the pre-existing
+BR-045 status and stale backlog anchors for BR-005, BR-018, BR-023 and BR-039.
+
 ## 2026-09-16 — Stress mesh hi-fi completion and separate vase manuals
 
 The user established **stress mesh** as the term for the local Spiral Vase input
@@ -1706,7 +2222,7 @@ that the perpendicular glue jogs came from SAAM, not a requested exemplar.
   shared operations/export and catalog/Studio integration. The research dataset
   is CC BY 4.0; the Prusa/Orca integrations are AGPL-3.0. No third-party algorithm
   source or research assets were incorporated. Provenance and numerical limits
-  are at the [implementation owner](skills/wave-overhangs/DEVELOP.md).
+  are at the [implementation owner](skills/wave-overhangs/BUILDER.md).
 - Software evidence: physical-spacing checks on inclined/rescaled planes and
   an independently unrolled rational cylinder; doubly curved native surface,
   hole splitting/rejoining, disconnected seeds, budgets, component/slice ordering,
@@ -1846,7 +2362,7 @@ manufacturing regression suite was needed for these documentation/metadata edits
   recovery correction is implemented as described in the
   [S5 observations](#2026-09-08-to-2026-09-10--s5-startup-observations);
   its unreported physical outcome is part of the
-  [remaining S5 print](build_request.md#br-005--complete-the-requested-s5-wedge-print).
+  [S5 print record](#br-005--first-complete-print).
 
 ## 2026-09-14 — Ready examples and guided Studio tour
 
@@ -2548,7 +3064,7 @@ were retained. This restart did not authorize adoption of the legacy runtime.
 All 114 archived files were checked against their original SHA-256 hashes.
 Initial checks covered document links, decision metadata and private-file
 exclusions; they did not validate manufacturing behavior. Current checks are
-described in the [check policy](DEVELOP.md#avoid-check-spirals).
+described in the [check policy](BUILDERS.md#avoid-check-spirals).
 
 ## BR-003 — Resolve native path versus machine file
 
@@ -2602,7 +3118,7 @@ described in the [check policy](DEVELOP.md#avoid-check-spirals).
 
 - Status: complete locally
 - Source: user correction during the S5 wedge conversation, 2026-09-08.
-- Historical result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. The instruction at this checkpoint defaulted unspecified agents to developer and required every developer to read both root files. Current context selection is in [AGENTS.md](AGENTS.md#choose-your-context) and the [developer orientation](DEVELOP.md).
+- Historical result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. The instruction at this checkpoint defaulted unspecified agents to developer and required every developer to read both root files. Current context selection is in [AGENTS.md](AGENTS.md#choose-your-role) and the [builder orientation](BUILDERS.md).
 - Approval scope: this records the user's development instruction, not an inferred contributor decision approval.
 
 ## BR-009 — Accessible chat-driven review and wedge refinement
@@ -2816,7 +3332,7 @@ Historical design snapshot; implementation followed in BR-017 and BR-018.
 - Task: Add a Bambu H2D machine profile and general machine interoperability. Move S5-specific setup validation out of shared plan code. Declare machine/tool/material capabilities and supported outputs; keep machine behavior out of pattern skills. Implement the H2D-compatible exporter/interpreter and packaging needed for the exact reviewed artifact, using verified machine documentation or a user-supplied known-good program for the intended configuration.
 - H2D scope to resolve before implementation: target nozzle/tool and material setup, firmware/output packaging, startup/shutdown behavior and machine limits. Do not copy the S5 Griffin envelope or assume an H2D profile alone enables support. No hardware execution is requested.
 - Verify: equivalent geometry across backends, material ownership, travel limits, deterministic generation, profile-specific setup rejection and supported machine-program interpretation. Exercise both machine profiles through the same skills, three approvals and exact-byte delivery. Report software checks separately from physical printing.
-- Design: [geometry](core/geom/README.md#geometry-interoperability-for-skill-authors), [travel](core/path/README.md#whole-plan-travel-requirement), [planar-infill](skills/planar-infill/DEVELOP.md#planar-infill-design), [machines](core/export/README.md#machine-interoperability-design).
+- Design: [geometry](core/geom/README.md#geometry-interoperability-for-skill-authors), [travel](core/path/README.md#whole-plan-travel-requirement), [planar-infill](skills/planar-infill/BUILDER.md#planar-infill-design), [machines](core/export/README.md#machine-interoperability-design).
 - Approval scope: records requested work, not contributor consensus or manufacturing-job approval. Existing runtime remains unchanged.
 
 ## BR-017 — Implement interoperability first, then planar infill and import
@@ -3169,7 +3685,7 @@ last export. No job approval or physical validation was performed.
 ## 2026-09-10 — Gyroid contour construction measurement
 
 - Date basis: BR-032 checkpoint f667205 (2026-09-10T02:51:13-07:00); exact run time is not recorded.
-- Original owner: [skills/planar-infill/DEVELOP.md](skills/planar-infill/DEVELOP.md). Preserved observation/checkpoint wording follows.
+- Original owner: [skills/planar-infill/BUILDER.md](skills/planar-infill/BUILDER.md). Preserved observation/checkpoint wording follows.
 
 A 48 mm square gyroid construction over 16 phases at 0.2 mm sampling and
 0.4 mm line width measured 24.60 s

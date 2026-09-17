@@ -16,9 +16,7 @@ failure inspection. It delegates to the operations described here.
 
 Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
 Use a named directory under ignored `Prints/`; quote paths containing spaces.
-The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns. The
-[bounded wedge demo](../../skills/wedge-demo/SKILL.md#setup-and-tools) has its own
-CLI and initialization format, with the same review and delivery lifecycle.
+The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns.
 
 Connected agents use the corresponding MCP tools below. Their `printId` is
 relative to the configured Prints root, so `Prints/my-part` in a CLI example is
@@ -47,9 +45,8 @@ The shell template enables full-fill **and draped-skin**; explicitly disable
 unwanted patterns when choosing another recipe (STL and Gridfinity
 creation already disable draped-skin).
 
-Through MCP, get a complete editable recipe with `get_plan_template`, selecting
-`kind: "shell"` and the machine, then pass the proposed recipe to `create_print`.
-`kind: "wedge"` selects the bounded demo when that is the intended workflow.
+Through MCP, get a complete editable recipe with `get_plan_template` for the
+machine, then pass the proposed recipe to `create_print`.
 Creation stores unapproved geometry and settings; open Studio for review.
 
 ### Import an STL
@@ -79,6 +76,15 @@ invalidates geometry/toolpath confirmation. Text-wrapped or composed geometry
 requires a geometry-specific edit instead.
 The source must be an absolute local `.stl` file on the SAAM computer and no
 larger than 64 MiB. A path on a remote chat device is not a local source.
+
+### Find and download an existing mesh
+
+The [Thingi10K skill](../../skills/thingi10k/SKILL.md) owns keyword search,
+Thingiverse-link lookup and individual downloads. MCP `search_thingi10k` finds
+files and `import_thingi10k_print` downloads on the SAAM host before using this
+same STL importer. The skill supplies CLI equivalents, license/source reporting
+and recovery. Successful imports preserve attribution with the original source;
+delivery includes a neighboring `source-attribution.json` for shared results.
 
 ### When mesh validation fails
 
@@ -189,7 +195,7 @@ line spacing without tripling bead width or extrusion per unit length:
 
 This applies to full-fill, planar-infill, draped-skin, supports, both rimming
 patterns and pipe-cladding, including regional overrides where supported.
-Single-wall vase spirals and the bounded wedge demo do not use this setting.
+Single-wall vase spirals do not use this setting.
 Ordinary recipes need no additional setting. Studio shows a nondefault factor
 in plan review; changing it follows the existing process review lifecycle.
 See the [shared spacing contract](../path/README.md#line-spacing) for density,
@@ -226,7 +232,7 @@ For an explicitly developmental preview, `demo Prints/development/my-part`
 creates or reopens a shell bundle and generates without human approvals. An
 existing recipe can be initialized first. Development output cannot authorize
 delivery, and MCP does not expose this mode. Follow the
-[development testing context](../../DEVELOP.md#testing-through-the-use-context)
+[development testing context](../../BUILDERS.md#testing-through-the-use-context)
 when exercising maker tools during development.
 
 Development generation still needs explicit robot command settings; for a new
@@ -268,4 +274,3 @@ old-version validation prevents normal reopening. The shell adapter installs
 the current machine snapshot, retains unchanged geometry approval and invalidates
 plan/toolpath approvals. Existing exports and delivery files remain unchanged.
 Reopen Studio and complete the affected reviews before generating new output.
-The wedge adapter's additional geometry migration is described in its own manual.

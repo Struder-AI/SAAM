@@ -6,7 +6,7 @@ description: Wrap a substrate with alternating lengthwise and helical cladding, 
 # Pipe cladding
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 This is a bounded development implementation for the DENSO VP-6242 with RC8 and
 an external rotary. RC8 is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
@@ -165,8 +165,8 @@ calibration for an actual installation.
 
 Software coverage is in [denso.test.mjs](../../core/tests/denso.test.mjs): native
 geometry, radial ownership/order, unwrapped turns, tilted poses, source edits,
-relay behavior, both preview frames, mesh/spline predecessor skills, bounded
-wedge, cold reopen, synthetic approval invalidation and exact-byte delivery.
+relay behavior, both preview frames, mesh/spline predecessor skills, cold reopen,
+synthetic approval invalidation and exact-byte delivery.
 
 ## Finished-surface composition
 

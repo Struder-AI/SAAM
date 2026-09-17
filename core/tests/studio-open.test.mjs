@@ -4,9 +4,11 @@ import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createStudio} from '../../studio/server.mjs';
-import * as wedge from '../../skills/wedge-demo/scripts/bundle.mjs';
-import {defaults} from '../../skills/wedge-demo/scripts/model.mjs';
+import * as shell from '../print/bundle.mjs';
+import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
+// A small planar box keeps these Studio-lifecycle tests fast and machine-neutral.
+const boxPlan=(machine=loadMachine())=>{const p=defaults(machine);p.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};p.skills['draped-skin'].enabled=false;p.process.minimumLayerSeconds=0;return p;};
 import {Worker} from 'node:worker_threads';
 import {once} from 'node:events';
 import workerThreads from 'node:worker_threads';
@@ -43,13 +45,13 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
 test('Studio reopens saved approval stages and exports without creating or rewriting approvals',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-open-'));t.after(()=>rm(library,{recursive:true,force:true}));
   const geometry=join(library,'geometry-only'),ready=join(library,'ready-h2d');
-  await wedge.initBundle(geometry,defaults());
-  let state=await wedge.loadBundle(geometry);
-  await wedge.approve(geometry,{stage:'geometry',actor:'SYNTHETIC TEST reopen',revision:state.revision});
-  await wedge.initBundle(ready,defaults(loadMachine('bambu-h2d')),{machineId:'bambu-h2d'});
-  state=await wedge.loadBundle(ready);
-  for(const stage of ['geometry'])state=await wedge.approve(ready,{stage,actor:'SYNTHETIC TEST reopen',revision:state.revision});
-  await wedge.generateBundle(ready);
+  await shell.initBundle(geometry,boxPlan());
+  let state=await shell.loadBundle(geometry);
+  await shell.approve(geometry,{stage:'geometry',actor:'SYNTHETIC TEST reopen',revision:state.revision});
+  await shell.initBundle(ready,boxPlan(loadMachine('bambu-h2d')),{machineId:'bambu-h2d'});
+  state=await shell.loadBundle(ready);
+  for(const stage of ['geometry'])state=await shell.approve(ready,{stage,actor:'SYNTHETIC TEST reopen',revision:state.revision});
+  await shell.generateBundle(ready);
   const original=await readFile(join(ready,'review.json'));
   const server=createStudio(geometry,{libraryRoot:library});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
@@ -58,7 +60,7 @@ test('Studio reopens saved approval stages and exports without creating or rewri
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
   const first=await get();assert.equal(first.geometryApproved,true);assert.equal(first.planApproved,false);assert.equal(first.program,undefined);
   assert.equal((await post('open',{path:ready},false)).status,403);
-  const archive=join(ready,'exports/bambu-gcode/wedge.gcode.3mf');
+  const archive=join(ready,'exports/bambu-gcode/part.gcode.3mf');
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
   state=await get();assert.equal(state.planApproved,false);assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
@@ -93,13 +95,13 @@ test('Studio reopens saved approval stages and exports without creating or rewri
 
 test('background preparation leaves review writable and persists only a currently approved generation',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-studio-preparation-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await wedge.initBundle(dir,defaults());
-  const initial=await wedge.loadBundle(dir,{program:false}),original=await readFile(join(dir,'review.json'));
+  await shell.initBundle(dir,boxPlan());
+  const initial=await shell.loadBundle(dir,{program:false}),original=await readFile(join(dir,'review.json'));
   const worker=new Worker(new URL('../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,planHash:initial.planHash}});
   t.after(()=>worker.terminate());
   const [prepared]=await once(worker,'message');assert.equal(prepared.type,'prepared');assert.equal(prepared.error,undefined);
   assert.deepEqual(await readFile(join(dir,'review.json')),original);
-  await assert.rejects(readFile(join(dir,'exports/griffin-gcode/wedge.gcode')),{code:'ENOENT'});
+  await assert.rejects(readFile(join(dir,'exports/griffin-gcode/part.gcode')),{code:'ENOENT'});
   const request=async()=>{const reply=once(worker,'message');worker.postMessage({type:'generate'});return (await reply)[0];};
   assert.match((await request()).error,/Approve the geometry/);
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
@@ -113,20 +115,20 @@ test('background preparation leaves review writable and persists only a currentl
   }
   const generated=await request();assert.equal(generated.error,undefined);assert.equal(generated.checks.mode,'production');
   assert.ok(generated.source.metadata);assert.equal(generated.source.metadata.moves,undefined);assert.equal(generated.source.metadata.events,undefined);
-  assert.equal((await wedge.loadBundle(dir)).toolpathApproved,false);
-  const exportBefore=await readFile(join(dir,'exports/griffin-gcode/wedge.gcode'));
+  assert.equal((await shell.loadBundle(dir)).toolpathApproved,false);
+  const exportBefore=await readFile(join(dir,'exports/griffin-gcode/part.gcode'));
   const plan=JSON.parse(await readFile(join(dir,'plan.json'),'utf8'));plan.process.layerMm=.1;await writeFile(join(dir,'plan.json'),JSON.stringify(plan));
   assert.match((await request()).error,/prepared print changed/);
-  assert.deepEqual(await readFile(join(dir,'exports/griffin-gcode/wedge.gcode')),exportBefore);
+  assert.deepEqual(await readFile(join(dir,'exports/griffin-gcode/part.gcode')),exportBefore);
 });
 
 test('compact approval response invalidates a browser program when saved export bytes change',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-approval-export-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await wedge.initBundle(dir,defaults());await wedge.generateBundle(dir,{development:true});
+  await shell.initBundle(dir,boxPlan());await shell.generateBundle(dir,{development:true});
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state=await(await fetch(origin+'/api/state')).json();assert.ok(state.program);
-  const file=join(dir,'exports/griffin-gcode/wedge.gcode');await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
+  const file=join(dir,'exports/griffin-gcode/part.gcode');await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
   const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({stage:'geometry',actor:'SYNTHETIC stale export test',revision:state.revision})});
   assert.equal(response.status,200);const {approval}=await response.json();
   assert.equal(approval.geometryApproved,true);assert.equal(approval.programAvailable,false);
@@ -135,7 +137,7 @@ test('compact approval response invalidates a browser program when saved export 
 
 test('ordinary review and unconfirmed generation do not slice; explicit retry recovers a failed worker',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-worker-retry-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await wedge.initBundle(dir,defaults());
+  await shell.initBundle(dir,boxPlan());
   const OriginalWorker=workerThreads.Worker;let attempts=0,failed;
   const failure=new Promise(resolve=>{failed=resolve;});
   workerThreads.Worker=class extends OriginalWorker{
@@ -170,7 +172,7 @@ test('ordinary review and unconfirmed generation do not slice; explicit retry re
 
 test('preparation diagnostics stay actionable until explicit retry; state polling never restarts them',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-preparation-diagnostic-')),dir=join(library,'part');
-  t.after(()=>rm(library,{recursive:true,force:true}));await wedge.initBundle(dir,defaults());
+  t.after(()=>rm(library,{recursive:true,force:true}));await shell.initBundle(dir,boxPlan());
   const OriginalWorker=workerThreads.Worker;let attempts=0,reported;
   const diagnostic=new Promise(resolve=>{reported=resolve;});
   workerThreads.Worker=class extends OriginalWorker{

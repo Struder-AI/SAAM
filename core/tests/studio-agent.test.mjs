@@ -129,8 +129,8 @@ test('tour queues chat guidance and exports exact reviewed bytes before completi
   const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
   assert.equal((await post('tour-export',{revision:'stale',exportHash:state.exportHash})).status,400);
   assert.equal((await post('tour',{action:'finish'})).status,400,'completion requires a download');
-  const response=await post('tour-export',{revision:state.revision,exportHash:state.exportHash});assert.equal(response.status,200,await response.clone().text());
-  assert.match(response.headers.get('content-disposition'),/Handle.gcode/);
+  const response=await post('tour-export',{revision:state.revision,exportHash:state.exportHash,name:'Workshop handle'});assert.equal(response.status,200,await response.clone().text());
+  assert.match(response.headers.get('content-disposition'),/Workshop%20handle.gcode/);
   assert.deepEqual(Buffer.from(await response.arrayBuffer()),await readFile(join(directory,'delivery/part.gcode')));
   assert.equal((await loadBundle(directory,{program:'source'})).toolpathApproved,true);
   assert.equal((await post('tour',{action:'finish'})).status,200);assert.equal((await tour.info()).completed,true);

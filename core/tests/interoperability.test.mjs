@@ -7,21 +7,18 @@ import {rhino} from '../print/geometry.mjs';
 import {PathBuilder,planarPolicy} from '../path/builder.mjs';
 import {composeResults} from '../path/compose.mjs';
 import {combSegment} from '../path/comb.mjs';
-import {defaults as wedgeDefaults,validatePlan as validateWedge} from '../../skills/wedge-demo/scripts/model.mjs';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {initBundle,loadBundle,rememberSetup,generateBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 
-test('S5 and H2D speed defaults are shared by shell and wedge plans',()=>{
+test('S5 and H2D speed defaults are shared by shell plans',()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']){
     const machine=loadMachine(id);
-    for(const [make,validate] of [[defaults,validatePlan],[wedgeDefaults,validateWedge]]){
-      const plan=make(machine);validate(plan,machine);
-      for(const [key,value] of Object.entries({planarSpeedMmS:40,skinSpeedMmS:20,firstLayerSpeedMmS:24,travelSpeedMmS:120,zSpeedMmS:10}))assert.equal(plan.process[key],value,`${id} ${key}`);
-      assert.equal(plan.process.maxFlowMm3S,4);
-    }
+    const plan=defaults(machine);validatePlan(plan,machine);
+    for(const [key,value] of Object.entries({planarSpeedMmS:40,skinSpeedMmS:20,firstLayerSpeedMmS:24,travelSpeedMmS:120,zSpeedMmS:10}))assert.equal(plan.process[key],value,`${id} ${key}`);
+    assert.equal(plan.process.maxFlowMm3S,4);
   }
   assert.equal(defaults(loadMachine('dobot-mg400')).process.planarSpeedMmS,20);
 });
@@ -29,8 +26,6 @@ test('S5 and H2D speed defaults are shared by shell and wedge plans',()=>{
 test('machine validation respects selected tool, filament, material and skill capabilities',async()=>{
   const s5=loadMachine(),h2d=loadMachine('bambu-h2d'),plan=defaults(h2d);
   assert.throws(()=>validatePlan(defaults(s5),h2d),/Nozzle|Filament/);
-  assert.throws(()=>validateWedge(wedgeDefaults(),h2d),/Nozzle|Filament/);
-  validateWedge(wedgeDefaults(h2d),h2d);
   const flatOnly=structuredClone(h2d);flatOnly.capabilities=['xyz-extrusion','planar'];
   assert.throws(()=>validatePlan(plan,flatOnly),/nonplanar/);
   plan.skills['draped-skin'].enabled=false;validatePlan(plan,flatOnly);

@@ -10,3 +10,9 @@ export async function printName(directory,plan){
   return named(g)?'Named part · '+named(g):basename(directory);
 }
 export function downloadName(name,exportName){const extension=exportName?.endsWith('.gcode.3mf')?'.gcode.3mf':exportName?'.'+exportName.split('.').pop():'';return name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/,'')+extension;}
+export function requestedDownloadName(value,suggested,exportName){
+  const name=value===undefined?suggested:typeof value==='string'?value.trim():'';
+  if(!name)throw Error('Enter a print name before exporting.');
+  if(name.length>120)throw Error('Keep the print name to 120 characters or fewer.');
+  return downloadName(name,exportName);
+}

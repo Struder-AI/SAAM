@@ -17,7 +17,7 @@ The maker and agent assign the edges and reference surface through judgment,
 following [D-025](../../DECISIONS.md#d-025--support-areas-assigned-through-judgment).
 No overhang-angle scan assigns support. For maker work, read
 [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+[builder orientation](../../BUILDERS.md) and follow its task-specific references.
 
 ## Process and tools
 

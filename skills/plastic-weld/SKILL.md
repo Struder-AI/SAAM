@@ -6,7 +6,7 @@ description: Inject molten plastic into blind shafts with wider bottom basins to
 # Plastic weld / injected rivets
 
 For maker work read [MAKERS](../../MAKERS.md); for development start at
-[DEVELOP](../../DEVELOP.md). Use the [shared print tools](../../core/print/USAGE.md)
+[BUILDERS.md](../../BUILDERS.md). Use the [shared print tools](../../core/print/USAGE.md)
 and [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
 
 This skill prints a blind cavity, then injects molten plastic through its small
@@ -45,7 +45,7 @@ Supported combinations:
   Studio review and exact-byte delivery. Higher operations wait for injection.
 - S5 Griffin and experimental H2D output. The robot relay exporters cannot yet
   represent metered stationary extrusion or nozzle-temperature changes; they
-  reject this skill. The bounded wedge's separate recipe is not a host adapter.
+  reject this skill.
 
 The skill does not insert arbitrary holes into a one-bead vase wall, infer
 pressure-tightness from spaced fill, or turn supports into permanent rivets.

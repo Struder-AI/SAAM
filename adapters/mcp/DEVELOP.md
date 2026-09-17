@@ -26,10 +26,15 @@ read checked program metadata without copying motion arrays. Edit dispatch reads
 geometry/settings without checking the export it is about to invalidate.
 Unchecked generated-program currency is `null`; an unchecked existing toolpath
 approval is also `null`. Explicit check and delivery retain exact-byte checks.
-Operational request reads use the rebuildable JSON-file index; `history: true`
+The agent-owned request store directly connects MCP to all Studio instances it
+created. Direct subscriptions drive notifications and event-based waits; the
+rebuildable JSON index is restart and independent-process recovery. `history: true`
 on `get_studio_requests` explicitly selects full history. Print tools accept
 `requestIds` to bind real tool activity to owned work. Only those working requests
 receive contact renewal at entry/exit; listener waits and unrelated calls do not.
+`get_studio_sessions`, `request_review.studioInstanceId` / `newInstance` and
+`close_studio_session` explicitly manage the one-agent-to-many-Studio relation;
+an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
 for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
 Task manuals identify themselves with `metadata.saam-kind: task` in their

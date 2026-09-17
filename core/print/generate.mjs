@@ -10,6 +10,7 @@ import { makeShell, assertClosed } from '../geom/shell.mjs';
 import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell, shellFromSurfaces } from '../geom/shapes.mjs';
 import { composeResults } from '../path/compose.mjs';
 import { PathBuilder } from '../path/builder.mjs';
+import {primeBeforePart} from '../path/prime.mjs';
 import { fullFillResult } from '../../skills/full-fill/scripts/fill.mjs';
 import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
@@ -216,6 +217,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
   const welds=plasticWeldResult({plan,sites:weldSites,modelResults:results});
   if(welds){results.push(welds);summary.plasticWeld=welds.report;}
+  primeBeforePart(builder,placed.bounds,results);
   summary.composition=composeResults(builder,results,plan.composition,onProgress);
 
   builder.setContext('finish', 0);

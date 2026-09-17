@@ -1,195 +1,35 @@
+<!-- saam-map-reference: maps/reference/agent.md -->
 # Agent CLI toolkit
 
-For a tour request, immediately run
-`node studio/server.mjs --toolkit start-tour --no-open` in the managed command
-session, open its returned Studio URL, then use its returned context and listener.
-The onboarding commands below apply to ordinary maker/developer work; they are
-not prerequisites for a tour. Reuse completed setup and permissions.
+The authoritative reference is owned by [9_agent](../../maps/9_agent.md).
+Read it with `node scripts/agent-toolkit.mjs read-map 9_agent --section agent`.
 
-Small bundles of existing SAAM operations for agents using a command tool.
-[MAKERS](../../MAKERS.md) owns maker behavior, [DEVELOP](../../DEVELOP.md) owns
-development guidance, and the [print lifecycle](../print/README.md) owns recipe
-validation and confirmations. These commands add no approval or generation path.
-
-Run from the checkout root:
-
-```sh
-node scripts/agent-toolkit.mjs --help
-node scripts/agent-toolkit.mjs maker-onboarding
-node scripts/agent-toolkit.mjs developer-onboarding --area studio
-node scripts/agent-toolkit.mjs read-skill planar-infill
-node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
-```
-
-`npm run agent -- ...` is a human-facing alias. For Studio commands, use the
-existing [permission-scoped launcher](../../studio/README.md#studio-agent-permissions)
-through the client's managed command session:
-
-```sh
-node studio/server.mjs --toolkit start-tour
-node studio/server.mjs --toolkit create-preview Prints/my-part --recipe plan.json
-node studio/server.mjs --toolkit open-print Prints/my-part
-```
-
-The same three commands also work through `scripts/agent-toolkit.mjs`, but that
-spelling is outside the shared Studio launcher permission. The toolkit does not
-change client trust, permissions or browser access. `--no-open` skips dispatch to
-the OS browser when a client opens the returned URL itself or a test is headless.
+[Open the map-owned reference](../../maps/reference/agent.md).
 
 ## What each command bundles
 
-| Command | Operations in order | Result |
-|---|---|---|
-| `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
-| `developer-onboarding` | Read DEVELOP, core architecture and the complete skill digest; add selected area references; inspect Node and dependency entry-point availability. | The same context format, with developer sources and an instruction to choose further reads. |
-| `read-skill ID` | Read one skill manual chosen by the agent from the catalog. | The manual's text, source path, hash and links for further reading. |
-| `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
-| `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start Studio; emit its URL; request browser opening; read participation guidance and tour state. | A live Studio session, initial recipe summary, MAKERS and tour-participation context, plus listener arguments/cursor. |
-| `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
-| `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
-| `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, geometry confirmation and matching tour instruction without checking the old export. | The exact request ID and edit context, with `programChecked: false`. A context-read failure marks that request failed and reports it. |
-| `wait-for-studio-request` | Wait for queued requests for up to 25 seconds; optionally claim the returned requests in that call. | Requests, their status and an updated `after` list. |
-| `respond-to-studio-request ID` | Record a prepared geometry/toolpath target, or update the matching request's response/status through the shared request API. | Updated request. Other outstanding work remains independent. |
-| `inspect-generation-failure DIRECTORY` | Read requests for that print; read current validated recipe/export status, retaining validation errors when loading fails; return generation guidance and links to the recipe's skill manuals. | Diagnostic evidence, settings, machine-configuration gaps, and skill references for individual follow-up reads. No correction, retry or request claim. |
+[Read this section](../../maps/reference/agent.md#what-each-command-bundles).
 
 ## Selecting context
 
-### Read order
+[Read this section](../../maps/reference/agent.md#selecting-context).
 
-| Request | First operation | Continue with |
-|---|---|---|
-| Tour | Run the Studio `--toolkit start-tour --no-open` command immediately in a set-up checkout. | Open `studio.url` from `studio-ready`, then use the returned participation context and listener. |
-| New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
-| Existing Studio print | Run `begin-studio-work` first, with the target or existing request ID. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
-| Development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Inspect the affected implementation and choose missing component/skill references. Load maker guidance when exercising that workflow; load contribution guidance when checkpointing/publishing. |
+## Read order
 
-Returned text counts as reading its source. Do not precede onboarding with the
-manuals it supplies, repeat those reads through links, or rerun onboarding for
-each request. Reuse current context; refresh an affected source only when it
-changed or the earlier context is unavailable. Developer onboarding does not
-repeat AGENTS, the entry point that routed the agent here. Existing setup and
-permissions are also reused. No onboarding command belongs before tour launch.
+[Read this section](../../maps/reference/agent.md#read-order).
 
-### Individual follow-up reads
+## Individual follow-up reads
 
-Both onboarding commands include the complete [skill digest](../../skills/README.md),
-preserving its existing descriptions and links to every cataloged skill. The agent
-must judge which manuals and further references fit the task, then read those
-individually before using or changing a skill. Onboarding is starting context;
-it does not select skills or bundle their manuals. Tour participation guidance
-remains bundled with tour startup.
-
-Use `read-skill ID` for one chosen skill and `read-guidance PATH#HEADING` for one
-additional published reference or section. Onboarding has no `--skill` or `--guide`
-option. `developer-onboarding` accepts repeated `--area` values: `geometry`, `regions`,
-`path`, `print`, `machine`, `studio`, `mcp`, `skills`, `tests`, `setup`.
-Select areas from the task; the toolkit does not guess them from prose.
-Identical guidance IDs are read once per packet. Text comes directly from the
-owning Markdown files, with a SHA-256 hash of each returned section; there is no
-separately maintained summary or automatic persistent context cache.
-
-Onboarding inspects dependency entry points without importing geometry kernels.
-It does not install packages, run setup/regressions, or claim that an earlier
-setup check passed. Reuse existing evidence under [SETUP](../../SETUP.md), and
-complete setup on first use. Browser/client permissions remain explicitly
-uninspected. The manual reader accepts published docs only; the sole readable
-file under examples is `examples/prints/README.md`. Private prints, local
-experiments and redirected paths stay outside this reader.
+[Read this section](../../maps/reference/agent.md#individual-follow-up-reads).
 
 ## Preview options and lifetime
 
-```sh
-node studio/server.mjs --toolkit create-preview Prints/imported --stl part.stl
-node studio/server.mjs --toolkit create-preview Prints/wedge --kind wedge --machine ultimaker-s5
-node studio/server.mjs --toolkit start-tour --start-at-layer 12 --no-open
-```
-
-`create-preview` accepts either `--recipe FILE` or `--stl FILE`. `--kind` defaults
-to `shell`; STL creates a shell print. `--units auto|mm|inch` applies to STL only
-and defaults to automatic size-based inference. Without a recipe or STL, the
-owning adapter's proposed recipe and remembered/default machine setup apply.
-The shell template includes full-fill and draped-skin; select a complete recipe
-when those are unsuitable. Existing print directories are never overwritten.
-
-`--library DIRECTORY` selects the tour/request library and defaults to this
-checkout's `Prints`. New previews and work requests must be within that library.
-A custom library uses its own `.machine-setups` store, matching MCP test isolation.
-`open-print` can also resolve a saved bundle outside the library, as Studio can;
-use the appropriate library for subsequent request coordination. Other relative
-file arguments resolve from the command's working directory.
-
-Studio commands stay alive in their managed command session. They emit a
-`studio-ready` JSON line immediately after listening, then a `result` line with
-the remaining state/context. Use an early yield where the client supports it,
-open the URL, retain the process/session handle, and leave review visible.
-Browser dispatch is reported as `browserOpenRequested`; it does not prove that
-the page rendered. Verify the view with the client's browser integration when
-needed. Studio retains its ordinary viewer lifetime and closes after its last
-viewer has been disconnected for 30 minutes. Stop only the recorded owned session
-to close it immediately. The toolkit does not start detached background helpers
-or adopt another agent's server.
-
-Starting a tour does not conduct the interactive lessons or wake an ended chat.
-Keep the request listener active and follow [tour participation](../../MAKERS.md#tour-participation).
-The first screen is prepared before the remaining manuals are read; skill reads
-and slicing are not prerequisites for that first screen.
+[Read this section](../../maps/reference/agent.md#preview-options-and-lifetime).
 
 ## Work and recovery
 
-```sh
-node scripts/agent-toolkit.mjs begin-studio-work Prints/my-part --instruction "Change infill"
-node scripts/agent-toolkit.mjs wait-for-studio-request --claim --wait-ms 25000
-node scripts/agent-toolkit.mjs begin-studio-work --request REQUEST_ID --include-geometry
-node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --status working --result-stage toolpath
-node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --message "Updated and displayed"
-node scripts/agent-toolkit.mjs inspect-generation-failure Prints/my-part --request REQUEST_ID
-```
-
-For new work, supply `--instruction`; omit the directory only when targeting the
-active tour print. Use `--kind guidance` for teaching without an edit. For an
-existing Studio request use `--request`, preserving its identity and kind. Recipe
-geometry is omitted by default and `planComplete` is false; use
-`--include-geometry` for a complete editable recipe. Pass the returned revision
-to the existing adjustment tools. [Studio coordination](../../studio/README.md#agent-request-coordination)
-owns prepared-result targeting and response timing.
-
-`respond-to-studio-request` defaults to `completed`; supported statuses are
-`working`, `completed`, `failed`, `waiting`, and `cancelled`. After preparation,
-`--status working --result-stage geometry|toolpath` records the result expected
-in the viewer. Send the required chat acknowledgement and resolve only that
-request. `--after ID` may repeat when waiting. Unclaimed requests excluded by a
-cursor still remain queued; use `--claim` for an active handler. Claiming in one
-call is not a cross-process exclusive-worker lock.
-
-`record-request-activity ID` renews contact while the agent is actually working
-on that request. It preserves status, baseline and target, and does not resume
-waiting work. Never run it as an idle heartbeat. MCP print tools can instead bind
-their real tool entry/exit with `requestIds`. Failure inspection with a request ID
-reads that file directly; otherwise it selects the named print's history.
-
-Failure inspection preserves exact Studio request instructions, which include
-generation errors, and labels raw recipes as unvalidated if loading fails.
-Skill manuals appear as references for the agent to choose and read separately.
-Requests can describe older revisions. CLI-only generation errors are not
-persisted; retain their command output alongside this report. The command never
-fabricates a missing error or retries generation.
-
-Output is newline-delimited JSON. Errors return `ok:false`, `stage`, `error` and
-`partial`, with a nonzero exit code. A later failure leaves a successfully created
-bundle available for reopening and reports its path; any server started by the
-failed call is closed and marked `closed:true`. Commands create no human
-confirmation or hardware action.
+[Read this section](../../maps/reference/agent.md#work-and-recovery).
 
 ## Implementation and verification
 
-[toolkit.mjs](toolkit.mjs) composes exported owning APIs; the thin
-[CLI](../../scripts/agent-toolkit.mjs) validates arguments and handles JSON output
-and process lifetime. [manuals.mjs](manuals.mjs) is shared with MCP through its
-compatibility re-export. The browser opener and request wait/claim implementation
-are also shared with MCP. No new MCP onboarding or preview tools are registered.
-
-Focused coverage lives in [agent-toolkit.test.mjs](../tests/agent-toolkit.test.mjs):
-current-source context, isolated setup reuse, approval/export preservation on
-reopening, STL import, fresh tours, request coordination, partial failure and
-the actual managed CLI launcher. Existing manual-access, MCP and Studio request
-tests cover the shared seams. Select checks under [DEVELOP](../../DEVELOP.md#avoid-check-spirals).
+[Read this section](../../maps/reference/agent.md#implementation-and-verification).

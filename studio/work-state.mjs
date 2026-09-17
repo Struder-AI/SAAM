@@ -1,8 +1,16 @@
 // One request lifecycle for the viewport, persisted presentation and tour gates.
 // A target describes saved inputs; presentation describes a result actually drawn.
 const edits=request=>!['guidance','advisory'].includes(request.kind);
+export function presentableView(state,stage,{requiresToolpath=false}={}){
+  const geometryReady=stage==='geometry'&&Boolean(state?.geometry);
+  const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state?.generationError&&!state?.programError&&Boolean(state?.program);
+  const ready=Boolean(state?.work?.snapshot)&&(geometryReady||toolpathReady);
+  return {ready,snapshot:state?.work?.snapshot?{...state.work.snapshot,stage}:null,
+    awaitingConfirmation:ready&&geometryReady&&!state.geometryApproved};
+}
 export function hasPresentedResult(request,snapshot){
   if(!edits(request)||!request.baseline||!snapshot)return false;
+  if(request.studioInstanceId&&snapshot.studioInstanceId&&request.studioInstanceId!==snapshot.studioInstanceId)return false;
   if(request.presented)return true;
   if(request.target)return request.target.inputKey===snapshot.inputKey
     &&(request.target.stage==='geometry'||snapshot.stage==='toolpath')

@@ -1,0 +1,47 @@
+{
+  "schema": "saam-machine/1",
+  "id": "ultimaker-2-extended",
+  "name": "Ultimaker 2 Extended",
+  "revision": 1,
+  "units": "mm",
+  "planarWallToleranceMm": 0.01,
+  "kinematics": "cartesian-fixed-vertical-nozzle",
+  "capabilities": ["xyz-extrusion", "planar"],
+  "bounds": {"min": [0, 0, 0], "max": [223, 223, 305]},
+  "maxFeedMmS": {"x": 300, "y": 300, "z": 40, "e": 25},
+  "temperatureLimitsC": {"nozzle": [180, 260], "bed": [0, 100], "chamberMax": 0},
+  "filamentDiameterMm": 2.85,
+  "tools": [{
+    "index": 0, "label": "Single nozzle",
+    "bounds": {"min": [0, 10, 0], "max": [223, 212, 305]},
+    "cores": ["Standard 0.4"], "nozzleDiametersMm": [0.4], "layerHeightMm": [0.06, 0.2]
+  }],
+  "materials": {
+    "PLA": {"nozzleC": [180, 230], "bedC": [0, 70], "maxFlowMm3S": 4, "maxRetractMm": 10},
+    "ABS": {"nozzleC": [230, 260], "bedC": [80, 100], "maxFlowMm3S": 4, "maxRetractMm": 10}
+  },
+  "defaultSetup": {
+    "tool": 0, "core": "Standard 0.4", "nozzleMm": 0.4,
+    "material": "PLA", "filamentMm": 2.85, "nozzleC": 210, "bedC": 60,
+    "buildVolumeC": 0, "materialGuid": null, "firmwareVersion": "", "startupVerified": false
+  },
+  "defaultProcess": {
+    "planarSpeedMmS": 30, "skinSpeedMmS": 20, "firstLayerSpeedMmS": 20,
+    "travelSpeedMmS": 120, "zSpeedMmS": 5, "retractMm": 4.5, "retractSpeedMmS": 25
+  },
+  "outputs": [{
+    "id": "ultigcode", "extension": ".gcode", "flavor": "UltiGCode", "extrusionUnits": "mm3",
+    "implemented": false,
+    "reason": "Ultimaker 2 Extended export is not implemented. UltiGCode needs volumetric E and its own firmware-managed temperature/startup contract; S5 Griffin output is incompatible."
+  }],
+  "startup": {"protocol": "unconfigured", "validation": "Original Ultimaker 2 Extended, not 2+, Extended+ or Connect. Firmware startup handoff is unresolved."},
+  "boundsBasis": "223 x 223 mm Cura coordinates and 305 mm Extended height. Selected-tool y=10..212 conservatively avoids front/rear glass clips; polygon-aware clip clearance is not implemented.",
+  "processBasis": "PLA is an editable default; ABS is also declared. Temperature windows, 4 mm3/s flow and Bowden retraction limits are conservative SAAM starting choices, not material calibration. No nonplanar clearance is declared.",
+  "sources": [
+    "https://raw.githubusercontent.com/Ultimaker/Cura/main/resources/definitions/ultimaker2_extended.def.json",
+    "https://raw.githubusercontent.com/Ultimaker/Cura/master/resources/definitions/ultimaker2.def.json",
+    "https://um-support-files.ultimaker.com/manuals/user-manual/UM2/Ultimaker%202%20-%20User%20manual%20EN%20v2.1.pdf"
+  ],
+  "sourceChecked": "2026-09-16",
+  "validation": "Profile for geometry and setup review only; machine output and physical printing are unvalidated."
+}

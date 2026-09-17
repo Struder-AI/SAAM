@@ -16,7 +16,7 @@ const RUNTIME_FILES = [
   '../geom/text-record.mjs','../geom/selections.mjs','../geom/solid.mjs','../geom/reference-surface.mjs','../geom/tessellate.mjs','../geom/text-outline.mjs',
   '../../skills/text/scripts/text.mjs','./text.mjs','../../node_modules/manifold-3d/manifold.js','../../node_modules/manifold-3d/manifold.wasm',
   '../../node_modules/fontkit/dist/module.mjs',
-  '../path/spacing.mjs',
+  '../path/spacing.mjs','../path/prime.mjs',
   '../path/finished-surface.mjs',
   '../../skills/pipe-cladding/scripts/course.mjs',
   '../geom/spline-tube.mjs','../geom/surface-region.mjs','../region/normal-surface.mjs','../../skills/pipe-cladding/scripts/surface-clad.mjs',

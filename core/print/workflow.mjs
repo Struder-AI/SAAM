@@ -4,7 +4,7 @@ import {hashFile} from '../geom/stl-file.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { exportAndInterpretProgram, interpretProgram } from '../export/registry.mjs';
+import { exportAndInterpretProgram, interpretProgram, outputAdapter } from '../export/registry.mjs';
 import { loadMachine, validateDobotConfiguration } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
@@ -153,7 +153,7 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.composition?.regions?.length
       ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','rimming-planar','rimming-normal','wave-overhangs'].filter(name=>plan.skills?.[name]?.enabled)])]
-      : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : ['wedge-demo'],
+      : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : [],
     geometryApproved: review.approvals.geometry?.hash === geometryHash,
     planApproved: review.approvals.plan?.hash === planHash
   };
@@ -247,6 +247,9 @@ async function checkPathBundle(directory, {onProgress} = {}) {
 }
 
 async function prepareProgram(state,onProgress){
+  // Profiles can support geometry/setup review before an output contract exists.
+  // Report that contract's reason before constructing geometry or motion.
+  outputAdapter(state.plan,state.machine);
   if(preparedProgram?.planHash===state.planHash)return preparedProgram;
   // One candidate per adapter. No approvals, files, or full producer path are
   // retained; the checked commands are committed only by generateBundle.
@@ -453,6 +456,12 @@ async function deliver(directory) {
   const destination = resolve(state.dir, `delivery/${state.exportName}`);
   await save(destination, bytes);
   requireThat(hash(await readFile(destination)) === state.exportHash, 'Delivery bytes differ from reviewed export.');
+  const attribution=originalSource(state.plan.geometry)?.attribution;
+  if(attribution)await save(resolve(state.dir,'delivery/source-attribution.json'),{
+    ...attribution,
+    changes:'SAAM imported and positioned/scaled the source for printing. The saved plan records the current geometry and printing settings; consult it and any repair reports for subsequent changes.',
+    planRevision:state.revision
+  });
   return destination;
 }
 

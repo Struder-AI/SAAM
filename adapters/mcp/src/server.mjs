@@ -13,8 +13,9 @@ import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs';
 import {createTour} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
-import {watchStudioChanges} from '../../../studio/changes.mjs';
 import { importSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
+import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
+import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
 import {createGridfinityBundle,updateGridfinityBundle} from '../../../skills/gridfinity/scripts/bundle.mjs';
 import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
@@ -34,15 +35,15 @@ const printIdSchema = z.string().min(1).max(384).refine(id => {
     && !/^[.]|[. ]$|[\\:*?"<>|\x00-\x1f]/.test(part)
     && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(part));
 }, 'Invalid print name: use up to three relative folder names, without traversal, reserved names or Windows path characters.');
-const kindSchema = z.enum(['shell', 'wedge']);
+// Shell/mesh is the only bundle kind; the parameter is retained (and defaults)
+// so the tool surface stays stable.
+const kindSchema = z.enum(['shell']).default('shell');
 const objectSchema = z.record(z.string(), z.unknown());
 const bundles = {
-  shell: () => import('../../../core/print/bundle.mjs'),
-  wedge: () => import('../../../skills/wedge-demo/scripts/bundle.mjs')
+  shell: () => import('../../../core/print/bundle.mjs')
 };
 const recipes = {
-  shell: () => import('../../../core/print/plan.mjs'),
-  wedge: () => import('../../../skills/wedge-demo/scripts/model.mjs')
+  shell: () => import('../../../core/print/plan.mjs')
 };
 
 function noApprovalFields(value) {
@@ -80,12 +81,13 @@ function summary(printId, state) {
   };
 }
 
-export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension } = {}) {
+export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient } = {}) {
   const libraryRoot = resolve(printsRoot);
+  const meshLibrary=thingi10kClient??createThingi10KClient({cacheDirectory:resolve(libraryRoot,'.thingi10k')});
   const ownerId=randomUUID();
-  const tour=createTour(libraryRoot,{ownerId});
   const agentRequests=createAgentRequests(libraryRoot,{ownerId});
-  const studioSessions = new Map();
+  const tour=createTour(libraryRoot,{ownerId,agentRequests});
+  const studioSessions = new Map(),preferredStudioByPrint=new Map();
   let queue = Promise.resolve();
   const server = new McpServer({ name: 'saam', version: '0.2.0' }, {
     capabilities:{logging:{}},
@@ -146,13 +148,13 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
-  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_tour']);
-  function tool(name, description, shape, action, readOnly = true) {
+  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_sessions','get_tour']);
+  function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.printId)&&!immediateTools.has(name);
     // Passing the full strict schema makes unexpected top-level approval data an
     // error instead of letting Zod silently discard it.
     server.registerTool(name, { description, inputSchema: z.object({...shape,...(tracked?{requestIds:z.array(z.string()).max(32).optional()}: {})}).strict(),
-      annotations: { readOnlyHint: readOnly, destructiveHint: false, openWorldHint: false } }, async args => {
+      annotations: { readOnlyHint: readOnly, destructiveHint: false, openWorldHint: openWorld } }, async args => {
       const execute=async()=>{
         try {
           const {requestIds,...input}=args;
@@ -213,10 +215,10 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     const plan = structuredClone(state.plan);
     if (!includeGeometry) delete plan.geometry;
     return { ...summary(printId, state), plan, planComplete: includeGeometry,
-      ...(!includeGeometry ? { geometry: { omitted: true, shape: state.plan.geometry.shape ?? 'eight-point-wedge',
+      ...(!includeGeometry ? { geometry: { omitted: true, shape: state.plan.geometry.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   });
-  tool('create_print', 'Create an unapproved persistent bundle. Use the wedge kind for the bounded eight-point wedge. Optional plan is a complete recipe, never an approval. Then request_review.',
+  tool('create_print', 'Create an unapproved persistent bundle. Optional plan is a complete recipe, never an approval. Then request_review.',
     { printId: printIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema.optional() }, async ({ printId, kind, machineId, plan }) => {
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipes[kind]();
@@ -236,6 +238,16 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       await importSTLBundle(dir, sourcePath, { units, machineId, setupFile: await setupFile(machineId) });
       return summary(printId, await (await bundles.shell()).loadBundle(dir));
     }, false);
+  tool('search_thingi10k', 'Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',
+    {query:z.string().min(1).max(500),limit:z.number().int().min(1).max(50).default(10),offset:z.number().int().min(0).max(10000).default(0)},
+    async args=>meshLibrary.search(args),true,true);
+  tool('import_thingi10k_print', 'Download a selected Thingi10K STL file ID on the SAAM host and import an unapproved print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Returns attribution and a retained download even if strict mesh import fails. Review geometry with request_review after successful import.',
+    {printId:printIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},
+    async({printId,fileId,machineId,units})=>{
+      const dir=await directory(printId,{create:true});
+      const result=await importThingi10KBundle(meshLibrary,dir,fileId,{machineId,units,setupFile:await setupFile(machineId)});
+      return {...result,...(result.imported?summary(printId,await (await bundles.shell()).loadBundle(dir)):{printId})};
+    },false,true);
   localExtension.registerMcp?.({tool,z,printIdSchema,objectSchema,idSchema,read,noApprovalFields});
   tool('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',
     {printId:printIdSchema,units:z.enum(['mm','inch']),expectedRevision:z.string()},async({printId,units,expectedRevision})=>{
@@ -260,7 +272,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(printId,{program:false});
-      if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints; the bounded wedge demo uses its own geometry workflow.');
+      if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
       return summary(printId,await applyText(dir,request,{expectedRevision}));
     },false);
   tool('heat_set_catalog', 'Read the packaged heat-set insert profiles and their dimensions. Use an exact insert ID with apply_heat_set and read the heat-set-inserts skill for geometry and reinforcement limits.',
@@ -269,7 +281,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
       noApprovalFields(request);
       const {dir,state}=await read(printId,{program:false});
-      if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints; the bounded wedge demo uses its own geometry workflow.');
+      if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
       return summary(printId,await applyHeatSet(dir,request,{expectedRevision}));
     },false);
   tool('adjust_print', 'Apply a validated chat recipe patch at expectedRevision. Geometry edits invalidate all approvals; process edits retain geometry approval. Read fresh state if stale.',
@@ -302,20 +314,33 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   tool('confirm_geometry','Record the human’s explicit chat approval of the current resulting shape. First read its revision and geometryHash. Preserve the exact statement and identify its conversation/message in chatReference. A change request, acknowledgement, or permission to continue editing is not shape approval. The caller must judge the human intent; validation cannot infer it. Records geometry approval only, never settings or toolpath approval.',
     {printId:printIdSchema,expectedRevision:z.string().min(1),geometryHash:z.string().min(1),actor:z.string().min(2).max(100),statement:z.string().min(1).max(8000),chatReference:z.string().min(1).max(2000)},
     async({printId,...confirmation})=>{const {dir,bundle}=await locate(printId);return summary(printId,await bundle.confirmGeometryFromChat(dir,confirmation));},false);
-  tool('begin_studio_work','First operation for an edit to an existing print, before acknowledgement or status lookup. Omit printId to use the active tour or the sole open Studio. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
-    {printId:printIdSchema.optional(),instruction:z.string().min(1).max(8000),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({printId,instruction,requestId,kind})=>{
+  tool('begin_studio_work','First operation for an edit to an existing print, before acknowledgement or status lookup. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
+    {printId:printIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1).max(8000),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({printId,studioInstanceId,instruction,requestId,kind})=>{
       const record=requestId?await agentRequests.get(requestId):null;
+      if(!studioInstanceId&&record?.studioInstanceId)studioInstanceId=record.studioInstanceId;
+      const session=studioInstanceId?studioSessions.get(studioInstanceId):null;
+      if(studioInstanceId&&!session)throw Error('That Studio instance is not owned by this agent.');
       if(!printId&&record)printId=record.printId;
-      if(!printId){const guide=await tour.info();const selected=guide.active?guide.directory:studioSessions.size===1?[...studioSessions.values()][0].server.currentPrint():null;if(!selected)throw Error('Specify printId when no single active Studio print is available.');printId=agentRequests.printId(selected);}
+      if(!printId){const guide=await tour.info(),selected=guide.active?guide.directory:session?.server.currentPrint()??(studioSessions.size===1?[...studioSessions.values()][0].server.currentPrint():null);if(!selected)throw Error('Specify printId or studioInstanceId when no single active Studio instance is available.');printId=agentRequests.printId(selected);}
       const dir=await directory(printId);
-      if(requestId){if(record?.printId!==printId)throw Error('That request belongs to another print.');return agentRequests.update(requestId,{status:'working'});}
-      return agentRequests.begin({directory:dir,instruction,kind});
+      if(!studioInstanceId){
+        const matches=[...studioSessions.values()].filter(candidate=>candidate.server.currentPrint()===dir);
+        if(matches.length>1)throw Error('Specify studioInstanceId because multiple owned Studio instances display this print.');
+        if(matches.length===1)studioInstanceId=matches[0].server.agentSession().instanceId;
+      }
+      if(session&&session.server.currentPrint()!==dir)throw Error('That Studio instance is displaying another print.');
+      if(requestId){if(record?.printId!==printId)throw Error('That request belongs to another print.');if(record.studioInstanceId&&record.studioInstanceId!==studioInstanceId)throw Error('That request belongs to another Studio instance.');return agentRequests.update(requestId,{status:'working'});}
+      return agentRequests.begin({directory:dir,instruction,kind,studioInstanceId});
     },false);
   tool('respond_to_studio_request','After saving the intended inputs, publish status working with resultStage geometry or toolpath for every edit. Intermediate saves cannot finish a request; automatic tour generation waits for this target. Bind every included request when combining edits. Use waiting when paused for a choice or confirmation; resume the same requestId without losing its target. Complete after sending guidance or presenting the requested result; geometry-only work needs no generation. Mark failures explicitly. Studio clears Updating preview when the bound result is displayed, independently of this acknowledgement.',
     {requestId:z.string(),status:z.enum(['working','waiting','completed','failed','cancelled']).default('completed'),resultStage:z.enum(['geometry','toolpath']).optional(),message:z.string().max(8000).default('')},async({requestId,...response})=>agentRequests.update(requestId,response),false);
   tool('wait_for_studio_request','Wait for Studio to request maker-agent input. Send any completed edit acknowledgement in chat commentary BEFORE this call. Do not defer it to the final response. While guiding a tour, call this between lessons instead of ending the turn and requiring the participant to ask for guidance. Claim a returned request and resolve it after doing its work. Prepare imported-model start layers silently; Studio leads the early lessons. Give proactive chat guidance only at the designated infill lesson and completion. Repeat after a timeout while the participant is navigating.',
-    {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(25000).optional(),claim:z.boolean().optional()},async args=>agentRequests.wait(args));
+    {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(25000).optional(),claim:z.boolean().optional(),studioInstanceId:z.string().optional()},async args=>{
+      if(args.studioInstanceId&&!studioSessions.has(args.studioInstanceId))throw Error('That Studio instance is not owned by this agent.');
+      return agentRequests.wait(args);
+    });
   tool('get_studio_requests','Read outstanding work and the latest edit outcome per print. Set history for all resolved records; optionally restrict to one print.',{printId:printIdSchema.optional(),history:z.boolean().default(false)},async options=>({requests:await agentRequests.query(options)}));
+  tool('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{},async()=>({sessions:[...studioSessions.values()].map(({server:studio,url})=>({...studio.agentSession(),url}))}));
   tool('get_tour','Read the active tour print, lesson gates and maker-agent instruction. After reaching the chat lesson, offer infill options in chat. After completion, immediately congratulate the participant, offer help with any difficulties printing the downloaded file, and ask what she wants to make next. Optional bounded wait follows user progress.',
     {after:z.string().optional(),waitMs:z.number().int().min(0).max(25000).optional()},async({after,waitMs=0})=>{
       const deadline=Date.now()+waitMs;
@@ -331,25 +356,34 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       const {dir,bundle}=await locate(printId);if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
       return summary(printId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}));
     },false);
-  tool('request_review', 'Serve this bundle through SAAM Studio. Optional startAt selects the tour infill layer; normal prints do not require it. No approval or generation is performed.', { printId: printIdSchema,startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ printId,startAt,...viewOptions }) => {
+  tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Supply studioInstanceId to rebind one existing instance, or newInstance to open an additional instance even when this print already has one. Otherwise the preferred instance for this print is reused. Optional startAt selects the tour infill layer. No approval or generation is performed.', { printId: printIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ printId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
+    if(studioInstanceId&&newInstance)throw Error('Choose an existing studioInstanceId or request a new instance, not both.');
     const { dir, state } = await read(printId);
     const viewPath=await localExtension.reviewPath?.({dir,...viewOptions})??'';
-    let session = studioSessions.get(printId);
+    let session=studioInstanceId?studioSessions.get(studioInstanceId):newInstance?null:studioSessions.get(preferredStudioByPrint.get(printId))
+      ??[...studioSessions.values()].find(({server:studio})=>studio.currentPrint()===dir);
+    if(studioInstanceId&&!session)throw Error('That Studio instance is not owned by this agent.');
     if (!session?.server.listening) {
-      const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId });
+      const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests });
       await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
       session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` };
-      studioSessions.set(printId, session);
+      studioInstanceId=studio.agentSession().instanceId;studioSessions.set(studioInstanceId, session);
       studio.once('close',()=>{
-        if(studioSessions.get(printId)===session)studioSessions.delete(printId);
+        if(studioSessions.get(studioInstanceId)===session)studioSessions.delete(studioInstanceId);
+        for(const [id,instance] of preferredStudioByPrint)if(instance===studioInstanceId)preferredStudioByPrint.delete(id);
       });
     }
     await session.server.openPrint(dir);
+    preferredStudioByPrint.set(printId,session.server.agentSession().instanceId);
     if(startAt)await session.server.setStartAt(startAt);
     const url=session.url+viewPath;
     const browserOpenRequested = autoOpen ? await openBrowser(url) : false;
-    return { ...summary(printId, state), url, browserOpenRequested };
+    return { ...summary(printId, state),studioInstanceId:session.server.agentSession().instanceId, url, browserOpenRequested };
   }, false);
+  tool('close_studio_session','Close one Studio instance owned by this agent without affecting other instances or the shared print bundle.',{studioInstanceId:z.string()},async({studioInstanceId})=>{
+    const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
+    const result=session.server.agentSession();await session.server.shutdown();return {...result,connected:false};
+  },false);
   tool('generate_print', 'Generate and check the declared export from confirmed geometry and complete settings, including during the tour. Callers cannot bypass geometry confirmation or select development mode.', { printId: printIdSchema }, async ({ printId }) => {
     const { dir, bundle } = await locate(printId);
     const checks = await bundle.generateBundle(dir,{development:false});
@@ -367,16 +401,15 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       await server.server.sendLoggingMessage({level:'info',logger:'saam.studio',data:{type:'studio-request',request}});notified.add(request.id);
     }}catch{/* Persisted requests and the independent wait endpoint remain authoritative. */}finally{notifying=false;}
   }
-  const stopRequestWatch=watchStudioChanges(libraryRoot,kinds=>{if(kinds.includes('requests'))void notifyRequests();});
+  const stopRequestWatch=agentRequests.subscribe(()=>{void notifyRequests();});
   server.server.oninitialized=()=>{void notifyRequests();};
   function close(){return closing??=Promise.resolve().then(async()=>{
     stopRequestWatch();
-    await agentRequests.disconnect();
     for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     await queue;
-    await agentRequests.disconnect();
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
-    studioSessions.clear();
+    await agentRequests.disconnect();
+    studioSessions.clear();preferredStudioByPrint.clear();
     await server.close();
   });}
   server.server.onclose=()=>{void close().catch(error=>console.error('SAAM connection cleanup:',error));};
