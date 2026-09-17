@@ -28,7 +28,7 @@ policy while using shared boundary insets. Draped-skin uses an XY footprint inse
 
 Offsets return closed material polygons: an inset yields remaining material,
 not a stroke band on both sides of a boundary. Kernel implementation is in the
-[developer bin](../../DEVELOPER-CONTEXT.md#regions--planar-offset-kernel).
+[developer maps](../../maps/4_regions.md#planar-kernel).
 
 Options are `join: 'round' | 'square' | 'miter'` (round by default),
 `miterLimit: 2`, `arcToleranceMm: 0.02` and `precisionMm: 1e-5`. This 0.00001 mm
@@ -58,13 +58,13 @@ for full-fill and planar-infill. It retains a single central closed track when
 an outer/hole pair meets and material erosion loses that hole, without changing
 region erosion or fill masks. General medial-axis, open centerline and
 variable-width gap fill are unsupported. Construction details live in the
-[developer bin](../../DEVELOPER-CONTEXT.md#regions--perimeter-recovery).
+[developer maps](../../maps/4_regions.md#perimeter-recovery).
 
 **Surface, experimental:** [offsetSurfaceRegion](surface-offset.mjs)
 takes `(patch, loopsUv, deltaMm, options)` and returns `{loopsUv, loops, report}`;
 `loops` holds corresponding XYZ points. The construction is experimental SAAM
 code; no Rhino output comparison or equivalence is established. See the
-[construction context](../../DEVELOPER-CONTEXT.md#regions--surface-offset-construction).
+[construction context](../../maps/4_regions.md#surface-construction).
 
 The surface function retains UV throughout and caches surface evaluations; it
 performs **zero inverse mappings** and no global flatten/warp round trips.
@@ -102,7 +102,7 @@ small repeated advances and reports terminal residuals. Without this option,
 the original domain-escape error and unconstrained offset behavior remain.
 
 Verification scope, reference regeneration and provenance are in the
-[developer bin](../../DEVELOPER-CONTEXT.md#regions--offset-verification-and-provenance).
+[developer maps](../../scripts/bench/region-reference.md#offset-verification-and-provenance).
 
 ## Shared planar intersections
 
@@ -121,7 +121,7 @@ only if tests show an unmet requirement.
 
 Operations are synchronous and need no network at runtime. Shared kernel
 initialization and allocation details live in the
-[developer bin](../../DEVELOPER-CONTEXT.md#regions--intersection-kernel).
+[developer maps](../../maps/4_regions.md#planar-kernel).
 
 Conversion shares the offset adapter's local origin/grid and canonical ordering,
 using one origin for both operands. `precisionMm` defaults to `1e-9`; the range
@@ -148,7 +148,7 @@ material or changing deposition strokes; the
 records the original failure. Runtime identity hashes exact JS/WASM bytes.
 
 Verification scope, reference regeneration and provenance are in the
-[developer bin](../../DEVELOPER-CONTEXT.md#regions--intersection-verification-and-provenance).
+[developer maps](../../scripts/bench/region-reference.md#intersection-verification-and-provenance).
 
 ## Layer regions and several solids
 

@@ -1,5 +1,40 @@
 # Development log
 
+## 2026-09-17 — Core and Studio developer maps
+
+Implemented 40 pages (340 nodes) from ten region Markdown sources, using the
+PackIT leveled layout and viewer. The user reviewed offset/perimeter examples
+and approved continuation. The system overview leads to lifecycle, generation,
+geometry, regions, motion, output, Studio, machine presentation and agent tools.
+Skill implementations and client adapters remain outside the mapped boundary.
+
+The generator resolves named JavaScript declarations through Acorn, checks
+hierarchy and boundary labels, rejects two-node pages and ambiguous/raw repeated
+anchors, and calculates every other mapped occurrence for each shared component.
+Human diagrams show those occurrences as red downward arrows and indexes;
+agent packets expose the same references with the shared input/output contracts.
+The viewer retains the exemplar layout and optional code/Doc interactions;
+supporting prose stays behind Doc. Generated artifacts are ignored and rebuilt
+from source, while agent reads resolve the current checkout without Python.
+
+Added `read-map PAGE` and selected-area map packets to onboarding. Developers
+receive the system overview; skill-only builders and makers receive no maps.
+Repeated regions are deduplicated. Developer onboarding does not force maker
+workflow or individual skill manuals. The implementation bin is absorbed into
+region context, with numerical reference procedures under benchmark guidance.
+Both role context viewers and owning manuals now point to these sources.
+
+Tracing the maps corrected a draft travel sequence: recovery precedes combed
+travel and follows clearance travel. No manufacturing implementation changed.
+Maps and checks establish a structural account, not a proof of behavior or an
+exhaustive inventory of every helper/caller.
+
+Verification: all 40 pages built and passed declaration/boundary/shared-use
+checks; 17 focused tests passed for map drift/reuse, role/context selection and
+manual access. All 89 checked guidance links and headings resolved. Browser
+review covered overview, offset/perimeter recovery, radial contact, travel and
+Studio drawing layouts, navigation, declaration code and shared references.
+
 ## 2026-09-17 — Selective skill-role reads
 
 `read-skill ID` now accepts independent `--maker`, `--builder` and `--developer`

@@ -184,7 +184,7 @@ from another process, so concurrent agent work should use separate bundles.
 
 ### Historical toolpath inspection
 
-The [developer bin](../DEVELOPER-CONTEXT.md#studio--historical-toolpath-inspection)
+The [developer maps](../maps/7_studio.md#historical-inspection)
 owns the scratch-launcher contract for historical toolpath inspection.
 
 ### Remembered printer setup
@@ -292,7 +292,7 @@ completed results awaiting display. Use `list()` / MCP `get_studio_requests` wit
 `history: true` for complete diagnostic history. Run one handling agent per
 request: cross-process claims and read/modify/write operations are not transactional.
 Indexing and file replacement mechanics live in the
-[developer bin](../DEVELOPER-CONTEXT.md#studio--request-indexing-and-persistence).
+[developer maps](../maps/7_studio.md#request-persistence).
 
 MCP print tools accept `requestIds` for the specific owned requests they handle.
 Actual tool entry/exit renews those working requests' contact leases. The CLI
@@ -400,7 +400,7 @@ Tour metadata updates preserve source playback. Only changed bundle content or
 a changed geometry/program data requirement triggers a full preview refresh.
 Listener waits coordinate agents; they do not constitute preview work.
 Presentation ownership and receipt handling live in the
-[developer bin](../DEVELOPER-CONTEXT.md#studio--request-presentation-implementation).
+[developer maps](../maps/7_studio.md#presentation-identity).
 
 Presentation is recorded separately from request completion, against the exact
 displayed inputs and required stage. This survives viewer reconnects without

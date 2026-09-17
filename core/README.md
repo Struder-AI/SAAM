@@ -1,8 +1,10 @@
 # Core architecture
 
 SAAM combines skill operations through shared geometry, region, motion and machine
-interfaces. This page identifies their responsibilities and the supported exceptions.
-Use the relevant component reference for contracts and implementation details.
+interfaces. The [system map](../maps/0_system.md) owns the structural account; use
+`node scripts/agent-toolkit.mjs read-map 0_system` for calculated context and
+[the viewer](../dev-map/index.html) for diagrams. This page retains shared
+boundary contracts and supported exceptions.
 
 The [agent CLI toolkit](agent/README.md) composes context reads, print preparation,
 Studio opening and request coordination around these existing owners.
@@ -13,18 +15,9 @@ complete individual files; it is not a lock or a multi-file transaction.
 
 ## Current organization
 
-The shell workflow follows geometry queries → material regions → skill operations
-→ composition and travel → machine emission and interpretation → Studio review
-→ delivery. The bundle lifecycle owns revision identity around this work.
-
-| Stage | Owning reference | Source entry points |
-|---|---|---|
-| Geometry representations and queries | [Geometry](geom/README.md) | [query.mjs](geom/query.mjs), [mesh.mjs](geom/mesh.mjs) |
-| Offsets, intersections and material regions | [Regions](region/README.md) | [offset.mjs](region/offset.mjs), [intersection.mjs](region/intersection.mjs) |
-| Skill operations, ordering and travel | [Composition](path/README.md) | [compose.mjs](path/compose.mjs), [builder.mjs](path/builder.mjs) |
-| Plans, generation, persistence and approvals | [Print lifecycle](print/README.md) | [plan.mjs](print/plan.mjs), [generate.mjs](print/generate.mjs), [workflow.mjs](print/workflow.mjs) |
-| Machine emission and interpretation | [Output contracts](export/README.md) | [registry.mjs](export/registry.mjs), [profiles](../machines/README.md) |
-| Review UI, geometry and program display | [Studio](../studio/README.md) | [server.mjs](../studio/server.mjs), [app.mjs](../studio/app.mjs) |
+The [developer orientation](../DEVELOPER-CONTEXT.md#orientation) indexes region
+maps and their caller contracts. Maps own the generation/review flow and source
+entry points; shared interfaces and the exceptions below remain caller context.
 
 [Skill manuals](../skills/README.md) own pattern-specific tools and limits. Client
 adapters use the same lifecycle; see [MCP implementation](../adapters/mcp/DEVELOP.md).

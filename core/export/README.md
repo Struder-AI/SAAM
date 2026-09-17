@@ -52,7 +52,7 @@ own setup defaults; remembered setup is separate per machine. Skills target
 compatible XYZ extrusion machines through this interface. Planar skills require
 `planar`; drape and vase-wall additionally require `nonplanar` and a declared angle limit.
 Production checks apply to interpreted export commands, including selected-tool
-bounds, feeds and flow. [Validation integration](../../DEVELOPER-CONTEXT.md#machine-output--validation-integration)
+bounds, feeds and flow. [Validation integration](../../maps/6_output.md#command-validation)
 locates the shared checker and adapter-specific paths.
 
 | Profile | Skill checks | Declared export and review |
@@ -69,7 +69,7 @@ is 320 mm; the advertised overall height is 325 mm. The supplied left/right
 Bambu Studio exports establish the bounded [H2D output contract](bambu.md#h2d-output-contract).
 No physical H2D print has been validated.
 
-Unavailable outputs are rejected. [Adapter dispatch](../../DEVELOPER-CONTEXT.md#machine-output--adapter-dispatch)
+Unavailable outputs are rejected. [Adapter dispatch](../../maps/6_output.md)
 locates the exporter/interpreter owner. SAAMpath is an interoperability
 boundary, not an automatic translator to every machine language. Current actions
 are XYZ moves with deposition volume, retraction/recovery, fan and dwell for one
@@ -86,5 +86,5 @@ Optional `extrude` actions specify positive stationary volume and volumetric
 flow; `temperature` actions specify a nozzle target within the locked recipe and
 machine/material ranges. Griffin and H2D support these actions; relay robot
 outputs reject them. Thermal wait duration and actual temperature are not simulated.
-See [writer and interpreter internals](../../DEVELOPER-CONTEXT.md#machine-output--stationary-extrusion-and-nozzle-control)
+See [writer and interpreter internals](../../maps/6_output.md#process-actions)
 when changing their implementation.

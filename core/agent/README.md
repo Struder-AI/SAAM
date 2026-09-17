@@ -8,8 +8,8 @@ not prerequisites for a tour. Reuse completed setup and permissions.
 
 Small bundles of existing SAAM operations for agents using a command tool.
 [MAKERS](../../MAKERS.md) owns maker behavior, [BUILDERS](../../BUILDERS.md) owns
-builder guidance, [developer context](../../DEVELOPER-CONTEXT.md) is the developer
-bin, and the [print lifecycle](../print/README.md) owns recipe validation and
+builder guidance, [developer context](../../DEVELOPER-CONTEXT.md) indexes developer
+regions and contracts, and the [print lifecycle](../print/README.md) owns recipe validation and
 confirmations. These commands add no approval or generation path.
 
 Run from the checkout root:
@@ -22,6 +22,7 @@ node scripts/agent-toolkit.mjs developer-onboarding --area geometry
 node scripts/agent-toolkit.mjs read-skill planar-infill
 node scripts/agent-toolkit.mjs read-skill planar-infill --maker --builder
 node scripts/agent-toolkit.mjs read-skill planar-infill --builder
+node scripts/agent-toolkit.mjs read-map 4_regions
 node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
 ```
 
@@ -45,9 +46,10 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | Command | Operations in order | Result |
 |---|---|---|
 | `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
-| `builder-onboarding` | Read BUILDERS and the maker context it includes, core architecture, skill authoring and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with builder sources and an instruction to choose further reads and the region's map. |
-| `developer-onboarding` | Read the developer bin orientation and builder baseline, core architecture and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with developer sources and an instruction to work map-first. |
+| `builder-onboarding` | Read BUILDERS and the maker context it includes, core architecture, skill authoring and the complete skill digest; add selected area contracts and core/Studio maps; inspect entry-point availability. | The same context format, with builder sources and an instruction to choose further reads and the region's map. |
+| `developer-onboarding` | Read developer orientation, the system map, builder baseline, core boundaries and the complete skill digest; add selected area contracts and core/Studio maps; inspect entry-point availability. | The same context format, with developer sources and an instruction to work map-first. |
 | `read-skill ID [--maker] [--builder] [--developer]` | Read the selected role manuals for one cataloged skill; default to maker. | Text, source paths, hashes and links, selected `roles`, and `unavailableRoles` for absent optional manuals. |
+| `read-map PAGE` | Resolve current region declarations and shared uses. | `maps`: the owning region, shared contracts and every other mapped occurrence. Requires contributor dependencies; no Python or viewer build. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start Studio; emit its URL; request browser opening; read participation guidance and tour state. | A live Studio session, initial recipe summary, MAKERS and tour-participation context, plus listener arguments/cursor. |
 | `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
@@ -67,11 +69,13 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
 | Existing Studio print | Run `begin-studio-work` first, with the target or existing request ID. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
 | Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Choose missing skill guidance and API contracts; read region maps when changing core/Studio or investigating their internals. Load contribution guidance when checkpointing/publishing. |
-| Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; select implementation slices through the developer bin index. |
+| Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; use `read-map PAGE` for missing regions and follow their source/contracts. |
 
-Developer onboarding returns only `DEVELOPER-CONTEXT.md#orientation`, with links
-to the implementation slices. It does not preload those slices or maker workflow
-manuals. Load maker workflow, print tools or skill-authoring context when the task
+Developer onboarding returns `DEVELOPER-CONTEXT.md#orientation`, the system
+map and maps for selected areas. Builder onboarding adds maps only for selected
+core/Studio areas; `--area skills` does not load maps. The `maps` array is empty
+for makers. Repeated areas/regions are deduplicated. Developer onboarding does
+not preload maker workflow manuals. Load maker workflow, print tools or skill-authoring context when the task
 needs them. Inherited responsibilities do not require every lower-role read.
 
 Returned text counts as reading its source. Do not precede onboarding with the
@@ -102,7 +106,7 @@ Use `read-skill ID` for one chosen skill and `read-guidance PATH#HEADING` for on
 additional published reference or section. Onboarding has no `--skill` or `--guide`
 option. `builder-onboarding` and `developer-onboarding` accept repeated `--area`
 values: `geometry`, `regions`, `path`, `print`, `machine`, `studio`, `mcp`,
-`skills`, `tests`, `setup`.
+`skills`, `tests`, `setup`, `agent`.
 Select areas from the task; the toolkit does not guess them from prose.
 Identical guidance IDs are read once per packet. Text comes directly from the
 owning Markdown files, with a SHA-256 hash of each returned section; there is no
@@ -202,4 +206,4 @@ confirmation or hardware action.
 
 ## Implementation and verification
 
-The toolkit implementation and its test coverage are indexed by scope in [developer context](../../DEVELOPER-CONTEXT.md#agent-toolkit--implementation-and-verification).
+The toolkit implementation and its test coverage are indexed by scope in [developer context](../../maps/9_agent.md#implementation-and-checks).

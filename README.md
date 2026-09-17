@@ -75,6 +75,9 @@ own print or explore freely. Exploring a demo grants no printing approvals.
 
 Start with [role selection](AGENTS.md#choose-your-role) for code or documentation
 work; [builder orientation](BUILDERS.md) supplies the shared engineering baseline.
+The [developer maps](maps/README.md) describe core and Studio. Build their viewer
+with `node scripts/dev-map.mjs build`; agents use `read-map PAGE` through the
+agent toolkit for current source references and calculated shared uses.
 Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
 contributor choices, the [build requests](build_request.md#outstanding-work)
 for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work

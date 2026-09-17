@@ -47,12 +47,21 @@ test('the three onboarding roles return the complete digest and leave skill manu
   const orientation = dev.documents.find(doc => doc.path === 'DEVELOPER-CONTEXT.md');
   assert.equal(orientation.guidanceId, 'DEVELOPER-CONTEXT.md#orientation');
   assert.equal(orientation.text, (await readGuidance(root, orientation.guidanceId)).text);
-  assert.ok(!orientation.text.includes('## Implementation bin'), 'onboarding does not preload unrelated implementation slices');
-  const sliceId = orientation.links.find(link => link.title === 'Regions — planar offset kernel').guidanceId;
+  assert.deepEqual(maker.maps, []);
+  assert.deepEqual(builder.maps, [], 'skill-only builders need no dev maps');
+  assert.deepEqual(dev.maps.map(map => map.source), ['maps/0_system.md']);
+  assert.ok(!dev.documents.some(doc => ['MAKERS.md','core/print/USAGE.md','skills/DEVELOP.md'].includes(doc.path)), 'developers load workflow context when needed');
+  const mapped = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'regions', '--area', 'regions'])).stdout);
+  assert.deepEqual(mapped.maps.map(map => map.source), ['maps/4_regions.md']);
+  const region = JSON.parse((await run(process.execPath, [cli, 'read-map', '4d_perimeters'], {cwd: library})).stdout);
+  assert.deepEqual(region.maps, mapped.maps);
+  assert.ok(region.maps[0].pages.find(page => page.key === '4a_offset').nodes.find(node => node.id === 'offset').shared.some(use => use.page === '4d_perimeters'));
+  const sliceId = 'maps/4_regions.md#planar-kernel';
   const slice = JSON.parse((await run(process.execPath, [cli, 'read-guidance', sliceId])).stdout);
   assert.equal(slice.documents[0].text, (await readGuidance(root, sliceId)).text);
   assert.ok(slice.documents[0].text.includes('WASM instance'));
-  assert.ok(!slice.documents[0].text.includes('### Regions — perimeter recovery'));
+  assert.ok(!slice.documents[0].text.includes('## Perimeter recovery'));
+  await assert.rejects(run(process.execPath, [cli, 'read-map', 'invented']));
   assert.ok(dev.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'SETUP.md'));
   for (const packet of [maker, builder, dev]) {

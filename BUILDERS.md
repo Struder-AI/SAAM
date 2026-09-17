@@ -9,7 +9,7 @@ For builder work with missing context, run
 `node scripts/agent-toolkit.mjs builder-onboarding` directly; use `--area AREA`
 when the affected component is already known. The command returns this manual,
 maker context, core architecture and the complete skill digest, plus the
-requested area context. Use that returned text without reading the same sources
+requested area contracts and core/Studio maps. Use that returned text without reading the same sources
 before or after the command. If builder context is already loaded, continue from
 it and read only missing task-specific references. Individual skill manuals remain
 separate choices. A client without command access reads the same sources directly
@@ -24,8 +24,9 @@ their internals**, including shared components affected by the change. Changes
 confined to skill scripts need skill guidance and consumed API contracts; they
 do not automatically require maps. Dev maps cover core and Studio. Follow the
 [map contract](#maps-and-local-documentation); reading implementation context
-does not require a role change. The [developer bin](DEVELOPER-CONTEXT.md) indexes
-material by scope. When a maker or builder session grows past roughly 250k tokens
+does not require a role change. The [developer orientation](DEVELOPER-CONTEXT.md) indexes
+regions and contracts. Read missing regions with
+`node scripts/agent-toolkit.mjs read-map PAGE`. When a maker or builder session grows past roughly 250k tokens
 and the next request is unrelated or a substantial pivot, suggest a fresh chat.
 
 SAAM is a composable slicing system operated through an AI agent. The product
@@ -113,7 +114,8 @@ Maps serve four purposes: make the system understandable to the person, expose
 the wider effects of a code change, give agents a direct route to required
 context, and reduce reading. Adopt PackIT's single region source and leveled
 flow-map approach with the rules below. PackIT's restrictions on shared code,
-comments and prose are not SAAM rules.
+comments and prose are not SAAM rules. The [map guide](maps/README.md) owns
+source syntax, build/check commands and the [viewer](dev-map/index.html).
 
 One region file owns its map and the supporting context for that scope. Generate
 the human diagram from that source. A page shows one abstraction level, with
