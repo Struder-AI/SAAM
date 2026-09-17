@@ -1,4 +1,4 @@
-import {agentIndicator,hasPresentedResult} from './work-state.mjs';
+import {agentIndicator,requestReceiptState} from './work-state.mjs';
 export {agentIndicator} from './work-state.mjs';
 export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{}}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
@@ -22,8 +22,8 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
     indicator.setAttribute('aria-label',active?'Updating preview':message);
     if(active!==lastActivity){lastActivity=active;onActivity(active);}
-    if(view.ready&&!view.loading&&requests.some(r=>r.printId===view.printId&&!r.presented
-      &&['working','completed'].includes(r.status)&&hasPresentedResult(r,view.snapshot)))onPresentation();
+    if(view.ready&&!view.loading&&requests.some(r=>!r.presented&&['working','completed'].includes(r.status)
+      &&requestReceiptState(r,{view}).receipt))onPresentation();
   }
   addEventListener('saam-agent-connection-closed',event=>{
     closedOwners.add(event.detail.ownerId);
@@ -42,6 +42,7 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
   }
   addEventListener('saam-studio-change',event=>{if(event.detail.kinds.includes('requests'))void refresh();});
   void refresh();setInterval(()=>{render();void refresh();},750);
+  function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
   return {refresh,
     updated(records){merge(records);render();},
     loading(){view={...view,loading:true,ready:false,errorAt:null};render();},
@@ -50,7 +51,12 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
       view={...view,printId:work.printId,snapshot:work.snapshot,ready:false,awaitingConfirmation:false};
       merge(work.requests);render();
     },
-    present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();},
+    present,
+    presentState(state,stage,options){
+      const receipt=requestReceiptState(null,{state,stage,...options});
+      if(!receipt.receipt)return false;
+      present({...state.work,snapshot:{...state.work.snapshot,stage},awaitingConfirmation:receipt.awaitingConfirmation});return true;
+    },
     settled(error){view={...view,loading:false,...(error?{ready:false,errorAt:Date.now()}: {})};render();}
   };
 }

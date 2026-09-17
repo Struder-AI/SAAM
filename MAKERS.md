@@ -96,8 +96,13 @@ the tour print; `begin_studio_work` applies to subsequent work on that print.
 
 The eight-step tour starts with a
 fin block and then the wavy roof. Use chat for requested changes; keep the tour
-marker in place. Wait for Studio requests between lessons, offer infill options
-as soon as the chat lesson starts. After the final download, promptly congratulate
+marker in place. Wait for Studio requests between lessons and, as soon as the
+chat lesson starts, briefly explain that the toolpath controls how the confirmed
+shape is built. Offer two or three appropriate toolpath or process changes with
+their likely effects on strength, finish, print time or material use. Use the
+known recipe and choices already made; make at most one current-print read when
+essential context is missing. Do not suggest geometry in this lesson, though an
+independently requested geometry change remains supported. After the final download, promptly congratulate
 her, offer help with any difficulties printing that file, and ask what she wants
 to make next. Do not wait for her to request these
 instructions. Send the congratulations, offer of printing help and next-project
@@ -114,7 +119,7 @@ Preserve the tour's gradual introduction: Studio provides the early lesson
 guidance. Do not repeat its first task, ask an introductory question, or prompt
 the person to press Play in chat. Respond when the person requests an edit;
 otherwise do preparatory agent work silently. Proactive teaching in chat begins
-only at the designated infill lesson, followed by the requested congratulations
+only at the designated change-suggestion lesson, followed by the requested congratulations
 after completion. A development status update must not become an extra maker
 instruction or move the participant into the next lesson.
 
@@ -134,8 +139,12 @@ needs a maker choice, ask for that choice and keep the failure actionable.
 During a tour, keep `wait_for_studio_request` active between lessons and repeat
 after its bounded timeout. Send each edit acknowledgement in commentary BEFORE
 starting a wait: a final answer held until the listener ends can arrive a lesson
-late. On the infill request, offer the choices in chat
-immediately, then wait for the person's choice. This requires an active connected
+late. On the change-suggestion request, teach the toolpath focus and offer the
+short, contextual set of toolpath or process modifications in chat immediately,
+before another listener wait, status check, browser inspection or unrelated
+request bookkeeping. Name the practical effect of each option, then wait for the
+person's choice. Do not suggest geometry or repeat a settled choice; oblige a
+geometry change when the person asks for one independently. This requires an active connected
 agent; Studio does not wake an ended or disconnected chat by itself.
 
 For CLI listeners, `node studio/agent-requests.mjs wait Prints --claim` runs for up to
@@ -145,7 +154,7 @@ start a background listener and end the turn, abandon its session, or treat a
 session ID as an empty result. The flag claims returned requests in the same
 call; do not claim them again. Read each returned request, send its
 guidance or complete silent preparation, and resolve it. Repeat empty bounded
-waits while the tour is active. Only the designated infill and completion lessons
+waits while the tour is active. Only the designated change-suggestion and completion lessons
 initiate chat teaching; the early lessons remain Studio-led.
 
 Signals may accumulate while another request is being handled. Check their
@@ -156,10 +165,11 @@ replaying an old request. Renew a working request before its ten-minute lease
 expires if long-running agent work is still active; waiting for the person uses
 `waiting`, not repeated claims.
 
-Load STL files without a units popup or pre-import units question. The shared
+Outside the tour, load STL files without a units popup or pre-import units question. The shared
 importer assumes reasonable units from size unless the person specified them;
-show the resulting size and allow later correction through chat. This applies
-inside and outside the tour. [Print-tool guidance](core/print/USAGE.md#import-an-stl)
+show the resulting size and allow later correction through chat. The tour points
+out **Import STL** but keeps it unavailable until the tour is finished or exited.
+[Print-tool guidance](core/print/USAGE.md#import-an-stl)
 owns the provisional heuristic and unit-correction commands.
 
 ## Find the instructions for this part

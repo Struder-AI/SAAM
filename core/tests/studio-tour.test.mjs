@@ -35,7 +35,7 @@ test('lesson changes invalidate teaching while an individual edit cancellation l
   assert.notEqual((await tour.action('fresh')).data.runId,first.runId);
 });
 
-test('tour gates require geometry edits, file selection, five seconds of playback and settings edits',async t=>{
+test('tour gates require geometry edits, file selection, playback start and settings edits',async t=>{
   let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
   assert.equal((await tour.info()).canNext,false);
   await assert.rejects(tour.action('step',1),/Complete/);
@@ -60,12 +60,17 @@ test('tour gates require geometry edits, file selection, five seconds of playbac
   await tour.action('step',2);assert.equal((await tour.info()).canNext,false);
   await assert.rejects(tour.action('step',3),/Complete/);
   await tour.setStartAt({layer:12});await tour.select(starter);assert.equal((await tour.info()).step,3);await tour.action('step',4);
-  await tour.playback('tick');time+=6000;await tour.playback('tick');assert.equal((await tour.info()).canNext,false,'ticks without Play do not count');
-  await tour.playback('play');for(let i=0;i<4;i++){time+=500;await tour.playback('tick');}
-  await tour.playback('pause');time+=10000;await tour.playback('pause');assert.equal((await tour.info()).watchedMs,2000,'paused time is not viewing');
-  await tour.playback('play');for(let i=0;i<6;i++){time+=500;await tour.playback('tick');}
-  assert.equal((await tour.info()).canNext,true);
-  await tour.action('step',5);assert.match((await tour.info()).agentInstruction,/rectilinear.*grid.*triangles.*gyroid.*concentric/);
+  await tour.playback('tick');assert.equal((await tour.info()).canNext,false,'events other than Play do not unlock Next');
+  await tour.playback('play');assert.equal((await tour.info()).canNext,true,'Play unlocks Next immediately');
+  await tour.action('step',5);
+  const changeInstruction=(await tour.info()).agentInstruction;
+  assert.match(changeInstruction,/toolpath controls how the confirmed shape is built/);
+  assert.match(changeInstruction,/two or three concrete toolpath or process changes/);
+  assert.match(changeInstruction,/before another listener wait, status check, browser inspection or unrelated request bookkeeping/);
+  assert.match(changeInstruction,/independently asks for geometry/);
+  assert.match(changeInstruction,/Do not suggest geometry changes or list geometry as an option/);
+  assert.doesNotMatch(changeInstruction,/options may involve geometry/i);
+  assert.doesNotMatch(changeInstruction,/change infill|infill choices/i);
   await editing.begin({directory:starter,instruction:'The participant requests grid infill'});
   await adjustBundle(starter,{skills:{'planar-infill':{pattern:'grid'}}});assert.equal((await tour.info()).canNext,false);
   await approve(starter,{stage:'geometry',actor:'SYNTHETIC tour geometry confirmation',revision:(await loadBundle(starter,{program:false})).revision});
@@ -89,7 +94,7 @@ test('chat edit lesson accepts requested geometry only after confirmation and cu
   await editFin(starter);await requests.update(early.id);await ready(tour,starter);
   await tour.action('step',1);await tour.action('step',2);await tour.select(starter);await tour.action('step',4);
   await approve(starter,{stage:'geometry',actor:'SYNTHETIC initial confirmation',revision:(await loadBundle(starter,{program:false})).revision});
-  await generateBundle(starter);await tour.playback('play');for(let i=0;i<5;i++){time+=1000;await tour.playback('tick');}
+  await generateBundle(starter);await tour.playback('play');
   await tour.action('step',5);const baseline=(await tour.info()).baseline;
   const guidance=(await requests.list()).find(request=>request.kind==='guidance');assert.equal(guidance.status,'queued');
   await ready(tour,starter);assert.equal((await tour.info()).canNext,false,'guidance and redisplaying unchanged inputs do not complete an edit');
@@ -116,26 +121,21 @@ test('chat edit lesson accepts requested geometry only after confirmation and cu
   await ready(tour,starter);assert.equal((await tour.info()).canNext,true,'current requested geometry toolpath completes the lesson before chat bookkeeping');
   assert.equal((await requests.list()).find(r=>r.id===edit.id).status,'waiting','a request waiting for geometry confirmation can finish through the displayed toolpath');
   assert.equal((await requests.list()).find(r=>r.id===guidance.id).status,'queued');
-  assert.equal((await tour.info()).canNext,true,'unfinished automatic infill guidance does not block a completed participant edit');
+  assert.equal((await tour.info()).canNext,true,'unfinished automatic change guidance does not block a completed participant edit');
   const queued=await requests.begin({directory:starter,source:'studio',instruction:'The participant requests another edit'});
   assert.equal((await tour.info()).canNext,true,'unclaimed work does not block a delivered lesson');
   await requests.update(queued.id,{status:'working'});
   assert.equal((await tour.info()).canNext,false,'claimed edit work blocks Next');
   await requests.update(queued.id);assert.equal((await tour.info()).canNext,true);
 });
-test('five seconds of fallback playback unlocks the lesson without an agent-selected layer',async t=>{
-  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
+test('the first Play unlocks fallback playback without an agent-selected layer',async t=>{
+  const dir=await library(t),tour=createTour(dir),{directory:starter}=await tour.action('fresh');
   await editFin(starter);await ready(tour,starter);await tour.action('step',1);await tour.action('step',2);
   await tour.select(starter);await tour.action('step',4);
   assert.equal((await tour.info()).startAt,null);
-  await tour.playback('tick');time+=6000;await tour.playback('tick');
-  assert.equal((await tour.info()).watchedMs,0,'fallback does not count ticks before Play');
-  await tour.playback('play');for(let i=0;i<3;i++){time+=1000;await tour.playback('tick');}
-  await tour.playback('pause');time+=10000;await tour.playback('pause');
-  assert.equal((await tour.info()).watchedMs,3000,'paused fallback time does not count');
-  assert.equal((await tour.info()).canNext,false);
-  await tour.playback('play');for(let i=0;i<2;i++){time+=1000;await tour.playback('tick');}
-  const progress=await tour.info();assert.equal(progress.startAt,null);assert.equal(progress.watchedMs,5000);assert.equal(progress.canNext,true);
+  await tour.playback('tick');assert.equal((await tour.info()).canNext,false);
+  await tour.playback('play');
+  const progress=await tour.info();assert.equal(progress.startAt,null);assert.equal(progress.canNext,true);
   await tour.action('step',5);assert.equal((await tour.info()).step,5);
 });
 test('exit ends the run; restarting begins lesson one and preserves earlier print copies',async t=>{
@@ -175,7 +175,7 @@ test('editing a recipe-created roof keeps the tour identity and edited copy',asy
   assert.equal(state.plan.process.planarSpeedMmS,30);
   assert.equal(await createTour(dir).landing(),roof);
 });
-test('Studio file selection confirms geometry; completing the STL lesson first loads toolpath',async t=>{
+test('Studio file selection confirms geometry; completing the STL introduction first loads toolpath',async t=>{
   const dir=await library(t),tour=createTour(dir),{directory:starter}=await tour.action('fresh');await editFin(starter);await ready(tour,starter);
   await tour.action('step',1);await tour.action('step',2);await tour.setStartAt({layer:12});
   const server=createStudio(starter,{libraryRoot:dir});t.after(()=>server.shutdown());server.listen(0,'127.0.0.1');await once(server,'listening');

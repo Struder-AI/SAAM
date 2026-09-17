@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import {agentIndicator,hasPresentedResult,presentableView} from '../../studio/work-state.mjs';
+import {agentIndicator,requestReceiptState} from '../../studio/work-state.mjs';
 import {needsTourToolpath} from '../../studio/tour-ui.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
 
@@ -29,14 +29,14 @@ test('compact review updates retain playback and avoid loading the scene again',
   assert.equal(state.toolpathApproved,true);assert.equal(state.revision,'approved');assert.equal(state.fingerprint,'new-review');
 });
 
-test('one pure predicate defines geometry and toolpath presentation readiness',()=>{
+test('one pure classifier defines geometry and toolpath presentation readiness',()=>{
   const work={snapshot:{inputKey:'current',generationKey:'generated'}};
-  assert.deepEqual(presentableView({work,geometry:{},geometryApproved:false},'geometry'),
-    {ready:true,snapshot:{...work.snapshot,stage:'geometry'},awaitingConfirmation:true});
-  assert.equal(presentableView({work,program:{}},'toolpath').ready,true);
-  assert.equal(presentableView({work,program:{},generationError:'failed'},'toolpath').ready,false);
-  assert.equal(presentableView({work,program:{}},'toolpath',{requiresToolpath:true}).ready,false);
-  assert.equal(presentableView({work},'geometry').ready,false);
+  assert.deepEqual(requestReceiptState(null,{state:{work,geometry:{},geometryApproved:false},stage:'geometry'}),
+    {activity:'idle',receipt:true,awaitingConfirmation:true});
+  assert.equal(requestReceiptState(null,{state:{work,program:{}},stage:'toolpath'}).receipt,true);
+  assert.equal(requestReceiptState(null,{state:{work,program:{},generationError:'failed'},stage:'toolpath'}).receipt,false);
+  assert.equal(requestReceiptState(null,{state:{work,program:{}},stage:'toolpath',requiresToolpath:true}).receipt,false);
+  assert.equal(requestReceiptState(null,{state:{work},stage:'geometry'}).receipt,false);
 });
 const browserCode=[
   section('async function working(text,task,','\n// Studio reviews'),
@@ -67,7 +67,7 @@ async function confirmationHarness({stored=false,generationError,tour=false}={})
     work:{printId:'part',snapshot,requests:[request]},review:{generation:stored?{mode:'production'}:null},
     ...(stored?{program:{},exportHash:'export'}:{})};
   let context;
-  context=vm.createContext({state,busy:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,agentIndicator,hasPresentedResult,presentableView,
+  context=vm.createContext({state,busy:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,agentIndicator,requestReceiptState,
     document:{getElementById:get},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
     fetch:async()=>({ok:true,json:async()=>({requests:[request]})}),
     requestAnimationFrame:callback=>queueMicrotask(()=>{events.push('paint:'+context.tab);callback();}),

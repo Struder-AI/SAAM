@@ -6,8 +6,8 @@ export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.di
   &&state.tour.step>=L.playback&&state.geometryApproved&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability
   &&!hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot)&&(!state.program||state.programError));
 export function createTourUI({post,refresh,working,setTab,isBusy,state:current,seek}){
-  const $=id=>document.getElementById(id);let progress=null,expanded=null,applied=null,playbackActive=false,pending=false,startReady=false;
-  const panel=$('tour-panel');let displayedStep=null,workActive=false,playStarted=false,playedSource=null;
+  const $=id=>document.getElementById(id);let progress=null,expanded=null,applied=null;
+  const panel=$('tour-panel');let displayedStep=null,workActive=false,playStarted=false,playedSource=null,importObserved=false;
   async function load(){const response=await fetch('/api/tour');if(!response.ok)throw Error('Could not load the tour');progress=await response.json();if(current())current().tour=progress;}
   async function action(action,step){await working(TOUR_STEPS[step]?.tab==='toolpath'?'Preparing your toolpath…':'Opening your example…',async()=>{
     // The server saves the lesson before generation. Refresh that lesson even
@@ -24,25 +24,24 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
   $('tour-exit').onclick=attempt(()=>action('exit'));
   $('tour-back').onclick=attempt(()=>action('step',progress.step-1));
   $('tour-next').onclick=attempt(()=>action('step',progress.step+1));
+  $('import-stl').onpointerenter=()=>{
+    if(progress?.active&&progress.step===L.import&&!importObserved){
+      importObserved=true;$('import-stl').classList.remove('tour-highlight');render(current());
+    }
+  };
   async function playback(event){
-    playbackActive=event==='play';
     if(!progress?.active||progress.step!==L.playback)return;
     if(event==='play'){playStarted=true;playedSource=current().printId+':'+current().exportHash;$('play').classList.remove('tour-highlight');}
-    if(!startReady)return;
+    if(event!=='play')return;
     try{const response=await post('tour-playback',{event});progress=await response.json();current().tour=progress;render(current());}catch(e){$('tour-status').textContent=e.message;}
   }
-  setInterval(async()=>{
-    if(!playbackActive||!startReady||document.hidden||pending||progress?.step!==L.playback||progress?.gates?.[L.playback])return;
-    pending=true;try{const response=await post('tour-playback',{event:'tick'});progress=await response.json();current().tour=progress;render(current());}catch{}finally{pending=false;}
-  },500);
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)void playback('pause');});
   function render(state){
     if(state?.tour)progress=state.tour;
     if(!progress||!state)return;
     const active=progress.active&&progress.directory===state.localPrintDirectory,step=TOUR_STEPS[progress.step];
     const geometryReview=needsTourGeometryReview(state);
     const displayKey=active?progress.step:progress.completed?'completed':'idle';
-    if(displayKey!==displayedStep){$('tour-status').textContent='';displayedStep=displayKey;expanded=true;playStarted=false;}
+    if(displayKey!==displayedStep){$('tour-status').textContent='';displayedStep=displayKey;expanded=true;playStarted=false;importObserved=false;}
     panel.parentElement.dataset.tourStep=active?String(progress.step):'';
     const completed=progress.completed&&progress.directory===state.localPrintDirectory&&!progress.dismissed;
     panel.hidden=!(active||completed)||!expanded;
@@ -51,22 +50,16 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     for(const id of ['import-stl','tour-next'])$(id).classList.toggle('tour-choice',active&&progress.step===L.import);
     $('tour-progress').textContent='SAAM TOUR · '+(progress.step+1)+' OF '+TOUR_STEPS.length;
     $('tour-title').textContent=step.title;$('tour-body').textContent=step.body;$('tour-try').textContent=step.try;
-    const repairReview=active&&progress.step===L.import&&progress.repairReviewRequired;
-    if(repairReview){
-      $('tour-title').textContent='Review the repaired model';
-      $('tour-body').textContent='Your STL needed mesh repairs. Inspect the repaired shape and dimensions before continuing. Your original file is saved.';
-      $('tour-try').textContent='Confirm the repaired geometry to prepare its toolpath, or import another STL.';
-    }
     for(const button of panel.querySelectorAll('button'))button.disabled=isBusy();
     $('tour-back').disabled=isBusy()||geometryReview||progress.step===0;
     $('tour-next').disabled=isBusy()||geometryReview||!progress.canNext||(active&&[L.geometry,L.roof,L.settings].includes(progress.step)&&workActive);
     $('tour-next').hidden=progress.step===TOUR_STEPS.length-1;
-    $('tour-next').textContent=repairReview?'Confirm repaired geometry & continue':progress.step===L.import?'Continue with this part':'Next';
-    $('import-stl').disabled=isBusy()||(active&&progress.step!==L.import);
+    $('tour-next').textContent=progress.step===L.import?'Continue with this part':'Next';
+    $('import-stl').disabled=isBusy()||active;
     $('tour-toggle').disabled=isBusy();$('open-print').disabled=isBusy()||(active&&progress.step!==2);
-    const highlights=active&&!geometryReview?(progress.step===L.import?['import-stl','tour-next']:step.highlight?[step.highlight]:[]):[];
+    const highlights=active&&!geometryReview?(progress.step===L.import?(importObserved?['tour-next']:['import-stl','tour-next']):step.highlight?[step.highlight]:[]):[];
     if(active&&[L.geometry,L.roof].includes(progress.step)&&progress.gates?.[progress.step]&&!$('tour-next').disabled)highlights.push('tour-next');
-    if(highlights.includes('play')&&progress.step===L.playback&&(playStarted||progress.watchedMs>0))highlights.splice(highlights.indexOf('play'),1);
+    if(highlights.includes('play')&&progress.step===L.playback&&playStarted)highlights.splice(highlights.indexOf('play'),1);
     document.querySelectorAll('.tour-highlight').forEach(el=>{if(!highlights.includes(el.id))el.classList.remove('tour-highlight');});
     if(active){
       for(const button of document.querySelectorAll('[data-tab]'))button.disabled=true;
@@ -83,8 +76,7 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
         applied=key;queueMicrotask(()=>{
           if(keepPlayback)return;
           setTab(desired);
-          startReady=false;
-          if(geometryReview){playbackActive=false;$('tour-status').textContent='Waiting for geometry confirmation. Your current lesson is saved.';return;}
+          if(geometryReview){$('tour-status').textContent='Waiting for geometry confirmation. Your current lesson is saved.';return;}
           if(desired==='toolpath'&&!state.program){$('tour-status').textContent=state.generationError??state.programError??'Preparing your toolpath…';return;}
           $('tour-status').textContent='';
           if(progress.step===L.playback){try{
@@ -93,8 +85,7 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
               if(start.fallback)throw error;
               landed=seek({layer:1,fallback:true});fallback=true;
             }
-            startReady=true;
-            $('tour-status').textContent=(fallback?'Starting at layer '+((landed?.layer??1)+1)+'. ':'')+'Press Play and watch for five seconds. You can scrub or change the speed.';
+            $('tour-status').textContent=(fallback?'Starting at layer '+((landed?.layer??1)+1)+'. ':'')+'Press Play to continue. You can keep watching, scrub or change the speed.';
           }catch(e){$('tour-status').textContent=e.message;}}
         });
       }

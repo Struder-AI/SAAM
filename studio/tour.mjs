@@ -7,7 +7,7 @@ import {starterPlan} from '../examples/prints/starter/recipe.mjs';
 import {demos} from '../examples/prints/create.mjs';
 import {canonical} from '../core/print/plan.mjs';
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
-import {hasPresentedResult,requestActivity} from './work-state.mjs';
+import {requestReceiptState} from './work-state.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..'),packages=resolve(root,'examples/prints');
 const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -16,7 +16,7 @@ async function optional(file){try{return await json(file);}catch(e){if(e.code===
 async function save(file,value){await replaceFile(file,JSON.stringify(value,null,2)+'\n');}
 function demo(id){if(!TOUR_DEMOS.some(d=>d.id===id))throw Error('Unknown tour example');return resolve(packages,id);}
 const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includes(':')&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..');
-export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&(marker.id==='imported'||TOUR_DEMOS.some(d=>d.id===marker.id))?{id:marker.id,version:marker.version}:null;}
+export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&TOUR_DEMOS.some(d=>d.id===marker.id)?{id:marker.id,version:marker.version}:null;}
 export function referenceAdapter(live){
   return {...live,async loadBundle(directory,options={}){
     const example=await tourExample(directory),state=await live.loadBundle(directory,options);
@@ -31,8 +31,7 @@ export async function useExample(directory){try{await unlink(resolve(directory,'
 export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentRequests}={}){
   const library=resolve(libraryRoot),progress=resolve(library,'.tour-progress.json'),base=resolve(library,'tour');
   const requests=agentRequests??createAgentRequests(library,{now,ownerId}),ownsRequests=!agentRequests;
-  let playbackAt=null;
-  const initial=()=>({imports:[],version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,runId:null,lessonId:null,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,watchedMs:0,startAt:null,repairReviewRequired:false});
+  const initial=()=>({version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,runId:null,lessonId:null,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,startAt:null});
   async function read(){const value=await optional(progress);return value?.deckVersion===TOUR_DECK_VERSION&&value.runId?{...initial(),...value}:initial();}
   const scope=data=>({runId:data.runId,lessonId:data.lessonId});
   const studioOwner=()=>studioId?{instanceId:studioId}:null;
@@ -80,21 +79,20 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     const gate=TOUR_STEPS[data.step]?.gate;
     const directory=(data.active||data.completed)&&data.selected?await confined(data.selected):null;
     const waiting=data.active&&[L.geometry,L.roof,L.settings].includes(data.step)&&directory&&(records??await requests.query({printId:requests.printId(directory)})).some(r=>
-      requestActivity(r,{now:now(),view:{printId:requests.printId(directory),ready:true,snapshot:data.viewWork}})==='working');
+      requestReceiptState(r,{now:now(),view:{printId:requests.printId(directory),ready:true,snapshot:data.viewWork}}).activity==='working');
     return {...data,directory,canNext:!waiting&&(!gate||data.gates[data.step]===true),agentInstruction:tourAgentInstruction(data)};
   }
   async function enter(data,index){
     if(data.lessonId)await requests.cancelScope(scope(data));
-    const step=TOUR_STEPS[index];data.lessonId=randomUUID();data.step=index;data.active=true;data.completed=false;data.dismissed=false;playbackAt=null;
+    const step=TOUR_STEPS[index];data.lessonId=randomUUID();data.step=index;data.active=true;data.completed=false;data.dismissed=false;
     if(step.demo){await ensure(step.demo,data);data.selected=data.copies[step.demo];}
     if(index===2){await ensure('starter',data);await ensure('surface-drape',data);}
     if(index===L.roof){data.gates[index]=false;data.baseline=await signature(data);data.viewWork=null;}
-    if(index===L.playback)data.repairReviewRequired=false;
     if(index===L.geometry&&!data.gates[index])data.baseline=await signature(data);
     if(index===L.settings){
       data.editLesson=null;data.gates[index]=false;
       await editLessonBaseline(data);data.baseline=data.editLesson.inputKey;
-      await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:scope(data),key:'tour-infill:'+data.lessonId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
+      await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:scope(data),key:'tour-change:'+data.lessonId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
     }
   }
   return {
@@ -111,16 +109,16 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       const data=await read();if(data.studioOwner?.instanceId!==studioId)return;
       // End only this server's run. A later fresh run can belong to another
       // Studio, and ordinary previews must never close somebody else's tour.
-      await save(progress,initial());playbackAt=null;
+      await save(progress,initial());
       await requests.cancelScope({runId:data.runId});
-      for(const name of [...Object.values(data.copies),...data.imports]){
+      for(const name of Object.values(data.copies)){
         const directory=await confined(name);await useExample(directory);await requests.cancelFor(directory);
       }
     },
     async restoreReference(directory){
       const data=await read();if(!data.active)return;
       const name=relative(base,resolve(directory)).split(sep).join('/');
-      const id=Object.entries(data.copies).find(([,copy])=>copy===name)?.[0]??(data.imports.includes(name)?'imported':null);
+      const id=Object.entries(data.copies).find(([,copy])=>copy===name)?.[0];
       if(id)await save(resolve(await confined(name),'.tour-reference.json'),{id,version:TOUR_VERSION});
     },
     async downloaded(exportHash){const data=await read();if(!data.active||data.step!==L.export)throw Error('Continue to the export lesson first.');data.downloadedHash=exportHash;await save(progress,data);},
@@ -132,7 +130,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
         const shown={...workSnapshot(state),stage:'toolpath'},baseline=data.editLesson;
         const requested=(await requests.list({printId:baseline.printId})).some(r=>r.source==='agent'&&r.kind!=='guidance'
           &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)
-          &&r.baseline?.inputKey!==shown.inputKey&&hasPresentedResult({...r,presented:false},shown));
+          &&r.baseline?.inputKey!==shown.inputKey&&requestReceiptState({...r,presented:false},{view:{ready:true,snapshot:shown}}).receipt);
         if(!requested)return describe(data);
       }
       if([L.geometry,L.roof,L.settings].includes(data.step)){
@@ -148,40 +146,29 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       if(expected&&(!data.active||data.runId!==expected.runId||data.lessonId!==expected.lessonId))throw Error('That tour lesson ended. Discard its start-layer choice.');
       data.startAt={layer:startAt.layer};await save(progress,data);return describe(data);
     },
-    async select(directory,{requiresReview=false}={}){
+    async select(directory){
       const data=await observed();if(!data.active||data.step!==2)throw Error('Open a print during the print-switching lesson.');
-      const target=await realpath(directory),allowed=await Promise.all([...Object.values(data.copies),...data.imports].map(confined));
+      const target=await realpath(directory),allowed=await Promise.all(Object.values(data.copies).map(confined));
       if(!allowed.includes(target))throw Error('Choose one of the two prints from this tour.');
-      data.selected=relative(base,target).split(sep).join('/');data.repairReviewRequired=requiresReview;data.gates[2]=true;await enter(data,L.import);await save(progress,data);return describe(data);
-    },
-    async imported(directory,{requiresReview=false}={}){
-      const data=await observed();if(!data.active||data.step!==L.import)throw Error('Import an STL during the mesh lesson.');
-      const name=relative(base,resolve(directory)).split(sep).join('/');await confined(name);
-      if(!data.imports.includes(name))data.imports.push(name);data.selected=name;data.startAt=null;data.watchedMs=0;data.gates[L.playback]=false;data.gates[L.settings]=false;
-      await save(resolve(directory,'.tour-reference.json'),{id:'imported',version:TOUR_VERSION});
-      data.repairReviewRequired=requiresReview;
-      await enter(data,requiresReview?L.import:L.playback);await save(progress,data);
-      return describe(data);
+      data.selected=relative(base,target).split(sep).join('/');data.gates[2]=true;await enter(data,L.import);await save(progress,data);return describe(data);
     },
     async requestStartLayer(){
       const data=await read();if(!data.active||data.step!==L.playback)return describe(data);
       const directory=await confined(data.selected);
-      await requests.begin({directory,source:'studio',kind:'guidance',scope:scope(data),key:'tour-layer:'+data.lessonId,studioInstanceId:studioId,instruction:'The participant imported an STL and advanced to playback. If its existing toolpath has a sparse-infill layer after the first layer, set startAt to that layer using set_tour_start_at. Otherwise keep Studio’s deposited-layer fallback. Do not change geometry or settings or regenerate solely to choose a viewing position. Complete this preparation silently; it must not delay playback. Studio supplies the Play instruction; chat teaching begins at the designated infill lesson.'});
+      await requests.begin({directory,source:'studio',kind:'guidance',scope:scope(data),key:'tour-layer:'+data.lessonId,studioInstanceId:studioId,instruction:'The tour advanced to playback with the selected print. If its existing toolpath has a sparse-infill layer after the first layer, set startAt to that layer using set_tour_start_at. Otherwise keep Studio’s deposited-layer fallback. Do not change geometry or settings or regenerate solely to choose a viewing position. Complete this preparation silently; it must not delay playback. Studio supplies the Play instruction; chat teaching begins at the designated change-suggestion lesson.'});
       return describe(data);
     },
     async playback(event){
-      const data=await observed(),time=now();
-      if(!data.active||data.step!==L.playback){playbackAt=null;return describe(data);}
-      if(playbackAt!==null)data.watchedMs+=Math.max(0,Math.min(1000,time-playbackAt));
-      playbackAt=event==='play'||event==='tick'&&playbackAt!==null?time:null;
-      if(data.watchedMs>=5000)data.gates[L.playback]=true;
+      const data=await observed();
+      if(!data.active||data.step!==L.playback)return describe(data);
+      if(event==='play')data.gates[L.playback]=true;
       await save(progress,data);return describe(data);
     },
     async action(action,step){
       let data=await observed();
-      if(action==='exit'||action==='cancel'){data.active=false;data.dismissed=true;playbackAt=null;for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});if(!data.completed)data=initial();}
-      else if(action==='finish'){if(data.step!==TOUR_STEPS.length-1||!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;playbackAt=null;for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});}
-      else if(action==='fresh'){for(const name of [...Object.values(data.copies),...data.imports]){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});data={...initial(),runId:randomUUID(),studioOwner:studioOwner()};await enter(data,0);await ensure('surface-drape',data);}
+      if(action==='exit'||action==='cancel'){data.active=false;data.dismissed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});if(!data.completed)data=initial();}
+      else if(action==='finish'){if(data.step!==TOUR_STEPS.length-1||!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});}
+      else if(action==='fresh'){for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});data={...initial(),runId:randomUUID(),studioOwner:studioOwner()};await enter(data,0);await ensure('surface-drape',data);}
       else if(action==='step'){
         if(!data.active)throw Error('Start a new tour first.');
         if(!Number.isInteger(step)||!TOUR_STEPS[step])throw Error('Unknown tour step');

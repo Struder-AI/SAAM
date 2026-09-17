@@ -1,17 +1,9 @@
 // One request lifecycle for the viewport, persisted presentation and tour gates.
 // A target describes saved inputs; presentation describes a result actually drawn.
 const edits=request=>!['guidance','advisory'].includes(request.kind);
-export function presentableView(state,stage,{requiresToolpath=false}={}){
-  const geometryReady=stage==='geometry'&&Boolean(state?.geometry);
-  const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state?.generationError&&!state?.programError&&Boolean(state?.program);
-  const ready=Boolean(state?.work?.snapshot)&&(geometryReady||toolpathReady);
-  return {ready,snapshot:state?.work?.snapshot?{...state.work.snapshot,stage}:null,
-    awaitingConfirmation:ready&&geometryReady&&!state.geometryApproved};
-}
-export function hasPresentedResult(request,snapshot){
-  if(!edits(request)||!request.baseline||!snapshot)return false;
+function matchesReceipt(request,snapshot){
+  if(!request?.baseline||!snapshot)return false;
   if(request.studioInstanceId&&snapshot.studioInstanceId&&request.studioInstanceId!==snapshot.studioInstanceId)return false;
-  if(request.presented)return true;
   if(request.target)return request.target.inputKey===snapshot.inputKey
     &&(request.target.stage==='geometry'||snapshot.stage==='toolpath')
     &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.generationKey!==snapshot.generationKey);
@@ -23,35 +15,46 @@ export function hasPresentedResult(request,snapshot){
       &&request.baseline.geometryKey!==snapshot.geometryKey);
 }
 
-export function requestActivity(request,{now=Date.now(),closedOwners=new Set(),view}={}){
-  if(!edits(request)||view?.printId&&request.printId!==view.printId)return 'idle';
-  if(request.presented||view?.ready&&hasPresentedResult(request,view.snapshot))return 'presented';
-  if(['waiting','cancelled'].includes(request.status))return request.status;
-  if(request.status==='failed')return request.connectionClosed?'disconnected':request.timedOut?'expired':'failed';
+export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set(),view,state,stage,requiresToolpath=false}={}){
+  if(state){
+    const geometryReady=stage==='geometry'&&Boolean(state.geometry);
+    const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state.generationError&&!state.programError&&Boolean(state.program);
+    const ready=Boolean(state.work?.snapshot)&&(geometryReady||toolpathReady);
+    view={printId:state.work?.printId,snapshot:state.work?.snapshot?{...state.work.snapshot,stage}:null,ready,
+      awaitingConfirmation:ready&&geometryReady&&!state.geometryApproved};
+  }
+  const relevant=Boolean(request&&edits(request)&&(!view?.printId||request.printId===view.printId));
+  const receipt=Boolean(relevant&&(request.presented||view?.ready&&matchesReceipt(request,view.snapshot)));
+  const awaitingConfirmation=Boolean(relevant&&!receipt&&view?.ready&&view.awaitingConfirmation
+    &&request.target?.stage==='toolpath'&&request.target.inputKey===view.snapshot?.inputKey);
+  if(!request)return {activity:'idle',receipt:Boolean(view?.ready),awaitingConfirmation:Boolean(view?.awaitingConfirmation)};
+  if(!relevant)return {activity:'idle',receipt:false,awaitingConfirmation:false};
+  if(receipt)return {activity:'presented',receipt:true,awaitingConfirmation:false};
+  if(['waiting','cancelled'].includes(request.status))return {activity:request.status,receipt:false,awaitingConfirmation};
+  if(request.status==='failed')return {activity:request.connectionClosed?'disconnected':request.timedOut?'expired':'failed',receipt:false,awaitingConfirmation};
   const pendingResult=request.status==='completed'&&request.result
-    &&hasPresentedResult(request,{...request.result,stage:request.target?.stage??'toolpath'});
-  if(request.status==='completed'&&!pendingResult)return 'completed';
-  if(closedOwners.has(request.ownerId))return 'disconnected';
-  if(request.expiresAt<=now)return 'expired';
-  if(request.status==='queued')return 'queued';
-  if(view?.errorAt&&request.updatedAt<=view.errorAt)return 'failed';
-  // Only a bound toolpath request for these exact inputs waits on approval.
-  // Unrelated or unfinished edits remain active while that shape is shown.
-  if(view?.ready&&view.awaitingConfirmation&&request.target?.stage==='toolpath'
-    &&request.target.inputKey===view.snapshot?.inputKey)return 'waiting';
-  return request.status==='working'||pendingResult?'working':'idle';
+    &&matchesReceipt(request,{...request.result,stage:request.target?.stage??'toolpath'});
+  let activity;
+  if(request.status==='completed'&&!pendingResult)activity='completed';
+  else if(closedOwners.has(request.ownerId))activity='disconnected';
+  else if(request.expiresAt<=now)activity='expired';
+  else if(request.status==='queued')activity='queued';
+  else if(view?.errorAt&&request.updatedAt<=view.errorAt)activity='failed';
+  else if(awaitingConfirmation)activity='waiting';
+  else activity=request.status==='working'||pendingResult?'working':'idle';
+  return {activity,receipt:false,awaitingConfirmation};
 }
 
 export function hasUnpreparedEdit(requests=[],snapshot){
-  return requests.some(request=>requestActivity(request)==='working'
+  return requests.some(request=>requestReceiptState(request).activity==='working'
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
 }
 
 export function agentIndicator(requests,{now=Date.now(),closedOwners=new Set(),view}={}){
   const records=requests.filter(r=>edits(r)&&(!view?.printId||r.printId===view.printId));
   const context={now,closedOwners,view};
-  const active=Boolean(view?.loading)||records.some(r=>requestActivity(r,context)==='working');
+  const active=Boolean(view?.loading)||records.some(r=>requestReceiptState(r,context).activity==='working');
   const latest=[...records].sort((a,b)=>Math.max(a.updatedAt,a.timedOut?a.expiresAt:0)-Math.max(b.updatedAt,b.timedOut?b.expiresAt:0)).at(-1);
-  const status=latest&&requestActivity(latest,context);
+  const status=latest&&requestReceiptState(latest,context).activity;
   return {active,message:active?'':status==='disconnected'?'(connection closed)':status==='expired'?'(lost contact)':''};
 }
