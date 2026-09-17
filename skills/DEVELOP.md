@@ -1,6 +1,6 @@
 # Developing skill manuals and discovery
 
-Follow [developer orientation](../DEVELOP.md) and the owning component contracts
+Follow [developer orientation](../BUILDERS.md) and the owning component contracts
 when implementing a skill. The task manual owns its available operations, settings,
 limits and recovery. Extend a related package or create a focused one when an
 operation lacks a suitable manual. Task skills can cover preparation and recovery
@@ -20,4 +20,4 @@ for choosing and reusing settings; manuals own their specific defaults and limit
 without restating that interaction policy.
 Place recovery references at the operation or failure that needs them. When those
 routes change, assess access through both local files and the connector's manual
-reader. Select relevant verification under [Avoid check spirals](../DEVELOP.md#avoid-check-spirals).
+reader. Select relevant verification under [Avoid check spirals](../BUILDERS.md#avoid-check-spirals).

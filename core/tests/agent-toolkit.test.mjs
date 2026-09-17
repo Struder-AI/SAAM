@@ -28,7 +28,7 @@ async function fixture(t) {
   }};
 }
 
-test('both onboarding roles return the complete digest and leave skill manuals for individual reads', async t => {
+test('the three onboarding roles return the complete digest and leave skill manuals for individual reads', async t => {
   const {library} = await fixture(t);
   const {stdout} = await run(process.execPath, [cli, 'maker-onboarding'], {cwd: library});
   const maker = JSON.parse(stdout);
@@ -36,12 +36,17 @@ test('both onboarding roles return the complete digest and leave skill manuals f
   assert.equal(maker.documents.find(doc => doc.path === 'MAKERS.md').text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
   assert.equal(maker.environment.nodeSupported, true);
   assert.deepEqual(maker.environment.missingDependencies, []);
+  const builder = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'skills'])).stdout);
+  assert.ok(builder.documents.some(doc => doc.path === 'BUILDERS.md'));
+  assert.ok(builder.documents.some(doc => doc.path === 'MAKERS.md'), 'builder context includes maker context');
+  assert.ok(builder.documents.some(doc => doc.path === 'core/README.md'));
   const dev = JSON.parse((await run(process.execPath, [cli, 'developer-onboarding', '--area', 'mcp', '--area', 'setup', '--area', 'mcp'])).stdout);
   assert.ok(!dev.documents.some(doc => doc.path === 'AGENTS.md'), 'entry-point instructions are already loaded');
   assert.equal(new Set(dev.documents.map(doc => doc.path)).size, dev.documents.length);
+  assert.ok(dev.documents.some(doc => doc.path === 'DEVELOPER-CONTEXT.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'SETUP.md'));
-  for (const packet of [maker, dev]) {
+  for (const packet of [maker, builder, dev]) {
     assert.ok(!packet.documents.some(doc => doc.path.endsWith('/SKILL.md')));
     const digest = packet.documents.find(doc => doc.path === 'skills/README.md');
     assert.equal(digest.text, await readFile(resolve(root, 'skills/README.md'), 'utf8'));

@@ -3,7 +3,7 @@
 Only outstanding or incomplete work belongs here. Work normally proceeds
 build-first; completed work and dated evidence belong in [DEVLOG.md](DEVLOG.md).
 Current component references and skill manuals own implemented behavior.
-See [documentation maintenance](DEVELOP.md#documentation-maintenance) for
+See [documentation maintenance](BUILDERS.md#documentation-maintenance) for
 the closeout rules. An empty outstanding-work list is valid.
 
 Every request must be explicitly human requested, or agent proposed and explicitly
@@ -11,7 +11,7 @@ human approved. Record the contributor account, the request/approval evidence,
 the originating chat title when recoverable, and a brief explanation of what
 prompted the work. An agent's recommendation, audit finding, missing test result,
 commit authorship or silence does not establish a human request or approval.
-See [request provenance](DEVELOP.md#build-request-provenance) for attribution and
+See [request provenance](BUILDERS.md#build-request-provenance) for attribution and
 scope rules.
 
 Use a `### BR-NNN — Title` heading with these fields:
@@ -89,4 +89,4 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Source: 2026-09-13T18:48:54Z: “mark material library as definitely we will port that over - but don't do it yet.” Same message identifies “tkeller's three conceptual intents”. [Withdrawal record](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission).
 - Remaining: Port the material-library concept to the live shared architecture when the user explicitly starts this work. The user commits to doing it, but defers implementation; do not restore the withdrawn catalog or implement it during recovery.
 - Completion: Review the selected data and interfaces against current material, machine, output and recipe consumers; preserve machine-owned compatibility and intentional process settings. Establish the concrete supported scope and relevant evidence before admitting the implementation. Catalog availability does not establish hardware or output support.
-- Context: Four September 12 contributions were withdrawn to restore the agreed architecture. The user retained three concepts for selective review and singled out the material library as committed future work. [Current component contracts](core/README.md#interoperability-and-one-workflow), [minimal implementation guidance](DEVELOP.md#engineering-priorities).
+- Context: Four September 12 contributions were withdrawn to restore the agreed architecture. The user retained three concepts for selective review and singled out the material library as committed future work. [Current component contracts](core/README.md#interoperability-and-one-workflow), [minimal implementation guidance](BUILDERS.md#engineering-priorities).

@@ -184,18 +184,8 @@ from another process, so concurrent agent work should use separate bundles.
 
 ### Historical toolpath inspection
 
-For an explicitly requested historical toolpath inspection, a local scratch
-launcher may pass `resolveBundle` to `createStudio`. The resolver supplies a
-scratch adapter over `createBundleWorkflow`; Studio keeps its existing source
-playback, print picker and lifecycle. The default CLI and known adapters are
-unchanged. This is explicit development injection, not automatic discovery or
-permission to load module paths from a print. Record the original revision and
-settings, distinguish historical stroke geometry from modern export assumptions,
-and verify the interpreted deposition against the source generator.
-An adapter's optional `inspection` presentation supplies a title, description,
-facts/settings rows and note for a development tour. Studio then exposes settings
-for reading and hides its approval button; the scratch adapter must independently
-reject approval and delivery. This presentation does not grant production rights.
+Historical toolpath inspection is a developer-only scratch launcher and has moved
+to [developer context](../DEVELOPER-CONTEXT.md#studio--historical-toolpath-inspection).
 
 ### Remembered printer setup
 

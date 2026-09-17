@@ -65,7 +65,7 @@ For machine setup and export limitations, follow the
 
 Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
 discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).
-Developers start at [DEVELOP.md](../DEVELOP.md) for shared geometry, numerical,
+Developers start at [DEVELOP.md](../BUILDERS.md) for shared geometry, numerical,
 composition, travel and machine requirements. [Skill development](DEVELOP.md)
 owns manual authorship and discovery metadata.
 

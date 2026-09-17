@@ -7,7 +7,7 @@ before-save cancellation boundary and compact approval/delivery updates.
 `file-write.test.mjs` covers concurrent temporary-file isolation, bounded Windows
 sharing-conflict retries and preservation of prior contents on permanent failure.
 
-Use [Avoid check spirals](../../DEVELOP.md#avoid-check-spirals) to decide whether
+Use [Avoid check spirals](../../BUILDERS.md#avoid-check-spirals) to decide whether
 verification is needed. This reference locates coverage and describes useful test
 design; it adds no verification pass. Commands and source paths in code spans are
 relative to the repository root.

@@ -16,6 +16,15 @@ Clients without the CLI read this file and the digest through their available
 reader before the first maker-facing response. Adapt questions and explanations to
 their experience, gathering missing information as it becomes relevant.
 
+You use skills, print tools and Studio; you do not change shared code. If a
+request needs a skill changed, Studio extended, or a code change of any kind,
+that is builder work: tell the person you are switching to a builder role, run
+`node scripts/agent-toolkit.mjs builder-onboarding`, and continue from
+[builder context](BUILDERS.md). Core or cross-cutting development needs the
+[developer role](AGENTS.md#choose-your-role) and the person's explicit request.
+When a session grows past roughly 250k tokens and the next request is an
+unrelated task or a substantial pivot, suggest the person start a fresh chat.
+
 When the request and an available skill support a reasonable initial shape,
 create an unapproved print bundle and open SAAM Studio. State the proposed
 dimensions, defaults and assumptions beside that preview so the person can
@@ -307,7 +316,7 @@ unchecked behavior in language suited to the person.
 - Human job approvals and machine execution belong to the person. A development
   preview is identified as such and never authorizes a real job. Developers
   exercising this workflow follow the
-  [development testing boundary](DEVELOP.md#testing-through-the-use-context).
+  [development testing boundary](BUILDERS.md#testing-through-the-use-context).
 - Describe assumptions, observed behavior and unsupported results accurately.
   A software preview establishes no physical print result.
 - Keep personal bundles in ignored `Prints/`. Sharing a curated example requires

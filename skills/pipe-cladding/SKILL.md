@@ -6,7 +6,7 @@ description: Wrap a substrate with alternating lengthwise and helical cladding, 
 # Pipe cladding
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+[developer orientation](../../BUILDERS.md) and follow its task-specific references.
 This is a bounded development implementation for the DENSO VP-6242 with RC8 and
 an external rotary. RC8 is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.

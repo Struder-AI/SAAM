@@ -41,7 +41,7 @@ algorithms or selecting a new general intersection engine.
 
 Use source comparisons, adversarial fixtures, convergence tests and benchmarks
 in development. Keep those expensive comparisons out of the production hot path.
-Runtime checks must earn their cost under [the existing guidance](../../DEVELOP.md#avoid-check-spirals).
+Runtime checks must earn their cost under [the existing guidance](../../BUILDERS.md#avoid-check-spirals).
 Numerical integration/subdivision needed to construct a result to its requested
 tolerance is algorithm work; an additional independent verification pass needs
 its own justification. Preserve parameter/point correspondence and cache useful

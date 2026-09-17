@@ -1,19 +1,34 @@
-# Developing SAAM
+# Building on SAAM
 
-For developer work with missing context, run
-`node scripts/agent-toolkit.mjs developer-onboarding` directly; use `--area AREA`
+This is builder context: the orientation for changing a skill, adding functionality
+to Studio, or making an isolated, local change to core, and for making parts to
+test that work in development. For core or cross-cutting work, see the
+[developer role](AGENTS.md#choose-your-role) instead.
+
+For builder work with missing context, run
+`node scripts/agent-toolkit.mjs builder-onboarding` directly; use `--area AREA`
 when the affected component is already known. The command returns this manual,
-core architecture and the complete skill digest, plus the requested area context.
-Use that returned text without reading the same sources before or after the
-command. If the developer context is already loaded, continue from it and read
-only missing task-specific references. Individual skill manuals remain separate
-choices. A client without command access reads the same sources directly once.
+maker context, core architecture and the complete skill digest, plus the
+requested area context. Use that returned text without reading the same sources
+before or after the command. If builder context is already loaded, continue from
+it and read only missing task-specific references. Individual skill manuals remain
+separate choices. A client without command access reads the same sources directly
+once.
+
+**Builder context includes maker context.** Read [MAKERS.md](MAKERS.md) for the
+person-facing workflow you are extending and exercising. **Read the region's dev
+map before editing:** an isolated change is only isolated if you can see the
+boundary it must not cross ([maps](AGENTS.md#maps)). Deeper core internals that no
+map yet covers are catalogued in the transitional
+[developer context](DEVELOPER-CONTEXT.md); read the specific entry for the scope
+you touch. And when a session grows past roughly 250k tokens and the next request
+is an unrelated task or a substantial pivot, suggest the user start a fresh chat.
 
 SAAM is a composable slicing system operated through an AI agent. The product
 goal is to make advanced printing workflows accessible through conversation,
 while retaining explicit control over geometry, process choices and machine
 output. [MAKERS](MAKERS.md) defines the user workflow; this document establishes
-the engineering direction and routes development work to its owning context.
+the engineering direction and routes build work to its owning context.
 
 ## Design direction
 

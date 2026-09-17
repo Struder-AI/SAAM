@@ -7,6 +7,7 @@ import {onboarding, readSkill, contextPacket, preview, beginWork, waitForRequest
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
   'maker-onboarding': {},
+  'builder-onboarding': {area: many},
   'developer-onboarding': {area: many},
   'read-skill': {},
   'read-guidance': {},
@@ -22,7 +23,8 @@ const schemas = {
 export const help = {
   commands: {
     'maker-onboarding': 'Maker guidance, complete skill digest and print tools; choose follow-up reads for the task.',
-    'developer-onboarding [--area AREA]': 'Developer orientation, architecture, complete skill digest and selected area references.',
+    'builder-onboarding [--area AREA]': 'Builder orientation (includes maker context), core architecture, skill authoring and digest, and selected area references.',
+    'developer-onboarding [--area AREA]': 'Developer handoff and orientation, core architecture, skill digest and selected area references; work map-first.',
     'read-skill ID': 'Read one chosen skill manual, with links to further context.',
     'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
     'start-tour [--start-at-layer 12] [--no-open]': 'Fresh tour copies, live Studio, browser dispatch and participation context.',
@@ -58,7 +60,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
       startAtLayer: v['start-at-layer'] === undefined ? 12 : Number(v['start-at-layer']),
       instruction: v.instruction, requestId: v.request, includeGeometry: v['include-geometry']};
     let result;
-    if (command.endsWith('-onboarding')) result = await onboarding({role: command === 'maker-onboarding' ? 'maker' : 'developer', areas: v.area});
+    if (command.endsWith('-onboarding')) result = await onboarding({role: command.replace('-onboarding', ''), areas: v.area});
     else if (command === 'read-skill') result = await readSkill(positionals[0]);
     else if (command === 'read-guidance') result = await contextPacket([positionals[0]]);
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {

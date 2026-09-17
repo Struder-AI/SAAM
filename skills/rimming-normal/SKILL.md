@@ -50,7 +50,7 @@ configured Dobot software exports use the same composer and reviewed machine
 source as every other skill; normal offsets do not add a pipeline or approval.
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
-[developer orientation](../../DEVELOP.md) and follow its task-specific references.
+[developer orientation](../../BUILDERS.md) and follow its task-specific references.
 The public callable is
 `rimmingNormalResults({plan, modelResults})` in `scripts/rimming.mjs`, delegating
 to the shared rimming producer. The paired tests live in

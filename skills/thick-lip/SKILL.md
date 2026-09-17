@@ -7,7 +7,7 @@ description: Thicken a vase-wall's top edge into a rigid, optionally rolled rim 
 
 A finishing skill: it does not print a part on its own, it thickens the top
 edge an existing [vase-wall](../vase-wall/SKILL.md) region already produced.
-Read [MAKERS.md](../../MAKERS.md); developers also read [DEVELOP.md](../../DEVELOP.md).
+Read [MAKERS.md](../../MAKERS.md); developers also read [DEVELOP.md](../../BUILDERS.md).
 
 This recovers a real, robot-tested idea from an earlier StruderBot-only
 version of this project: growing inward perimeters from a frozen rim. That

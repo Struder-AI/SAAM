@@ -2,7 +2,7 @@
 
 Read this after doing the development work, immediately before an authorized
 checkpoint or remote activity. Read it earlier when the task itself concerns
-integration or publication. During-work guidance lives in [DEVELOP.md](DEVELOP.md).
+integration or publication. During-work guidance lives in [DEVELOP.md](BUILDERS.md).
 Reading this document does not trigger another verification pass.
 
 ## Reconcile the contribution
@@ -29,7 +29,7 @@ Direct main publication requires an explicit request for that action, such as
 an authorized repair. Remove temporary repair branches after integration.
 Use intentional isolation when it helps the work, with a clear integration scope.
 
-For imported work, apply [selective adoption](DEVELOP.md#context-and-selective-adoption).
+For imported work, apply [selective adoption](BUILDERS.md#context-and-selective-adoption).
 State what is retained, withdrawn or deferred and any unresolved compatibility
 question. Refresh affected agent guidance and restart affected long-running
 services before relying on the integrated behavior.
@@ -40,7 +40,7 @@ Update current manuals and record completed work and actual verification in
 [DEVLOG.md](DEVLOG.md). Remove completed requests from [the open list](build_request.md),
 leaving only unfinished work. Preserve the stated scope of approvals and decisions.
 
-Reuse the evidence selected under [Avoid check spirals](DEVELOP.md#avoid-check-spirals).
+Reuse the evidence selected under [Avoid check spirals](BUILDERS.md#avoid-check-spirals).
 Obtain only missing, applicable evidence for the change or required branch checks;
 checkpointing, publication and rereading guidance do not invalidate valid results.
 

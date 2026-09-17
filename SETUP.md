@@ -17,7 +17,7 @@ work; the person need not request it separately:
 Report a failure as a setup problem and stop there. Setup does not create a
 manufacturing approval. Git is needed only to clone; the wedge requires no
 Rhino desktop installation or Compute server. After setup, use the
-[Avoid check spirals](DEVELOP.md#avoid-check-spirals) policy for development work.
+[Avoid check spirals](BUILDERS.md#avoid-check-spirals) policy for development work.
 
 Manage dependencies through `package.json`, `package-lock.json` and installation
 with `npm ci`. Installed source in `node_modules/` stays outside project edits

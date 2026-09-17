@@ -7,16 +7,18 @@ The onboarding commands below apply to ordinary maker/developer work; they are
 not prerequisites for a tour. Reuse completed setup and permissions.
 
 Small bundles of existing SAAM operations for agents using a command tool.
-[MAKERS](../../MAKERS.md) owns maker behavior, [DEVELOP](../../DEVELOP.md) owns
-development guidance, and the [print lifecycle](../print/README.md) owns recipe
-validation and confirmations. These commands add no approval or generation path.
+[MAKERS](../../MAKERS.md) owns maker behavior, [BUILDERS](../../BUILDERS.md) owns
+builder guidance, [developer context](../../DEVELOPER-CONTEXT.md) is the developer
+handoff, and the [print lifecycle](../print/README.md) owns recipe validation and
+confirmations. These commands add no approval or generation path.
 
 Run from the checkout root:
 
 ```sh
 node scripts/agent-toolkit.mjs --help
 node scripts/agent-toolkit.mjs maker-onboarding
-node scripts/agent-toolkit.mjs developer-onboarding --area studio
+node scripts/agent-toolkit.mjs builder-onboarding --area studio
+node scripts/agent-toolkit.mjs developer-onboarding --area geometry
 node scripts/agent-toolkit.mjs read-skill planar-infill
 node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
 ```
@@ -41,7 +43,8 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | Command | Operations in order | Result |
 |---|---|---|
 | `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
-| `developer-onboarding` | Read DEVELOP, core architecture and the complete skill digest; add selected area references; inspect Node and dependency entry-point availability. | The same context format, with developer sources and an instruction to choose further reads. |
+| `builder-onboarding` | Read BUILDERS and the maker context it includes, core architecture, skill authoring and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with builder sources and an instruction to choose further reads and the region's map. |
+| `developer-onboarding` | Read the developer handoff and builder baseline, core architecture and the complete skill digest; add selected area references; inspect entry-point availability. | The same context format, with developer sources and an instruction to work map-first. |
 | `read-skill ID` | Read one skill manual chosen by the agent from the catalog. | The manual's text, source path, hash and links for further reading. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start Studio; emit its URL; request browser opening; read participation guidance and tour state. | A live Studio session, initial recipe summary, MAKERS and tour-participation context, plus listener arguments/cursor. |
@@ -61,18 +64,19 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | Tour | Run the Studio `--toolkit start-tour --no-open` command immediately in a set-up checkout. | Open `studio.url` from `studio-ready`, then use the returned participation context and listener. |
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
 | Existing Studio print | Run `begin-studio-work` first, with the target or existing request ID. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
-| Development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Inspect the affected implementation and choose missing component/skill references. Load maker guidance when exercising that workflow; load contribution guidance when checkpointing/publishing. |
+| Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Read the region's dev map, then inspect the affected implementation and choose missing component/skill references. Load contribution guidance when checkpointing/publishing. |
+| Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; consult the developer handoff for what the maps do not yet carry. |
 
 Returned text counts as reading its source. Do not precede onboarding with the
 manuals it supplies, repeat those reads through links, or rerun onboarding for
 each request. Reuse current context; refresh an affected source only when it
-changed or the earlier context is unavailable. Developer onboarding does not
-repeat AGENTS, the entry point that routed the agent here. Existing setup and
-permissions are also reused. No onboarding command belongs before tour launch.
+changed or the earlier context is unavailable. Onboarding does not repeat AGENTS,
+the entry point that routed the agent here. Existing setup and permissions are
+also reused. No onboarding command belongs before tour launch.
 
 ### Individual follow-up reads
 
-Both onboarding commands include the complete [skill digest](../../skills/README.md),
+All three onboarding commands include the complete [skill digest](../../skills/README.md),
 preserving its existing descriptions and links to every cataloged skill. The agent
 must judge which manuals and further references fit the task, then read those
 individually before using or changing a skill. Onboarding is starting context;
@@ -81,8 +85,9 @@ remains bundled with tour startup.
 
 Use `read-skill ID` for one chosen skill and `read-guidance PATH#HEADING` for one
 additional published reference or section. Onboarding has no `--skill` or `--guide`
-option. `developer-onboarding` accepts repeated `--area` values: `geometry`, `regions`,
-`path`, `print`, `machine`, `studio`, `mcp`, `skills`, `tests`, `setup`.
+option. `builder-onboarding` and `developer-onboarding` accept repeated `--area`
+values: `geometry`, `regions`, `path`, `print`, `machine`, `studio`, `mcp`,
+`skills`, `tests`, `setup`.
 Select areas from the task; the toolkit does not guess them from prose.
 Identical guidance IDs are read once per packet. Text comes directly from the
 owning Markdown files, with a SHA-256 hash of each returned section; there is no
@@ -182,14 +187,5 @@ confirmation or hardware action.
 
 ## Implementation and verification
 
-[toolkit.mjs](toolkit.mjs) composes exported owning APIs; the thin
-[CLI](../../scripts/agent-toolkit.mjs) validates arguments and handles JSON output
-and process lifetime. [manuals.mjs](manuals.mjs) is shared with MCP through its
-compatibility re-export. The browser opener and request wait/claim implementation
-are also shared with MCP. No new MCP onboarding or preview tools are registered.
-
-Focused coverage lives in [agent-toolkit.test.mjs](../tests/agent-toolkit.test.mjs):
-current-source context, isolated setup reuse, approval/export preservation on
-reopening, STL import, fresh tours, request coordination, partial failure and
-the actual managed CLI launcher. Existing manual-access, MCP and Studio request
-tests cover the shared seams. Select checks under [DEVELOP](../../DEVELOP.md#avoid-check-spirals).
+The toolkit implementation and its test coverage are developer-only and have moved
+to [developer context](../../DEVELOPER-CONTEXT.md#agent-toolkit--implementation-and-verification).

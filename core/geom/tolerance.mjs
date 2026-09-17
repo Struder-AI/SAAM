@@ -2,7 +2,7 @@
 //
 // Spatial tolerances are in mm; parameter convergence is in the native UV
 // parameter units, not mm. Keep predicate slack separate from geometric
-// approximation and choose each for its consumer (DEVELOP.md precision policy).
+// approximation and choose each for its consumer (BUILDERS.md precision policy).
 // A fine chord target bounds that construction only, not accumulated downstream
 // shape error, mesh repair error, or the machine's physical accuracy.
 

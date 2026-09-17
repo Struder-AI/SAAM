@@ -235,7 +235,7 @@ For an explicitly developmental preview, `demo Prints/development/my-part`
 creates or reopens a shell bundle and generates without human approvals. An
 existing recipe can be initialized first. Development output cannot authorize
 delivery, and MCP does not expose this mode. Follow the
-[development testing context](../../DEVELOP.md#testing-through-the-use-context)
+[development testing context](../../BUILDERS.md#testing-through-the-use-context)
 when exercising maker tools during development.
 
 Development generation still needs explicit robot command settings; for a new

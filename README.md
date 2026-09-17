@@ -73,7 +73,7 @@ own print or explore freely. Exploring a demo grants no printing approvals.
 
 ## Reading and contributing
 
-Start with the [developer orientation](DEVELOP.md) for code or documentation
+Start with the [developer orientation](BUILDERS.md) for code or documentation
 work. Use [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
 contributor choices, the [build requests](build_request.md#outstanding-work)
 for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work

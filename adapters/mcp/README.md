@@ -168,7 +168,7 @@ accepts the tour-only `startAt` parameter. Revision-only approvals and a global 
 are unsupported.
 
 SDK subprocess integration coverage is available below. Select checks under
-[Avoid check spirals](../../DEVELOP.md#avoid-check-spirals); these commands add no
+[Avoid check spirals](../../BUILDERS.md#avoid-check-spirals); these commands add no
 separate verification pass.
 
 ```sh

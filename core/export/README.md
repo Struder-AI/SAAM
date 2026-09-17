@@ -83,18 +83,5 @@ boundary. A common extension or file suffix alone does not establish compatibili
 
 ### Stationary extrusion and nozzle control
 
-Shared `extrude` actions carry positive volume and volumetric flow; `temperature`
-actions carry a nozzle target. Griffin and H2D's common motion writer converts
-stationary volume to E-only `G1` commands in the selected absolute/relative mode.
-The interpreter resolves retraction debt first, then counts unretracted positive
-E-only deposition as volume and duration at a fixed position. These commands
-produce zero-length display moves and `injection` events with position, volume,
-temperature and source time. Studio uses the same source interpreter.
-
-Operation temperature targets are validated against the locked recipe and
-machine/material ranges. The writer emits `M400` followed by `M109 S` at the
-composer's parked position and restores the normal target after the operation.
-Thermal wait durations and actual temperatures are not simulated. These are the
-existing dialect commands; do not assume a generic Marlin `M109 R` cooling mode
-is portable to both outputs. Firmware behavior still needs physical verification.
-Relay robot outputs explicitly reject the new actions.
+The stationary-extrusion and nozzle-control motion writer is developer-only and has
+moved to [developer context](../../DEVELOPER-CONTEXT.md#machine-output--stationary-extrusion-and-nozzle-control).

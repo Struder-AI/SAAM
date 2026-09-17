@@ -1,5 +1,49 @@
 # Development log
 
+## 2026-09-16 — Three agent roles and documentation restructure
+
+The current user directed a move from two agent contexts (maker, developer) to
+three: **maker** (uses skills, makes parts, gives printing advice, operates
+Studio; changes no shared code), **builder** (changes skills, extends Studio,
+makes isolated local core changes, makes test parts), and **developer** (works on
+core and across components; maps-native). The agent determines its role from the
+initial prompt, defaults to maker when unclear, escalates maker→builder on any
+build request (announced, then `builder-onboarding`), and reaches developer only
+on the person's explicit request or an accepted proposal for major core work.
+Maker and builder agents suggest a fresh session past ~250k tokens on an
+unrelated pivot; developers are exempt.
+
+Structure changes: [AGENTS.md](AGENTS.md) now routes by role, escalation and
+session-switch. `DEVELOP.md` moved to [BUILDERS.md](BUILDERS.md) (builder
+orientation, includes maker context) with its externally-referenced anchors
+preserved; all root `DEVELOP.md` links were repointed there (component
+`DEVELOP.md` files untouched). A new transitional [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md)
+is the developer handoff: it holds the developer-only sections physically lifted
+from `core/agent/README.md` (implementation and verification),
+`core/export/README.md` (stationary-extrusion motion writer) and
+`studio/README.md` (historical toolpath inspection), plus a dev-bin manifest
+that catalogues, with anchors, the interwoven dev-only material still living in
+the region READMEs (Clipper2 kernel, export interoperability internals, Studio
+request-index/work-state internals) for the dev maps to absorb, and an index of
+the wholesale developer-only documents.
+
+Onboarding now takes roles maker/builder/developer
+([core/agent/toolkit.mjs](core/agent/toolkit.mjs), [scripts/agent-toolkit.mjs](scripts/agent-toolkit.mjs));
+`developer-onboarding` was renamed to `builder-onboarding` and a new
+`developer-onboarding` added. [manuals.mjs](core/agent/manuals.mjs) admits the new
+root docs and aliases. The [agent toolkit manual](core/agent/README.md) documents
+all three. The [maker](maker-context-map.html) and [builder](builder-context-map.html)
+context maps were updated to the new state (the developer context map became the
+builder map); the code-anchored developer region maps are the next phase.
+
+Judgement call on the reorg depth: cleanly-detachable dev-only sections were
+physically moved to the handoff; large interwoven ones were catalogued in place
+with precise anchors rather than butchered, since the dev maps are meant to
+re-own that content and most of the handoff is expected to disappear once they
+exist. Verified: `agent-toolkit` (three-role onboarding) and `mcp` tests pass;
+`check-repo` shows only pre-existing `build_request.md#br-*` anchor issues. The
+prior working tree was checkpointed first (commit before this work).
+
 ## 2026-09-16 — X1 Carbon, Ultimaker 2 Extended and Ultimaker 3 profile definitions
 
 The current user requested an X1 Carbon profile, confirmed the standard hardened
@@ -2643,7 +2687,7 @@ were retained. This restart did not authorize adoption of the legacy runtime.
 All 114 archived files were checked against their original SHA-256 hashes.
 Initial checks covered document links, decision metadata and private-file
 exclusions; they did not validate manufacturing behavior. Current checks are
-described in the [check policy](DEVELOP.md#avoid-check-spirals).
+described in the [check policy](BUILDERS.md#avoid-check-spirals).
 
 ## BR-003 — Resolve native path versus machine file
 
@@ -2697,7 +2741,7 @@ described in the [check policy](DEVELOP.md#avoid-check-spirals).
 
 - Status: complete locally
 - Source: user correction during the S5 wedge conversation, 2026-09-08.
-- Historical result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. The instruction at this checkpoint defaulted unspecified agents to developer and required every developer to read both root files. Current context selection is in [AGENTS.md](AGENTS.md#choose-your-context) and the [developer orientation](DEVELOP.md).
+- Historical result: consolidate developer rules and development notes into root DEVELOP.md; move maker guidance to root MAKERS.md; remove docs/ and update active references. The instruction at this checkpoint defaulted unspecified agents to developer and required every developer to read both root files. Current context selection is in [AGENTS.md](AGENTS.md#choose-your-role) and the [builder orientation](BUILDERS.md).
 - Approval scope: this records the user's development instruction, not an inferred contributor decision approval.
 
 ## BR-009 — Accessible chat-driven review and wedge refinement
