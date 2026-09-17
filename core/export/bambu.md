@@ -11,12 +11,18 @@ reference geometry, thumbnails and personal settings stay outside generated
 output and Git. The [reference checks](../../DEVLOG.md#2026-09-09-to-2026-09-10--h2d-reference-and-startup-checks)
 do not establish successful physical printing or universal firmware compatibility.
 
-The initial contract supports one selected standard hardened 0.4 mm nozzle,
+The experimental contract supports one selected standard hardened 0.4, 0.6 or 0.8 mm nozzle,
 1.75 mm PLA, Textured PEI and **no chamber heating** (`buildVolumeC: 0`). Left
 is the default. Left/right package maps are 1/2, nozzle IDs 0/1, and physical
 heater selectors 1/0. Logical material `T0 H-1` remains the same under Bambu's
 remapping. Do not replace all T numbers to select a nozzle. Package structure
 also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
+
+The pinned firmware envelope was captured with 0.4 mm hardware. For an explicitly
+selected 0.6 or 0.8 mm job, SAAM emits nozzle-correct package metadata and checks the
+print body with the selected bead and layer dimensions, while reusing that pinned
+service envelope. These larger-nozzle paths have software coverage only; they have not been
+independently accepted by Bambu Studio or physically validated.
 
 The pinned start/end arrays originate in the reference's executable blocks.
 Machine revision 4 uses `h2d-02.08.02.61-pla-textured-v2`, which omits startup
@@ -67,6 +73,14 @@ unknown envelopes and edited files fail closed.
 
 Software tests cover both nozzle maps, both geometry backends, supported skill
 integration, malformed/tampered output and the shared approval/HTTP delivery path.
+
+The plan may declare a filament display color and an AMS slot. Color is written
+into the Bambu project metadata. The AMS slot is retained in
+`Metadata/saam.json` and rendered into the pinned startup envelope's M620, T and
+M621 commands (plan slots 1–4 become firmware filament selectors 0–3). A null
+slot retains selector 0 for backward compatibility. Verify the physical tray
+before printing because this is an executable direct-slot selection, not merely
+a display hint or a job-submission mapping.
 Independent Bambu Studio program-viewer import and physical validation remain
 [open acceptance checks](../../build_request.md#br-018--h2d-acceptance-and-physical-retest).
 Model-import CLI checks do not verify the program-viewer route.

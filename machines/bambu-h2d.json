@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 5,
+  "revision": 10,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
@@ -62,15 +62,23 @@
         100
       ],
       "cores": [
-        "Hardened steel 0.4"
+        "Hardened steel 0.4",
+        "Hardened steel 0.6",
+        "Hardened steel 0.8"
       ],
       "nozzleDiametersMm": [
-        0.4
+        0.4,
+        0.6,
+        0.8
       ],
       "layerHeightMm": [
         0.08,
-        0.28
+        0.6
       ],
+      "experimentalPlanar": {
+        "layerHeightMm": [0.08, 1.0],
+        "lineWidthMm": [0.3, 2.0]
+      },
       "physicalExtruder": 1
     },
     {
@@ -93,15 +101,23 @@
         100
       ],
       "cores": [
-        "Hardened steel 0.4"
+        "Hardened steel 0.4",
+        "Hardened steel 0.6",
+        "Hardened steel 0.8"
       ],
       "nozzleDiametersMm": [
-        0.4
+        0.4,
+        0.6,
+        0.8
       ],
       "layerHeightMm": [
         0.08,
-        0.28
+        0.6
       ],
+      "experimentalPlanar": {
+        "layerHeightMm": [0.08, 1.0],
+        "lineWidthMm": [0.3, 2.0]
+      },
       "physicalExtruder": 0
     }
   ],
@@ -109,13 +125,14 @@
     "PLA": {
       "nozzleC": [
         190,
-        230
+        250
       ],
       "bedC": [
         0,
         70
       ],
       "maxFlowMm3S": 4,
+      "experimentalMaxFlowMm3S": 30,
       "maxRetractMm": 2
     }
   },
@@ -124,6 +141,8 @@
     "core": "Hardened steel 0.4",
     "nozzleMm": 0.4,
     "material": "PLA",
+    "filamentColor": "#28A090",
+    "amsSlot": null,
     "filamentMm": 1.75,
     "nozzleC": 215,
     "bedC": 60,
@@ -149,7 +168,7 @@
       "implemented": true,
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "program": {
-        "contract": "h2d-02.08.02.61-pla-textured-v2",
+        "contract": "h2d-02.08.02.61-pla-textured-v3",
         "start": [
           "M201 X20000 Y20000 Z500 E5000",
           "M203 X1000 Y1000 Z30 E50",
@@ -231,17 +250,17 @@
           "M628 S1",
           "M620.11 S1 L0 I0 B-1 R10 D8 E-10 F623.623",
           "M629",
-          "M620 S0A H-1",
+          "M620 S{filamentTool}A H-1",
           "M1002 gcode_claim_action : 4",
           "M1002 set_filament_type:UNKNOWN",
           "M400",
-          "T0 H-1",
+          "T{filamentTool} H-1",
           "M400",
           "M628 S0",
           "M629",
           "M400",
           "M1002 set_filament_type:PLA",
-          "M621 S0A",
+          "M621 S{filamentTool}A",
           "M104 S{nozzleC}",
           "M400",
           "M106 P1 S0",
@@ -375,14 +394,14 @@
           "G1 Z6 F1200",
           "G90",
           "M1002 set_filament_type:PLA",
-          "M620 S0A H-1",
+          "M620 S{filamentTool}A H-1",
           "M400",
-          "T0 H-1",
+          "T{filamentTool} H-1",
           "M400",
           "M628 S0",
           "M629",
           "M400",
-          "M621 S0A",
+          "M621 S{filamentTool}A",
           "M400",
           "M104 S{nozzleC}",
           "M140 S{bedC}",
@@ -526,7 +545,7 @@
       },
       "constraints": {
         "material": "PLA",
-        "nozzleMm": 0.4,
+        "nozzleMm": [0.4, 0.8],
         "filamentMm": 1.75,
         "bedType": "textured_plate",
         "chamberC": 0,
@@ -535,7 +554,7 @@
         "endLiftMm": 10,
         "parkLimitMm": 320
       },
-      "validation": "Experimental output: user-supplied Bambu Studio envelope with the initial homing block (startup triage H10) removed at the user's request on 2026-09-10. Later probing and calibration remain. Firmware routines are checked as a fixed contract, not motion-simulated. Revised startup has no physical validation."
+      "validation": "Experimental output: the firmware envelope comes from a 0.4 mm Bambu Studio reference and is reused for explicitly selected 0.8 mm jobs with nozzle-correct package metadata. The 0.8 mm path has software checks only and no independent Bambu Studio or physical validation. Later probing and calibration remain; firmware routines are checked as a fixed contract, not motion-simulated."
     }
   ],
   "startup": {

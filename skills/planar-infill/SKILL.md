@@ -32,6 +32,7 @@ in the shell template and otherwise reserves roof material for a separate skin.
 | `enabled` | `false` | Select the pattern. |
 | `parts` | `[]` | Assembly components; empty selects all. |
 | `perimeters` | `2` | Maximum inward loops from each boundary per layer. |
+| `perimeterScope` | `all` | `all` prints outer and hole boundaries; `outer` prints only exterior boundaries while infill remains clipped around holes. |
 | `density` | `0.2` | Zero leaves the interior empty; otherwise 0.01–1 sets approximate interior volume fraction, with spacing = line width / density. |
 | `pattern` | `rectilinear` | Sparse interior pattern, described below. |
 | `sampleStepMm` | `0.2` | Gyroid maximum sampling grid step, also limited to 1/32 of its period. |

@@ -35,7 +35,8 @@ test('optional spacing keeps legacy paths and validates one independent setting,
   for(const name of SPACING_SKILLS)delete legacy.skills[name].spacingFactor;
   assert.deepEqual(generatePath(legacy,machine,r),generatePath(p,machine,r));
   near(lineSpacing(.4,{spacingFactor:3}),1.2);
-  for(const value of [0,.5,-1,null,'3',NaN,Infinity]){
+  near(lineSpacing(2,{spacingFactor:.75}),1.5);
+  for(const value of [0,.49,-1,null,'3',NaN,Infinity]){
     const bad=boxPlan();bad.skills['full-fill'].spacingFactor=value;
     assert.throws(()=>validatePlan(bad,machine),/spacingFactor/);
   }

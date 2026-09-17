@@ -150,11 +150,12 @@ multi-patch routing, physical contact verification or a second scheduler.
 ## Line spacing
 
 [spacing.mjs](spacing.mjs) derives nominal centerline pitch from bead width and
-one optional per-skill `spacingFactor`: a finite number at least `1`, defaulting
-to `1`. Producers use that pitch for course placement and the actual bead width
-for cross section and segment volume. Agents never need to match independent
-pitch and extrusion settings. Plan validation normalizes older recipes and
-validates regional overrides through the same contract.
+one optional per-skill `spacingFactor`: a finite number at least `0.5`,
+defaulting to `1`. Values below `1` deliberately overlap neighboring courses
+for inter-pass squeeze; values above `1` leave controlled spacing. Producers use
+that pitch for course placement and the actual bead width for cross section and
+segment volume. Plan validation normalizes older recipes and validates regional
+overrides through the same contract.
 
 Full-fill, planar-infill, draped-skin, supports, both rimming modes and
 pipe-cladding implement it. Existing infill and support density divides the

@@ -5,7 +5,7 @@ import {requireThat} from '../geom/tolerance.mjs';
 export const SPACING_SKILLS=Object.freeze(['full-fill','planar-infill','draped-skin','supports','rimming-planar','rimming-normal','pipe-cladding']);
 export function spacingFactor(settings={}) {
   const factor=settings.spacingFactor===undefined?1:settings.spacingFactor;
-  requireThat(Number.isFinite(factor)&&factor>=1,'spacingFactor must be a finite number at least 1.');
+  requireThat(Number.isFinite(factor)&&factor>=0.5,'spacingFactor must be a finite number at least 0.5.');
   return factor;
 }
 export function lineSpacing(widthMm,settings={}) {

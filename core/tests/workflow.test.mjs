@@ -167,6 +167,13 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
   await assert.rejects(adjustBundle(dir, { skills: { 'full-fill': { perimeter: 3 } } }), /Unknown setting/);
   await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /layerMm/);
+  await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
+  state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.endMm[0],20);
+  await adjustBundle(dir,{process:{primeLine:{passes:[
+    {startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:6},
+    {startMm:[20,7],endMm:[5,7],zMm:.2,widthMm:.6,heightMm:.2,speedMmS:8}
+  ]}}});
+  state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.passes.length,2);
 
   // A chat request can switch shapes with different strict fields. It starts
   // from the new shape's template, keeps shared roof controls and rewrites the

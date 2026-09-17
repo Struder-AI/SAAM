@@ -15,8 +15,10 @@ import {createStudio} from '../../studio/server.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-09'},GCODE='Metadata/plate_1.gcode';
 const actor='SYNTHETIC H2D TEST — not a real approval';
-function fixture(tool=0){
+function fixture(tool=0,nozzleMm=0.4){
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.setup.tool=tool;
+  plan.setup.nozzleMm=nozzleMm;plan.setup.core=`Hardened steel ${nozzleMm}`;
+  if(nozzleMm>=0.6)Object.assign(plan.process,{firstLayerMm:0.3,layerMm:0.3,lineWidthMm:nozzleMm});
   plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;
   plan.skills['full-fill'].mode='solid-surfaces';plan.skills['planar-infill'].enabled=true;
   return {machine,plan};
@@ -46,6 +48,38 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
     assert.ok(program.moves.every(m=>/^G[01] /.test(code.split('\n')[m.line-1])),'line numbers refer to actual packaged code');
     assert.ok(!code.includes('wedge.stl')&&!entries.get('Metadata/project_settings.config').toString().includes('machine_start_gcode'),'reference object/settings are not reused');
   }
+});
+test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either tool',async()=>{
+  for(const tool of [0,1]){
+    const {machine,plan}=fixture(tool,0.8);plan.setup.filamentColor='#8B5A2B';plan.setup.amsSlot=4;
+    const path=generatePath(plan,machine,await rhino());
+    const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
+    assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
+    const nozzles=tool===0?['0.8','0.4']:['0.4','0.8'];
+    assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.8);
+    assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,nozzles);
+    const slice=entries.get('Metadata/slice_info.config').toString();
+    assert.match(slice,new RegExp(`key="nozzle_diameters" value="${nozzles.join(',')}"`));
+    assert.match(slice,new RegExp(`nozzle id="${tool}" extruder_id="${tool+1}" nozzle_diameter="0.8"`));
+    assert.match(slice,/color="#8B5A2B"/);
+    const project=JSON.parse(entries.get('Metadata/project_settings.config'));
+    assert.deepEqual(project.filament_colour,['#8B5A2B']);
+    assert.equal(project.printer_settings_id,tool===0?'Bambu Lab H2D 0.8 nozzle':'Bambu Lab H2D 0.4 nozzle');
+    assert.ok(project.nozzle_type.every(type=>type==='hardened_steel'));
+    assert.equal(JSON.parse(entries.get('Metadata/saam.json')).requestedAmsSlot,4);
+    const code=entries.get(GCODE).toString();
+    assert.equal((code.match(/^M620 S3A H-1$/gm)??[]).length,2);
+    assert.equal((code.match(/^T3 H-1$/gm)??[]).length,2);
+    assert.equal((code.match(/^M621 S3A$/gm)??[]).length,2);
+  }
+});
+test('H2D 0.6 mm setup uses selected right-nozzle metadata and round trips',async()=>{
+  const {machine,plan}=fixture(1,0.6),path=generatePath(plan,machine,await rhino());
+  const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
+  assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
+  assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.6);
+  assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,['0.4','0.6']);
+  assert.match(entries.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.6"/);
 });
 test('H2D rejects altered firmware, metadata, print commands, cold state, tool excursions and archive corruption',async()=>{
   const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino()),bytes=exportProgram(path,plan,machine,release);
@@ -94,6 +128,7 @@ test('H2D removes only initial homing H10 and retains the historical contract fo
   // start/end command, catching unintended edits outside the two H10 segments.
   const previous=structuredClone(machine),program=previous.outputs[0].program;
   previous.revision=3;program.contract='h2d-02.08.02.61-pla-textured-v1';
+  program.start=program.start.map(line=>line.replaceAll('{filamentTool}','0'));
   program.start.splice(program.start.indexOf('M1002 gcode_claim_action : 74'),0,
     'M1002 gcode_claim_action : 13','G28 X T300','G150.1 F18000','G150.3 F18000','M400 P200','M972 S24 P0 T2000');
   program.start.splice(program.start.indexOf('M972 S41 P0 T5000')+1,0,

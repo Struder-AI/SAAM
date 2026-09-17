@@ -2,7 +2,7 @@ import {planarWallTolerance} from '../core/machine/rules.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
 const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
-export const skillName=name=>({'pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
+export const skillName=name=>({'line-network':'Line network','pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>globalSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
   ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
@@ -37,6 +37,13 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
   const rows=[];
   for(const [key,v] of Object.entries(settings)){
     if(['enabled','part','parts'].includes(key))continue;
+    if(name==='line-network'&&key==='layers'){
+      rows.push([prefix+' · Courses',String(v)]);continue;
+    }
+    if(name==='line-network'&&key==='networks'){
+      rows.push([prefix+' · Independent faces',String(v.length)],
+        [prefix+' · Centerline strokes',String(v.reduce((sum,network)=>sum+network.strokes.length,0))]);continue;
+    }
     if(name==='wave-overhangs'&&key==='slices'){
       for(const s of v)rows.push([s.id+' · Wave slice',s.reason],
         [s.id+' · Surface',s.surface.patch?`${s.surface.part??'Part'} / ${s.surface.patch}`:`Spline degrees ${s.surface.degreeU}/${s.surface.degreeV}; ${s.surface.controlPoints.length} × ${s.surface.controlPoints[0].length} controls`],

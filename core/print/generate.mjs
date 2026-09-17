@@ -9,7 +9,7 @@
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell, shellFromSurfaces } from '../geom/shapes.mjs';
 import { composeResults } from '../path/compose.mjs';
-import { PathBuilder } from '../path/builder.mjs';
+import { PathBuilder,planarPolicy } from '../path/builder.mjs';
 import { fullFillResult } from '../../skills/full-fill/scripts/fill.mjs';
 import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
@@ -32,8 +32,30 @@ import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/sc
 import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
+import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
 
 export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
+
+function primeLineResult(plan,machine){
+  const p=plan.process.primeLine;if(p===null)return null;
+  const passes=p.passes??[p],region=[],strokes=[];
+  const bounds=toolBounds(machine,plan.setup.tool);
+  let lengthMm=0,volumeMm3=0,maxZ=0,maxWidth=0;
+  for(const pass of passes){
+    const [a,b]=[pass.startMm,pass.endMm],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*pass.widthMm/2,ny=dx/length*pass.widthMm/2;
+    requireThat([a,b].every(point=>point.every((v,i)=>v>=bounds.min[i]+pass.widthMm/2&&v<=bounds.max[i]-pass.widthMm/2))&&pass.zMm<=bounds.max[2],
+      'Prime line exceeds selected tool bounds.');
+    region.push([[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]]);
+    strokes.push({role:'prime-line',closed:false,points:[[...a,pass.zMm],[...b,pass.zMm]],speedMmS:pass.speedMmS,beadAreaMm2:pass.widthMm*pass.heightMm});
+    lengthMm+=length;volumeMm3+=length*pass.widthMm*pass.heightMm;maxZ=Math.max(maxZ,pass.zMm);maxWidth=Math.max(maxWidth,pass.widthMm);
+  }
+  return {id:'prime-line',report:{lengthMm,volumeMm3,passes:passes.length},operations:[{
+    // The sacrificial stroke is physically part of the first layer, so keep it
+    // in that layer's preview bucket instead of inventing an extra layer.
+    id:'prime-line:0',layerId:'planar:'+maxZ,phase:'prime',layer:0,rank:-1,after:[],order:'given',region,strokes,
+    travelPolicy:planarPolicy(region,{layerZ:maxZ,liftMm:plan.process.liftMm,maxCombMm:0,lineWidthMm:maxWidth}),clearanceZ:maxZ+plan.process.liftMm
+  }]};
+}
 
 export function buildShell(rhino, geometry) {
   if(geometry.shape==='spline-tube')return splineTubeShell(rhino,geometry);
@@ -108,7 +130,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   const weldSites=preparePlasticWeld({plan,placed,componentShells});
   const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=bounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=bounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
-  const fill = plan.skills['full-fill'], skin = plan.skills['draped-skin'],normal=plan.skills['planar-infill'];
+  const fill = plan.skills['full-fill'], skin = plan.skills['draped-skin'],normal=plan.skills['planar-infill'],network=plan.skills['line-network'];
   const vase=plan.skills['vase-wall'];
   requireThat(plan.composition.regions.length||!vase.enabled||!skin.enabled||(componentShells&&vase.part!==skin.part),'Vase wall and draped skin overlap on the same component.');
 
@@ -124,7 +146,8 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
   const results=[];
   let survey = null;
-  if(plan.composition.regions.length) {
+  if(network.enabled){const result=lineNetworkResult({plan});results.push(result);summary.lineNetwork=result.report;}
+  else if(plan.composition.regions.length) {
     const selections=geometrySelections(plan.geometry),regionShells=new Map();
     for(const assignment of plan.composition.regions){
       if(regionShells.has(assignment.part))continue;
@@ -179,7 +202,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
       if(solid){results.push(solid);fillResults.push(solid);}
     } else if(useFill){const clad=plan.skills['pipe-cladding'].enabled&&!plan.skills['pipe-cladding'].surface;const result=fullFillResult({id,shell,plan,machine,reserve:useVase?null:survey,zEndMm:baseTop,onProgress,
       ...(clad?{sectionAt:substrateSection(shell,plan),interiorStrokes:fill.perimeters===0?()=>substrateLoops(plan):region=>infillStrokes(region,{pattern:'concentric',widthMm:process.lineWidthMm,density:1,spacingFactor:fill.spacingFactor})}:{})});
-      publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor===1?'nominal':'sparse'});
+      publishFinishedBoundary(result,{shell,endMm:baseTop??shell.bounds.max[2],coverage:fill.perimeters||fill.spacingFactor<=1?'nominal':'sparse'});
       results.push(result);fillResults.push(result);}
   }
   if(fillResults.length){
@@ -216,6 +239,8 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
   const welds=plasticWeldResult({plan,sites:weldSites,modelResults:results});
   if(welds){results.push(welds);summary.plasticWeld=welds.report;}
+  const prime=primeLineResult(plan,machine);
+  if(prime){for(const result of results)for(const op of result.operations)op.after=[...new Set([...(op.after??[]),'prime-line:0'])];results.unshift(prime);summary.primeLine=prime.report;}
   summary.composition=composeResults(builder,results,plan.composition,onProgress);
 
   builder.setContext('finish', 0);

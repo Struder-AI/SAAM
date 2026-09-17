@@ -5,7 +5,7 @@ import {sectionGeometry,topAt} from '../geom/query.mjs';
 import {pointInRegion,pointSegmentDistance,regionArea,loopArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 import {difference,union,intersect} from '../region/boolean.mjs';
-import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
+import {fullFillResult,layerHeights} from '../../skills/full-fill/scripts/fill.mjs';
 import {planarInfillResults} from '../../skills/planar-infill/scripts/infill.mjs';
 import {vaseWallResult} from '../../skills/vase-wall/scripts/vase.mjs';
 import {thickLipResult} from '../../skills/thick-lip/scripts/lip.mjs';
@@ -131,6 +131,7 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
   const records=plan.composition.regions.map(assignment=>{
     const shell=componentShells?componentShells.get(assignment.part):placed;
     const localPlan=structuredClone(plan);localPlan.composition.regions=[];
+    Object.assign(localPlan.process,assignment.process);
     for(const [name,settings] of Object.entries(localPlan.skills)) {
       settings.enabled=Object.hasOwn(assignment.skills,name);
       if(settings.enabled)Object.assign(settings,assignment.skills[name]);
@@ -142,11 +143,15 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
     // Leaving zEndMm null gives it a nominal one-layer span; a caller-given
     // zEndMm still must clear zStartMm, same as any other region.
     const isLip=Object.hasOwn(assignment.skills,'thick-lip');
-    const end=assignment.zEndMm===null?(isLip?start+plan.process.layerMm:shell.bounds.max[2]):shell.bounds.min[2]+assignment.zEndMm;
+    const end=assignment.zEndMm===null?(isLip?start+localPlan.process.layerMm:shell.bounds.max[2]):shell.bounds.min[2]+assignment.zEndMm;
     requireThat(start>=shell.bounds.min[2]-1e-8&&(isLip||end<=shell.bounds.max[2]+1e-8)&&end>start,'Region bounds exceed its selected native geometry.');
     return {assignment,shell,plan:localPlan,start,end,after:new Set(),results:[]};
   });
   const byId=new Map(records.map(record=>[record.assignment.id,record]));
+  const planarZ=[...new Set(records.filter(planar).flatMap(record=>{
+    const origin=Object.keys(record.assignment.process).length?record.start:record.shell.bounds.min[2];
+    return layerHeights(record.plan.process,origin,record.end).filter(z=>z>record.start+1e-9).map(z=>Number(z.toFixed(9)));
+  }))].sort((a,b)=>a-b);
   for(const record of records) {
     const {assignment}=record;
     if(assignment.lowerSurfaceFrom)record.after.add(assignment.lowerSurfaceFrom);
@@ -189,15 +194,23 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
     }
     if(has(record,'thick-lip'))requireThat(touching.some(p=>has(p,'vase-wall')),`Region ${assignment.id} is a rim finish; it must sit directly above a level-ended vase-wall region on the same component.`);
     if(planar(record)||has(record,'vase-wall')) {
-      const relative=start-shell.bounds.min[2],index=(relative-plan.process.firstLayerMm)/plan.process.layerMm;
-      requireThat(lowerSurface||relative<1e-8||Math.abs(index-Math.round(index))<1e-8,'A flat region boundary must align with the component layer grid.');
+      if(Object.keys(assignment.process).length){
+        const span=end-start,{firstLayerMm,layerMm}=localPlan.process,index=(span-firstLayerMm)/layerMm;
+        requireThat(lowerSurface||Math.abs(index-Math.round(index))<1e-8,'A flat region span must contain its first layer plus a whole number of local layer pitches.');
+      } else {
+        const relative=start-shell.bounds.min[2],index=(relative-plan.process.firstLayerMm)/plan.process.layerMm;
+        requireThat(lowerSurface||relative<1e-8||Math.abs(index-Math.round(index))<1e-8,'A flat region boundary must align with the component layer grid.');
+      }
     }
     const consumed=new Set();let source=assignment.lowerSurfaceFrom;
     while(source){consumed.add(source);source=byId.get(source).assignment.lowerSurfaceFrom;}
     const reserve=records.filter(r=>r.survey&&!consumed.has(r.assignment.id)&&r.end>=start-1e-8).map(r=>r.survey);
     const prefix=assignment.id;
-    if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,machine,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,lowerSurface}));
-    else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,machine,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,lowerSurface}));
+    const layerOriginMm=Object.keys(assignment.process).length?start:null;
+    const firstZ=Number(((layerOriginMm??shell.bounds.min[2])+localPlan.process.firstLayerMm).toFixed(9));
+    const layerIndexOffset=Math.max(0,planarZ.indexOf(firstZ));
+    if(has(record,'planar-infill'))record.results.push(...planarInfillResults({shell,plan:localPlan,machine,reserve,id:prefix+':planar-infill',solid:has(record,'full-fill'),zStartMm:start,zEndMm:end,layerOriginMm,layerIndexOffset,lowerSurface}));
+    else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,machine,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,layerOriginMm,layerIndexOffset,lowerSurface}));
     if(has(record,'vase-wall')) {
       requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
       const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,
@@ -234,7 +247,7 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
     for(const result of record.results)for(const op of result.operations){op.regionId=assignment.id;op.after=[...new Set([...(op.after??[]),...prerequisiteIds])];}
     record.surface=publishSurface(record,record.results);results.push(...record.results);ordered.push(record);completed.add(assignment.id);
     summaries.push({id:assignment.id,part:assignment.part,zStartMm:assignment.zStartMm,zEndMm:assignment.zEndMm,startMm:start,endMm:end,
-      skills:Object.keys(assignment.skills),lowerSurfaceFrom:assignment.lowerSurfaceFrom,
+      skills:Object.keys(assignment.skills),process:assignment.process,lowerSurfaceFrom:assignment.lowerSurfaceFrom,
       publishedSurface:record.surface?.kind??null,operationIds:ids(record.results)});
   }
   const full=results.filter(r=>r.id.includes(':full-fill')||r.id.endsWith(':solid')),sparse=results.filter(r=>r.id.endsWith(':planar-infill')),vases=results.filter(r=>r.id.endsWith(':vase-wall')),skins=results.filter(r=>r.id.endsWith(':draped-skin')),lips=results.filter(r=>r.id.endsWith(':thick-lip'));

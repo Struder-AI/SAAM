@@ -9,4 +9,7 @@ export async function printName(directory){
   if(base?.shape==='spline-top')return named(g)?'Named wavy roof · '+named(g):'Wavy roof';
   return named(g)?'Named part · '+named(g):basename(directory);
 }
-export function downloadName(name,exportName){return name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/,'')+(exportName?'.'+exportName.split('.').pop():'');}
+export function downloadName(name,exportName){
+  const clean=name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/,''),dot=exportName?.indexOf('.')??-1;
+  return clean+(dot>=0?exportName.slice(dot):'');
+}

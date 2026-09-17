@@ -290,6 +290,11 @@ function merge(target, changes) {
     if(key==='surface'&&value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'kind')){
       target[key]=structuredClone(value);continue;
     }
+    // Optional locked records (for example primeLine) are replaced as a whole;
+    // their alternate single-pass and multi-pass schemas cannot be deep-merged.
+    if((key==='primeLine'||target[key]===null||target[key]===undefined)&&value&&typeof value==='object'&&!Array.isArray(value)){
+      target[key]=structuredClone(value);continue;
+    }
     // Shapes deliberately have different strict field sets. Retain only the
     // fields the new shape shares, start the new shape's fields from its own
     // template, then apply the chat-requested geometry change.

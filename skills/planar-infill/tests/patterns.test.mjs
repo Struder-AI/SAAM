@@ -84,9 +84,11 @@ test('new sparse patterns compose with unchanged solid skins and one wall owner 
   }
 });
 
-test('legacy plans keep rectilinear and malformed pattern settings fail before generation',()=>{
+test('legacy plans keep rectilinear, all boundaries and malformed pattern settings fail before generation',()=>{
   const plan=defaults();delete plan.skills['planar-infill'].pattern;delete plan.skills['planar-infill'].sampleStepMm;delete plan.skills['planar-infill'].maxPatternCells;
+  delete plan.skills['planar-infill'].perimeterScope;delete plan.skills['full-fill'].perimeterScope;
   validatePlan(plan,loadMachine());assert.equal(plan.skills['planar-infill'].pattern,'rectilinear');
+  assert.equal(plan.skills['planar-infill'].perimeterScope,'all');assert.equal(plan.skills['full-fill'].perimeterScope,'all');
   plan.skills['planar-infill'].pattern='typo';assert.throws(()=>validatePlan(plan,loadMachine()),/Unknown infill pattern/);
 });
 

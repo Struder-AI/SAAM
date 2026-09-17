@@ -14,6 +14,7 @@ import {loadMachine,validateSetup,toolBounds,requireMachine} from '../machine/pr
 import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
+import {LINE_NETWORK_DEFAULTS} from '../../skills/line-network/scripts/network.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
 import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
 import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
@@ -57,6 +58,8 @@ export function defaults(machine=loadMachine()) {
       planarSpeedMmS: 20, skinSpeedMmS: 10, firstLayerSpeedMmS: 12, travelSpeedMmS: 60, zSpeedMmS: 5,
       retractMm: 6.5, retractSpeedMmS: 25, liftMm: 1, maxCombMm: 6,
       fanPercent: 100, maxFlowMm3S: 4, minimumLayerSeconds: 6,
+      experimentalDeposition: false,
+      primeLine: null,
       clearanceResponsibility: 'operator',
       clearanceNote: 'No collision model is implemented; the operator owns physical clearance.'
     },
@@ -69,6 +72,7 @@ export function defaults(machine=loadMachine()) {
       'rimming-normal':structuredClone(RIMMING_DEFAULTS),
       'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
+      'line-network': structuredClone(LINE_NETWORK_DEFAULTS),
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
       'draped-skin': { enabled: true, part: null, ...DRAPED_SKIN_DEFAULTS }
@@ -129,9 +133,10 @@ export function validatePlan(plan, machine) {
   if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
     plan.skills['draped-skin'].maxAngleDegOverride = null;
   plan.skills['full-fill'].parts ??= [];
-  for(const field of ['mode','bottomLayers','topLayers'])plan.skills['full-fill'][field]??=FULL_FILL_DEFAULTS[field];
+  for(const field of ['mode','bottomLayers','topLayers','perimeterScope','holeLineWidthMm'])plan.skills['full-fill'][field]??=FULL_FILL_DEFAULTS[field];
   plan.skills['planar-infill']??={enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS};
-  for(const field of ['pattern','sampleStepMm','maxPatternCells'])plan.skills['planar-infill'][field]??=PLANAR_INFILL_DEFAULTS[field];
+  plan.skills['line-network']??=structuredClone(LINE_NETWORK_DEFAULTS);
+  for(const field of ['pattern','sampleStepMm','maxPatternCells','perimeterScope'])plan.skills['planar-infill'][field]??=PLANAR_INFILL_DEFAULTS[field];
   plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
   plan.skills['thick-lip']??={enabled:false,part:null,...THICK_LIP_DEFAULTS};
   plan.skills.supports??=structuredClone(SUPPORT_DEFAULTS);
@@ -152,6 +157,12 @@ export function validatePlan(plan, machine) {
   }
   plan.skills['draped-skin'].part ??= null;
   plan.composition ??= { order: [], dependencies: [], batchLayers: 1 };
+  plan.process.experimentalDeposition??=false;
+  plan.process.primeLine??=null;
+  if(machine.id==='bambu-h2d'&&Object.hasOwn(machine.defaultSetup,'filamentColor')){
+    plan.setup.filamentColor??=machine.defaultSetup.filamentColor;
+    plan.setup.amsSlot??=machine.defaultSetup.amsSlot;
+  }
   plan.composition.batchLayers ??= 1;
   plan.composition.regions ??= [];
   requireThat(Array.isArray(plan.composition.regions)&&plan.composition.regions.length<=80,'Composition regions must be an array of at most 80 assignments.');
@@ -208,13 +219,28 @@ export function validatePlan(plan, machine) {
     number(geometry.yInsetMm, 0, (geometry.widthMm - 5) / 2, 'Y-side inset');
   }
 
-  for (const [key, min, max] of [['firstLayerMm', 0.1, 0.3], ['layerMm', 0.06, 0.3], ['lineWidthMm', 0.3, 0.8],
+  requireThat(typeof process.experimentalDeposition==='boolean','experimentalDeposition must be boolean.');
+  const planarLimits=process.experimentalDeposition?{firstLayerMm:1,layerMm:1,lineWidthMm:2,maxFlowMm3S:30}:{firstLayerMm:.3,layerMm:.3,lineWidthMm:.8,maxFlowMm3S:15};
+  for (const [key, min, max] of [['firstLayerMm', 0.1, planarLimits.firstLayerMm], ['layerMm', 0.06, planarLimits.layerMm], ['lineWidthMm', 0.3, planarLimits.lineWidthMm],
     ['planarSpeedMmS', 2, 80], ['skinSpeedMmS', 2, 40], ['firstLayerSpeedMmS', 2, 40], ['travelSpeedMmS', 5, 200],
     ['zSpeedMmS', 1, 20], ['retractMm', 0, 10], ['retractSpeedMmS', 1, 50], ['liftMm', 0, 20],
-    ['maxCombMm', 0, 100], ['fanPercent', 0, 100], ['maxFlowMm3S', 0.1, 15], ['minimumLayerSeconds', 0, 60]])
+    ['maxCombMm', 0, 100], ['fanPercent', 0, 100], ['maxFlowMm3S', 0.1, planarLimits.maxFlowMm3S], ['minimumLayerSeconds', 0, 60]])
     number(process[key], min, max, key);
   requireThat(process.clearanceResponsibility === 'operator', 'Clearance responsibility must be recorded as operator.');
   requireThat(typeof process.clearanceNote === 'string' && process.clearanceNote.length <= 1000, 'Invalid clearance note.');
+  if(process.primeLine!==null){
+    const p=process.primeLine;
+    requireThat(p&&typeof p==='object'&&!Array.isArray(p),'Invalid primeLine.');
+    const multi=Object.keys(p).sort().join()==='passes',passes=multi?p.passes:[p];
+    requireThat((multi&&Array.isArray(passes)&&passes.length>=1&&passes.length<=8)||Object.keys(p).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid primeLine fields.');
+    for(const pass of passes){
+      requireThat(pass&&typeof pass==='object'&&!Array.isArray(pass)&&Object.keys(pass).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid prime pass fields.');
+      requireThat([pass.startMm,pass.endMm].every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite))&&
+        Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>=10,'Prime pass needs two finite XY endpoints at least 10 mm apart.');
+      number(pass.zMm,.05,10,'Prime line Z');number(pass.widthMm,.3,planarLimits.lineWidthMm,'Prime line width');
+      number(pass.heightMm,.05,planarLimits.layerMm,'Prime line height');number(pass.speedMmS,2,80,'Prime line speed');
+    }
+  }
 
   validateSetup(plan,machine);
   validateWaves(skills['wave-overhangs']);
@@ -242,7 +268,7 @@ export function validatePlan(plan, machine) {
   if(skills.supports.enabled)requireMachine(machine,['xyz-extrusion','planar'],'supports');
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
-  const fill = skills['full-fill'], skin = skills['draped-skin'],normal=skills['planar-infill'];
+  const fill = skills['full-fill'], skin = skills['draped-skin'],normal=skills['planar-infill'],network=skills['line-network'];
   const vase=skills['vase-wall'];
   requireThat(['continuous','segmented'].includes(vase.pathMode),'Path mode must be continuous or segmented.');
   validateVasePattern(vase.pattern,vase.pathMode);
@@ -261,6 +287,17 @@ export function validatePlan(plan, machine) {
   requireThat(Array.isArray(lip.steps)&&lip.steps.length>=1&&lip.steps.length<=50&&lip.steps.every(n=>Number.isInteger(n)&&n>=1&&n<=20),'Lip steps must be 1–50 layer entries, each 1–20 perimeters.');
   number(lip.minFeatureMm,0.05,5,'Lip minimum section feature');
   requireThat(typeof normal.enabled==='boolean'&&Array.isArray(normal.parts)&&new Set(normal.parts).size===normal.parts.length&&normal.parts.every(id=>typeof id==='string'),'Invalid planar-infill selection.');
+  requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&network.layers<=10&&Array.isArray(network.networks)&&network.networks.length<=20,'Invalid line-network settings.');
+  const networkIds=new Set();
+  for(const item of network.networks){
+    requireThat(item&&Object.keys(item).sort().join()==='id,strokes'&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0&&item.strokes.length<=100,'Invalid line network.');networkIds.add(item.id);
+    for(const stroke of item.strokes){
+      const keys=Object.keys(stroke).sort().join();
+      requireThat(stroke&&(keys==='closed,points'||keys==='closed,layers,points')&&typeof stroke.closed==='boolean'&&Array.isArray(stroke.points)&&stroke.points.length>=(stroke.closed?3:2)&&stroke.points.length<=1000&&stroke.points.every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite)),'Invalid line-network stroke.');
+      requireThat(stroke.layers===undefined||Array.isArray(stroke.layers)&&stroke.layers.length>0&&new Set(stroke.layers).size===stroke.layers.length&&stroke.layers.every(layer=>Number.isInteger(layer)&&layer>=0&&layer<network.layers),'Invalid line-network stroke layers.');
+    }
+  }
+  requireThat(!network.enabled||(!regional&&!fill.enabled&&!skin.enabled&&!normal.enabled&&!vase.enabled&&!lip.enabled),'line-network is a standalone planar path; disable filled, skin, vase and regional patterns.');
   requireThat(['body','solid-surfaces'].includes(fill.mode),'Invalid full-fill mode.');
   for(const key of ['bottomLayers','topLayers'])requireThat(Number.isInteger(fill[key])&&fill[key]>=0&&fill[key]<=20,`${key} must be 0–20.`);
   requireThat(regional||!fill.enabled||fill.mode!=='solid-surfaces'||normal.enabled,'Solid surface masks require planar-infill.');
@@ -295,14 +332,17 @@ export function validatePlan(plan, machine) {
     requireThat(lip.part===null||ids.has(lip.part),'Unknown thick-lip component.');
   } else requireThat(fill.parts.length===0&&normal.parts.length===0&&skin.part===null&&vase.part===null&&lip.part===null,'Component selection requires assembly geometry.');
   requireThat(typeof fill.enabled === 'boolean' && typeof skin.enabled === 'boolean', 'Each skill needs an enabled flag.');
-  requireThat(regional||fill.enabled || skin.enabled || normal.enabled || vase.enabled || lip.enabled || skills['wave-overhangs'].enabled, 'Select at least one pattern skill.');
+  requireThat(regional||fill.enabled || skin.enabled || normal.enabled || vase.enabled || lip.enabled || network.enabled || skills['wave-overhangs'].enabled, 'Select at least one pattern skill.');
   if(!regional&&vase.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'vase-wall');
   if(!regional&&lip.enabled)requireMachine(machine,['xyz-extrusion','planar'],'thick-lip');
   if(!regional&&normal.enabled)requireMachine(machine,['xyz-extrusion','planar'],'planar-infill');
+  if(network.enabled)requireMachine(machine,['xyz-extrusion','planar'],'line-network');
   if(!regional&&fill.enabled)requireMachine(machine,['xyz-extrusion','planar'],'full-fill');
   if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
   number(fill.perimeters, 0, 8, 'perimeters');
   requireThat(Number.isInteger(fill.perimeters), 'perimeters must be an integer.');
+  requireThat(['all','outer'].includes(fill.perimeterScope),'Full-fill perimeterScope must be all or outer.');
+  requireThat(fill.holeLineWidthMm===null||(Number.isFinite(fill.holeLineWidthMm)&&fill.holeLineWidthMm>=0.3&&fill.holeLineWidthMm<=process.lineWidthMm),'Full-fill holeLineWidthMm must be null or 0.3 mm through the main line width.');
   requireThat(Array.isArray(fill.fillAnglesDeg) && fill.fillAnglesDeg.length >= 1 && fill.fillAnglesDeg.every(angle => typeof angle === 'number' && angle >= -180 && angle <= 180), 'Invalid fill angles.');
   number(fill.fillOverlap, 0, 0.5, 'fillOverlap');
   number(fill.minFeatureMm, 0.05, 5, 'minFeatureMm');
@@ -312,6 +352,7 @@ export function validatePlan(plan, machine) {
   number(normal.sampleStepMm,0.01,2,'Infill sample step');
   requireThat(Number.isSafeInteger(normal.maxPatternCells)&&normal.maxPatternCells>0,'Infill maxPatternCells must be a positive safe integer.');
   requireThat(Number.isInteger(normal.perimeters)&&normal.perimeters>=0&&normal.perimeters<=8,'Infill perimeters must be 0–8.');
+  requireThat(['all','outer'].includes(normal.perimeterScope),'Planar-infill perimeterScope must be all or outer.');
   requireThat(Array.isArray(normal.fillAnglesDeg)&&normal.fillAnglesDeg.length>0&&normal.fillAnglesDeg.every(v=>Number.isFinite(v)&&v>=-180&&v<=180),'Invalid infill angles.');
   number(normal.fillOverlap,0,0.5,'Infill overlap');number(normal.minFeatureMm,0.05,5,'Infill feature size');
   number(skin.layers, 1, 8, 'draped skin layers');
@@ -335,8 +376,9 @@ export function validatePlan(plan, machine) {
   const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {
     if(region&&typeof region==='object')region.lowerSurfaceFrom??=null;
+    if(region&&typeof region==='object')region.process??={};
     // Retired supportPolicy is accepted only for reading old plans; it has no effect.
-    requireThat(region&&Object.keys(region).filter(key=>key!=='supportPolicy').sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
+    requireThat(region&&Object.keys(region).filter(key=>key!=='supportPolicy').sort().join()==='id,lowerSurfaceFrom,part,process,skills,zEndMm,zStartMm','Invalid region assignment fields.');
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
     const part=selections.get(region.part);
     requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
@@ -347,6 +389,10 @@ export function validatePlan(plan, machine) {
     const child=structuredClone(plan);child.composition.regions=[];
     if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
     for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
+    requireThat(region.process&&typeof region.process==='object'&&!Array.isArray(region.process),'Invalid region process overrides.');
+    const regionalProcessKeys=new Set(['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS']);
+    requireThat(Object.keys(region.process).every(key=>regionalProcessKeys.has(key)),'Unknown or region-owned process override.');
+    Object.assign(child.process,region.process);
     for(const [name,overrides] of Object.entries(region.skills)) {
       requireThat(!['supports','rimming-planar','rimming-normal','pipe-cladding','wave-overhangs','plastic-weld'].includes(name),'Assign supports, exterior cladding, wave slices and plastic welds through their global skill settings, outside part material regions.');
       const settings=child.skills[name];
