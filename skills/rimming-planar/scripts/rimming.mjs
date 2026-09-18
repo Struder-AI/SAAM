@@ -80,7 +80,7 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
       const maxZ=strokes.reduce((m,s)=>s.points.reduce((v,p)=>Math.max(v,p[2]),m),z);
       const id=skillId+':'+spec.id+':'+report.layers;
       operations.push({id,layerId:mode==='horizontal'?'planar:'+z:id,rank:z,layer:Math.round((z-process.firstLayerMm)/process.layerMm),phase:skillId,
-        after:previous,strokes,order:'given',travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ+process.liftMm},clearanceZ:maxZ+process.liftMm});
+        after:previous,strokes,order:'given',travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ+process.liftMm}});
       previous=[id];report.layers++;
     }
     requireThat(operations.length>0,`Rim ${spec.id} has no printable sections; inspect its height and control net.`);

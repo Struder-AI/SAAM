@@ -152,7 +152,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
           // leave artificial corner gaps despite the requested wall overlap.
           (fillRegion.length?offsetRegion(fillRegion,width/2,{arcToleranceMm:TOLERANCE.chord}):[]);},
         materialCoverage:role==='fill'&&fillSpacing>width+1e-8?'sparse':'area',
-        travelPolicy:policy,clearanceZ:z+process.liftMm,
+        travelPolicy:policy,
         ...(index===1?{fanPercent:process.fanPercent}:{})});
       current.push(operationId);
     }

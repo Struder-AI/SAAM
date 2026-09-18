@@ -76,8 +76,7 @@ export function thickLipResult({shell, plan, id = 'thick-lip', after = [], zStar
     operations.push({
       id: operationId, layerId: 'lip:' + z, phase: 'planar', layer: operations.length, rank: z,
       after: [...previous], strokes, order: 'nearest',
-      travelPolicy: planarPolicy([outer], {layerZ: z, liftMm: process.liftMm, maxCombMm: process.maxCombMm, lineWidthMm: width}),
-      clearanceZ: z + process.liftMm
+      travelPolicy: planarPolicy([outer], {layerZ: z, liftMm: process.liftMm, maxCombMm: process.maxCombMm, lineWidthMm: width})
     });
     previous = [operationId];
   });

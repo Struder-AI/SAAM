@@ -104,7 +104,7 @@ export function pipeCladdingResult({plan,shell,after=[],id='pipe-cladding',finis
     const operationId=id+':'+shell;
     operations.push({id:operationId,layerId:operationId,phase,layer:shell,rank:radius,
       after:previous,strokes,order:'given',continuous:true,regionId:operationId,
-      travelPolicy:{maxCombMm:0,clearanceFor:()=>g.heightMm+p.liftMm,poseJoinMm:axial?p.lineWidthMm*1.01:0},clearanceZ:g.heightMm+p.liftMm});
+      travelPolicy:{maxCombMm:0,clearanceFor:()=>g.heightMm+p.liftMm,poseJoinMm:axial?p.lineWidthMm*1.01:0}});
     previous=[operationId];
   }
   return {id,operations,report:{shells:s.shells,points:used,substrateOuterRadiusMm:base,outerRadiusMm:g.outerRadiusMm,

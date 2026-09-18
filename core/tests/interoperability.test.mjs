@@ -37,9 +37,9 @@ test('machine validation respects selected tool, filament, material and skill ca
 test('hops and cooling use deposited height without anticipating later tall operations',()=>{
   const machine=loadMachine(),plan=defaults();plan.process.minimumLayerSeconds=60;
   const builder=new PathBuilder({start:[10,10,25],machine,process:plan.process,generatorVersion:'test'});
-  const op=(id,z)=>({id,rank:z,layerId:id,layer:0,phase:'test',after:[],clearanceZ:z+2,travelPolicy:{clearanceFor:()=>z+2,maxCombMm:0},strokes:[{points:[[20,20,z],[22,20,z]],speedMmS:10,beadAreaMm2:0.08,role:'fill'}]});
+  const op=(id,z)=>({id,rank:z,layerId:id,layer:0,phase:'test',after:[],travelPolicy:{clearanceFor:()=>z+2,maxCombMm:0},strokes:[{points:[[20,20,z],[22,20,z]],speedMmS:10,beadAreaMm2:0.08,role:'fill'}]});
   const result=composeResults(builder,[{operations:[op('low',1),op('later-high',18)]}]);
-  assert.equal(result.clearanceZ,19);
+  assert.equal(builder.clearanceZ(),19);
   const firstTraverse=builder.actions.find(a=>a.kind==='move'&&a.to[0]===20&&a.to[1]===20);
   assert.equal(firstTraverse.to[2],25);
   const firstDwell=builder.actions.findIndex(a=>a.kind==='dwell');assert.equal(builder.actions[firstDwell-1].to[2],2);

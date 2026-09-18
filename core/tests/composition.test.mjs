@@ -14,7 +14,7 @@ const rhino=await rhino3dm();
 const machine=JSON.parse(await readFile('machines/ultimaker-s5.json','utf8'));
 const operation=(id,rank,after=[])=>({id,rank,layer:rank,layerId:'layer:'+rank,phase:'test',after,
   strokes:[{points:[[10,10,rank],[12,10,rank]],role:'test',speedMmS:10,beadAreaMm2:0.08}],
-  travelPolicy:{clearanceFor:()=>rank+2,maxCombMm:0},clearanceZ:rank+2});
+  travelPolicy:{clearanceFor:()=>rank+2,maxCombMm:0}});
 
 test('unrelated skills weave by layer, in batches, and within a layer',()=>{
   const results=['outline','another-pattern'].map(id=>({id,operations:[operation(id+':1',1),operation(id+':2',2,[id+':1']),operation(id+':3',3,[id+':2'])]}));

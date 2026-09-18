@@ -47,7 +47,7 @@ test('multiple strokes in one operation clear only the material already emitted'
   const b=new PathBuilder({start:[10,10,1],machine,process:plan.process,generatorVersion:'test'});
   const stroke=points=>({points,beadAreaMm2:.08,speedMmS:10});
   composeResults(b,[{operations:[{id:'slopes',rank:100,layerId:'one',layer:0,phase:'test',
-    travelPolicy:{maxCombMm:0,clearanceFor:()=>101},clearanceZ:101,
+    travelPolicy:{maxCombMm:0,clearanceFor:()=>101},
     strokes:[stroke([[10,10,1],[11,10,9],[12,10,2]]),stroke([[20,10,2],[21,10,2]]),stroke([[30,10,2],[31,10,20]])]}]}]);
   const traverse=b.actions.find(a=>a.kind==='move'&&a.to[0]===20);
   assert.equal(traverse.to[2],10,'the later 20 mm stroke does not affect this traverse');
