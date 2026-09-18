@@ -268,7 +268,9 @@ current settings and exact toolpath together in Studio immediately before export
    of the checked machine commands. The person may request infill, material,
    printer or other changes here. Apply them, regenerate the affected toolpath
    and show the result in the same view. While a replacement is prepared, Studio
-   keeps the previous toolpath visible at reduced opacity for continuity.
+   keeps the previous toolpath visible at reduced opacity for continuity; with no
+   previous toolpath it shows the part being sliced at that same reduced opacity,
+   so the toolpath view is never empty.
 4. **Confirm and export.** The final confirmation covers both the current settings
    and the exact toolpath. Deliver those bytes unchanged. Explain the relevant
    transfer method: for the Ultimaker example, download the machine file, copy it

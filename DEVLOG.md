@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-18 — Keep the toolpath viewport occupied while its program is missing
+
+A live tour reported an empty 3D viewport on the toolpath lesson while the
+toolpath was still being calculated. The earlier fix the user remembered is
+`7f2d3a5`: it retains the superseded snapshot in `stalePresentation` and fades
+the canvas with `.stale-toolpath`. That covers only regeneration — the path with
+a previous toolpath to keep. Nothing covered a first generation, a reload during
+one, a tour lesson that starts its own generation or a failed generation, because
+`draw()` gated the whole geometry branch on `tab!=='toolpath'` (the BR-029
+decision to show no part geometry in toolpath view) and the toolpath branch needs
+a program, so the frame held only the background gradient and the bed grid.
+
+`draw()` now renders the part whenever the toolpath pane has nothing else to
+render, two named predicates decide it (`toolpathPlaceholder`, `showingGeometry`),
+and the existing 28% fade applies to both placeholders. The toolpath tab also
+stays reachable while a calculation is pending, and **Confirm** on that pane
+returns to it instead of launching a competing calculation. No geometry is drawn
+once a program exists, so BR-029's rule is unchanged. Verification:
+`core/tests/studio-view-readiness.test.mjs` (12/12) with three new cases that run
+the real `draw()` over a stub 2D context; `dev-map.mjs check --since HEAD` passes.
+Not visually confirmed in a browser. The same file's browser-source harness
+stripped `import` lines with `/^import .*\n/gm`, which cannot match a CRLF
+checkout; five of its cases failed before this change for that reason alone and
+now pass.
+
 ## 2026-09-18 — Port TK-Dev line networks, regional process and H2D setup
 
 Ported Timothy Keller's `origin/TK-Dev` work onto the current branch: his

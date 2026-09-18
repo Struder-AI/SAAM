@@ -22,6 +22,10 @@ result is ready, or work pauses, fails or is interrupted. This presentation does
 not alter geometry, source playback, exports or exported movies. The tour's step-3
 attention fade is independent and lasts until a print is selected or the lesson
 is left; step 4 gives both continuation choices equal arrows, colors and blinking.
+The toolpath pane uses the same 28% opacity for its placeholder whenever it has no
+current program: the retained previous toolpath when there is one, otherwise the
+part geometry. That placeholder is independent of agent activity, so it also covers
+a first generation, a reload during one and a failed generation.
 
 The optional Evolve pane can reveal enclosed cavities through a translucent shell.
 It flood-fills empty cells in the saved analysis grid: regions reaching a domain

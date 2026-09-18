@@ -261,7 +261,12 @@ slicing. A failed generation stays actionable until inputs change or an explicit
 retry succeeds. Geometry review remains available without pausing the lesson or
 creating an approval. **Continue with this part** selects the displayed print for
 the next lesson. While replacement output is prepared, the previous toolpath stays
-visible at reduced opacity and cannot be approved or exported as current.
+visible at reduced opacity and cannot be approved or exported as current. Whenever
+the toolpath pane has no current program and no retained previous one — first
+generation, a reload mid-calculation, a tour lesson that starts its own generation,
+or a failed generation — it draws the part being sliced at that same reduced
+opacity instead of an empty viewport. The toolpath view still shows no part geometry
+once a program is drawn.
 A toolpath lesson shows preparation status while no current program is available. Generation failures remain visible after
 the saved lesson is refreshed. Playback seeking waits until the program loads.
 Outside the tour, a fresh print without a current export still opens in geometry
@@ -379,7 +384,8 @@ only Continue keeps blinking. The playback
 lesson stops highlighting Play and unlocks Next on its first use; Pause does not
 restart the cue.
 Generation switches to the rendered replacement only after its checked source is
-loaded; the previous toolpath remains faded while work is active.
+loaded; the previous toolpath remains faded while work is active, and the part
+geometry stands in for it at the same opacity when none is retained.
 
 The maker agent calls MCP begin_studio_work as early as practical for an edit; a
 chat acknowledgement may come first. The claim it records is what later mutations
