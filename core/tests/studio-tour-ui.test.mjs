@@ -18,7 +18,7 @@ test('tour UI teaches toolpath changes without suggesting geometry',async()=>{
   assert.doesNotMatch(css,/#tour-next\.tour-choice\{background:/,'Continue retains the primary orange button style');
 });
 
-for(const lesson of [4,5,6,7])test('geometry review returns to the same toolpath lesson '+lesson,async t=>{
+for(const lesson of [4,5,6,7])test('toolpath lesson '+lesson+' never pauses for geometry confirmation',async t=>{
   const saved={document:globalThis.document,setInterval:globalThis.setInterval};
   t.after(()=>Object.assign(globalThis,saved));
   const elements=new Map();
@@ -33,23 +33,19 @@ for(const lesson of [4,5,6,7])test('geometry review returns to the same toolpath
   let shown;
   const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab:tab=>{shown=tab;},seek:()=>({layer:1})});
   ui.render(state);await Promise.resolve();
-  assert.equal(shown,'geometry');assert.equal(element('confirm').disabled,false);
-  assert.equal(element('confirm').textContent,'Confirm geometry & return to lesson');
-  assert.match(element('tour-status').textContent,/Waiting for geometry confirmation/);
-  assert.equal(element('tour-next').disabled,true);assert.equal(element('tour-back').disabled,true);
-  state.geometryApproved=true;delete state.programError;
-  ui.render(state);await Promise.resolve();
-  assert.equal(state.tour.step,lesson);assert.equal(state.localPrintDirectory,'part');
   assert.equal(shown,'toolpath');assert.equal(needsTourToolpath(state),true);
+  assert.match(element('tour-status').textContent,/Old toolpath is stale/);
+  assert.equal(element('tour-next').disabled,false);assert.equal(element('tour-back').disabled,false);
+  delete state.programError;
   state.program={};ui.render(state);await Promise.resolve();
   assert.equal(shown,'toolpath');assert.equal(needsTourToolpath(state),false);
   assert.equal(element('tour-next').disabled,false);
 });
 
-test('tour recipe edits trigger generation only for the selected confirmed toolpath lesson',()=>{
+test('tour recipe edits trigger generation for the selected toolpath lesson',()=>{
   const state={tour:{active:true,step:4,directory:'part'},localPrintDirectory:'part',geometryApproved:true};
   assert.equal(needsTourToolpath(state),true);
-  for(const patch of [{program:{}},{geometryApproved:false},{generationError:'Failed'},
+  for(const patch of [{program:{}},{generationError:'Failed'},
     {outputAvailability:'Machine setup required'},
     {localPrintDirectory:'another'},{tour:{...state.tour,step:3}},{tour:{...state.tour,active:false}}])
     assert.equal(needsTourToolpath({...state,...patch}),false);

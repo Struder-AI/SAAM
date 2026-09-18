@@ -16,7 +16,7 @@ function harness(){
   const counts={decode:0,bind:0,geometry:0,path:0,material:0,dispose:0},nodes=new Map(),mutations=[];
   const noop=()=>{},element=id=>{if(!nodes.has(id))nodes.set(id,{replaceChildren(){}});return nodes.get(id);};
   let next,context;
-  context=vm.createContext({state:undefined,playbackCache:null,pathView:null,materialScene:null,materialRenderer:null,
+  context=vm.createContext({state:undefined,playbackCache:null,stalePresentation:null,pathView:null,materialScene:null,materialRenderer:null,
     machineSession:null,geometryScene:null,geometryRenderer:null,selected:null,tab:'geometry',seconds:0,L,needsTourToolpath,
     document:{},$:element,fetch:async()=>({ok:true,json:async()=>structuredClone(next)}),
     agentUI:{received:noop},view:()=>({skinLabel:'Test'}),cameras:{mode:'ghost',reset:noop},layerFade:{reset:noop},
@@ -32,24 +32,11 @@ function harness(){
       context.machineSession={bind:async()=>{counts.bind++;},dispose:noop};
       return {moves:[{decode:counts.decode}],summary:{}};
     },
-    async api(route){mutations.push(route);next={...next,program:{summary:{}},exportHash:'chat-export',review:{generation:{mode:'production'}}};}
+    async api(route){mutations.push(route);await context.generationGate;next={...next,program:{summary:{}},exportHash:'chat-export',review:{generation:{mode:'production'}}};}
   });
   vm.runInContext(clear+'\n'+refresh,context);
   return {counts,context,mutations,async load(value,{reopen=false,follow=false}={}){next=value;await vm.runInContext('refresh('+follow+','+reopen+')',context);}};
 }
-
-test('ordinary chat geometry approval opens and generates the toolpath while early tour lessons keep geometry',async()=>{
-  for(const active of [false,true]){
-    const {load,context,mutations}=harness();
-    const current=snapshot({program:undefined,geometryApproved:false,localPrintDirectory:'part',
-      tour:{active,directory:'part',step:1},review:{generation:null}});
-    await load(current);
-    await load({...current,geometryApproved:true,revision:'chat-confirmed'},{follow:true});
-    assert.deepEqual(mutations,active?[]:['generate']);
-    assert.equal(context.tab,active?'geometry':'toolpath');
-    if(!active)assert.ok(context.state.program);
-  }
-});
 
 test('Back/Continue and explicit same-print reopen reuse decoded source and drawing scenes',async()=>{
   const {load,counts,context}=harness();
@@ -78,12 +65,17 @@ test('changed export, plan or print identity rebuilds the decoded playback cache
   assert.equal(counts.bind,0,'incompatible source is never rebound as a cache hit');
 });
 
-test('a plan edit in geometry-only tour view disposes stale playback before continuing',async()=>{
+test('a plan edit preserves stale playback until its replacement is ready',async()=>{
   const {load,counts,context}=harness();
   await load(snapshot());
-  await load(snapshot({planHash:'edited-plan',program:undefined,tour:{active:true,step:L.import}}));
-  assert.equal(context.playbackCache,null);assert.equal(context.pathView,null);assert.equal(context.materialScene,null);
-  assert.equal(counts.dispose,1);
-  await load(snapshot({planHash:'edited-plan',exportHash:'edited-export'}));
+  const path=context.pathView,material=context.materialScene;
+  let release;context.generationGate=new Promise(resolve=>{release=resolve;});
+  const replacing=load(snapshot({planHash:'edited-plan',program:undefined,tour:{active:true,step:L.settings}}),{follow:true});
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(context.state.program,undefined);assert.ok(context.stalePresentation?.program);
+  assert.equal(context.pathView,path);assert.equal(context.materialScene,material);
+  assert.equal(counts.dispose,0);
+  release();await replacing;
+  assert.equal(context.stalePresentation,null);
   assert.equal(counts.decode,2);assert.equal(counts.material,2);assert.equal(counts.bind,0);
 });

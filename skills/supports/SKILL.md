@@ -9,7 +9,7 @@ For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with t
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
 Use the [shared print tools](../../core/print/USAGE.md).
 Enable `skills.supports.enabled` and supply `assignments` before toolpath generation.
-The same export, two confirmations and delivery workflow applies. No hardware is run.
+The same export, final confirmation and delivery workflow applies. No hardware is run.
 
 ## Choosing the support
 

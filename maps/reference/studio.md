@@ -252,31 +252,24 @@ restart on an explicit generation request.
 Preparation workers are currently per Studio server, with no priority coordinator
 across Studio, CLI and MCP processes; starting earlier or preparing alternative
 choices would need that coordination to avoid competing with foreground work.
-During toolpath lessons, saved process or machine edits trigger generation for
-the selected, geometry-confirmed part after active edits publish their saved
-input targets. Ordinary state reads never start speculative slicing. Production
-generation checks geometry confirmation before starting a worker. A failed generation stays
-actionable until inputs change or an explicit retry succeeds.
-A changed, unconfirmed shape temporarily shows the normal geometry review and
-dimensions within the current toolpath lesson. **Confirm geometry & return to lesson**
-or an explicit human chat confirmation resumes that same lesson and generates its
-current toolpath. Back and Next do not approve geometry; the STL introduction's
-explicit **Continue with this part** selection remains a confirmation action.
-The review says it is waiting for geometry confirmation and clears work dots/fading
-once the new shape is displayed, while the requested toolpath remains pending.
-A confirmed toolpath lesson shows preparation status while no program is available. Generation failures remain visible after
+During toolpath lessons, saved edits trigger generation after active work
+publishes its saved input target. Ordinary state reads never start speculative
+slicing. A failed generation stays actionable until inputs change or an explicit
+retry succeeds. Geometry review remains available without pausing the lesson or
+creating an approval. **Continue with this part** selects the displayed print for
+the next lesson. While replacement output is prepared, the previous toolpath stays
+visible at reduced opacity and cannot be approved or exported as current.
+A toolpath lesson shows preparation status while no current program is available. Generation failures remain visible after
 the saved lesson is refreshed. Playback seeking waits until the program loads.
 Outside the tour, a fresh print without a current export still opens in geometry
-review and uses the normal Confirm geometry click. Unchanged approvals
-retain their existing version binding: geometry-only confirmation resumes at
-toolpath/settings, and a current export opens directly in the toolpath viewer. A development
+review and offers generation directly. A current export opens directly in the toolpath viewer. A development
 export can be viewed but cannot authorize delivery. A stale or edited program
 stays unavailable for approval. Failed opening retains the previous print.
 
 An accessible viewport overlay with a spinner covers initial loading, reopening, changed
 bundle validation, toolpath/export generation and delivery. It remains visible
 through checks and playback loading, disables duplicate actions, and clears on
-success or error. Geometry confirmation prepares and checks the toolpath. The final button confirms
+success or error. Generation prepares and checks the toolpath. The final button confirms
 settings and toolpath together and downloads the checked file. After a successful download, that exact print/export shows "Export again" for the current page session, including after switching away and reopening it. Animation respects reduced-motion preferences. It represents
 stage progress where counts are available (layers, composed operations and
 material instances), and indeterminate work otherwise. Percentages describe the
@@ -365,8 +358,8 @@ Both initially blink; the first pointer hover over Import STL retires its cue so
 only Continue keeps blinking. The playback
 lesson stops highlighting Play and unlocks Next on its first use; Pause does not
 restart the cue.
-Ordinary geometry confirmation switches to the rendered toolpath before sending
-its view acknowledgement, so completed loading clears the dots and fade.
+Generation switches to the rendered replacement only after its checked source is
+loaded; the previous toolpath remains faded while work is active.
 
 The maker agent calls MCP begin_studio_work as its first operation for an edit,
 before a chat acknowledgement or status lookup. It may omit printId for the
@@ -476,8 +469,8 @@ resource limits and unrelated errors retain their own diagnostics. Failed import
 remove only their newly reserved destination; existing prints are preserved.
 Repair requires the optional native backend when exact cleanup is insufficient.
 The original STL, repaired STL and complete change report remain in the print's
-`repair/` folder. Studio shows the repair summary and unapproved geometry; normal
-Studio uses **Confirm geometry** before preparing its toolpath. Import progress
+`repair/` folder. Studio shows the repair summary and repaired geometry for review;
+the toolpath can then be generated directly. Import progress
 distinguishes checking, repairing and opening the model.
 
 

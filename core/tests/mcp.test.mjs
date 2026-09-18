@@ -77,7 +77,7 @@ test('MCP correlates ordinary maker work and receives Studio requests without ap
   assert.equal((await call('get_print',{printId:'ordinary'})).approvals.geometry,false);
 });
 
-test('MCP follows tour chat gates and requires geometry confirmation before production generation',async t=>{
+test('MCP follows tour chat gates while production generation remains available for review',async t=>{
   const {call,printsRoot}=await fixture(t),tour=createTour(printsRoot);
   await tour.action('fresh');const before=await call('get_tour');
   assert.equal(before.step,0);assert.equal(before.canNext,false);
@@ -86,16 +86,12 @@ test('MCP follows tour chat gates and requires geometry confirmation before prod
   saved.plan.geometry.parts[1].geometry.heightMm=11;
   await call('adjust_print',{printId:'tour/handle',expectedRevision:saved.revision,patch:{geometry:saved.plan.geometry}});
   const after=await call('get_tour',{after:before.cursor,waitMs:50});assert.equal(after.canNext,false,'wait for the browser to render the edit');
-  await call('generate_print',{printId:'tour/handle'},/Approve the geometry/);
-  const ready=await call('get_print',{printId:'tour/handle'});
-  await call('confirm_geometry',{printId:'tour/handle',expectedRevision:ready.revision,geometryHash:ready.geometryHash,
-    actor:'SYNTHETIC TEST reviewer',statement:'I approve this shape.',chatReference:'Synthetic integration conversation, message 1'});
   const generated=await call('generate_print',{printId:'tour/handle'});assert.equal(generated.checks.mode,'production');
   await call('deliver_print',{printId:'tour/handle'},/Exit the tour/);
   await tour.action('exit');
   const current=await call('get_print',{printId:'tour/handle'});
   const changed=await call('change_machine',{printId:'tour/handle',machineId:'bambu-h2d',expectedRevision:current.revision});
-  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.approvals.geometry,true);
+  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.approvals.geometry,false);
 });
 
 
@@ -117,6 +113,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   const { call, client, printsRoot } = await fixture(t);
   const names = (await client.listTools()).tools.map(tool => tool.name);
   assert.ok(names.includes('request_review'));
+  assert.ok(!names.includes('confirm_geometry'));
   assert.ok(!names.some(name => /^(approve|post_process|compile_plan)$/.test(name)));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'full-fill'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
@@ -167,12 +164,12 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   await call('create_print', { printId: 'first', kind: 'shell', machineId: 'ultimaker-s5', plan }, /already exists/);
   await call('create_print', { printId: 'second', kind: 'shell', machineId: 'bambu-h2d', plan: await smallPlan(call, 'bambu-h2d') });
   assert.deepEqual((await call('list_prints')).map(print => print.printId).sort(), ['first', 'second']);
-  await call('generate_print', { printId: 'first' }, /Approve/);
+  const generated=await call('generate_print', { printId: 'first' });assert.equal(generated.checks.mode,'production');
   await call('generate_print', { printId: 'first', development: true }, /Unrecognized|validation/i);
   await call('get_approval_status', { printId: 'first', approvals: { geometry: true } }, /Unrecognized|validation/i);
   await call('deliver_print', { printId: 'first' }, /approval/);
   await call('adjust_print', { printId: 'first', expectedRevision: state.revision, patch: { review: { approvals: {} } } }, /not an agent-editable/);
-  const stale = state.revision;
+  const stale = generated.revision;
   state = await call('adjust_print', { printId: 'first', expectedRevision: stale, patch: { process: { planarSpeedMmS: 21 } } });
   assert.notEqual(state.revision, stale);
   await call('adjust_print', { printId: 'first', expectedRevision: stale, patch: { process: { planarSpeedMmS: 22 } } }, /stale/);
@@ -227,7 +224,7 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
 // One case per transport/output shape; vase geometry and machine semantics are
 // covered by the skill and exporter suites, not by repeating this protocol flow.
 for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
-  test(`MCP shell/${machineId} uses Studio, fresh two-stage hashes and byte-identical delivery`, async t => {
+  test(`MCP shell/${machineId} uses Studio, fresh final-review hashes and byte-identical delivery`, async t => {
     const { call, printsRoot } = await fixture(t), printId = 'reviewed', dir = resolve(printsRoot, printId);
     const plan = await smallPlan(call, machineId);
     if (machineId === 'dobot-mg400') syntheticDobotSetup(plan);
@@ -238,8 +235,7 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     assert.match(page, /SAAM Studio/);
     assert.equal((await fetch(opened.url + '/api/state').then(response => response.json())).plan.schema, 'saam-shell-plan/1');
     assert.equal((await call('request_review', { printId })).url, opened.url);
-    await syntheticApproval(dir, 'geometry');
-    assert.equal((await call('get_approval_status', { printId })).approvals.geometry, true);
+    assert.equal((await call('get_approval_status', { printId })).approvals.geometry, false);
     const generated = await call('generate_print', { printId });
     assert.equal(generated.checks.result, 'pass');
     assert.equal(generated.checks.mode, 'production');
@@ -254,7 +250,7 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     assert.deepEqual(await readFile(delivered.file), await readFile(exportFile));
     assert.equal((await call('deliver_print', { printId })).exportHash, delivered.exportHash);
     const changed = await call('adjust_print', { printId, expectedRevision: status.revision, patch: { process: { planarSpeedMmS: 22 } } });
-    assert.deepEqual(changed.approvals, { geometry: true, plan: false, toolpath: false });
+    assert.deepEqual(changed.approvals, { geometry: false, plan: false, toolpath: false });
     await call('deliver_print', { printId }, /approval/);
     await call('generate_print', { printId });
     await syntheticApproval(dir, 'toolpath');

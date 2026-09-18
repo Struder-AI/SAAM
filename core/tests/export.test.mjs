@@ -64,7 +64,6 @@ test('shell upgrade retains geometry approval and existing delivery bytes',async
   try {
     await adapter.initBundle(directory,recipe);
     let state=await adapter.loadBundle(directory);
-    for(const stage of ['geometry'])state=await adapter.approve(directory,{stage,actor:'synthetic upgrade test',revision:state.revision});
     await adapter.generateBundle(directory);
     state=await adapter.loadBundle(directory);
     await adapter.approve(directory,{stage:'toolpath',actor:'synthetic upgrade test',revision:state.revision});
@@ -74,7 +73,7 @@ test('shell upgrade retains geometry approval and existing delivery bytes',async
     await writeFile(join(directory,'machine.json'),JSON.stringify(oldMachine));
     await adapter.upgradeBundle(directory);
     state=await adapter.loadBundle(directory);
-    assert.equal(state.geometryApproved,true);
+    assert.equal(state.geometryApproved,false);
     assert.equal(state.planApproved,false);
     assert.equal(state.toolpathApproved,false);
     assert.ok(state.machine.outputs[0].program);

@@ -147,9 +147,9 @@ your agent to edit the current copy with the ordinary adjustment tools; keep
 its tour marker in place. The guide stays
 on the same step and reuses the edited copy when navigating or explicitly resuming. At a
 toolpath step, Studio automatically prepares changed process or machine inputs
-using the normal generation worker after geometry confirmation. Generation
-creates no human approvals. Review
-the geometry, then settings and toolpath together before printing. Tour examples have
+using the normal generation worker as soon as saved inputs are ready. Generation
+creates no human approvals. Review the geometry as useful, then confirm settings
+and toolpath together before printing. Tour examples have
 no inherited approvals or personal machine calibration. The
 [maker guide](../../MAKERS.md) owns those reviews.
 

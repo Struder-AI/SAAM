@@ -46,7 +46,7 @@ starting vocabulary for the ontology we develop together.
 | Context map | A human reference drawing which documents each role reads and in what order. It is documentation navigation, not a code-anchored dev map, and no agent command returns it. |
 
 Project decision statuses live in [DECISIONS.md](DECISIONS.md); they are separate
-from the two confirmations within a print.
+from the final settings/toolpath confirmation within a print.
 
 ## Proposed terms and open meanings
 

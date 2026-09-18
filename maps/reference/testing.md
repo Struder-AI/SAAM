@@ -124,7 +124,7 @@ missing or intersecting support. Regional planar start-height checks remain in
 [regions.test.mjs](../../core/tests/regions.test.mjs).
 
 [Text interoperability](../../skills/text/tests/interoperability.test.mjs) covers
-geometry approval across pattern changes, disjoint raised/engraved ownership,
+geometry identity across pattern changes, disjoint raised/engraved ownership,
 translated assembly selections, retained standalone references, atomic feature
 and region edits, legacy records and whole-solid side lettering. The main
 [text suite](../../skills/text/tests/text.test.mjs) also checks imported mesh
@@ -158,7 +158,7 @@ absence of a resume route; individual edit cancellation retains the live tour.
 fresh startup after reopening and isolation from observer/older-owner shutdown.
 
 [studio-view-readiness.test.mjs](../../core/tests/studio-view-readiness.test.mjs) exercises ordinary
-geometry confirmation through rendered toolpath acknowledgement and activity
+geometry review through rendered toolpath acknowledgement and activity
 settling. [studio-playback-cache.test.mjs](../../core/tests/studio-playback-cache.test.mjs) covers
 Back/Continue and same-print reopen reuse, plus invalidation on changed inputs.
 [studio-import.test.mjs](../../core/tests/studio-import.test.mjs) covers worker responsiveness,

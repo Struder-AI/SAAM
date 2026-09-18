@@ -76,7 +76,7 @@ box snapshot | 1.3.5 | snapshot file identity | @core/print/file-snapshot.mjs::c
 
 ```saam-page 1b_generate
 title 1.4 — Prepare and save
-sub Level 2 · production requires geometry confirmation
+sub Level 2 · generation remains available for review
 parent 1_lifecycle generate
 in generate
 in generated path
@@ -114,13 +114,10 @@ parent 1_lifecycle review
 in human action
 out review / delivery
 port human | human action
-box chat | 1.5.1 | bind chat confirmation | @core/print/workflow.mjs::createBundleWorkflow::confirmGeometryFromChat
-box approve | 1.5.2 | record approval | @core/print/workflow.mjs::createBundleWorkflow::approve
-box deliver | 1.5.3 | deliver reviewed bytes | @core/print/workflow.mjs::createBundleWorkflow::deliver
-box read | 1.5.4 | read current | $load
+box approve | 1.5.1 | record final approval | @core/print/workflow.mjs::createBundleWorkflow::approve
+box deliver | 1.5.2 | deliver reviewed bytes | @core/print/workflow.mjs::createBundleWorkflow::deliver
+box read | 1.5.3 | read current | $load
 port done | review / delivery
-human > chat | geometry statement | gate
-chat > approve | matching geometry identity | data
 human > approve | Studio confirmation | gate
 human > deliver | export request | gate
 approve > read | requested stage | data

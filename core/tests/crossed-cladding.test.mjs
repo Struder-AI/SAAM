@@ -78,9 +78,8 @@ test('checked robot output preserves both winding directions, review invalidatio
   const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-crossed-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;
   await initBundle(dir,p,{machineId:machine.id});let state=await loadBundle(dir);
-  for(const stage of ['geometry'])state=await approve(dir,{stage,revision:state.revision,actor:'SYNTHETIC CROSSED-HELIX TEST ONLY'});
   state=await adjustBundle(dir,{skills:{'pipe-cladding':{pattern:'crossed-helices',spacingFactor:3}}},{expectedRevision:state.revision});
-  assert.ok(state.geometryApproved);assert.ok(!state.planApproved);
+  assert.ok(!state.geometryApproved);assert.ok(!state.planApproved);
   assert.ok(recipeRows(state.plan,machine).some(([k,v])=>k.endsWith('Pattern')&&v==='crossed helices'));
 
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);

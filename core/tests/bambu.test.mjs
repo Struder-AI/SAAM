@@ -117,7 +117,7 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   const dir=await mkdtemp(join(tmpdir(),'saam-h2d-workflow-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const {plan,machine}=fixture();await initBundle(dir,plan,{machineId:machine.id});
   await generateBundle(dir,{development:true});await assert.rejects(deliver(dir),/approval/);
-  let state=await loadBundle(dir);for(const stage of ['geometry'])state=await approve(dir,{stage,actor,revision:state.revision});
+  let state=await loadBundle(dir);
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);
   assert.equal(state.exportName,'part.gcode.3mf');assert.equal(state.outputAvailability,null);
   state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});assert.equal(state.toolpathApproved,true);
@@ -127,11 +127,11 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   const view=await(await fetch(origin+'/api/state')).json();assert.equal(view.exportName,'part.gcode.3mf');assert.equal(view.code,undefined);assert.equal(view.program.code,undefined);
   assert.equal(await(await fetch(origin+'/api/gcode')).text(),unpackZip(bytes).get(GCODE).toString());
   const response=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});
-  assert.equal(response.status,200);assert.match(response.headers.get('content-disposition'),/part\.gcode\.3mf/);
+  assert.equal(response.status,200);assert.match(response.headers.get('content-disposition'),new RegExp(view.downloadName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   assert.deepEqual(Buffer.from(await response.arrayBuffer()),bytes);assert.deepEqual(await readFile(join(dir,'delivery/part.gcode.3mf')),bytes);
   const altered=Buffer.from(bytes);altered[90]^=1;await writeFile(exportFile,altered);
   assert.match((await loadBundle(dir)).programError,/changed/);await assert.rejects(deliver(dir),/approval/);
   await writeFile(exportFile,bytes);
   await adjustBundle(dir,{process:{planarSpeedMmS:18}});state=await loadBundle(dir);
-  assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
 });

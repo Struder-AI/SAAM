@@ -102,7 +102,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
       if(record.status==='cancelled'||record.status==='completed'&&!(status==='working'&&requestReceiptState(record,{now:now()}).activity==='expired'))return record;
       const resuming=status==='working'&&record.status!=='working';
       // Pausing does not create a different request or discard an already saved
-      // result. In particular, geometry confirmation must preserve its target.
+      // result. In particular, waiting for input must preserve its target.
       const baseline=record.baseline;
       const result=resuming?undefined:status==='completed'?await snapshot(resolve(root,record.printId)):record.result;
       if(resultStage&&!['geometry','toolpath'].includes(resultStage))throw Error('Unknown result stage.');

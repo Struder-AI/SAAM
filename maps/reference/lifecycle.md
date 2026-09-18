@@ -19,8 +19,8 @@ one complete file; it does not lock a bundle or make several replacements atomic
 The [Studio generation protocol](studio-protocols.md#preparation-generation-and-cancellation)
 explains the cancellation/commit boundary and checked-worker handoff.
 
-When changing an identity field, trace geometry confirmation, settings/toolpath
-confirmation, cached interpretation, presentation receipts and delivery together.
+When changing an identity field, trace final settings/toolpath confirmation,
+cached interpretation, presentation receipts and delivery together.
 Use [workflow tests](../../core/tests/workflow.test.mjs) and the
 [test registry](testing.md#test-registry) to select the affected checks.
 
@@ -41,20 +41,17 @@ current plan revision. Source metadata does not confer a printing approval.
 
 ## Generation and review
 
-Implement the two human confirmations in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
-geometry, then settings and the exact toolpath together. `core/print/workflow.mjs` owns
+Implement the single human confirmation in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
+settings and the exact toolpath together immediately before export. `core/print/workflow.mjs` owns
 initialization, verification, revision hashes, adjustment, approvals, generation,
 reopening, setup reuse, upgrades and delivery. The shell adapter supplies
 recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema. There is no standalone settings
 confirmation. `approve(stage: "toolpath")` records the settings hash and export
 hash in one human event; the persisted `approvals.plan`/`planApproved` fields remain
-for record compatibility. Production generation requires geometry confirmation;
+for record compatibility. Legacy geometry approval records remain readable but
+are no longer created or required. Generation is available for inspection;
 production delivery still requires the exact current final confirmation.
-`confirmGeometryFromChat` records an explicit human shape approval through the
-same geometry transition. It checks the current revision and geometry hash and
-retains the statement and chat reference as evidence; it cannot grant final
-settings/toolpath approval. See the [chat confirmation command](../../core/print/USAGE.md#record-explicit-geometry-confirmation-from-chat).
 
 The [text preparation entry](../../core/print/text.mjs) compiles editable font/surface features
 into the same native mesh geometry used by Studio and slicing, then calls
@@ -68,13 +65,13 @@ authors sleeve-fit, motif and base settings on an imported mesh through
 and selected machine, and rejects conflicting composition instead of replacing
 it. The resulting recipe uses the same generation, review and delivery lifecycle.
 
-After geometry confirmation, generate the machine-declared export from the complete plan,
+Generate the machine-declared export from the complete plan whenever it helps review,
 using transient motion objects. Check its actual commands before Studio plays
 that export for combined settings/toolpath confirmation. Delivery copies those reviewed bytes unchanged.
-Geometry edits invalidate all approvals; process, composition, runtime or machine
-changes invalidate the combined settings/toolpath confirmation. Development generation records
+Geometry, process, composition, runtime or machine changes invalidate the
+combined settings/toolpath confirmation. Development generation records
 `mode: development`, creates no human approvals and cannot satisfy delivery.
-After geometry confirmation, production generation can reuse a current checked
+Production generation can reuse a current checked
 development export: it verifies current input/runtime identity, export bytes and
 saved check hashes, then records production mode without reslicing or changing
 the reviewed bytes. This transition does not approve settings or toolpath.

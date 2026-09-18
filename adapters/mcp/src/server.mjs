@@ -50,7 +50,7 @@ function noApprovalFields(value) {
   if (!value || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value)) {
     if (/approval|approved|^review$|^actor$|^generation$|^history$|^__proto__$|^constructor$|^prototype$/i.test(key))
-      throw new Error(`Field ${key} is not an agent-editable recipe setting. Use confirm_geometry only to record explicit human chat approval of geometry; final settings/toolpath approval belongs in Studio.`);
+      throw new Error(`Field ${key} is not an agent-editable recipe setting. Final settings/toolpath approval belongs to the person in Studio.`);
     noApprovalFields(child);
   }
 }
@@ -75,8 +75,7 @@ function summary(printId, state) {
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
     shortTravel: state.program?.summary?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: !state.geometryApproved ? 'Review geometry in Studio.'
-      : !programChecked ? 'Open Studio or check_print to check the current export.'
+    nextStep: !programChecked ? 'Open Studio or check_print to check the current export.'
       : !state.program || state.programError ? 'Generate the toolpath from the complete settings.' : !state.toolpathApproved ? 'Review settings and the exact toolpath together in Studio.' : 'Deliver the reviewed export.'
   };
 }
@@ -91,7 +90,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   let queue = Promise.resolve();
   const server = new McpServer({ name: 'saam', version: '0.2.0' }, {
     capabilities:{logging:{}},
-    instructions: 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context and command access, run node scripts/agent-toolkit.mjs maker-onboarding once; it supplies makers, the skill digest and print-tools. Otherwise read those missing sources through read_guidance. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create an unapproved print and request_review for the first geometry. Revisions happen through chat using adjust_print and expectedRevision. Only the human confirms geometry, in Studio or explicitly in chat through confirm_geometry with the exact statement and chat reference; settings and the exact toolpath are confirmed together in Studio. Establish the printer and material before toolpath generation. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. generate_print requires geometry confirmation; deliver_print copies the reviewed bytes. No tool grants settings/toolpath approval or runs hardware.'
+    instructions: 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context and command access, run node scripts/agent-toolkit.mjs maker-onboarding once; it supplies makers, the skill digest and print-tools. Otherwise read those missing sources through read_guidance. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware.'
   });
 
   async function directory(printId, { create = false } = {}) {
@@ -284,7 +283,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       if(state.kind!=='shell')throw new Error('Heat-set inserts modify shared shell/mesh prints.');
       return summary(printId,await applyHeatSet(dir,request,{expectedRevision}));
     },false);
-  tool('adjust_print', 'Apply a validated chat recipe patch at expectedRevision. Geometry edits invalidate all approvals; process edits retain geometry approval. Read fresh state if stale.',
+  tool('adjust_print', 'Apply a validated chat recipe patch at expectedRevision. Geometry or process edits invalidate the final settings/toolpath confirmation. Read fresh state if stale.',
     { printId: printIdSchema, expectedRevision: z.string().min(1), patch: objectSchema }, async ({ printId, expectedRevision, patch }) => {
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(printId,{program:false});
@@ -310,10 +309,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     await bundle.upgradeBundle(dir);
     return summary(printId, await bundle.loadBundle(dir));
   }, false);
-  tool('get_approval_status', 'Read fresh hash-bound geometry, plan and exact-export approvals from the saved bundle. Caller-provided approvals are never accepted.', { printId: printIdSchema }, async ({ printId }) => summary(printId, (await read(printId)).state));
-  tool('confirm_geometry','Record the human’s explicit chat approval of the current resulting shape. First read its revision and geometryHash. Preserve the exact statement and identify its conversation/message in chatReference. A change request, acknowledgement, or permission to continue editing is not shape approval. The caller must judge the human intent; validation cannot infer it. Records geometry approval only, never settings or toolpath approval.',
-    {printId:printIdSchema,expectedRevision:z.string().min(1),geometryHash:z.string().min(1),actor:z.string().min(2).max(100),statement:z.string().min(1).max(8000),chatReference:z.string().min(1).max(2000)},
-    async({printId,...confirmation})=>{const {dir,bundle}=await locate(printId);return summary(printId,await bundle.confirmGeometryFromChat(dir,confirmation));},false);
+  tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { printId: printIdSchema }, async ({ printId }) => summary(printId, (await read(printId)).state));
   tool('begin_studio_work','First operation for an edit to an existing print, before acknowledgement or status lookup. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
     {printId:printIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1).max(8000),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({printId,studioInstanceId,instruction,requestId,kind})=>{
       const record=requestId?await agentRequests.get(requestId):null;
@@ -351,7 +347,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     });
   tool('set_tour_start_at','Choose an infill layer after the first layer for the identified tour lesson. Use the runId and lessonId from the guidance request scope or get_tour; discard work when that lesson has ended.',
     {startAt:z.object({layer:z.number().int().min(1)}).strict(),runId:z.string(),lessonId:z.string()},async({startAt,...scope})=>tour.setStartAt(startAt,scope),false);
-  tool('change_machine','Change a print to a supported printer using its remembered or default setup. Keeps geometry confirmation, invalidates settings/toolpath confirmation and validates compatibility before saving.',
+  tool('change_machine','Change a print to a supported printer using its remembered or default setup. Invalidates final settings/toolpath confirmation and validates compatibility before saving.',
     {printId:printIdSchema,machineId:z.string(),expectedRevision:z.string()},async({printId,machineId,expectedRevision})=>{
       const {dir,bundle}=await locate(printId);if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
       return summary(printId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}));
@@ -384,7 +380,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
     const result=session.server.agentSession();await session.server.shutdown();return {...result,connected:false};
   },false);
-  tool('generate_print', 'Generate and check the declared export from confirmed geometry and complete settings, including during the tour. Callers cannot bypass geometry confirmation or select development mode.', { printId: printIdSchema }, async ({ printId }) => {
+  tool('generate_print', 'Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.', { printId: printIdSchema }, async ({ printId }) => {
     const { dir, bundle } = await locate(printId);
     const checks = await bundle.generateBundle(dir,{development:false});
     return { ...summary(printId, await bundle.loadBundle(dir)), checks };

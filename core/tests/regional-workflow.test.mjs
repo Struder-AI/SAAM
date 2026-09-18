@@ -8,7 +8,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 
-test('the complete regional stack uses native geometry, two confirmations, shared Studio and unchanged delivery',async t=>{
+test('the complete regional stack uses native geometry, final confirmation, shared Studio and unchanged delivery',async t=>{
   const directory=await mkdtemp(join(tmpdir(),'saam-regional-workflow-'));t.after(()=>rm(directory,{recursive:true,force:true}));
   const machine=loadMachine('ultimaker-s5'),plan=regionalStackPlan(machine,'spline');
   await initBundle(directory,plan,{machineId:machine.id});
@@ -16,8 +16,6 @@ test('the complete regional stack uses native geometry, two confirmations, share
   const native=await readFile(join(directory,'geometry/model.3dm'));
   assert.deepEqual(new Set(state.skills),new Set(['full-fill','vase-wall','planar-infill','draped-skin']));
   assert.doesNotMatch(state.limitations.join('\n'),/cap.*unsupported spans/,'no retired bridge-policy warning in the shared review workflow');
-  await assert.rejects(()=>generateBundle(directory),/[Aa]pprov/);
-  for(const stage of ['geometry'])state=await approve(directory,{stage,actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});
   await generateBundle(directory);state=await loadBundle(directory);
   assert.equal(state.programError,undefined);
   assert.equal(state.pathSummary.regions.length,5);
@@ -41,6 +39,6 @@ test('the complete regional stack uses native geometry, two confirmations, share
   const regions=structuredClone(plan.composition.regions);regions.find(r=>r.id==='cap').skills['full-fill'].fillAnglesDeg=[0,90];
   await adjustBundle(directory,{composition:{regions}},{expectedRevision:state.revision});
   state=await loadBundle(directory);
-  assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
   assert.deepEqual(await readFile(join(directory,'delivery/part.gcode')),bytes);
 });

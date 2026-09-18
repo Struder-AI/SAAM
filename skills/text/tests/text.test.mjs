@@ -100,7 +100,6 @@ test('public text editing survives reopening, invalidates reviews and generates 
   const plan=defaults();plan.geometry=base;plan.skills['draped-skin'].enabled=false;plan.process.minimumLayerSeconds=0;
   await initBundle(dir,plan,{setupFile:join(dir,'absent-setup.json')});
   let state=await loadBundle(dir,{program:false});
-  await approve(dir,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC TEXT TEST — never a real approval'});
   state=await loadBundle(dir,{program:false});
   state=await applyText(dir,{feature:{...feature(),mode:'recessed'}},{expectedRevision:state.revision});
   assert.equal(state.geometryApproved,false);assert.equal(state.geometry.nativeFile,'model.mesh.json');
@@ -173,7 +172,6 @@ test('public circular text follows the original wavy top and deposits every lett
   const plan=defaults();plan.geometry=roof;plan.skills['draped-skin'].enabled=false;
   await initBundle(dir,plan,{setupFile:join(dir,'absent.json')});
   const initial=await loadBundle(dir,{program:false});
-  await approve(dir,{stage:'geometry',revision:initial.revision,actor:'SYNTHETIC CIRCULAR TEXT TEST — never a real approval'});
   const spec=feature({text:'groucho',sizeMm:7,align:'center',positionMm:[20,20],letterSpacingMm:0.4,
     outlineOffsetMm:0.18,depthMm:0.8,reference:{kind:'top'},baseline:{kind:'circle',radiusMm:10}});
   await applyText(dir,{feature:spec},{expectedRevision:(await loadBundle(dir,{program:false})).revision});

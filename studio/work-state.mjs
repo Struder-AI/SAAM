@@ -21,7 +21,7 @@ export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set
     const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state.generationError&&!state.programError&&Boolean(state.program);
     const ready=Boolean(state.work?.snapshot)&&(geometryReady||toolpathReady);
     view={printId:state.work?.printId,snapshot:state.work?.snapshot?{...state.work.snapshot,stage}:null,ready,
-      awaitingConfirmation:ready&&geometryReady&&!state.geometryApproved};
+      awaitingConfirmation:false};
   }
   const relevant=Boolean(request&&edits(request)&&(!view?.printId||request.printId===view.printId));
   const receipt=Boolean(relevant&&(request.presented||view?.ready&&matchesReceipt(request,view.snapshot)));

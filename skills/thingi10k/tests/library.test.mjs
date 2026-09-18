@@ -151,7 +151,6 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   await updatePlan(dir,state.plan,state.revision);
   // Synthetic approvals apply only to this isolated fixture.
   state=await loadBundle(dir,{program:false});
-  await approve(dir,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC TEST ONLY'});
   await generateBundle(dir);
   state=await loadBundle(dir);
   await approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC TEST ONLY'});

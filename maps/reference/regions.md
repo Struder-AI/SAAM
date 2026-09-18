@@ -219,7 +219,7 @@ each selection with its component placement. Height bounds are relative to the
 selected material's minimum Z. Disjoint partitions may share height ranges;
 whole/partition or repeated-partition overlap needs the same explicit consumed
 lower-surface relationship as overlapping whole-component assignments. Selection
-is a process choice and does not change geometry approval. The
+is a process choice and does not change saved geometry. The
 [text manual](../../skills/text/SKILL.md#material-selections-and-printing-patterns)
 owns creation and editing of these prepared partitions.
 

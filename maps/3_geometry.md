@@ -312,7 +312,7 @@ Caller contracts: [geometry](reference/geometry.md). The surface proxy used by
 Studio is not the slicing geometry. Sleeve interval proposals require an explicit
 authoring choice; sampled bounds are not proof over every height. The fit uses
 separable QR solves and preserves actual Z. Repair checks and sampled distances
-do not establish exact shape fidelity or human geometry approval.
+do not establish exact shape fidelity or human acceptance of the shape.
 
 
 ```saam-scope

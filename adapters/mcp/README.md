@@ -55,12 +55,12 @@ saved IDs; there is no single global plan that overwrites another job.
 | `import_thingi10k_print` | Download `fileId` on the SAAM host into a new `printId`, with `machineId` and optional `units`. Return attribution and the mandatory chat license notice, including when strict import fails. Review successful imports with `request_review`. |
 | `list_prints`, `get_print` | `list_prints` discovers names and machines with `programChecked:false`; it does not validate exports. `get_print` reads checked status/recipe, omitting geometry and marking `planComplete:false` unless `includeGeometry:true` is supplied. Neither returns motion arrays. |
 | `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`, supplying `studioInstanceId` when several Studios are open. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
-| `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates geometry confirmation. |
+| `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates final review. |
 | `wait_for_studio_request`, `get_studio_requests` | Receive live Studio requests with bounded event waits, or inspect durable recovery/history state. Optional `studioInstanceId` scopes a wait; `claim:true` marks returned requests working in the same call. Runs outside the print-work queue. This does not wake an ended or disconnected chat. |
 | `get_studio_sessions`, `close_studio_session` | List or close this agent's explicitly owned Studio instances. One agent may own several; no Studio instance is shared between agents. |
 | `get_tour` | Read tour progress and the next maker-agent chat instruction. Optional `after` cursor and `waitMs` wait for a change for up to 25 seconds. |
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
-| `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Geometry confirmation survives. |
+| `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Final review is invalidated. |
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
 | `heat_set_catalog` | Read packaged heat-set insert IDs and dimensions before choosing a profile. |
@@ -70,9 +70,8 @@ saved IDs; there is no single global plan that overwrites another job.
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
 | `upgrade_print` | Run the owning adapter's explicit migration for an old bundle, preserving delivered files and invalidating affected approvals. |
 | `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Supply `studioInstanceId` to rebind an existing owned instance, or `newInstance:true` to open another instance for the same bundle. |
-| `get_approval_status` | Read the two hash-bound confirmations from disk; `plan` remains a compatibility field for the combined confirmation. |
-| `confirm_geometry` | Record explicit human chat approval of the current shape with `expectedRevision`, `geometryHash`, `actor`, the exact `statement`, and its `chatReference`. Never approves settings or toolpath. |
-| `generate_print` | Generate and check the machine export from confirmed geometry and complete settings, including during a tour; no development-mode bypass. |
+| `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk; `plan` remains a compatibility field for that combined confirmation. |
+| `generate_print` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
 The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
@@ -125,14 +124,9 @@ request timeout remains the fallback. Use separate adapters for independent agen
 A separately launched CLI Studio remains independent and is never terminated by
 this adapter.
 
-Only the person confirms geometry, either in Studio or explicitly in chat.
-`confirm_geometry` records that existing human decision, bound to the selected
-print, current revision and geometry hash returned by `get_print`. It preserves
-the exact statement and conversation/message reference. The agent must judge
-whether the words approve the resulting shape; validation cannot infer intent.
-A change request or acknowledgement is not approval. Stale confirmations are
-rejected. Settings and the exact toolpath are still confirmed together in Studio.
-No MCP tool can grant that final approval, accept approval fields in recipes,
+Geometry review is advisory and generation is available whenever it helps the
+person inspect the result. Settings and the exact toolpath are confirmed together
+in Studio before export. No MCP tool can grant that final approval, accept approval fields in recipes,
 select development generation, write arbitrary files, or send a job to a machine.
 Status is loaded from disk rather than accepted from the agent. Recipe edits
 invalidate the affected shared approval hashes. Delivery adds no further approval

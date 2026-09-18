@@ -126,7 +126,6 @@ test('create-preview reuses isolated setup and opening preserves approved export
   assert.equal(made.result.print.generation.current, false);
   assert.deepEqual(made.result.print.approvals, {geometry: false, settings: false, toolpath: false});
   let state = await shell.loadBundle(target);
-  await shell.approve(target, {stage: 'geometry', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
   await shell.generateBundle(target);
   state = await shell.loadBundle(target);
   await shell.approve(target, {stage: 'toolpath', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
