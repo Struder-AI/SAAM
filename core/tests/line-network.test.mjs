@@ -19,6 +19,15 @@ test('line-network repeats explicit centerlines without filling their envelope',
   assert.ok(Math.abs(moves.reduce((sum,move)=>sum+move.volumeMm3,0)-240)<1e-6);
 });
 
+test('line-network rejects centerlines outside the selected tool bounds',async()=>{
+  const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.geometry=boxMesh();plan.placement={xMm:80,yMm:80};
+  for(const settings of Object.values(plan.skills))settings.enabled=false;
+  Object.assign(plan.process,{minimumLayerSeconds:0});
+  Object.assign(plan.skills['line-network'],{enabled:true,layers:1,networks:[{id:'panel',strokes:[{closed:false,points:[[0,0],[5000,0]]}]}]});
+  validatePlan(plan,machine);
+  const r=await rhino();assert.throws(()=>generatePath(plan,machine,r),/Line network panel exceeds the selected tool bounds/);
+});
+
 test('line-network supports course-specific reinforcement strokes',async()=>{
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.geometry=boxMesh();plan.placement={xMm:80,yMm:80};
   for(const settings of Object.values(plan.skills))settings.enabled=false;

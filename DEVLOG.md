@@ -1,5 +1,66 @@
 # Development log
 
+## 2026-09-18 — Port TK-Dev line networks, regional process and H2D setup
+
+Ported Timothy Keller's `origin/TK-Dev` work onto the current branch: his
+line-network/H2D commit (`1cee91b`, as merged with main in `5f26d11`) and his
+sequential export names (`60d61b9`).
+
+- **line-network skill.** Explicit planar centerline networks, one bead per
+  polyline, repeated for a course count, with optional per-stroke course
+  selection for reinforcement. It is a standalone producer: validation rejects
+  it alongside body, skin, vase, lip or regional producers. Built for the
+  six-face weld-together dice.
+- **Regional process overrides.** A region may override `firstLayerMm`,
+  `layerMm`, `lineWidthMm`, `planarSpeedMmS` and `firstLayerSpeedMmS`; such a
+  region owns its own layer grid from its start height, with global layer
+  indices taken from the union of regional heights.
+- **Experimental deposition.** `process.experimentalDeposition` raises the plan
+  caps to 1 mm layers, 2 mm beads and 30 mm³/s, checked against a new tool
+  `experimentalPlanar` envelope and material `experimentalMaxFlowMm3S`.
+- **Locked prime line.** `process.primeLine` (one pass or up to eight) replaces
+  profile priming and precedes every material operation.
+- **Wall and spacing controls.** `perimeterScope: 'outer'` on full-fill and
+  planar-infill, full-fill `holeLineWidthMm`, and `spacingFactor` down to 0.5
+  for deliberate bead overlap.
+- **H2D setup (machine revision 10, envelope v3).** Hardened 0.4/0.6/0.8 mm
+  nozzles on either tool with per-nozzle package metadata; filament colour; AMS
+  slot 1–4 rendered into the startup `M620`/`T`/`M621` commands. PLA nozzle
+  limit rises to 250 °C and the standard layer range to 0.6 mm. Remembered setup
+  and machine changes fit line width to the selected nozzle.
+- **Studio.** Line-network recipe and preview rows; an export name containing
+  `-V<n>-` advances after each successful export in the session.
+
+Adapted to current contracts while porting: `validatePlan` stays check-only, so
+TK-Dev's in-memory fills for the new fields were dropped and a recipe missing
+them is rejected. Region `process` is optional and never defaulted. Approval
+assertions use the single final approval. The existing `.gcode.3mf` download
+naming was kept in place of TK-Dev's first-dot variant.
+
+Follow-ups: line-network centerlines are now checked against the selected
+tool's bounds (the geometry bound check does not see them); H2D package
+metadata is built directly rather than by string replacement after the fact;
+`holeLineWidthMm`, region process overrides, experimental deposition and the
+line-network producer are documented in the skill manual and generation/regions
+references.
+
+Physical status, from Timothy's record: an earlier 0.8 mm H2D attempt showed
+build-plate, nozzle-identification and AMS-selection warnings. The metadata and
+command selection now address them but have not been physically retested. The
+0.6/0.8 mm paths reuse the 0.4 mm firmware envelope and, with the high-flow
+settings, have software checks only.
+
+Verification ran in a clean detached worktree at 2207cb9 plus this port. The
+focused suites (bambu, line-network, regions, spacing, studio-settings,
+workflow, interoperability, perimeter-wall, patterns) pass. The full core and
+skills suite ran 687 tests: the seven failures known before this work (two MCP,
+regional base/vase cladding, two plastic-weld, two vase-wall interoperability)
+remain, and five studio-view-readiness cases failed only because that worktree
+checked files out with CRLF endings, which the harness's import stripping does
+not handle; they pass in the LF shared checkout. The interoperability
+cross-machine case now also accepts the strict setup-field rejection, since
+H2D setup carries filament colour and AMS slot. `dev-map.mjs check` passes.
+
 ## 2026-09-18 — Remove print-bundle compatibility extras
 
 Under the DEVELOPER-CONTEXT status note (no bundle back-compat until about

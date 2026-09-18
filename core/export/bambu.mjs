@@ -37,7 +37,7 @@ function contextFor(path,plan,machine,release){
   const bounds=path.summary?.boundsMm;
   const layers=new Set(deposits.map(m=>`${m.phase}:${m.layer}`));
   const context={schema:'saam-h2d-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
-    pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size,filamentColor:plan.setup.filamentColor??'#28A090',requestedAmsSlot:plan.setup.amsSlot??null};
+    pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size,filamentColor:plan.setup.filamentColor,requestedAmsSlot:plan.setup.amsSlot??null};
   checkContext(context,plan,machine);return context;
 }
 function checkContext(c,plan,machine){
@@ -117,7 +117,10 @@ function completeProgram(program,code,c,s){
 
 function packageEntries(code,c,program,plan){
   const tool=plan.setup.tool,map=tool+1,volume=program.volumeMm3,filament=program.summary.filamentMm,weight=volume/1000*1.26;
-  const color=plan.setup.filamentColor??'#28A090';
+  const color=plan.setup.filamentColor;
+  // The unselected H2D nozzle is recorded as the standard 0.4 mm core. Bambu
+  // picks the preset family from the left nozzle; mixed diameters are carried
+  // by nozzle_diameter and the slice metadata.
   const nozzle=plan.setup.nozzleMm,nozzles=['0.4','0.4'];nozzles[tool]=String(nozzle);
   const seconds=Math.ceil(program.seconds),bbox=[c.bounds.min[0],c.bounds.min[1],c.bounds.max[0],c.bounds.max[1]];
   const plate={bbox_all:bbox,bbox_objects:[{area:(bbox[2]-bbox[0])*(bbox[3]-bbox[1]),bbox,id:1,layer_height:plan.process.layerMm,name:'SAAM part'}],
@@ -130,21 +133,10 @@ function packageEntries(code,c,program,plan){
     ['_rels/.rels','<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/><Relationship Target="/Metadata/plate_1.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/><Relationship Target="/Metadata/plate_1.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/><Relationship Target="/Metadata/plate_1_small.png" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/></Relationships>\n'],
     ['Metadata/_rels/model_settings.config.rels','<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/Metadata/plate_1.gcode" Id="rel-1" Type="http://schemas.bambulab.com/package/2021/gcode"/></Relationships>\n'],
     ['Metadata/model_settings.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><plate>\n${meta({plater_id:1,plater_name:'SAAM',locked:false,filament_map_mode:'Manual',filament_maps:map,filament_volume_maps:0,gcode_file:GCODE,thumbnail_file:'Metadata/plate_1.png',thumbnail_no_light_file:'Metadata/plate_no_light_1.png',top_file:'Metadata/top_1.png',pick_file:'Metadata/pick_1.png',pattern_bbox_file:'Metadata/plate_1.json'})}\n</plate></config>\n`],
-    ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><header><header_item key="X-BBL-Client-Type" value="slicer"/><header_item key="X-BBL-Client-Version" value="SAAM-${xml(c.release.generatorVersion)}"/></header><plate>\n${meta({index:1,extruder_type:'0 0',nozzle_volume_type:'0 0',printer_model_id:'O1D',nozzle_diameters:'0.4,0.4',timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:map,limit_filament_maps:0})}\n<object identify_id="1" name="SAAM part" skipped="false"/><filament id="1" tray_info_idx="GFA00" type="PLA" color="#28A090" used_m="${fmt(filament/1000,4)}" used_g="${fmt(weight,3)}" group_id="${tool}" nozzle_diameter="0.40" volume_type="Standard" used_for_object="true" used_for_support="false" total_load_time="26.00" total_unload_time="0.00"/><nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="0.4" volume_type="Standard"/><layer_filament_lists><layer_filament_list filament_list="0" layer_ranges="0 ${c.layers-1}"/></layer_filament_lists></plate></config>\n`],
+    ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><header><header_item key="X-BBL-Client-Type" value="slicer"/><header_item key="X-BBL-Client-Version" value="SAAM-${xml(c.release.generatorVersion)}"/></header><plate>\n${meta({index:1,extruder_type:'0 0',nozzle_volume_type:'0 0',printer_model_id:'O1D',nozzle_diameters:nozzles.join(','),timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:map,limit_filament_maps:0})}\n<object identify_id="1" name="SAAM part" skipped="false"/><filament id="1" tray_info_idx="GFA00" type="PLA" color="${xml(color)}" used_m="${fmt(filament/1000,4)}" used_g="${fmt(weight,3)}" group_id="${tool}" nozzle_diameter="${nozzle.toFixed(2)}" volume_type="Standard" used_for_object="true" used_for_support="false" total_load_time="26.00" total_unload_time="0.00"/><nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="${nozzle}" volume_type="Standard"/><layer_filament_lists><layer_filament_list filament_list="0" layer_ranges="0 ${c.layers-1}"/></layer_filament_lists></plate></config>\n`],
     ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:[tool],optimal_assignment:[0],sequence:[1]}})],
-    ['Metadata/project_settings.config',json({printer_model:'Bambu Lab H2D',printer_settings_id:'Bambu Lab H2D 0.4 nozzle',gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:['1','0'],filament_map:[String(map)],filament_map_mode:'Manual',filament_nozzle_map:[String(tool)],nozzle_diameter:['0.4','0.4'],nozzle_volume_type:['Standard','Standard'],nozzle_type:['hardened_steel','hardened_steel','hardened_steel','hardened_steel','hardened_steel'],filament_diameter:['1.75'],filament_type:['PLA'],filament_ids:['GFA00'],filament_colour:['#28A090'],filament_density:['1.26'],filament_flow_ratio:['1'],nozzle_temperature:[String(plan.setup.nozzleC)],nozzle_temperature_initial_layer:[String(plan.setup.nozzleC)],hot_plate_temp:[String(plan.setup.bedC)],hot_plate_temp_initial_layer:[String(plan.setup.bedC)],chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0'})]
+    ['Metadata/project_settings.config',json({printer_model:'Bambu Lab H2D',printer_settings_id:`Bambu Lab H2D ${nozzles[0]} nozzle`,gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:['1','0'],filament_map:[String(map)],filament_map_mode:'Manual',filament_nozzle_map:[String(tool)],nozzle_diameter:nozzles,nozzle_volume_type:['Standard','Standard'],nozzle_type:['hardened_steel','hardened_steel','hardened_steel','hardened_steel','hardened_steel'],filament_diameter:['1.75'],filament_type:['PLA'],filament_ids:['GFA00'],filament_colour:[color],filament_density:['1.26'],filament_flow_ratio:['1'],nozzle_temperature:[String(plan.setup.nozzleC)],nozzle_temperature_initial_layer:[String(plan.setup.nozzleC)],hot_plate_temp:[String(plan.setup.bedC)],hot_plate_temp_initial_layer:[String(plan.setup.bedC)],chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0'})]
   ]);
-  const sliceName='Metadata/slice_info.config',projectName='Metadata/project_settings.config';
-  entries.set(sliceName,entries.get(sliceName)
-    .replace('color="#28A090"',`color="${color}"`)
-    .replace('key="nozzle_diameters" value="0.4,0.4"',`key="nozzle_diameters" value="${nozzles.join(',')}"`)
-    .replace('nozzle_diameter="0.40"',`nozzle_diameter="${nozzle.toFixed(2)}"`)
-    .replace(`nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="0.4"`,`nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="${nozzle}"`));
-  const project=JSON.parse(entries.get(projectName));
-  // The preset family is selected by the first (left) nozzle. Mixed H2D
-  // diameters are then carried by nozzle_diameter and the slice metadata.
-  project.printer_settings_id=`Bambu Lab H2D ${nozzles[0]} nozzle`;project.nozzle_diameter=nozzles;project.filament_colour=[color];
-  entries.set(projectName,json(project));
   const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){
     if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.moves,c.bounds,size));

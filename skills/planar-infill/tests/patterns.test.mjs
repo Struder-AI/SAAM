@@ -86,7 +86,7 @@ test('new sparse patterns compose with unchanged solid skins and one wall owner 
 
 test('missing and malformed pattern settings fail before generation',()=>{
   const plan=defaults();assert.equal(plan.skills['planar-infill'].pattern,'rectilinear');
-  for(const field of ['pattern','sampleStepMm','maxPatternCells']){
+  for(const field of ['pattern','sampleStepMm','maxPatternCells','perimeterScope']){
     const missing=defaults();delete missing.skills['planar-infill'][field];
     assert.throws(()=>validatePlan(missing,loadMachine()),/Unexpected or missing fields/);
   }

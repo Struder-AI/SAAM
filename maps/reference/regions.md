@@ -212,6 +212,16 @@ setting overrides; it resolves against the other settings locked in that plan.
 It supersedes global enabled flags. Regions own selection and height bounds;
 overrides cannot independently change those fields.
 
+An assignment may also carry an optional, non-empty `process` record overriding
+`firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS` or
+`firstLayerSpeedMmS` for that region only; omit it to use the plan process.
+A region with process overrides owns its own layer grid from its start height:
+its span must hold its first layer plus a whole number of local layer pitches,
+instead of aligning with the component's global grid. Its planar layers take
+their global indices from the union of regional layer heights, so fill angles
+and preview layers stay ordered across differently pitched regions. Checks:
+[regions.test.mjs](../../core/tests/regions.test.mjs).
+
 Prepared text exposes `base` and `text/<feature-id>` material selections; in an
 assembly prefix these with `<component-id>/`. Whole-component selectors retain
 their existing meaning. [Geometry selections](../../core/geom/selections.mjs) resolves
