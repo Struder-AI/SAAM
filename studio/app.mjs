@@ -354,11 +354,17 @@ async function refresh(follow=false,reopen=false) {
   $('#skin-label').textContent=view().skinLabel;
   document.title='SAAM Studio · '+state.printName;
   $('#open-print').title='Open print: '+state.printName;
+  // Geometry keys off the previously loaded state's version (null on a print
+  // switch), not a value stored on geometryScene, so a different print always
+  // rebuilds even when the two share a geometryVersion counter.
   if(!geometryScene||loaded?.geometry.geometryVersion!==state.geometry.geometryVersion){
     geometryScene=buildGeometryView(state.geometry,35,state.tourExample?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
   }
+  // Toolpath and material views both cache the program's move buffer; each
+  // rebuilds only when that buffer is replaced.
+  const staleForMoves=view=>view?.moves!==state.program?.moves;
   // Geometry-only tour responses deliberately omit source. Retain at most the
   // current print's decoded view so Back/Continue can reuse unchanged bytes.
   if(!state.program){
@@ -367,10 +373,10 @@ async function refresh(follow=false,reopen=false) {
     else if(!(state.tour?.active&&state.tour.step<L.playback&&playbackCache?.printId===state.printId&&playbackCache.planHash===state.planHash))clearProgramView();
   }else{
     stalePresentation=null;
-    if(pathView?.moves!==state.program.moves)pathView=buildToolpathView(state.program.moves);
+    if(staleForMoves(pathView))pathView=buildToolpathView(state.program.moves);
     playbackCache={printId:state.printId,planHash:state.planHash,exportHash:state.exportHash,program:state.program};
   }
-  if(state.program&&materialScene?.moves!==state.program.moves){
+  if(state.program&&staleForMoves(materialScene)){
     materialError='';
     try{
       materialRenderer??=createMaterialRenderer();
