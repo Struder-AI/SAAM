@@ -32,7 +32,7 @@ test('compact review updates retain playback and avoid loading the scene again',
 test('one pure classifier defines geometry and toolpath presentation readiness',()=>{
   const work={snapshot:{inputKey:'current',generationKey:'generated'}};
   assert.deepEqual(requestReceiptState(null,{state:{work,geometry:{},geometryApproved:false},stage:'geometry'}),
-    {activity:'idle',receipt:true,awaitingConfirmation:true});
+    {activity:'idle',receipt:true,awaitingConfirmation:false});
   assert.equal(requestReceiptState(null,{state:{work,program:{}},stage:'toolpath'}).receipt,true);
   assert.equal(requestReceiptState(null,{state:{work,program:{},generationError:'failed'},stage:'toolpath'}).receipt,false);
   assert.equal(requestReceiptState(null,{state:{work,program:{}},stage:'toolpath',requiresToolpath:true}).receipt,false);
@@ -105,9 +105,9 @@ async function confirmationHarness({stored=false,generationError,tour=false}={})
   return {context,nodes,events,calls};
 }
 
-for(const stored of [false,true])test('geometry confirmation acknowledges rendered '+(stored?'stored':'newly generated')+' toolpath and clears waiting state',async()=>{
+for(const stored of [false,true])test('geometry action acknowledges rendered '+(stored?'stored':'newly generated')+' toolpath',async()=>{
   const {context,nodes,events,calls}=await confirmationHarness({stored});
-  assert.deepEqual(calls,stored?['approve']:['approve','generate']);
+  assert.deepEqual(calls,stored?[]:['generate']);
   assert.equal(context.tab,'toolpath');
   const displayed=events.indexOf('render:toolpath'),ack=events.indexOf('ack:toolpath');
   assert.ok(displayed>=0&&ack>displayed,'toolpath renders before its acknowledgement');
@@ -120,26 +120,25 @@ for(const stored of [false,true])test('geometry confirmation acknowledges render
   assert.equal(nodes.get('canvas').classList.contains('work-faded'),false);
 });
 
-test('tour geometry confirmation uses normal approval and generation without changing the lesson',async()=>{
+test('tour geometry action generates without changing the lesson',async()=>{
   const {context,nodes,calls}=await confirmationHarness({tour:true});
-  assert.deepEqual(calls,['approve','generate']);
+  assert.deepEqual(calls,['generate']);
   assert.equal(context.state.tour.step,5);assert.equal(context.tab,'toolpath');
   assert.equal(nodes.get('typing-dots').hidden,true);
 });
 
-test('new geometry awaiting confirmation clears work fade without satisfying the pending toolpath',()=>{
+test('new geometry remains active until it satisfies the pending toolpath target',()=>{
   const request={status:'working',updatedAt:1,expiresAt:Date.now()+60000,
     baseline:{inputKey:'before'},target:{inputKey:'after',stage:'toolpath'}};
-  const view={ready:true,awaitingConfirmation:true,snapshot:{inputKey:'after',stage:'geometry'}};
-  assert.equal(agentIndicator([request],{view}).active,false);
+  const view={ready:true,awaitingConfirmation:false,snapshot:{inputKey:'after',stage:'geometry'}};
+  assert.equal(agentIndicator([request],{view}).active,true);
   assert.equal(agentIndicator([request],{view:{...view,loading:true}}).active,true);
   assert.equal(agentIndicator([{...request,baseline:{inputKey:'after'},target:undefined}],{view}).active,true,'unprepared work on this reviewed shape remains visible');
-  assert.equal(agentIndicator([request],{view:{...view,awaitingConfirmation:false}}).active,true,'toolpath target is still pending');
 });
 
 test('failed generation settles loading without acknowledging an absent toolpath',async()=>{
   const {context,nodes,events,calls}=await confirmationHarness({generationError:'Synthetic generation failure'});
-  assert.deepEqual(calls,['approve','generate']);
+  assert.deepEqual(calls,['generate']);
   assert.equal(events.some(event=>event.startsWith('ack:')),false);
   assert.ok(events.includes('error:Synthetic generation failure'));
   assert.equal(context.busy,false);

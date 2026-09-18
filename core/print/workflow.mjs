@@ -146,7 +146,7 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
     inputIdentity=identity;
   }
   const {geometryHash,planHash}=identity;
-  if(originalSource(plan.geometry))requireThat(await hashFile(resolve(dir,'geometry/source.stl'))===originalSource(plan.geometry).sha256,'Imported STL source changed; geometry approval is stale.');
+  if(originalSource(plan.geometry))requireThat(await hashFile(resolve(dir,'geometry/source.stl'))===originalSource(plan.geometry).sha256,'Imported STL source changed; reload the current geometry.');
   const state = {
     kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime, programChecked:Boolean(program),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
@@ -157,7 +157,6 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
     geometryApproved: review.approvals.geometry?.hash === geometryHash,
     planApproved: review.approvals.plan?.hash === planHash
   };
-  state.planApproved &&= state.geometryApproved;
   if(machine.id==='denso-vp6242-rc8'){
     state.machineConfiguration=validateDensoConfiguration(plan);
     if(!state.machineConfiguration.configured)state.outputAvailability='DENSO installation is unconfigured. Supply tool/work frames, figure, arm group, relay and the rotary control interface before generation.';
@@ -340,20 +339,18 @@ async function updatePlan(directory, plan, revision) {
   return loadBundle(directory);
 }
 
-// Generation performs the calculations the locked plan specifies. Production
-// generation requires geometry confirmation; development generation
-// is a preview and is recorded as one, so it can never satisfy delivery.
+// Generation performs the calculations the locked plan specifies. Both modes
+// may be inspected freely; development output is recorded as a preview and can
+// never satisfy the final reviewed-export delivery gate.
 async function generateBundle(directory, { development = false, onProgress, beforeCommit } = {}) {
   const state = await loadBundle(directory, { program: false });
-  requireThat(development || state.geometryApproved, 'Approve the geometry before production generation.');
   // Both modes use identical commands. Reuse a checked development export after
-  // geometry confirmation, without slicing merely to change its mode. Current
+  // review, without slicing merely to change its mode. Current
   // input/runtime and byte identity still belong to loadBundle; no approval is added.
   if(!development&&state.review.generation?.mode==='development'){
     onProgress?.({stage:'Checking the reviewed file'});
     const current=await loadBundle(directory,{program:'source'});
     if(current.program&&!current.programError){
-      requireThat(current.geometryApproved,'Approve the geometry before production generation.');
       const checks=await json(resolve(state.dir,'checks.json'));
       requireThat(checks.planHash===current.planHash&&checks.exportHash===current.exportHash&&checks.result==='pass','Saved checks do not match the reviewed export.');
       checks.mode='production';
@@ -401,44 +398,27 @@ async function generateBundle(directory, { development = false, onProgress, befo
   return checks;
 }
 
-async function confirmGeometryFromChat(directory, {actor,expectedRevision,geometryHash,statement,chatReference}={}) {
-  requireThat(typeof statement==='string'&&statement.trim().length>0&&statement.length<=8000,'Record the exact human geometry-confirmation statement.');
-  requireThat(typeof chatReference==='string'&&chatReference.trim().length>0&&chatReference.length<=2000,'Identify the chat conversation and confirmation message.');
-  requireThat(typeof geometryHash==='string'&&geometryHash.length>0,'Supply the geometry hash the person confirmed.');
-  const state=await loadBundle(directory,{program:false});
-  requireThat(expectedRevision===state.revision,'This review is stale. Reload before approving.');
-  requireThat(geometryHash===state.geometryHash,'The confirmed geometry changed. Review the current shape before approving.');
-  // This records a human decision already made in chat; it cannot determine
-  // whether arbitrary words actually express approval. The caller owns that judgment.
-  return approve(directory,{stage:'geometry',actor,revision:expectedRevision,program:false},
-    {source:'chat',statement,chatReference,directory:state.dir,revision:expectedRevision,geometryHash});
-}
-
-async function approve(directory, { stage, actor, revision, program = true }, chatEvidence) {
-  requireThat(['geometry', 'toolpath'].includes(stage), 'Confirm geometry first, then settings and toolpath together.');
+async function approve(directory, { stage, actor, revision, program = true }) {
+  requireThat(stage === 'toolpath', 'Only the final settings and exact toolpath are approved.');
   requireThat(typeof actor === 'string' && actor.trim().length >= 2 && actor.length <= 100, 'Enter the human reviewer’s name.');
   const state = await loadBundle(directory,{program});
   requireThat(revision === state.revision, 'This review is stale. Reload before approving.');
-  if(chatEvidence)requireThat(stage==='geometry'&&chatEvidence.geometryHash===state.geometryHash&&chatEvidence.directory===state.dir,
-    'Chat confirmation applies only to the exact selected geometry.');
-  if (stage === 'toolpath') requireThat(state.geometryApproved && state.program && !state.programError
+  requireThat(!state.programError,state.programError);
+  requireThat(state.program && !state.programError
     && state.review.generation?.mode === 'production',
-  'Generate and check the approved production plan before toolpath approval.');
+  'Generate and check the production plan before toolpath approval.');
   const record = {
     actor: actor.trim(), time: new Date().toISOString(),
-    hash: stage === 'geometry' ? state.geometryHash : state.exportHash
+    hash: state.exportHash
   };
-  if(chatEvidence)record.evidence=chatEvidence;
-  if (stage === 'toolpath') {
-    record.planHash = state.planHash;
-    record.scope = ['settings','toolpath'];
-    state.review.approvals.plan = {...record,hash:state.planHash};
-  }
+  record.planHash = state.planHash;
+  record.scope = ['settings','toolpath'];
+  state.review.approvals.plan = {...record,hash:state.planHash};
   state.review.approvals[stage] = record;
   state.review.history.push({ event: 'human-approval', stage, ...record });
   await save(resolve(state.dir, 'review.json'), state.review);
   state.geometryApproved=state.review.approvals.geometry?.hash===state.geometryHash;
-  state.planApproved=state.geometryApproved&&state.review.approvals.plan?.hash===state.planHash;
+  state.planApproved=state.review.approvals.plan?.hash===state.planHash;
   state.toolpathApproved=state.planApproved&&Boolean(state.program)&&!state.programError
     &&state.review.generation?.mode==='production'&&state.review.approvals.toolpath?.hash===state.exportHash
     &&state.review.approvals.toolpath?.planHash===state.planHash;
@@ -506,5 +486,5 @@ async function upgradeBundle(directory) {
   await save(resolve(directory,'machine.json'),machine);
   await save(resolve(directory,'review.json'),review);
 }
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,confirmGeometryFromChat,deliver,changeMachine,upgradeBundle};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine,upgradeBundle};
 }

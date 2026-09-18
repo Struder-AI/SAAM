@@ -29,19 +29,18 @@ const compile=(base,features,options={})=>compileText(base,features,{buildGeomet
 async function temp(t){const dir=await mkdtemp(join(tmpdir(),'saam-text-interop-'));t.after(()=>rm(dir,{recursive:true,force:true}));return dir;}
 const region=(id,part,skills,lowerSurfaceFrom=null)=>({id,part,zStartMm:0,zEndMm:null,skills,lowerSurfaceFrom});
 
-test('material selections preserve geometry approval when the printing plan switches between planar and draped letters',async t=>{
+test('material selections preserve geometry identity when the printing plan switches between planar and draped letters',async t=>{
   const dir=await temp(t),plan=defaults();plan.geometry=base;plan.skills['draped-skin'].enabled=false;
   plan.process.minimumLayerSeconds=0;
   await initBundle(dir,plan,{setupFile:join(dir,'absent.json')});
   let state=await applyText(dir,{feature:f()});
-  await approve(dir,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC INTEROPERABILITY TEST — not a manufacturing approval'});
   state=await loadBundle(dir,{program:false});const geometryHash=state.geometryHash;
   const regions=[region('body','base',{'full-fill':{}}),region('label','text/label',{'full-fill':{}},'body')];
   state=await adjustBundle(dir,{composition:{regions}},{expectedRevision:state.revision});
-  assert.equal(state.geometryHash,geometryHash);assert.equal(state.geometryApproved,true);
+  assert.equal(state.geometryHash,geometryHash);assert.equal(state.geometryApproved,false);
   regions[1].skills={'draped-skin':{layers:4,normalMm:0.2,surveyStepMm:0.1}};
   state=await adjustBundle(dir,{composition:{regions}},{expectedRevision:state.revision});
-  assert.equal(state.geometryHash,geometryHash);assert.equal(state.geometryApproved,true);
+  assert.equal(state.geometryHash,geometryHash);assert.equal(state.geometryApproved,false);
   const path=generatePath(state.plan,machine,r);
   assert.ok(path.actions.some(a=>a.region==='label'&&a.phase==='draped-skin'&&a.volumeMm3>0));
   const overlap=structuredClone(state.plan);overlap.composition.regions[0].part=null;

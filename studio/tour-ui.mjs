@@ -1,9 +1,8 @@
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {hasUnpreparedEdit} from './work-state.mjs';
-export const needsTourGeometryReview=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
-  &&state.tour.step>=L.playback&&!state.geometryApproved);
+export const needsTourGeometryReview=()=>false;
 export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
-  &&state.tour.step>=L.playback&&state.geometryApproved&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability
+  &&state.tour.step>=L.playback&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability
   &&!hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot)&&(!state.program||state.programError));
 export function createTourUI({post,refresh,working,setTab,isBusy,state:current,seek}){
   const $=id=>document.getElementById(id);let progress=null,expanded=null,applied=null;
@@ -12,8 +11,8 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
   async function action(action,step){await working(TOUR_STEPS[step]?.tab==='toolpath'?'Preparing your toolpath…':'Opening your example…',async()=>{
     // The server saves the lesson before generation. Refresh that lesson even
     // when generation fails, so its error is not erased by a later step change.
-    try{await post('tour',{action,step,...(action==='step'&&progress?.step===L.import&&step===L.playback
-      ?{revision:current()?.revision,geometryHash:current()?.geometryHash}:{})});}
+    const state=current(),selection=action==='step'?{revision:state?.revision,geometryHash:state?.geometryHash}:{};
+    try{await post('tour',{action,step,...selection});}
     finally{await load();applied=null;await refresh(false);}
   });}
   const attempt=fn=>async()=>{try{$('tour-status').textContent='';await fn();}catch(e){$('tour-status').textContent=e.message;}};
@@ -39,7 +38,6 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     if(state?.tour)progress=state.tour;
     if(!progress||!state)return;
     const active=progress.active&&progress.directory===state.localPrintDirectory,step=TOUR_STEPS[progress.step];
-    const geometryReview=needsTourGeometryReview(state);
     const displayKey=active?progress.step:progress.completed?'completed':'idle';
     if(displayKey!==displayedStep){$('tour-status').textContent='';displayedStep=displayKey;expanded=true;playStarted=false;importObserved=false;}
     panel.parentElement.dataset.tourStep=active?String(progress.step):'';
@@ -51,32 +49,30 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     $('tour-progress').textContent='SAAM TOUR · '+(progress.step+1)+' OF '+TOUR_STEPS.length;
     $('tour-title').textContent=step.title;$('tour-body').textContent=step.body;$('tour-try').textContent=step.try;
     for(const button of panel.querySelectorAll('button'))button.disabled=isBusy();
-    $('tour-back').disabled=isBusy()||geometryReview||progress.step===0;
-    $('tour-next').disabled=isBusy()||geometryReview||!progress.canNext||(active&&[L.geometry,L.roof,L.settings].includes(progress.step)&&workActive);
+    $('tour-back').disabled=isBusy()||progress.step===0;
+    $('tour-next').disabled=isBusy()||!progress.canNext||(active&&[L.geometry,L.roof,L.settings].includes(progress.step)&&workActive);
     $('tour-next').hidden=progress.step===TOUR_STEPS.length-1;
     $('tour-next').textContent=progress.step===L.import?'Continue with this part':'Next';
     $('import-stl').disabled=isBusy()||active;
     $('tour-toggle').disabled=isBusy();$('open-print').disabled=isBusy()||(active&&progress.step!==2);
-    const highlights=active&&!geometryReview?(progress.step===L.import?(importObserved?['tour-next']:['import-stl','tour-next']):step.highlight?[step.highlight]:[]):[];
+    const highlights=active?(progress.step===L.import?(importObserved?['tour-next']:['import-stl','tour-next']):step.highlight?[step.highlight]:[]):[];
     if(active&&[L.geometry,L.roof].includes(progress.step)&&progress.gates?.[progress.step]&&!$('tour-next').disabled)highlights.push('tour-next');
     if(highlights.includes('play')&&progress.step===L.playback&&playStarted)highlights.splice(highlights.indexOf('play'),1);
     document.querySelectorAll('.tour-highlight').forEach(el=>{if(!highlights.includes(el.id))el.classList.remove('tour-highlight');});
     if(active){
       for(const button of document.querySelectorAll('[data-tab]'))button.disabled=true;
-      $('confirm').disabled=isBusy()||(!geometryReview&&(progress.step!==L.export||!state.program||Boolean(state.programError)));
-      if(geometryReview)$('confirm').textContent='Confirm geometry & return to lesson';
-      else if(progress.step===L.export)$('confirm').textContent='Confirm settings & export';
-      $('review-note').textContent=geometryReview?'Review the updated shape and dimensions. Confirm here or tell your agent this geometry is right to resume this lesson.':progress.step===L.export?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
+      $('confirm').disabled=isBusy()||progress.step!==L.export||!state.program||Boolean(state.programError);
+      if(progress.step===L.export)$('confirm').textContent='Confirm settings & export';
+      $('review-note').textContent=progress.step===L.export?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
       for(const id of highlights)$(id)?.classList.add('tour-highlight');
       if(progress.step===L.setup)$('more-settings').open=true;
-      const desired=geometryReview?'geometry':step.tab;
+      const desired=step.tab;
       const key=progress.step+':'+state.printId+':'+(progress.step===L.playback?JSON.stringify(progress.startAt):'')+':'+desired+':'+Boolean(state.program)+':'+(state.generationError??state.programError??'');
       if(applied!==key){
-        const keepPlayback=!geometryReview&&progress.step===L.playback&&playStarted&&state.program&&playedSource===state.printId+':'+state.exportHash;
+        const keepPlayback=progress.step===L.playback&&playStarted&&state.program&&playedSource===state.printId+':'+state.exportHash;
         applied=key;queueMicrotask(()=>{
           if(keepPlayback)return;
           setTab(desired);
-          if(geometryReview){$('tour-status').textContent='Waiting for geometry confirmation. Your current lesson is saved.';return;}
           if(desired==='toolpath'&&!state.program){$('tour-status').textContent=state.generationError??state.programError??'Preparing your toolpath…';return;}
           $('tour-status').textContent='';
           if(progress.step===L.playback){try{

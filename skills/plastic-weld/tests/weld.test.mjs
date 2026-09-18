@@ -93,7 +93,6 @@ test('shared bundle reopening and exact-byte delivery include weld settings in a
   t.after(()=>rm(root,{recursive:true,force:true}));
   await initBundle(dir,recipe());
   let state=await loadBundle(dir),actor='SYNTHETIC weld test; not a manufacturing approval';
-  await approve(dir,{stage:'geometry',actor,revision:state.revision});
   await generateBundle(dir);state=await loadBundle(dir);
   assert.equal(state.program.events.filter(e=>e.kind==='injection').length,1);
   state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});

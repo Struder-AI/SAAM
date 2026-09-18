@@ -24,7 +24,7 @@ aside[data-tour-step="6"] #facts,aside[data-tour-step="6"] #guidance,aside[data-
 .typing-dots[hidden]{display:none}#agent-timeout{font-style:italic;white-space:nowrap}
 
 /* Shared work fade and independent tour attention cue. Clear immediately when ready. */
-#canvas.work-faded,#canvas.tour-faded{opacity:.28}
+#canvas.work-faded,#canvas.tour-faded,#canvas.stale-toolpath{opacity:.28}
 .tour-choice{position:relative}
 #import-stl.tour-choice{background:#f7f8fb;color:#33436d;border-color:#6474b5}
 #import-stl.tour-choice:disabled{opacity:1}

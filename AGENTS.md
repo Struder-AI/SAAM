@@ -1,26 +1,5 @@
 # SAAM agent entry point
 
-## Tour requests — launch first
-
-For a tour request, the first tool action in a set-up checkout is this command
-from the repository root, through the client's managed command session:
-
-```sh
-node studio/server.mjs --toolkit start-tour --no-open
-```
-
-Use an early yield (about one second when supported). Open `studio.url` from
-the `studio-ready` event immediately with the client's browser integration and
-keep the server session. Then consume the returned participation context and
-keep the returned request listener active. The command creates fresh examples,
-starts lesson one and supplies the instructions needed to continue.
-
-Do not read MAKERS, the toolkit manual, skill manuals, or run onboarding before
-this launch. Do not add a chat introduction or question; Studio supplies the
-first task. Reuse known setup and permissions; a new chat is not an unused
-checkout. Follow SETUP only for a known unused checkout or a concrete setup
-problem, and follow any required client instructions for browser access.
-
 SAAM helps people make parts through conversation with an AI agent, without
 requiring CAD, slicing or programming expertise. The agent handles the tools
 and printing settings; the person guides the result and reviews geometry,
@@ -41,8 +20,8 @@ not clearly call for more, **default to maker**.
 | Role | Does | Onboarding | Reads |
 |---|---|---|---|
 | **Maker** | Uses skills to make parts, gives printing advice, operates Studio for a person. Changes no shared code. | `node scripts/agent-toolkit.mjs maker-onboarding` | [MAKERS.md](MAKERS.md) and the maker context it bundles. No maps. |
-| **Builder** | Changes skills, adds functionality to Studio, and makes isolated, local changes to core; makes parts to test that work in development. | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` | [BUILDERS.md](BUILDERS.md) (with maker workflow in onboarding) and the [dev maps](#maps) for the region being touched. |
-| **Developer** | Works on core and any other component as the work needs; owns cross-cutting design. Maps-native. | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` | The [dev maps](#maps) as the primary account, plus the [developer orientation](DEVELOPER-CONTEXT.md#orientation) for scoped implementation reads. |
+| **Builder** | Changes skills, adds functionality to Studio, and makes isolated, local changes to core; makes parts to test that work in development. | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` | [BUILDERS.md](BUILDERS.md) (with maker workflow in onboarding) and the [dev maps](#dev-maps) for the region being touched. |
+| **Developer** | Works on core and any other component as the work needs; owns cross-cutting design. Maps-native. | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` | The [dev maps](#dev-maps) as the primary account, plus the [developer orientation](DEVELOPER-CONTEXT.md#orientation) for scoped implementation reads. |
 
 Builders inherit maker responsibilities; developers inherit both maker and
 builder responsibilities. This is not a requirement to load every lower-role
@@ -68,6 +47,22 @@ role context; its returned text satisfies those reads.
 - Escalation carries the same authorization as the original request and no more.
   Announce it; do not perform it silently.
 
+## Tour requests — launch first
+
+For a tour request, before any other reading or onboarding, run this from the
+repository root through the client's managed command session:
+
+```sh
+node studio/server.mjs --toolkit start-tour --no-open
+```
+
+Open `studio.url` from the `studio-ready` event immediately with the client's
+browser integration and keep the command session alive. Then use the returned
+participation context and keep the returned request listener active. The command
+bundles maker context, creates fresh examples and starts lesson one, so no
+onboarding or manual reads are needed before or after it. Do not add a chat
+introduction or question; Studio supplies the first task.
+
 ### Suggesting a fresh session
 
 Maker and builder agents should suggest the user start a new chat session when
@@ -77,33 +72,26 @@ Make it a suggestion, not a refusal, and only when both conditions are met.
 Developer agents are exempt; they are expected to run longer sessions under
 experienced management.
 
-## Maps
+### Report sync state at session start
 
-Dev maps own the complete technical reference for core and Studio. Each region
-owns its map, contract references, implementation responsibilities and verification
-routes, shared by agent reads and the human viewer; each box resolves to a
-child map or a code declaration. The [map contract](BUILDERS.md#maps-and-local-documentation)
-owns boundaries, shared components, calculated red links and documentation rules.
-The [maker](maker-context-map.html) and [builder](builder-context-map.html) context
-maps draw documentation navigation for people; they are distinct from code-anchored
-maps, and no agent command returns them. There is no third drawing for developers:
-the dev maps are their navigation, indexed by [developer context](DEVELOPER-CONTEXT.md).
-Read current agent context with `node scripts/agent-toolkit.mjs read-map PAGE`,
-the only region read; start at `0_system`. Use `--section ID#heading` for a
-map-owned contract without loading implementation maps, `--node ADDRESS` for a
-component, `--inventory` for owned files and `--evidence` for detailed impact
-analysis. Normal reads return one page. Build the human
-[viewer](dev-map/index.html) with `node scripts/dev-map.mjs build` — it is
-generated and git-ignored. The [map guide](maps/README.md) owns build/check
-commands and authoring syntax.
+At the start of a maker or builder session — after launching a tour, or before
+taking on any other request — tell the user in one line the date of this
+checkout's last pull from `main`, the current commit hash and how many commits `main` has advanced since,
+so they can pull the latest first if they want.
 
-Developers read the system overview, the affected region and the code it names.
-Dev maps cover core and Studio. Builders read the relevant regions when changing
-those components or investigating their internals, including shared components
-and their other uses. Skill-script changes require the skill guidance and consumed
-API contracts, not an automatic map read. Makers operating existing tools need no
-code maps. Reading a map or shared contract does not itself change an agent's role
-or authorization.
+If the checkout also holds local work the user wants to publish, it belongs on
+that user's contributor dev branch, never on `main` directly; keep one such
+branch per account and reuse it across tasks. Publishing itself follows
+[CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md). Developers manage their own git.
+
+## Dev maps
+
+[Dev maps](maps/0_system.md) own the complete technical reference for core and
+Studio: builders read the regions they touch, developers read them as their
+primary account, and makers operating existing tools need none. The
+[map guide](maps/README.md) owns the `read-map` command, its flags and the
+build/check and authoring syntax; the [map contract](BUILDERS.md#maps-and-local-documentation)
+owns boundaries, shared components and reading rules.
 
 ## Getting to work
 
@@ -118,22 +106,17 @@ Choose the context for the requested work rather than reading everything.
 | Develop core or work across components (developer) | Run `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]`. Work from the region maps; use `read-map PAGE` for missing regions. |
 | Set up an unused checkout | Follow [setup and checks](SETUP.md), including [Studio client permissions](studio/README.md#studio-agent-permissions), before using it. |
 
-Develop on a contributor branch. If the checkout is on main, create a branch
-before editing; publish through a pull request unless direct main work is
-explicitly authorized. Keep at most one active pending branch per account and
-reuse it across tasks rather than creating task-specific branches.
-The [agent CLI toolkit](core/agent/README.md) bundles the owning context reads,
-tour startup, preview creation/opening and request coordination. Text returned
-by these commands satisfies the corresponding manual reads. Do not read a manual
-before onboarding and then load it again, rerun onboarding for every request, or
-follow a link to a document/section already present in context. Read missing
-context when the task needs it, and refresh affected guidance only when its
-source changed or the prior context is unavailable. In clients without command
-access, read the same owning manuals through their available file/MCP reader
-once; the CLI is a convenience, not an additional context gate.
-These are task contexts, and they do not expand the user's authorization.
-If `.local/AGENTS.md` exists, consult it when the user refers to a local experiment.
-Local capabilities are not part of shared SAAM and must not be assumed elsewhere.
+The [agent CLI toolkit](core/agent/README.md) bundles these onboarding reads,
+tour startup, preview creation/opening and request coordination; its returned
+text satisfies the matching manual reads. Do not reread context already present
+or rerun onboarding per request; read missing context when the task needs it, and
+refresh guidance only when its source changed. Clients without command access read
+the same owning manuals directly once — the CLI is a convenience, not a context
+gate. These are task contexts and do not expand the user's authorization. Git
+handling follows [the sync note above](#report-sync-state-at-session-start) and
+[CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md). If `.local/AGENTS.md` exists,
+consult it when the user refers to a local experiment; local capabilities are not
+part of shared SAAM.
 
 ## Current context boundary
 

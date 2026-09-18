@@ -152,7 +152,7 @@ its partitions together needs the shared explicit lower-surface relationship to
 avoid conflicting ownership.
 
 Choose the shape before choosing its printing pattern. Changing only region
-assignments or their settings retains geometry approval and updates process review.
+assignments or their settings retains saved geometry and updates process review.
 Old saved text records still work as whole solids; one text rebuild is needed to
 expose selections they did not save. That rebuild follows normal geometry review.
 

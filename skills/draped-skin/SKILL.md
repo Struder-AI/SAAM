@@ -106,7 +106,7 @@ Follow the [shared travel contract](../../core/path/README.md#whole-plan-travel-
 ## Validation status
 
 Software tests exercise mesh and spline inputs against both S5 and H2D profiles.
-S5 supports checked Griffin export, Studio's two confirmations and exact-byte
+S5 supports checked Griffin export, Studio's final toolpath/settings confirmation and exact-byte
 delivery. H2D uses the same workflow with experimental sliced-3MF output and
 strict interpretation of the print body. Its firmware service routines are not
 simulated; read the [machine contract](../../core/export/bambu.md#h2d-output-contract).

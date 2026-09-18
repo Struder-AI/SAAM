@@ -14,13 +14,12 @@ import {printName,downloadName} from '../../studio/print-name.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
 async function fixture(t){const dir=await mkdtemp(join(tmpdir(),'saam-agent-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100}));return dir;}
 
-test('tour geometry recovery preserves the lesson and requires explicit confirmation before generation',async t=>{
+test('tour geometry recovery preserves the lesson and generates without a geometry gate',async t=>{
   const root=await fixture(t);let time=0;const tour=createTour(root,{now:()=>time}),requests=createAgentRequests(root);
   const {directory}=await tour.action('fresh');let state=await loadBundle(directory,{program:false});
   state.plan.geometry.parts[1].geometry.heightMm=11;await adjustBundle(directory,{geometry:state.plan.geometry});
   state=await loadBundle(directory,{program:false});await tour.acknowledgeView(directory,{revision:state.revision},state);
   await tour.action('step',1);await tour.action('step',2);await tour.select(directory);await tour.action('step',4);
-  await approve(directory,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC selected geometry'});
   await generateBundle(directory);
   await tour.playback('play');
   await tour.action('step',5);
@@ -33,19 +32,18 @@ test('tour geometry recovery preserves the lesson and requires explicit confirma
   const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
   const get=async()=>await(await fetch(url+'/api/state')).json();
   state=await get();assert.equal(state.geometryApproved,false);assert.equal(state.tour.step,5);
-  assert.equal((await post('tour',{action:'step',step:4})).status,400,'Back cannot silently confirm changed geometry');
   assert.equal((await post('tour',{action:'resume'})).status,400,'ended tours cannot be resumed');
   state=await get();assert.equal(state.geometryApproved,false);assert.equal(state.tour.step,5);assert.equal(state.localPrintDirectory,directory);
   assert.equal((await post('approve',{stage:'toolpath',actor:'SYNTHETIC',revision:state.revision})).status,400);
-  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC explicit geometry review',revision:state.revision})).status,200);
-  state=await get();assert.equal(state.tour.step,5);assert.equal(state.geometryApproved,true);
+  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC explicit geometry review',revision:state.revision})).status,400);
+  state=await get();assert.equal(state.tour.step,5);assert.equal(state.geometryApproved,false);
   const generated=await post('generate',{planHash:state.planHash});assert.equal(generated.status,200,await generated.text());
   state=await get();assert.ok(state.program);assert.equal(state.tour.step,5);assert.equal(state.toolpathApproved,false);
   const displayed=await post('view-ready',{stage:'toolpath',revision:state.revision,exportHash:state.exportHash});
   assert.equal(displayed.status,200);
   assert.ok((await displayed.json()).presentedRequests.some(r=>r.id===edit.id&&r.presented),
     'the acknowledgement returns its receipt directly instead of requiring another state read');
-  state=await get();assert.equal(state.tour.canNext,true,'geometry-only request completes the same chat-edit lesson');
+  state=await get();assert.equal(state.tour.canNext,true,'the requested toolpath completes the same chat-edit lesson');
 });
 
 test('CLI listener claims returned requests in the same call',async t=>{
@@ -113,12 +111,11 @@ test('tour queues chat guidance and exports exact reviewed bytes before completi
   state=await loadBundle(directory,{program:false});await tour.acknowledgeView(directory,{revision:state.revision},state);
   await tour.action('step',1);await tour.action('step',2);await tour.setStartAt({layer:12});await tour.select(directory);await tour.action('step',4);
   await tour.playback('play');
-  await tour.action('step',5);const pending=(await requests.list())[0];assert.match(pending.instruction,/toolpath controls how the confirmed shape is built/);assert.equal(pending.printId,'tour/handle');
+  await tour.action('step',5);const pending=(await requests.list())[0];assert.match(pending.instruction,/toolpath controls how the reviewed shape is built/);assert.equal(pending.printId,'tour/handle');
   await requests.update(pending.id,{status:'completed',message:'Offered patterns in chat'});
   const edit=await requests.begin({directory,instruction:'SYNTHETIC participant requests gyroid infill'});
   await adjustBundle(directory,{skills:{'planar-infill':{pattern:'gyroid'}}});
   await requests.update(edit.id,{status:'working',resultStage:'toolpath'});
-  state=await loadBundle(directory,{program:false});await approve(directory,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC TEST geometry selection'});
   await generateBundle(directory,{development:true});
   state=await loadBundle(directory,{program:'source'});await tour.acknowledgeView(directory,{revision:state.revision,exportHash:state.exportHash,stage:'toolpath'},state);
   await tour.action('step',6);await tour.action('step',7);
@@ -175,7 +172,6 @@ test('STL units are inferred without a dialog and can be corrected without losin
   await importSTLBundle(directory,bytes,{machineId:'ultimaker-s5'});
   let state=await loadBundle(directory,{program:false});assert.equal(state.plan.geometry.source.units,'inch');assert.equal(state.plan.geometry.source.unitsInferred,true);
   state.plan.geometry.vertices=state.plan.geometry.vertices.map(p=>[p[0]*1.1,p[1],p[2]]);await adjustBundle(directory,{geometry:state.plan.geometry,skills:{'planar-infill':{pattern:'gyroid'}}});
-  state=await loadBundle(directory,{program:false});await approve(directory,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC TEST units fixture'});
   state=await loadBundle(directory,{program:false});const before=state.plan.geometry.vertices,revision=state.revision;
   await assert.rejects(setSTLUnits(directory,'mm',{expectedRevision:'stale'}));
   state=await setSTLUnits(directory,'mm',{expectedRevision:revision});

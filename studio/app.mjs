@@ -31,7 +31,7 @@ let materialScene,materialRenderer,materialError='';
 const layerFade=createLayerFade();
 let movieController=null,movieUrl=null;
 let machineSession=null,playbackEpoch=0,requestingPose=null;
-let playbackCache=null;
+let playbackCache=null,stalePresentation=null;
 let exportNameState=null;
 let manualValues=null,manualJog=null,manualDescriptor=null;
 const cameras=machineCameras();
@@ -119,7 +119,7 @@ function requestDraw(){
   if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
 }
 function clearProgramView(){
-  playbackCache=null;
+  playbackCache=null;stalePresentation=null;
   clearManual();
   if(cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));
   cameras.reset();
@@ -127,7 +127,8 @@ function clearProgramView(){
   machineSession?.dispose();machineSession=null;
 }
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
-const duration=()=>state?.program?.summary.motionSeconds??0;
+const presentedState=()=>state?.program?state:stalePresentation;
+const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
 const materialFact=program=>program.summary.materialModel==='relay-estimate'
@@ -288,13 +289,14 @@ const label=id=>{const edge=geometryScene?.edgeFeatures.get(id);return edge?edge
 // and the bed grid do not need to know which shape produced them.
 let waveBoundsMoves=null,waveDisplayBounds=null;
 function partBounds() {
+  const shown=tab==='toolpath'?(presentedState()??state):state;
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
-  for(const point of state.geometry.vertices)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
-  if(tab==='toolpath'&&state.program&&hasSkill(state.plan,'wave-overhangs')){
-    if(waveBoundsMoves!==state.program.moves){
-      waveBoundsMoves=state.program.moves;waveDisplayBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  for(const point of shown.geometry.vertices)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
+  if(tab==='toolpath'&&shown.program&&hasSkill(shown.plan,'wave-overhangs')){
+    if(waveBoundsMoves!==shown.program.moves){
+      waveBoundsMoves=shown.program.moves;waveDisplayBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
       for(const move of waveBoundsMoves)if(move.extruding&&move.phase==='wave-overhangs')for(const p of [move.from,move.to])for(let i=0;i<3;i++){
-        const v=p[i]-(i===0?state.plan.placement.xMm:i===1?state.plan.placement.yMm:0);
+        const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
         waveDisplayBounds.min[i]=Math.min(waveDisplayBounds.min[i],v);waveDisplayBounds.max[i]=Math.max(waveDisplayBounds.max[i],v);
       }
     }
@@ -347,8 +349,6 @@ async function refresh(follow=false,reopen=false) {
     }catch(error){next.programError=error.message;delete next.program;next.toolpathApproved=false;}
   }
   state=next;
-  const tourActive=state.tour?.active&&state.tour.directory===state.localPrintDirectory;
-  const chatConfirmed=follow&&previous&&!previous.geometryApproved&&state.geometryApproved&&!tourActive;
   // Metadata can change while the exact same source/move buffers are reused.
   $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
   $('#skin-label').textContent=view().skinLabel;
@@ -362,8 +362,11 @@ async function refresh(follow=false,reopen=false) {
   // Geometry-only tour responses deliberately omit source. Retain at most the
   // current print's decoded view so Back/Continue can reuse unchanged bytes.
   if(!state.program){
-    if(!(state.tour?.active&&state.tour.step<L.playback&&playbackCache?.printId===state.printId&&playbackCache.planHash===state.planHash))clearProgramView();
+    const replacing=follow&&previous?.printId===state.printId&&Boolean(previous.program||stalePresentation?.program);
+    if(replacing){if(previous.program)stalePresentation=previous;}
+    else if(!(state.tour?.active&&state.tour.step<L.playback&&playbackCache?.printId===state.printId&&playbackCache.planHash===state.planHash))clearProgramView();
   }else{
+    stalePresentation=null;
     if(pathView?.moves!==state.program.moves)pathView=buildToolpathView(state.program.moves);
     playbackCache={printId:state.printId,planHash:state.planHash,exportHash:state.exportHash,program:state.program};
   }
@@ -383,11 +386,10 @@ async function refresh(follow=false,reopen=false) {
     stop();selected=null;fitBounds=null;zoom=1;pan=[0,0];seconds=duration();
     cameras.reset();$('#follow-plate').checked=true;
     if(state.tourExample?.id==='surface-drape'){yaw=-.45;tilt=.52;zoom=1.25;}
-    tab=state.tourExample?(tourUI?.initialTab()??'geometry'):state.program?'toolpath':state.geometryApproved?'toolpath':'geometry';
+    tab=state.tourExample?(tourUI?.initialTab()??'geometry'):state.program?'toolpath':'geometry';
     if(!state.tourExample)restoreView();
   }
-  else if(follow&&previous.planHash!==state.planHash){if(!tourActive||!state.geometryApproved)tab=state.geometryApproved?'toolpath':'geometry';message('Updated from chat.');}
-  else if(chatConfirmed)tab='toolpath';
+  else if(follow&&previous.planHash!==state.planHash){tab=previous.geometryHash!==state.geometryHash?'geometry':'toolpath';message('Updated from chat.');}
   else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
   if(!selected||!state.geometry.labels.includes(selected)&&(!geometryScene.edgeFeatures.has(selected)||previous?.geometry.geometryVersion!==state.geometry.geometryVersion))selectFeature(null);
   machineColors=machineTheme();
@@ -398,7 +400,7 @@ async function refresh(follow=false,reopen=false) {
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
   await acknowledgeDisplayedView();
-  if(needsTourToolpath(state)||chatConfirmed&&(!state.program||state.programError)){
+  if(needsTourToolpath(state)){
     activity('Preparing your toolpath…');
     try{await api('generate',{development:false,planHash:state.planHash});return refresh(follow);}
     catch(error){state.generationError=error.message;message(error.message,true);render();}
@@ -428,7 +430,7 @@ function table(entries) {
   return dl;
 }
 function render() {
-  $('#repair-review').hidden=tab!=='geometry'||!state.importRepair||state.geometryApproved;
+  $('#repair-review').hidden=tab!=='geometry'||!state.importRepair;
   $('#repair-summary').textContent=state.importRepair??'';
   $('#stage-label').hidden=!state.inspection;
   $('#view-title').textContent={geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
@@ -468,20 +470,20 @@ function render() {
     samples.append(button);
   }
   $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
-  const ready=tab==='geometry'||(tab==='toolpath'&&state.geometryApproved);
-  $('#confirm').disabled=!ready||busy;
-  $('#confirm').textContent=tab==='geometry'?(state.geometryApproved?'View toolpath':'Confirm geometry'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
+  $('#confirm').disabled=busy;
+  $('#confirm').textContent=tab==='geometry'?(state.program&&!state.programError&&state.review.generation?.mode==='production'?'View toolpath':'Generate toolpath'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
   if($('#reviewed-download'))$('#reviewed-download').hidden=$('#reviewed-download').dataset.exportKey!==exportKey();
-  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':!state.geometryApproved?'Confirm geometry before reviewing this as a real print.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
+  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#play').disabled=busy||!state.program||Boolean(state.programError);
   $('#selection').hidden=tab==='toolpath';
-  canvas.setAttribute('aria-label',tab==='toolpath'?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.':'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
+  canvas.setAttribute('aria-label',tab==='toolpath'?(state.program?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.':'Previous toolpath shown while its replacement is prepared.'):'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
+  canvas.classList.toggle('stale-toolpath',tab==='toolpath'&&!state.program&&Boolean(stalePresentation?.program));
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
   updateMachineStatus();
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',!!state[{geometry:'geometryApproved',toolpath:'toolpathApproved'}[b.dataset.tab]]);b.disabled=busy||b.dataset.tab==='toolpath'&&!state.program&&!state.geometryApproved;});
+  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',b.dataset.tab==='toolpath'&&state.toolpathApproved);b.disabled=busy||b.dataset.tab==='toolpath'&&!state.program;});
   // Explicit local scratch adapters can describe historical paths without
   // assigning them a current skill or presenting manufacturing approval controls.
   $('#confirm').hidden=Boolean(state.inspection);
@@ -509,6 +511,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
   if(updateUI&&redrawFrame){cancelAnimationFrame(redrawFrame);redrawFrame=0;}
   if(!state)return;
+  const shown=tab==='toolpath'?(presentedState()??state):state;
   if(updateUI){if(!playing&&!movieController)requestMachinePose();updateMachineStatus();}
   if(target.width!==Math.round(width*ratio)||target.height!==Math.round(height*ratio)){target.width=Math.round(width*ratio);target.height=Math.round(height*ratio);}
   ctx.setTransform(ratio,0,0,ratio,0,0);ctx.globalAlpha=1;
@@ -519,11 +522,11 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   const bounds=partBounds(),skinPhase=view().skinPhase;
   const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,width,height,yaw,tilt,zoom,pan,tab==='toolpath'&&cameras.mode==='machine');
   const referenceProject=tab==='toolpath'&&machineState?.pose&&!$('#follow-plate').checked?p=>{
-    const {xMm,yMm}=state.plan.placement,q=transform(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);
+    const {xMm,yMm}=shown.plan.placement,q=transform(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);
     return project([q[0]-xMm,q[1]-yMm,q[2]]);
   }:project;
   const previousLayerOpacity=Number($('#previous-layer-opacity').value)/100;
-  const strokeScale={lineWidthMm:state.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity};
+  const strokeScale={lineWidthMm:shown.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity};
   ctx.globalAlpha=1;
   for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
@@ -552,13 +555,13 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     if(!geometryRenderer&&geometryScene.edgeFeatures.has(selected))for(const [a,b]of visibleGeometryEdgeSegments(geometryScene,project,selected))segment(a,b,'#eb591f',3);
     if(updateUI)$('#selection').textContent=selected?label(selected):geometryError||'Click a surface or edge to see its name';
   }
-  if(tab==='toolpath'&&state.program) {
-    const moves=state.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=state.plan.placement,showTravel=$('#travel').checked;
+  if(tab==='toolpath'&&shown.program) {
+    const moves=shown.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=shown.plan.placement,showTravel=$('#travel').checked;
     if(updateUI)$('#layer-label').textContent='Layer '+(layerIndexAt(pathView,seconds)+1)+'/'+pathView.groups.length;
-    const center=state.plan.setup.denso?.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0;
+    const center=shown.plan.setup.denso?.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0;
     const machine=machineState?.pose,follow=$('#follow-plate').checked;
-    const local=p=>{const q=machine?(follow?p:transform(machine.part,p)):displayPoint(p,angle,center,!state.plan.setup.denso||follow);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
-    if(state.plan.setup.denso&&!machine?.hasBed){
+    const local=p=>{const q=machine?(follow?p:transform(machine.part,p)):displayPoint(p,angle,center,!shown.plan.setup.denso||follow);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
+    if(shown.plan.setup.denso&&!machine?.hasBed){
       const radius=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1])*.65;
       let prior=null;
       for(let i=0;i<=80;i++){const a=i*Math.PI/40,q=project(local([center[0]+radius*Math.cos(a),center[1]+radius*Math.sin(a),center[2]]));if(prior)segment(prior,q,'#718d91',1);prior=q;}
@@ -594,7 +597,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     // Finish an outgoing fade even when playback is paused at the boundary.
     // Stationary injection has duration and volume but no line segment. Show
     // its source-decoded location without inventing a simulated filled rivet.
-    for(const event of state.program.events??[])if(event.kind==='injection'&&seconds>=event.startSeconds){
+    for(const event of shown.program.events??[])if(event.kind==='injection'&&seconds>=event.startSeconds){
       const p=project(local(event.positionMm)),active=seconds<event.startSeconds+event.seconds;
       ctx.beginPath();ctx.arc(p[0],p[1],active?7:4,0,Math.PI*2);ctx.strokeStyle='#b85c28';ctx.lineWidth=2;ctx.stroke();
       if(active){ctx.fillStyle='#b85c28';ctx.font='12px Segoe UI';ctx.fillText(`Injecting ${event.volumeMm3.toFixed(2)} mm³ · ${event.nozzleC}°C`,p[0]+11,p[1]-8);}
@@ -628,11 +631,11 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.mi
 canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
 $$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
-function worldToDisplay(p,pose=machineSample()?.pose){const q=$('#follow-plate').checked&&pose?untransform(pose.part,p):p;return [q[0]-state.plan.placement.xMm,q[1]-state.plan.placement.yMm,q[2]];}
+function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?untransform(pose.part,p):p;return [q[0]-plan.placement.xMm,q[1]-plan.placement.yMm,q[2]];}
 function fitMachine(){return machineSession?.scene?machineFitBounds(machineSession.scene,machineSample()?.pose,p=>worldToDisplay(p)):null;}
 function fitDisplayedPart(bounds=partBounds()){
   const pose=machineSample()?.pose;if(!pose||$('#follow-plate').checked)return null;
-  const {xMm,yMm}=state.plan.placement,points=boundsCorners(bounds).map(p=>worldToDisplay(transform(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
+  const {xMm,yMm}=(presentedState()??state).plan.placement,points=boundsCorners(bounds).map(p=>worldToDisplay(transform(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
   return {min:[0,1,2].map(i=>Math.min(...points.map(p=>p[i]))),max:[0,1,2].map(i=>Math.max(...points.map(p=>p[i])))};
 }
 $('#machine-view').onchange=()=>{
@@ -647,8 +650,9 @@ $('#fit-program').onclick=()=>{
   else {
     const part=partBounds();
     fitBounds={min:[part.min[0],part.min[1],0],max:[part.max[0],part.max[1],0]};
-    for(const move of state.program.moves)for(const p of [move.from,move.to])for(let i=0;i<3;i++){
-      const v=p[i]-(i===0?state.plan.placement.xMm:i===1?state.plan.placement.yMm:0);
+    const shown=presentedState()??state;
+    for(const move of shown.program.moves)for(const p of [move.from,move.to])for(let i=0;i<3;i++){
+      const v=p[i]-(i===0?shown.plan.placement.xMm:i===1?shown.plan.placement.yMm:0);
       fitBounds.min[i]=Math.min(fitBounds.min[i],v);fitBounds.max[i]=Math.max(fitBounds.max[i],v);
     }
     fitBounds=fitDisplayedPart(fitBounds)??fitBounds;fitBounds.allMoves=true;
@@ -685,9 +689,8 @@ $('#confirm').onclick=async()=>{
     catch(e){message(e.message,true);await refresh(false);}return;
   }
   try{
-    await working(tab==='toolpath'?'Checking your toolpath…':'Saving geometry confirmation…',async()=>{
+    await working(tab==='toolpath'?'Checking your toolpath…':'Preparing your toolpath…',async()=>{
     if(tab==='geometry'){
-      if(!state.geometryApproved)await approval('geometry');
       if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
       else{setTab('toolpath');await acknowledgeDisplayedView();}
     }

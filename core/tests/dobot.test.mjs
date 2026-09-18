@@ -88,7 +88,6 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
   const {machine,plan}=fixture(),dir=await mkdtemp(join(tmpdir(),'saam-dobot-bundle-'));
   try{
     await initBundle(dir,plan,{machineId:machine.id});let state=await loadBundle(dir);
-    state=await approve(dir,{stage:'geometry',actor,revision:state.revision});
 
     const checks=await generateBundle(dir);assert.ok(checks.checks.includes('strict-lua-execution'));
     assert.ok(!checks.checks.includes('temperature-state'));assert.ok(!checks.checks.includes('extrusion-flow'));
@@ -102,6 +101,6 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
     await assert.rejects(()=>deliver(dir),/exact current export/);
     await writeFile(output,original);state=await loadBundle(dir);
     await assert.rejects(()=>adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:'stale'}),/stale/);
-    const revised=await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});assert.equal(revised.toolpathApproved,false);assert.equal(revised.geometryApproved,true);
+    const revised=await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});assert.equal(revised.toolpathApproved,false);assert.equal(revised.geometryApproved,false);
   }finally{await rm(dir,{recursive:true,force:true});}
 });

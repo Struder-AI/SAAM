@@ -23,7 +23,7 @@ export function referenceAdapter(live){
     return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
   },async bundleFingerprint(directory,options){return await live.bundleFingerprint(directory,options)+(options?.presentation?'':Boolean(await tourExample(directory)));},
   ...Object.fromEntries(['approve','generateBundle','deliver'].map(method=>[method,async(directory,...args)=>{
-    if(await tourExample(directory)&&method!=='generateBundle'&&!(method==='approve'&&args[0]?.stage==='geometry'))throw Error('Exit the tour before confirming a real print.');
+    if(await tourExample(directory)&&method!=='generateBundle')throw Error('Exit the tour before confirming a real print.');
     return live[method](directory,...args);
   }]))};
 }
@@ -126,7 +126,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       const data=await observed();
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
       if(data.step===L.settings){
-        if(seen.stage!=='toolpath'||!state.geometryApproved||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
+        if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
         const shown={...workSnapshot(state),stage:'toolpath'},baseline=data.editLesson;
         const requested=(await requests.list({printId:baseline.printId})).some(r=>r.source==='agent'&&r.kind!=='guidance'
           &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)

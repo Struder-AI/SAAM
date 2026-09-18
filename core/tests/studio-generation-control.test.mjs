@@ -7,6 +7,49 @@ import * as bundle from '../print/bundle.mjs';
 import {generationControl} from '../print/generation-control.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
+import {PreparedGenerationJob} from '../../studio/prepared-generation-job.mjs';
+import {EventEmitter} from 'node:events';
+
+class SyntheticWorker extends EventEmitter {
+  messages=[];terminations=0;
+  postMessage(message){this.messages.push(message);}
+  terminate(){this.terminations++;return Promise.resolve(0);}
+  unref(){}
+}
+
+const syntheticJob=()=>{
+  const worker=new SyntheticWorker();let detachments=0;
+  const job=new PreparedGenerationJob({key:'part:plan',directory:'part',planHash:'plan',createWorker:()=>worker,
+    attachSource:()=>()=>{detachments++;}});
+  return {job,worker,get detachments(){return detachments;}};
+};
+
+test('prepared generation job owns ready, generating and disposed settlement',async()=>{
+  const fixture=syntheticJob(),{job,worker}=fixture;
+  assert.equal(job.status,'preparing');
+  worker.emit('message',{type:'progress',progress:{stage:'Checking paths'}});
+  assert.deepEqual(job.progress,{stage:'Checking paths'});
+  worker.emit('message',{type:'prepared'});assert.equal(job.status,'ready');
+  const generated=job.generate(true);assert.equal(job.status,'generating');
+  assert.deepEqual(worker.messages,[{type:'generate',development:true}]);
+  worker.emit('message',{type:'generated',checks:{planHash:'plan'}});
+  assert.deepEqual(await generated,{planHash:'plan'});assert.equal(job.status,'disposed');
+  assert.equal(worker.terminations,1);assert.equal(fixture.detachments,1);
+  await job.dispose();assert.equal(worker.terminations,1);assert.equal(fixture.detachments,1);
+});
+
+test('prepared generation job retains failure and cancellation outcomes',async()=>{
+  const failed=syntheticJob();
+  failed.worker.emit('message',{type:'prepared',error:'SYNTHETIC diagnostic'});
+  assert.equal(failed.job.status,'failed');assert.equal(failed.job.error,'SYNTHETIC diagnostic');
+  await assert.rejects(failed.job.generate(false),/SYNTHETIC diagnostic/);
+  await failed.job.dispose();assert.equal(failed.worker.terminations,1);assert.equal(failed.detachments,1);
+
+  const cancelled=syntheticJob(),pending=cancelled.job.generate(false);
+  const result=cancelled.job.cancel();assert.equal(result.cancelled,true);await result.done;
+  await assert.rejects(pending,{code:'GENERATION_CANCELLED'});
+  assert.equal(cancelled.job.status,'disposed');assert.equal(cancelled.worker.terminations,1);assert.equal(cancelled.detachments,1);
+});
 
 async function fixture(t){
   const root=await mkdtemp(resolve(tmpdir(),'saam-generation-control-')),dir=resolve(root,'part');
@@ -53,15 +96,10 @@ test('cancellation before commit preserves files; cancellation after commit begi
 
 test('approval and delivery history update review metadata while keeping the displayed source identity',async t=>{
   const {dir,get}=await fixture(t);
-  let shown=await get('state');
-  await bundle.approve(dir,{stage:'geometry',actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:false});
-  let changed=await get('revision?'+new URLSearchParams({fingerprint:shown.fingerprint}));
-  assert.notEqual(changed.fingerprint,shown.fingerprint);assert.equal(changed.presentationFingerprint,shown.presentationFingerprint);
-  assert.equal(changed.reviewUpdate.geometryApproved,true);assert.equal(changed.reviewUpdate.toolpathApproved,false);
-  await bundle.generateBundle(dir);shown=await get('state');
+  await bundle.generateBundle(dir);const shown=await get('state');
   await bundle.approve(dir,{stage:'toolpath',actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:'source'});
   await bundle.deliver(dir);
-  changed=await get('revision?'+new URLSearchParams({fingerprint:shown.fingerprint}));
+  const changed=await get('revision?'+new URLSearchParams({fingerprint:shown.fingerprint}));
   assert.equal(changed.presentationFingerprint,shown.presentationFingerprint);assert.equal(changed.reviewUpdate.exportHash,shown.exportHash);
   assert.equal(changed.reviewUpdate.toolpathApproved,true);assert.notEqual(changed.reviewUpdate.revision,shown.revision);
   assert.equal(changed.reviewUpdate.review.history,undefined,'compact control updates omit accumulated audit history');

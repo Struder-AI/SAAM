@@ -1,7 +1,7 @@
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,upgradeBundle,checkPathBundle,changeMachine,confirmGeometryFromChat} from './bundle.mjs';
+import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,upgradeBundle,checkPathBundle,changeMachine} from './bundle.mjs';
 import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
@@ -29,13 +29,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       const directory = await initBundle(bundleDirectory(), plan,{machineId});
       console.log(`Print created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
-      console.log('Nothing is approved yet; a person confirms geometry in Studio or explicitly in chat, then settings/toolpath together in Studio.');
-    } else if(command==='confirm-geometry') {
-      if(!target||!argument||extra!==undefined)throw new Error('Use confirm-geometry <print-directory> <confirmation.json>.');
-      const confirmation=await readJson(resolve(argument));
-      if(!confirmation||Array.isArray(confirmation)||typeof confirmation!=='object'||Object.keys(confirmation).some(key=>!['actor','expectedRevision','geometryHash','statement','chatReference'].includes(key)))
-        throw new Error('Geometry confirmation accepts only actor, expectedRevision, geometryHash, statement and chatReference.');
-      console.log(report(await confirmGeometryFromChat(bundleDirectory(),confirmation)));
+      console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
     } else if(command==='text') {
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
       const state=await applyText(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
@@ -88,7 +82,6 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
     } else {
       console.error('       cli.mjs init|demo|generate|check|deliver|upgrade|remember-setup [print-directory] [plan.json]');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
-      console.error('       cli.mjs confirm-geometry <print-directory> <confirmation.json>');
       console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');
       console.error('       cli.mjs heat-set <print-directory> <heat-set-request.json> [--revision <revision>]');

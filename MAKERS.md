@@ -238,27 +238,22 @@ explain that actual dependency. Never refuse supported functionality because the
 person is in the "wrong" step. Tour-only teaching limits live in the
 [tour participation manual](examples/prints/README.md#maker-agent-participation).
 
-The person confirms geometry, then settings and the exact toolpath together.
-Geometry can be confirmed in Studio or by an explicit chat statement approving
-the current resulting shape. Record chat approval with the shared
-[geometry confirmation command](core/print/USAGE.md), including its current revision,
-geometry hash and chat reference; permission to make an edit is not approval of
-its result. Final settings/toolpath confirmation stays in Studio.
+Geometry review is guidance, not a gate. The person may inspect and revise the
+shape before or after generation. The one explicit confirmation covers the
+current settings and exact toolpath together in Studio immediately before export.
 
 1. **Prepare the first preview.** Initialize the print and show its geometry as
    soon as a reasonable shape is available. State the proposed dimensions and
    assumptions, and revise them through conversation.
-2. **Confirm geometry.** Show the shape and dimensions until the person is ready.
-   Establish the printer and material before this confirmation opens the toolpath.
-   Geometry confirmation starts generation directly; there is no settings pane
-   or separate settings confirmation.
+2. **Review geometry.** Show the shape and dimensions, invite changes and generate
+   whenever a toolpath helps the review. Establish the printer and material before
+   relying on that toolpath.
 3. **Review settings and toolpath together.** Present the recipe in plain language.
    Studio shows the printer, material and expandable full settings beside playback
    of the checked machine commands. The person may request infill, material,
    printer or other changes here. Apply them, regenerate the affected toolpath
-   and show the result in the same view. Changed geometry returns to geometry
-   confirmation; settings-only changes keep it. In a tour, geometry review temporarily
-   replaces the view and either confirmation input returns to the same lesson.
+   and show the result in the same view. While a replacement is prepared, Studio
+   keeps the previous toolpath visible at reduced opacity for continuity.
 4. **Confirm and export.** The final confirmation covers both the current settings
    and the exact toolpath. Deliver those bytes unchanged. Explain the relevant
    transfer method: for the Ultimaker example, download the machine file, copy it

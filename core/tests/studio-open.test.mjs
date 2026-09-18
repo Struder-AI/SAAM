@@ -42,15 +42,12 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   assert.deepEqual(await listPrints(library),[]);
 });
 
-test('Studio reopens saved approval stages and exports without creating or rewriting approvals',async t=>{
+test('Studio reopens saved exports without creating or rewriting approvals',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-open-'));t.after(()=>rm(library,{recursive:true,force:true}));
   const geometry=join(library,'geometry-only'),ready=join(library,'ready-h2d');
   await shell.initBundle(geometry,boxPlan());
   let state=await shell.loadBundle(geometry);
-  await shell.approve(geometry,{stage:'geometry',actor:'SYNTHETIC TEST reopen',revision:state.revision});
   await shell.initBundle(ready,boxPlan(loadMachine('bambu-h2d')),{machineId:'bambu-h2d'});
-  state=await shell.loadBundle(ready);
-  for(const stage of ['geometry'])state=await shell.approve(ready,{stage,actor:'SYNTHETIC TEST reopen',revision:state.revision});
   await shell.generateBundle(ready);
   const original=await readFile(join(ready,'review.json'));
   const server=createStudio(geometry,{libraryRoot:library});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
@@ -58,7 +55,7 @@ test('Studio reopens saved approval stages and exports without creating or rewri
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data,authorized=true)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:authorized?origin:'http://evil.invalid','X-SAAM-Token':token},body:JSON.stringify(data)});
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
-  const first=await get();assert.equal(first.geometryApproved,true);assert.equal(first.planApproved,false);assert.equal(first.program,undefined);
+  const first=await get();assert.equal(first.geometryApproved,false);assert.equal(first.planApproved,false);assert.equal(first.program,undefined);
   assert.equal((await post('open',{path:ready},false)).status,403);
   const archive=join(ready,'exports/bambu-gcode/part.gcode.3mf');
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
@@ -88,9 +85,9 @@ test('Studio reopens saved approval stages and exports without creating or rewri
   await writeFile(archive,Buffer.from('altered'));
   assert.equal((await post('open',{path:ready})).status,200);
   state=await get();assert.equal(state.program,undefined);assert.match(state.programError,/changed/);
-  assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
   assert.equal((await post('open',{path:join(geometry,'plan.json')})).status,200);
-  assert.equal((await get()).geometryApproved,true);
+  assert.equal((await get()).geometryApproved,false);
 });
 
 test('background preparation leaves review writable and persists only a currently approved generation',async t=>{
@@ -103,16 +100,6 @@ test('background preparation leaves review writable and persists only a currentl
   assert.deepEqual(await readFile(join(dir,'review.json')),original);
   await assert.rejects(readFile(join(dir,'exports/griffin-gcode/part.gcode')),{code:'ENOENT'});
   const request=async()=>{const reply=once(worker,'message');worker.postMessage({type:'generate'});return (await reply)[0];};
-  assert.match((await request()).error,/Approve the geometry/);
-  const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
-  const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
-  let revision=initial.revision;
-  for(const stage of ['geometry']){
-    const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({stage,actor:'SYNTHETIC worker test',revision})});
-    assert.equal(response.status,200);const saved=await response.json();
-    assert.ok(saved.approval);assert.equal(saved.approval.plan,undefined);
-    revision=saved.approval.revision;
-  }
   const generated=await request();assert.equal(generated.error,undefined);assert.equal(generated.checks.mode,'production');
   assert.ok(generated.source.metadata);assert.equal(generated.source.metadata.moves,undefined);assert.equal(generated.source.metadata.events,undefined);
   assert.equal((await shell.loadBundle(dir)).toolpathApproved,false);
@@ -122,20 +109,19 @@ test('background preparation leaves review writable and persists only a currentl
   assert.deepEqual(await readFile(join(dir,'exports/griffin-gcode/part.gcode')),exportBefore);
 });
 
-test('compact approval response invalidates a browser program when saved export bytes change',async t=>{
+test('final approval rejects a saved export whose bytes changed',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-approval-export-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await shell.initBundle(dir,boxPlan());await shell.generateBundle(dir,{development:true});
+  await shell.initBundle(dir,boxPlan());await shell.generateBundle(dir,{development:false});
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state=await(await fetch(origin+'/api/state')).json();assert.ok(state.program);
   const file=join(dir,'exports/griffin-gcode/part.gcode');await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
-  const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({stage:'geometry',actor:'SYNTHETIC stale export test',revision:state.revision})});
-  assert.equal(response.status,200);const {approval}=await response.json();
-  assert.equal(approval.geometryApproved,true);assert.equal(approval.programAvailable,false);
-  assert.match(approval.programError,/files changed/);assert.equal(approval.exportHash,null);
+  const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({stage:'toolpath',actor:'SYNTHETIC stale export test',revision:state.revision})});
+  assert.equal(response.status,400);assert.match((await response.json()).error,/files changed/);
+  const current=await(await fetch(origin+'/api/state')).json();assert.match(current.programError,/files changed/);assert.equal(current.exportHash,undefined);
 });
 
-test('ordinary review and unconfirmed generation do not slice; explicit retry recovers a failed worker',async t=>{
+test('ordinary review does not slice; explicit generation retries a failed worker',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-worker-retry-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   await shell.initBundle(dir,boxPlan());
   const OriginalWorker=workerThreads.Worker;let attempts=0,failed;
@@ -155,14 +141,9 @@ test('ordinary review and unconfirmed generation do not slice; explicit retry re
   const post=(route,data)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify(data)});
   let state=await get();
   await get();await get();assert.equal(attempts,0,'geometry review does not slice');
-  const denied=await post('generate',{});assert.equal(denied.status,400);
-  assert.match((await denied.json()).error,/Approve the geometry/);assert.equal(attempts,0,'approval is checked before starting expensive work');
+  const failedGeneration=await post('generate',{});assert.equal(failedGeneration.status,400);
+  assert.match((await failedGeneration.json()).error,/SYNTHETIC worker startup failure/);
   state=await get();assert.deepEqual(state.review.approvals,{});assert.equal(state.review.generation,null);
-  for(const stage of ['geometry']){
-    const response=await post('approve',{stage,actor:'SYNTHETIC worker retry test',revision:state.revision});
-    assert.equal(response.status,200);Object.assign(state,(await response.json()).approval);
-  }
-  assert.equal((await post('generate',{})).status,400);
   assert.match((await failure).message,/SYNTHETIC worker startup failure/);
   await get();await get();assert.equal(attempts,1,'state refresh must not create a background retry loop');
   assert.equal((await post('generate',{})).status,200);
@@ -189,8 +170,6 @@ test('preparation diagnostics stay actionable until explicit retry; state pollin
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify(data)});
   let state=await get();assert.equal(attempts,0);
-  const approved=await post('approve',{stage:'geometry',actor:'SYNTHETIC diagnostic retry test',revision:state.revision});
-  assert.equal(approved.status,200);
   const first=await post('generate',{});assert.equal(first.status,400);
   assert.equal((await diagnostic).error,'SYNTHETIC completed diagnostic');
   assert.equal((await first.json()).error,'SYNTHETIC completed diagnostic');

@@ -236,7 +236,7 @@ in generate request
 out checks / diagnostic
 port in | generate request
 box generate | 7.1.3.1 | request generation | @studio/server.mjs::createStudio::generate
-box prepare | 7.1.3.2 | prepare candidate worker | @studio/server.mjs::createStudio::prepare
+box prepare | 7.1.3.2 | prepare candidate worker | @studio/prepared-generation-job.mjs::PreparedGenerationJob
 box control | 7.1.3.3 | control cancellation | @core/print/generation-control.mjs::generationControl
 box candidate | 7.1.3.4 | check candidate | @studio/generation-worker.mjs::ready
 box provenance | 7.1.3.5 | retain checked source | @core/print/program-handoff.mjs::attachCheckedProgramWorker
@@ -451,7 +451,7 @@ browser > connect | load / restored page | data
 studio-server | studio/server.mjs, studio/changes.mjs | studio-protocols#changing-studio-http-and-change-notifications | core/tests/studio-agent.test.mjs, core/tests/studio-work.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-generation-control.test.mjs
 studio-lifetime | studio/browser.mjs, studio/lifetime.mjs, studio/viewer-session.mjs | studio#changing-browser-and-viewer-lifetime | core/tests/studio-open.test.mjs, core/tests/studio-lifetime.test.mjs, core/tests/studio-tour-lifetime.test.mjs, core/tests/studio-visibility.test.mjs
 studio-requests | studio/agent-requests.mjs, studio/request-index.mjs, studio/agent-ui.mjs, studio/work-state.mjs | studio-protocols#changing-agent-request-state-and-presentation | core/tests/request-index.test.mjs, core/tests/studio-agent.test.mjs, core/tests/studio-agent-ui.test.mjs, core/tests/studio-work.test.mjs
-studio-generation | studio/generation-worker.mjs | studio-protocols#changing-generation-workers | core/tests/studio-generation-control.test.mjs
+studio-generation | studio/prepared-generation-job.mjs, studio/generation-worker.mjs | studio-protocols#changing-generation-workers | core/tests/studio-generation-control.test.mjs
 studio-import | studio/import-stl.mjs, studio/import-worker.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
 studio-source | studio/source-player.mjs, studio/source-worker.mjs, studio/machine-session.mjs | studio-protocols#changing-source-workers-and-machine-sessions | core/tests/source-player.test.mjs, core/tests/studio-kinematics.test.mjs, core/tests/studio-generation-control.test.mjs
 studio-app | studio/app.mjs | studio#changing-studio-application-coordination | core/tests/studio-view-readiness.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-spinner.test.mjs, core/tests/studio-work.test.mjs

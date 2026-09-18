@@ -65,14 +65,14 @@ The importer accepts ASCII or binary STL, preserves its
 source bytes and hash, checks the mesh, and translates it onto the bed. It reuses
 remembered machine setup and creates a shell recipe with draped skin disabled.
 Adjust printing patterns for the intended result, then show size and placement
-in Studio before geometry approval.
+in Studio for review.
 
 MCP `import_stl_print` takes `printId`, `sourcePath`, optional `units` (default
 `auto`) and `machineId`. Studio shows assumed units beside the dimensions.
 Correct a plain imported mesh later with `stl-units Prints/my-part mm` (or
 `inch`), or MCP `set_stl_units` with the current `expectedRevision`. This rescales
 the current mesh, preserves mesh edits and settings, retains source bytes, and
-invalidates geometry/toolpath confirmation. Text-wrapped or composed geometry
+invalidates the current toolpath confirmation. Text-wrapped or composed geometry
 requires a geometry-specific edit instead.
 The source must be an absolute local `.stl` file on the SAAM computer and no
 larger than 64 MiB. A path on a remote chat device is not a local source.
@@ -127,31 +127,12 @@ for picker behavior and unsupported standalone program files.
 
 Read current CLI status with `check` below. Through MCP, `list_prints` finds
 saved IDs, `get_print` reads state and recipe settings, and
-`get_approval_status` reads the two confirmation stages. Set `includeGeometry:true`
+`get_approval_status` reads the final confirmation state. Set `includeGeometry:true`
 on `get_print` when you need the complete editable recipe; the default omits
 geometry and reports `planComplete:false`.
 CLI `adjust` returns a compact checked summary and revision instead of echoing
 the entire geometry-bearing plan. The complete editable recipe remains in
 `plan.json`.
-
-### Record explicit geometry confirmation from chat
-
-The person can confirm the current resulting shape in Studio or explicitly in
-chat. After a chat confirmation, use `confirm-geometry Prints/my-part confirmation.json`
-(MCP: `confirm_geometry`). Read the current revision and `geometryHash` from
-CLI `check` or MCP `get_print` first. The confirmation JSON contains:
-
-```json
-{"actor":"Human reviewer","expectedRevision":"CURRENT_REVISION","geometryHash":"CURRENT_GEOMETRY_HASH","statement":"EXACT HUMAN APPROVAL TEXT","chatReference":"CONVERSATION AND MESSAGE REFERENCE"}
-```
-
-Record only explicit approval of that resulting shape. A request to change it,
-an acknowledgement, or permission to continue editing is not geometry approval.
-The agent judges that meaning; validation cannot infer human intent from text.
-The shared operation rejects a stale revision or different geometry hash and
-records the exact statement and chat reference with the selected directory,
-revision and geometry hash. Geometry edits invalidate it normally. This records
-no settings or toolpath approval; those remain a combined human review in Studio.
 
 ## Adjust the recipe
 
@@ -166,17 +147,15 @@ and protects against applying an edit to a version that has changed since you
 read it. MCP `adjust_print` requires that fresh `expectedRevision` and the patch.
 After a stale-revision error, reload state and reassess the change.
 
-Studio picks up the revised bundle. Geometry changes require both confirmations
-again; process and setup changes retain unchanged geometry confirmation and require
-combined settings/toolpath review. The maker requests revisions in chat; the agent handles
+Studio picks up the revised bundle. Any geometry, process or setup change
+invalidates final settings/toolpath approval. The maker requests revisions in chat; the agent handles
 the recipe files. Manual replacement of bundle internals can break consistency.
 
 ### Change printer
 
 `node core/print/cli.mjs change-machine Prints/my-part <machine-id> --revision <revision>`
 (or MCP `change_machine`) selects a compatible machine snapshot and its remembered
-or default setup. It retains geometry confirmation and invalidates the combined
-settings/toolpath confirmation. The target printer's declared process defaults
+or default setup. It invalidates final settings/toolpath confirmation. The target printer's declared process defaults
 (such as retraction) replace the corresponding old values; other recipe choices
 are retained. Compatibility is checked before saving; a rejected
 recipe needs adjustment rather than a silent machine-capability override. Change
@@ -214,17 +193,16 @@ continue the user's task. It requests no repair, regeneration or extra approval.
 |---|---|---|---|
 | Read checked state | `check Prints/my-part` | `check_print` | Checks saved inputs and any stored export; reports approval state without generation. |
 | Investigate path feasibility | `check-path Prints/my-part` | `check_path` | Runs shared generation and machine checks without approval or persisted output. Use when feasibility needs investigation; it is not a mandatory extra step. |
-| Generate for review | `generate Prints/my-part` | `generate_print` | Requires geometry confirmation; creates and checks the export for combined settings/toolpath review. |
+| Generate for review | `generate Prints/my-part` | `generate_print` | Creates and checks the export for combined settings/toolpath review; geometry review is advisory. |
 | Deliver approved output | `deliver Prints/my-part` | `deliver_print` | Requires toolpath approval and copies the exact checked export into `delivery/`. |
 
 Studio also supports generation and final export in its review flow. Read the
 current state before repeating a timed-out operation: work may have completed.
 Changed inputs or a stale/edited export require the affected generation and
-reviews again. Geometry confirmation may also record explicit human chat approval
-as described above; settings/toolpath confirmation belongs in Studio. Delivery preserves
+reviews again. Final settings/toolpath confirmation belongs in Studio. Delivery preserves
 the selected machine's filename and extension and does not send a job to hardware.
-An unchanged checked development export can become production after geometry
-confirmation without slicing again; final settings/toolpath confirmation remains
+An unchanged checked development export can become production without slicing
+again; final settings/toolpath confirmation remains
 required. During tour toolpath lessons Studio generates saved setting changes
 automatically, so agents should not start a duplicate CLI generation.
 
@@ -271,6 +249,6 @@ node core/print/cli.mjs upgrade Prints/my-part
 
 Use `upgrade_print` through MCP. Upgrade is explicit and remains available when
 old-version validation prevents normal reopening. The shell adapter installs
-the current machine snapshot, retains unchanged geometry approval and invalidates
-plan/toolpath approvals. Existing exports and delivery files remain unchanged.
+the current machine snapshot, retains any compatible legacy geometry record and
+invalidates the final settings/toolpath confirmation. Existing exports and delivery files remain unchanged.
 Reopen Studio and complete the affected reviews before generating new output.

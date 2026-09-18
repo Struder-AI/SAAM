@@ -11,8 +11,7 @@ import { resolve, dirname, basename, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
-import {attachCheckedProgramWorker} from '../core/print/program-handoff.mjs';
-import {generationControl} from '../core/print/generation-control.mjs';
+import {PreparedGenerationJob} from './prepared-generation-job.mjs';
 import { viewerLifetime, DEFAULT_DISCONNECT_MS } from './lifetime.mjs';
 import {loadLocalExtension} from '../core/local-extension.mjs';
 
@@ -119,12 +118,14 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   let preparation,generationFailure,generationCancelled,importProgress,closed=false;
   const discardPreparation=(error=new Error('The prepared print changed.'))=>{
     const previous=preparation;preparation=null;
-    if(previous){previous.detachSource?.();previous.reject?.(error);return previous.worker?.terminate();}
+    return previous?.dispose(error);
   };
   const cancelGeneration=async()=>{
-    const job=preparation;if(!job?.control||!job.control.cancel())return {cancelled:false,committing:Boolean(job?.control?.committing)};
+    const job=preparation;if(!job)return {cancelled:false,committing:false};
+    const result=job.cancel();if(!result.cancelled)return {cancelled:false,committing:result.committing};
     generationCancelled={directory:job.directory,planHash:job.planHash};
-    await discardPreparation(job.control.error());return {cancelled:true,committing:false};
+    if(preparation===job)preparation=null;
+    await result.done;return {cancelled:true,committing:false};
   };
   const prepare=(state,readDir)=>{
     if(closed||resolveBundle!==bundleFor)return null;
@@ -135,39 +136,14 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const key=readDir+':'+state.planHash;
     if(preparation?.key===key)return preparation;
     discardPreparation();
-    let worker;const control=generationControl();
-    try{worker=new Worker(new URL('./generation-worker.mjs',import.meta.url),{workerData:{directory:readDir,planHash:state.planHash,progress:true,cancellation:control.buffer}});}
-    catch(error){return preparation={key,error:error.message};}
-    const job={key,directory:readDir,control,planHash:state.planHash,worker,pending:null,error:null,ready:false,progress:{stage:'Preparing geometry'},detachSource:attachCheckedProgramWorker(worker,state.planHash)};preparation=job;
-    worker.on('message',message=>{
-      if(message.type==='progress'){job.progress=message.progress;return;}
-      if(message.type==='prepared'){job.error=message.error??null;job.ready=!message.error;return;}
-      if(message.type==='generated'){
-        const pending=job.pending;job.pending=null;job.reject=null;
-        if(message.error)pending?.reject(Object.assign(new Error(message.error),{code:message.code}));
-        else{
-          // The earlier provenance listener retained checked source metadata.
-          // Release the complete motion program before source requests begin.
-          const stopped=preparation===job?discardPreparation():undefined;
-          Promise.resolve(stopped).then(()=>pending?.resolve(message.checks),error=>pending?.reject(error));
-        }
-      }
-    });
-    const failed=error=>{
-      job.error=error.message;job.pending?.reject(error);job.pending=null;job.reject=null;
-      job.detachSource();
-      void job.worker?.terminate();job.worker=null;
-    };
-    worker.on('error',failed);
-    worker.on('exit',code=>{if(code&&preparation===job&&job.worker)failed(new Error('Toolpath preparation stopped unexpectedly.'));});
-    worker.unref();
-    return job;
+    return preparation=new PreparedGenerationJob({key,directory:readDir,planHash:state.planHash,
+      createWorker:cancellation=>new Worker(new URL('./generation-worker.mjs',import.meta.url),
+        {workerData:{directory:readDir,planHash:state.planHash,progress:true,cancellation}})});
   };
   const generate=async(current,development)=>{
     generationCancelled=null;
     const generationDir=dir,state=await current.loadBundle(generationDir,{program:'source'});
     if(state.inspection)throw Error('This inspection does not support print generation.');
-    if(!development&&!state.geometryApproved)throw Error('Approve the geometry before generating the toolpath.');
     try{
       if(state.program&&!state.programError){
         // A valid saved development export needs only the shared mode transition.
@@ -176,13 +152,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }else if(resolveBundle===bundleFor){
         // A stopped worker needs restarting; a completed preparation diagnostic
         // is already useful and need not be recomputed on the first Continue.
-        if(preparation?.error&&(!preparation.worker||generationFailure?.directory===generationDir&&generationFailure.planHash===state.planHash))await discardPreparation();
+        if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===generationDir&&generationFailure.planHash===state.planHash))await discardPreparation();
         const job=prepare(state,dir);
-        if(job)await new Promise((resolve,reject)=>{
-          if(job.error){reject(new Error(job.error));return;}
-          job.pending={resolve,reject};job.reject=reject;
-          job.worker.postMessage({type:'generate',development});
-        });
+        if(job){await job.generate(development);if(preparation===job)preparation=null;}
         else await current.generateBundle(dir,{development});
       }else await current.generateBundle(dir,{development});
       generationFailure=null;
@@ -194,7 +166,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       try{await requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
         key:'generation-failure:'+generationDir+':'+state.planHash+':'+error.message,
         instruction:'Toolpath generation failed for this print. Error: '+error.message+
-          '\nInspect the current recipe and relevant skill limits, diagnose the cause and apply appropriate fixes before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, preserve required human confirmations, then regenerate and verify the current toolpath is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});}
+          '\nInspect the current recipe and relevant skill limits, diagnose the cause and apply appropriate fixes before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then regenerate and verify the current toolpath is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});}
       finally{throw error;} // A notification failure must not hide the generation error.
     }
   };
@@ -205,10 +177,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     dir=next;opened=Promise.resolve(adapter);
   };
   // Called only by a human Studio action choosing the geometry to print.
-  const confirmGeometryForToolpath=async(adapter,actor,seen)=>{
+  const validateGeometrySelection=async(adapter,seen)=>{
     const state=await adapter.loadBundle(dir,{program:false,live:true});
     if(seen&&(seen.revision!==state.revision||seen.geometryHash!==state.geometryHash))throw Error('The geometry changed. Review the current shape before confirming.');
-    if(!state.geometryApproved)await adapter.approve(dir,{stage:'geometry',actor,revision:state.revision,program:false});
   };
   const server=http.createServer(async(req,res)=>{
     const host=req.headers.host;
@@ -254,7 +225,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
         if(importProgress){send(importProgress);return;}
         const job=preparation;
-        send({printId:printId(),planHash:job?.planHash??null,cancellable:Boolean(job?.control&&!job.control.committing),status:!job?'idle':job.error?'failed':job.pending?'generating':job.ready?'ready':'preparing',progress:job?.progress??null,error:job?.error??null});return;
+        send({printId:printId(),planHash:job?.planHash??null,cancellable:Boolean(job?.cancellable),status:job?.status??'idle',progress:job?.progress??null,error:job?.error??null});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
         const p=await tour.info(),prints=p.active
@@ -283,7 +254,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         // Speculate only on the tour's explicitly selected, confirmed part.
         // Ordinary edits use explicit generation; starting a second worker here
         // competes with the agent and may slice inputs it is still changing.
-        if(!state.generationCancelled&&guide.active&&guide.directory===readDir&&guide.step===L.import&&state.geometryApproved
+        if(!state.generationCancelled&&guide.active&&guide.directory===readDir&&guide.step===L.import
           &&!hasUnpreparedEdit(state.work.requests.filter(r=>r.printId===workPrintId),state.work.snapshot))prepare(state,readDir);
         return;
       }
@@ -380,7 +351,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           await useExample(dir);
           try{
             state=await current.loadBundle(dir,{program:'source'});
-            if(!state.geometryApproved)throw Error('Confirm the updated geometry to return to this lesson before exporting.');
             if(state.review.generation?.mode!=='production'){await generate(current,false);state=await current.loadBundle(dir,{program:'source'});}
             if(state.exportHash!==shownHash)throw Error('The regenerated toolpath changed. Review it, then confirm export again.');
             if(!state.toolpathApproved)state=await current.approve(dir,{stage:'toolpath',actor:'Local user — tour export',revision:state.revision,program:'source'});
@@ -396,21 +366,17 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           send(await tour.playback(data.event));return;
         }
         if(url.pathname==='/api/tour'){
-          if(data.action==='step'&&progress.active&&progress.step>=L.playback&&!(await current.loadBundle(dir,{program:false})).geometryApproved)
-            throw Error('Confirm the updated geometry to return to this lesson.');
-          // This button explicitly selects the displayed part. Generic lesson
-          // navigation carries no geometry approval, including Back.
+          // This button explicitly selects the displayed part without turning
+          // navigation into a separate approval stage.
           if(data.action==='step'&&progress.step===L.import&&data.step===L.playback)
-            await confirmGeometryForToolpath(current,'Local user — continue with selected print',data);
+            await validateGeometrySelection(current,data);
           const result=await tour.action(data.action,data.step);
           if(['exit','cancel','finish'].includes(data.action))await useExample(dir);
           else if(result.directory&&resolve(result.directory)!==dir)await openPrint(result.directory);
           if(result.directory&&result.data.active&&TOUR_STEPS[result.data.step].tab==='toolpath'){
             const adapter=await opened,state=await adapter.loadBundle(dir,{program:'source'});
-            if(state.geometryApproved){
-              if(!state.program||state.programError||state.review.generation?.mode!=='production')await generate(adapter,false);
-              if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
-            }
+            if(!state.program||state.programError||state.review.generation?.mode!=='production')await generate(adapter,false);
+            if(result.data.step===L.playback&&!result.data.startAt)await tour.requestStartLayer();
           }
         }
         else if(url.pathname==='/api/use-example'){
@@ -423,10 +389,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           if(progress.active)await tour.select(selected);
           await openPrint(selected);
           const adapter=await opened,state=await adapter.loadBundle(dir,{program:progress.active?false:'source'});
-          if(progress.active||state.program&&!state.programError)await confirmGeometryForToolpath(adapter,'Local user — print selected');
           // Geometry stays visible in the STL lesson while a worker prepares its
           // selected part. Continuing commits this exact candidate.
-          if(progress.active&&state.geometryApproved)prepare(state,dir);
+          if(progress.active)prepare(state,dir);
         }
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan')await current.updatePlan(dir,data.plan,data.revision);
@@ -471,7 +436,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const external=kinds.filter(kind=>kind!=='requests');
     if(external.length)lifetime.notify('studio-change',{kinds:external});
     const job=preparation;
-    if(kinds.includes('print')&&job?.control&&!job.control.committing&&!checkingGeneration){
+    if(kinds.includes('print')&&job?.cancellable&&!checkingGeneration){
       checkingGeneration=true;
       void resolveBundle(job.directory).then(adapter=>readStableBundle(adapter,job.directory,{program:false})).then(({state})=>{
         if(preparation===job&&state.planHash!==job.planHash)return cancelGeneration();

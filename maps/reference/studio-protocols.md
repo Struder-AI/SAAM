@@ -160,9 +160,9 @@ Sources: [agent-requests.mjs](../../studio/agent-requests.mjs), [request-index.m
 
 ## Changing generation workers
 
-Sources: [generation-worker.mjs](../../studio/generation-worker.mjs).
+Sources: [prepared-generation-job.mjs](../../studio/prepared-generation-job.mjs), [generation-worker.mjs](../../studio/generation-worker.mjs).
 
-**Contract.** A worker prepares the selected plan and checks its hash, then generates only on the explicit message. The post-generation identity is checked again before the attached source is returned. The shared cancellation word follows the 0/1/2 protocol above; a checked handoff is tied to the current worker and exact plan/source.
+**Contract.** `PreparedGenerationJob` owns the preparing, ready, generating, failed and disposed transitions, pending request settlement, worker disposal and checked-source attachment. A worker prepares the selected plan and checks its hash, then generates only on the explicit message. The post-generation identity is checked again before the attached source is returned. The shared cancellation word follows the 0/1/2 protocol above; a checked handoff is tied to the current worker and exact plan/source.
 
 **Failures.** Preparation errors are retained for the generate request, stale plan hashes reject and cancelled/failed jobs cannot publish output. A message from another worker or a detached lifecycle cannot substitute for current checked evidence.
 
