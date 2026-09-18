@@ -28,7 +28,7 @@ for(const lesson of [4,5,6,7])test('toolpath lesson '+lesson+' never pauses for 
   };
   globalThis.document={getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
   globalThis.setInterval=()=>0;
-  const state={localPrintDirectory:'part',printId:'part',geometryApproved:false,programError:'Old toolpath is stale',
+  const state={localPrintDirectory:'part',printId:'part',programError:'Old toolpath is stale',
     tour:{active:true,directory:'part',step:lesson,canNext:true,gates:{}}};
   let shown;
   const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab:tab=>{shown=tab;},seek:()=>({layer:1})});
@@ -43,14 +43,14 @@ for(const lesson of [4,5,6,7])test('toolpath lesson '+lesson+' never pauses for 
 });
 
 test('tour recipe edits trigger generation for the selected toolpath lesson',()=>{
-  const state={tour:{active:true,step:4,directory:'part'},localPrintDirectory:'part',geometryApproved:true};
+  const state={tour:{active:true,step:4,directory:'part'},localPrintDirectory:'part'};
   assert.equal(needsTourToolpath(state),true);
   for(const patch of [{program:{}},{generationError:'Failed'},
     {outputAvailability:'Machine setup required'},
     {localPrintDirectory:'another'},{tour:{...state.tour,step:3}},{tour:{...state.tour,active:false}}])
     assert.equal(needsTourToolpath({...state,...patch}),false);
   assert.equal(needsTourToolpath({...state,program:{},programError:'Stale export'}),true);
-  const request={kind:'edit',status:'working',printId:'part',requiresTarget:true,expiresAt:Date.now()+60000};
+  const request={kind:'edit',status:'working',printId:'part',expiresAt:Date.now()+60000};
   const work={printId:'part',snapshot:{inputKey:'saved'},requests:[request]};
   assert.equal(needsTourToolpath({...state,work}),false,'intermediate saves do not start slicing');
   work.requests=[{...request,target:{inputKey:'saved',stage:'toolpath'}}];
@@ -132,7 +132,7 @@ test('playback leaves geometry before a program exists, seeks when ready, and re
   globalThis.document={getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
   globalThis.setInterval=()=>0;
   let progress={active:true,step:4,directory:'part',startAt:{layer:12},canNext:false};
-  const state={tour:progress,localPrintDirectory:'part',printId:'part',tourExample:{},geometryApproved:true};
+  const state={tour:progress,localPrintDirectory:'part',printId:'part',tourExample:{}};
   let shown='geometry',seeks=0,ui;
   globalThis.fetch=async()=>({ok:true,json:async()=>progress});
   ui=createTourUI({state:()=>state,isBusy:()=>false,working:async(_text,task)=>task(),
@@ -165,7 +165,7 @@ for(const startAt of [null,{layer:999}])for(const fallbackLayer of [1,0])test((s
   };
   globalThis.document={hidden:false,getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
   globalThis.setInterval=()=>0;
-  const state={localPrintDirectory:'part',printId:'part',program:{},geometryApproved:true,tour:{active:true,directory:'part',step:4,startAt,gates:{}}};
+  const state={localPrintDirectory:'part',printId:'part',program:{},tour:{active:true,directory:'part',step:4,startAt,gates:{}}};
   const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab:tab=>tabs.push(tab),
     seek:startAt=>{seeks.push(startAt);if(startAt.layer===999)throw Error('No sparse infill here');return {layer:startAt.fallback?fallbackLayer:startAt.layer};},
     post:async(route,data)=>{requests.push({route,...data});return {json:async()=>state.tour};}});
@@ -213,7 +213,7 @@ test('edit cues are limited to the first two slides and Play stops blinking on f
   };
   globalThis.document={getElementById:element,addEventListener(){},querySelectorAll:selector=>selector==='.tour-highlight'?[...elements.values()].filter(e=>e.classes.has('tour-highlight')):[]};
   globalThis.setInterval=()=>0;
-  const state={localPrintDirectory:'part',printId:'part',program:{},geometryApproved:true,tour:{active:true,directory:'part',step:0,canNext:false,gates:{}}};
+  const state={localPrintDirectory:'part',printId:'part',program:{},tour:{active:true,directory:'part',step:0,canNext:false,gates:{}}};
   const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab(){},seek(){},post:async()=>({json:async()=>state.tour})});
   const highlighted=id=>element(id).classes.has('tour-highlight');
   ui.render(state);assert.equal(highlighted('tour-next'),false);

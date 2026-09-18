@@ -11,22 +11,27 @@ reference geometry, thumbnails and personal settings stay outside generated
 output and Git. The [reference checks](../../DEVLOG.md#2026-09-09-to-2026-09-10--h2d-reference-and-startup-checks)
 do not establish successful physical printing or universal firmware compatibility.
 
-The initial contract supports one selected standard hardened 0.4 mm nozzle,
-1.75 mm PLA, Textured PEI and **no chamber heating** (`buildVolumeC: 0`). Left
-is the default. Left/right package maps are 1/2, nozzle IDs 0/1, and physical
-heater selectors 1/0. Logical material `T0 H-1` remains the same under Bambu's
-remapping. Do not replace all T numbers to select a nozzle. Package structure
-also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
+The initial contract supports one selected standard hardened 0.4, 0.6 or 0.8 mm
+nozzle, 1.75 mm PLA, Textured PEI and **no chamber heating** (`buildVolumeC: 0`).
+Left is the default. Left/right package maps are 1/2, nozzle IDs 0/1, and
+physical heater selectors 1/0. Logical material `T0 H-1` remains the same under
+Bambu's nozzle remapping. Do not replace all T numbers to select a nozzle.
+Package metadata records both installed diameters and declares hardened-steel
+nozzle type; in a mixed configuration the preset-family name follows the left
+nozzle while the selected nozzle and slice records carry the actual diameter.
+Package structure also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
 
 The pinned start/end arrays originate in the reference's executable blocks.
-Machine revision 4 uses `h2d-02.08.02.61-pla-textured-v2`, which omits startup
+Machine revision 10 uses `h2d-02.08.02.61-pla-textured-v3`, which omits startup
 triage item H10: initial X homing, early wiping-area moves, `M972 S24` and the
 `M1009`-bracketed Z-clearance/center-positioning/Z-homing sequence (13 lines). Adjacent
 object/bin checks and all later probing, calibration and priming remain; this
 is not a no-probing startup. The revised sequence requires physical testing.
-The adapter still recognizes the pinned v1 envelope in existing snapshots;
-upgrade and regenerate a chosen bundle to use v2, with normal plan/toolpath
-review invalidation. Existing exports and delivery files are not rewritten.
+The v3 envelope adds a locked AMS selector placeholder to the otherwise pinned
+service sequence. The adapter still recognizes the pinned v1 and v2 envelopes
+in existing snapshots; recreate a bundle to use v3, with normal plan/toolpath
+review invalidation. Existing exports and delivery files
+are not rewritten.
 Allowed substitutions are planned temperatures, selected physical heater,
 placed geometry's probe rectangle and whole-plan shutdown/parking clearance.
 The reference PLA purge recipe uses 240 °C and up to 25 mm³/s independently of
@@ -37,6 +42,14 @@ descends below the completed path's maximum Z; parking remains at or below
 320 mm. Reject a plan that cannot fit that clearance. The bed's -0.02 mm
 Textured PEI correction and service-area purge moves are part of the firmware
 contract, not object geometry.
+
+`setup.amsSlot` is either null or a requested AMS slot from 1 through 4. Null
+retains the slot-1 default. The v3 renderer maps slots 1–4 to firmware selectors
+0–3 consistently in the paired `M620`, `T` and `M621` startup commands; the
+requested slot and `filamentColor` are also stored in package metadata. These
+records make the intended setup explicit, but neither software interpretation
+nor metadata proves that a particular AMS is connected, loaded or mapped as
+expected on the printer.
 
 Probing, homing, wiping, purge, calibration, unloading and firmware-conditioned
 service moves are **not motion-simulated**. The interpreter matches the complete
@@ -69,6 +82,6 @@ Software tests cover both nozzle maps, both geometry backends, supported skill
 integration, malformed/tampered output and the shared approval/HTTP delivery path.
 Independent Bambu Studio program-viewer import and physical validation remain
 [recorded acceptance limits](../../DEVLOG.md#br-018--h2d-output-from-the-supplied-nozzle-references).
+The 0.6/0.8 diameter metadata, mixed-nozzle preset naming and AMS 1–4 selection
+have software round-trip checks only.
 Model-import CLI checks do not verify the program-viewer route.
-Older H2D bundles must explicitly set `buildVolumeC: 0`
-with `adjust` before `upgrade`; plan/toolpath approvals are invalidated normally.

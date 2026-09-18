@@ -1,5 +1,198 @@
 # Development log
 
+## 2026-09-18 — Port TK-Dev line networks, regional process and H2D setup
+
+Ported Timothy Keller's `origin/TK-Dev` work onto the current branch: his
+line-network/H2D commit (`1cee91b`, as merged with main in `5f26d11`) and his
+sequential export names (`60d61b9`).
+
+- **line-network skill.** Explicit planar centerline networks, one bead per
+  polyline, repeated for a course count, with optional per-stroke course
+  selection for reinforcement. It is a standalone producer: validation rejects
+  it alongside body, skin, vase, lip or regional producers. Built for the
+  six-face weld-together dice.
+- **Regional process overrides.** A region may override `firstLayerMm`,
+  `layerMm`, `lineWidthMm`, `planarSpeedMmS` and `firstLayerSpeedMmS`; such a
+  region owns its own layer grid from its start height, with global layer
+  indices taken from the union of regional heights.
+- **Experimental deposition.** `process.experimentalDeposition` raises the plan
+  caps to 1 mm layers, 2 mm beads and 30 mm³/s, checked against a new tool
+  `experimentalPlanar` envelope and material `experimentalMaxFlowMm3S`.
+- **Locked prime line.** `process.primeLine` (one pass or up to eight) replaces
+  profile priming and precedes every material operation.
+- **Wall and spacing controls.** `perimeterScope: 'outer'` on full-fill and
+  planar-infill, full-fill `holeLineWidthMm`, and `spacingFactor` down to 0.5
+  for deliberate bead overlap.
+- **H2D setup (machine revision 10, envelope v3).** Hardened 0.4/0.6/0.8 mm
+  nozzles on either tool with per-nozzle package metadata; filament colour; AMS
+  slot 1–4 rendered into the startup `M620`/`T`/`M621` commands. PLA nozzle
+  limit rises to 250 °C and the standard layer range to 0.6 mm. Remembered setup
+  and machine changes fit line width to the selected nozzle.
+- **Studio.** Line-network recipe and preview rows; an export name containing
+  `-V<n>-` advances after each successful export in the session.
+
+Adapted to current contracts while porting: `validatePlan` stays check-only, so
+TK-Dev's in-memory fills for the new fields were dropped and a recipe missing
+them is rejected. Region `process` is optional and never defaulted. Approval
+assertions use the single final approval. The existing `.gcode.3mf` download
+naming was kept in place of TK-Dev's first-dot variant.
+
+Follow-ups: line-network centerlines are now checked against the selected
+tool's bounds (the geometry bound check does not see them); H2D package
+metadata is built directly rather than by string replacement after the fact;
+`holeLineWidthMm`, region process overrides, experimental deposition and the
+line-network producer are documented in the skill manual and generation/regions
+references.
+
+Physical status, from Timothy's record: an earlier 0.8 mm H2D attempt showed
+build-plate, nozzle-identification and AMS-selection warnings. The metadata and
+command selection now address them but have not been physically retested. The
+0.6/0.8 mm paths reuse the 0.4 mm firmware envelope and, with the high-flow
+settings, have software checks only.
+
+Verification ran in a clean detached worktree at 2207cb9 plus this port. The
+focused suites (bambu, line-network, regions, spacing, studio-settings,
+workflow, interoperability, perimeter-wall, patterns) pass. The full core and
+skills suite ran 687 tests: the seven failures known before this work (two MCP,
+regional base/vase cladding, two plastic-weld, two vase-wall interoperability)
+remain, and five studio-view-readiness cases failed only because that worktree
+checked files out with CRLF endings, which the harness's import stripping does
+not handle; they pass in the LF shared checkout. The interoperability
+cross-machine case now also accepts the strict setup-field rejection, since
+H2D setup carries filament colour and AMS slot. `dev-map.mjs check` passes.
+
+## 2026-09-18 — Remove print-bundle compatibility extras
+
+Under the DEVELOPER-CONTEXT status note (no bundle back-compat until about
+2026-10-01), three parallel agent packages deleted the compatibility paths the
+dev-map contracts still described, instead of relocating them.
+
+- Plan schema: `validatePlan` is check-only. Every in-memory fill, retired-field
+  deletion and backfill before the strict key check is gone; a recipe missing a
+  current field is rejected and recreated from its skills. The `upgrade` command,
+  its unimplemented adapter hook, the Griffin/rules startup-field fallback, the
+  stale `path.saampath` cleanup and the retired repair-option list are removed,
+  with their contract text in lifecycle, generation, regions, geometry, bambu and
+  testing references. Text records now require `materialParts`; `standalone`
+  stays optional because the producer only writes it on a reference body.
+- Composition: operations no longer carry `clearanceZ`. The composer never read
+  it (the builder derives clearance from deposited height); ten producers and the
+  composed-result field are dropped. The material-less travel-policy branch stays
+  because seven current producers still build policies without a material query.
+- Studio: the old single-request receipt fallback and the `requiresTarget` flag
+  are gone (edit kind implies a published target); the per-file source transport,
+  its route alias and the loader's dead `sourceFile` option are removed, leaving
+  the streamed `/api/sources` transport and `/api/gcode`; the accepted
+  `--close-when-idle` alias is removed.
+
+Unknown STL-repair options are now ignored rather than rejected; there is no
+general unknown-option gate on that path. Studio settings keeps its
+`maxPoints` label row because rimming and pipe cladding still own that setting.
+
+Verification on the merged tree: `dev-map.mjs check` passes; core suite
+506 tests, 502 pass; skills suite 169 tests, 165 pass. All eight failures
+pre-exist this work: the two MCP manual-path/transport cases, the two regional
+stack/cladding cases (confirmed failing at 3609a20 in a detached worktree), the
+two plastic-weld cases and the two vase-wall interoperability cases (confirmed
+by the agents at main f352322). Each package was developed and tested in its own
+worktree, then cherry-picked here.
+
+## 2026-09-17 — One fingerprint pass per Studio state read
+
+`readStableBundle` already bracketed each load with before/after fingerprints,
+but `/api/state` then computed a presentation fingerprint and rechecked the
+source fingerprint in two more passes, and resolved the request print ID twice;
+`/api/revision` and the approve response also took two passes each. The workflow
+now exposes `bundleFingerprints(directory,{program})`, returning `{source,
+presentation}` from one snapshot pass (`bundleFingerprint` is its `source`); the
+tour reference adapter and machine-study adapter provide it too. The stable
+reader returns both fingerprints from its first pass, and the state, revision
+and approve routes take no further passes. The `studio-view-readiness` harness
+sliced `app.mjs` at the old `approval(stage)` signature from the approval
+collapse; its boundary is updated and all nine cases now pass.
+
+Verification: studio-view-readiness (9/9), read-scope, studio-reconnect,
+studio-open, studio-tour, studio-agent, workflow, studio-generation-control,
+machine-study, agent-toolkit and studio-tour-lifetime pass;
+`dev-map.mjs check --since HEAD` passes. Local `.local/` review
+tools that fake a Studio adapter with only `bundleFingerprint` need
+`bundleFingerprints`.
+
+## 2026-09-17 — One worker supervisor for STL import and repair
+
+Studio's STL import launcher (`importInWorker` plus `studio/import-worker.mjs`)
+was a near copy of the core repair supervisor. The import-or-repair step moved
+to core as `importOrRepairSTLBundle` in `core/print/import-stl.mjs`: like
+`repairSTLFiles`, it runs `runRepairJob` (new mode `import`) on the main thread
+and works inline in the shared `mesh-repair-worker.mjs`. It reports stage codes
+(`import`, `repair` with the repair step, `import-repaired`); Studio maps them
+to its progress labels and builds the repair summary afterwards. The repair
+eligibility classifier moved with it, and the worker's error payload now carries
+`meshDiagnostic`. `runRepairJob` now settles only after terminating its worker,
+preserving the import transaction's "worker stopped before the reserved
+directory is removed" order for every job. Studio's worker file and its
+promise/terminate plumbing are gone.
+
+Verification: studio-import and mesh-repair pass (17/17); mcp and studio-agent
+show only the two known pre-existing MCP failures; `dev-map.mjs check --since
+HEAD` passes.
+
+## 2026-09-17 — Event-driven Studio revision checks
+
+Every Studio tab ran `poll()` each second, and each poll computed two bundle
+fingerprints plus tour info on the server, although the viewer stream already
+pushed print and tour changes that triggered the same poll. The request feed also
+pushed `requests` changes that the app listener discarded, so tour Next gating
+from request activity was only picked up by the fixed poll. The app now checks
+`/api/revision` on a pushed print or tour change, on a request change while a
+tour is active, on viewer-stream error or reopen (new `saam-viewer-connection`
+event from `viewer-session.mjs`; the first open is skipped), on the page becoming
+visible and on a 15-second heartbeat. The heartbeat covers an unavailable
+watcher, request lease expiry and missed pushes; a restarted server rejects the
+old stream token, whose error triggers the check that reloads the page.
+
+Verification: studio-reconnect, studio-visibility, studio-work and
+studio-lifetime pass (26/26, lifetime now asserts the connection signal);
+`dev-map.mjs check --since HEAD` passes. Not exercised in a live browser.
+
+## 2026-09-17 — One final approval record
+
+The lifecycle contract had retired geometry approval and kept plan approval only
+"for record compatibility", yet `approve` still accepted a `stage`, wrote a
+mirrored `approvals.plan` beside `approvals.toolpath` and recomputed three
+booleans; the loader, Studio state/approval responses, CLI, agent toolkit and MCP
+summaries all reported them, and `/api/approve` special-cased a geometry stage.
+Now `approve({actor, revision})` writes one `review.approvals.toolpath` record
+(export hash, plan hash, `['settings','toolpath']` scope) and `toolpathApproved`
+is the only derived state. Every invalidation (plan, machine, upgrade,
+regeneration) resets `review.approvals` to `{}`; per the current status note,
+retired records get no compatibility handling. MCP/toolkit summaries report `toolpathApproved` in place
+of their `approvals` objects; the Studio tour rejects `/api/approve` outright.
+The Studio change-follow rule that switched to the toolpath tab on
+`planApproved` now uses `toolpathApproved`. The repair report no longer claims
+`geometryApproved:false`. Lifecycle, Studio and MCP contracts updated together.
+
+Verification: workflow, chat-geometry-confirmation, studio-agent, studio-work and
+studio-tour pass (41/41); the other 28 edited test files pass except the known
+pre-existing MCP task-manual/transport-close and studio-view-readiness harness
+failures and two plastic-weld overlap failures that also fail at `6004141`.
+`dev-map.mjs check --since HEAD` passes.
+
+## 2026-09-17 — Bring dev maps up to date with the Studio event and vase-wall work
+
+A map review since `7f2d3a5` found the Studio event queue, listener ownership
+and stage-tab behavior documented, but several contracts behind the code. The
+`9_agent` page now maps `readStudioEvents` (9.7) and the shared owned-Studio
+long-poll `pollStudio` (9.8), and 9.4 reads "wait for requests / events"; the
+toolkit change contract describes event streaming, the owner-authenticated
+cross-process read and wait, their rejections and the new toolkit cases. The
+`7c_requests` page maps `activeEditStage` (7.4.7) and the request/presentation
+contract states the pane-specific fade. The motion reference no longer claims a
+vase point budget and names the fitted-sleeve path; the testing inventory lists
+`studio-events`, `studio-print-name` and `studio-spinner` tests and the new
+vase-wall regressions. Verification: `dev-map.mjs check` and the map/context
+suites pass (43/43). Documentation only; no behavior change.
+
 ## 2026-09-17 — Studio event queue, owner-locked listeners and calculation progress
 
 Studio now writes what the person does, and what its workers produce, to one

@@ -30,12 +30,12 @@ const strokes=result=>result.operations.flatMap(op=>op.strokes);
 const volume=result=>strokes(result).reduce((n,s)=>n+(s.volumesMm3?s.volumesMm3.reduce((a,b)=>a+b,0):length(s.closed?[...s.points,s.points[0]]:s.points)*s.beadAreaMm2),0);
 function boxPlan(){const p=defaults(machine);p.geometry={shape:'box',runMm:12,widthMm:10,heightMm:2};p.process.minimumLayerSeconds=0;p.skills['draped-skin'].enabled=false;return p;}
 
-test('optional spacing keeps legacy paths and validates one independent setting, including regions',()=>{
-  const p=boxPlan(),legacy=structuredClone(p);
-  for(const name of SPACING_SKILLS)delete legacy.skills[name].spacingFactor;
-  assert.deepEqual(generatePath(legacy,machine,r),generatePath(p,machine,r));
+test('spacing is a required setting and validates one independent value, including regions',()=>{
+  for(const name of SPACING_SKILLS){const missing=boxPlan();delete missing.skills[name].spacingFactor;
+    assert.throws(()=>validatePlan(missing,machine),/Unexpected or missing fields/);}
   near(lineSpacing(.4,{spacingFactor:3}),1.2);
-  for(const value of [0,.5,-1,null,'3',NaN,Infinity]){
+  near(lineSpacing(2,{spacingFactor:.75}),1.5);
+  for(const value of [0,.49,-1,null,'3',NaN,Infinity]){
     const bad=boxPlan();bad.skills['full-fill'].spacingFactor=value;
     assert.throws(()=>validatePlan(bad,machine),/spacingFactor/);
   }
@@ -169,10 +169,10 @@ test('spacing is reviewable, invalidates only the process, and survives checked 
   const p=boxPlan();p.geometry.heightMm=.6;
   await initBundle(dir,p);let state=await loadBundle(dir);
   state=await adjustBundle(dir,{skills:{'full-fill':{spacingFactor:3}}},{expectedRevision:state.revision});
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.ok(recipeRows(state.plan,state.machine).some(([key,v])=>key.includes('Line spacing')&&v.startsWith('3')));
   assert.ok(!recipeRows(p,machine).some(([key])=>key.includes('Line spacing')),'normal recipes need no extra review row');
   await generateBundle(dir);state=await loadBundle(dir);assert.ok(!state.programError);
-  await approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
+  await approve(dir,{revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
   assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,'exports/griffin-gcode/part.gcode')));
 });

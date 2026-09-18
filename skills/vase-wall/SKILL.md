@@ -67,8 +67,8 @@ A wall takes as many points as its geometry, pitch and tolerances require;
 there is no construction cap to exhaust. An ordinary 100 mm × 250 mm vase at
 0.2 mm pitch needs about 640k points. Memory scales with the emitted program
 (about 0.2 KB per point through generation and export), bounded only by the
-Node heap; raise `--max-old-space-size` for extreme programs. An older recipe's
-`maxPoints` is read and dropped, never enforced.
+Node heap; raise `--max-old-space-size` for extreme programs. The retired
+`maxPoints` setting is rejected as an unknown field.
 
 The process layer height controls rise per turn; line width controls the nominal
 wall bead. Cooling can slow the continuous stroke rather than parking between

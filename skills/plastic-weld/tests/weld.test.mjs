@@ -95,7 +95,7 @@ test('shared bundle reopening and exact-byte delivery include weld settings in a
   let state=await loadBundle(dir),actor='SYNTHETIC weld test; not a manufacturing approval';
   await generateBundle(dir);state=await loadBundle(dir);
   assert.equal(state.program.events.filter(e=>e.kind==='injection').length,1);
-  state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});
+  state=await approve(dir,{actor,revision:state.revision});
   const delivery=await deliver(dir);
   assert.ok(delivery);
   const before=await readFile(join(dir,'exports','griffin-gcode',state.exportName));

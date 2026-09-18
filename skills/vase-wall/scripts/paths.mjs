@@ -100,7 +100,7 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
   }
   return {id,...(level?{levelBoundary:{zMm:end,strokes:paths.slice(-pattern.paths.length),widthMm:process.lineWidthMm}}:{}),operations:[{id:id+':wall',layerId:id+':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,after,
     strokes:paths,order:'given',continuous,fanPercent:process.fanPercent,
-    travelPolicy:{maxCombMm:0,constantClearanceZ:maxZ+process.liftMm,clearanceFor:()=>maxZ+process.liftMm},clearanceZ:maxZ+process.liftMm}],
+    travelPolicy:{maxCombMm:0,constantClearanceZ:maxZ+process.liftMm,clearanceFor:()=>maxZ+process.liftMm}}],
     report:{mode:continuous?'continuous-sleeve-pattern':'segmented-sleeve-pattern',startMm:minZ,endMm:maxZ,baseTopMm:base,paths:paths.length,repeats:pattern.repeats,
       ...(tiled?{motifCellsPerTurn:settings.pattern.cellsPerTurn,motifPoints:settings.pattern.motif.points.length,tiltDeg:settings.pattern.tiltDeg}:{}),
       points:count,...sectionReport(),endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,volumeMm3:paths.reduce((sum,s)=>sum+s.volumesMm3.reduce((a,b)=>a+b,0),0),

@@ -14,5 +14,5 @@ try{
   if(action==='create'&&(options.expectedRevision||options.part)||action==='update'&&options.machineId)throw new Error('Machine applies to create; revision and part apply to update.');
   const parameters=JSON.parse(await readFile(resolve(file),'utf8'));
   const state=await (action==='create'?createGridfinityBundle:updateGridfinityBundle)(resolve(directory),parameters,options);
-  console.log(JSON.stringify({print:state.dir,revision:state.revision,boundsMm:state.geometry.boundsMm,geometryApproved:state.geometryApproved,planApproved:state.planApproved,toolpathApproved:state.toolpathApproved},null,2));
+  console.log(JSON.stringify({print:state.dir,revision:state.revision,boundsMm:state.geometry.boundsMm,toolpathApproved:state.toolpathApproved},null,2));
 }catch(error){console.error(error.message);process.exitCode=1;}

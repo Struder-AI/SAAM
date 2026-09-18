@@ -31,7 +31,7 @@ test('compact review updates retain playback and avoid loading the scene again',
 
 test('one pure classifier defines geometry and toolpath presentation readiness',()=>{
   const work={snapshot:{inputKey:'current',generationKey:'generated'}};
-  assert.deepEqual(requestReceiptState(null,{state:{work,geometry:{},geometryApproved:false},stage:'geometry'}),
+  assert.deepEqual(requestReceiptState(null,{state:{work,geometry:{}},stage:'geometry'}),
     {activity:'idle',receipt:true,awaitingConfirmation:false});
   assert.equal(requestReceiptState(null,{state:{work,program:{}},stage:'toolpath'}).receipt,true);
   assert.equal(requestReceiptState(null,{state:{work,program:{},generationError:'failed'},stage:'toolpath'}).receipt,false);
@@ -42,7 +42,7 @@ const browserCode=[
   section('async function working(text,task,','\n// Studio reviews'),
   section('async function acknowledgeDisplayedView(){','\nasync function decodeInWorker'),
   section('function setTab(next){','\n'),
-  section('async function approval(stage){','\nasync function download'),
+  section('async function approval(){','\nasync function download'),
   section("$('#confirm').onclick=async()=>{",'\nasync function openPrint')
 ].join('\n');
 
@@ -62,7 +62,7 @@ async function confirmationHarness({stored=false,generationError,tour=false,pend
   const request={id:'edit',printId:'part',status:'working',updatedAt:1,expiresAt:Date.now()+60000,
     baseline:{inputKey:'before',generationKey:null},target:{inputKey:'current',stage:'toolpath'}};
   const snapshot={inputKey:'current',generationKey:stored?'generated':null};
-  const state={printId:'part',revision:'review-1',geometryApproved:false,planHash:'plan',
+  const state={printId:'part',revision:'review-1',planHash:'plan',
     ...(tour?{localPrintDirectory:'part',tour:{active:true,step:5,directory:'part'}}:{}),
     work:{printId:'part',snapshot,requests:[request]},review:{generation:stored?{mode:'production'}:null},
     ...(stored?{program:{},exportHash:'export'}:{})};
@@ -83,7 +83,7 @@ async function confirmationHarness({stored=false,generationError,tour=false,pend
     }},
     async api(route){
       calls.push(route);
-      if(route==='approve')return {json:async()=>({approval:{geometryApproved:true,programAvailable:stored}})};
+      if(route==='approve')return {json:async()=>({approval:{programAvailable:stored}})};
       if(route==='generate'){
         if(generationError)throw Error(generationError);
         return {};

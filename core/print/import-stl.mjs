@@ -2,11 +2,14 @@
 // remembered setup, native mesh verification and the normal print lifecycle.
 import { initBundle, proposedPlan, loadBundle, updatePlan } from './bundle.mjs';
 import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
+import {resolve,join} from 'node:path';
+import {isMainThread} from 'node:worker_threads';
 import { hash } from './plan.mjs';
 import { loadMachine, toolBounds, centeredPlacement } from '../machine/profile.mjs';
-import { parseSTL,makeMesh } from '../geom/mesh.mjs';
+import { decodeSTL,parseSTL,makeMesh } from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
+import {repairSTLFiles} from './repair-stl.mjs';
+import {runRepairJob} from './mesh-repair-job.mjs';
 
 export function inferSTLUnits(mesh,bounds){
   const size=[0,1,2].map(k=>{let min=Infinity,max=-Infinity;for(const p of mesh.vertices){min=Math.min(min,p[k]);max=Math.max(max,p[k]);}return max-min;});
@@ -39,6 +42,35 @@ export async function importSTLBundle(directory, sourceBytes, { units='auto', ma
   plan.placement = centeredPlacement(machine, plan.setup.tool, { runMm: footprint[0], widthMm: footprint[1] }) ?? { xMm: bounds.min[0] + 5, yMm: bounds.min[1] + 5 };
   plan.skills['draped-skin'].enabled = false;
   return initBundle(directory, plan, { machineId: machine.id, setupFile, ...(file?{sourcePath:resolve(sourceBytes)}:{sourceBytes}) });
+}
+
+// Malformed input, resource limits and setup failures keep their original
+// diagnostic. Only recognized geometric defects are candidates for repair.
+const repairable=error=>error.meshDiagnostic?.kind==='triangle-intersection'
+  ||/^(?:Degenerate mesh triangle\.|Duplicate mesh triangle\.|Invalid mesh triangle indices\.|Mesh must be closed, manifold and consistently wound;|Unused or nonmanifold mesh vertex\.|Nonmanifold mesh vertex\.)/.test(error.message);
+
+// Import into a new bundle directory; on an eligible defect, repair into its
+// repair/ folder (original, repaired STL and report) and import the result.
+// The caller owns the directory and removes it if this rejects.
+// Progress stages: import, repair (with the repair step), import-repaired.
+export async function importOrRepairSTLBundle(directory,sourceBytes,options={}){
+  if(isMainThread)return runRepairJob('import',directory,sourceBytes,options);
+  const {progress,signal,...settings}=options,bytes=Buffer.from(sourceBytes);
+  progress?.({stage:'import'});
+  try{await importSTLBundle(directory,bytes,{...settings,signal});return {repaired:false};}
+  catch(error){if(!repairable(error))throw error;}
+  let units=settings.units;
+  if(units===undefined||units==='auto'){
+    const machine=loadMachine(settings.machineId),plan=await proposedPlan(machine.id,{setupFile:settings.setupFile});
+    units=inferSTLUnits(decodeSTL(bytes,{units:'mm'}),toolBounds(machine,plan.setup.tool));
+  }
+  const repairDirectory=join(directory,'repair');
+  progress?.({stage:'repair'});
+  await repairSTLFiles(repairDirectory,bytes,{units,maxHoleEdges:0,maxHoleDiameterMm:0,signal,
+    progress:event=>progress?.({stage:'repair',step:event.stage})});
+  progress?.({stage:'import-repaired'});
+  await importSTLBundle(directory,join(repairDirectory,'repaired.stl'),{...settings,units:'mm',signal});
+  return {repaired:true};
 }
 
 export async function setSTLUnits(directory,units,{expectedRevision}={}){

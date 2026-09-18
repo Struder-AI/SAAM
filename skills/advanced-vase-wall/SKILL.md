@@ -89,8 +89,8 @@ trimmed CAD faces and open uncapped mesh surfaces are unsupported.
 
 Section, mapping and path construction take the points the authored pattern and
 tolerances require; there is no construction budget to exhaust. Memory scales
-with the emitted program and is bounded only by the Node heap. An older
-recipe's `maxPoints` is read and dropped, never enforced.
+with the emitted program and is bounded only by the Node heap. The retired
+`maxPoints` setting is rejected as an unknown field.
 
 `meshSleeve` enables a smooth periodic cubic fit over changing-Z mesh sections:
 `fidelity` is continuous from 0 to 1, `contactSide` is `inside` or `outside`,

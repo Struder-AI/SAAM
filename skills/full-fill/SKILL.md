@@ -42,6 +42,8 @@ and planar-infill; the shared shell template otherwise includes a draped roof.
 | `mode` | `body` | Entire body, or `solid-surfaces` alongside planar-infill. |
 | `bottomLayers` / `topLayers` | `3` / `3` | Local solid thickness in layers in solid-surfaces mode. |
 | `perimeters` | `2` | Maximum inward loops from each boundary in body mode; planar-infill owns walls in shared solid-surfaces mode. |
+| `perimeterScope` | `all` | `all` prints outer and hole boundaries; `outer` prints only exterior boundaries while fill remains clipped around holes. |
+| `holeLineWidthMm` | `null` | Hole-boundary perimeter bead width, 0.3 mm through the main line width; `null` uses the main width. |
 | `fillAnglesDeg` | `[45, 135]` | Alternating fill directions in body mode. |
 | `fillOverlap` | `0.15` | Interior/wall overlap as a bead fraction in body mode. |
 | `minFeatureMm` | `0.4` | Smallest sampled spline section feature. |

@@ -124,14 +124,14 @@ test('create-preview reuses isolated setup and opening preserves approved export
   assert.equal(ready.length, 1);
   assert.equal(made.result.print.plan.setup.bedC, 67);
   assert.equal(made.result.print.generation.current, false);
-  assert.deepEqual(made.result.print.approvals, {geometry: false, settings: false, toolpath: false});
+  assert.equal(made.result.print.toolpathApproved, false);
   let state = await shell.loadBundle(target);
   await shell.generateBundle(target);
   state = await shell.loadBundle(target);
-  await shell.approve(target, {stage: 'toolpath', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
+  await shell.approve(target, {revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
   const saved = await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name))));
   const reopened = await f.open({command: 'open-print', target: join(target, 'plan.json')});
-  assert.equal(reopened.result.print.approvals.toolpath, true);
+  assert.equal(reopened.result.print.toolpathApproved, true);
   assert.equal(reopened.result.print.generation.current, true);
   assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name)))), saved);
   await assert.rejects(f.open({command: 'create-preview', target, kind: 'shell'}), /already exists/);
@@ -146,7 +146,7 @@ test('STL preview preserves original bytes and reports inferred units without ap
   assert.equal(result.assumptions.units.units, 'mm');
   assert.equal(result.assumptions.units.unitsInferred, true);
   assert.deepEqual(await readFile(join(target, 'geometry/source.stl')), bytes);
-  assert.deepEqual(result.print.approvals, {geometry: false, settings: false, toolpath: false});
+  assert.equal(result.print.toolpathApproved, false);
   assert.equal(result.print.generation.record, null);
 });
 
@@ -166,7 +166,7 @@ test('fresh tours keep earlier bundles and return lesson-one guidance and a list
   const shown = await response.json();
   assert.equal(response.status, 200);
   assert.equal(shown.tour.step, 0);
-  assert.equal(shown.geometryApproved, false);
+  assert.equal(shown.toolpathApproved, false);
   assert.equal(shown.program, undefined);
   assert.ok(second.result.context.documents.some(doc => doc.path === 'examples/prints/README.md'));
 });
@@ -193,7 +193,7 @@ test('begin-work marks pending before context reads, correlates claims, and fail
   assert.ok(begun.print.plan.geometry);
   assert.equal(begun.print.planComplete, true);
   assert.equal(begun.print.generation.programChecked,false,'beginning an edit defers old-export validation');
-  assert.equal(begun.print.approvals.toolpath,null);
+  assert.equal(begun.print.toolpathApproved,null);
   assert.ok(begun.print.geometryHash,'shape confirmation can use the same context packet');
   const queue = createAgentRequests(f.library);
   const queued = await queue.begin({directory: target, source: 'studio', instruction: 'SYNTHETIC failure: discontinuous roof'});
@@ -235,7 +235,7 @@ test('failure after creation reports retained bundle and closes only its own ser
     assert.equal(error.partial.studio.closed, true);
     return true;
   });
-  assert.equal((await shell.loadBundle(target)).geometryApproved, false);
+  assert.equal((await shell.loadBundle(target)).toolpathApproved, false);
   await assert.rejects(fetch(url));
 });
 
@@ -273,7 +273,7 @@ test('CLI launcher streams ready state and keeps its owned Studio alive', async 
     assert.equal(child.exitCode, null);
     const state = await (await fetch(result.studio.url + '/api/state')).json();
     assert.equal(state.tour.step, 0);
-    assert.equal(state.geometryApproved, false);
+    assert.equal(state.toolpathApproved, false);
   } finally {child.kill(); await exited;}
 });
 

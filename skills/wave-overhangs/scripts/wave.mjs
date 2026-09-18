@@ -266,7 +266,7 @@ export function waveResults({plan,machine,placed,componentShells,modelResults}){
       });
       requireThat(maxSlopeDeg<=(machine.nonplanar?.maxAngleDeg??0)+1e-7,'Wave surface exceeds the selected machine nonplanar angle limit.');
       operations.push({id,layerId:'wave-overhangs:'+slice.id,rank:results.length,layer:results.length,phase:'wave-overhangs',after:previous,strokes,order:'given',fanPercent:settings.fanPercent,
-        clearanceZ:maxZ+plan.process.liftMm,travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ,constantClearanceZ:maxZ}});
+        travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ,constantClearanceZ:maxZ}});
       previous=[id];
     }
     requireThat(operations.length>0,'Wave slice contains no new deposition outside its seed.');

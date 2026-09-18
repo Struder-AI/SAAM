@@ -106,7 +106,7 @@ test('dimension updates preserve lettering and plan settings, invalidate reviews
   state=await loadBundle(dir);const revision=state.revision;
   const changed=await updateGridfinityBundle(dir,{xUnits:2},{expectedRevision:revision});
   assert.equal(changed.plan.geometry.shape,'text');assert.equal(changed.plan.geometry.base.parameters.xUnits,2);
-  assert.equal(changed.plan.geometry.features[0].text,'BO');assert.equal(changed.geometryApproved,false);
+  assert.equal(changed.plan.geometry.features[0].text,'BO');assert.equal(changed.toolpathApproved,false);
   assert.deepEqual(changed.plan.skills,state.plan.skills);assert.deepEqual(changed.plan.setup,state.plan.setup);
   await assert.rejects(updateGridfinityBundle(dir,{xUnits:3},{expectedRevision:revision}),/stale/);
   await assert.rejects(updateGridfinityBundle(dir,{xUnits:0},{expectedRevision:changed.revision}),/xUnits/);
@@ -124,7 +124,7 @@ for(const machineId of ['ultimaker-s5','bambu-h2d'])test(`${machineId}: shared p
   const checks=await generateBundle(dir);assert.ok(checks.moves>0);
   state=await loadBundle(dir);assert.ok(state.program&&!state.programError);
   const bytes=await readFile(resolve(dir,'exports',state.plan.output,state.exportName));
-  await approve(dir,{stage:'toolpath',revision:state.revision,actor});
+  await approve(dir,{revision:state.revision,actor});
   const delivered=await deliver(dir);assert.ok((await readFile(delivered)).length>100);
   assert.deepEqual(await readFile(delivered),bytes);
   state=await loadBundle(dir);assert.equal(state.toolpathApproved,true);

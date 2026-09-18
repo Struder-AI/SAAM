@@ -93,7 +93,7 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
     assert.ok(!checks.checks.includes('temperature-state'));assert.ok(!checks.checks.includes('extrusion-flow'));
     assert.equal(checks.materialModel,'relay-estimate');
     state=await loadBundle(dir);assert.equal(state.programError,undefined);
-    state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});
+    state=await approve(dir,{actor,revision:state.revision});
     const output=join(dir,'exports/dobot-lua/part.zip'),original=await readFile(output);
     const delivery=await deliver(dir);assert.deepEqual(await readFile(delivery),original);
     const entries=unpackZip(original);entries.set('global.lua',Buffer.from(entries.get('global.lua').toString().replace('tool=1','tool=3')));await writeFile(output,packZip(entries));
@@ -101,6 +101,6 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
     await assert.rejects(()=>deliver(dir),/exact current export/);
     await writeFile(output,original);state=await loadBundle(dir);
     await assert.rejects(()=>adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:'stale'}),/stale/);
-    const revised=await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});assert.equal(revised.toolpathApproved,false);assert.equal(revised.geometryApproved,false);
+    const revised=await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});assert.equal(revised.toolpathApproved,false);
   }finally{await rm(dir,{recursive:true,force:true});}
 });

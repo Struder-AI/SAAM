@@ -97,7 +97,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       if(key)try{return await get(id);}catch(e){if(e.code!=='ENOENT')throw e;}
       if(!['edit','guidance','advisory'].includes(kind))throw Error('Unknown Studio work kind.');
       const currentId=printId(directory);
-      return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:await snapshot(directory),requiresTarget:kind==='edit',ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now(),expiresAt:now()+600000});
+      return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:await snapshot(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now(),expiresAt:now()+600000});
     },
     async update(id,{status='completed',message='',resultStage}={}){
       if(disconnected)throw Error('Agent connection closed.');

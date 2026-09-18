@@ -118,7 +118,7 @@ test('duplicate comparison surfaces are rejected, and normal offsets require the
 
 test('both rim modes wait for the whole sloping base and finish before any supported operation',()=>{
   const op=(id,low,high)=>({id,rank:low,layer:0,layerId:id,phase:'fixture',after:[],
-    strokes:[{points:[[0,0,low],[10,0,high]]}],travelPolicy:{clearanceFor:()=>high+1},clearanceZ:high+1});
+    strokes:[{points:[[0,0,low],[10,0,high]]}],travelPolicy:{clearanceFor:()=>high+1}});
   for(const [skill,mode] of [['rimming-planar','horizontal'],['rimming-normal','normal']]){
     const plan=defaults();plan.skills[skill].enabled=true;
     plan.skills[skill].surfaces=[{...surface(),baseEdge:'sloping base edge',basePart:'lower',supportedPart:'upper',

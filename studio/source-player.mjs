@@ -22,35 +22,23 @@ export function decodeSource(sources,plan,machine,{compact=true}={}) {
 
 export async function fetchSources(state,fetcher=fetch,cryptoApi=globalThis.crypto) {
   const sources={};
-  if(state.sourceTransport==='ndjson'){
-    const query=new URLSearchParams({printId:state.printId,revision:state.revision,exportHash:state.exportHash});
-    const response=await fetcher('/api/sources?'+query);
-    if(!response.ok)throw new Error((await response.json()).error);
-    const expected=new Map(state.program.sources.map(s=>[s.name,s.sha256])),decoder=new TextDecoder('utf-8',{fatal:true});
-    let pending='';
-    const accept=async line=>{
-      const entry=JSON.parse(line);
-      if(!expected.has(entry.name)||Object.hasOwn(sources,entry.name)||typeof entry.text!=='string')throw new Error('Unexpected or duplicate program source.');
-      const bytes=new TextEncoder().encode(entry.text),hash=Array.from(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
-      if(hash!==expected.get(entry.name))throw new Error('Program changed while loading. Reload before reviewing.');
-      sources[entry.name]=entry.text;
-    };
-    const reader=response.body.getReader();
-    try{for(;;){const {value,done}=await reader.read();if(done)break;pending+=decoder.decode(value,{stream:true});
-      let index;while((index=pending.indexOf('\n'))>=0){const line=pending.slice(0,index);pending=pending.slice(index+1);if(line)await accept(line);}
-    }pending+=decoder.decode();if(pending)await accept(pending);
-    }finally{await reader.cancel();reader.releaseLock();}
-    if(Object.keys(sources).length!==expected.size)throw new Error('Missing program source.');
-    return sources;
-  }
-  for(const source of state.program.sources){
-    const query=new URLSearchParams({printId:state.printId,revision:state.revision,exportHash:state.exportHash,file:source.name});
-    const response=await fetcher('/api/program?'+query);
-    if(!response.ok)throw new Error((await response.json()).error);
-    const bytes=await response.arrayBuffer();
-    const hash=Array.from(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
-    if(hash!==source.sha256)throw new Error('Program changed while loading. Reload before reviewing.');
-    sources[source.name]=new TextDecoder('utf-8',{fatal:true}).decode(bytes);
-  }
+  const query=new URLSearchParams({printId:state.printId,revision:state.revision,exportHash:state.exportHash});
+  const response=await fetcher('/api/sources?'+query);
+  if(!response.ok)throw new Error((await response.json()).error);
+  const expected=new Map(state.program.sources.map(s=>[s.name,s.sha256])),decoder=new TextDecoder('utf-8',{fatal:true});
+  let pending='';
+  const accept=async line=>{
+    const entry=JSON.parse(line);
+    if(!expected.has(entry.name)||Object.hasOwn(sources,entry.name)||typeof entry.text!=='string')throw new Error('Unexpected or duplicate program source.');
+    const bytes=new TextEncoder().encode(entry.text),hash=Array.from(new Uint8Array(await cryptoApi.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
+    if(hash!==expected.get(entry.name))throw new Error('Program changed while loading. Reload before reviewing.');
+    sources[entry.name]=entry.text;
+  };
+  const reader=response.body.getReader();
+  try{for(;;){const {value,done}=await reader.read();if(done)break;pending+=decoder.decode(value,{stream:true});
+    let index;while((index=pending.indexOf('\n'))>=0){const line=pending.slice(0,index);pending=pending.slice(index+1);if(line)await accept(line);}
+  }pending+=decoder.decode();if(pending)await accept(pending);
+  }finally{await reader.cancel();reader.releaseLock();}
+  if(Object.keys(sources).length!==expected.size)throw new Error('Missing program source.');
   return sources;
 }

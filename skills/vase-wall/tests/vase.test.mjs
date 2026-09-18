@@ -300,7 +300,7 @@ test('a steep taper keeps the requested geometry and pitch without radial-overla
   }
 });
 
-test('a wall takes the points its geometry requires; the retired point budget is read from old recipes without effect',async()=>{
+test('a wall takes the points its geometry requires, and a retired point budget is rejected',async()=>{
   const machine=loadMachine(),r=await rhino();
   // Well past the former 100000-point default on the exact per-section path.
   const tall=vasePlan(machine,boxMesh(8,6,90));tall.skills['vase-wall'].sampleStepMm=0.1;
@@ -309,22 +309,15 @@ test('a wall takes the points its geometry requires; the retired point budget is
   assert.equal(result.operations[0].strokes[0].points.length,result.report.points);
   assert.equal('maxPoints' in result.report,false);
   assert.equal('maxSectionQueries' in result.report,false);
-  // Older recipes and region overrides carry any budget value; it is dropped, never enforced.
-  const reference=generatePath(vasePlan(),machine,r).actions;
-  for(const value of [100,99,100.5,Infinity,Number.MAX_SAFE_INTEGER+1,'lots']) {
-    const old=vasePlan();old.skills['vase-wall'].maxPoints=value;
-    validatePlan(old,machine);
-    assert.equal('maxPoints' in old.skills['vase-wall'],false);
-    assert.deepEqual(generatePath(old,machine,r).actions,reference);
-  }
+  // The retired budget is no longer accepted anywhere in a recipe.
+  const retired=vasePlan();retired.skills['vase-wall'].maxPoints=100;
+  assert.throws(()=>validatePlan(retired,machine),/Unexpected or missing fields/);
   const regional=vasePlan();
-  regional.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,skills:{'vase-wall':{maxPoints:100}}}];
-  validatePlan(regional,machine);
-  assert.deepEqual(regional.composition.regions[0].skills['vase-wall'],{});
-  assert.ok(generatePath(regional,machine,r).actions.some(a=>a.role==='vase-wall'));
+  regional.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,lowerSurfaceFrom:null,skills:{'vase-wall':{maxPoints:100}}}];
+  assert.throws(()=>validatePlan(regional,machine),/Unknown or region-owned skill override/);
 });
 
-test('contour and boundary tolerances are independent, with explicit normalization of older recipes',async()=>{
+test('contour and boundary tolerances are independent',async()=>{
   const machine=loadMachine(),plan=vasePlan();
   plan.skills['vase-wall'].toleranceMm=0.05;
   validatePlan(plan,machine);
@@ -335,14 +328,11 @@ test('contour and boundary tolerances are independent, with explicit normalizati
   assert.ok(fine.summary.vaseWall.points>coarse.summary.vaseWall.points,'contour tolerance changes subdivision work');
   assert.equal(plan.skills['vase-wall'].boundaryToleranceMm,0.02);
   plan.skills['vase-wall'].toleranceMm=0.05;
-  delete plan.skills['vase-wall'].boundaryToleranceMm;
-  plan.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,skills:{'vase-wall':{toleranceMm:0.03}}}];
+  plan.skills['vase-wall'].boundaryToleranceMm=0.05;
+  plan.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,lowerSurfaceFrom:null,skills:{'vase-wall':{toleranceMm:0.03,boundaryToleranceMm:0.03}}}];
   validatePlan(plan,machine);
   assert.equal(plan.skills['vase-wall'].boundaryToleranceMm,0.05);
   assert.equal(plan.composition.regions[0].skills['vase-wall'].boundaryToleranceMm,0.03);
-  plan.skills['vase-wall'].toleranceMm=0.01;
-  validatePlan(plan,machine);
-  assert.equal(plan.skills['vase-wall'].boundaryToleranceMm,0.05);
 });
 
 test('configured Dobot vase uses the same path and exact Lua interpreter with relay limits disclosed',async()=>{
@@ -362,10 +352,10 @@ test('vase native spline and mesh bundles reopen, review and deliver exact S5 by
     const actor='SYNTHETIC VASE TEST — not a human approval';
     await generateBundle(dir);
     let state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.skills,['vase-wall']);
-    await approve(dir,{stage:'toolpath',actor,revision:state.revision});
+    await approve(dir,{actor,revision:state.revision});
     const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),await readFile(join(dir,EXPORT_PATH)));
     state=await loadBundle(dir);assert.equal(state.toolpathApproved,true);
     await adjustBundle(dir,{skills:{'vase-wall':{zEndMm:0.8}}});
-    state=await loadBundle(dir,{program:false});assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+    state=await loadBundle(dir,{program:false});assert.equal(state.toolpathApproved,false);
   }
 });

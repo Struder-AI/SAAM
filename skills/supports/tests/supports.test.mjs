@@ -114,10 +114,10 @@ test('assigned support recipe survives bundle review and exact delivery; edits i
   await generateBundle(dir);
   let state=await loadBundle(dir);assert.ok(state.skills.includes('supports'));
   assert.ok(!(await readdir(dir)).includes('path.saampath'));
-  await approve(dir,{stage:'toolpath',actor,revision:state.revision});
+  await approve(dir,{actor,revision:state.revision});
   state=await loadBundle(dir);assert.equal(state.toolpathApproved,true);
   const delivery=await deliver(dir);assert.deepEqual(await readFile(delivery),await readFile(join(dir,'exports/griffin-gcode/part.gcode')));
   const assignments=structuredClone(state.plan.skills.supports.assignments);assignments[0].reason='Changed chosen contact rationale';
   await adjustBundle(dir,{skills:{supports:{assignments}}});
-  state=await loadBundle(dir);assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  state=await loadBundle(dir);assert.equal(state.toolpathApproved,false);
 });

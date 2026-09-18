@@ -94,7 +94,7 @@ test('explicit budgets fail with recovery settings and no successful partial res
 test('wave dependencies hold complete seed and successor operations across an ordered slice stack',()=>{
   const machine=loadMachine(),plan=defaults(machine);
   const op=(id,z)=>({id,layerId:id,rank:z,strokes:[{points:[[0,0,z],[1,0,z]],beadAreaMm2:0.08,speedMmS:5}],
-    after:[],clearanceZ:z,travelPolicy:{clearanceFor:()=>z}});
+    after:[],travelPolicy:{clearanceFor:()=>z}});
   // Deliberately lower the successor: a height sort alone would place it first.
   const base=op('base:body',1),upper=op('upper:body',0.2),modelResults=[{id:'body',operations:[base,upper]}];
   const slice={id:'first',reason:'Synthetic assigned anchor and successor',

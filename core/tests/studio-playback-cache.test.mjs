@@ -9,7 +9,7 @@ const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8')
 const refresh=app.slice(app.indexOf('async function refresh('),app.indexOf('\nasync function acknowledgeDisplayedView'));
 const clear=app.slice(app.indexOf('function clearProgramView(){'),app.indexOf('\nconst message='));
 const snapshot=(patch={})=>({printId:'part',planHash:'plan',exportHash:'export',revision:'revision',
-  program:{summary:{}},geometryApproved:true,plan:{},machine:{name:'Test machine'},review:{generation:{mode:'production'}},
+  program:{summary:{}},plan:{},machine:{name:'Test machine'},review:{generation:{mode:'production'}},
   geometry:{geometryVersion:'geometry',labels:[]},tour:{active:true,step:L.playback},tourExample:{id:'starter'},...patch});
 
 function harness(){

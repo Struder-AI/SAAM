@@ -147,11 +147,16 @@ scrubbing and travel visibility as viewer controls. Layer height means deposited
 layer thickness, not a separate height setting.
 
 The agent applies patches with the `adjust` command of
-`core/print/cli.mjs`. Studio polls a bundle
-fingerprint and reloads changed data automatically, keeping the view when nothing
-changes and returning to the affected approval step after edits.
-Geometry edits invalidate both confirmations; settings edits preserve geometry
-approval and invalidate settings/toolpath approval. A server running old imported
+`core/print/cli.mjs`. Studio checks the bundle fingerprint (`/api/revision`)
+when the viewer stream pushes a print or tour change, or a request change during
+an active tour (request activity gates the tour's Next), and reloads changed data
+automatically, keeping the view when nothing changes and returning to the
+affected approval step after edits. A viewer-stream error or reopen, the page
+becoming visible and a 15-second heartbeat also check it; these cover missed
+pushes, an unavailable watcher, request expiry and a restarted server. There is
+no fixed short-interval revision poll.
+Geometry and settings edits invalidate the single settings/toolpath confirmation.
+A server running old imported
 code must be restarted after runtime changes. Each agent owns its Studio instances;
 do not adopt another agent's viewer or terminate another agent's process. Independent
 CLI launches and separate local MCP adapter processes use separate free loopback
@@ -161,9 +166,9 @@ Check the loaded geometry and export afterward.
 If generation reports "The prepared print changed. Reload before generating."
 after source changes, a browser refresh alone may leave an older server runtime
 active while a new preparation worker imports current code. Restart the owning
-Studio server, reconnect its viewer and check the fresh state. Geometry approval
-can remain valid when geometry is unchanged; combined settings/toolpath confirmation is also bound to
-the generator runtime and may require the person to review the regenerated result.
+Studio server, reconnect its viewer and check the fresh state. The settings/toolpath
+confirmation is bound to the generator runtime and may require the person to
+review the regenerated result.
 Do not rewrite approval hashes to make an old approval match new code.
 
 Studio tracks open pages through authenticated persistent viewer connections,
@@ -174,9 +179,8 @@ browser suspension and refreshes to reconnect. Each reconnection cancels the
 pending shutdown; the next final disconnect starts a fresh 30-minute grace period.
 Connected viewers have no idle deadline. An accepted bundle write finishes before shutdown
 completes. Saved bundles are retained and can be opened in a fresh instance later.
-The old `--close-when-idle` flag is accepted but no longer needed. The CLI process
-exits when its work drains. In MCP, only that Studio listener and session are
-released; the adapter and its other viewers stay available. Repeated
+The CLI process exits when its work drains. In MCP, only that Studio listener and
+session are released; the adapter and its other viewers stay available. Repeated
 review requests within the same adapter can use that print's still-open session.
 Independent agent ownership uses separate stdio adapters. Distinct instances do not lock a shared bundle against edits
 from another process, so concurrent agent work should use separate bundles.
@@ -318,6 +322,10 @@ inputs; explicit Generate retries. Changes to the calculation's inputs observed
 from another writer cancel obsolete calculation. View changes alone do not do so.
 This control covers Studio workers; direct CLI/MCP generation and custom adapters
 do not yet share a cross-process cancellation owner.
+
+State and approval responses report `toolpathApproved` as the only approval state.
+`/api/approve` takes the reviewer and revision; an active tour rejects it and
+`/api/deliver` in favor of its combined confirm-and-export route.
 
 Review metadata has its own update path. Approval, delivery history and generation
 mode changes update controls after fresh validation without replacing unchanged
@@ -478,7 +486,7 @@ persisted; sequence numbers identify repeats.
 | `tour-started`, `tour-lesson`, `tour-exited`, `tour-finished`: lesson navigation, with the lesson and its agent instruction | `viewer-opened`, `viewer-closed`: browser viewer count |
 | `request-queued`: Studio asked for agent work (Ask agent, tour guidance, generation failure, advisory) | `view-presented`: a geometry or toolpath view was displayed, with revision and export hash |
 | `request-presented`: the agent's bound result is now displayed | `generation-started`, `generation-finished`: toolpath calculation start and finish, with trigger and duration |
-| `generation-failed`, `generation-cancelled`: the calculation failed (with its recovery request) or was cancelled by the person or by changed inputs | `approved`: a geometry or toolpath confirmation |
+| `generation-failed`, `generation-cancelled`: the calculation failed (with its recovery request) or was cancelled by the person or by changed inputs | `approved`: the final settings/toolpath confirmation |
 | `import-completed`, `import-failed`: an STL import by the person | `import-started` |
 | `print-opened`: the person opened another saved print | `tour-playback`: play or pause in the playback lesson |
 | `export-delivered`: the person exported the reviewed file, in the tour or ordinary review | `example-adopted`, `plan-updated` |
@@ -545,11 +553,11 @@ Sources: [browser.mjs](../../studio/browser.mjs), [lifetime.mjs](../../studio/li
 
 ## Changing Studio import transactions
 
-Sources: [import-stl.mjs](../../studio/import-stl.mjs), [import-worker.mjs](../../studio/import-worker.mjs).
+Sources: [import-stl.mjs](../../studio/import-stl.mjs).
 
-**Contract.** Import reserves a unique new print directory, validates supported STL names/units and the 64 MiB upload limit, resolves paths inside the library and runs conversion in a worker. Strict import precedes repair; only recognized geometry defects enter the repair fallback, with hole closing disabled. Original/repaired source and repair report are retained when applicable. New imports have no human approval.
+**Contract.** Import reserves a unique new print directory, validates supported STL names/units and the 64 MiB upload limit, resolves paths inside the library and calls core `importOrRepairSTLBundle`, which runs in the shared mesh repair worker job. Strict import precedes repair; only recognized geometry defects enter the repair fallback, with hole closing disabled. Studio maps the job's stage codes to browser progress labels and builds the repair summary from the retained report. Original/repaired source and repair report are retained when applicable. New imports have no human approval.
 
-**Failures.** Invalid input, setup and memory-budget errors do not trigger repair. On failure/cancellation the coordinator settles once, terminates its worker and removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
+**Failures.** Invalid input, setup and memory-budget errors do not trigger repair. On failure/cancellation the core job settles once, after terminating its worker, and the coordinator then removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
 
 **Change together.** Coordinate print-name rules, core import/repair worker protocols, plan creation and browser progress. Directory reservation and worker termination order are part of the transaction boundary.
 
@@ -573,7 +581,7 @@ Sources: [app.mjs](../../studio/app.mjs), [work-state.mjs](../../studio/work-sta
 
 Sources: [settings.mjs](../../studio/settings.mjs), [print-name.mjs](../../studio/print-name.mjs).
 
-**Contract.** settings.mjs produces human-readable recipe, skill, regional and robot-setup rows from the locked plan. Regional overrides merge with skill defaults for display; support/global skills retain their separate scope. Material mass is a user-selected display estimate at 1.2 g/cm³, not measured material density. printName derives the agent-suggested friendly label from geometry or falls back to the directory basename. The toolpath review prefills that suggestion in an editable export-name field; the person's value is export-scoped and does not rename the bundle or alter its recipe. requestedDownloadName validates the chosen base name, removes unsafe characters and retains the export extension, including .gcode.3mf.
+**Contract.** settings.mjs produces human-readable recipe, skill, regional and robot-setup rows from the locked plan. Regional overrides merge with skill defaults for display; support/global skills retain their separate scope. Material mass is a user-selected display estimate at 1.2 g/cm³, not measured material density. printName derives the agent-suggested friendly label from geometry or falls back to the directory basename. The toolpath review prefills that suggestion in an editable export-name field; the person's value is export-scoped and does not rename the bundle or alter its recipe. After a successful export, a compact name containing an explicit `-V<number>-` token advances that number for the next export in the same Studio session; other names remain unchanged. requestedDownloadName validates the chosen base name, removes unsafe characters and retains the export extension, including .gcode.3mf.
 
 **Failures.** Unavailable values must remain visibly not configured rather than acquire fabricated installation settings. Name derivation falls back when the plan cannot be read; blank or overlong export names reject before download. These display helpers neither validate filesystem reservations nor rename directories; import/server own those boundaries.
 

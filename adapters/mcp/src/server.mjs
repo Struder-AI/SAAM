@@ -70,7 +70,7 @@ function summary(printId, state) {
   return {
     printId, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     machineId: state.machine.id, output: state.plan.output, skills: state.skills,
-    approvals: { geometry: state.geometryApproved, plan: state.planApproved, toolpath: programChecked?state.toolpathApproved:state.review.approvals.toolpath?null:false },
+    toolpathApproved: programChecked?state.toolpathApproved:state.review.approvals.toolpath?null:false,
     programChecked,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: programChecked ? !!state.program && !state.programError : null } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
@@ -306,11 +306,6 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     const { dir, bundle, state } = await read(printId,{program:false});
     await bundle.rememberSetup(dir, { setupFile: await setupFile(state.machine.id) });
     return { printId, machineId: state.machine.id, remembered: true, approvalsChanged: false };
-  }, false);
-  tool('upgrade_print', 'Explicitly migrate an existing bundle through its shared adapter to the current machine/recipe version. Preserves prior delivered bytes and invalidates affected approvals. Use for a bundle that cannot pass current version validation.', { printId: printIdSchema }, async ({ printId }) => {
-    const dir = await directory(printId), bundle = await bundleFor(dir);
-    await bundle.upgradeBundle(dir);
-    return summary(printId, await bundle.loadBundle(dir));
   }, false);
   tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { printId: printIdSchema }, async ({ printId }) => summary(printId, (await read(printId)).state));
   tool('begin_studio_work','Start Studio work as early as practical for an edit to an existing print — you may acknowledge the person first; the claim it records is what later mutations and result reports check, so make it before either. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',

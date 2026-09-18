@@ -120,7 +120,7 @@ box read | 1.5.3 | read current | $load
 port done | review / delivery
 human > approve | Studio confirmation | gate
 human > deliver | export request | gate
-approve > read | requested stage | data
+approve > read | actor and revision | data
 read > approve | current revision | data | norank
 deliver > read | source bytes | data
 read > deliver | exact export approval | data | norank

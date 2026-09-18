@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {recipeRows,regionRows,robotRows,hasSkill} from '../../studio/settings.mjs';
+import {recipeRows,regionRows,robotRows,hasSkill,nextExportName} from '../../studio/settings.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
@@ -23,9 +23,9 @@ test('machine wall precision is reviewable, defaults old snapshots without mutat
 test('Studio reviews region selections and effective overrides rather than inactive global skill flags',()=>{
   const plan=defaults();
   plan.composition.regions=[
-    {id:'wall',part:null,zStartMm:0,zEndMm:4,skills:{'vase-wall':{endTransition:'level'}},supportPolicy:'supported'},
-    {id:'cap',part:null,zStartMm:4,zEndMm:5,skills:{'full-fill':{perimeters:3}},supportPolicy:'bridge-experimental'},
-    {id:'finish',part:null,zStartMm:5,zEndMm:8,skills:{'full-fill':{}},supportPolicy:'supported',lowerSurfaceFrom:'roof'}
+    {id:'wall',part:null,zStartMm:0,zEndMm:4,lowerSurfaceFrom:null,skills:{'vase-wall':{endTransition:'level'}}},
+    {id:'cap',part:null,zStartMm:4,zEndMm:5,lowerSurfaceFrom:null,skills:{'full-fill':{perimeters:3}}},
+    {id:'finish',part:null,zStartMm:5,zEndMm:8,skills:{'full-fill':{}},lowerSurfaceFrom:'roof'}
   ];
   assert.equal(plan.skills['vase-wall'].enabled,false);
   assert.equal(hasSkill(plan,'vase-wall'),true);
@@ -33,8 +33,6 @@ test('Studio reviews region selections and effective overrides rather than inact
   const rows=new Map(recipeRows(plan));
   assert.equal(rows.get('wall · Vase wall · Wall ending'),'Level rim');
   assert.equal(rows.get('cap · Full fill · Walls'),'3');
-  assert.equal(rows.has('cap · Support'),false,'retired policy is not presented as a permission choice');
-  assert.equal(rows.has('wall · Vase wall · Point budget'),false,'the retired vase point budget is not presented');
   assert.equal(rows.get('wall · Vase wall · Boundary tolerance'),'0.02 mm');
   assert.match(rows.get('finish · Bottom'),/roof/);
   assert.ok(![...rows.keys()].some(k=>k.startsWith('Draped skin')));
@@ -54,4 +52,23 @@ test('Studio exposes calibrated robot motion/workspace and sparse settings, reta
   assert.equal(recipe.get('Planar infill · Fill directions'),'30, 120°');
   assert.equal(recipe.get('Requested operation order'),'a → b');
   assert.equal(recipe.get('Additional dependencies'),'b → c');
+});
+
+test('Studio summarizes explicit line networks without dumping centerline geometry',()=>{
+  const plan=defaults();
+  plan.skills['line-network']={enabled:true,layers:2,networks:[
+    {id:'one',strokes:[{points:[[0,0],[1,0]]}]},
+    {id:'two',strokes:[{points:[[2,0],[3,0]]},{points:[[2,1],[3,1]]}]}
+  ]};
+  const rows=new Map(recipeRows(plan));
+  assert.equal(rows.get('Line network · Component'),'All selected geometry');
+  assert.equal(rows.get('Line network · Courses'),'2');
+  assert.equal(rows.get('Line network · Independent faces'),'2');
+  assert.equal(rows.get('Line network · Centerline strokes'),'3');
+});
+
+test('compact versioned export names advance while ordinary names remain unchanged',()=>{
+  assert.equal(nextExportName('DICE-V1-H2D2-0-6'),'DICE-V2-H2D2-0-6');
+  assert.equal(nextExportName('DICE-V99-H2D2-0-8'),'DICE-V100-H2D2-0-8');
+  assert.equal(nextExportName('Wavy roof'),'Wavy roof');
 });

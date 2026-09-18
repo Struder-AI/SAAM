@@ -21,12 +21,12 @@ async function fixture(t){
 
 test('generation needs no geometry approval and only final toolpath approval enables delivery',async t=>{
   const {directory}=await fixture(t);let state=await loadBundle(directory,{program:false});
-  await assert.rejects(approve(directory,{stage:'geometry',actor:'SYNTHETIC TEST',revision:state.revision}),/Only the final/);
+  await assert.rejects(approve(directory,{actor:'SYNTHETIC TEST',revision:state.revision}),/Generate and check/);
   const checks=await generateBundle(directory);assert.equal(checks.mode,'production');
-  state=await loadBundle(directory);assert.equal(state.geometryApproved,false);assert.deepEqual(state.review.approvals,{});
+  state=await loadBundle(directory);assert.equal(state.toolpathApproved,false);assert.deepEqual(state.review.approvals,{});
   await assert.rejects(deliver(directory),/requires approval/);
-  state=await approve(directory,{stage:'toolpath',actor:'SYNTHETIC TEST',revision:state.revision});
-  assert.equal(state.planApproved,true);assert.equal(state.toolpathApproved,true);assert.ok(await deliver(directory));
+  state=await approve(directory,{actor:'SYNTHETIC TEST',revision:state.revision});
+  assert.equal(state.toolpathApproved,true);assert.deepEqual(Object.keys(state.review.approvals),['toolpath']);assert.ok(await deliver(directory));
 });
 
 test('MCP omits geometry confirmation and generates review output directly',async t=>{
@@ -37,6 +37,6 @@ test('MCP omits geometry confirmation and generates review output directly',asyn
     const names=(await client.listTools()).tools.map(tool=>tool.name);assert.ok(!names.includes('confirm_geometry'));
     const response=await client.callTool({name:'generate_print',arguments:{printId:'part'}});
     assert.equal(response.isError,undefined,response.content.map(item=>item.text).join('\n'));
-    const state=await loadBundle(directory);assert.ok(state.program);assert.equal(state.geometryApproved,false);assert.equal(state.toolpathApproved,false);
+    const state=await loadBundle(directory);assert.ok(state.program);assert.equal(state.toolpathApproved,false);
   }finally{await client.close();await adapter.close();}
 });

@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
@@ -40,7 +37,7 @@ test('shared interpretation rejects cold extrusion, unsupported state, and inval
   assert.throws(()=>interpretGriffin(code.replace('G92 E0','G92 X0 E0'),plan,machine),/Unsupported arguments/);
   assert.throws(()=>emit(machine,{...path,initialPosition:[330,219,undefined]}),/initial position/);
   const broken=structuredClone(machine);delete broken.outputs[0].program;
-  assert.throws(()=>emit(broken),/upgrade/);
+  assert.throws(()=>emit(broken),/no program templates/);
 });
 
 test('G-code tokenization retains packed arguments, whitespace, comments and strict malformed rejection',()=>{
@@ -52,33 +49,4 @@ test('G-code tokenization retains packed arguments, whitespace, comments and str
     'M109 T1 SNaN','M109 T1 S215junk','!M109 T1 S215','M109 T1 S215!','M109 T1 S'+'9'.repeat(400)]){
     assert.throws(()=>interpretGriffin(code.replace('M109 T1 S215',command),plan,machine),/Duplicate|Unsupported arguments|Malformed|Nonfinite/);
   }
-});
-
-test('shell upgrade retains geometry approval and existing delivery bytes',async()=>{
-  const adapter=await import('../print/bundle.mjs');
-  const recipe=defaults();
-  recipe.geometry={shape:'box',runMm:6,widthMm:6,heightMm:0.6};
-  recipe.skills['draped-skin'].enabled=false;
-  recipe.process.minimumLayerSeconds=0;
-  const directory=await mkdtemp(join(tmpdir(),'saam-upgrade-test-'));
-  try {
-    await adapter.initBundle(directory,recipe);
-    let state=await adapter.loadBundle(directory);
-    await adapter.generateBundle(directory);
-    state=await adapter.loadBundle(directory);
-    await adapter.approve(directory,{stage:'toolpath',actor:'synthetic upgrade test',revision:state.revision});
-    const delivered=await adapter.deliver(directory),bytes=await readFile(delivered,'utf8');
-    const oldMachine=JSON.parse(await readFile(join(directory,'machine.json'),'utf8'));
-    delete oldMachine.outputs[0].program;
-    await writeFile(join(directory,'machine.json'),JSON.stringify(oldMachine));
-    await adapter.upgradeBundle(directory);
-    state=await adapter.loadBundle(directory);
-    assert.equal(state.geometryApproved,false);
-    assert.equal(state.planApproved,false);
-    assert.equal(state.toolpathApproved,false);
-    assert.ok(state.machine.outputs[0].program);
-    assert.equal(await readFile(delivered,'utf8'),bytes);
-    assert.equal(await readFile(join(directory,adapter.EXPORT_PATH),'utf8'),bytes);
-    await assert.rejects(()=>adapter.deliver(directory),/approval/);
-  } finally {await rm(directory,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
 });

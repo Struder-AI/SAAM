@@ -13,8 +13,6 @@ import {hash} from './plan.mjs';
 import {isMainThread} from 'node:worker_threads';
 import {runRepairJob} from './mesh-repair-job.mjs';
 
-const retired=['resolutionMm','maxGridPoints','maxOutputTriangles','fillRule','targetTriangles','maxPlaneErrorMm','maxBatchTriangles'];
-function checkOptions(options){for(const key of retired)if(options[key]!==undefined)throw Error(`Unsupported repair option: ${key}. Mesh repair now preserves source facets; remove obsolete options.`);}
 function shapeChanges(source,result,progress,signal){
   const sourcePoints=new Map(source.vertices.map((p,i)=>[p.join(','),i]));
   const key=t=>[...t].sort((a,b)=>a-b).join(','),original=new Set(source.triangles.map(key));let unchanged=0;
@@ -28,7 +26,7 @@ function shapeChanges(source,result,progress,signal){
     sampledDistanceMm:{sourceToResult:forward.maxMm,resultToSource:reverse.maxMm,sourceSamples:forward.samples,resultSamples:reverse.samples,coverage:'Deterministic vertex and face-centroid samples (at most 10,000 per direction); not a certified surface bound.'}};
 }
 async function prepare(source,options){
-  checkOptions(options);const {units,signal,progress=()=>{}}=options;signal?.throwIfAborted();const start=performance.now();
+  const {units,signal,progress=()=>{}}=options;signal?.throwIfAborted();const start=performance.now();
   if(options.maxSampledDistanceMm!==undefined&&(!Number.isFinite(options.maxSampledDistanceMm)||options.maxSampledDistanceMm<0))throw Error('maxSampledDistanceMm must be nonnegative.');
   progress({stage:'read-source'});const input=typeof source==='string'?await decodeSTLFile(source,{units,signal,progress}):decodeSTL(source,{units});
   const sourceHash=input.sha256??hash(source),clean=cleanTriangleSoup(input);let result,sourceError;
@@ -39,7 +37,7 @@ async function prepare(source,options){
   const changes=shapeChanges(clean,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});
   const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length,outputTriangles:result.triangles.length,...changes,
-    validation:'Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Numerical contact tolerance is 1e-9 mm; sampled distances do not certify shape fidelity.',geometryApproved:false};
+    validation:'Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Numerical contact tolerance is 1e-9 mm; sampled distances do not certify shape fidelity.'};
   return {result,report,start};
 }
 async function emitGeometry(result,{onGeometry,progress=()=>{},signal}){

@@ -122,7 +122,7 @@ test('native mesh uses the shared approvals and exact-byte delivery workflow',as
   await assert.rejects(verifyGeometry(native.bytes,fake),/display\/identity differs/);
   await generateBundle(dir);state=await loadBundle(dir);
   assert.equal(state.programError,undefined);
-  state=await approve(dir,{stage:'toolpath',actor:'SYNTHETIC MESH TEST',revision:state.revision});
+  state=await approve(dir,{actor:'SYNTHETIC MESH TEST',revision:state.revision});
   assert.equal(await readFile(await deliver(dir),'utf8'),state.code);
   await writeFile(join(dir,'geometry/model.mesh.json'),'{}');
   await assert.rejects(loadBundle(dir),/Geometry file changed/);

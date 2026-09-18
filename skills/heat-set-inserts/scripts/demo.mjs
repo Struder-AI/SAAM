@@ -16,4 +16,4 @@ await applyHeatSet(directory,{feature:{id:'metric',insertId:'spirol-29-m3-long',
 await applyHeatSet(directory,{feature:{id:'imperial',insertId:'spirol-19-4-40-short',positionMm:[40,16,12]}});
 const checks=await generateBundle(directory,{development:true});
 const state=await loadBundle(directory);
-console.log(JSON.stringify({directory,checks,geometryApproved:state.geometryApproved,toolpathApproved:state.toolpathApproved},null,2));
+console.log(JSON.stringify({directory,checks,toolpathApproved:state.toolpathApproved},null,2));

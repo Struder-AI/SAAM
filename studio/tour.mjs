@@ -18,10 +18,14 @@ function demo(id){if(!TOUR_DEMOS.some(d=>d.id===id))throw Error('Unknown tour ex
 const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includes(':')&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..');
 export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&TOUR_DEMOS.some(d=>d.id===marker.id)?{id:marker.id,version:marker.version}:null;}
 export function referenceAdapter(live){
-  return {...live,async loadBundle(directory,options={}){
+  const bundleFingerprints=async(directory,options)=>{
+    const [{source,presentation},example]=await Promise.all([live.bundleFingerprints(directory,options),tourExample(directory)]);
+    return {source:source+Boolean(example),presentation};
+  };
+  return {...live,bundleFingerprints,async loadBundle(directory,options={}){
     const example=await tourExample(directory),state=await live.loadBundle(directory,options);
     return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
-  },async bundleFingerprint(directory,options){return await live.bundleFingerprint(directory,options)+(options?.presentation?'':Boolean(await tourExample(directory)));},
+  },async bundleFingerprint(directory,options){return (await bundleFingerprints(directory,options)).source;},
   ...Object.fromEntries(['approve','generateBundle','deliver'].map(method=>[method,async(directory,...args)=>{
     if(await tourExample(directory)&&method!=='generateBundle')throw Error('Exit the tour before confirming a real print.');
     return live[method](directory,...args);

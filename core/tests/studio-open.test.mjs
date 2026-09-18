@@ -26,7 +26,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   }
   const resolver=async dir=>{
     assert.equal(JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).schema,'scratch-test/1');
-    return {bundleFingerprint:async()=>dir,loadBundle:async()=>({kind:'shell',marker:dir,review:{approvals:{}}})};
+    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>({kind:'shell',marker:dir,review:{approvals:{}}})};
   };
   const server=createStudio(join(library,'first'),{libraryRoot:library,resolveBundle:resolver});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
@@ -55,11 +55,11 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data,authorized=true)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:authorized?origin:'http://evil.invalid','X-SAAM-Token':token},body:JSON.stringify(data)});
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
-  const first=await get();assert.equal(first.geometryApproved,false);assert.equal(first.planApproved,false);assert.equal(first.program,undefined);
+  const first=await get();assert.equal(first.toolpathApproved,false);assert.equal(first.program,undefined);
   assert.equal((await post('open',{path:ready},false)).status,403);
   const archive=join(ready,'exports/bambu-gcode/part.gcode.3mf');
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
-  state=await get();assert.equal(state.planApproved,false);assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
+  state=await get();assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
   const requests=createAgentRequests(library,{ownerId:server.agentSession().ownerId});
   const shown={stage:'toolpath',revision:state.revision,exportHash:state.exportHash};
@@ -85,9 +85,9 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   await writeFile(archive,Buffer.from('altered'));
   assert.equal((await post('open',{path:ready})).status,200);
   state=await get();assert.equal(state.program,undefined);assert.match(state.programError,/changed/);
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.equal((await post('open',{path:join(geometry,'plan.json')})).status,200);
-  assert.equal((await get()).geometryApproved,false);
+  assert.equal((await get()).toolpathApproved,false);
 });
 
 test('background preparation leaves review writable and persists only a currently approved generation',async t=>{
@@ -116,7 +116,7 @@ test('final approval rejects a saved export whose bytes changed',async t=>{
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state=await(await fetch(origin+'/api/state')).json();assert.ok(state.program);
   const file=join(dir,'exports/griffin-gcode/part.gcode');await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
-  const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({stage:'toolpath',actor:'SYNTHETIC stale export test',revision:state.revision})});
+  const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({actor:'SYNTHETIC stale export test',revision:state.revision})});
   assert.equal(response.status,400);assert.match((await response.json()).error,/files changed/);
   const current=await(await fetch(origin+'/api/state')).json();assert.match(current.programError,/files changed/);assert.equal(current.exportHash,undefined);
 });
@@ -185,7 +185,7 @@ test('preparation diagnostics stay actionable until explicit retry; state pollin
 
 test('Studio opening retries a read spanning a multi-file edit but preserves persistent validation errors',async()=>{
   const {readStableBundle}=await import('../../studio/server.mjs');let reads=0;
-  const adapter={bundleFingerprint:async()=>'current',loadBundle:async()=>{if(reads++===0)throw Error('Plan and geometry disagree. Ask the agent to recreate the geometry.');return {revision:'updated'};}};
+  const adapter={bundleFingerprints:async()=>({source:'current',presentation:'current'}),loadBundle:async()=>{if(reads++===0)throw Error('Plan and geometry disagree. Ask the agent to recreate the geometry.');return {revision:'updated'};}};
   assert.equal((await readStableBundle(adapter,'synthetic',{program:false})).state.revision,'updated');assert.equal(reads,2);
   reads=0;adapter.loadBundle=async()=>{reads++;throw Error('Unconfigured machine');};
   await assert.rejects(readStableBundle(adapter,'synthetic',{}),/Unconfigured machine/);assert.equal(reads,1);

@@ -90,8 +90,8 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
   const skills={'vase-wall':settings,'full-fill':{enabled:baseHeight>0}};
   for(const name of disabled)skills[name]={enabled:false};
   const updated=await adjustBundle(directory,{skills},{expectedRevision:state.revision});
-  return {directory:updated.dir,revision:updated.revision,geometryHash:updated.geometryHash,geometryApproved:updated.geometryApproved,
-    planApproved:updated.planApproved,settings:updated.plan.skills['vase-wall'],
+  return {directory:updated.dir,revision:updated.revision,geometryHash:updated.geometryHash,
+    toolpathApproved:updated.toolpathApproved,settings:updated.plan.skills['vase-wall'],
     report:{detectedSleeve:detected,baseHeightMm:baseHeight,wallRangeMm:[start,end],automaticCourseCount:automaticCount,
       bodyCourses:pattern?.repeats??null,boundaryCourses:pattern&&endTransition==='level'?2:0,authoredPoints,
       baseEnabled:baseHeight>0,disabledDefaultSkills:disabled,sourceGeometryChanged:false,
