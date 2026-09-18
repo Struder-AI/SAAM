@@ -16,7 +16,7 @@ test('six-stage regional stack keeps ownership, transitions and horizontal wavy-
   const r=await rhino();
   for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])for(const backend of ['mesh','spline']) {
     const machine=loadMachine(id),plan=regionalStackPlan(machine,backend),path=generatePath(plan,machine,r);
-    const deposition=path.actions.filter(a=>a.volumeMm3>0),order=[...new Set(deposition.map(a=>a.region))];
+    const deposition=path.actions.filter(a=>a.volumeMm3>0),order=[...new Set(deposition.map(a=>a.region).filter(Boolean))];
     assert.deepEqual(order,['base','wall','cap','roof-finish','above-roof']);
     assert.ok(deposition.filter(a=>a.region==='base').every(a=>a.to[2]<=0.4+1e-8));
     assert.ok(deposition.filter(a=>a.region==='wall').every(a=>a.to[2]>=0.6-1e-8&&a.to[2]<=1.2+1e-8));
@@ -88,3 +88,39 @@ test('surface consumers cannot skip valleys, invent missing coverage or form dep
   assert.throws(()=>generatePath(cycle,machine,r),/cycle/);
   cycle.composition.regions[0].lowerSurfaceFrom='missing';assert.throws(()=>validatePlan(cycle,machine),/Unknown.*surface/);
 });
+
+test('explicit regional process overrides produce independently anchored thick courses',async()=>{
+  const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.geometry={shape:'box',runMm:8,widthMm:6,heightMm:3.2};plan.process.minimumLayerSeconds=0;
+  plan.geometry.heightMm=3.2;plan.process.experimentalDeposition=true;plan.process.maxFlowMm3S=15;
+  plan.composition.regions=[
+    {...region('lower',0,1.2,{'full-fill':{}}),process:{firstLayerMm:.6,layerMm:.6,lineWidthMm:.8,firstLayerSpeedMmS:20,planarSpeedMmS:20}},
+    {...region('upper',1.2,3.2,{'planar-infill':{perimeters:1,perimeterScope:'outer',density:0}}),process:{firstLayerMm:1,layerMm:1,lineWidthMm:2,firstLayerSpeedMmS:7.5,planarSpeedMmS:7.5}}
+  ];
+  validatePlan(plan,machine);
+  const path=generatePath(plan,machine,await rhino()),moves=path.actions.filter(a=>a.volumeMm3>0);
+  assert.deepEqual([...new Set(moves.map(a=>a.to[2]))],[.6,1.2,2.2,3.2]);
+  assert.deepEqual([...new Set(moves.map(a=>a.layer))],[0,1,2,3]);
+  assert.ok(moves.filter(a=>a.region==='upper').some(a=>a.role==='perimeter'));
+  assert.ok(moves.every(a=>a.speedMmS*a.volumeMm3/distanceFor(a,path)<=15+1e-7));
+});
+
+test('a locked prime line establishes the requested first-layer bead before every model operation',async()=>{
+  const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.geometry={shape:'box',runMm:8,widthMm:6,heightMm:.6};plan.placement={xMm:20,yMm:20};
+  plan.skills['draped-skin'].enabled=false;
+  Object.assign(plan.process,{firstLayerMm:.6,layerMm:.6,lineWidthMm:2,experimentalDeposition:true,maxFlowMm3S:25,minimumLayerSeconds:0,
+    primeLine:{passes:[
+      {startMm:[10,20],endMm:[10,50],zMm:.6,widthMm:1,heightMm:.6,speedMmS:8},
+      {startMm:[12,50],endMm:[12,20],zMm:.6,widthMm:2,heightMm:.6,speedMmS:10}
+    ]}});
+  const path=generatePath(plan,machine,await rhino()),deposition=path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0);
+  assert.equal(deposition[0].role,'prime-line');assert.equal(deposition[0].volumeMm3,18);
+  assert.equal(deposition[1].role,'prime-line');assert.equal(deposition[1].volumeMm3,36);
+  assert.ok(deposition.slice(2).every(a=>a.operation!=='prime-line:0'));
+  assert.equal(path.summary.primeLine.volumeMm3,54);assert.equal(path.summary.primeLine.passes,2);
+});
+
+function distanceFor(action,path){
+  let from=path.initialPosition;
+  for(const candidate of path.actions){if(candidate===action)return Math.hypot(...action.to.map((v,i)=>v-from[i]));if(candidate.kind==='move')from=candidate.to;}
+  return Infinity;
+}

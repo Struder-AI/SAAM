@@ -77,7 +77,15 @@ async function proposedPlan(machineId, { setupFile } = {}) {
   const plan = defaults(machine);
   const remembered = await rememberedSetup(setupFile ?? setupFor(machine), machine);
   if (remembered) plan.setup = { ...plan.setup, ...remembered, materialGuid: remembered.materialGuid || plan.setup.materialGuid };
+  fitLineWidthToSetup(plan,machine);
   return plan;
+}
+function fitLineWidthToSetup(plan,machine) {
+  const tool=machine.tools.find(candidate=>candidate.index===plan.setup.tool);
+  if(!tool)return;
+  const limits=plan.process.experimentalDeposition?tool.experimentalPlanar?.lineWidthMm:[plan.setup.nozzleMm*0.75,plan.setup.nozzleMm*2];
+  if(limits&&(plan.process.lineWidthMm<limits[0]||plan.process.lineWidthMm>limits[1]))
+    plan.process.lineWidthMm=Math.min(limits[1],Math.max(limits[0],plan.setup.nozzleMm));
 }
 async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,sourcePath } = {}) {
   const dir = resolve(directory);
@@ -283,11 +291,16 @@ function merge(target, changes) {
     if(key==='surface'&&value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'kind')){
       target[key]=structuredClone(value);continue;
     }
+    // Optional locked records (for example primeLine) are replaced as a whole;
+    // their alternate single-pass and multi-pass schemas cannot be deep-merged.
+    if((key==='primeLine'||target[key]===null||target[key]===undefined)&&value&&typeof value==='object'&&!Array.isArray(value)){
+      target[key]=structuredClone(value);continue;
+    }
     // Vase pattern forms have distinct strict fields. A complete form switch
     // replaces the record; ordinary motif/layout patches still merge in place.
     if(key==='pattern'&&value&&typeof value==='object'&&target[key]&&typeof target[key]==='object'
       &&(Object.hasOwn(value,'motif')&&!Object.hasOwn(target[key],'motif')
-        ||Object.hasOwn(value,'paths')&&Object.hasOwn(target[key],'motif'))){
+         ||Object.hasOwn(value,'paths')&&Object.hasOwn(target[key],'motif'))){
       target[key]=structuredClone(value);continue;
     }
     // Shapes deliberately have different strict field sets. Retain only the
@@ -434,6 +447,7 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
   const process={...state.plan.process};
   for(const key of new Set([...Object.keys(state.machine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))process[key]=proposal.process[key];
   const plan={...state.plan,setup:proposal.setup,output:proposal.output,process};
+  fitLineWidthToSetup(plan,machine);
   validatePlan(plan,machine);
   const review=state.review;
   review.approvals={};review.generation=null;

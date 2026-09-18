@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {recipeRows,regionRows,robotRows,hasSkill} from '../../studio/settings.mjs';
+import {recipeRows,regionRows,robotRows,hasSkill,nextExportName} from '../../studio/settings.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
@@ -52,4 +52,23 @@ test('Studio exposes calibrated robot motion/workspace and sparse settings, reta
   assert.equal(recipe.get('Planar infill · Fill directions'),'30, 120°');
   assert.equal(recipe.get('Requested operation order'),'a → b');
   assert.equal(recipe.get('Additional dependencies'),'b → c');
+});
+
+test('Studio summarizes explicit line networks without dumping centerline geometry',()=>{
+  const plan=defaults();
+  plan.skills['line-network']={enabled:true,layers:2,networks:[
+    {id:'one',strokes:[{points:[[0,0],[1,0]]}]},
+    {id:'two',strokes:[{points:[[2,0],[3,0]]},{points:[[2,1],[3,1]]}]}
+  ]};
+  const rows=new Map(recipeRows(plan));
+  assert.equal(rows.get('Line network · Component'),'All selected geometry');
+  assert.equal(rows.get('Line network · Courses'),'2');
+  assert.equal(rows.get('Line network · Independent faces'),'2');
+  assert.equal(rows.get('Line network · Centerline strokes'),'3');
+});
+
+test('compact versioned export names advance while ordinary names remain unchanged',()=>{
+  assert.equal(nextExportName('DICE-V1-H2D2-0-6'),'DICE-V2-H2D2-0-6');
+  assert.equal(nextExportName('DICE-V99-H2D2-0-8'),'DICE-V100-H2D2-0-8');
+  assert.equal(nextExportName('Wavy roof'),'Wavy roof');
 });

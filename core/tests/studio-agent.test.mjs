@@ -133,6 +133,7 @@ test('tour queues chat guidance and exports exact reviewed bytes before completi
   assert.equal((await post('tour',{action:'exit'})).status,200);
   assert.equal((await tour.info()).completed,true);assert.equal((await tour.info()).dismissed,true);
   assert.equal(await printName(directory),'Handle');assert.equal(downloadName('Named handle · Nave','part.gcode'),'Named handle · Nave.gcode');
+  assert.equal(downloadName('dice-weld-demo-h2d-right-0.8mm','part.gcode.3mf'),'dice-weld-demo-h2d-right-0.8mm.gcode.3mf');
 });
 
 

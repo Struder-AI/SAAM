@@ -13,7 +13,7 @@
 
 import { composeResults } from '../../../core/path/compose.mjs';
 import { createSectionQuery } from '../../../core/geom/query.mjs';
-import { scanlineFill, regionArea } from '../../../core/region/region2d.mjs';
+import { scanlineFill, regionArea, loopArea, pointInRegion } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
 import { perimeterLoops } from '../../../core/region/perimeters.mjs';
 import { difference, union } from '../../../core/region/boolean.mjs';
@@ -30,6 +30,8 @@ export const FULL_FILL_DEFAULTS = {
   bottomLayers: 3,
   topLayers: 3,
   perimeters: 2,
+  perimeterScope: 'all',
+  holeLineWidthMm: null,
   fillAnglesDeg: [45, 135],
   fillOverlap: 0.15,
   minFeatureMm: 0.4
@@ -47,7 +49,7 @@ export function layerHeights(process, fromMm, toMm) {
   return heights;
 }
 
-export function fullFillResult({ shell, plan, machine, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, interiorStrokes=null, sectionAt=null, regionAt=null, fillRegionAt=null, zStartMm=null, zEndMm=null, lowerSurface=null, detailsMode='deposit', onProgress }) {
+export function fullFillResult({ shell, plan, machine, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, interiorStrokes=null, sectionAt=null, regionAt=null, fillRegionAt=null, zStartMm=null, zEndMm=null, layerOriginMm=null, layerIndexOffset=0, lowerSurface=null, detailsMode='deposit', onProgress }) {
   const operations=[];
   let previous=[];
   const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'],...overrides };
@@ -55,7 +57,8 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
   const width = process.lineWidthMm,wallToleranceMm=planarWallTolerance(machine);
   const pitch=lineSpacing(width,settings),fillSpacing=spacingMm??pitch;
   const top = Math.min(shell.bounds.max[2],zEndMm??Infinity);
-  const heights = layerHeights(process, shell.bounds.min[2], top).filter(z=>z>(zStartMm??-Infinity)+1e-9);
+  const origin=layerOriginMm??shell.bounds.min[2];
+  const heights = layerHeights(process, origin, top).filter(z=>z>(zStartMm??-Infinity)+1e-9);
   const reserves=Array.isArray(reserve)?reserve:[reserve].filter(Boolean);
   requireThat(heights.length > 0, 'No planar layers fit below the reserved surface; the part is thinner than one layer.');
 
@@ -68,15 +71,15 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
   const stage=settings.perimeters?'Planning walls and infill':'Planning solid layers';
   for (const z of heights) {
     onProgress?.({stage,completed:completed++,total:heights.length});
-    const index=Math.round((z-shell.bounds.min[2]-process.firstLayerMm)/process.layerMm);
-    const height = index === 0 ? process.firstLayerMm : process.layerMm;
-    const speed = index === 0 ? process.firstLayerSpeedMmS : process.planarSpeedMmS;
+    const localIndex=Math.round((z-origin-process.firstLayerMm)/process.layerMm),index=localIndex+layerIndexOffset;
+    const height = localIndex === 0 ? process.firstLayerMm : process.layerMm;
+    const speed = localIndex === 0 ? process.firstLayerSpeedMmS : process.planarSpeedMmS;
     const section = sectionAt(z);
     if (section.nudgedByMm) report.nudgedLayers++;
     // Below the reserved surface the body prints solid; where the skin has
     // claimed the material, the body stops. A layer entirely below the reserve
     // needs no clipping at all, which is the common case low down in the part.
-    let region = regionAt ? regionAt(z,index) : section.loops;
+    let region = regionAt ? regionAt(z,localIndex) : section.loops;
     if(!regionAt){
       if(lowerSurface)region=clipAboveSurface(region,z,lowerSurface);
       for(const reservation of reserves)region=clipReservedRegion(region,z,reservation);
@@ -90,13 +93,19 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
     const key=JSON.stringify([region,detail?.reservation]);
     let prepared=contours.get(key);
     if(!prepared){
-      const walls=[];
+      const walls=[],holeWidth=settings.holeLineWidthMm,holePitch=holeWidth===null?null:lineSpacing(holeWidth,settings);
       for (let ring = 0; ring < settings.perimeters; ring++) {
-        const loops = perimeterLoops(region, width / 2 + ring * pitch);
+        const ordinary = perimeterLoops(region, width / 2 + ring * pitch);
+        const loops = holeWidth===null?ordinary:[
+          ...ordinary.filter(loop=>loopArea(loop)>0).map(loop=>({loop,beadWidthMm:width})),
+          ...perimeterLoops(region,holeWidth/2+ring*holePitch).filter(loop=>loopArea(loop)<0).map(loop=>({loop,beadWidthMm:holeWidth}))
+        ];
         if (!loops.length) break;
         // Simplify only the finished deposition contour to machine precision.
         // The original offset region continues to own material topology.
-        for (const loop of loops) if(!detail?.ownsWall(loop))walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true, points: cleanPlanarLoop(loop,wallToleranceMm===0?TOLERANCE.plane:wallToleranceMm) });
+        const entries=holeWidth===null?loops.map(loop=>({loop,beadWidthMm:width})):loops;
+        const holes=entries.filter(entry=>loopArea(entry.loop)<0).map(entry=>entry.loop);
+        for (const {loop,beadWidthMm} of entries) if(!detail?.ownsWall(loop)&&(settings.perimeterScope==='all'||(loopArea(loop)>0&&!holes.some(hole=>pointInRegion(loop[0],[hole])))))walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true, points: cleanPlanarLoop(loop,wallToleranceMm===0?TOLERANCE.plane:wallToleranceMm),beadWidthMm });
       }
       // Fill starts half a bead inside the last perimeter, less the overlap that
       // welds fill to perimeter.
@@ -108,9 +117,9 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
     }
     const strokes=[...prepared.walls,...(detailsMode==='deposit'&&detail?[...detail.walls,...detail.fins]:[])];
     report.perimeterLoops+=strokes.filter(s=>s.closed).length;
-    let fillRegion = fillRegionAt ? fillRegionAt(region,index,z) : prepared.interior;
+    let fillRegion = fillRegionAt ? fillRegionAt(region,localIndex,z) : prepared.interior;
     if(detail?.fillExclusion.length)fillRegion=difference(fillRegion,offsetRegion(detail.fillExclusion,width/2));
-    if(interiorRegion)fillRegion=interiorRegion(fillRegion,index,z,region);
+    if(interiorRegion)fillRegion=interiorRegion(fillRegion,localIndex,z,region);
     const angle = settings.fillAnglesDeg[index % settings.fillAnglesDeg.length];
     const rows = fillRegion.length && !interiorStrokes ? scanlineFill(fillRegion, fillSpacing, angle) : [];
     report.fillRows += rows.length;
@@ -121,7 +130,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       strokes.push({ role: 'fill', closed: false, points, scanlineCell:row.cellId });
     });
     if(fillRegion.length&&interiorStrokes){
-      const generated=interiorStrokes(fillRegion,index,z);
+      const generated=interiorStrokes(fillRegion,localIndex,z);
       strokes.push(...generated.map(stroke=>({...stroke,role:'fill'})));
       report.fillRows+=generated.length;
     }
@@ -136,8 +145,8 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
     const current=[];
     for(const [role,closed] of [['walls',true],['fins',false],['fill',false]]) {
       const selected=strokes.filter(stroke=>role==='walls'?stroke.closed&&stroke.role!=='fill':role==='fins'?stroke.localDetail==='fin':stroke.role==='fill').map(stroke=>lowerSurface?{
-        ...stroke,...surfaceStroke({points2d:stroke.points,z,nominalHeightMm:height,widthMm:width,surface:lowerSurface,closed:stroke.closed,maxStepMm:Math.min(0.2,settings.minFeatureMm/2)}),speedMmS:speed
-      }:{...stroke,points:(stroke.closed&&stroke.role==='fill'?[...stroke.points,stroke.points[0]]:stroke.points).map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:width*height});
+        ...stroke,...surfaceStroke({points2d:stroke.points,z,nominalHeightMm:height,widthMm:stroke.beadWidthMm??width,surface:lowerSurface,closed:stroke.closed,maxStepMm:Math.min(0.2,settings.minFeatureMm/2)}),speedMmS:speed
+      }:{...stroke,points:(stroke.closed&&stroke.role==='fill'?[...stroke.points,stroke.points[0]]:stroke.points).map(point=>[...point,z]),speedMmS:speed,beadAreaMm2:(stroke.beadWidthMm??width)*height});
       if(!selected.length)continue;
       const operationId=id+':'+index+':'+role;
       // Coverage is consumed by material-region publication, not ordinary

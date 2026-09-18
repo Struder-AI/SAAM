@@ -24,7 +24,14 @@ Sources: [generate.mjs](../../core/print/generate.mjs).
 
 **Change together.** Keep producer order, source operation IDs, material ownership, summary fields, startup state and consumer dependencies consistent. Skill implementation contracts remain in their separate authoring references; shared orchestration belongs here. Preserve mesh planarDetails through placement and assembly handling.
 
-**Verification.** Trace one ordinary fill/skin recipe, one assembly, one regional recipe and affected optional producers. Check source/export consumers when action metadata or priming changes. Checks: [pipeline.test.mjs](../../core/tests/pipeline.test.mjs), [interoperability.test.mjs](../../core/tests/interoperability.test.mjs), [composition.test.mjs](../../core/tests/composition.test.mjs), [prime.test.mjs](../../core/tests/prime.test.mjs).
+**Verification.** Trace one ordinary fill/skin recipe, one assembly, one regional
+recipe and affected optional producers. The machine profile normally owns
+whole-plan priming. An explicitly locked `process.primeLine` record replaces
+that default for the print and may describe one pass or a bounded pass list; it
+is emitted before every material operation and replaced atomically by recipe
+adjustment because its two forms have different strict fields. Check
+source/export consumers when action metadata or priming changes. Checks:
+[pipeline.test.mjs](../../core/tests/pipeline.test.mjs), [interoperability.test.mjs](../../core/tests/interoperability.test.mjs), [composition.test.mjs](../../core/tests/composition.test.mjs), [prime.test.mjs](../../core/tests/prime.test.mjs), [workflow.test.mjs](../../core/tests/workflow.test.mjs).
 
 
 ## Changing regional material publication

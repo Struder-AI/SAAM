@@ -172,8 +172,9 @@ multi-patch routing, physical contact verification or a second scheduler.
 ## Line spacing
 
 [spacing.mjs](../../core/path/spacing.mjs) derives nominal centerline pitch from bead width and
-one optional per-skill `spacingFactor`: a finite number at least `1`, defaulting
-to `1`. Producers use that pitch for course placement and the actual bead width
+one optional per-skill `spacingFactor`: a finite number at least `0.5`, defaulting
+to `1`. Values below 1 intentionally overlap adjacent beads; values above 1
+leave space between them. Producers use that pitch for course placement and the actual bead width
 for cross section and segment volume. Agents never need to match independent
 pitch and extrusion settings. Plan validation checks regional overrides through
 the same contract.
@@ -193,8 +194,8 @@ tapers use bead width, not widened pitch. Surface spacing remains sampled, with
 the cladding producer's existing metric and fixed-relay flow limitations.
 The setting does not add a material profile or establish physical printability.
 
-Spaced planar interiors publish sparse coverage; spaced walls publish their
-individual bands. A spaced draped skin publishes only its final bead strips,
+Planar interiors with factors above 1 publish sparse coverage; spaced walls
+publish their individual bands. A spaced draped skin publishes only its final bead strips,
 so a successor cannot consume its gaps as a continuous material surface.
 Ordinary factor-1 recipes retain their existing deposition behavior.
 

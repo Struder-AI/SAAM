@@ -20,13 +20,14 @@ const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.
 const ENVELOPE_HASHES={
   'h2d-02.08.02.61-pla-textured-v1':'8fdee627792030a4f8b614752257b7b2756df1ba2693d5087997084ac4970807',
   'h2d-02.08.02.61-pla-textured-v2':'94568f3e3c38e4e0ff75de653e8b973cdce7fd9f63b5b688a294a55fe1fa48a0',
+  'h2d-02.08.02.61-pla-textured-v3':'913c45b16fb4f9fcefa0fb66174fcee1ff8f3fe55b11d0d486ea3339188ef610',
 };
 function configuration(plan,machine){
   validateSetup(plan,machine);
   const output=machine.outputs.find(o=>o.id===plan.output),t=toolFor(machine,plan.setup.tool),s=plan.setup;
   requireThat(machine.id==='bambu-h2d'&&plan.output==='bambu-gcode'&&Object.hasOwn(ENVELOPE_HASHES,output?.program?.contract),'Unsupported H2D output contract.');
   requireThat(digest(JSON.stringify([output.program.start,output.program.end]))===ENVELOPE_HASHES[output.program.contract],'Unknown H2D firmware envelope; an interpreter update is required.');
-  requireThat(s.material==='PLA'&&s.nozzleMm===0.4&&s.filamentMm===1.75&&s.buildVolumeC===0,'H2D output requires 0.4 mm PLA, 1.75 mm filament and no chamber heating.');
+  requireThat(s.material==='PLA'&&[0.4,0.6,0.8].includes(s.nozzleMm)&&s.filamentMm===1.75&&s.buildVolumeC===0,'H2D output requires a declared 0.4, 0.6 or 0.8 mm PLA setup, 1.75 mm filament and no chamber heating.');
   requireThat(t.physicalExtruder===1-s.tool&&JSON.stringify(t.startupXY)==='[100,100]'&&machine.startup.zAfterStartupMm===20,'H2D tool/startup contract mismatch.');
   return output;
 }
@@ -36,7 +37,7 @@ function contextFor(path,plan,machine,release){
   const bounds=path.summary?.boundsMm;
   const layers=new Set(deposits.map(m=>`${m.phase}:${m.layer}`));
   const context={schema:'saam-h2d-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
-    pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size};
+    pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size,filamentColor:plan.setup.filamentColor??'#28A090',requestedAmsSlot:plan.setup.amsSlot??null};
   checkContext(context,plan,machine);return context;
 }
 function checkContext(c,plan,machine){
@@ -48,11 +49,14 @@ function checkContext(c,plan,machine){
   // fixed firmware contract's geometry bound independently of print-body Z.
   requireThat(Number.isFinite(c.pathMaxZ)&&c.pathMaxZ>=c.initialPosition[2]&&c.pathMaxZ<=b.max[2]&&Math.max(c.pathMaxZ,c.bounds.max[2]+10)<=Math.min(320,b.max[2]),'H2D shutdown clearance exceeds machine bounds.');
   requireThat(Number.isInteger(c.layers)&&c.layers>0&&c.layers<100000,'Invalid H2D layer count.');
+  if(c.filamentColor!==undefined)requireThat(/^#[0-9a-f]{6}$/i.test(c.filamentColor),'Invalid H2D filament color.');
+  if(c.requestedAmsSlot!==undefined)requireThat(c.requestedAmsSlot===null||Number.isInteger(c.requestedAmsSlot)&&c.requestedAmsSlot>=1&&c.requestedAmsSlot<=4,'Invalid requested AMS slot.');
   requireThat(c.release&&/^[a-zA-Z0-9.+-]{1,40}$/.test(c.release.generatorVersion)&&/^\d{4}-\d{2}-\d{2}$/.test(c.release.buildDate),'Invalid H2D release metadata.');
 }
 function sections(c,plan,machine,output){
   const endClearanceZ=fmt(Math.max(c.pathMaxZ,c.bounds.max[2]+10));
   const values={...plan.setup,physicalTool:toolFor(machine,plan.setup.tool).physicalExtruder,
+    filamentTool:(plan.setup.amsSlot??1)-1,
     minX:fmt(c.bounds.min[0]),minY:fmt(c.bounds.min[1]),sizeX:fmt(c.bounds.max[0]-c.bounds.min[0]),sizeY:fmt(c.bounds.max[1]-c.bounds.min[1]),
     endClearanceZ,parkZ:fmt(Math.max(endClearanceZ,Math.min(320,100+c.bounds.max[2]/2)))};
   const render=lines=>lines.map(line=>line.replace(/\{([A-Za-z]+)\}/g,(_,key)=>{
@@ -113,9 +117,11 @@ function completeProgram(program,code,c,s){
 
 function packageEntries(code,c,program,plan){
   const tool=plan.setup.tool,map=tool+1,volume=program.volumeMm3,filament=program.summary.filamentMm,weight=volume/1000*1.26;
+  const color=plan.setup.filamentColor??'#28A090';
+  const nozzle=plan.setup.nozzleMm,nozzles=['0.4','0.4'];nozzles[tool]=String(nozzle);
   const seconds=Math.ceil(program.seconds),bbox=[c.bounds.min[0],c.bounds.min[1],c.bounds.max[0],c.bounds.max[1]];
   const plate={bbox_all:bbox,bbox_objects:[{area:(bbox[2]-bbox[0])*(bbox[3]-bbox[1]),bbox,id:1,layer_height:plan.process.layerMm,name:'SAAM part'}],
-    bed_type:'textured_plate',filament_colors:['#28A090'],filament_ids:[0],first_extruder:0,first_layer_time:0,is_seq_print:false,nozzle_diameter:0.4,version:2};
+    bed_type:'textured_plate',filament_colors:[color],filament_ids:[0],first_extruder:0,first_layer_time:0,is_seq_print:false,nozzle_diameter:nozzle,version:2};
   const entries=new Map([
     [GCODE,code],[GCODE+'.md5',digest(code,'md5')],['Metadata/saam.json',json(c)],
     ['Metadata/plate_1.json',json(plate)],
@@ -126,8 +132,19 @@ function packageEntries(code,c,program,plan){
     ['Metadata/model_settings.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><plate>\n${meta({plater_id:1,plater_name:'SAAM',locked:false,filament_map_mode:'Manual',filament_maps:map,filament_volume_maps:0,gcode_file:GCODE,thumbnail_file:'Metadata/plate_1.png',thumbnail_no_light_file:'Metadata/plate_no_light_1.png',top_file:'Metadata/top_1.png',pick_file:'Metadata/pick_1.png',pattern_bbox_file:'Metadata/plate_1.json'})}\n</plate></config>\n`],
     ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config><header><header_item key="X-BBL-Client-Type" value="slicer"/><header_item key="X-BBL-Client-Version" value="SAAM-${xml(c.release.generatorVersion)}"/></header><plate>\n${meta({index:1,extruder_type:'0 0',nozzle_volume_type:'0 0',printer_model_id:'O1D',nozzle_diameters:'0.4,0.4',timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:map,limit_filament_maps:0})}\n<object identify_id="1" name="SAAM part" skipped="false"/><filament id="1" tray_info_idx="GFA00" type="PLA" color="#28A090" used_m="${fmt(filament/1000,4)}" used_g="${fmt(weight,3)}" group_id="${tool}" nozzle_diameter="0.40" volume_type="Standard" used_for_object="true" used_for_support="false" total_load_time="26.00" total_unload_time="0.00"/><nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="0.4" volume_type="Standard"/><layer_filament_lists><layer_filament_list filament_list="0" layer_ranges="0 ${c.layers-1}"/></layer_filament_lists></plate></config>\n`],
     ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:[tool],optimal_assignment:[0],sequence:[1]}})],
-    ['Metadata/project_settings.config',json({printer_model:'Bambu Lab H2D',printer_settings_id:'Bambu Lab H2D 0.4 nozzle',gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:['1','0'],filament_map:[String(map)],filament_map_mode:'Manual',filament_nozzle_map:[String(tool)],nozzle_diameter:['0.4','0.4'],nozzle_volume_type:['Standard','Standard'],filament_diameter:['1.75'],filament_type:['PLA'],filament_ids:['GFA00'],filament_colour:['#28A090'],filament_density:['1.26'],filament_flow_ratio:['1'],nozzle_temperature:[String(plan.setup.nozzleC)],nozzle_temperature_initial_layer:[String(plan.setup.nozzleC)],hot_plate_temp:[String(plan.setup.bedC)],hot_plate_temp_initial_layer:[String(plan.setup.bedC)],chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0'})]
+    ['Metadata/project_settings.config',json({printer_model:'Bambu Lab H2D',printer_settings_id:'Bambu Lab H2D 0.4 nozzle',gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:['1','0'],filament_map:[String(map)],filament_map_mode:'Manual',filament_nozzle_map:[String(tool)],nozzle_diameter:['0.4','0.4'],nozzle_volume_type:['Standard','Standard'],nozzle_type:['hardened_steel','hardened_steel','hardened_steel','hardened_steel','hardened_steel'],filament_diameter:['1.75'],filament_type:['PLA'],filament_ids:['GFA00'],filament_colour:['#28A090'],filament_density:['1.26'],filament_flow_ratio:['1'],nozzle_temperature:[String(plan.setup.nozzleC)],nozzle_temperature_initial_layer:[String(plan.setup.nozzleC)],hot_plate_temp:[String(plan.setup.bedC)],hot_plate_temp_initial_layer:[String(plan.setup.bedC)],chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0'})]
   ]);
+  const sliceName='Metadata/slice_info.config',projectName='Metadata/project_settings.config';
+  entries.set(sliceName,entries.get(sliceName)
+    .replace('color="#28A090"',`color="${color}"`)
+    .replace('key="nozzle_diameters" value="0.4,0.4"',`key="nozzle_diameters" value="${nozzles.join(',')}"`)
+    .replace('nozzle_diameter="0.40"',`nozzle_diameter="${nozzle.toFixed(2)}"`)
+    .replace(`nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="0.4"`,`nozzle id="${tool}" extruder_id="${map}" nozzle_diameter="${nozzle}"`));
+  const project=JSON.parse(entries.get(projectName));
+  // The preset family is selected by the first (left) nozzle. Mixed H2D
+  // diameters are then carried by nozzle_diameter and the slice metadata.
+  project.printer_settings_id=`Bambu Lab H2D ${nozzles[0]} nozzle`;project.nozzle_diameter=nozzles;project.filament_colour=[color];
+  entries.set(projectName,json(project));
   const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){
     if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.moves,c.bounds,size));

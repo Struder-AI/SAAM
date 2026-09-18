@@ -41,8 +41,11 @@ test('changing printer clears final confirmation and rejects stale edits',async 
   await generateBundle(dir);state=await loadBundle(dir);
   state=await approve(dir,{actor:ACTOR,revision:state.revision});
   await assert.rejects(changeMachine(dir,'bambu-h2d',{expectedRevision:'stale'}),/stale/);
-  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision});
+  const setupFile=resolve(dir,'h2d-setup.json');
+  await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',amsSlot:4}}));
+  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,setupFile});
   assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
+  assert.equal(next.plan.setup.nozzleMm,0.6);assert.equal(next.plan.process.lineWidthMm,0.6);
   assert.equal(next.toolpathApproved,false);
   assert.deepEqual(next.plan.geometry,state.plan.geometry);
   await assert.rejects(changeMachine(dir,'missing-printer',{expectedRevision:next.revision}),/machine|Unknown/i);
@@ -158,6 +161,13 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
   await assert.rejects(adjustBundle(dir, { skills: { 'full-fill': { perimeter: 3 } } }), /Unknown setting/);
   await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /layerMm/);
+  await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
+  state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.endMm[0],20);
+  await adjustBundle(dir,{process:{primeLine:{passes:[
+    {startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:6},
+    {startMm:[20,7],endMm:[5,7],zMm:.2,widthMm:.6,heightMm:.2,speedMmS:8}
+  ]}}});
+  state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.passes.length,2);
 
   // A chat request can switch shapes with different strict fields. It starts
   // from the new shape's template, keeps shared roof controls and rewrites the

@@ -34,7 +34,8 @@ test('spacing is a required setting and validates one independent value, includi
   for(const name of SPACING_SKILLS){const missing=boxPlan();delete missing.skills[name].spacingFactor;
     assert.throws(()=>validatePlan(missing,machine),/Unexpected or missing fields/);}
   near(lineSpacing(.4,{spacingFactor:3}),1.2);
-  for(const value of [0,.5,-1,null,'3',NaN,Infinity]){
+  near(lineSpacing(2,{spacingFactor:.75}),1.5);
+  for(const value of [0,.49,-1,null,'3',NaN,Infinity]){
     const bad=boxPlan();bad.skills['full-fill'].spacingFactor=value;
     assert.throws(()=>validatePlan(bad,machine),/spacingFactor/);
   }

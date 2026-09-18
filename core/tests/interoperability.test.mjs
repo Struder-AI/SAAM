@@ -25,7 +25,7 @@ test('S5 and H2D speed defaults are shared by shell plans',()=>{
 
 test('machine validation respects selected tool, filament, material and skill capabilities',async()=>{
   const s5=loadMachine(),h2d=loadMachine('bambu-h2d'),plan=defaults(h2d);
-  assert.throws(()=>validatePlan(defaults(s5),h2d),/Nozzle|Filament/);
+  assert.throws(()=>validatePlan(defaults(s5),h2d),/Nozzle|Filament|missing fields in plan.setup/);
   const flatOnly=structuredClone(h2d);flatOnly.capabilities=['xyz-extrusion','planar'];
   assert.throws(()=>validatePlan(plan,flatOnly),/nonplanar/);
   plan.skills['draped-skin'].enabled=false;validatePlan(plan,flatOnly);
