@@ -115,7 +115,7 @@ async function rememberedSetup(setupFile, machine) {
   return Object.fromEntries(Object.entries(saved.setup ?? {}).filter(([key]) => Object.hasOwn(known, key)));
 }
 
-async function loadBundle(directory, { program = true, sourceFile, allSources=false } = {}) {
+async function loadBundle(directory, { program = true, allSources=false } = {}) {
   const dir = resolve(directory);
   const [planText, machineText, geometryText, review, runtime] = await Promise.all([
     readFile(resolve(dir, 'plan.json'),'utf8'), readFile(resolve(dir, 'machine.json'),'utf8'), readFile(resolve(dir, 'geometry/model.json'),'utf8'),
@@ -191,10 +191,6 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
       state.exportHash = exportHash;
       state.code = verifiedProgram.code;
       if(allSources)state.sources={...verifiedProgram.sources};
-      if(sourceFile!==undefined){
-        requireThat(Object.hasOwn(verifiedProgram.sources,sourceFile),'Unknown machine source file.');
-        state.code=verifiedProgram.sources[sourceFile];
-      }
       state.toolpathApproved = review.approvals.toolpath?.hash === state.exportHash
         && review.approvals.toolpath?.planHash === planHash
         && review.generation.mode === 'production';

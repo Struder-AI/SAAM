@@ -1,5 +1,41 @@
 # Development log
 
+## 2026-09-18 — Remove print-bundle compatibility extras
+
+Under the DEVELOPER-CONTEXT status note (no bundle back-compat until about
+2026-10-01), three parallel agent packages deleted the compatibility paths the
+dev-map contracts still described, instead of relocating them.
+
+- Plan schema: `validatePlan` is check-only. Every in-memory fill, retired-field
+  deletion and backfill before the strict key check is gone; a recipe missing a
+  current field is rejected and recreated from its skills. The `upgrade` command,
+  its unimplemented adapter hook, the Griffin/rules startup-field fallback, the
+  stale `path.saampath` cleanup and the retired repair-option list are removed,
+  with their contract text in lifecycle, generation, regions, geometry, bambu and
+  testing references. Text records now require `materialParts`; `standalone`
+  stays optional because the producer only writes it on a reference body.
+- Composition: operations no longer carry `clearanceZ`. The composer never read
+  it (the builder derives clearance from deposited height); ten producers and the
+  composed-result field are dropped. The material-less travel-policy branch stays
+  because seven current producers still build policies without a material query.
+- Studio: the old single-request receipt fallback and the `requiresTarget` flag
+  are gone (edit kind implies a published target); the per-file source transport,
+  its route alias and the loader's dead `sourceFile` option are removed, leaving
+  the streamed `/api/sources` transport and `/api/gcode`; the accepted
+  `--close-when-idle` alias is removed.
+
+Unknown STL-repair options are now ignored rather than rejected; there is no
+general unknown-option gate on that path. Studio settings keeps its
+`maxPoints` label row because rimming and pipe cladding still own that setting.
+
+Verification on the merged tree: `dev-map.mjs check` passes; core suite
+506 tests, 502 pass; skills suite 169 tests, 165 pass. All eight failures
+pre-exist this work: the two MCP manual-path/transport cases, the two regional
+stack/cladding cases (confirmed failing at 3609a20 in a detached worktree), the
+two plastic-weld cases and the two vase-wall interoperability cases (confirmed
+by the agents at main f352322). Each package was developed and tested in its own
+worktree, then cherry-picked here.
+
 ## 2026-09-17 — One fingerprint pass per Studio state read
 
 `readStableBundle` already bracketed each load with before/after fingerprints,
