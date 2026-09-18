@@ -8,7 +8,7 @@ import {generatePath,buildShell,translateShell} from '../../../core/print/genera
 import {rhino} from '../../../core/print/geometry.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
-import {pointSegmentDistance} from '../../../core/region/region2d.mjs';
+import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2d.mjs';
 import {boxMesh,ringMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle,EXPORT_PATH} from '../../../core/print/bundle.mjs';
 import {syntheticDobotSetup} from '../../../core/tests/fixtures/dobot.mjs';
@@ -19,6 +19,10 @@ import {vaseWallResult} from '../scripts/vase.mjs';
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
   plan.skills['full-fill'].enabled=false;plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;plan.skills['vase-wall'].endTransition='spiral';
+  // These regressions assert the exact per-section wall (kernels, topology,
+  // section-following within boundaryToleranceMm). The fitted-sleeve fast path
+  // and its bounded deviation are covered separately below.
+  plan.skills['vase-wall'].sleeveToleranceMm=0;
   return plan;
 }
 const taperedSpline={shape:'spline-shell',runMm:8,widthMm:6,cpU:4,cpV:4,longSideInsetMm:0.1,shortSideOutsetMm:0.1,heightsMm:Array.from({length:4},()=>[1,1,1,1])};
@@ -50,6 +54,38 @@ function splittingMesh() {
     const ids=points.map(p=>{const key=p.join();if(!index.has(key)){index.set(key,vertices.length);vertices.push([p[0]*3,p[1]*6,p[2]*0.6]);}return index.get(key);});
     quads.forEach((q,i)=>{const neighbor=adjacent[i];if(neighbor&&filled(x+neighbor[0],z+neighbor[1]))return;const [a,b,c,d]=q.map(j=>ids[j]);triangles.push([a,b,c],[a,c,d]);});
   }
+  return {shape:'mesh',vertices,triangles,source:null};
+}
+// A real rocket-nozzle mesh section captured at the exact height where the exact
+// per-section wall failed: a healthy convex loop (~1169 mm^2, no holes, no thin
+// features) whose ruled NURBS patches meet in near-collinear seam steps. Quantized
+// to the offset grid, a seam rounds a hair off its edge and an inward bead-half-
+// width offset amplifies that into a degenerate sliver, splitting the inset into
+// two loops — a healthy section wrongly rejected as "empty, split or collapsed".
+const seamPinchSection=[
+  [119.503773,102.794976],[119.010867,105.272981],[118.198733,107.665449],[117.081268,109.931445],
+  [115.677591,112.032196],[114.022653,113.919291],[114.01172,113.931758],[112.112157,115.59763],
+  [110.011406,117.001307],[107.74541,118.118772],[105.352942,118.930906],[102.874937,119.423812],
+  [100.370342,119.587971],[100.353795,119.589056],[97.832652,119.423812],[95.354647,118.930906],
+  [92.977882,118.124102],[92.962179,118.118772],[90.696184,117.001307],[88.595432,115.59763],
+  [86.708337,113.942692],[86.69587,113.931758],[85.029998,112.032196],[83.626321,109.931445],
+  [82.508856,107.665449],[81.696723,105.272981],[81.203817,102.794976],[81.039657,100.29038],
+  [81.038572,100.273833],[81.203817,97.752691],[81.696723,95.274686],[82.503526,92.89792],
+  [82.508856,92.882218],[83.626321,90.616222],[85.029998,88.515471],[86.684936,86.628376],
+  [86.69587,86.615909],[88.595432,84.950037],[90.696184,83.54636],[92.947307,82.436229],
+  [92.962179,82.428895],[95.354647,81.616761],[97.832652,81.123855],[100.337248,80.959695],
+  [100.353795,80.958611],[102.874937,81.123855],[105.352942,81.616761],[107.729708,82.423564],
+  [107.74541,82.428895],[110.011406,83.54636],[112.112157,84.950037],[114.01172,86.615909],
+  [115.677591,88.515471],[117.081268,90.616222],[118.191399,92.867345],[118.198733,92.882218],
+  [119.010867,95.274686],[119.503773,97.752691],[119.669017,100.273833],[119.504857,102.778429],
+];
+// Extrude that section as a closed vertical prism (flat centroid-fan caps) so
+// every wall-band section is exactly this seam-stepped loop.
+function seamPinchMesh(height=8) {
+  const n=seamPinchSection.length,c=[100,100];
+  const vertices=[...seamPinchSection.map(p=>[...p,0]),...seamPinchSection.map(p=>[...p,height]),[...c,0],[...c,height]];
+  const bottom=2*n,top=2*n+1,triangles=[];
+  for(let i=0;i<n;i++){const j=(i+1)%n;triangles.push([i,j,j+n],[i,j+n,i+n],[bottom,j,i],[top,i+n,j+n]);}
   return {shape:'mesh',vertices,triangles,source:null};
 }
 
@@ -199,6 +235,56 @@ test('vase rejects unsupported topology and collapsed offsets, without an overha
   const planarOnly=structuredClone(machine);planarOnly.capabilities=['xyz-extrusion','planar'];assert.throws(()=>validatePlan(vasePlan(),planarOnly),/nonplanar/);
 });
 
+test('a healthy section with tessellation seam steps still offsets to one continuous wall',async()=>{
+  // Regression: the exact per-section wall passed a raw mesh cut straight to the
+  // inward offset, so a near-collinear patch/triangle seam — quantized to the
+  // offset grid — split a degenerate sliver off the inset and a healthy section
+  // was rejected as "empty, split or collapsed". The wall now removes those seams
+  // before offsetting, matching what the motif path already did. The fitted-sleeve
+  // fast path sidesteps this; sleeveToleranceMm=0 exercises the exact path.
+  const machine=loadMachine(),r=await rhino();
+  // The raw seam-stepped loop really does split under the inward bead-half-width
+  // offset (width/2 = 0.2 mm), on the same grid and arc tolerance the wall uses.
+  const rawInset=offsetRegion([dedupe(seamPinchSection)],-0.2,{precisionMm:0.00001,arcToleranceMm:0.005});
+  assert.ok(rawInset.length>1&&rawInset.filter(loop=>loopArea(loop)>0).length===1,'the raw seam-stepped section splits a sliver off the inward offset');
+  const plan=vasePlan(machine,seamPinchMesh());plan.skills['vase-wall'].zEndMm=7.5;
+  const path=generatePath(plan,machine,r),wall=path.actions.filter(a=>a.role==='vase-wall');
+  assert.ok(wall.length>100,'the exact wall completes over the seam-stepped section');
+  assert.equal(new Set(wall.map(a=>a.operation)).size,1,'one uninterrupted stroke');
+  const shell=translateShell(buildShell(r,plan.geometry),plan.placement.xMm,plan.placement.yMm);
+  for(const action of wall) {
+    const loop=sectionGeometry(shell,action.to[2]).loops[0];
+    const gap=Math.min(...loop.map((p,i)=>pointSegmentDistance(action.to,p,loop[(i+1)%loop.length])));
+    assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.skills['vase-wall'].toleranceMm,'centerline holds the bead-half-width standoff to the actual boundary');
+  }
+});
+
+test('default sleeve tolerance follows a fitted NURBS sleeve, bounds deviation and falls back on thin walls',async()=>{
+  const machine=loadMachine(),r=await rhino();
+  // A rising noncircular mesh: the exact path rebuilds a section, offset and
+  // contour at every sample; the default fitted sleeve replaces that with one
+  // periodic NURBS offset evaluated per point.
+  const plan=vasePlan(machine,taperedMesh());
+  assert.equal(plan.skills['vase-wall'].sleeveToleranceMm,0,'helper pins exact');
+  plan.skills['vase-wall'].sleeveToleranceMm=0.08;
+  const path=generatePath(plan,machine,r),summary=path.summary.vaseWall;
+  assert.equal(summary.sectionQueries,0,'no per-height section rebuilds on the fitted-sleeve path');
+  assert.ok(summary.sleeve&&summary.sleeve.mode==='loose-offset','reports the fitted sleeve it used');
+  assert.ok(summary.sleeve.achievedResidualMm<=0.08+1e-9,'achieved deviation stays within the requested tolerance');
+  const wall=path.actions.filter(a=>a.role==='vase-wall');
+  assert.ok(wall.length>0&&wall.at(-1).to[2]===1);
+  const shell=translateShell(buildShell(r,plan.geometry),plan.placement.xMm,plan.placement.yMm);
+  for(const action of wall){
+    const loop=sectionGeometry(shell,action.to[2]).loops[0];
+    const standoff=Math.min(...loop.map((p,i)=>pointSegmentDistance(action.to,p,loop[(i+1)%loop.length])));
+    assert.ok(Math.abs(standoff-0.2)<=0.08+plan.skills['vase-wall'].boundaryToleranceMm,'centerline follows the boundary within the sleeve tolerance');
+  }
+  // A wall thinner than the bead still cannot be offset; the sleeve path defers
+  // to the exact rejection rather than emitting a self-crossing loop.
+  const thin=vasePlan(machine,boxMesh(0.3,6,1));thin.skills['vase-wall'].sleeveToleranceMm=0.08;
+  assert.throws(()=>generatePath(thin,machine,r),/inward offset.*collapsed at Z.*bead width/);
+});
+
 test('a steep taper keeps the requested geometry and pitch without radial-overlap rejection',async()=>{
   const machine=loadMachine(),r=await rhino(),steep=taperedMesh();
   for(let i=4;i<8;i++)steep.vertices[i][0]=4+(steep.vertices[i][0]-4)*2;
@@ -214,23 +300,28 @@ test('a steep taper keeps the requested geometry and pitch without radial-overla
   }
 });
 
-test('point exhaustion names usage and the setting to raise; larger budgets preserve path quality',async()=>{
-  const machine=loadMachine(),r=await rhino(),plan=vasePlan();
-  plan.skills['vase-wall'].maxPoints=100;
-  assert.throws(()=>generatePath(plan,machine,r),/point budget exhausted.*100\/100 at Z.*skills\.vase-wall\.maxPoints from 100 to 200/);
-  plan.skills['vase-wall'].maxPoints=400000;
-  const first=generatePath(plan,machine,r);
-  plan.skills['vase-wall'].maxPoints=800000;
-  const second=generatePath(plan,machine,r);
-  assert.deepEqual(first.actions,second.actions);
-  assert.equal(first.summary.vaseWall.maxPoints,400000);
-  assert.equal(first.summary.vaseWall.maxSectionQueries,1600000);
-  plan.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,skills:{'vase-wall':{maxPoints:100}}}];
-  assert.throws(()=>generatePath(plan,machine,r),/composition\.regions\[0\]\.skills\.vase-wall\.maxPoints \(region wall\)/);
-  for(const value of [99,100.5,Infinity,Number.MAX_SAFE_INTEGER+1]) {
-    const invalid=vasePlan();invalid.skills['vase-wall'].maxPoints=value;
-    assert.throws(()=>validatePlan(invalid,machine),/safe integer/);
+test('a wall takes the points its geometry requires; the retired point budget is read from old recipes without effect',async()=>{
+  const machine=loadMachine(),r=await rhino();
+  // Well past the former 100000-point default on the exact per-section path.
+  const tall=vasePlan(machine,boxMesh(8,6,90));tall.skills['vase-wall'].sampleStepMm=0.1;
+  const result=vaseWallResult({shell:translateShell(buildShell(r,tall.geometry),tall.placement.xMm,tall.placement.yMm),plan:tall,machine});
+  assert.ok(result.report.points>100000,`expected more than 100000 wall points, got ${result.report.points}`);
+  assert.equal(result.operations[0].strokes[0].points.length,result.report.points);
+  assert.equal('maxPoints' in result.report,false);
+  assert.equal('maxSectionQueries' in result.report,false);
+  // Older recipes and region overrides carry any budget value; it is dropped, never enforced.
+  const reference=generatePath(vasePlan(),machine,r).actions;
+  for(const value of [100,99,100.5,Infinity,Number.MAX_SAFE_INTEGER+1,'lots']) {
+    const old=vasePlan();old.skills['vase-wall'].maxPoints=value;
+    validatePlan(old,machine);
+    assert.equal('maxPoints' in old.skills['vase-wall'],false);
+    assert.deepEqual(generatePath(old,machine,r).actions,reference);
   }
+  const regional=vasePlan();
+  regional.composition.regions=[{id:'wall',part:null,zStartMm:0,zEndMm:1,skills:{'vase-wall':{maxPoints:100}}}];
+  validatePlan(regional,machine);
+  assert.deepEqual(regional.composition.regions[0].skills['vase-wall'],{});
+  assert.ok(generatePath(regional,machine,r).actions.some(a=>a.role==='vase-wall'));
 });
 
 test('contour and boundary tolerances are independent, with explicit normalization of older recipes',async()=>{

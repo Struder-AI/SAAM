@@ -8,8 +8,8 @@
 // When a draped skin is also being printed, the body must stop short of the top
 // surface by the skin's thickness. That reservation arrives as a height field
 // and is applied by intersecting each layer with the level set where the
-// reserved surface is still above the layer - the general form of the wedge
-// demo's flat "core plane".
+// reserved surface is still above the layer - the general form of a flat
+// "core plane" reservation.
 
 import { composeResults } from '../../../core/path/compose.mjs';
 import { createSectionQuery } from '../../../core/geom/query.mjs';

@@ -276,3 +276,31 @@ test('CLI launcher streams ready state and keeps its owned Studio alive', async 
     assert.equal(state.geometryApproved, false);
   } finally {child.kill(); await exited;}
 });
+
+test('an owned Studio pushes delivered events to its live session and serves the queue over HTTP for the fallback wait',async t=>{
+  const f=await fixture(t),batches=[];
+  const opened=await f.open({command:'start-tour',onEvents:event=>batches.push(event)});
+  const {url,instanceId,agentOwnerId}=opened.result.studio;
+  assert.equal(opened.result.listener.fallback.studio,url);assert.equal(opened.result.listener.fallback.agentOwner,agentOwnerId);
+  assert.equal(opened.result.listener.events,'studio-events');
+  const html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const state=await(await fetch(url+'/api/state')).json();
+  assert.equal((await post('view-ready',{stage:'geometry',revision:state.revision})).status,200);
+  assert.equal(batches.length,0,'a displayed view is held');
+  const waiting=waitForRequests({library:f.library,studio:url,ownerId:agentOwnerId,waitMs:5000,claim:true});
+  await new Promise(done=>setTimeout(done,30));
+  assert.equal((await post('agent-request',{})).status,200);
+  const result=await waiting;
+  assert.deepEqual(result.events.map(e=>e.kind),['view-presented','request-queued']);
+  assert.equal(result.requests[0].status,'working','the fallback wait claims through the owner store');
+  assert.deepEqual(result.after,[result.requests[0].id]);assert.deepEqual(result.generation,[]);
+  assert.equal(batches.length,1);assert.equal(batches[0].studio.instanceId,instanceId);
+  assert.deepEqual(batches[0].events.map(e=>e.kind),['view-presented','request-queued'],'the push carried the held remainder');
+  await assert.rejects(waitForRequests({library:f.library,studio:url,ownerId:'stranger',waitMs:0}),/Invalid agent owner/);
+  await assert.rejects(waitForRequests({library:f.library,studio:url,waitMs:0}),/agent owner/);
+  const {readStudioEvents}=await import('../agent/toolkit.mjs');
+  const drained=await readStudioEvents({studio:url,ownerId:agentOwnerId,history:true});
+  assert.deepEqual(drained.events,[]);assert.equal(drained.recent.length,2);
+  assert.deepEqual(await readStudioEvents({events:opened.agent.events,server:opened.server}),{events:[],generation:[]});
+});

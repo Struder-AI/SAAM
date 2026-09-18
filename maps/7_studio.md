@@ -160,8 +160,12 @@ box index | 7.4.2 | reconcile recovery journal | @studio/request-index.mjs::crea
 box save | 7.4.3 | replace request file | $save
 box ui | 7.4.4 | merge UI snapshots | @studio/agent-ui.mjs::createAgentUI
 box receipt | 7.4.5 | classify receipt state | $receiptState
+box events | 7.4.6 | queue Studio events | @studio/studio-events.mjs::createStudioEvents
 port out | pending / presented
 in > records | begin / claim / respond | data
+in > events | person and worker observations | data
+events > records | delivered event wakes wait | gate | norank
+events > out | held and delivered events | data
 records > index | recovery query and change hint | data
 index > records | externally changed records | data | norank
 records > save | updated JSON | data
@@ -450,7 +454,7 @@ browser > connect | load / restored page | data
 ```saam-responsibilities
 studio-server | studio/server.mjs, studio/changes.mjs | studio-protocols#changing-studio-http-and-change-notifications | core/tests/studio-agent.test.mjs, core/tests/studio-work.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-generation-control.test.mjs
 studio-lifetime | studio/browser.mjs, studio/lifetime.mjs, studio/viewer-session.mjs | studio#changing-browser-and-viewer-lifetime | core/tests/studio-open.test.mjs, core/tests/studio-lifetime.test.mjs, core/tests/studio-tour-lifetime.test.mjs, core/tests/studio-visibility.test.mjs
-studio-requests | studio/agent-requests.mjs, studio/request-index.mjs, studio/agent-ui.mjs, studio/work-state.mjs | studio-protocols#changing-agent-request-state-and-presentation | core/tests/request-index.test.mjs, core/tests/studio-agent.test.mjs, core/tests/studio-agent-ui.test.mjs, core/tests/studio-work.test.mjs
+studio-requests | studio/agent-requests.mjs, studio/request-index.mjs, studio/studio-events.mjs, studio/agent-ui.mjs, studio/work-state.mjs | studio-protocols#changing-agent-request-state-and-presentation | core/tests/request-index.test.mjs, core/tests/studio-events.test.mjs, core/tests/studio-agent.test.mjs, core/tests/studio-agent-ui.test.mjs, core/tests/studio-work.test.mjs
 studio-generation | studio/prepared-generation-job.mjs, studio/generation-worker.mjs | studio-protocols#changing-generation-workers | core/tests/studio-generation-control.test.mjs
 studio-import | studio/import-stl.mjs, studio/import-worker.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
 studio-source | studio/source-player.mjs, studio/source-worker.mjs, studio/machine-session.mjs | studio-protocols#changing-source-workers-and-machine-sessions | core/tests/source-player.test.mjs, core/tests/studio-kinematics.test.mjs, core/tests/studio-generation-control.test.mjs

@@ -20,11 +20,15 @@ async function snapshot(directory){
 }
 
 // One record per request: completing one request cannot clear another's dots.
-export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
+export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}){
   let disconnected=false;
   const root=resolve(libraryRoot),folder=resolve(root,'.studio-requests');
   const records=new Map(),byPrint=new Map(),pending=new Map(),latest=new Map(),listeners=new Set(),waiters=new Set(),emitted=new Map();let changeVersion=0;
   const latestKey=r=>`${r.printId}\0${r.ownerId??''}`;
+  // A Studio instance is heard only by its owning agent. An owner sees its own
+  // and ownerless records; an ownerless store never sees Studio-bound work
+  // live, and reads it only as explicit diagnostic history.
+  const visible=(r,history)=>ownerId?(!r.ownerId||r.ownerId===ownerId):history||!r.studioInstanceId;
   const unfinished=r=>['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
     &&requestReceiptState(r,{view:{ready:true,snapshot:{...r.result,stage:r.target?.stage??'toolpath'}}}).receipt;
   const wake=()=>{changeVersion++;for(const done of [...waiters])done();};
@@ -64,11 +68,11 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
   async function query({printId,status,since=0,history=false}={}){
     await index.refresh({force:history});
     let selected=history?(printId?byPrint.get(printId)?.values()??[]:records.values()):status==='queued'?pending.values():new Map([...pending,...[...latest.values()].map(r=>[r.id,r])]).values();
-    return [...selected].map(normalized).filter(r=>(!ownerId||!r.ownerId||r.ownerId===ownerId)&&(!printId||r.printId===printId)&&(!status||r.status===status)&&r.createdAt>=since
+    return [...selected].map(normalized).filter(r=>visible(r,history)&&(!printId||r.printId===printId)&&(!status||r.status===status)&&r.createdAt>=since
       &&(history||unfinished(r)||latest.get(latestKey(r))?.id===r.id)).sort((a,b)=>a.createdAt-b.createdAt).map(r=>structuredClone(r));
   }
   const list=options=>query({...options,history:true});
-  return {list,query,get,printId,ownerId,
+  return {list,query,get,printId,ownerId,events,
     subscribe(listener){
       if(typeof listener!=='function')throw Error('Request listener must be a function.');
       listeners.add(listener);const release=index.retain();
@@ -80,6 +84,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
       if(disconnected)throw Error('Agent connection closed.');
       const record=await get(id);
       if(directory&&record.printId!==printId(directory))throw Error('That activity belongs to another print.');
+      if(record.studioInstanceId&&record.ownerId&&record.ownerId!==ownerId)throw Error('That Studio request belongs to another agent.');
       if(ownerId&&record.ownerId!==ownerId)throw Error('Claim this request before reporting activity.');
       // Activity is evidence of contact, never a claim/resume/result operation.
       if(record.status!=='working'||record.presented)return record;
@@ -98,7 +103,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
       if(disconnected)throw Error('Agent connection closed.');
       if(!['working','waiting','completed','failed','cancelled'].includes(status))throw Error('Invalid agent response status.');
       const record=await get(id);
-      if(ownerId&&record.ownerId&&record.ownerId!==ownerId&&record.studioInstanceId)throw Error('That Studio request belongs to another agent.');
+      if(record.studioInstanceId&&record.ownerId&&record.ownerId!==ownerId)throw Error('That Studio request belongs to another agent.');
       if(record.status==='cancelled'||record.status==='completed'&&!(status==='working'&&requestReceiptState(record,{now:now()}).activity==='expired'))return record;
       const resuming=status==='working'&&record.status!=='working';
       // Pausing does not create a different request or discard an already saved
@@ -134,11 +139,12 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId}={}){
         const observed=changeVersion;
         const requests=(await query({status:'queued'})).filter(r=>!after.includes(r.id)&&(!studioInstanceId||r.studioInstanceId===studioInstanceId));
         const remaining=deadline-Date.now();
-        if(requests.length||remaining<=0||disconnected)return {requests:claim?await Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests};
+        // A delivered Studio event ends the wait too, carrying every held event.
+        if(requests.length||remaining<=0||disconnected||events?.pendingDelivery())return {requests:claim?await Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests,...(events?{events:events.drain()}:{})};
         if(changeVersion!==observed)continue;
         await new Promise(resolve=>{
-          let timer;const done=()=>{clearTimeout(timer);waiters.delete(done);resolve();};
-          waiters.add(done);timer=setTimeout(done,remaining);timer.unref?.();
+          let timer,stopEvents;const done=()=>{clearTimeout(timer);waiters.delete(done);stopEvents?.();resolve();};
+          waiters.add(done);stopEvents=events?.subscribe(done);timer=setTimeout(done,remaining);timer.unref?.();
         });
       }}finally{release();}
     },

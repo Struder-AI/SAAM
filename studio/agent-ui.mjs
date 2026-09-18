@@ -1,6 +1,6 @@
-import {agentIndicator,requestReceiptState} from './work-state.mjs';
+import {agentIndicator,requestReceiptState,activeEditStage} from './work-state.mjs';
 export {agentIndicator} from './work-state.mjs';
-export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{}}={}){
+export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
   let running=false,refreshAgain=false,requests=[],view={},lastActivity;const closedOwners=new Set(),retired=new Map();
   function merge(records,snapshot){
@@ -16,9 +16,17 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     }
     if(changed){requests=[...merged.values()];onRequests(requests);}
   }
+  function fadeActive(){
+    const {active}=agentIndicator(requests,{closedOwners,view});
+    // The pane being regenerated dims; an unrelated stage stays crisp. A toolpath
+    // (re)generation therefore leaves the geometry pane sharp while it runs, so
+    // the person can step back to the shape without losing the faded preview.
+    return active&&(activeEditStage(requests,{closedOwners,view})!=='toolpath'||getStage()!=='geometry');
+  }
+  function reflectFade(){document.getElementById('canvas').classList.toggle('work-faded',fadeActive());}
   function render(){
     const {active,message}=agentIndicator(requests,{closedOwners,view});
-    document.getElementById('canvas').classList.toggle('work-faded',active);
+    reflectFade();
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
     indicator.setAttribute('aria-label',active?'Updating preview':message);
     if(active!==lastActivity){lastActivity=active;onActivity(active);}
@@ -43,9 +51,10 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
   addEventListener('saam-studio-change',event=>{if(event.detail.kinds.includes('requests'))void refresh();});
   void refresh();setInterval(()=>{render();void refresh();},750);
   function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
-  return {refresh,
+  return {refresh,reflectFade,
+    generating(){return activeEditStage(requests,{closedOwners,view})==='toolpath';},
     updated(records){merge(records);render();},
-    loading(){view={...view,loading:true,ready:false,errorAt:null};render();},
+    loading(stage){view={...view,loading:true,loadingStage:stage??null,ready:false,errorAt:null};render();},
     received(work){
       if(!work)return;
       view={...view,printId:work.printId,snapshot:work.snapshot,ready:false,awaitingConfirmation:false};

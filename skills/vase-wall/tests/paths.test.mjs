@@ -92,8 +92,9 @@ test('invalid motifs fail explicitly while pattern tilt remains a reported recip
   const steep=recipe();steep.skills['vase-wall'].pattern.paths[0].points=[[0,0],[.0001,1],[1,.2]];
   assert.ok(generatePath(steep,machine,r).summary.vaseWall.maximumAngleDeg>machine.nonplanar.maxAngleDeg);
   const level=recipe();level.skills['vase-wall'].endTransition='level';assert.equal(generatePath(level,machine,r).summary.vaseWall.levelRimMm,2);
-  const budget=recipe();budget.skills['vase-wall'].maxPoints=100;budget.skills['vase-wall'].sampleStepMm=.1;
-  assert.throws(()=>generatePath(budget,machine,r),/budget/);
+  // A finer sampling step takes more points; no construction budget can fail it.
+  const fine=recipe();fine.skills['vase-wall'].sampleStepMm=.1;fine.skills['vase-wall'].maxPoints=100;
+  assert.ok(generatePath(fine,machine,r).summary.vaseWall.points>generatePath(recipe(),machine,r).summary.vaseWall.points);
 });
 
 test('mapped patterns round-trip machine source on S5, H2D and configured Dobot',async()=>{

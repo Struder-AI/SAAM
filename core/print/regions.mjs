@@ -219,8 +219,7 @@ export function generateRegionResults({plan,machine,placed,componentShells,selec
     else if(has(record,'full-fill'))record.results.push(fullFillResult({shell,plan:localPlan,machine,reserve,id:prefix+':full-fill',zStartMm:start,zEndMm:end,lowerSurface}));
     if(has(record,'vase-wall')) {
       requireThat(!lowerSurface,'A vase foundation ring requires a flat lower boundary; use a planar transition region above the supplied surface.');
-      const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,
-        budgetSetting:`composition.regions[${plan.composition.regions.indexOf(assignment)}].skills.vase-wall.maxPoints (region ${assignment.id})`,onProgress});
+      const result=vaseWallResult({shell,plan:localPlan,machine,id:prefix+':vase-wall',zStartMm:start,zEndMm:end,onProgress});
       record.results.push(result);
     }
     if(has(record,'thick-lip')) {

@@ -32,7 +32,7 @@ test('circumferential bead keeps radial thickness and follows changing surface n
   const partial=beadSection(m,plan,{},m.from,m.from.map((v,i)=>v+(m.to[i]-v)*.25));
   near(partial.width,s.width);assert.ok(partial.b.center[1]<s.b.center[1]);
 });
-test('bounded wedge uses roof normal; unsupported surface frames remain explicit',()=>{
+test('inclined roof-normal beads use the roof normal; unsupported surface frames remain explicit',()=>{
   const s=beadSection(move([0,0,1],[1,0,1.1],{phase:'inclined'}),plan,{roof:{a:.1,b:.2}});
   assert.ok(s.a.center[2]<1);assert.ok(s.a.short[1]<0);
   assert.equal(beadSection(move([0,0,1],[1,0,1.1],{phase:'draped-skin'}),plan,{}),null);

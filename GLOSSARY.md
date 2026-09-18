@@ -13,6 +13,7 @@ starting vocabulary for the ontology we develop together.
 | Developer agent | An AI agent working on core and across components, owning cross-cutting design. It is maps-native and inherits maker and builder responsibilities. |
 | Development agent | Builder and developer agents together, where a distinction between them is not needed. Earlier material uses this name for both. |
 | SAAM Studio | The interface for inspecting the part and reviewing the generated toolpath. |
+| Studio event queue | The agent-owned record of what the person did and what workers produced in that agent's Studio instances. Held events wait for a read; delivered events push at once and carry the held remainder. |
 | Geometry | The shape and dimensions of the part. |
 | Feature | A meaningful part of a shape, such as a hole, rim, face or edge, that people and agents can refer to. |
 | Skill | A packaged capability with its own text instruction manual and tools. |

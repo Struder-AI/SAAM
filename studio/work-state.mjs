@@ -50,6 +50,20 @@ export function hasUnpreparedEdit(requests=[],snapshot){
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
 }
 
+// Which pane the active work is regenerating, so only that pane dims: 'toolpath'
+// when every active edit and any load target the toolpath, 'all' when something
+// broader (a geometry edit, a full reload) is in flight, or null when idle. A
+// toolpath-only result lets the geometry pane stay crisp while it computes.
+export function activeEditStage(requests=[],{now=Date.now(),closedOwners=new Set(),view}={}){
+  const records=requests.filter(r=>edits(r)&&(!view?.printId||r.printId===view.printId));
+  const context={now,closedOwners,view};
+  const working=records.filter(r=>requestReceiptState(r,context).activity==='working');
+  const loadingScope=view?.loading?(view.loadingStage??'all'):null;
+  const requestScope=working.length?(working.every(r=>r.target?.stage==='toolpath')?'toolpath':'all'):null;
+  if(loadingScope&&requestScope)return loadingScope==='toolpath'&&requestScope==='toolpath'?'toolpath':'all';
+  return loadingScope??requestScope??null;
+}
+
 export function agentIndicator(requests,{now=Date.now(),closedOwners=new Set(),view}={}){
   const records=requests.filter(r=>edits(r)&&(!view?.printId||r.printId===view.printId));
   const context={now,closedOwners,view};

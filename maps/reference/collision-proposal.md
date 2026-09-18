@@ -84,7 +84,7 @@ The composer owns chronology and calls one machine-motion interface for joins,
 travels, cooling and parking. Collision queries answer whether a candidate
 motion clears the scene; a planner searches alternative motions using those
 queries. Start by checking/reporting; automatic travel repair comes afterward.
-Deposition is checked too, not just non-extruding travel. The wedge already uses the shared XYZ travel builder with its documented
+Deposition is checked too, not just non-extruding travel. Generation already uses the shared XYZ travel builder with its documented
 bounded direct-move policy; general collision queries remain proposed.
 
 The approved process plan locks clearance margins, allowed contact, orientation

@@ -86,6 +86,20 @@ test('tour gates require geometry edits, file selection, playback start and sett
   await tour.action('finish');assert.match((await tour.info()).agentInstruction,/ordinary chat text congratulating/);
   assert.deepEqual((await loadBundle(roof,{program:false})).plan.geometry.heightsMm,heightsMm,'switching preserves roof edits');
 });
+
+test('a valid toolpath confirms and completes the tour before reaching the export lesson',async t=>{
+  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
+  const editing=createAgentRequests(dir),edit=await editing.begin({directory:starter,instruction:'Change the fin'});
+  await editFin(starter);await editing.update(edit.id,{status:'working',resultStage:'geometry'});await ready(tour,starter);await editing.update(edit.id);
+  await tour.action('step',1);await tour.action('step',2);await tour.setStartAt({layer:12});await tour.select(starter);await tour.action('step',4);
+  await generateBundle(starter);await tour.playback('play');
+  assert.equal((await tour.info()).step,4,'still on the playback lesson, not the export lesson');
+  await assert.rejects(tour.action('finish'),/Download the print file/,'completion still requires a downloaded file');
+  const state=await loadBundle(starter,{program:'source'});
+  await tour.downloaded(state.exportHash);
+  await tour.action('finish');
+  assert.equal((await tour.info()).completed,true,'export and completion are available once the toolpath is valid');
+});
 test('chat edit lesson accepts requested geometry after current toolpath display',async t=>{
   let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
   const requests=createAgentRequests(dir,{now:()=>time});

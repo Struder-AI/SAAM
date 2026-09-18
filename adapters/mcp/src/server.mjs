@@ -13,6 +13,7 @@ import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
 import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs';
 import {createTour} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
+import {createStudioEvents} from '../../../studio/studio-events.mjs';
 import { importSTLBundle,setSTLUnits } from '../../../core/print/import-stl.mjs';
 import {createThingi10KClient} from '../../../skills/thingi10k/scripts/library.mjs';
 import {importThingi10KBundle} from '../../../skills/thingi10k/scripts/import.mjs';
@@ -84,13 +85,14 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   const libraryRoot = resolve(printsRoot);
   const meshLibrary=thingi10kClient??createThingi10KClient({cacheDirectory:resolve(libraryRoot,'.thingi10k')});
   const ownerId=randomUUID();
-  const agentRequests=createAgentRequests(libraryRoot,{ownerId});
+  const studioEvents=createStudioEvents(),agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
   const studioSessions = new Map(),preferredStudioByPrint=new Map();
+  const generationStatus=()=>[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean);
   let queue = Promise.resolve();
   const server = new McpServer({ name: 'saam', version: '0.2.0' }, {
     capabilities:{logging:{}},
-    instructions: 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context and command access, run node scripts/agent-toolkit.mjs maker-onboarding once; it supplies makers, the skill digest and print-tools. Otherwise read those missing sources through read_guidance. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware.'
+    instructions: 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context and command access, run node scripts/agent-toolkit.mjs maker-onboarding once; it supplies makers, the skill digest and print-tools. Otherwise read those missing sources through read_guidance. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.'
   });
 
   async function directory(printId, { create = false } = {}) {
@@ -147,7 +149,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     found.push(...await localExtension.skills?.()??[]);
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
-  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_sessions','get_tour']);
+  const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','get_tour']);
   function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.printId)&&!immediateTools.has(name);
     // Passing the full strict schema makes unexpected top-level approval data an
@@ -161,9 +163,10 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
           if(tracked)await touch();
           let result;
           try{result=await action(input);}finally{if(tracked)await touch();}
-          if(!immediateTools.has(name)&&result&&typeof result==='object'&&!Array.isArray(result)){
-            const pending=await agentRequests.query({status:'queued'});
-            if(pending.length)result={...result,studioRequests:pending};
+          if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
+            if(!immediateTools.has(name)){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
+            // Delivered events push at once; every tool result also carries whatever is still queued.
+            const events=studioEvents.drain();if(events.length)result={...result,studioEvents:events};
           }
           return {content:[{type:'text',text:JSON.stringify(result)}]};
         }
@@ -310,7 +313,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     return summary(printId, await bundle.loadBundle(dir));
   }, false);
   tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { printId: printIdSchema }, async ({ printId }) => summary(printId, (await read(printId)).state));
-  tool('begin_studio_work','First operation for an edit to an existing print, before acknowledgement or status lookup. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
+  tool('begin_studio_work','Start Studio work as early as practical for an edit to an existing print — you may acknowledge the person first; the claim it records is what later mutations and result reports check, so make it before either. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
     {printId:printIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1).max(8000),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({printId,studioInstanceId,instruction,requestId,kind})=>{
       const record=requestId?await agentRequests.get(requestId):null;
       if(!studioInstanceId&&record?.studioInstanceId)studioInstanceId=record.studioInstanceId;
@@ -333,8 +336,11 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   tool('wait_for_studio_request','Wait for Studio to request maker-agent input. Send any completed edit acknowledgement in chat commentary BEFORE this call. Do not defer it to the final response. While guiding a tour, call this between lessons instead of ending the turn and requiring the participant to ask for guidance. Claim a returned request and resolve it after doing its work. Prepare imported-model start layers silently; Studio leads the early lessons. Give proactive chat guidance only at the designated infill lesson and completion. Repeat after a timeout while the participant is navigating.',
     {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(25000).optional(),claim:z.boolean().optional(),studioInstanceId:z.string().optional()},async args=>{
       if(args.studioInstanceId&&!studioSessions.has(args.studioInstanceId))throw Error('That Studio instance is not owned by this agent.');
-      return agentRequests.wait(args);
+      const result=await agentRequests.wait(args),generation=generationStatus();
+      return generation.length?{...result,generation}:result;
     });
+  tool('get_studio_events','Read and clear the Studio event queue: what the person did in your owned Studio instances since your last read (lesson changes, opened prints, imports, exports, approvals, displayed results, calculation start/finish/failure/cancellation, viewer connections) plus live toolpath calculation progress. Delivered events also arrive on tool results and listener waits; sequence numbers identify repeats. Set history to include recently read events.',
+    {history:z.boolean().default(false)},async({history})=>({events:studioEvents.drain(),generation:generationStatus(),...(history?{recent:studioEvents.history()}:{})}));
   tool('get_studio_requests','Read outstanding work and the latest edit outcome per print. Set history for all resolved records; optionally restrict to one print.',{printId:printIdSchema.optional(),history:z.boolean().default(false)},async options=>({requests:await agentRequests.query(options)}));
   tool('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{},async()=>({sessions:[...studioSessions.values()].map(({server:studio,url})=>({...studio.agentSession(),url}))}));
   tool('get_tour','Read the active tour print, lesson gates and maker-agent instruction. After reaching the chat lesson, offer infill options in chat. After completion, immediately congratulate the participant, offer help with any difficulties printing the downloaded file, and ask what she wants to make next. Optional bounded wait follows user progress.',
@@ -360,7 +366,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       ??[...studioSessions.values()].find(({server:studio})=>studio.currentPrint()===dir);
     if(studioInstanceId&&!session)throw Error('That Studio instance is not owned by this agent.');
     if (!session?.server.listening) {
-      const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests });
+      const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests,studioEvents });
       await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
       session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` };
       studioInstanceId=studio.agentSession().instanceId;studioSessions.set(studioInstanceId, session);
@@ -398,13 +404,18 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     }}catch{/* Persisted requests and the independent wait endpoint remain authoritative. */}finally{notifying=false;}
   }
   const stopRequestWatch=agentRequests.subscribe(()=>{void notifyRequests();});
+  const stopEventWatch=studioEvents.subscribe(events=>{
+    if(closing)return;
+    try{void server.server.sendLoggingMessage({level:'info',logger:'saam.studio',data:{type:'studio-events',events}}).catch(()=>{});}
+    catch{/* Tool results and get_studio_events still carry the queue. */}
+  });
   server.server.oninitialized=()=>{void notifyRequests();};
   function close(){return closing??=Promise.resolve().then(async()=>{
-    stopRequestWatch();
+    stopRequestWatch();stopEventWatch();
     for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     await queue;
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
-    await agentRequests.disconnect();
+    await agentRequests.disconnect();studioEvents.close();
     studioSessions.clear();preferredStudioByPrint.clear();
     await server.close();
   });}

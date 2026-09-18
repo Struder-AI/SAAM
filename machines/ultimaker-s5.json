@@ -149,7 +149,7 @@
   },
   "nonplanar": {
     "maxAngleDeg": 15,
-    "basis": "Bounded working limit for surface-following layers with this fixed vertical nozzle. Set from the inclination range the wedge demo was built around; it is not a measured clearance rating and no head collision model is implemented.",
+    "basis": "Bounded working limit for surface-following layers with this fixed vertical nozzle. Set from an early inclination working range; it is not a measured clearance rating and no head collision model is implemented.",
     "validation": "software limit only; no physical print has established it"
   },
   "startup": {

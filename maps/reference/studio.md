@@ -144,11 +144,10 @@ confirm and export. There is no separate settings pane or settings confirmation.
 The toolpath pane shows printer/material choices and the expandable full settings. Keep the interface concise and
 accessible. Use chat for all recipe adjustments; expose camera, playback speed,
 scrubbing and travel visibility as viewer controls. Layer height means deposited
-layer thickness; the old "horizontal body" label referred to the flat-layer
-portion of the wedge, not a separate height setting.
+layer thickness, not a separate height setting.
 
-The agent applies patches with the owning package's `adjust` command - the wedge
-CLI for a wedge, `core/print/cli.mjs` for a shell print. Studio polls a bundle
+The agent applies patches with the `adjust` command of
+`core/print/cli.mjs`. Studio polls a bundle
 fingerprint and reloads changed data automatically, keeping the view when nothing
 changes and returning to the affected approval step after edits.
 Geometry edits invalidate both confirmations; settings edits preserve geometry
@@ -207,7 +206,7 @@ improvement. Advisories do not show busy dots, time out into UI errors, overlap
 edit work or block review/export. Agents acknowledge receipt without repairing
 the path. Reopening the same export does not resend an acknowledged advisory.
 
-The wedge viewer provides click-to-select faces and matching feature buttons.
+The viewer provides click-to-select faces and matching feature buttons.
 Features identify the geometry version and native object UUID or mesh face identity. Geometry edits
 recreate those identifiers and invalidate both confirmations.
 Click near a visible crease or boundary to select its edge and see its name.
@@ -222,7 +221,7 @@ and required machine state. Unsupported commands, missing helper files, or
 incompatible setup must be resolved before production review. The S5 subset
 interpreter checks the actual export and rejects unsupported commands. Griffin
 firmware startup is external and its internal motions are not simulated. The S5
-wedge export does not issue G280 or run a bed-leveling routine. An unknown installed firmware version does not block review;
+export does not issue G280 or run a bed-leveling routine. An unknown installed firmware version does not block review;
 the standard profile assumption is shown with the settings. Development preview
 creates no approvals and cannot authorize delivery.
 A path display alone cannot establish arbitrary machine-program behavior.
@@ -262,7 +261,14 @@ visible at reduced opacity and cannot be approved or exported as current.
 A toolpath lesson shows preparation status while no current program is available. Generation failures remain visible after
 the saved lesson is refreshed. Playback seeking waits until the program loads.
 Outside the tour, a fresh print without a current export still opens in geometry
-review and offers generation directly. A current export opens directly in the toolpath viewer. A development
+review and offers generation directly. The geometry action is a plain **Next** —
+it advances to the toolpath, starting a calculation only when no current program
+exists; the geometry approval gate has been removed, so it neither confirms nor
+blocks. While a toolpath is still calculating, both stage tabs stay live: the
+geometry pane remains reachable (and crisp), the toolpath pane remains reachable
+whenever its faded preview can render, and **Next** returns to that faded pane
+without starting or cancelling the pending calculation. The tour keeps its own
+lesson wording on this button. A current export opens directly in the toolpath viewer. A development
 export can be viewed but cannot authorize delivery. A stale or edited program
 stays unavailable for approval. Failed opening retains the previous print.
 
@@ -282,7 +288,11 @@ binds progress to the current print and plan.
 The live request store belongs to one agent and may serve several explicitly
 identified Studio instances. A Studio instance has exactly one agent owner and
 cannot be adopted by another agent; print bundles remain shareable and another
-agent may open the same bundle in its own Studio. Studio selects its open print;
+agent may open the same bundle in its own Studio. Only the owning agent's store
+hears its Studio instances: a listener without an owner ID never receives or
+claims Studio-bound requests live, and reads them only as explicit diagnostic
+history. The [Studio event queue](#studio-event-queue) carries the rest of what
+happens in an owned instance to the same agent. Studio selects its open print;
 the agent's request stream covers its owned instances. Operational waits are an
 event-driven recovery interface and return unfinished work plus the latest edit
 outcome, including completed results awaiting display. Use `list()` / MCP
@@ -323,7 +333,9 @@ active edits to the displayed part and loading the requested preview. They are
 not a signal that the model is thinking or that a file is being exported. Chat
 guidance, advisories, queued requests and requests marked `waiting` do not
 animate. Downloads use their own progress overlay. The viewport fades to 28% opacity from the same
-activity state. Both clear immediately when the requested result is displayed
+activity state, but only for the pane the active work regenerates: a
+toolpath-only calculation dims the toolpath pane and leaves the geometry pane
+crisp, while a geometry edit or a full reload dims whichever pane is shown. Both clear immediately when the requested result is displayed
 and ready to use; an agent's later acknowledgement does not extend them. There
 is no working-status caption. Expiration instead displays
 italic *(lost contact)*: the lease expired, which does not prove the host stopped
@@ -361,8 +373,9 @@ restart the cue.
 Generation switches to the rendered replacement only after its checked source is
 loaded; the previous toolpath remains faded while work is active.
 
-The maker agent calls MCP begin_studio_work as its first operation for an edit,
-before a chat acknowledgement or status lookup. It may omit printId for the
+The maker agent calls MCP begin_studio_work as early as practical for an edit; a
+chat acknowledgement may come first. The claim it records is what later mutations
+and result reports check. It may omit printId for the
 active tour or sole open Studio; with several instances it supplies the returned
 `studioInstanceId`; omission rejects when several owned instances display the
 same print. `request_review` can deliberately open another instance for a shared
@@ -446,6 +459,49 @@ notifications does not guarantee that an ended host turn will wake. For CLI
 previews and tours, the agent keeps reading the original managed session for
 `studio-request` and correlated `agent-response` events. [Maker guidance](../../MAKERS.md) specifies acknowledgement-before-wait
 ordering and the active listener loop.
+
+## Studio event queue
+
+Studio writes what the person does, and what its workers produce, to one
+**Studio event queue** owned by the agent and shared by that agent's Studio
+instances. Each event carries a sequence number, time, kind, delivery class,
+Studio instance, print and directory. **Held** events wait in the queue until
+the agent reads it. **Delivered** events push to the agent at once and carry
+every held event with them. Pushes never drain the queue; reads do, so a push
+the client never surfaced is still received on the next read. Events are
+ordered observations, not simultaneous state: the latest event describes the
+current situation. The queue lives in the owning session's process and is not
+persisted; sequence numbers identify repeats.
+
+| Delivered (pushes now, with the held remainder) | Held (waits for a read) |
+|---|---|
+| `tour-started`, `tour-lesson`, `tour-exited`, `tour-finished`: lesson navigation, with the lesson and its agent instruction | `viewer-opened`, `viewer-closed`: browser viewer count |
+| `request-queued`: Studio asked for agent work (Ask agent, tour guidance, generation failure, advisory) | `view-presented`: a geometry or toolpath view was displayed, with revision and export hash |
+| `request-presented`: the agent's bound result is now displayed | `generation-started`, `generation-finished`: toolpath calculation start and finish, with trigger and duration |
+| `generation-failed`, `generation-cancelled`: the calculation failed (with its recovery request) or was cancelled by the person or by changed inputs | `approved`: a geometry or toolpath confirmation |
+| `import-completed`, `import-failed`: an STL import by the person | `import-started` |
+| `print-opened`: the person opened another saved print | `tour-playback`: play or pause in the playback lesson |
+| `export-delivered`: the person exported the reviewed file, in the tour or ordinary review | `example-adopted`, `plan-updated` |
+
+Not recorded: camera, view settings, scrubbing, layer stepping, movie export,
+manual machine positioning, reconnects and the agent's own request bookkeeping.
+
+Channels. MCP: delivered events arrive as `saam.studio` `studio-events`
+notifications, every tool result carries the queue as `studioEvents`,
+`wait_for_studio_request` returns `events` and ends on a delivered event, and
+`get_studio_events` reads and clears the queue on demand. Toolkit live session:
+delivered events stream as `studio-events` lines, and the stdin commands
+`read-studio-events` and `wait-for-studio-request` read in process. Independent
+processes read the same queue through
+`GET /api/agent-events?owner=AGENT_OWNER_ID[&wait=MS][&instance=ID][&after=ID,ID][&history]`
+on any owned Studio, wrapped by the toolkit as
+`read-studio-events --studio URL --agent-owner ID` and
+`wait-for-studio-request --studio URL --agent-owner ID`. Every read also
+returns `generation`: for each owned instance that is preparing or generating,
+its status, trigger, elapsed time and worker progress with a percentage. The
+passive queue holds only the calculation's start and finish; progress exists
+only in a read made while it runs. No channel wakes an ended or disconnected
+chat.
 
 ## Importing an STL in Studio
 

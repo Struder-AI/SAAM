@@ -121,7 +121,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       const id=Object.entries(data.copies).find(([,copy])=>copy===name)?.[0];
       if(id)await save(resolve(await confined(name),'.tour-reference.json'),{id,version:TOUR_VERSION});
     },
-    async downloaded(exportHash){const data=await read();if(!data.active||data.step!==L.export)throw Error('Continue to the export lesson first.');data.downloadedHash=exportHash;await save(progress,data);},
+    async downloaded(exportHash){const data=await read();if(!data.active)throw Error('Start or resume the tour before exporting.');data.downloadedHash=exportHash;await save(progress,data);},
     async acknowledgeView(directory,seen,state){
       const data=await observed();
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
@@ -167,7 +167,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     async action(action,step){
       let data=await observed();
       if(action==='exit'||action==='cancel'){data.active=false;data.dismissed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});if(!data.completed)data=initial();}
-      else if(action==='finish'){if(data.step!==TOUR_STEPS.length-1||!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});}
+      else if(action==='finish'){if(!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});}
       else if(action==='fresh'){for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});data={...initial(),runId:randomUUID(),studioOwner:studioOwner()};await enter(data,0);await ensure('surface-drape',data);}
       else if(action==='step'){
         if(!data.active)throw Error('Start a new tour first.');

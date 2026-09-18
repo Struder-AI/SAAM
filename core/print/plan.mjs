@@ -145,6 +145,11 @@ export function validatePlan(plan, machine) {
   plan.skills['vase-wall'].pattern??=null;
   plan.skills['vase-wall'].pathMode??='continuous';
   plan.skills['vase-wall'].meshSleeve??=null;
+  plan.skills['vase-wall'].sleeveToleranceMm??=VASE_WALL_DEFAULTS.sleeveToleranceMm;
+  // The retired vase point budget is accepted only for reading old plans and
+  // region overrides; a wall now takes the points its geometry requires.
+  delete plan.skills['vase-wall'].maxPoints;
+  for(const region of plan.composition?.regions??[])if(region?.skills?.['vase-wall']&&typeof region.skills['vase-wall']==='object')delete region.skills['vase-wall'].maxPoints;
   // Preserve the old numerical boundary allowance when opening older recipes.
   // New plans lock this independently from contour subdivision tolerance.
   if(!Object.hasOwn(plan.skills['vase-wall'],'boundaryToleranceMm')) {
@@ -250,6 +255,9 @@ export function validatePlan(plan, machine) {
   validateVasePattern(vase.pattern,vase.pathMode);
   requireThat(vase.pattern!==null||vase.pathMode==='continuous','Segmented mode requires a sleeve pattern; ordinary vase walls are continuous.');
   requireThat(['spiral','level'].includes(vase.endTransition),'Vase ending transition must be spiral or level.');
+  // Zero keeps the exact per-section wall; a positive tolerance lets standard
+  // mesh walls follow a fitted sleeve within that sampled deviation.
+  number(vase.sleeveToleranceMm,0,0.5,'Vase sleeve tolerance');
   if(vase.meshSleeve!==null){
     const fit=vase.meshSleeve;
     requireThat(fit&&typeof fit==='object'&&!Array.isArray(fit)&&[
@@ -270,7 +278,6 @@ export function validatePlan(plan, machine) {
   number(vase.sampleStepMm,0.1,5,'Vase sampling step');number(vase.toleranceMm,0.002,0.05,'Vase chord tolerance');
   number(vase.boundaryToleranceMm,0.002,0.05,'Vase boundary tolerance');
   number(vase.minFeatureMm,0.05,5,'Vase minimum section feature');
-  requireThat(Number.isSafeInteger(vase.maxPoints)&&vase.maxPoints>=100,'Vase maxPoints must be a safe integer of at least 100; increase it to allow a larger wall (no preset 200000-point ceiling).');
   const lip=skills['thick-lip'];
   requireThat(typeof lip.enabled==='boolean'&&(lip.part===null||typeof lip.part==='string'),'Invalid thick-lip selection.');
   requireThat(Array.isArray(lip.steps)&&lip.steps.length>=1&&lip.steps.length<=50&&lip.steps.every(n=>Number.isInteger(n)&&n>=1&&n<=20),'Lip steps must be 1–50 layer entries, each 1–20 perimeters.');
