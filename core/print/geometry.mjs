@@ -1,6 +1,6 @@
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
-// Spline shells require a different representation from the mesh wedge:
+// Spline shells require a different representation from an indexed mesh:
 // rhino3dm builds no general solid from a set of patches, so a shell is stored
 // as its named untrimmed surfaces and its closure is verified numerically by
 // the same check the slicer relies on. Reopening the file and rebuilding the

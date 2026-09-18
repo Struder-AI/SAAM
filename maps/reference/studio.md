@@ -144,11 +144,10 @@ confirm and export. There is no separate settings pane or settings confirmation.
 The toolpath pane shows printer/material choices and the expandable full settings. Keep the interface concise and
 accessible. Use chat for all recipe adjustments; expose camera, playback speed,
 scrubbing and travel visibility as viewer controls. Layer height means deposited
-layer thickness; the old "horizontal body" label referred to the flat-layer
-portion of the wedge, not a separate height setting.
+layer thickness, not a separate height setting.
 
-The agent applies patches with the owning package's `adjust` command - the wedge
-CLI for a wedge, `core/print/cli.mjs` for a shell print. Studio polls a bundle
+The agent applies patches with the `adjust` command of
+`core/print/cli.mjs`. Studio polls a bundle
 fingerprint and reloads changed data automatically, keeping the view when nothing
 changes and returning to the affected approval step after edits.
 Geometry edits invalidate both confirmations; settings edits preserve geometry
@@ -207,7 +206,7 @@ improvement. Advisories do not show busy dots, time out into UI errors, overlap
 edit work or block review/export. Agents acknowledge receipt without repairing
 the path. Reopening the same export does not resend an acknowledged advisory.
 
-The wedge viewer provides click-to-select faces and matching feature buttons.
+The viewer provides click-to-select faces and matching feature buttons.
 Features identify the geometry version and native object UUID or mesh face identity. Geometry edits
 recreate those identifiers and invalidate both confirmations.
 Click near a visible crease or boundary to select its edge and see its name.
@@ -222,7 +221,7 @@ and required machine state. Unsupported commands, missing helper files, or
 incompatible setup must be resolved before production review. The S5 subset
 interpreter checks the actual export and rejects unsupported commands. Griffin
 firmware startup is external and its internal motions are not simulated. The S5
-wedge export does not issue G280 or run a bed-leveling routine. An unknown installed firmware version does not block review;
+export does not issue G280 or run a bed-leveling routine. An unknown installed firmware version does not block review;
 the standard profile assumption is shown with the settings. Development preview
 creates no approvals and cannot authorize delivery.
 A path display alone cannot establish arbitrary machine-program behavior.

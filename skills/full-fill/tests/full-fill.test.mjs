@@ -130,7 +130,7 @@ test('travel between fill strokes stays down instead of lifting over the part', 
   const { builder } = run(plan);
   const stats = builder.stats;
   assert.ok(stats.combed > 20 * stats.hopped, `combed ${stats.combed} against hopped ${stats.hopped}`);
-  // The wedge demo retracts for every stroke; here retraction is rare.
+  // Combed travel dominates here, so retraction is rare.
   assert.ok(stats.retractions < stats.combed / 20, `retractions ${stats.retractions}`);
   assert.ok(stats.travelMm < stats.printMm / 5, `travel ${stats.travelMm} against print ${stats.printMm}`);
 });

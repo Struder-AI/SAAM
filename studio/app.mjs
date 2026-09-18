@@ -175,35 +175,6 @@ async function working(text,task,{preview=true}={}){
 // package produced the bundle lives here; the viewer, approvals and playback
 // below are shared. A print names its kind in its own state.
 const views={
-  wedge:{
-    eyebrow:'WEDGE DEMO',skinPhase:'inclined',skinLabel:'Sloped layers',exportName:'wedge.gcode',
-    names:{'sloping-face':'Roof',base:'Bottom','front-side':'Front','back-side':'Back','right-side':'Right','left-side':'Left','high-end':'Tall end','low-end':'Low end'},
-    facts(state,tab) {
-      const {geometry:g,setup:s,process:p}=state.plan,roof=state.geometry.roof;
-      const high=roof?.maxHeightMm??g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
-      if(tab==='geometry') {
-        if(!roof)return [['Size',g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
-        const bounds=state.geometry.boundsMm,directions=[];
-        if(Math.abs(roof.a)>1e-10)directions.push(roof.a>0?'right':'left');
-        if(Math.abs(roof.b)>1e-10)directions.push(roof.b>0?'back':'front');
-        return [['Size',round2(bounds.max[0])+' × '+round2(bounds.max[1])+' mm'],['Height',round2(roof.minHeightMm)+'–'+round2(high)+' mm'],
-          ['Roof slope',round2(roof.angleDeg)+'°'],['Rises toward',directions.join(' + ')||'Level']];
-      }
-      if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Sloped layers',p.skinLayers+' × '+p.skinNormalMm+' mm'],['Travel height',high.toFixed(2)+' + '+p.liftMm+' mm']];
-      return state.program?[['Layers',state.pathSummary.planarLayers+' flat + '+p.skinLayers+' sloped'],
-        [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)]:[];
-    },
-    settings(state) {
-      const {setup:s,process:p}=state.plan;
-      return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC+'°C'],['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
-        ['Flat / sloped speed',p.planarSpeedMmS+' / '+p.skinSpeedMmS+' mm/s'],['First-layer speed',p.firstLayerSpeedMmS+' mm/s'],
-        ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
-        ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],['Material flow limit',p.maxFlowMm3S+' mm³/s'],
-        ['Filament diameter',s.filamentMm+' mm'],['Placement','X '+state.plan.placement.xMm+' / Y '+state.plan.placement.yMm+' mm'],
-        ['Fill','Solid; direction reverses each layer'],['Sloped passes','Back and forth'],['Startup',state.setupBasis]];
-    }
-  },
   shell:{
     eyebrow:'DEVELOPMENT PREVIEW',skinPhase:'draped-skin',skinLabel:'Draped skin',exportName:'part.gcode',
     // Faces are named by the shape that built them, so the label is the name.
@@ -282,7 +253,7 @@ const views={
     }
   }
 };
-const view=()=>views[state?.kind==='shell'?'shell':'wedge'];
+const view=()=>views.shell;
 const label=id=>{const edge=geometryScene?.edgeFeatures.get(id);return edge?edge.names.map(label).join(' / ')+' · edge '+edge.number:view().names[id]??id.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());};
 
 // Part bounds come from the display proxy both packages write, so the camera

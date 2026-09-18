@@ -75,8 +75,8 @@ export function validateDobotConfiguration(plan,machine,{required=false}={}){
 export const startupPosition=(machine,plan)=>plan.setup.denso?.initialPositionMm??plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,(machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm)];
 
 // S5 jobs resume with the preceding job's final withdrawal still outstanding.
-// The wedge can explicitly override that assumption; shell plans use the same
-// S5 handoff. H2D hands off unretracted and relay machines have no filament axis.
+// A plan can explicitly override that assumption via startupRetracted; otherwise
+// the S5 handoff applies. H2D hands off unretracted and relay machines have no filament axis.
 export const startupRetracted=(machine,plan)=>plan.process.retractMm>0
   && (plan.process.startupRetracted??machine.id==='ultimaker-s5');
 
