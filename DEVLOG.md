@@ -1,5 +1,20 @@
 # Development log
 
+## 2026-09-17 — Bring dev maps up to date with the Studio event and vase-wall work
+
+A map review since `7f2d3a5` found the Studio event queue, listener ownership
+and stage-tab behavior documented, but several contracts behind the code. The
+`9_agent` page now maps `readStudioEvents` (9.7) and the shared owned-Studio
+long-poll `pollStudio` (9.8), and 9.4 reads "wait for requests / events"; the
+toolkit change contract describes event streaming, the owner-authenticated
+cross-process read and wait, their rejections and the new toolkit cases. The
+`7c_requests` page maps `activeEditStage` (7.4.7) and the request/presentation
+contract states the pane-specific fade. The motion reference no longer claims a
+vase point budget and names the fitted-sleeve path; the testing inventory lists
+`studio-events`, `studio-print-name` and `studio-spinner` tests and the new
+vase-wall regressions. Verification: `dev-map.mjs check` and the map/context
+suites pass (43/43). Documentation only; no behavior change.
+
 ## 2026-09-17 — Studio event queue, owner-locked listeners and calculation progress
 
 Studio now writes what the person does, and what its workers produce, to one

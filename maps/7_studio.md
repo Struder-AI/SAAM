@@ -161,6 +161,7 @@ box save | 7.4.3 | replace request file | $save
 box ui | 7.4.4 | merge UI snapshots | @studio/agent-ui.mjs::createAgentUI
 box receipt | 7.4.5 | classify receipt state | $receiptState
 box events | 7.4.6 | queue Studio events | @studio/studio-events.mjs::createStudioEvents
+box fade | 7.4.7 | scope pane fade | @studio/work-state.mjs::activeEditStage
 port out | pending / presented
 in > records | begin / claim / respond | data
 in > events | person and worker observations | data
@@ -172,6 +173,8 @@ records > save | updated JSON | data
 records > receipt | persisted request / view receipt | data
 ui > receipt | merged requests / rendered state | data
 receipt > ui | activity / receipt / confirmation | data | norank
+ui > fade | active edits / loading stage | data
+fade > ui | dimmed pane scope | data | norank
 ui > out | current presentation | data
 ```
 

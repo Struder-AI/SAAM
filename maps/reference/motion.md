@@ -95,7 +95,9 @@ Future skills use the same operation/dependency boundary; do not add a new
 composer for each skill pair.
 
 [Vase-wall](../../skills/vase-wall/SKILL.md) is one atomic continuous operation with
-actual changing-Z section queries. It accepts one outer section, including
+actual changing-Z section queries; a standard mesh wall may instead follow a
+fitted NURBS sleeve within its sampled `sleeveToleranceMm`, returning to exact
+sections when the fit or wall thickness does not qualify. It accepts one outer section, including
 concavity, while its inset remains one loop without holes or islands. Arc-length
 traversal uses a fixed projected seam rather than a common interior point; mesh and restricted spline
 backends remain behind the shared queries. Its locked `endTransition` can leave
@@ -103,7 +105,8 @@ a spiral rim or complete a level rim with a final turn whose material thickness
 tapers to zero. A planar successor needs that level boundary. The continuous
 stroke cannot weave turn by turn with infill occupying the same height band;
 different regions of the same part can use the other skills. The manual owns
-standoff, sampling and point-budget limits. Turn-to-turn bead overlap is a
+standoff, sampling and sleeve-tolerance limits; there is no point budget, so a
+wall takes the points its geometry requires. Turn-to-turn bead overlap is a
 geometry/process judgment for the agent and maker, not a generation gate.
 
 The same package also implements [advanced vase mode](../../skills/advanced-vase-wall/SKILL.md#sleeve-patterns).
