@@ -1,5 +1,23 @@
 # Development log
 
+## 2026-09-17 — Event-driven Studio revision checks
+
+Every Studio tab ran `poll()` each second, and each poll computed two bundle
+fingerprints plus tour info on the server, although the viewer stream already
+pushed print and tour changes that triggered the same poll. The request feed also
+pushed `requests` changes that the app listener discarded, so tour Next gating
+from request activity was only picked up by the fixed poll. The app now checks
+`/api/revision` on a pushed print or tour change, on a request change while a
+tour is active, on viewer-stream error or reopen (new `saam-viewer-connection`
+event from `viewer-session.mjs`; the first open is skipped), on the page becoming
+visible and on a 15-second heartbeat. The heartbeat covers an unavailable
+watcher, request lease expiry and missed pushes; a restarted server rejects the
+old stream token, whose error triggers the check that reloads the page.
+
+Verification: studio-reconnect, studio-visibility, studio-work and
+studio-lifetime pass (26/26, lifetime now asserts the connection signal);
+`dev-map.mjs check --since HEAD` passes. Not exercised in a live browser.
+
 ## 2026-09-17 — One final approval record
 
 The lifecycle contract had retired geometry approval and kept plan approval only

@@ -147,9 +147,14 @@ scrubbing and travel visibility as viewer controls. Layer height means deposited
 layer thickness, not a separate height setting.
 
 The agent applies patches with the `adjust` command of
-`core/print/cli.mjs`. Studio polls a bundle
-fingerprint and reloads changed data automatically, keeping the view when nothing
-changes and returning to the affected approval step after edits.
+`core/print/cli.mjs`. Studio checks the bundle fingerprint (`/api/revision`)
+when the viewer stream pushes a print or tour change, or a request change during
+an active tour (request activity gates the tour's Next), and reloads changed data
+automatically, keeping the view when nothing changes and returning to the
+affected approval step after edits. A viewer-stream error or reopen, the page
+becoming visible and a 15-second heartbeat also check it; these cover missed
+pushes, an unavailable watcher, request expiry and a restarted server. There is
+no fixed short-interval revision poll.
 Geometry and settings edits invalidate the single settings/toolpath confirmation.
 A server running old imported
 code must be restarted after runtime changes. Each agent owns its Studio instances;

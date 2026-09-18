@@ -818,7 +818,15 @@ tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>s
 working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
 let changeTimer;
 function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
-window.addEventListener('saam-studio-change',event=>{if(event.detail.kinds.some(kind=>kind==='print'||kind==='tour'))scheduleChange();});
-setInterval(poll,1000);
+// Pushed changes drive revision checks. Request activity only changes the
+// revision response through tour gating. A dropped or reopened viewer stream,
+// a page becoming visible and a slow heartbeat cover what pushes cannot.
+window.addEventListener('saam-studio-change',event=>{
+  const {kinds}=event.detail;
+  if(kinds.includes('print')||kinds.includes('tour')||kinds.includes('requests')&&state?.tour?.active)scheduleChange();
+});
+window.addEventListener('saam-viewer-connection',scheduleChange);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleChange();});
+setInterval(poll,15_000);
 window.addEventListener('pagehide',()=>machineSession?.dispose());
 window.addEventListener('pageshow',event=>{if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));});
