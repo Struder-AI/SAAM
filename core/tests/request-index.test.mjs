@@ -24,7 +24,7 @@ test('operational reads reuse history and retain waiting work and undisplayed re
   assert.ok(seen,'the watcher discovers another writer');
   await requests.update(queued.id,{status:'waiting'});
   assert.ok((await requests.query()).some(r=>r.id===queued.id&&r.status==='waiting'));
-  const pending={id:id(1001),printId:'part',kind:'edit',status:'completed',createdAt:1001,updatedAt:1001,expiresAt:Date.now()+600000,requiresTarget:true,
+  const pending={id:id(1001),printId:'part',kind:'edit',status:'completed',createdAt:1001,updatedAt:1001,expiresAt:Date.now()+600000,
     baseline:{inputKey:'before',generationKey:'before'},result:{inputKey:'after',generationKey:'after'},target:{inputKey:'after',stage:'toolpath'}};
   await fs.writeFile(resolve(folder,pending.id+'.json'),JSON.stringify(pending));
   assert.equal((await requests.list()).length,1002,'explicit history reconciles immediately and remains complete');

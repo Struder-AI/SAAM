@@ -34,7 +34,7 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.equal(reviewed.toolpathApproved,true);
   assert.deepEqual(reviewed.plan.composition.regions,plan.composition.regions);
   assert.equal((await fetch(origin+'/settings.mjs')).status,200);
-  assert.equal(await(await fetch(origin+'/api/program')).text(),bytes.toString());
+  assert.equal(await(await fetch(origin+'/api/gcode')).text(),bytes.toString());
 
   const regions=structuredClone(plan.composition.regions);regions.find(r=>r.id==='cap').skills['full-fill'].fillAnglesDeg=[0,90];
   await adjustBundle(directory,{composition:{regions}},{expectedRevision:state.revision});

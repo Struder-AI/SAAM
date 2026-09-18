@@ -282,7 +282,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           state.generationError=generationFailure.message;
         state.generationCancelled=generationCancelled?.directory===readDir&&generationCancelled.planHash===state.planHash;
         state.presentationFingerprint=viewFingerprint(readId,presentationFingerprint,guide);
-        delete state.code;delete state.dir;state.printName=await printName(readDir,state.plan);state.downloadName=downloadName(state.printName,state.exportName);state.printId=readId;state.fingerprint=viewFingerprint(readId,fingerprint,guide);state.sourceTransport='ndjson';send(state);
+        delete state.code;delete state.dir;state.printName=await printName(readDir,state.plan);state.downloadName=downloadName(state.printName,state.exportName);state.printId=readId;state.fingerprint=viewFingerprint(readId,fingerprint,guide);send(state);
         // Speculate only on the tour's explicitly selected, confirmed part.
         // Ordinary edits use explicit generation; starting a second worker here
         // competes with the agent and may slice inputs it is still changing.
@@ -317,9 +317,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         }
         send({instanceId,fingerprint,presentationFingerprint,reviewUpdate,tour:guide});return;
       }
-      if(req.method==='GET'&&['/api/program','/api/gcode'].includes(url.pathname)) {
+      if(req.method==='GET'&&url.pathname==='/api/gcode') {
         const fingerprint=await bundle.bundleFingerprint(readDir);
-        const state=await bundle.loadBundle(readDir,{program:'source',sourceFile:url.searchParams.get('file')??undefined});
+        const state=await bundle.loadBundle(readDir,{program:'source'});
         if(readDir!==dir)throw new Error('The open print changed. Reload before continuing.');
         if(fingerprint!==await bundle.bundleFingerprint(readDir))throw new Error('The print is being updated.');
         for(const [name,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]]){
@@ -510,10 +510,9 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)&&p
     import('../scripts/agent-toolkit.mjs').then(({runCLI})=>runCLI(process.argv.slice(3))).catch(error=>{console.error(error.message);process.exitCode=1;});
   }
 } else if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
-  // Retain the old flag as a harmless alias: viewer-owned shutdown is universal.
   const args=process.argv.slice(2),startIndex=args.indexOf('--start-at-layer');
   const startAt=startIndex<0?null:{layer:Number(args[startIndex+1])};if(startIndex>=0)args.splice(startIndex,2);
-  const requested=args.find(arg=>arg!=='--close-when-idle');
+  const [requested]=args;
   const guide=createTour(resolve(root,'Prints'));
   const dir=requested?resolve(requested):(await guide.action('fresh')).directory;
   if(startAt)await guide.setStartAt(startAt);

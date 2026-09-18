@@ -15,13 +15,14 @@ const active=(records,patch={})=>agentIndicator(records,{now:20,view:{...view,..
 test('old playback remains distinct from the requested result; readiness ends activity before acknowledgement',()=>{
   assert.equal(active([request]),true);
   assert.equal(active([request],{snapshot:updated,ready:false,loading:true}),true);
-  assert.equal(active([request],{snapshot:updated,ready:true}),false);
-  assert.equal(active([request],{snapshot:updated,ready:true}),false,'reconnecting to the same result stays idle');
+  const delivered={...request,target:{...updated,stage:'toolpath'}};
+  assert.equal(active([delivered],{snapshot:updated,ready:true}),false);
+  assert.equal(active([delivered],{snapshot:updated,ready:true}),false,'reconnecting to the same result stays idle');
   assert.equal(active([{...request,baseline:updated}],{snapshot:updated}),true,'a new request starts activity');
 });
 
 test('early completion retains activity until the updated result is presented',()=>{
-  const completed={...request,status:'completed',result:updated};
+  const completed={...request,status:'completed',result:updated,target:{...updated,stage:'toolpath'}};
   assert.equal(active([completed]),true,'old playable output does not satisfy the update');
   assert.equal(active([completed],{snapshot:updated,ready:false}),true);
   assert.equal(active([completed],{snapshot:updated,ready:true}),false);
@@ -48,8 +49,8 @@ test('a generation already underway when a new edit arrives cannot satisfy that 
 });
 
 test('intermediate playback does not clear an overlapping edit; pausing it restores an idle view',()=>{
-  const first={...request,requiresTarget:true,target:{...updated,stage:'toolpath'}};
-  const second={...request,id:'lettering',requiresTarget:true,target:{inputKey:'both-edits',stage:'toolpath'}};
+  const first={...request,target:{...updated,stage:'toolpath'}};
+  const second={...request,id:'lettering',target:{inputKey:'both-edits',stage:'toolpath'}};
   assert.equal(active([first,second],{snapshot:{...updated,stage:'toolpath'}}),true);
   assert.equal(active([first,{...second,status:'waiting'}],{snapshot:{...updated,stage:'toolpath'}}),false);
   assert.equal(active([{...first,presented:true},second],{snapshot:{inputKey:'both-edits',generationKey:'both-program',stage:'toolpath'}}),false);
@@ -59,11 +60,12 @@ test('intermediate playback does not clear an overlapping edit; pausing it resto
 });
 
 test('intermediate saves, unchanged geometry and unrelated work cannot satisfy or hide an edit',()=>{
-  const unbound={...request,requiresTarget:true};
+  const unbound={...request};
   assert.equal(active([unbound],{snapshot:updated}),true,'even a single edit must publish its intended result');
-  assert.equal(requestReceiptState({...request,baseline:{...original,geometryKey:'same'}},{
-    view:{ready:true,snapshot:{...updated,geometryKey:'same',stage:'geometry'}}}).receipt,false,
-  'legacy settings changes are not delivered by unchanged geometry');
+  assert.equal(requestReceiptState({...request,baseline:{...original,geometryKey:'same'},
+    target:{...original,geometryKey:'same',stage:'geometry'}},{
+    view:{ready:true,snapshot:{...original,geometryKey:'same',stage:'geometry'}}}).receipt,false,
+  'a settings change is not delivered by redrawing unchanged inputs');
   const bound={...unbound,target:{...updated,stage:'toolpath'}};
   const waiting={snapshot:{...updated,stage:'geometry'},awaitingConfirmation:true};
   assert.deepEqual(requestReceiptState(bound,{now:20,view:{...view,...waiting}}),
@@ -81,7 +83,7 @@ test('one Studio instance cannot present another instance request for the same b
 });
 
 test('generation waits for saved targets, with guidance and delivered work excluded',()=>{
-  const current={...request,requiresTarget:true,expiresAt:Date.now()+60000};
+  const current={...request,expiresAt:Date.now()+60000};
   assert.equal(hasUnpreparedEdit([current],updated),true);
   assert.equal(hasUnpreparedEdit([{...current,target:{...updated,stage:'toolpath'}}],updated),false);
   assert.equal(hasUnpreparedEdit([{...current,target:{...original,stage:'toolpath'}}],updated),true);
@@ -114,7 +116,7 @@ test('overlapping requests bind results independently and retain presentation ac
   const save=()=>Promise.all(Object.entries(state).map(([name,value])=>writeFile(join(directory,name+'.json'),JSON.stringify(value))));
   await save();const requests=createAgentRequests(root);
   const a=await requests.begin({directory,instruction:'First'}),b=await requests.begin({directory,instruction:'Second'});
-  assert.ok((await requests.list()).every(r=>r.requiresTarget));
+  assert.ok((await requests.list()).every(r=>r.kind==='edit'&&!r.target),'a new edit carries no target until one is published');
   state.plan.height=8;await save();await requests.update(a.id,{status:'working',resultStage:'geometry'});
   await requests.presented(directory,{...workSnapshot(state),stage:'geometry'});
   const records=await createAgentRequests(root).list();

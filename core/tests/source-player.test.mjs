@@ -51,7 +51,7 @@ for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])test(`${id}: Studio p
   await assert.rejects(()=>fetchSources({...state,revision:'changed'},fetcher),/changed/);
   await assert.rejects(()=>fetchSources({...state,printId:'changed'},fetcher),/changed/);
   await assert.rejects(()=>fetchSources({...state,program:{sources:state.program.sources.map(s=>({...s,sha256:'wrong'}))}},fetcher),/changed/);
-  assert.equal((await fetcher('/api/program?file=unrelated.lua')).status,400);
+  assert.equal((await fetcher('/api/program?file=unrelated.lua')).status,404,'no per-file program route remains');
   for(const file of ['/studio/source-worker.mjs','/studio/source-player.mjs','/studio/move-store.mjs','/core/export/griffin.mjs','/core/machine/rules.mjs'])assert.equal((await fetcher(file)).status,200);
   assert.notEqual((await fetcher('/core/print/workflow.mjs')).status,200,'only browser dependencies are served');
   if(id==='dobot-mg400'){
@@ -77,7 +77,7 @@ test('compact drawing storage crosses chunk boundaries without losing precision 
 test('streamed source transport checks inventory and hashes across arbitrary chunks',async()=>{
   const text="Sub main\n' unicode: é\nEnd Sub\n",bytes=new TextEncoder().encode(text);
   const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');
-  const state={sourceTransport:'ndjson',printId:'print',revision:'revision',exportHash:'export',program:{sources:[{name:'main.pcs',sha256:hash}]}};
+  const state={printId:'print',revision:'revision',exportHash:'export',program:{sources:[{name:'main.pcs',sha256:hash}]}};
   const fetcher=lines=>async()=>new Response(new ReadableStream({start(controller){const b=new TextEncoder().encode(lines);for(let i=0;i<b.length;i+=7)controller.enqueue(b.slice(i,i+7));controller.close();}}));
   const line=JSON.stringify({name:'main.pcs',text})+'\n';
   assert.deepEqual(await fetchSources(state,fetcher(line)),{'main.pcs':text});

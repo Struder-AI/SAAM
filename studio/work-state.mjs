@@ -4,15 +4,12 @@ const edits=request=>!['guidance','advisory'].includes(request.kind);
 function matchesReceipt(request,snapshot){
   if(!request?.baseline||!snapshot)return false;
   if(request.studioInstanceId&&snapshot.studioInstanceId&&request.studioInstanceId!==snapshot.studioInstanceId)return false;
-  if(request.target)return request.target.inputKey===snapshot.inputKey
+  // An edit is delivered only by drawing its published target. A settings change
+  // cannot be delivered by drawing unchanged geometry.
+  if(!request.target)return false;
+  return request.target.inputKey===snapshot.inputKey
     &&(request.target.stage==='geometry'||snapshot.stage==='toolpath')
     &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.generationKey!==snapshot.generationKey);
-  if(request.requiresTarget)return false;
-  // Compatibility for old single-request records. A settings change cannot be
-  // delivered by drawing unchanged geometry. New edits always publish a target.
-  return request.baseline.inputKey!==snapshot.inputKey
-    &&(snapshot.stage==='toolpath'||request.baseline.geometryKey&&snapshot.geometryKey
-      &&request.baseline.geometryKey!==snapshot.geometryKey);
 }
 
 export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set(),view,state,stage,requiresToolpath=false}={}){

@@ -50,7 +50,7 @@ test('tour recipe edits trigger generation for the selected toolpath lesson',()=
     {localPrintDirectory:'another'},{tour:{...state.tour,step:3}},{tour:{...state.tour,active:false}}])
     assert.equal(needsTourToolpath({...state,...patch}),false);
   assert.equal(needsTourToolpath({...state,program:{},programError:'Stale export'}),true);
-  const request={kind:'edit',status:'working',printId:'part',requiresTarget:true,expiresAt:Date.now()+60000};
+  const request={kind:'edit',status:'working',printId:'part',expiresAt:Date.now()+60000};
   const work={printId:'part',snapshot:{inputKey:'saved'},requests:[request]};
   assert.equal(needsTourToolpath({...state,work}),false,'intermediate saves do not start slicing');
   work.requests=[{...request,target:{inputKey:'saved',stage:'toolpath'}}];
