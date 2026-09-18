@@ -1,7 +1,7 @@
 import {mkdir,realpath,rm,readFile} from 'node:fs/promises';
 import {resolve,basename,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {Worker} from 'node:worker_threads';
+import {importOrRepairSTLBundle} from '../core/print/import-stl.mjs';
 
 export async function loadStudioImportRepair(directory){
   let report;
@@ -17,29 +17,9 @@ export async function loadStudioImportRepair(directory){
     `Source units interpreted as ${report.sourceUnits}.`;
 }
 
-async function importInWorker(directory,bytes,options,onProgress){
-  const worker=new Worker(new URL('./import-worker.mjs',import.meta.url),{
-    workerData:{directory,bytes,options}
-  });
-  return new Promise((accept,reject)=>{
-    let settled=false;
-    const finish=async(error,result)=>{
-      if(settled)return;settled=true;
-      try{await worker.terminate();}catch(stopped){error??=stopped;}
-      if(error)reject(error);else accept(result);
-    };
-    worker.on('message',message=>{
-      if(message.type==='progress'){
-        try{onProgress?.(message.progress);}catch(error){void finish(error);}
-        return;
-      }
-      const error=message.error?Object.assign(new Error(message.error.message),message.error):null;
-      void finish(error,message.result);
-    });
-    worker.once('error',error=>void finish(error));
-    worker.once('exit',code=>void finish(new Error('STL import stopped before completing (exit '+code+').')));
-  });
-}
+// Browser progress labels for the core import job's stages and repair steps.
+const importStages={import:'Checking your STL',repair:'Repairing your STL','import-repaired':'Opening repaired geometry'};
+const repairSteps={'read-source':'Reading your STL',cleanup:'Cleaning mesh faces','measure-changes':'Measuring repaired geometry',validate:'Checking repaired geometry',complete:'Mesh repair complete'};
 
 export async function importStudioSTL(library,bytes,{name,units,machineId,onProgress}={}){
   if(units!==undefined&&!['auto','mm','inch'].includes(units))throw Error('Use auto, mm or inch STL units.');
@@ -53,10 +33,19 @@ export async function importStudioSTL(library,bytes,{name,units,machineId,onProg
   for(;;){directory=resolve(actual,stem+(index===1?'':' '+index));try{await mkdir(directory);break;}catch(e){if(e.code!=='EEXIST')throw e;index++;}}
   const defaultRoot=resolve(fileURLToPath(new URL('../Prints/',import.meta.url)));
   const setupFile=root.toLowerCase()===defaultRoot.toLowerCase()?undefined:resolve(root,'.machine-setups',machineId+'.json');
-  try{return {directory,...await importInWorker(directory,bytes,{units,machineId,setupFile},onProgress)};}
+  let shown;
+  const progress=event=>{
+    const stage=event.stage==='repair'&&repairSteps[event.step]||importStages[event.stage];
+    if(stage&&stage!==shown){shown=stage;onProgress?.({stage});}
+  };
+  try{
+    const {repaired}=await importOrRepairSTLBundle(directory,bytes,{units,machineId,setupFile,progress});
+    return {directory,repaired,repairSummary:repaired?await loadStudioImportRepair(directory):null};
+  }
   catch(error){
-    // Only remove the directory this invocation reserved, after its worker has
-    // stopped. Do not follow a replaced directory or a path outside the library.
+    // Only remove the directory this invocation reserved; the core job settles
+    // after its worker stops. Do not follow a replaced directory or a path
+    // outside the library.
     try{
       const target=await realpath(directory);
       if(target===directory&&target.startsWith(actual+sep))await rm(target,{recursive:true,force:true,maxRetries:3,retryDelay:100});

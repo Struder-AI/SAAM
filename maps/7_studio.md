@@ -269,19 +269,18 @@ in uploaded STL
 out selected print
 port in | uploaded STL
 box import | 7.1.4.1 | reserve print directory | @studio/import-stl.mjs::importStudioSTL
-box worker | 7.1.4.2 | start import worker | @studio/import-stl.mjs::importInWorker
-box choose | 7.1.4.3 | import or repair | @studio/import-worker.mjs::importOrRepair
-box core | 7.1.4.4 | import into lifecycle | @core/print/import-stl.mjs::importSTLBundle
-box repair | 7.1.4.5 | preserve and repair | $repairFiles
+box choose | 7.1.4.2 | import or repair in worker | @core/print/import-stl.mjs::importOrRepairSTLBundle
+box core | 7.1.4.3 | import into lifecycle | @core/print/import-stl.mjs::importSTLBundle
+box repair | 7.1.4.4 | preserve and repair | $repairFiles
 port out | selected print
 in > import | bytes; name; units | data
-import > worker | confined directory | data
-worker > choose | worker data | data
+import > choose | confined directory; bytes | data
+choose > import | repaired flag; stage progress | data | norank
 choose > core | original STL | data
 core > choose | imported / diagnostic | data | norank
 choose > repair | recognized defect only | gate
 repair > core | repaired STL in mm | data
-choose > out | bundle and repair summary | data
+import > out | bundle and repair summary | data
 ```
 
 ```saam-page 7i_draw
@@ -459,7 +458,7 @@ studio-server | studio/server.mjs, studio/changes.mjs | studio-protocols#changin
 studio-lifetime | studio/browser.mjs, studio/lifetime.mjs, studio/viewer-session.mjs | studio#changing-browser-and-viewer-lifetime | core/tests/studio-open.test.mjs, core/tests/studio-lifetime.test.mjs, core/tests/studio-tour-lifetime.test.mjs, core/tests/studio-visibility.test.mjs
 studio-requests | studio/agent-requests.mjs, studio/request-index.mjs, studio/studio-events.mjs, studio/agent-ui.mjs, studio/work-state.mjs | studio-protocols#changing-agent-request-state-and-presentation | core/tests/request-index.test.mjs, core/tests/studio-events.test.mjs, core/tests/studio-agent.test.mjs, core/tests/studio-agent-ui.test.mjs, core/tests/studio-work.test.mjs
 studio-generation | studio/prepared-generation-job.mjs, studio/generation-worker.mjs | studio-protocols#changing-generation-workers | core/tests/studio-generation-control.test.mjs
-studio-import | studio/import-stl.mjs, studio/import-worker.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
+studio-import | studio/import-stl.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
 studio-source | studio/source-player.mjs, studio/source-worker.mjs, studio/machine-session.mjs | studio-protocols#changing-source-workers-and-machine-sessions | core/tests/source-player.test.mjs, core/tests/studio-kinematics.test.mjs, core/tests/studio-generation-control.test.mjs
 studio-app | studio/app.mjs | studio#changing-studio-application-coordination | core/tests/studio-view-readiness.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-spinner.test.mjs, core/tests/studio-work.test.mjs
 studio-rendering | studio/camera.mjs, studio/material-view.mjs, studio/mesh-view.mjs, studio/toolpath-view.mjs, studio/machine-view.mjs | rendering#changing-camera-and-displayed-geometry | core/tests/studio-camera.test.mjs, core/tests/studio-material.test.mjs, core/tests/studio-detail.test.mjs, core/tests/studio-geometry.test.mjs, core/tests/studio-kinematics.test.mjs

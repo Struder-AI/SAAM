@@ -554,11 +554,11 @@ Sources: [browser.mjs](../../studio/browser.mjs), [lifetime.mjs](../../studio/li
 
 ## Changing Studio import transactions
 
-Sources: [import-stl.mjs](../../studio/import-stl.mjs), [import-worker.mjs](../../studio/import-worker.mjs).
+Sources: [import-stl.mjs](../../studio/import-stl.mjs).
 
-**Contract.** Import reserves a unique new print directory, validates supported STL names/units and the 64 MiB upload limit, resolves paths inside the library and runs conversion in a worker. Strict import precedes repair; only recognized geometry defects enter the repair fallback, with hole closing disabled. Original/repaired source and repair report are retained when applicable. New imports have no human approval.
+**Contract.** Import reserves a unique new print directory, validates supported STL names/units and the 64 MiB upload limit, resolves paths inside the library and calls core `importOrRepairSTLBundle`, which runs in the shared mesh repair worker job. Strict import precedes repair; only recognized geometry defects enter the repair fallback, with hole closing disabled. Studio maps the job's stage codes to browser progress labels and builds the repair summary from the retained report. Original/repaired source and repair report are retained when applicable. New imports have no human approval.
 
-**Failures.** Invalid input, setup and memory-budget errors do not trigger repair. On failure/cancellation the coordinator settles once, terminates its worker and removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
+**Failures.** Invalid input, setup and memory-budget errors do not trigger repair. On failure/cancellation the core job settles once, after terminating its worker, and the coordinator then removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
 
 **Change together.** Coordinate print-name rules, core import/repair worker protocols, plan creation and browser progress. Directory reservation and worker termination order are part of the transaction boundary.
 

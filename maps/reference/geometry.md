@@ -23,7 +23,11 @@ numeric limits, source integrity and supported skill consumers.
 
 ## Repair worker and native process boundary
 
-`core/print/mesh-repair-job.mjs` owns one Node worker per repair. Progress callback
+`core/print/mesh-repair-job.mjs` owns one Node worker per repair or repairing
+import (`importOrRepairSTLBundle`, mode `import`); each of these entries runs the
+job when called on the main thread and works inline inside the worker. The job
+settles only after terminating its worker, so a caller can safely remove the
+directory it was writing. Progress callback
 errors abort work; a geometry callback must acknowledge its matching message ID
 before the worker continues. Abort rejects pending acknowledgements. A worker exit
 without a result is an error, and a result received after caller cancellation does
@@ -747,7 +751,7 @@ Sources: [mesh-native.mjs](../../core/geom/mesh-native.mjs), [mesh-repair.mjs](.
 
 Sources: [import-stl.mjs](../../core/print/import-stl.mjs).
 
-**Contract.** STL import reads an explicit file, resolves units under the supported import policy, normalizes geometry/placement and writes a print recipe with identity tied to the resulting source. Strict geometry validation remains the default; explicit repair is a separate operation used by the Studio import coordinator only for eligible geometry defects.
+**Contract.** STL import reads an explicit file, resolves units under the supported import policy, normalizes geometry/placement and writes a print recipe with identity tied to the resulting source. Strict geometry validation remains the default; `importOrRepairSTLBundle` falls back to explicit repair into the new bundle's `repair/` folder only for recognized geometry defects (hole closing disabled), then imports the repaired millimetre STL. The Studio import coordinator is its caller and owns the reserved directory.
 
 **Failures.** Reject malformed files, unsupported units, invalid/budget-exceeding meshes and unavailable geometry. Never treat a setup or memory error as an invitation to repair or silently simplify.
 

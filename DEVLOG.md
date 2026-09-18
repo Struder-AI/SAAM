@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-09-17 — One worker supervisor for STL import and repair
+
+Studio's STL import launcher (`importInWorker` plus `studio/import-worker.mjs`)
+was a near copy of the core repair supervisor. The import-or-repair step moved
+to core as `importOrRepairSTLBundle` in `core/print/import-stl.mjs`: like
+`repairSTLFiles`, it runs `runRepairJob` (new mode `import`) on the main thread
+and works inline in the shared `mesh-repair-worker.mjs`. It reports stage codes
+(`import`, `repair` with the repair step, `import-repaired`); Studio maps them
+to its progress labels and builds the repair summary afterwards. The repair
+eligibility classifier moved with it, and the worker's error payload now carries
+`meshDiagnostic`. `runRepairJob` now settles only after terminating its worker,
+preserving the import transaction's "worker stopped before the reserved
+directory is removed" order for every job. Studio's worker file and its
+promise/terminate plumbing are gone.
+
+Verification: studio-import and mesh-repair pass (17/17); mcp and studio-agent
+show only the two known pre-existing MCP failures; `dev-map.mjs check --since
+HEAD` passes.
+
 ## 2026-09-17 — Event-driven Studio revision checks
 
 Every Studio tab ran `poll()` each second, and each poll computed two bundle
