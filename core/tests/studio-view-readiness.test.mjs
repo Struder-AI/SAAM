@@ -193,6 +193,7 @@ function placeholderContext({program=null,stale=null,tab='toolpath'}={}){
   const context=vm.createContext({state,tab,stalePresentation:stale,generating:false,agentUI:{generating:()=>false},
     canvas,ctx,seconds:0,playing:false,movieController:null,layerFade:{frame:()=>({weights:new Map(),fading:false}),reset(){}},
     devicePixelRatio:1,performance,redrawFrame:0,cancelAnimationFrame(){},requestAnimationFrame:()=>1,
+    motionQuality:null,lastMotion:0,lastMovingFrame:0,redrawRequested:0,settleTimer:0,playing:false,drag:null,lastWheel:0,viewPerformance:{frame(){},flush(){}},
     createProjection,visibleGeometryEdgeSegments,TOOLPATH_COLORS,
     geometryScene:scene,meshView:scene.topology,geometryRenderer:null,geometryProject:null,geometryError:'',polygons:[],selected:null,
     fitBounds:null,yaw:-.78,tilt:.62,zoom:1,pan:[0,0],cameras:{mode:'ghost'},

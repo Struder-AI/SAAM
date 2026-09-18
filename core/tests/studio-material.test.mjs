@@ -44,7 +44,8 @@ test('inclined roof-normal beads use the roof normal; unsupported surface frames
   assert.equal(beadSection(move([0,0,1],[0,0,1]),plan,{}),null);
 });
 test('completed geometry reduces cross-section cost without losing curve samples or filling a bore',async()=>{
-  assert.equal(materialTemplate(true).length,4*materialTemplate(false).length);
+  assert.equal(materialTemplate(true).indices.length,4*materialTemplate(false).indices.length);
+  assert.deepEqual([materialTemplate(false),materialTemplate(true)].map(t=>t.vertices.length/6),[26,66]);
   const ring=[];
   for(let i=0;i<80;i++){const point=j=>[5*Math.cos(j*2*Math.PI/80),5*Math.sin(j*2*Math.PI/80),.2];ring.push(move(point(i),point(i+1)));}
   const scene=await buildMaterialScene(ring,plan,{}, {yieldTask:async()=>{}}),data=scene.groups[0].instances;

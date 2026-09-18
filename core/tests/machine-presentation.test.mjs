@@ -40,3 +40,14 @@ test('DENSO ceiling installation and off-center rotary are applied once to the c
   s.worldFromFrame.tcp.translationMm.forEach((v,i)=>near(v,tip.translationMm[i]));assert.deepEqual(s.worldFromFrame.base,base);
   point(s.worldFromFrame.part,p).forEach((v,i)=>near(v,tip.translationMm[i]));
 });
+test('a failed arm solve keeps the part where the source put it, never at an identity stand-in',async()=>{
+  const machine=loadMachine('dobot-mg400'),tilt=[Math.sin(.3),0,-Math.cos(.3)],up=[0,1,0],center=[10,0,0];
+  const move={from:[0,0,25],to:[0,0,25],startSeconds:0,durationSeconds:2,rotaryFromDeg:90,rotaryToDeg:90,rotaryCenterMm:center,toolAxisFrom:tilt,toolAxisTo:tilt,toolUpFrom:up,toolUpTo:up};
+  const provider=await createMachinePresentation({program:{seconds:2,moves:[move]},machine,sourceIdentity:{printId:'fixture',revision:'1',exportHash:'tilt'},
+    setup:{denso:{rotaryCenterMm:center},dobot:{scaleX:1,scaleY:1},kinematicModel:{worldFromBase:rigid([-300,0,0]),toolLengthMm:70}}});
+  const pose=await provider.sample({requestId:1,seconds:1});
+  assert.equal(pose.diagnostics[0].code,'model-solve');assert.equal(pose.status,'partial');
+  [10,-10,0].forEach((v,i)=>near(pose.worldFromFrame.part.translationMm[i],v));near(pose.worldFromFrame.part.rotation[1][0],1);
+  assert.ok(pose.worldFromFrame.tcp&&!pose.worldFromFrame['arm-0'],'source frames remain; unsolved arm frames are omitted');
+  provider.dispose();
+});

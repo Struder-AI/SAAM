@@ -131,7 +131,7 @@ deliver > done | verified delivery file | data
 Caller contracts: [print lifecycle](reference/lifecycle.md). The workflow factory
 binds geometry and generator adapters; the shell adapter uses its
 approval, identity and delivery behavior. Development generation does not create
-human approval. Identity includes runtime and actual file bytes, not mtimes.
+human approval. Identity is the actual plan, machine and geometry bytes, not mtimes or SAAM's own code.
 
 
 ```saam-scope
@@ -150,11 +150,11 @@ sub Shared workflow configuration and command dispatch
 parent 1_lifecycle runtime
 in command and runtime dependencies
 port in | command and runtime dependencies
-state dependencies | 1.6.1 | fingerprint runtime inputs | @core/print/bundle.mjs::RUNTIME_FILES
+state dependencies | 1.6.1 | declare shared limitations | @core/print/bundle.mjs::LIMITATIONS
 box limits | 1.6.2 | select declared limitations | @core/print/bundle.mjs::limitationsFor
 box command | 1.6.3 | dispatch print command | @core/print/cli.mjs::run
 in > command | arguments / revision guard | data
-in > dependencies | bound module dependencies | data
+in > dependencies | shell adapter binding | data
 in > limits | plan / machine | data
 ```
 

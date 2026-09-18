@@ -16,6 +16,23 @@ from toolpath colors, bead detail and default part framing described below.
 
 ## Studio performance and display detail
 
+Studio times interactive redraws. A burst is one continuous orbit, pan, zoom or
+playback run; when it ends the browser posts a summary to
+`POST /api/view-performance`, and `GET /api/view-performance` returns the last 20
+from server memory. Each report carries frame spacing, main-thread draw time,
+material-pass time, per-quality-level timings, canvas size, the material
+renderer's draw statistics and the WebGL renderer string. A renderer named
+Microsoft Basic Render Driver, SwiftShader or llvmpipe means the browser is
+rasterizing on the CPU. Read these reports before instrumenting a page by hand.
+
+While the toolpath view moves, motion quality follows the measured frame cost:
+above 50 ms it lowers the material render resolution (half, then a third with
+square sections), and returns after sustained frames under 25 ms. A step that
+saves under a fifth is undone and not retried, which is the usual outcome on a
+CPU rasterizer where bead geometry, not pixels, dominates. About a quarter second
+after motion stops Studio redraws at full detail; still frames, exports and movies
+never use a reduced level. `?motion-quality=0|1|2` pins a level for inspection.
+
 Shared work activity fades the viewport canvas to 28% opacity, using the same
 state as the agent dots. It clears without a delayed transition when the requested
 result is ready, or work pauses, fails or is interrupted. This presentation does
@@ -93,7 +110,11 @@ Material preparation reads selected compact move columns into one local scratch
 row, reusing vectors instead of allocating a complete move for every pass.
 Retained group representatives remain independent copies. This preserves every
 source segment and the same instance buffers; it does not reduce display detail.
-A depth prepass prevents hidden internal surfaces from accumulating opacity.
+One depth-tested, unblended pass draws the nearest material surface, so hidden
+internal surfaces cannot accumulate opacity; the ghost machine composites
+underneath afterwards. Bead templates are indexed and wound outward, back faces
+are culled, and a layer/operation group whose projected bounds miss the viewport
+is skipped. These match the earlier two-pass image to rounding (DEVLOG 2026-09-18).
 Draped skin and normal rimming currently lack source surface normals and retain
 an explicitly labeled line fallback. Browsers without WebGL2 also use lines.
 Fallback line width scales with the same camera, with a 0.04 mm current-layer
@@ -204,7 +225,7 @@ UI-ready time.
 
 ## Changing camera and displayed geometry
 
-Sources: [camera.mjs](../../studio/camera.mjs), [material-view.mjs](../../studio/material-view.mjs), [mesh-view.mjs](../../studio/mesh-view.mjs), [toolpath-view.mjs](../../studio/toolpath-view.mjs), [machine-view.mjs](../../studio/machine-view.mjs).
+Sources: [camera.mjs](../../studio/camera.mjs), [material-view.mjs](../../studio/material-view.mjs), [mesh-view.mjs](../../studio/mesh-view.mjs), [toolpath-view.mjs](../../studio/toolpath-view.mjs), [machine-view.mjs](../../studio/machine-view.mjs), [view-performance.mjs](../../studio/view-performance.mjs).
 
 **Contract.** The orthographic camera uses right-handed model XYZ, with canvas Y inversion and explicit projected CSS-pixel scale. Material display derives bead width from interpreted commanded volume/length/height and uses phase-appropriate frames. Mesh proxy welding/crease normals are display processing only; toolpath and machine views consume current source/model snapshots. Long geometry construction yields by elapsed work and disposes replaced GPU resources.
 

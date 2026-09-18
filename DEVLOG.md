@@ -134,6 +134,134 @@ Not visually confirmed in a browser. The same file's browser-source harness
 stripped `import` lines with `/^import .*\n/gm`, which cannot match a CRLF
 checkout; five of its cases failed before this change for that reason alone and
 now pass.
+## 2026-09-18 — Toolpath viewer lag: CPU rasterization, lossless renderer savings
+
+- Source: user (builder task), 2026-09-18: the toolpath viewer had become slow on
+  pan and tilt.
+- **Cause.** Not a code regression. The person's Chrome had fallen back to the
+  Microsoft Basic Render Driver (CPU), while another browser on the same PC used
+  the GTX 1660 Ti. `freehand-spline-cat` (124,978 beads, 623 groups, 1366×540)
+  cost 544 ms per frame there, all in the material pass; about 10 ms of
+  main-thread time on the GPU.
+- **Measurement.** Studio now reports interactive redraw timings and the WebGL
+  renderer string to `/api/view-performance`, replacing console snippets. A hidden
+  agent browser pane throttles animation frames and cannot measure frame rate.
+- **Renderer.** One unblended depth-tested pass replaces the depth prepass,
+  stencil and blend pass; bead templates are indexed (box 48→26, oval 192→66
+  vertices) and wound outward for back-face culling; off-screen groups are
+  skipped. Measured on the CPU renderer at full quality: 544 → 155 ms. A pixel
+  diff against the previous renderer on 18 synthetic views (crossing, touching and
+  overlapping beads, views from below, mid-print, zoomed and off-screen) stayed
+  within 2/255 plus at most 14 depth-tie pixels, with identical coverage. An
+  inverted front-face rule was caught by that diff before use.
+- **Rejected.** Merging groups into shared buffers with a per-bead style texture
+  cut 623 draws to 2 but measured slower on the CPU renderer (215–266 ms): two
+  vertex texture fetches per vertex cost more than the draw calls saved. Reverted.
+  Render resolution barely matters there: 9× fewer pixels saved about 5%.
+- **Motion quality.** Resolution levels remain for fill-bound GPUs and undo
+  themselves when they do not pay.
+
+Checks: Studio tests pass except `studio-lifetime` "last viewer closes only its
+instance", which fails identically with these renderer changes stashed.
+
+## 2026-09-18 — Agents can reuse their Studio when switching prints
+
+- Source: user (developer task), 2026-09-18: maker agents never followed the
+  MAKERS rule to reuse the existing Studio and tab; find out why and fix the CLI
+  and MCP.
+- **Cause.** The rule had no tool support. Toolkit `open-print`/`create-preview`
+  always created a Studio on a fresh port, the managed session's stdin had no
+  print-switch command, and the only switch route (`/api/open`) needs the viewer
+  token. MCP `request_review` reused an instance per print only, so a different
+  print opened a second Studio unless the agent passed `studioInstanceId`.
+- **CLI.** Studio gains the owner-authenticated `POST /api/agent-open`. Toolkit
+  `showPrint` prepares the print exactly as a launch does, then shows it in the
+  live Studio: `open-print|create-preview DIRECTORY --studio URL --agent-owner ID`
+  from any process (the command exits), or the same commands on the managed
+  session's stdin. Launch results carry `reuse` with the exact command, and help
+  states the default. An adapter or agent open that changes the print now pushes
+  a `print` change, so the tab follows at once rather than on the slow heartbeat.
+- **MCP.** `request_review` falls back to the sole live instance before creating
+  one; with several live instances `studioInstanceId` still chooses.
+- **Guidance.** MAKERS names both reuse routes and allows another instance on the
+  person's request or for a compelling reason stated to the person.
+
+Checks: agent-toolkit (new HTTP/stdin/CLI switch cases pass; the onboarding case
+fails on the unregistered untracked `studio/view-performance.mjs`, unrelated),
+mcp and studio-open (pass except the known task-manual and transport-close
+failures).
+
+## 2026-09-18 — X1 Carbon output through the shared Bambu exporter
+
+- Source: user (builder task), 2026-09-18, after printing the freehand spline cat
+  on the H2D: create an X1 exporter that shares the H2D components rather than
+  parallel wiring.
+- **Physical report, H2D.** The user printed `freehand-spline-cat` (40 mm tall,
+  left 0.4 mm nozzle, PLA, 3 perimeters, 12% gyroid, one two-tip tree support under
+  the chin, v3 envelope) and reported that it completed and "looks great", and that
+  the support was unnecessary. One part on one printer; no measurements.
+- **One Bambu adapter.** `bambu.mjs`, `bambu-player.mjs` and the registry entry
+  are unchanged in number: the X1 Carbon declares the same `bambu-gcode` output.
+  Model facts moved from code into the machine files: output `constraints`
+  (material, nozzles, filament, optional `bedC` window, `endLiftMm`,
+  `parkLimitMm`, `parkRiseMm`, `parkHeightFactor`, `parkSettleMm`) and `package`
+  (`printerModelId` plus literal `projectSettings`). Per-nozzle metadata derives
+  from `machine.tools`, the printer names from `machine.name`, the body origin from
+  `startupPosition`, which must match the pinned startup's final moves. New
+  template values are `{wipeC}` and `{parkSettleZ}`. The artifact context schema is
+  now `saam-bambu-artifact/1`; error messages say Bambu. H2D machine revision 12;
+  existing H2D bundles hold an older snapshot and are recreated.
+- **H2D bytes unchanged.** The pre-change cat archive, with only its context
+  schema string renamed, is reproduced entry-for-entry by the generalized writer.
+- **X1 reference.** The installed Bambu Studio 02.08.02.61 CLI sliced a 20 mm
+  cube from flattened system presets (the CLI does not resolve `inherits` or the
+  start/end `include` templates itself; an unflattened run silently produced a
+  generic 33-line startup). Contract `x1c-02.08.02.61-pla-textured-v1`: 533 start
+  and 67 end commands; see the [X1 contract](maps/reference/bambu.md#x1-carbon-output-contract).
+  The reference archive stays outside Git; the machine file records its SHA-256.
+- First X1 part: `freehand-spline-cat-x1`, 58 mm tall, no supports, 289 layers,
+  about 54 min of body motion and 7.5 cm³. Software checks only; no Bambu Studio
+  viewer import and no physical X1 print.
+
+Checks: bambu and printer-profiles tests, the H2D byte-identity comparison and the
+map structure check.
+
+## 2026-09-18 — Optional AMS and colour, no code fingerprint, plan-first writes
+
+Follow-up to the TK-Dev port, from a map-driven review.
+
+- **AMS and colour are optional.** `setup.ams` is null or `{unit, slot}`; the
+  H2D profile's `ams` block declares two units of four slots, and slots number
+  continuously across units (unit 2 slot 1 is selector 4). `setup.filamentColor`
+  is null or a hex colour and falls back to the output's `defaultFilamentColor`.
+  Both are blank by default and nothing prompts for them; a printer without an
+  AMS uses the unchanged selector 0. `validateSetup` is the single check; the
+  exporter's duplicate checks and its copies in `saam.json` are gone. Selectors
+  above 3, and pairing an AMS unit with the selected nozzle, are untested on
+  hardware.
+- **H2D v1/v2 startup envelopes removed.** Only v3 is recognized. Local
+  experiment bundles holding a v2 machine snapshot must be recreated.
+- **Runtime fingerprint removed.** Plan identity is plan, machine snapshot and
+  geometry bytes. A confirmation is already bound to the exact exported bytes,
+  which a code change cannot alter, so editing SAAM's code no longer withdraws
+  confirmations. The two hand-kept file lists (`RUNTIME_FILES` and the list in
+  `runtimeHash`) are deleted; they had already drifted (the line-network
+  generator, `path/material.mjs` and `region/perimeters.mjs` were unlisted).
+  Every existing bundle's plan hash changes once, so saved programs read as stale
+  and regenerate.
+- **Non-robot machines are profile data.** `limitations`,
+  `startup.handsOverRetracted` and gantry presentation from `kinematics` replace
+  the S5/H2D machine-ID tests; X1 Carbon, UM2 Extended and UM3 now get the gantry
+  schematic. Only Dobot and DENSO are still selected by ID. The line-width limit
+  has one owner (`lineWidthLimits`).
+- **plan.json is the commit point.** A new bundle writes it last; an edit builds
+  geometry first, writes the plan, then the derived geometry files; a reader that
+  finds older geometry beside a committed plan rebuilds it once.
+- **Failed arm solve.** The provider reports the source-determined part (and tool
+  point) instead of an identity part frame.
+
+Checks: bambu, workflow, machine-presentation, studio-kinematics, intersection,
+studio-settings, line-network, export and the map structure check.
 
 ## 2026-09-18 — Port TK-Dev line networks, regional process and H2D setup
 

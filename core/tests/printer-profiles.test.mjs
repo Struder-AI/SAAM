@@ -17,7 +17,8 @@ test('new printer profiles provide valid planar defaults and distinguish hardwar
     validatePlan(plan,machine);
     assert.equal(plan.setup.material,'PLA');
     assert.equal(plan.skills['draped-skin'].enabled,false);
-    assert.throws(()=>outputAdapter(plan,machine),/export is not implemented/);
+    if(id==='bambu-x1-carbon')assert.ok(outputAdapter(plan,machine).exportAndInterpret,'X1 Carbon uses the shared Bambu adapter');
+    else assert.throws(()=>outputAdapter(plan,machine),/export is not implemented/);
     const nonplanar=structuredClone(plan);nonplanar.skills['draped-skin'].enabled=true;
     assert.throws(()=>validatePlan(nonplanar,machine),/nonplanar/);
   }
@@ -60,10 +61,10 @@ test('selected-tool bounds exclude cutter and glass clip regions',()=>{
   }
 });
 
-test('profiles persist through shared setup review and refuse output before path construction',async t=>{
+test('profiles without an exporter persist through shared setup review and refuse output before path construction',async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-printer-profiles-'));
   t.after(()=>rm(root,{recursive:true,force:true}));
-  for(const id of ids){
+  for(const id of ids.slice(1)){
     const directory=join(root,id),setupFile=join(root,id+'-setup.json');
     await initBundle(directory,undefined,{machineId:id,setupFile});
     let state=await loadBundle(directory,{program:false});

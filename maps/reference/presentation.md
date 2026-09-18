@@ -326,6 +326,9 @@ select a different trajectory, clip a commanded pose, or relabel a stale pose.
   and its existing supported marker; show the reason.
 
 Missing frames are omitted, never replaced with identity or a previous pose.
+When a solve throws, the provider still reports the frames the source alone
+determines (the part, and for arms the tool point) with a `model-solve` warning;
+if those cannot be formed either, the pose is `unavailable`.
 A bed/tool-only descriptor can be ready while still listing the absent arm in
 `limitations`. Additional links arrive through a new descriptor; no viewer
 changes are needed. Failed moving frames can be omitted while known static

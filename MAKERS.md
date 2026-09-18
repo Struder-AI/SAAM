@@ -31,7 +31,12 @@ dimensions, defaults and assumptions beside that preview so the person can
 revise them in chat. Ask a focused question first when an essential feature
 has no reasonable supported default.
 
-Reuse the existing Studio server and browser tab by default, including when switching prints; create another instance or tab only when the person asks.
+Reuse the existing Studio server and browser tab by default, including when
+switching prints: CLI agents pass `--studio URL --agent-owner ID` from
+`studio-ready` to later `open-print`/`create-preview` calls, and MCP
+`request_review` rebinds your live instance. Create another instance or tab only
+when the person asks, or for a compelling reason that you state to the person
+when you do it.
 
 ## Existing Studio work
 

@@ -18,7 +18,7 @@ export function attachCheckedProgramWorker(worker,expectedPlanHash){
     if(!source||source.planHash!==expectedPlanHash||source.planHash!==message.checks?.planHash
       ||source.exportHash!==message.checks?.exportHash)return;
     // Metadata and strings only. Full motion remains in the producing worker;
-    // planHash already incorporates the machine, geometry and runtime identity.
+    // planHash already incorporates the machine and geometry identity.
     const {moves,events,...metadata}=source.metadata;
     checkedSource={planHash:source.planHash,exportHash:source.exportHash,
       metadata:structuredClone(metadata),code:source.code,sources:{...source.sources}};

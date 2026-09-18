@@ -163,13 +163,11 @@ CLI launches and separate local MCP adapter processes use separate free loopback
 ports. Identify the current work's print and URL before restarting its viewer.
 Check the loaded geometry and export afterward.
 
-If generation reports "The prepared print changed. Reload before generating."
-after source changes, a browser refresh alone may leave an older server runtime
-active while a new preparation worker imports current code. Restart the owning
-Studio server, reconnect its viewer and check the fresh state. The settings/toolpath
-confirmation is bound to the generator runtime and may require the person to
-review the regenerated result.
-Do not rewrite approval hashes to make an old approval match new code.
+After changing SAAM's own code, restart the owning Studio server so the server
+and its preparation workers run the same code. A confirmation is bound to the
+plan and the exact exported bytes, not to the code that produced them, so a code
+change alone does not ask the person to review an unchanged file again.
+Do not rewrite approval hashes.
 
 Studio tracks open pages through authenticated persistent viewer connections,
 independent of revision polling and background-tab timer throttling. There is no
@@ -523,6 +521,13 @@ its status, trigger, elapsed time and worker progress with a percentage. The
 passive queue holds only the calculation's start and finish; progress exists
 only in a read made while it runs. No channel wakes an ended or disconnected
 chat.
+
+The same owner shows another print in its live instance with
+`POST /api/agent-open` and a JSON body `{owner, path}`; it runs the serialized,
+validated open used by the picker, pushes a `print` change to the viewers and
+returns the agent session. The toolkit wraps it as
+`open-print|create-preview DIRECTORY --studio URL --agent-owner ID`, so switching
+prints reuses the instance and its browser tab.
 
 ## Importing an STL in Studio
 

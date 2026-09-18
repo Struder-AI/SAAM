@@ -77,7 +77,7 @@ export function clipAboveSurface(region,z,surface){
 // stay horizontal; only their initial local material gap varies. The native
 // query is sampled at bounded spatial steps and at quarter points to check the
 // linear gap model. This is bounded numerical sampling, not a proof about an
-// arbitrary unsampled surface. The shared runtime hash locks this algorithm.
+// arbitrary unsampled surface.
 export function surfaceStroke({points2d,z,nominalHeightMm,widthMm,surface,closed=false,
   maxStepMm=0.2,toleranceMm=TOLERANCE.chord,maxSegments=20000}){
   requireThat(Array.isArray(points2d)&&points2d.length>=2&&points2d.every(p=>Array.isArray(p)&&p.length>=2&&p.slice(0,2).every(Number.isFinite)),'A surface-aware stroke needs finite XY points.');

@@ -117,13 +117,72 @@ export class ToolkitError extends Error {
   }
 }
 
+// Resolve or create the print a preview command names; shared by a fresh launch
+// and a switch of the print shown in an already-owned Studio.
+async function preparePrint({command, target, libraryRoot, recipe, stl, machine, units, partial}) {
+  if (command === 'create-preview') {
+    partial.directory = resolve(target);
+    relativePrint(libraryRoot, partial.directory);
+    // Custom libraries also isolate remembered machine defaults, as MCP does.
+    const setupFile = libraryRoot === resolve(root, 'Prints') ? undefined
+      : resolve(libraryRoot, '.machine-setups', `${machine ?? 'ultimaker-s5'}.json`);
+    const options = {machineId: machine, setupFile};
+    if (stl) {
+      const {importSTLBundle} = await import('../print/import-stl.mjs');
+      await importSTLBundle(partial.directory, resolve(stl), {...options, units});
+    } else {
+      const adapter = await import('../print/bundle.mjs');
+      await adapter.initBundle(partial.directory, recipe ? await json(resolve(recipe)) : undefined, options);
+    }
+    partial.created = true;
+    partial.assumptions = {recipe: recipe ? resolve(recipe) : null, sourceSTL: stl ? resolve(stl) : null,
+      setup: recipe ? 'Supplied recipe' : 'Compatible remembered setup, otherwise machine defaults'};
+  } else {
+    const {printDirectory} = await import('../../studio/server.mjs');
+    partial.directory = await printDirectory(resolve(target));
+  }
+}
+function validatePreview({command, target, recipe, stl, kind, units}) {
+  if (kind !== 'shell') throw Error('Only shell/mesh prints are supported.');
+  if (recipe && stl) throw Error('Choose either --recipe or --stl.');
+  if (!['auto', 'mm', 'inch'].includes(units)) throw Error('Units must be auto, mm or inch.');
+  if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
+}
+const reuseGuidance = studio => ({default: 'Reuse this Studio and its browser tab to show another print; launch another instance only when the person asks, or for a compelling reason you state to them.',
+  command: `node scripts/agent-toolkit.mjs open-print|create-preview DIRECTORY --studio ${studio.url} --agent-owner ${studio.agentOwnerId}`,
+  live: 'This managed session also accepts {"command":"open-print"|"create-preview","target":DIRECTORY} on stdin.'});
+
+// Show another print in an already-owned Studio: `open` is the live server's
+// serialized openPrint, or absent to reach the Studio URL from another process.
+export async function showPrint({command, target, library, recipe, stl, kind = 'shell', machine, units = 'auto', studio, ownerId, open}) {
+  if (!['open-print', 'create-preview'].includes(command)) throw Error('Only open-print and create-preview reuse a Studio.');
+  validatePreview({command, target, recipe, stl, kind, units});
+  if (!open && !studio) throw Error('Supply the Studio URL from studio-ready.');
+  if (!open && !ownerId) throw Error('Supply the agent owner ID (agentOwnerId from studio-ready) with --agent-owner.');
+  const partial = {command};
+  let stage = 'prepare';
+  try {
+    await preparePrint({command, target, libraryRoot: libraryPath(library), recipe, stl, machine, units, partial});
+    stage = 'open-in-studio';
+    if (open) partial.studio = {...await open(partial.directory), reused: true};
+    else {
+      const response = await fetch(new URL('/api/agent-open', studio), {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({owner: ownerId, path: partial.directory})}), body = await response.json();
+      if (!response.ok) throw Error(body.error ?? 'Studio refused to open the print.');
+      partial.studio = {url: new URL(studio).origin, instanceId: body.instanceId, agentOwnerId: body.ownerId, directory: body.directory, reused: true};
+    }
+    stage = 'context';
+    if (stl) partial.assumptions.units = (await readPrint(partial.directory, {includeGeometry: true, programChecked: false})).plan.geometry.source;
+    partial.print = await readPrint(partial.directory);
+    return partial;
+  } catch (error) {throw new ToolkitError(stage, error, partial);}
+}
+
 // The caller owns this live server. No detached process or global session registry.
 export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
   units = 'auto', startAtLayer = 12, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{}}) {
   if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
-  if (kind !== 'shell') throw Error('Only shell/mesh prints are supported.');
-  if (recipe && stl) throw Error('Choose either --recipe or --stl.');
-  if (!['auto', 'mm', 'inch'].includes(units)) throw Error('Units must be auto, mm or inch.');
+  validatePreview({command, target, recipe, stl, kind, units});
   if (!Number.isInteger(startAtLayer) || startAtLayer < 1) throw Error('Start layer must be a positive integer.');
   if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
   // A relaunch may resume the agent owner it reports in studio-ready, so the
@@ -138,7 +197,7 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
   const agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
   let stage = 'prepare', server,stopRequests=()=>{},stopEvents=()=>{};
   try {
-    const {bundleFor, createStudio, printDirectory} = await import('../../studio/server.mjs');
+    const {bundleFor, createStudio} = await import('../../studio/server.mjs');
     const {createTour} = await import('../../studio/tour.mjs');
     const tour = createTour(libraryRoot,{ownerId,agentRequests});
     if (command === 'start-tour') {
@@ -146,24 +205,7 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
       partial.directory = fresh.directory;
       partial.created = true;
       await tour.setStartAt({layer: startAtLayer});
-    } else if (command === 'create-preview') {
-      partial.directory = resolve(target);
-      relativePrint(libraryRoot, partial.directory);
-      // Custom libraries also isolate remembered machine defaults, as MCP does.
-      const setupFile = libraryRoot === resolve(root, 'Prints') ? undefined
-        : resolve(libraryRoot, '.machine-setups', `${machine ?? 'ultimaker-s5'}.json`);
-      const options = {machineId: machine, setupFile};
-      if (stl) {
-        const {importSTLBundle} = await import('../print/import-stl.mjs');
-        await importSTLBundle(partial.directory, resolve(stl), {...options, units});
-      } else {
-        const adapter = await import('../print/bundle.mjs');
-        await adapter.initBundle(partial.directory, recipe ? await json(resolve(recipe)) : undefined, options);
-      }
-      partial.created = true;
-      partial.assumptions = {recipe: recipe ? resolve(recipe) : null, sourceSTL: stl ? resolve(stl) : null,
-        setup: recipe ? 'Supplied recipe' : 'Compatible remembered setup, otherwise machine defaults'};
-    } else partial.directory = await printDirectory(resolve(target));
+    } else await preparePrint({command, target, libraryRoot, recipe, stl, machine, units, partial});
     stage = 'read-print';
     // First-screen startup needs geometry, never slicing or program interpretation.
     const initial = await (await bundleFor(partial.directory)).loadBundle(partial.directory, {program: false});
@@ -185,6 +227,7 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
     });
     partial.studio = {url: `http://127.0.0.1:${server.address().port}`, pid: process.pid,
       directory: partial.directory,instanceId:session.instanceId,agentOwnerId:ownerId,browserOpenRequested: false};
+    partial.reuse = reuseGuidance(partial.studio);
     onReady({event: 'studio-ready', command, studio: {...partial.studio},
       nextStep: 'Open studio.url now with the client browser integration. Keep this managed command session alive; consume the result context after the viewer is open.'});
     stage = 'open-browser';

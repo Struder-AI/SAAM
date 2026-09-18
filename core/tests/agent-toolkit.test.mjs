@@ -7,7 +7,9 @@ import {fileURLToPath} from 'node:url';
 import {execFile, spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 import {once} from 'node:events';
-import {preview, beginWork, waitForRequests, inspectFailure, respondToRequest} from '../agent/toolkit.mjs';
+import {PassThrough} from 'node:stream';
+import {runCLI} from '../../scripts/agent-toolkit.mjs';
+import {preview, showPrint, beginWork, waitForRequests, inspectFailure, respondToRequest} from '../agent/toolkit.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import * as shell from '../print/bundle.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
@@ -135,6 +137,44 @@ test('create-preview reuses isolated setup and opening preserves approved export
   assert.equal(reopened.result.print.generation.current, true);
   assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name)))), saved);
   await assert.rejects(f.open({command: 'create-preview', target, kind: 'shell'}), /already exists/);
+});
+
+test('open-print and create-preview reuse an owned Studio in process and across processes', async t => {
+  const f = await fixture(t), first = join(f.library, 'first'), second = join(f.library, 'second'), third = join(f.library, 'third');
+  const opened = await f.open({command: 'create-preview', target: first, kind: 'shell'}), {studio, reuse} = opened.result;
+  assert.match(reuse.command, new RegExp(`--studio ${studio.url} --agent-owner ${studio.agentOwnerId}`));
+  const made = await showPrint({command: 'create-preview', target: second, library: f.library, studio: studio.url, ownerId: studio.agentOwnerId});
+  assert.equal(made.created, true);
+  assert.deepEqual([made.studio.url, made.studio.instanceId, made.studio.reused], [studio.url, studio.instanceId, true]);
+  assert.equal(opened.server.currentPrint(), second, 'the live Studio now shows the new print');
+  assert.equal(made.print.toolpathApproved, false);
+  const back = await showPrint({command: 'open-print', target: join(first, 'plan.json'), library: f.library, studio: studio.url, ownerId: studio.agentOwnerId});
+  assert.equal(back.studio.directory, first);
+  await assert.rejects(showPrint({command: 'open-print', target: second, library: f.library, studio: studio.url, ownerId: 'someone-else'}), /Invalid agent owner/);
+  await assert.rejects(showPrint({command: 'open-print', target: second, library: f.library, studio: studio.url}), /agent owner ID/);
+  assert.equal(opened.server.currentPrint(), first, 'a refused owner changes nothing');
+  const live = await showPrint({command: 'create-preview', target: third, library: f.library, open: async directory => {await opened.server.openPrint(directory); return studio;}});
+  assert.equal(live.studio.reused, true);
+  assert.equal(opened.server.currentPrint(), third);
+  const {stdout} = await run(process.execPath, [cli, 'open-print', second, '--library', f.library, '--studio', studio.url, '--agent-owner', studio.agentOwnerId]);
+  const result = JSON.parse(stdout.trim().split('\n').at(-1));
+  assert.equal(result.event, 'result');
+  assert.equal(result.studio.reused, true);
+  assert.equal(opened.server.currentPrint(), second, 'the CLI exits after switching the live Studio');
+});
+
+test('a managed Studio session switches prints from its stdin control', async t => {
+  const f = await fixture(t), lines = [], input = new PassThrough();
+  const server = await runCLI(['create-preview', join(f.library, 'first'), '--library', f.library, '--no-open'], {write: line => lines.push(line), input});
+  t.after(() => server.shutdown());
+  input.write(JSON.stringify({id: 'switch', command: 'create-preview', target: join(f.library, 'second')}) + '\n');
+  const deadline = Date.now() + 10000;
+  while (!lines.some(line => line.id === 'switch') && Date.now() < deadline) await new Promise(done => setTimeout(done, 20));
+  const response = lines.find(line => line.id === 'switch');
+  assert.equal(response?.ok, true, JSON.stringify(response));
+  assert.equal(response.result.studio.reused, true);
+  assert.equal(response.result.studio.url, lines[0].studio.url);
+  assert.equal(server.currentPrint(), join(f.library, 'second'));
 });
 
 test('STL preview preserves original bytes and reports inferred units without approval', async t => {

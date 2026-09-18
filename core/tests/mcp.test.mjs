@@ -137,7 +137,8 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(machines.every(machine => machine.outputs.every(output => !Object.hasOwn(output, 'program'))));
   assert.ok(machines.some(machine => machine.id === 'ultimaker-s5'));
   assert.ok(machines.some(machine => machine.id === 'bambu-h2d'));
-  for(const id of ['bambu-x1-carbon','ultimaker-2-extended','ultimaker-3']) {
+  assert.ok(machines.find(machine => machine.id === 'bambu-x1-carbon').outputs.every(output => output.implemented));
+  for(const id of ['ultimaker-2-extended','ultimaker-3']) {
     const machine=machines.find(machine=>machine.id===id);
     assert.ok(machine,id);
     assert.ok(machine.outputs.every(output=>output.implemented===false&&output.reason));
@@ -191,7 +192,10 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
   await call('begin_studio_work',{printId:'owned',instruction:'Ambiguous instance'},/Specify studioInstanceId/);
   await call('close_studio_session',{studioInstanceId:duplicate.studioInstanceId});
   await call('create_print',{printId:'owned-second',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(call)});
-  const secondStudio=await call('request_review',{printId:'owned-second'});
+  const switched=await call('request_review',{printId:'owned-second'});
+  assert.equal(switched.studioInstanceId,a.studioInstanceId,'switching prints reuses the sole live Studio');
+  assert.equal(switched.url,a.url);
+  const secondStudio=await call('request_review',{printId:'owned-second',newInstance:true});
   assert.equal((await call('get_studio_sessions')).sessions.length,2,'one agent can own multiple Studio instances');
   assert.notEqual(secondStudio.studioInstanceId,a.studioInstanceId);
   await call('close_studio_session',{studioInstanceId:secondStudio.studioInstanceId});

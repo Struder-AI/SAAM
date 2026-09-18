@@ -5,11 +5,13 @@ import {dobotGeometry,dobotInverse} from './dobot-kinematics.mjs';
 import {constrainedJog} from './jog.mjs';
 import {rigid,add,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,validateRigid} from './rigid.mjs';
 
-const supported=new Set(['ultimaker-s5','bambu-h2d','dobot-mg400','denso-vp6242-rc8']);
+// Gantry machines are drawn from profile data alone; each arm has its own trusted model.
+const ARMS=new Set(['dobot-mg400','denso-vp6242-rc8']);
+const isGantry=machine=>machine.kinematics==='cartesian-fixed-vertical-nozzle';
 const durationOf=p=>p.seconds??p.summary?.motionSeconds??0;
 // A closed registry of trusted models. Profiles contain data, never loaded code.
 export async function createMachinePresentation({program,machine,setup={},sourceIdentity,signal}){
-  signal?.throwIfAborted();if(!supported.has(machine.id))return null;
+  signal?.throwIfAborted();if(!isGantry(machine)&&!ARMS.has(machine.id))return null;
   const config={...machine.kinematicModel,...setup.kinematicModel},components=[],frames=new Set(['world','part','tcp']);
   const binding={...sourceIdentity,modelKey:JSON.stringify([1,machine.id,machine.revision,config,setup.tool])};
   const component=(id,role,shape,frameId=id,local=rigid())=>{frames.add(frameId);components.push({id,label:id.replaceAll('-',' '),role,shape,frameId,local});};
@@ -18,7 +20,7 @@ export async function createMachinePresentation({program,machine,setup={},source
   const box=(id,role,size,frameId=id)=>component(id,role,{kind:'box',sizeMm:size},frameId);
   const joint=id=>component(id,'joint',{kind:'sphere',radiusMm:3});
   const limits=['Nominal mechanism presentation; no collision, load, compliance or hardware validation.'];
-  let solve,probeMargins,extraStatic={},machineBoundsWorldMm=null,manualEnabled=true;
+  let solve,sourcePose,probeMargins,extraStatic={},machineBoundsWorldMm=null,manualEnabled=true;
   const bounds=machine.bounds??{min:[-100,-100,0],max:[100,100,200]},toolLength=config.toolLengthMm??70;
   let coordinateBounds=structuredClone(bounds),angularLever=toolLength;
   const bed=[ [bounds.min[0],bounds.min[1],0],[bounds.max[0],bounds.min[1],0],[bounds.max[0],bounds.max[1],0],[bounds.min[0],bounds.max[1],0] ];
@@ -26,8 +28,9 @@ export async function createMachinePresentation({program,machine,setup={},source
   component('tool','tool',{kind:'cone',lengthMm:4,radiusStartMm:0,radiusEndMm:2},'tcp');
   line('hotend-shaft','link',[0,0,4],[0,0,toolLength],'tcp');
 
-  if(machine.id==='ultimaker-s5'||machine.id==='bambu-h2d'){
+  if(isGantry(machine)){
     const [w,d,h]=bounds.max,headZ=h+toolLength;
+    sourcePose=at=>({part:rigid([0,0,headZ-toolLength-at.point[2]])});
     limits.push('Schematic travel centerlines from profile bounds; housings, belts and parked tools omitted.');
     for(const x of [0,w])line('y-rail-'+x,'rail',[x,0,headZ],[x,d,headZ]);
     for(const x of [0,w])line('z-rail-'+x,'rail',[x,d,0],[x,d,h]);
@@ -48,6 +51,7 @@ export async function createMachinePresentation({program,machine,setup={},source
       const tcp=point(part,at.point),axis=rotateZ(at.toolAxis??[0,0,-1],a),up=rotateZ(at.toolUp??[0,1,0],a);
       return {part,tcp:rigid(tcp,axisFrame(scale(axis,-1),up))};
     };
+    sourcePose=sourceFrames;
     if(aligned){
       if(!dobot)probeMargins=at=>{
         const local=compose(invert(config.worldFromBase),sourceFrames(at).tcp),wrist=add(local.translationMm,mv(local.rotation,[0,0,model.flangeMm+model.toolLengthMm]));
@@ -78,7 +82,7 @@ export async function createMachinePresentation({program,machine,setup={},source
       solve=at=>({worldFromFrame:sourceFrames(at),diagnostics:[{code:'arm-unavailable',severity:'info',message:limits.at(-1)}]});
     }
   }
-  const cartesian=['ultimaker-s5','bambu-h2d'].includes(machine.id),dobot=machine.id==='dobot-mg400';
+  const cartesian=isGantry(machine),dobot=machine.id==='dobot-mg400';
   const angleAxes=cartesian?[]:dobot?[2]:[0,1,2];
   const controls=manualEnabled?[...['X','Y','Z'].map((label,i)=>({label,unit:'mm',min:Math.floor(coordinateBounds.min[i]*10)/10,max:Math.ceil(coordinateBounds.max[i]*10)/10,step:.1})),
     ...angleAxes.map(i=>({label:['Rotate X','Rotate Y','Rotate Z'][i],unit:'°',min:-180,max:180,step:.1}))]:[];
@@ -110,7 +114,12 @@ export async function createMachinePresentation({program,machine,setup={},source
         if(jog.limited||jog.adjusted)result={...result,diagnostics:[{code:'jog-boundary',severity:'info',message:jog.limited?'Reached the modeled boundary; holding a reachable pose.':'Other coordinates adjusted to stay within the machine boundaries.'}]};
       }else result=solve(at);
     }else result.diagnostics=[{code:'no-motion',severity:'info',message:'No source pose available'}];}
-    catch(error){result={worldFromFrame:{part:rigid()},diagnostics:[{code:'model-solve',severity:'warning',message:error.message}]};}
+    catch(error){
+      // A failed solve still knows where the source put the part. Missing frames
+      // are omitted, never drawn at an identity stand-in.
+      let known={};try{if(at.point)known=sourcePose(at);}catch{/* no source pose either: unavailable */}
+      result={worldFromFrame:known,diagnostics:[{code:'model-solve',severity:'warning',message:error.message}]};
+    }
     const worldFromFrame={world:rigid(),...extraStatic,...result.worldFromFrame};
     const available=components.filter(c=>worldFromFrame[c.frameId]);
     const status=!worldFromFrame.part||!available.length?'unavailable':available.length===components.length?'ready':'partial';

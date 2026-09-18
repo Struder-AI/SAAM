@@ -88,8 +88,8 @@ tradeoff. The [geometry reference](core/geom/README.md) defines these contracts.
 
 Measure performance from a user action to the useful result, with stage timings
 that identify the responsible work. Examine whether a computation is necessary,
-already available or better scheduled elsewhere. Reuse requires valid input and
-runtime identity; background work must preserve responsiveness. A production
+already available or better scheduled elsewhere. Reuse requires valid input
+identity; background work must preserve responsiveness. A production
 check likewise needs a concrete failure to detect and evidence that its cost
 and placement are justified. Apply that standard to agent workflows and CI under
 [Avoid check spirals](#avoid-check-spirals); task boundaries and commits do not
