@@ -69,7 +69,6 @@ saved IDs; there is no single global plan that overwrites another job.
 | `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
-| `upgrade_print` | Run the owning adapter's explicit migration for an old bundle, preserving delivered files and invalidating affected approvals. |
 | `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Supply `studioInstanceId` to rebind an existing owned instance, or `newInstance:true` to open another instance for the same bundle. |
 | `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk as `toolpathApproved`, the only approval state print summaries report. |
 | `generate_print` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
@@ -140,8 +139,8 @@ parallel recipe schema. Use `includeGeometry:true` for a complete recipe and
 read the owning manuals before editing it. `check_path` reports operation order
 and feasibility without becoming a separate preview or approval route. STL
 import reads only the chosen source; it writes the new bundle inside the configured
-Prints root. `upgrade_print` remains available when current-version validation
-prevents normal reopening; it does not silently migrate on read.
+Prints root. A bundle that fails current-version validation is recreated from its
+skills; nothing migrates it, silently or explicitly.
 
 Thingi10K tools additionally read a pinned public mirror over HTTPS and cache its
 metadata/downloads under the configured Prints root's `.thingi10k/` folder. They

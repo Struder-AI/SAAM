@@ -1,5 +1,14 @@
 # Developer context
 
+## Status note
+
+As of 2026-09-17, and until roughly 2026-10-01, backward compatibility with
+existing print bundles is not a priority. A bundle written before the current
+schema is recreated from its skills rather than migrated, so cumbersome
+back-compatibility extras are deleted rather than relocated. `validatePlan` is
+check-only and rejects a recipe that is missing a current field; there is no
+bundle upgrade command. Reinstate compatibility only on an explicit request.
+
 ## Orientation
 
 Dev maps are the technical reference for core and Studio: responsibilities,

@@ -30,10 +30,9 @@ const strokes=result=>result.operations.flatMap(op=>op.strokes);
 const volume=result=>strokes(result).reduce((n,s)=>n+(s.volumesMm3?s.volumesMm3.reduce((a,b)=>a+b,0):length(s.closed?[...s.points,s.points[0]]:s.points)*s.beadAreaMm2),0);
 function boxPlan(){const p=defaults(machine);p.geometry={shape:'box',runMm:12,widthMm:10,heightMm:2};p.process.minimumLayerSeconds=0;p.skills['draped-skin'].enabled=false;return p;}
 
-test('optional spacing keeps legacy paths and validates one independent setting, including regions',()=>{
-  const p=boxPlan(),legacy=structuredClone(p);
-  for(const name of SPACING_SKILLS)delete legacy.skills[name].spacingFactor;
-  assert.deepEqual(generatePath(legacy,machine,r),generatePath(p,machine,r));
+test('spacing is a required setting and validates one independent value, including regions',()=>{
+  for(const name of SPACING_SKILLS){const missing=boxPlan();delete missing.skills[name].spacingFactor;
+    assert.throws(()=>validatePlan(missing,machine),/Unexpected or missing fields/);}
   near(lineSpacing(.4,{spacingFactor:3}),1.2);
   for(const value of [0,.5,-1,null,'3',NaN,Infinity]){
     const bad=boxPlan();bad.skills['full-fill'].spacingFactor=value;

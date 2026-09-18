@@ -69,8 +69,9 @@ in exported material, time, bounds and Studio playback. Priming does not establi
 retraction state or guarantee physical extrusion recovery.
 
 Saved machine snapshots without this setting retain their existing paths.
-Upgrade the print's machine snapshot and regenerate/review to obtain the new
-strokes; an existing exported or delivered file does not change automatically.
+Recreate the print against the current machine profile and regenerate/review to
+obtain the new strokes; an existing exported or delivered file does not change
+automatically.
 
 Absence of explicit leveling or unused-heater commands does not establish that
 Griffin firmware skips those actions. The [recovered diagnosis](../../DEVLOG.md#br-043--s5-startup-diagnosis)

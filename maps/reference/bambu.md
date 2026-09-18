@@ -25,8 +25,8 @@ triage item H10: initial X homing, early wiping-area moves, `M972 S24` and the
 object/bin checks and all later probing, calibration and priming remain; this
 is not a no-probing startup. The revised sequence requires physical testing.
 The adapter still recognizes the pinned v1 envelope in existing snapshots;
-upgrade and regenerate a chosen bundle to use v2, with normal plan/toolpath
-review invalidation. Existing exports and delivery files are not rewritten.
+recreate a bundle to use v2, with normal plan/toolpath review invalidation.
+Existing exports and delivery files are not rewritten.
 Allowed substitutions are planned temperatures, selected physical heater,
 placed geometry's probe rectangle and whole-plan shutdown/parking clearance.
 The reference PLA purge recipe uses 240 °C and up to 25 mm³/s independently of
@@ -70,5 +70,3 @@ integration, malformed/tampered output and the shared approval/HTTP delivery pat
 Independent Bambu Studio program-viewer import and physical validation remain
 [recorded acceptance limits](../../DEVLOG.md#br-018--h2d-output-from-the-supplied-nozzle-references).
 Model-import CLI checks do not verify the program-viewer route.
-Older H2D bundles must explicitly set `buildVolumeC: 0`
-with `adjust` before `upgrade`; plan/toolpath approvals are invalidated normally.

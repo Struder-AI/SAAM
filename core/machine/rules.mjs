@@ -72,7 +72,7 @@ export function validateDobotConfiguration(plan,machine,{required=false}={}){
   return {configured:missing.length===0,missing};
 }
 
-export const startupPosition=(machine,plan)=>plan.setup.denso?.initialPositionMm??plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,(machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm)];
+export const startupPosition=(machine,plan)=>plan.setup.denso?.initialPositionMm??plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,machine.startup.zAfterStartupMm];
 
 // S5 jobs resume with the preceding job's final withdrawal still outstanding.
 // A plan can explicitly override that assumption via startupRetracted; otherwise

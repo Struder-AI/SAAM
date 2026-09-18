@@ -23,9 +23,9 @@ test('machine wall precision is reviewable, defaults old snapshots without mutat
 test('Studio reviews region selections and effective overrides rather than inactive global skill flags',()=>{
   const plan=defaults();
   plan.composition.regions=[
-    {id:'wall',part:null,zStartMm:0,zEndMm:4,skills:{'vase-wall':{endTransition:'level'}},supportPolicy:'supported'},
-    {id:'cap',part:null,zStartMm:4,zEndMm:5,skills:{'full-fill':{perimeters:3}},supportPolicy:'bridge-experimental'},
-    {id:'finish',part:null,zStartMm:5,zEndMm:8,skills:{'full-fill':{}},supportPolicy:'supported',lowerSurfaceFrom:'roof'}
+    {id:'wall',part:null,zStartMm:0,zEndMm:4,lowerSurfaceFrom:null,skills:{'vase-wall':{endTransition:'level'}}},
+    {id:'cap',part:null,zStartMm:4,zEndMm:5,lowerSurfaceFrom:null,skills:{'full-fill':{perimeters:3}}},
+    {id:'finish',part:null,zStartMm:5,zEndMm:8,skills:{'full-fill':{}},lowerSurfaceFrom:'roof'}
   ];
   assert.equal(plan.skills['vase-wall'].enabled,false);
   assert.equal(hasSkill(plan,'vase-wall'),true);
@@ -33,8 +33,6 @@ test('Studio reviews region selections and effective overrides rather than inact
   const rows=new Map(recipeRows(plan));
   assert.equal(rows.get('wall · Vase wall · Wall ending'),'Level rim');
   assert.equal(rows.get('cap · Full fill · Walls'),'3');
-  assert.equal(rows.has('cap · Support'),false,'retired policy is not presented as a permission choice');
-  assert.equal(rows.has('wall · Vase wall · Point budget'),false,'the retired vase point budget is not presented');
   assert.equal(rows.get('wall · Vase wall · Boundary tolerance'),'0.02 mm');
   assert.match(rows.get('finish · Bottom'),/roof/);
   assert.ok(![...rows.keys()].some(k=>k.startsWith('Draped skin')));

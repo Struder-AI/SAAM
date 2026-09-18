@@ -47,10 +47,10 @@ function verifyHelices(result,plan){
   }
 }
 
-test('cladding pattern defaults older recipes and rejects unknown choices',()=>{
+test('cladding pattern is required and rejects unknown choices',()=>{
   const p=developmentPipePlan();p.geometry.heightMm=1.2;
-  const old=structuredClone(p);delete old.skills['pipe-cladding'].pattern;
-  assert.deepEqual(generatePath(old,machine,r),generatePath(p,machine,r));
+  const missing=structuredClone(p);delete missing.skills['pipe-cladding'].pattern;
+  assert.throws(()=>validatePlan(missing,machine),/Unexpected or missing fields/);
   for(const value of ['spiral',null,42]){p.skills['pipe-cladding'].pattern=value;assert.throws(()=>validatePlan(p,machine),/Cladding pattern/);}
 });
 

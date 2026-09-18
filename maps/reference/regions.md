@@ -230,8 +230,8 @@ Assignments retain their component layer grid and dependencies. Conflicting
 ownership, unassigned height boundaries, unknown references and cycles are rejected.
 Bridging over hollow or sparse material is a process choice assessed in the
 recipe and Studio, without a permission flag or automated span-support gate.
-The retired `supportPolicy` field is accepted but ignored in older recipes;
-new recipes omit it. Where a drape crosses a void, its initial volume uses the
+The retired `supportPolicy` field is rejected as an unknown region field.
+Where a drape crosses a void, its initial volume uses the
 assigned supporting components' layer grid, as in whole-component composition;
 this is a bead-volume approximation, not a claim of deposited material in the void.
 

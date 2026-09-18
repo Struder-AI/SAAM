@@ -386,8 +386,6 @@ async function generateBundle(directory, { development = false, onProgress, befo
   review.generation = { mode: checks.mode, planHash: state.planHash, exportHash: checks.exportHash, summary, version: VERSION };
   review.history.push({ event: 'generated', mode: checks.mode, time: new Date().toISOString(), exportHash: checks.exportHash });
   await save(resolve(state.dir, 'review.json'), review);
-  // Remove an obsolete intermediate when regenerating an older bundle.
-  await rm(resolve(state.dir,'path.saampath'),{force:true});
   rememberProgram(programKey(state.planHash,checks.exportHash),program,code);
   preparedProgram=null;
   return checks;
@@ -450,28 +448,5 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
   return loadBundle(directory,{program:false});
 }
 
-async function upgradeBundle(directory) {
-  const plan=await json(resolve(directory,'plan.json'));
-  const oldGeometry=canonical(plan.geometry);
-  const geometry=await json(resolve(directory,'geometry/model.json'));
-  await verifyGeometry(await readFile(resolve(directory,nativeFile(geometry))),geometry);
-  requireThat(canonical(geometry.parameters)===oldGeometry,'Plan and geometry disagree; cannot upgrade.');
-  const review=await json(resolve(directory,'review.json'));
-  const previous=await json(resolve(directory,'machine.json'));
-  const machine=loadMachine(previous.id);
-  requireThat(previous.id===machine.id,'Cannot upgrade to a different machine.');
-  if(adapter.upgradePlan) adapter.upgradePlan(plan,machine);
-  validatePlan(plan,machine);
-  if(canonical(plan.geometry)!==oldGeometry) {
-    const next=await createGeometry(plan.geometry);
-    await save(resolve(directory,nativeFile(next.descriptor)),next.bytes);
-    await save(resolve(directory,'geometry/model.json'),next.descriptor);
-  }
-  review.approvals={}; review.generation=null;
-  review.history.push({event:'generator-upgraded',version:VERSION,machineRevision:machine.revision,time:new Date().toISOString()});
-  await save(resolve(directory,'plan.json'),plan);
-  await save(resolve(directory,'machine.json'),machine);
-  await save(resolve(directory,'review.json'),review);
-}
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,bundleFingerprints,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine,upgradeBundle};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,bundleFingerprints,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};
 }

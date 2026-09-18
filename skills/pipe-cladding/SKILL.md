@@ -149,7 +149,7 @@ For any new provisional RC8 part, call `developmentPipePlan()` from
 development mode; the labeled setup is reusable across shapes and is not remembered.
 Disable pipe-cladding when selecting only ordinary fixed-orientation skills.
 For an existing development bundle, use `node core/print/cli.mjs demo <directory>`;
-use `upgrade` first if its saved machine snapshot needs the current profile.
+recreate it if its saved machine snapshot predates the current profile.
 
 Studio defaults to **Follow build plate**, retaining stationary part coordinates;
 clear it to inspect bed and material rotation in the room frame. **Machine view**

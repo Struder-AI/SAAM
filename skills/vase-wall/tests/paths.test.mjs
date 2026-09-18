@@ -83,8 +83,6 @@ test('only motif turns deposit, without a guide ring, lead-in or invented materi
 
 test('invalid motifs fail explicitly while pattern tilt remains a reported recipe choice',async()=>{
   const machine=loadMachine(),r=await rhino();
-  const old=recipe();old.skills['vase-wall'].paths=[{points:[[0,0,.2],[1,1,.2]],beadHeightMm:.2}];
-  assert.throws(()=>validatePlan(old,machine),/Standalone XYZ vase paths are retired/);
   const invalid=recipe();invalid.skills['vase-wall'].pattern.paths[0].points[0]=[0,0,.2];
   assert.throws(()=>validatePlan(invalid,machine),/not XYZ/);
   const tall=recipe();tall.skills['vase-wall'].pattern.repeats=20;
@@ -93,7 +91,7 @@ test('invalid motifs fail explicitly while pattern tilt remains a reported recip
   assert.ok(generatePath(steep,machine,r).summary.vaseWall.maximumAngleDeg>machine.nonplanar.maxAngleDeg);
   const level=recipe();level.skills['vase-wall'].endTransition='level';assert.equal(generatePath(level,machine,r).summary.vaseWall.levelRimMm,2);
   // A finer sampling step takes more points; no construction budget can fail it.
-  const fine=recipe();fine.skills['vase-wall'].sampleStepMm=.1;fine.skills['vase-wall'].maxPoints=100;
+  const fine=recipe();fine.skills['vase-wall'].sampleStepMm=.1;
   assert.ok(generatePath(fine,machine,r).summary.vaseWall.points>generatePath(recipe(),machine,r).summary.vaseWall.points);
 });
 

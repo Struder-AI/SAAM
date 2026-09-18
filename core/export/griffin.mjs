@@ -9,7 +9,7 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
   const motionLines=exportMotion(path,plan);
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
-  const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
+  const startupZ=machine.startup.zAfterStartupMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   const points=[path.initialPosition,...path.actions.filter(a=>a.kind==='move').map(a=>a.to)];
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
@@ -23,7 +23,7 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
     if(a.filamentMm)time+=a.filamentMm/a.speedMmS;
   }
   const envelope=machine.outputs.find(o=>o.id===plan.output).program;
-  requireThat(envelope, 'Machine snapshot has no program templates. Run the print upgrade command before regenerating.');
+  requireThat(envelope, 'Machine snapshot has no program templates; recreate this print from the current machine profile.');
   const values={...s,tool,generatorVersion,buildDate,volume:Math.ceil(volume),seconds:Math.ceil(time),startupZ:fmt(startupZ)};
   for(const [bound,points] of [['min',min],['max',max]]) for(const [i,axis] of ['X','Y','Z'].entries()) values[bound+axis]=fmt(points[i]);
   const render=lines=>{
@@ -127,7 +127,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
   const temperatures=plannedNozzleTemperatures(plan);
   for(const target of temperatures)validateNozzleC(target,plan,machine);
-  const startupZ=machine.startup.zAfterStartupMm??machine.startup.zAfterPrimeMm;
+  const startupZ=machine.startup.zAfterStartupMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
   let pos=[...machine.tools[s.tool].startupXY,startupZ],e=0,feed=0,absolute=null,absE=null,metric=false;
   let tool=bodyOnly?s.tool:null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=startupRetracted(machine,plan),phase='startup',layer=-1,time=0,volume=0,operation='';

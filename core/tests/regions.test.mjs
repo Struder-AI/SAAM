@@ -60,17 +60,13 @@ test('level vase ending fills exactly the remaining partial-turn material gap',a
   assert.ok(stroke.volumesMm3.at(-1)<stroke.volumesMm3.at(-20),'leveling thickness ends at zero');
 });
 
-test('a cap needs a level recipe boundary, while bridging needs no policy or support-coverage gate',async()=>{
+test('a cap needs a level recipe boundary, while bridging needs no support-coverage gate',async()=>{
   const r=await rhino(),machine=loadMachine(),plan=smallPlan();
   plan.composition.regions=[region('base',0,0.4,{'full-fill':{mode:'body'}}),region('wall',0.4,1.2,{'vase-wall':{endTransition:'spiral'}}),region('cap',1.2,2,{'full-fill':{mode:'body'}})];
   assert.throws(()=>generatePath(plan,machine,r),/level vase ending/);
   plan.composition.regions[1].skills['vase-wall'].endTransition='level';
   const expected=generatePath(plan,machine,r);
   assert.ok(expected.actions.some(a=>a.region==='cap'&&a.volumeMm3>0));
-  for(const legacyPolicy of ['supported','bridge-experimental']) {
-    plan.composition.regions[2].supportPolicy=legacyPolicy;
-    assert.deepEqual(generatePath(plan,machine,r),expected,'retired policy has no effect on path or summary');
-  }
   plan.composition.regions[2].zStartMm=1;assert.throws(()=>generatePath(plan,machine,r),/Overlapping material/);
   plan.composition.regions=[region('unsupported-base',0,0.4,{'planar-infill':{perimeters:0}}),region('wall',0.4,2,{'vase-wall':{endTransition:'level'}})];
   assert.ok(generatePath(plan,machine,r).actions.some(a=>a.role==='vase-wall'));

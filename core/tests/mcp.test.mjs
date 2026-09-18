@@ -362,7 +362,7 @@ test('MCP preserves the shared regional recipe and configurable composition with
   const { call, printsRoot } = await fixture(t), printId = 'Regional Plan';
   const plan = await smallPlan(call);
   plan.composition.regions = [{ id: 'body', part: null, zStartMm: 0, zEndMm: null,
-    skills: { 'planar-infill': { density: 0.3 } }, supportPolicy: 'supported', lowerSurfaceFrom: null }];
+    skills: { 'planar-infill': { density: 0.3 } }, lowerSurfaceFrom: null }];
   const created = await call('create_print', { printId, kind: 'shell', machineId: 'ultimaker-s5', plan });
   assert.deepEqual(created.skills, ['planar-infill']);
   const checked = await call('check_path', { printId });

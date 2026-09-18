@@ -44,7 +44,7 @@ current plan revision. Source metadata does not confer a printing approval.
 Implement the single human confirmation in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
 settings and the exact toolpath together immediately before export. `core/print/workflow.mjs` owns
 initialization, verification, revision hashes, adjustment, approvals, generation,
-reopening, setup reuse, upgrades and delivery. The shell adapter supplies
+reopening, setup reuse and delivery. The shell adapter supplies
 recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema. There is no standalone settings
 confirmation. `approve({actor, revision})` writes the only approval record,
@@ -180,7 +180,7 @@ Prints/<name>/
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
   the move without determining its geometry. New bundles do not serialize this
-  representation. Regeneration removes an obsolete `path.saampath` file.
+  representation.
 - `saam-review/1`: the exact-version final approval record, history, generation/export hashes
   and a small generation summary for display (never playback geometry).
   `saam-checks/1` records software checks and limitations.
@@ -222,10 +222,6 @@ the reviewed control nets. Changed geometry repeats that verification;
 unchanged content reuses validity under the [bundle contract](#print-bundle-and-current-formats).
 The descriptor also carries a quad proxy mesh, tessellated per patch, for the viewer.
 
-Old machine snapshots without templates must be explicitly upgraded with the
-owning CLI's `upgrade` command before generation. It installs the current machine
-snapshot and invalidates the final settings/toolpath approval. Do not rewrite a person's existing export or delivery as a migration.
-
 ## Formats
 
 - `saam-shell-plan/1`: shape and its parameters, placement, setup, shared
@@ -241,7 +237,7 @@ snapshot and invalidates the final settings/toolpath approval. Do not rewrite a 
   software limit, not a measured clearance rating, and no collision model exists.
 - SAAMpath and the Griffin export follow the shared contracts,
   including machine-owned header/start/end templates and the header fields the printer's reader requires. The exporter reads
-  `startup.zAfterStartupMm`, falling back to the older `zAfterPrimeMm`.
+  `startup.zAfterStartupMm`, which every current machine profile declares.
 - XYZ moves shorter than `1e-4` mm are omitted only when all coordinates collapse
   to the same rounded endpoint (five decimals for S5/H2D, ten for Dobot).
   Representable short moves are retained. Oriented motion currently retains a

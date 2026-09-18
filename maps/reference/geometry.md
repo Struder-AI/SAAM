@@ -495,14 +495,15 @@ without rerunning font shaping or booleans. Text edits rebuild through
 affected reviews. Text's original STL source hash remains checked. Assembly edits
 retain the selected component id and other components' representations.
 
-New text records also save digest-bound `materialParts`: `base` and
+Text records save digest-bound `materialParts`: `base` and
 `text/<feature-id>`. Raised additions exclude existing material; later recessed
 cuts subtract from every partition. Empty partitions are omitted. An uncut base
 uses `geometry: null` to retain the original native geometry and its queries;
 other partitions store their resulting mesh. Their boolean construction uses the
 same tessellation approximation as the final solid. `standalone: true` retains
 the source only as a reference and exposes no base material or base preparation
-details. Older records without these optional fields remain valid whole solids.
+details; it is the one optional field, present only on a reference body. A record
+without `materialParts` is rejected, not read as a whole solid.
 
 [Geometry selections](../../core/geom/selections.mjs) exposes these partitions to regional
 consumers, prefixing their names with the assembly component id where present.

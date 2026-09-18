@@ -1,7 +1,7 @@
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,upgradeBundle,checkPathBundle,changeMachine} from './bundle.mjs';
+import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine} from './bundle.mjs';
 import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
@@ -61,9 +61,6 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Open Studio with: npm run studio -- ${directory}`);
     } else if (command === 'change-machine') {
       console.log(report(await changeMachine(bundleDirectory(),argument,{expectedRevision})));
-    } else if (command === 'upgrade') {
-      await upgradeBundle(bundleDirectory());
-      console.log('Machine snapshot upgraded; plan and toolpath require review again.');
     } else if (command === 'generate') {
       console.log(JSON.stringify(await generateBundle(bundleDirectory()), null, 2));
     } else if (command === 'adjust') {
@@ -80,7 +77,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(report(state));
       if(state.programError)process.exitCode=1;
     } else {
-      console.error('       cli.mjs init|demo|generate|check|deliver|upgrade|remember-setup [print-directory] [plan.json]');
+      console.error('       cli.mjs init|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
       console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');

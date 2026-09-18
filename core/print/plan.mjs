@@ -118,63 +118,18 @@ export function geometryTemplate(shape,geometry) {
 
 export function validatePlan(plan, machine) {
   requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(plan.geometry?.shape), 'Unsupported shape.');
-  plan.skills['plastic-weld']??=structuredClone(PLASTIC_WELD_DEFAULTS);
-  plan.skills['pipe-cladding']??=structuredClone(PIPE_CLADDING_DEFAULTS);
-  plan.skills['wave-overhangs']??=structuredClone(WAVE_DEFAULTS);
-  plan.skills['pipe-cladding'].surface??=null;
-  plan.skills['pipe-cladding'].offsetTightness??=PIPE_CLADDING_DEFAULTS.offsetTightness;
-  if(plan.skills['pipe-cladding'].pattern===undefined)plan.skills['pipe-cladding'].pattern=PIPE_CLADDING_DEFAULTS.pattern;
-  if(plan.skills['pipe-cladding'].part===undefined)plan.skills['pipe-cladding'].part=null;
-  // Shell bundles created before the experimental setting existed retain the
-  // profile limit until a chat adjustment writes the explicit null value.
-  if (plan.skills?.['draped-skin'] && !Object.hasOwn(plan.skills['draped-skin'], 'maxAngleDegOverride'))
-    plan.skills['draped-skin'].maxAngleDegOverride = null;
-  plan.skills['full-fill'].parts ??= [];
-  for(const field of ['mode','bottomLayers','topLayers'])plan.skills['full-fill'][field]??=FULL_FILL_DEFAULTS[field];
-  plan.skills['planar-infill']??={enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS};
-  for(const field of ['pattern','sampleStepMm','maxPatternCells'])plan.skills['planar-infill'][field]??=PLANAR_INFILL_DEFAULTS[field];
-  plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
-  plan.skills['thick-lip']??={enabled:false,part:null,...THICK_LIP_DEFAULTS};
-  plan.skills.supports??=structuredClone(SUPPORT_DEFAULTS);
-  for(const name of ['rimming-planar','rimming-normal']){plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);plan.skills[name].offsetTightness??=RIMMING_DEFAULTS.offsetTightness;}
-  plan.skills['vase-wall'].endTransition??='spiral';
-  if(Object.hasOwn(plan.skills['vase-wall'],'paths')){
-    requireThat(plan.skills['vase-wall'].paths===null,'Standalone XYZ vase paths are retired. Recreate this recipe as a repeated sleeve pattern; XYZ paths are not reinterpreted.');
-    delete plan.skills['vase-wall'].paths;
-  }
-  plan.skills['vase-wall'].pattern??=null;
-  plan.skills['vase-wall'].pathMode??='continuous';
-  plan.skills['vase-wall'].meshSleeve??=null;
-  plan.skills['vase-wall'].sleeveToleranceMm??=VASE_WALL_DEFAULTS.sleeveToleranceMm;
-  // The retired vase point budget is accepted only for reading old plans and
-  // region overrides; a wall now takes the points its geometry requires.
-  delete plan.skills['vase-wall'].maxPoints;
-  for(const region of plan.composition?.regions??[])if(region?.skills?.['vase-wall']&&typeof region.skills['vase-wall']==='object')delete region.skills['vase-wall'].maxPoints;
-  // Preserve the old numerical boundary allowance when opening older recipes.
-  // New plans lock this independently from contour subdivision tolerance.
-  if(!Object.hasOwn(plan.skills['vase-wall'],'boundaryToleranceMm')) {
-    plan.skills['vase-wall'].boundaryToleranceMm=plan.skills['vase-wall'].toleranceMm;
-    for(const region of plan.composition?.regions??[])if(region.skills?.['vase-wall']?.toleranceMm!==undefined)
-      region.skills['vase-wall'].boundaryToleranceMm??=region.skills['vase-wall'].toleranceMm;
-  }
-  plan.skills['draped-skin'].part ??= null;
-  plan.composition ??= { order: [], dependencies: [], batchLayers: 1 };
-  plan.composition.batchLayers ??= 1;
-  plan.composition.regions ??= [];
+  // Validation is check-only: a plan carries every current field or it is
+  // rejected. Pre-policy bundles are recreated from their skills, not migrated.
+  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
+  keys(plan, expected);
+  requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
   requireThat(Array.isArray(plan.composition.regions)&&plan.composition.regions.length<=80,'Composition regions must be an array of at most 80 assignments.');
   const regional=plan.composition.regions.length>0;
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
-  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
-  // Older recipes retain their original spacing. Regional overrides use these
-  // same settings through the ordinary child-plan validation below.
-  for(const name of SPACING_SKILLS){
-    const settings=plan.skills[name];
-    if(settings.spacingFactor===undefined)settings.spacingFactor=1;
-    lineSpacing(plan.process.lineWidthMm,settings);
-  }
-  keys(plan, expected);
-  requireThat(plan.schema === expected.schema && plan.generatorVersion === VERSION, 'Unsupported plan or generator version.');
+  // Regional overrides use these same settings through the ordinary child-plan
+  // validation below.
+  for(const name of SPACING_SKILLS)lineSpacing(plan.process.lineWidthMm,plan.skills[name]);
 
   const { geometry, placement, process, setup, skills } = plan;
   validatePlasticWeld(plan,machine);
@@ -356,9 +311,7 @@ export function validatePlan(plan, machine) {
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {
-    if(region&&typeof region==='object')region.lowerSurfaceFrom??=null;
-    // Retired supportPolicy is accepted only for reading old plans; it has no effect.
-    requireThat(region&&Object.keys(region).filter(key=>key!=='supportPolicy').sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
+    requireThat(region&&Object.keys(region).sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
     const part=selections.get(region.part);
     requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
