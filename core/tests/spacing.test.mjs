@@ -169,10 +169,10 @@ test('spacing is reviewable, invalidates only the process, and survives checked 
   const p=boxPlan();p.geometry.heightMm=.6;
   await initBundle(dir,p);let state=await loadBundle(dir);
   state=await adjustBundle(dir,{skills:{'full-fill':{spacingFactor:3}}},{expectedRevision:state.revision});
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.ok(recipeRows(state.plan,state.machine).some(([key,v])=>key.includes('Line spacing')&&v.startsWith('3')));
   assert.ok(!recipeRows(p,machine).some(([key])=>key.includes('Line spacing')),'normal recipes need no extra review row');
   await generateBundle(dir);state=await loadBundle(dir);assert.ok(!state.programError);
-  await approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
+  await approve(dir,{revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
   assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,'exports/griffin-gcode/part.gcode')));
 });

@@ -23,7 +23,7 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.ok(state.program.moves.some(move=>move.phase==='draped-skin'&&move.extruding));
   const bytes=await readFile(join(directory,'exports/griffin-gcode/part.gcode'));
   await assert.rejects(()=>deliver(directory),/approval/);
-  state=await approve(directory,{stage:'toolpath',actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});
+  state=await approve(directory,{actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});
   assert.deepEqual(await readFile(await deliver(directory)),bytes);
   assert.deepEqual(await readFile(join(directory,'geometry/model.3dm')),native);
 
@@ -39,6 +39,6 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   const regions=structuredClone(plan.composition.regions);regions.find(r=>r.id==='cap').skills['full-fill'].fillAnglesDeg=[0,90];
   await adjustBundle(directory,{composition:{regions}},{expectedRevision:state.revision});
   state=await loadBundle(directory);
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.deepEqual(await readFile(join(directory,'delivery/part.gcode')),bytes);
 });

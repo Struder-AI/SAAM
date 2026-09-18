@@ -46,3 +46,7 @@ Repository policy, setup, contribution procedures, decisions and historical
 evidence retain their existing owners. Onboarding supplies engineering policy;
 it does not preload skill catalogs or every technical contract. Source remains
 authoritative for implementation; software checks do not establish physical results.
+
+## Status note
+
+As of 9/17/2026 and likely until 10/1/2026, we are not yet at the development stage where we care about backwards compatibility with print bundles. Back compat should not be a design priority or significant consideration in any new code, and any cumbersome back compat extras that are noticed should be flagged for removal.

@@ -146,7 +146,7 @@ test('woven geometry, plan and export use the shared approval and byte-identical
     state=await loadBundle(directory);
     assert.equal(state.programError,undefined);
     assert.ok(state.program.moves.some(move=>move.operation==='right:0:walls'));
-    state=await approve(directory,{stage:'toolpath',actor:'synthetic weaving test',revision:state.revision});
+    state=await approve(directory,{actor:'synthetic weaving test',revision:state.revision});
     assert.equal(await readFile(await deliver(directory),'utf8'),state.code);
   } finally {await rm(directory,{recursive:true,force:true});}
 });

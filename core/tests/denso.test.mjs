@@ -127,7 +127,7 @@ test('RC8 uses the public bundle, exact browser source and cold reopen without r
   const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.exportHash);`;
   assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.exportHash);
   const actor='SYNTHETIC TEST REVIEWER — no human or hardware approval';
-  await generateBundle(dir);const ready=await loadBundle(dir);await approve(dir,{stage:'toolpath',actor,revision:ready.revision});
+  await generateBundle(dir);const ready=await loadBundle(dir);await approve(dir,{actor,revision:ready.revision});
   const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),bytes);
-  await adjustBundle(dir,{setup:{denso:{workYawDeg:5}}},{setupFile:join(dir,'synthetic-setup.json')});const altered=await loadBundle(dir);assert.equal(altered.geometryApproved,false);assert.equal(altered.planApproved,false);assert.equal(altered.toolpathApproved,false);
+  await adjustBundle(dir,{setup:{denso:{workYawDeg:5}}},{setupFile:join(dir,'synthetic-setup.json')});const altered=await loadBundle(dir);assert.equal(altered.toolpathApproved,false);
 });

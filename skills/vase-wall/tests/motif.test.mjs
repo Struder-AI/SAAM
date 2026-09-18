@@ -89,7 +89,7 @@ test('compact recipes survive normal creation and adjustment and are explained b
   let state=await loadBundle(dir,{program:false});
   state=await loadBundle(dir,{program:false});
   await adjustBundle(dir,{skills:{'vase-wall':{pattern:{tiltDeg:-5,cellsPerTurn:4}}}},{expectedRevision:state.revision});
-  state=await loadBundle(dir,{program:false});assert.equal(state.geometryApproved,false);
+  state=await loadBundle(dir,{program:false});assert.equal(state.toolpathApproved,false);
   assert.equal(state.plan.skills['vase-wall'].pattern.cellsPerTurn,4);
   const rows=skillSettingsRows('vase-wall',state.plan.skills['vase-wall']);
   assert.ok(rows.some(([,v])=>v==='4 cells per course × 2 courses'));
@@ -99,7 +99,7 @@ test('compact recipes survive normal creation and adjustment and are explained b
   state=await loadBundle(dir,{program:false});assert.equal(state.plan.skills['vase-wall'].pattern.motif,undefined);
   await adjustBundle(dir,{skills:{'vase-wall':{pattern:compact}}},{expectedRevision:state.revision});
   state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.skills['vase-wall'].pattern,compact);
-  assert.equal(state.geometryApproved,false,'switching authoring forms leaves the host geometry unchanged without creating approval');
+  assert.equal(state.toolpathApproved,false,'switching authoring forms leaves the host geometry unchanged without creating approval');
 });
 
 test('the compact motif uses the same checked S5, H2D and configured Dobot output',async()=>{

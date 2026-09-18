@@ -24,7 +24,7 @@ test('machine study uses source transport and cannot approve or deliver; changed
   const sources=await fetchSources(state,path=>fetch(origin+path)),program=decodeSource(sources,state.plan,state.machine);
   assert.equal(program.moves.length,48);assert.equal(program.seconds,24);
   for(const route of ['approve','deliver','generate']){
-    const response=await fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify({printId:state.printId,stage:'toolpath',actor:'Synthetic test'})});
+    const response=await fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify({printId:state.printId,actor:'Synthetic test'})});
     assert.equal(response.status,400);assert.match((await response.json()).error,/studies do not support|approval|inspection/i);
   }
   const motion=JSON.parse(await readFile(join(dir,'motion.json'),'utf8'));motion.moves[0].seconds=1;await writeFile(join(dir,'motion.json'),JSON.stringify(motion));

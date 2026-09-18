@@ -70,7 +70,7 @@ function summary(printId, state) {
   return {
     printId, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     machineId: state.machine.id, output: state.plan.output, skills: state.skills,
-    approvals: { geometry: state.geometryApproved, plan: state.planApproved, toolpath: programChecked?state.toolpathApproved:state.review.approvals.toolpath?null:false },
+    toolpathApproved: programChecked?state.toolpathApproved:state.review.approvals.toolpath?null:false,
     programChecked,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: programChecked ? !!state.program && !state.programError : null } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,

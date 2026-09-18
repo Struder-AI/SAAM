@@ -39,7 +39,7 @@ async function prepare(source,options){
   const changes=shapeChanges(clean,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});
   const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length,outputTriangles:result.triangles.length,...changes,
-    validation:'Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Numerical contact tolerance is 1e-9 mm; sampled distances do not certify shape fidelity.',geometryApproved:false};
+    validation:'Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Numerical contact tolerance is 1e-9 mm; sampled distances do not certify shape fidelity.'};
   return {result,report,start};
 }
 async function emitGeometry(result,{onGeometry,progress=()=>{},signal}){

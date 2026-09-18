@@ -171,7 +171,7 @@ test('exit ends the run; restarting begins lesson one and preserves earlier prin
   const roofState=await referenceAdapter({loadBundle}).loadBundle(newRoof,{program:false});
   assert.deepEqual(roofState.plan.geometry,surfaceDrapePlan().geometry,'the current roof shape is preserved');
   assert.equal(roofState.review.generation,null,'tour startup does not generate or inherit a toolpath');
-  assert.equal(roofState.geometryApproved,false);
+  assert.equal(roofState.toolpathApproved,false);
   assert.equal((await tour.info()).canNext,false);assert.ok(await readFile(join(first,'plan.json')));
   assert.equal(await createTour(dir).landing(),second);
 });
@@ -194,7 +194,7 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal((await(await fetch(url+'/api/prints')).json()).prints.length,2);
   const opened=await post('open',{path:starter});assert.equal(opened.status,200,await opened.text());
   let state=await(await fetch(url+'/api/state')).json();assert.equal(state.program,undefined);assert.equal(state.review.generation,null);
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.equal(state.tour.step,3,'selection advances straight to the optional import lesson');
   const preparation=await(await fetch(url+'/api/preparation')).json();
   assert.equal(preparation.planHash,state.planHash);assert.ok(['preparing','ready'].includes(preparation.status));
@@ -208,10 +208,8 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal(state.toolpathApproved,false,'preparation does not confirm the final settings');
   assert.equal((await post('generate',{planHash:'stale',development:false})).status,400);
   assert.equal((await post('tour',{action:'step',step:5})).status,400);
-  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC tour test',revision:state.revision})).status,400);
-  assert.equal((await post('approve',{stage:'toolpath',actor:'SYNTHETIC tour test',revision:state.revision})).status,400,'tour export remains the toolpath approval action');
+  assert.equal((await post('approve',{actor:'SYNTHETIC tour test',revision:state.revision})).status,400,'tour export remains the toolpath approval action');
   assert.equal((await post('tour',{action:'exit'})).status,200);
   assert.equal(await tourExample(starter),null);
   state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);
-  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC tour test',revision:state.revision})).status,400);
 });

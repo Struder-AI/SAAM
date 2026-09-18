@@ -15,7 +15,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   const bundleDirectory = () => resolve(target ?? 'Prints/shell-part');
   const report = state => JSON.stringify({
     print: state.dir, skills: state.skills, revision: state.revision, geometryHash:state.geometryHash,
-    geometryApproved: state.geometryApproved, planApproved: state.planApproved, toolpathApproved: state.toolpathApproved,
+    toolpathApproved: state.toolpathApproved,
     program: state.program?.summary ?? null, programError: state.programError ?? null,
     outputAvailability: state.outputAvailability ?? null, machineConfiguration: state.machineConfiguration ?? null,
     nonplanarLimit: state.pathSummary?.nonplanarLimit ?? null, limitations: state.limitations

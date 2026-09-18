@@ -71,7 +71,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
 | `upgrade_print` | Run the owning adapter's explicit migration for an old bundle, preserving delivered files and invalidating affected approvals. |
 | `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Supply `studioInstanceId` to rebind an existing owned instance, or `newInstance:true` to open another instance for the same bundle. |
-| `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk; `plan` remains a compatibility field for that combined confirmation. |
+| `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk as `toolpathApproved`, the only approval state print summaries report. |
 | `generate_print` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 

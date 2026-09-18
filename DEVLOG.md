@@ -1,5 +1,28 @@
 # Development log
 
+## 2026-09-17 — One final approval record
+
+The lifecycle contract had retired geometry approval and kept plan approval only
+"for record compatibility", yet `approve` still accepted a `stage`, wrote a
+mirrored `approvals.plan` beside `approvals.toolpath` and recomputed three
+booleans; the loader, Studio state/approval responses, CLI, agent toolkit and MCP
+summaries all reported them, and `/api/approve` special-cased a geometry stage.
+Now `approve({actor, revision})` writes one `review.approvals.toolpath` record
+(export hash, plan hash, `['settings','toolpath']` scope) and `toolpathApproved`
+is the only derived state. Every invalidation (plan, machine, upgrade,
+regeneration) resets `review.approvals` to `{}`, dropping retired records, which
+are otherwise ignored. MCP/toolkit summaries report `toolpathApproved` in place
+of their `approvals` objects; the Studio tour rejects `/api/approve` outright.
+The Studio change-follow rule that switched to the toolpath tab on
+`planApproved` now uses `toolpathApproved`. The repair report no longer claims
+`geometryApproved:false`. Lifecycle, Studio and MCP contracts updated together.
+
+Verification: workflow, chat-geometry-confirmation, studio-agent, studio-work and
+studio-tour pass (41/41); the other 28 edited test files pass except the known
+pre-existing MCP task-manual/transport-close and studio-view-readiness harness
+failures and two plastic-weld overlap failures that also fail at `6004141`.
+`dev-map.mjs check --since HEAD` passes.
+
 ## 2026-09-17 — Bring dev maps up to date with the Studio event and vase-wall work
 
 A map review since `7f2d3a5` found the Studio event queue, listener ownership

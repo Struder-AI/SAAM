@@ -97,7 +97,7 @@ test('cancellation before commit preserves files; cancellation after commit begi
 test('approval and delivery history update review metadata while keeping the displayed source identity',async t=>{
   const {dir,get}=await fixture(t);
   await bundle.generateBundle(dir);const shown=await get('state');
-  await bundle.approve(dir,{stage:'toolpath',actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:'source'});
+  await bundle.approve(dir,{actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:'source'});
   await bundle.deliver(dir);
   const changed=await get('revision?'+new URLSearchParams({fingerprint:shown.fingerprint}));
   assert.equal(changed.presentationFingerprint,shown.presentationFingerprint);assert.equal(changed.reviewUpdate.exportHash,shown.exportHash);

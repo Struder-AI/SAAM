@@ -94,8 +94,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const tour=createTour(libraryRoot,{ownerId:sessionOwnerId,studioId:instanceId,agentRequests:requests});
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
-  const metadata=state=>({revision:state.revision,review:{...state.review,history:undefined},geometryApproved:state.geometryApproved,
-    planApproved:state.planApproved,toolpathApproved:state.toolpathApproved,tourExample:state.tourExample??null,
+  const metadata=state=>({revision:state.revision,review:{...state.review,history:undefined},
+    toolpathApproved:state.toolpathApproved,tourExample:state.tourExample??null,
     programError:state.programError??null,exportHash:state.exportHash??null});
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex');
@@ -390,7 +390,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             state=await current.loadBundle(dir,{program:'source'});
             if(state.review.generation?.mode!=='production'){await generate(current,false,'tour-export');state=await current.loadBundle(dir,{program:'source'});}
             if(state.exportHash!==shownHash)throw Error('The regenerated toolpath changed. Review it, then confirm export again.');
-            if(!state.toolpathApproved)state=await current.approve(dir,{stage:'toolpath',actor:'Local user — tour export',revision:state.revision,program:'source'});
+            if(!state.toolpathApproved)state=await current.approve(dir,{actor:'Local user — tour export',revision:state.revision,program:'source'});
             const file=await current.deliver(dir),name=requestedDownloadName(data.name,await printName(dir),basename(file)),bytes=await readFile(file);
             await tour.downloaded(state.exportHash);
             note('export-delivered',{tour:true,name,exportHash:state.exportHash,revision:state.revision});
@@ -398,7 +398,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name)}`});res.end(bytes);return;
           }finally{await tour.restoreReference(dir);}
         }
-        if(progress.active&&progress.directory===dir&&(url.pathname==='/api/deliver'||url.pathname==='/api/approve'&&data.stage!=='geometry'))throw Error('Use Confirm settings & export to approve and download the tour toolpath.');
+        if(progress.active&&progress.directory===dir&&['/api/deliver','/api/approve'].includes(url.pathname))throw Error('Use Confirm settings & export to approve and download the tour toolpath.');
         if(url.pathname==='/api/tour-playback'){
           if(!['play','pause','tick'].includes(data.event))throw Error('Unknown playback event');
           const played=await tour.playback(data.event);if(data.event!=='tick')note('tour-playback',{event:data.event,step:played.step});send(played);return;
@@ -439,10 +439,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan'){await current.updatePlan(dir,data.plan,data.revision);note('plan-updated',{revision:data.revision??null});}
         else if(url.pathname==='/api/approve'){
-          const state=await current.approve(dir,{stage:data.stage,actor:data.actor,revision:data.revision,program:'source'});
-          const {revision,review,geometryApproved,planApproved,toolpathApproved}=metadata(state);
-          note('approved',{stage:data.stage,revision});
-          send({ok:true,approval:{revision,review,geometryApproved,planApproved,toolpathApproved,
+          const state=await current.approve(dir,{actor:data.actor,revision:data.revision,program:'source'});
+          const {revision,review,toolpathApproved}=metadata(state);
+          note('approved',{revision});
+          send({ok:true,approval:{revision,review,toolpathApproved,
             programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,
             presentationFingerprint:viewFingerprint(printId(),await current.bundleFingerprint(dir,{program:!geometryOnly(progress),presentation:true}),progress),
             fingerprint:viewFingerprint(printId(),await current.bundleFingerprint(dir,{program:!geometryOnly(progress)}),progress)}});return;

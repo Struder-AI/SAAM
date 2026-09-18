@@ -89,7 +89,7 @@ refresh > ack | render scheduled | data
 draw > ack | frame displayed | data
 draw > person | displayed result | io
 person > approve | explicit confirmation | io
-approve > action | stage and revision | data
+approve > action | actor and revision | data
 ```
 
 ```saam-page 7b_source

@@ -34,7 +34,7 @@ test('worker import keeps the server event loop responsive and preserves source 
   assert.ok(ticks>0,'main-thread timers continue while import runs');
   assert.deepEqual(await readFile(join(directory,'geometry/source.stl')),bytes);
   const state=await loadBundle(directory,{program:false});
-  assert.equal(state.plan.geometry.shape,'mesh');assert.equal(state.geometryApproved,false);
+  assert.equal(state.plan.geometry.shape,'mesh');assert.equal(state.toolpathApproved,false);
   const second=await importStudioSTL(root,bytes,{name:'Valid.stl',units:'mm',machineId:'ultimaker-s5'});
   assert.equal(second.directory,join(root,'Valid 2'));assert.equal(second.repaired,false);
   assert.equal(await loadStudioImportRepair(second.directory),null);
@@ -71,7 +71,7 @@ test('native import repair resolves intersections and rejects unbounded holes wi
   const report=JSON.parse(await readFile(join(result.directory,'repair/repair.json'),'utf8'));
   assert.equal(report.selfIntersectionsRepaired,true);assert.ok(report.unchangedSourceFaces>700);
   assert.deepEqual(await readFile(join(result.directory,'repair/original.stl')),bytes);
-  assert.equal((await loadBundle(result.directory,{program:false})).geometryApproved,false);
+  assert.equal((await loadBundle(result.directory,{program:false})).toolpathApproved,false);
   const open=boxMesh(12,10,4);open.triangles.pop();
   await assert.rejects(importStudioSTL(root,encodeRepairSTL(open),{name:'Open.stl',units:'mm',machineId:'ultimaker-s5'}),/Open boundaries/);
   assert.equal((await readdir(root)).includes('Open'),false);

@@ -54,7 +54,7 @@ test('G-code tokenization retains packed arguments, whitespace, comments and str
   }
 });
 
-test('shell upgrade retains geometry approval and existing delivery bytes',async()=>{
+test('shell upgrade invalidates the final approval and keeps existing delivery bytes',async()=>{
   const adapter=await import('../print/bundle.mjs');
   const recipe=defaults();
   recipe.geometry={shape:'box',runMm:6,widthMm:6,heightMm:0.6};
@@ -66,15 +66,13 @@ test('shell upgrade retains geometry approval and existing delivery bytes',async
     let state=await adapter.loadBundle(directory);
     await adapter.generateBundle(directory);
     state=await adapter.loadBundle(directory);
-    await adapter.approve(directory,{stage:'toolpath',actor:'synthetic upgrade test',revision:state.revision});
+    await adapter.approve(directory,{actor:'synthetic upgrade test',revision:state.revision});
     const delivered=await adapter.deliver(directory),bytes=await readFile(delivered,'utf8');
     const oldMachine=JSON.parse(await readFile(join(directory,'machine.json'),'utf8'));
     delete oldMachine.outputs[0].program;
     await writeFile(join(directory,'machine.json'),JSON.stringify(oldMachine));
     await adapter.upgradeBundle(directory);
     state=await adapter.loadBundle(directory);
-    assert.equal(state.geometryApproved,false);
-    assert.equal(state.planApproved,false);
     assert.equal(state.toolpathApproved,false);
     assert.ok(state.machine.outputs[0].program);
     assert.equal(await readFile(delivered,'utf8'),bytes);

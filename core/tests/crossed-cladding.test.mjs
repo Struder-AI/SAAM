@@ -79,7 +79,7 @@ test('checked robot output preserves both winding directions, review invalidatio
   const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;
   await initBundle(dir,p,{machineId:machine.id});let state=await loadBundle(dir);
   state=await adjustBundle(dir,{skills:{'pipe-cladding':{pattern:'crossed-helices',spacingFactor:3}}},{expectedRevision:state.revision});
-  assert.ok(!state.geometryApproved);assert.ok(!state.planApproved);
+  assert.ok(!state.toolpathApproved);
   assert.ok(recipeRows(state.plan,machine).some(([k,v])=>k.endsWith('Pattern')&&v==='crossed helices'));
 
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);
@@ -87,7 +87,7 @@ test('checked robot output preserves both winding directions, review invalidatio
     const moves=state.program.moves.filter(m=>m.extruding&&m.phase===phase);assert.ok(moves.length>10);
     assert.ok(moves.some(m=>sign*(m.rotaryToDeg-m.rotaryFromDeg)>0));
   }
-  await approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC CROSSED-HELIX TEST ONLY'});
+  await approve(dir,{revision:state.revision,actor:'SYNTHETIC CROSSED-HELIX TEST ONLY'});
   assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,'exports/denso-pacscript/part.zip')));
 });
 

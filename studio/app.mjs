@@ -370,7 +370,7 @@ async function refresh(follow=false,reopen=false) {
     if(!state.tourExample)restoreView();
   }
   else if(follow&&previous.planHash!==state.planHash){tab=previous.geometryHash!==state.geometryHash?'geometry':'toolpath';message('Updated from chat.');}
-  else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
+  else if(follow&&state.toolpathApproved&&!previous.program&&state.program)tab='toolpath';
   if(!selected||!state.geometry.labels.includes(selected)&&(!geometryScene.edgeFeatures.has(selected)||previous?.geometry.geometryVersion!==state.geometry.geometryVersion))selectFeature(null);
   machineColors=machineTheme();
   if(machineSession?.scene){
@@ -652,8 +652,8 @@ $('#fit-program').onclick=()=>{
   zoom=1;pan=[0,0];requestDraw();
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-async function approval(stage){
-  const response=await api('approve',{stage,actor:'Local user',revision:state.revision});
+async function approval(){
+  const response=await api('approve',{actor:'Local user',revision:state.revision});
   const result=await response.json();
   Object.assign(state,result.approval);
   if(!result.approval.programAvailable){delete state.program;clearProgramView();}
@@ -690,7 +690,7 @@ $('#confirm').onclick=async()=>{
       else{activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
     }
     else if(!validProgram){activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
-    else {if(!state.toolpathApproved)await approval('toolpath');await download();}
+    else {if(!state.toolpathApproved)await approval();await download();}
     message('');
     },{preview:tab==='geometry'||!validProgram,stage:'toolpath'});
   }catch(e){message(e.message,true);}

@@ -153,9 +153,7 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.composition?.regions?.length
       ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','rimming-planar','rimming-normal','wave-overhangs'].filter(name=>plan.skills?.[name]?.enabled)])]
-      : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : [],
-    geometryApproved: review.approvals.geometry?.hash === geometryHash,
-    planApproved: review.approvals.plan?.hash === planHash
+      : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : []
   };
   if(machine.id==='denso-vp6242-rc8'){
     state.machineConfiguration=validateDensoConfiguration(plan);
@@ -197,8 +195,7 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
         requireThat(Object.hasOwn(verifiedProgram.sources,sourceFile),'Unknown machine source file.');
         state.code=verifiedProgram.sources[sourceFile];
       }
-      state.toolpathApproved = state.planApproved
-        && review.approvals.toolpath?.hash === state.exportHash
+      state.toolpathApproved = review.approvals.toolpath?.hash === state.exportHash
         && review.approvals.toolpath?.planHash === planHash
         && review.generation.mode === 'production';
     } catch (error) { state.programError = error.message; }
@@ -328,11 +325,9 @@ async function updatePlan(directory, plan, revision) {
   const review = state.review;
   review.history.push({
     event: 'plan-edited', time: new Date().toISOString(), previousPlanHash: state.planHash,
-    invalidated: geometryChanged ? ['geometry', 'plan', 'toolpath'] : ['plan', 'toolpath']
+    geometryChanged, invalidated: ['toolpath']
   });
-  if (geometryChanged) delete review.approvals.geometry;
-  delete review.approvals.plan;
-  delete review.approvals.toolpath;
+  review.approvals = {};
   review.generation = null;
   await save(resolve(state.dir, 'plan.json'), plan);
   await save(resolve(state.dir, 'review.json'), review);
@@ -387,7 +382,7 @@ async function generateBundle(directory, { development = false, onProgress, befo
   await save(resolve(state.dir, exportPath(state.plan,state.machine)), code);
   await save(resolve(state.dir, 'checks.json'), checks);
   const review = state.review;
-  delete review.approvals.toolpath;
+  review.approvals = {};
   review.generation = { mode: checks.mode, planHash: state.planHash, exportHash: checks.exportHash, summary, version: VERSION };
   review.history.push({ event: 'generated', mode: checks.mode, time: new Date().toISOString(), exportHash: checks.exportHash });
   await save(resolve(state.dir, 'review.json'), review);
@@ -398,8 +393,8 @@ async function generateBundle(directory, { development = false, onProgress, befo
   return checks;
 }
 
-async function approve(directory, { stage, actor, revision, program = true }) {
-  requireThat(stage === 'toolpath', 'Only the final settings and exact toolpath are approved.');
+// The one human approval: current settings and the exact checked export together.
+async function approve(directory, { actor, revision, program = true }) {
   requireThat(typeof actor === 'string' && actor.trim().length >= 2 && actor.length <= 100, 'Enter the human reviewer’s name.');
   const state = await loadBundle(directory,{program});
   requireThat(revision === state.revision, 'This review is stale. Reload before approving.');
@@ -409,19 +404,12 @@ async function approve(directory, { stage, actor, revision, program = true }) {
   'Generate and check the production plan before toolpath approval.');
   const record = {
     actor: actor.trim(), time: new Date().toISOString(),
-    hash: state.exportHash
+    hash: state.exportHash, planHash: state.planHash, scope: ['settings','toolpath']
   };
-  record.planHash = state.planHash;
-  record.scope = ['settings','toolpath'];
-  state.review.approvals.plan = {...record,hash:state.planHash};
-  state.review.approvals[stage] = record;
-  state.review.history.push({ event: 'human-approval', stage, ...record });
+  state.review.approvals = { toolpath: record };
+  state.review.history.push({ event: 'human-approval', ...record });
   await save(resolve(state.dir, 'review.json'), state.review);
-  state.geometryApproved=state.review.approvals.geometry?.hash===state.geometryHash;
-  state.planApproved=state.review.approvals.plan?.hash===state.planHash;
-  state.toolpathApproved=state.planApproved&&Boolean(state.program)&&!state.programError
-    &&state.review.generation?.mode==='production'&&state.review.approvals.toolpath?.hash===state.exportHash
-    &&state.review.approvals.toolpath?.planHash===state.planHash;
+  state.toolpathApproved = true;
   state.revision=hash({geometryHash:state.geometryHash,planHash:state.planHash,review:state.review});
   return state;
 }
@@ -454,7 +442,7 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
   const plan={...state.plan,setup:proposal.setup,output:proposal.output,process};
   validatePlan(plan,machine);
   const review=state.review;
-  delete review.approvals.plan;delete review.approvals.toolpath;review.generation=null;
+  review.approvals={};review.generation=null;
   review.history.push({event:'machine-changed',from:state.machine.id,to:machineId,time:new Date().toISOString()});
   await save(resolve(state.dir,'machine.json'),machine);
   await save(resolve(state.dir,'plan.json'),plan);
@@ -478,9 +466,8 @@ async function upgradeBundle(directory) {
     const next=await createGeometry(plan.geometry);
     await save(resolve(directory,nativeFile(next.descriptor)),next.bytes);
     await save(resolve(directory,'geometry/model.json'),next.descriptor);
-    delete review.approvals.geometry;
   }
-  delete review.approvals.plan; delete review.approvals.toolpath; review.generation=null;
+  review.approvals={}; review.generation=null;
   review.history.push({event:'generator-upgraded',version:VERSION,machineRevision:machine.revision,time:new Date().toISOString()});
   await save(resolve(directory,'plan.json'),plan);
   await save(resolve(directory,'machine.json'),machine);

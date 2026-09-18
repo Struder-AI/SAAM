@@ -24,7 +24,7 @@ test('demo workspaces start unapproved and recreating them preserves existing wo
   t.after(()=>rm(directory,{recursive:true,force:true}));
   const [demo]=await createDemos('surface-drape',directory);
   const state=await loadBundle(demo.directory),original=await readFile(join(demo.directory,'plan.json'),'utf8');
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.equal(state.plan.geometry.shape,'spline-top');
   await assert.rejects(createDemos('all',directory),/already exists/);
   assert.equal(await readFile(join(demo.directory,'plan.json'),'utf8'),original);

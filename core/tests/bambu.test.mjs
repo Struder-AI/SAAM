@@ -120,7 +120,7 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   let state=await loadBundle(dir);
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);
   assert.equal(state.exportName,'part.gcode.3mf');assert.equal(state.outputAvailability,null);
-  state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});assert.equal(state.toolpathApproved,true);
+  state=await approve(dir,{actor,revision:state.revision});assert.equal(state.toolpathApproved,true);
   const exportFile=join(dir,'exports/bambu-gcode/part.gcode.3mf'),bytes=await readFile(exportFile);
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
@@ -133,5 +133,5 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   assert.match((await loadBundle(dir)).programError,/changed/);await assert.rejects(deliver(dir),/approval/);
   await writeFile(exportFile,bytes);
   await adjustBundle(dir,{process:{planarSpeedMmS:18}});state=await loadBundle(dir);
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
 });

@@ -31,12 +31,11 @@ test('tour geometry recovery preserves the lesson and generates without a geomet
   const url='http://127.0.0.1:'+server.address().port,html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
   const get=async()=>await(await fetch(url+'/api/state')).json();
-  state=await get();assert.equal(state.geometryApproved,false);assert.equal(state.tour.step,5);
+  state=await get();assert.equal(state.toolpathApproved,false);assert.equal(state.tour.step,5);
   assert.equal((await post('tour',{action:'resume'})).status,400,'ended tours cannot be resumed');
-  state=await get();assert.equal(state.geometryApproved,false);assert.equal(state.tour.step,5);assert.equal(state.localPrintDirectory,directory);
-  assert.equal((await post('approve',{stage:'toolpath',actor:'SYNTHETIC',revision:state.revision})).status,400);
-  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC explicit geometry review',revision:state.revision})).status,400);
-  state=await get();assert.equal(state.tour.step,5);assert.equal(state.geometryApproved,false);
+  state=await get();assert.equal(state.toolpathApproved,false);assert.equal(state.tour.step,5);assert.equal(state.localPrintDirectory,directory);
+  assert.equal((await post('approve',{actor:'SYNTHETIC',revision:state.revision})).status,400);
+  state=await get();assert.equal(state.tour.step,5);assert.equal(state.toolpathApproved,false);
   const generated=await post('generate',{planHash:state.planHash});assert.equal(generated.status,200,await generated.text());
   state=await get();assert.ok(state.program);assert.equal(state.tour.step,5);assert.equal(state.toolpathApproved,false);
   const displayed=await post('view-ready',{stage:'toolpath',revision:state.revision,exportHash:state.exportHash});
@@ -89,9 +88,9 @@ test('active tours block STL import; normal import stays unapproved in geometry 
   const blocked=await upload('Sample model.stl','mm');assert.equal(blocked.status,400);
   assert.match((await blocked.json()).error,/available after you finish or exit the tour/);
   state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.step,3);
-  assert.equal(state.localPrintDirectory,directory);assert.equal(state.geometryApproved,false);
+  assert.equal(state.localPrintDirectory,directory);assert.equal(state.toolpathApproved,false);
   await tour.action('exit');assert.equal((await upload('Normal model.stl','mm')).status,200);
-  state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);assert.equal(state.geometryApproved,false);assert.equal(Boolean(state.program),false);
+  state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);assert.equal(state.toolpathApproved,false);assert.equal(Boolean(state.program),false);
 });
 test('ordinary Studio requests are correlated, survive restart, expire and do not clear overlapping work',async t=>{
   const root=await fixture(t);let now=1;const requests=createAgentRequests(root,{now:()=>now}),directory=join(root,'ordinary-part');
@@ -176,7 +175,7 @@ test('STL units are inferred without a dialog and can be corrected without losin
   state=await loadBundle(directory,{program:false});const before=state.plan.geometry.vertices,revision=state.revision;
   await assert.rejects(setSTLUnits(directory,'mm',{expectedRevision:'stale'}));
   state=await setSTLUnits(directory,'mm',{expectedRevision:revision});
-  assert.equal(state.geometryApproved,false);assert.equal(state.plan.geometry.source.unitsInferred,false);assert.equal(state.plan.skills['planar-infill'].pattern,'gyroid');
+  assert.equal(state.toolpathApproved,false);assert.equal(state.plan.geometry.source.unitsInferred,false);assert.equal(state.plan.skills['planar-infill'].pattern,'gyroid');
   state.plan.geometry.vertices.forEach((p,i)=>p.forEach((v,k)=>assert.ok(Math.abs(v-before[i][k]/25.4)<1e-10)));
   assert.deepEqual(await readFile(join(directory,'geometry/source.stl')),bytes);
 });
@@ -217,7 +216,7 @@ test('Studio records person-driven actions as owner-scoped events: held ones wai
   assert.ok(kinds().includes('view-presented'));
   const advisories=pushed.length;assert.ok(advisories<=1);
   if(advisories)assert.equal(pushed[0].at(-1),'request-queued');
-  const approved=await post('approve',{stage:'toolpath',actor:'SYNTHETIC',revision:state.revision});assert.equal(approved.status,200,await approved.text());
+  const approved=await post('approve',{actor:'SYNTHETIC',revision:state.revision});assert.equal(approved.status,200,await approved.text());
   assert.equal(kinds().at(-1),'approved','a confirmation is held');assert.equal(pushed.length,advisories);
   const delivered=await post('deliver',{name:'Workshop handle',downloadLink:true});assert.equal(delivered.status,200,await delivered.text());
   assert.equal(pushed.length,advisories+1);const batch=pushed.at(-1);assert.equal(batch.at(-1),'export-delivered');

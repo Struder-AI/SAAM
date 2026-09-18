@@ -150,8 +150,8 @@ The agent applies patches with the `adjust` command of
 `core/print/cli.mjs`. Studio polls a bundle
 fingerprint and reloads changed data automatically, keeping the view when nothing
 changes and returning to the affected approval step after edits.
-Geometry edits invalidate both confirmations; settings edits preserve geometry
-approval and invalidate settings/toolpath approval. A server running old imported
+Geometry and settings edits invalidate the single settings/toolpath confirmation.
+A server running old imported
 code must be restarted after runtime changes. Each agent owns its Studio instances;
 do not adopt another agent's viewer or terminate another agent's process. Independent
 CLI launches and separate local MCP adapter processes use separate free loopback
@@ -161,9 +161,9 @@ Check the loaded geometry and export afterward.
 If generation reports "The prepared print changed. Reload before generating."
 after source changes, a browser refresh alone may leave an older server runtime
 active while a new preparation worker imports current code. Restart the owning
-Studio server, reconnect its viewer and check the fresh state. Geometry approval
-can remain valid when geometry is unchanged; combined settings/toolpath confirmation is also bound to
-the generator runtime and may require the person to review the regenerated result.
+Studio server, reconnect its viewer and check the fresh state. The settings/toolpath
+confirmation is bound to the generator runtime and may require the person to
+review the regenerated result.
 Do not rewrite approval hashes to make an old approval match new code.
 
 Studio tracks open pages through authenticated persistent viewer connections,
@@ -318,6 +318,10 @@ inputs; explicit Generate retries. Changes to the calculation's inputs observed
 from another writer cancel obsolete calculation. View changes alone do not do so.
 This control covers Studio workers; direct CLI/MCP generation and custom adapters
 do not yet share a cross-process cancellation owner.
+
+State and approval responses report `toolpathApproved` as the only approval state.
+`/api/approve` takes the reviewer and revision; an active tour rejects it and
+`/api/deliver` in favor of its combined confirm-and-export route.
 
 Review metadata has its own update path. Approval, delivery history and generation
 mode changes update controls after fresh validation without replacing unchanged
@@ -478,7 +482,7 @@ persisted; sequence numbers identify repeats.
 | `tour-started`, `tour-lesson`, `tour-exited`, `tour-finished`: lesson navigation, with the lesson and its agent instruction | `viewer-opened`, `viewer-closed`: browser viewer count |
 | `request-queued`: Studio asked for agent work (Ask agent, tour guidance, generation failure, advisory) | `view-presented`: a geometry or toolpath view was displayed, with revision and export hash |
 | `request-presented`: the agent's bound result is now displayed | `generation-started`, `generation-finished`: toolpath calculation start and finish, with trigger and duration |
-| `generation-failed`, `generation-cancelled`: the calculation failed (with its recovery request) or was cancelled by the person or by changed inputs | `approved`: a geometry or toolpath confirmation |
+| `generation-failed`, `generation-cancelled`: the calculation failed (with its recovery request) or was cancelled by the person or by changed inputs | `approved`: the final settings/toolpath confirmation |
 | `import-completed`, `import-failed`: an STL import by the person | `import-started` |
 | `print-opened`: the person opened another saved print | `tour-playback`: play or pause in the playback lesson |
 | `export-delivered`: the person exported the reviewed file, in the tour or ordinary review | `example-adopted`, `plan-updated` |

@@ -55,11 +55,11 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data,authorized=true)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:authorized?origin:'http://evil.invalid','X-SAAM-Token':token},body:JSON.stringify(data)});
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
-  const first=await get();assert.equal(first.geometryApproved,false);assert.equal(first.planApproved,false);assert.equal(first.program,undefined);
+  const first=await get();assert.equal(first.toolpathApproved,false);assert.equal(first.program,undefined);
   assert.equal((await post('open',{path:ready},false)).status,403);
   const archive=join(ready,'exports/bambu-gcode/part.gcode.3mf');
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
-  state=await get();assert.equal(state.planApproved,false);assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
+  state=await get();assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
   const requests=createAgentRequests(library,{ownerId:server.agentSession().ownerId});
   const shown={stage:'toolpath',revision:state.revision,exportHash:state.exportHash};
@@ -85,9 +85,9 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   await writeFile(archive,Buffer.from('altered'));
   assert.equal((await post('open',{path:ready})).status,200);
   state=await get();assert.equal(state.program,undefined);assert.match(state.programError,/changed/);
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.equal((await post('open',{path:join(geometry,'plan.json')})).status,200);
-  assert.equal((await get()).geometryApproved,false);
+  assert.equal((await get()).toolpathApproved,false);
 });
 
 test('background preparation leaves review writable and persists only a currently approved generation',async t=>{
@@ -116,7 +116,7 @@ test('final approval rejects a saved export whose bytes changed',async t=>{
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state=await(await fetch(origin+'/api/state')).json();assert.ok(state.program);
   const file=join(dir,'exports/griffin-gcode/part.gcode');await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
-  const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({stage:'toolpath',actor:'SYNTHETIC stale export test',revision:state.revision})});
+  const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({actor:'SYNTHETIC stale export test',revision:state.revision})});
   assert.equal(response.status,400);assert.match((await response.json()).error,/files changed/);
   const current=await(await fetch(origin+'/api/state')).json();assert.match(current.programError,/files changed/);assert.equal(current.exportHash,undefined);
 });

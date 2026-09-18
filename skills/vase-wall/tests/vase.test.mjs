@@ -362,10 +362,10 @@ test('vase native spline and mesh bundles reopen, review and deliver exact S5 by
     const actor='SYNTHETIC VASE TEST — not a human approval';
     await generateBundle(dir);
     let state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.skills,['vase-wall']);
-    await approve(dir,{stage:'toolpath',actor,revision:state.revision});
+    await approve(dir,{actor,revision:state.revision});
     const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),await readFile(join(dir,EXPORT_PATH)));
     state=await loadBundle(dir);assert.equal(state.toolpathApproved,true);
     await adjustBundle(dir,{skills:{'vase-wall':{zEndMm:0.8}}});
-    state=await loadBundle(dir,{program:false});assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+    state=await loadBundle(dir,{program:false});assert.equal(state.toolpathApproved,false);
   }
 });
