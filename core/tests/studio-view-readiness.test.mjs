@@ -59,7 +59,7 @@ function element(){
 // Exercise the real click handler, readiness acknowledgement, busy lifecycle and
 // agent indicator together. Network generation and drawing are controlled seams;
 // the refresh seam presents its loaded snapshot through the real readiness code.
-async function confirmationHarness({stored=false,generationError,tour=false,pending=false}={}){
+async function confirmationHarness({stored=false,generationError,tour=false,pending=false,painting=true}={}){
   const nodes=new Map(),events=[],calls=[];
   const get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};
   get('agent-status').querySelector=()=>get('typing-dots');
@@ -75,7 +75,8 @@ async function confirmationHarness({stored=false,generationError,tour=false,pend
     generationPending:()=>pending,stalePresentation:pending?{program:{}}:null,
     document:{getElementById:get,addEventListener(){}},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
     fetch:async()=>({ok:true,json:async()=>({requests:[request]})}),
-    requestAnimationFrame:callback=>queueMicrotask(()=>{events.push('paint:'+context.tab);callback();}),
+    requestAnimationFrame:callback=>{if(painting)queueMicrotask(()=>{events.push('paint:'+context.tab);callback();});},
+    setTimeout:(callback,ms)=>setTimeout(callback,painting?ms:0),clearTimeout,
     stop(){},clearManual(){},clearProgramView(){},cameras:{mode:'ghost'},layerFade:{reset(){}},
     activity(){},message(text,error){if(error)events.push('error:'+text);},
     render(){events.push('render:'+context.tab);},
@@ -215,6 +216,14 @@ test('a retained previous toolpath still replaces the geometry while its replace
   const context=placeholderContext({stale:{program:{moves:[]},plan:{placement:{xMm:0,yMm:0}}}});
   assert.equal(vm.runInContext('toolpathPlaceholder()',context),true,'the pane is still a faded placeholder');
   assert.equal(vm.runInContext('showingGeometry()',context),false,'the previous toolpath is preferred over the geometry');
+});
+
+test('a tab that never paints still finishes opening and loading',async()=>{
+  const {context,nodes,calls}=await confirmationHarness({painting:false});
+  assert.deepEqual(calls,['generate'],'the work ran without waiting for a frame callback');
+  assert.equal(context.tab,'toolpath');
+  assert.equal(context.busy,false,'the loading overlay is dismissed');
+  assert.equal(nodes.get('open-print').disabled,false);
 });
 
 test('a current program leaves the toolpath pane unfaded and geometry-free',()=>{

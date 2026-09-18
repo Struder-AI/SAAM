@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-18 — Finish opening Studio in a tab that is never painted
+
+In an embedded browser pane that was not being composited, the page stayed on
+"Opening Studio… Please wait" until a paint was forced. `working()` waited on two
+nested `requestAnimationFrame` callbacks before running its task, so it could
+give the indicator a chance to paint; a hidden or unpainted tab runs no frame
+callback at all, so the task — and the overlay's dismissal — never happened.
+`acknowledgeDisplayedView()` waited the same way, inside the load it gated.
+
+Both now share one `painted()` helper: two frames when frames arrive, otherwise a
+150 ms deadline. Drawing still uses `requestAnimationFrame` alone. Verification:
+`studio-view-readiness` (13/13, one new case whose harness never fires a frame
+callback and which hung before this change), `studio-tour-ui`,
+`studio-reconnect`, `studio-playback-cache`, `studio-spinner` (22/22);
+`dev-map.mjs check` passes. Not reproduced in a real unpainted browser pane.
+
 ## 2026-09-18 — Put the agent-request read back on pushes
 
 A browser network log showed hundreds of `GET /api/agent-requests` shortly after

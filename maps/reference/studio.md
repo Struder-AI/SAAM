@@ -287,7 +287,10 @@ through checks and playback loading, disables duplicate actions, and clears on
 success or error. Generation prepares and checks the toolpath. The final button confirms
 settings and toolpath together and downloads the checked file. After a successful download, that exact print/export shows "Export again" for the current page session, including after switching away and reopening it. Animation respects reduced-motion preferences. It represents
 stage progress where counts are available (layers, composed operations and
-material instances), and indeterminate work otherwise. Percentages describe the
+material instances), and indeterminate work otherwise. Both the overlay and the
+displayed-view acknowledgement give the compositor two frames to show what was
+rendered, then continue on a short deadline: a hidden or unpainted tab runs no
+frame callback, and loading must not depend on one. Percentages describe the
 named stage, not estimated elapsed time or hardware status. The read-only
 `GET /api/preparation` endpoint stays responsive outside the mutation queue and
 binds progress to the current print and plan.

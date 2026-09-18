@@ -173,10 +173,19 @@ function activity(text='',fraction=null){
 async function working(text,task,{preview=true,stage=null}={}){
   if(busy)return;busy=true;stop();if(preview)agentUI.loading(stage);activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
-  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await painted();
   let failure;
   try{return await task();}catch(error){failure=error;throw error;}
   finally{busy=false;if(preview)agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
+}
+// Give the compositor two frames to show what was just rendered, then continue
+// regardless: a hidden or unpainted tab runs no frame callback at all, and
+// opening, loading and acknowledging a drawn view must not wait on one.
+function painted(){
+  return new Promise(resolve=>{
+    const timer=setTimeout(resolve,150),done=()=>{clearTimeout(timer);resolve();};
+    requestAnimationFrame(()=>requestAnimationFrame(done));
+  });
 }
 
 // Studio reviews more than one kind of print. Everything that depends on which
@@ -395,7 +404,7 @@ async function acknowledgeDisplayedView(){
   if(acknowledging)return;
   acknowledging=true;
   try{
-  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await painted();
   if(agentUI.presentState(state,tab,{requiresToolpath:needsTourToolpath(state)})){
     const presented=await tourUI?.acknowledgeView(state,tab);
     if(presented)agentUI.updated(presented);
