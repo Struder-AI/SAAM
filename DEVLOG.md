@@ -1,5 +1,15 @@
 # Development log
 
+## 2026-09-17 — Compact sequential Studio export names
+
+Studio now recognizes an explicit `-V<number>-` token in the editable print
+name. After a successful reviewed-file export it advances that token for the
+next export in the same Studio session, while ordinary friendly names remain
+unchanged. This keeps printer-facing names such as `DICE-V1-H2D2-0-6` short and
+retains the machine-specific compound extension automatically. Focused naming
+and settings checks passed; this changes download naming only, not reviewed
+toolpath bytes or bundle identity.
+
 ## 2026-09-17 — Fast line-network dice and explicit H2D setup metadata
 
 Added an explicit planar line-network skill for sparse frames and reinforced

@@ -4,7 +4,7 @@ import { createProjection } from './camera.mjs';
 import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
-import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName} from './settings.mjs';
+import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {transform,untransform,machineFitBounds,boundsCorners,drawMachineCanvas,machinePalette} from './machine-view.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -678,6 +678,11 @@ async function download(route='deliver',data={}){
   // This requests a native browser download. Browser/host save completion is
   // not observable here; leave a real link for a direct user-initiated retry.
   a.click();exportedThisSession.add(key);
+  const nextName=nextExportName(name);
+  if(nextName!==name){
+    $('#export-name').value=nextName;
+    Object.assign(exportNameState,{value:nextName,dirty:true});
+  }
 }
 $('#export-name').oninput=event=>{if(!exportNameState)return;exportNameState.value=event.target.value;exportNameState.dirty=event.target.value!==exportNameState.suggested;};
 $('#confirm').onclick=async()=>{

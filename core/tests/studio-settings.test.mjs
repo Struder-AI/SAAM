@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {recipeRows,regionRows,robotRows,hasSkill} from '../../studio/settings.mjs';
+import {recipeRows,regionRows,robotRows,hasSkill,nextExportName} from '../../studio/settings.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
@@ -67,4 +67,10 @@ test('Studio summarizes explicit line networks without dumping centerline geomet
   assert.equal(rows.get('Line network · Courses'),'2');
   assert.equal(rows.get('Line network · Independent faces'),'2');
   assert.equal(rows.get('Line network · Centerline strokes'),'3');
+});
+
+test('compact versioned export names advance while ordinary names remain unchanged',()=>{
+  assert.equal(nextExportName('DICE-V1-H2D2-0-6'),'DICE-V2-H2D2-0-6');
+  assert.equal(nextExportName('DICE-V99-H2D2-0-8'),'DICE-V100-H2D2-0-8');
+  assert.equal(nextExportName('Wavy roof'),'Wavy roof');
 });

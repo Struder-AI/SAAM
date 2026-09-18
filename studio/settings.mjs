@@ -186,3 +186,9 @@ export function robotRows(plan){
 }
 // User-selected display estimate: 1.2 g/cm³, shared by all materials/machines.
 export const materialGrams=volumeMm3=>volumeMm3*1.2/1000;
+
+// Only explicit version tokens advance; ordinary friendly names stay stable.
+export function nextExportName(name){
+  const match=/^(.*-V)(\d+)(-.+)$/i.exec(name.trim());
+  return match?match[1]+(Number(match[2])+1)+match[3]:name;
+}
