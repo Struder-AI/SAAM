@@ -379,7 +379,12 @@ export function validatePlan(plan, machine) {
 // Reject misspelled or unused settings instead of silently ignoring them.
 function keys(actual, expected, path = 'plan') {
   requireThat(actual && typeof actual === 'object' && !Array.isArray(actual), `${path} must be an object.`);
-  requireThat(Object.keys(actual).sort().join() === Object.keys(expected).sort().join(), `Unexpected or missing fields in ${path}.`);
+  // Name the offending keys: a retired or misspelled field is otherwise invisible
+  // to the agent or maker holding the recipe.
+  const unexpected = Object.keys(actual).filter(key => !Object.hasOwn(expected, key)).sort();
+  const missing = Object.keys(expected).filter(key => !Object.hasOwn(actual, key)).sort();
+  requireThat(!unexpected.length && !missing.length, `Unexpected or missing fields in ${path}: `
+    + [unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ') + '.');
   for (const key of Object.keys(expected)) {
     const value = expected[key];
     if (value && typeof value === 'object' && !Array.isArray(value)) keys(actual[key], value, `${path}.${key}`);

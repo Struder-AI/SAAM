@@ -227,7 +227,8 @@ The descriptor also carries a quad proxy mesh, tessellated per patch, for the vi
 - `saam-shell-plan/1`: shape and its parameters, placement, setup, shared
   process settings, and each skill's settings under `skills`. Composition rules, component selections and settings are locked with the plan. Unknown or
   misspelled fields are rejected, and the strict field check is made against the
-  selected shape. Generation introduces no further process choices.
+  selected shape. Its rejection names the offending path and lists the unexpected
+  and the missing keys. Generation introduces no further process choices.
 - `saam-shell-geometry/1`: native file hash, shape parameters, geometry version,
   per-patch control-net hash, named face references and the display proxy.
 - The bundle layout is the shared one above. `saampath/1`,

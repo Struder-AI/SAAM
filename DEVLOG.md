@@ -1,5 +1,18 @@
 # Development log
 
+## 2026-09-18 — Name the offending fields when a plan is rejected
+
+`plan.mjs keys()` compared joined key lists and reported only "Unexpected or
+missing fields in plan.skills.planar-infill.", leaving the agent or maker holding
+the recipe to diff the schema by hand. It now lists them: "… in plan.process:
+unexpected layerHeight; missing layerMm." The stem is unchanged, so the six
+existing regex assertions still pass, and `inspect-generation-failure` gains the
+detail for free through `validationError`, which is the loader message verbatim.
+No migration or acceptance of retired fields was added. Verification:
+`core/tests/pipeline.test.mjs` (7/7, one new case), plus the five suites that
+assert the old message — crossed-cladding, spacing, full-fill, planar-infill
+patterns, text interoperability and vase (51/51). `dev-map.mjs check` passes.
+
 ## 2026-09-18 — Keep the toolpath viewport occupied while its program is missing
 
 A live tour reported an empty 3D viewport on the toolpath lesson while the
