@@ -304,3 +304,21 @@ test('an owned Studio pushes delivered events to its live session and serves the
   assert.deepEqual(drained.events,[]);assert.equal(drained.recent.length,2);
   assert.deepEqual(await readStudioEvents({events:opened.agent.events,server:opened.server}),{events:[],generation:[]});
 });
+
+test('a relaunch can resume its agent owner, and always gets a new Studio instance',async t=>{
+  const f=await fixture(t);
+  const first=await f.open({command:'start-tour'});
+  const {agentOwnerId,instanceId}=first.result.studio,directory=first.result.directory;
+  const inFlight=await first.agent.requests.begin({directory,instruction:'SYNTHETIC edit left in flight by a restart'});
+  await first.server.shutdown();
+  const resumed=await f.open({command:'open-print',target:directory,ownerId:agentOwnerId});
+  assert.equal(resumed.result.studio.agentOwnerId,agentOwnerId);
+  assert.notEqual(resumed.result.studio.instanceId,instanceId,'a relaunch never adopts the previous instance');
+  const printId=resumed.agent.requests.printId(directory);
+  assert.ok((await resumed.agent.requests.list({printId})).some(r=>r.id===inFlight.id),
+    'the previous run’s request is visible again to the same owner');
+  const stranger=await f.open({command:'open-print',target:directory});
+  assert.equal((await stranger.agent.requests.list({printId})).some(r=>r.id===inFlight.id),false,
+    'a relaunch without the owner still cannot see another agent’s work');
+  await assert.rejects(f.open({command:'open-print',target:directory,ownerId:'studio:'+instanceId}),/agentOwnerId/);
+});

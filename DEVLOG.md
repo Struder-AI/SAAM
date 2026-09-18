@@ -1,5 +1,37 @@
 # Development log
 
+## 2026-09-18 — Let a relaunched Studio recover its agent's in-flight work
+
+Relaunching Studio through the toolkit always minted a fresh agent owner, so
+every request from the previous run became invisible to the new one: the journal
+that exists for restart recovery could never be used for it. The tour's settings
+lesson made that visible — its gate looks for an agent-sourced request whose
+result is the displayed toolpath, and after a relaunch no such record was
+visible, so Next stayed locked although the changed toolpath was on screen.
+
+`start-tour`, `open-print` and `create-preview` now accept `--agent-owner ID`,
+the `agentOwnerId` from an earlier `studio-ready` line. It is validated as an
+agent-minted ID (a `studio:` session fallback is rejected) and only decides which
+request store the new server gets: the relaunch still mints its own instance and
+attaches to no running server, keeping one immutable owner per instance.
+
+The tour gate keeps its intent — a participant-requested agent edit, not
+automatic Studio work or a request predating the lesson, whose result is the
+current displayed export — but reads the print's whole request history through a
+new read-only `anyOwner` option instead of the current owner's share, so it no
+longer depends on who launched Studio. Verification: `studio-tour` (11/11, one
+new relaunch case that also re-checks the automatic-work rejection),
+`agent-toolkit` (11/11, one new owner-resume case), `studio-agent`, `studio-work`,
+`request-index`, `studio-events`, `studio-tour-lifetime` all pass;
+`dev-map.mjs check` passes. The two MCP task-manual/transport-close failures in
+`mcp.test.mjs` are the pre-existing ones already recorded here.
+
+Known remainder, not addressed: a request bound to the previous instance cannot
+be answered through the new instance's stdin live control, which checks
+`studioInstanceId`; the CLI path answers it. A relaunch also does not re-attach
+`studioOwner` in `.tour-progress.json`, so a resumed `open-print` does not become
+the tour's owning Studio.
+
 ## 2026-09-18 — Report a Studio running behind the files on disk
 
 A live Studio held the plan schema it imported at startup while its generation

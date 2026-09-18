@@ -65,10 +65,13 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
   const normalized=r=>r.kind!=='advisory'&&!r.presented&&(requestReceiptState(r,{now:now()}).activity==='expired'
       ||r.kind==='guidance'&&['queued','working'].includes(r.status)&&r.expiresAt<=now())
       ?{...r,status:'failed',timedOut:true,error:'Lost contact with the agent. Reconnect or reclaim this request to continue.'}:r;
-  async function query({printId,status,since=0,history=false}={}){
+  // `anyOwner` is a history read only: the durable record of what happened to a
+  // print, for a reader that must not lose it when the owner changes between
+  // Studio runs. It never reaches a live claim, update or wait path.
+  async function query({printId,status,since=0,history=false,anyOwner=false}={}){
     await index.refresh({force:history});
     let selected=history?(printId?byPrint.get(printId)?.values()??[]:records.values()):status==='queued'?pending.values():new Map([...pending,...[...latest.values()].map(r=>[r.id,r])]).values();
-    return [...selected].map(normalized).filter(r=>visible(r,history)&&(!printId||r.printId===printId)&&(!status||r.status===status)&&r.createdAt>=since
+    return [...selected].map(normalized).filter(r=>(history&&anyOwner||visible(r,history))&&(!printId||r.printId===printId)&&(!status||r.status===status)&&r.createdAt>=since
       &&(history||unfinished(r)||latest.get(latestKey(r))?.id===r.id)).sort((a,b)=>a.createdAt-b.createdAt).map(r=>structuredClone(r));
   }
   const list=options=>query({...options,history:true});

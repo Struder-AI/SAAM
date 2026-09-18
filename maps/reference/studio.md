@@ -463,7 +463,11 @@ also offers help with difficulties printing the downloaded file and asks what
 to make next, as ordinary chat text without a question-box tool. Send it before
 another listener or bookkeeping call. The client updates completion directly
 without reloading the full source and material scene. POST /api/view-ready acknowledges the exact rendered revision
-and export; saving or generating alone does not unlock edit lessons.
+and export; saving or generating alone does not unlock edit lessons. The settings
+lesson opens on a participant-requested agent edit whose result is the displayed
+current toolpath; automatic Studio work and requests recorded before the lesson
+do not count. It reads the print's whole request history rather than the current
+owner's share, so relaunching Studio mid-lesson cannot lock it.
 
 Request begin/respond/wait calls run independently of MCP’s print-work queue.
 New queued requests publish immediately to the owning toolkit stream, emit MCP logging notifications and appear in subsequent

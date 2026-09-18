@@ -169,6 +169,14 @@ viewer has been disconnected for 30 minutes. Stop only the recorded owned sessio
 to close it immediately. The toolkit does not start detached background helpers
 or adopt another agent's server.
 
+A relaunch normally mints a new agent owner, which hides the previous run's
+requests from it. `--agent-owner ID`, given the `agentOwnerId` from an earlier
+`studio-ready` line, resumes that owner instead, so its in-flight requests and
+its share of the request journal stay visible and claimable. It accepts only an
+agent-minted ID, never a `studio:` session fallback, and the relaunch still gets
+its own Studio instance: one owner may own several instances over time, but an
+instance's owner is fixed and no launch attaches to a running server.
+
 Starting a tour does not conduct the interactive lessons or wake an ended chat.
 Keep the returned live session active and follow [tour participation](../../MAKERS.md#tour-participation).
 The first screen is prepared before the remaining manuals are read; skill reads

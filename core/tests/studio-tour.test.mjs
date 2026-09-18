@@ -213,3 +213,33 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal(await tourExample(starter),null);
   state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);
 });
+
+test('the chat edit lesson survives a Studio relaunch under a different agent owner',async t=>{
+  let time=1000;const dir=await library(t);
+  const first=createTour(dir,{now:()=>time,ownerId:'owner-one'}),{directory:starter}=await first.action('fresh');
+  const before=createAgentRequests(dir,{now:()=>time,ownerId:'owner-one'});
+  await editFin(starter);await ready(first,starter);
+  await first.action('step',1);await first.action('step',2);await first.select(starter);await first.action('step',4);
+  await generateBundle(starter);await first.playback('play');await first.action('step',5);
+  const edit=await before.begin({directory:starter,instruction:'The participant requests a taller fin'});
+  await editFin(starter);await before.update(edit.id,{status:'waiting',resultStage:'geometry'});
+  await generateBundle(starter);
+  // Studio is relaunched: a new process with its own agent owner, the same saved
+  // lesson and the same request records on disk.
+  const relaunched=createTour(dir,{now:()=>time,ownerId:'owner-two'});
+  assert.equal((await createAgentRequests(dir,{now:()=>time,ownerId:'owner-two'}).list({printId:before.printId(starter)}))
+    .some(r=>r.id===edit.id),false,'the edit is invisible to the new owner as live work');
+  await ready(relaunched,starter);
+  assert.equal((await relaunched.info()).canNext,true,'the displayed result of the participant edit still completes the lesson');
+  // Automatic Studio work still cannot satisfy it, whichever owner recorded it.
+  const fresh=createTour(dir,{now:()=>time,ownerId:'owner-three'}),{directory:other}=await fresh.action('fresh');
+  const automatic=createAgentRequests(dir,{now:()=>time,ownerId:'owner-three'});
+  await editFin(other);await ready(fresh,other);
+  await fresh.action('step',1);await fresh.action('step',2);await fresh.select(other);await fresh.action('step',4);
+  await generateBundle(other);await fresh.playback('play');await fresh.action('step',5);
+  const studioWork=await automatic.begin({directory:other,source:'studio',instruction:'Automatic preparation'});
+  await automatic.update(studioWork.id,{status:'working'});
+  await adjustBundle(other,{process:{planarSpeedMmS:31}});await generateBundle(other);await automatic.update(studioWork.id);
+  await ready(createTour(dir,{now:()=>time,ownerId:'owner-four'}),other);
+  assert.equal((await createTour(dir,{now:()=>time,ownerId:'owner-four'}).info()).canNext,false);
+});
