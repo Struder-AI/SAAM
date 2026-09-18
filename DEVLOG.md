@@ -10,8 +10,8 @@ summaries all reported them, and `/api/approve` special-cased a geometry stage.
 Now `approve({actor, revision})` writes one `review.approvals.toolpath` record
 (export hash, plan hash, `['settings','toolpath']` scope) and `toolpathApproved`
 is the only derived state. Every invalidation (plan, machine, upgrade,
-regeneration) resets `review.approvals` to `{}`, dropping retired records, which
-are otherwise ignored. MCP/toolkit summaries report `toolpathApproved` in place
+regeneration) resets `review.approvals` to `{}`; per the current status note,
+retired records get no compatibility handling. MCP/toolkit summaries report `toolpathApproved` in place
 of their `approvals` objects; the Studio tour rejects `/api/approve` outright.
 The Studio change-follow rule that switched to the toolpath tab on
 `planApproved` now uses `toolpathApproved`. The repair report no longer claims

@@ -97,15 +97,9 @@ test('one final confirmation, stale views, reopening and byte-identical delivery
   await assert.rejects(approve(dir, { actor: ACTOR, revision: (await loadBundle(dir)).revision }),
     /Generate and check/);
   await generateBundle(dir);
-  // Records from the retired geometry/plan approvals carry no meaning and are
-  // replaced by the single final record.
-  const legacy = JSON.parse(await readFile(resolve(dir, 'review.json'), 'utf8'));
-  legacy.approvals = { geometry: { actor: ACTOR, hash: state.geometryHash }, plan: { actor: ACTOR, hash: state.planHash } };
-  await writeFile(resolve(dir, 'review.json'), JSON.stringify(legacy));
 
   state = await loadBundle(dir);
   assert.ok(state.program && !state.programError);
-  assert.equal(state.toolpathApproved, false);
   await approve(dir, { actor: ACTOR, revision: state.revision });
 
   const exported = resolve(dir, EXPORT_PATH), delivered = await deliver(dir);

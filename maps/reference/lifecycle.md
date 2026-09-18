@@ -50,9 +50,7 @@ Studio chooses the adapter by saved plan schema. There is no standalone settings
 confirmation. `approve({actor, revision})` writes the only approval record,
 `review.approvals.toolpath`, carrying the export hash and the plan hash it was
 given for; `toolpathApproved` is the one derived boolean. Any recorded change
-(plan, machine, upgrade or regeneration) replaces `review.approvals` with an empty
-object, which also drops records left by the retired geometry/plan approvals.
-Those older records are ignored when read. Generation is available for inspection;
+(plan, machine, upgrade or regeneration) empties `review.approvals`. Generation is available for inspection;
 production delivery still requires the exact current final confirmation.
 
 The [text preparation entry](../../core/print/text.mjs) compiles editable font/surface features
@@ -257,7 +255,7 @@ surface, strict interpretation of the export, determinism, and detection of an
 edited export. `core/tests/workflow.test.mjs` adds the review workflow: the 3DM
 round trip and rejection of a substituted file, development generation creating
 no approvals, two synthetic confirmations with stale views and byte-identical
-delivery, replacement of retired approval records, invalidation by each kind of edit, remembered setup, and
+delivery, invalidation by each kind of edit, remembered setup, and
 Studio serving and delivering a shell print. Synthetic approvals are written
 with an actor name that says so. None of that establishes clearance, surface
 quality, or that any part prints.
