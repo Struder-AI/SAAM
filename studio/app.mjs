@@ -684,7 +684,7 @@ $('#export-name').oninput=event=>{if(!exportNameState)return;exportNameState.val
 $('#confirm').onclick=async()=>{
   if(busy||!state)return;message('');
   if(tourUI?.active()&&tab!=='geometry'){
-    if(state.tour?.step!==L.export)return;
+    if(!state.program||state.programError||state.review.generation?.mode!=='production')return;
     try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();},{preview:false});}
     catch(e){message(e.message,true);await refresh(false);}return;
   }

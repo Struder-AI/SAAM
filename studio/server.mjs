@@ -344,7 +344,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           send(await requests.begin({directory:dir,source:'studio',kind:'guidance',studioInstanceId:instanceId,instruction:'The person requests help with '+await printName(dir)+'. '+(progress.active&&progress.directory===dir?progress.agentInstruction??'Help with the current tour lesson.':'Ask what change they want.')}));return;
         }
         if(url.pathname==='/api/tour-export'){
-          if(!progress.active||progress.step!==L.export||progress.directory!==dir)throw Error('Continue to the export lesson first.');
+          if(!progress.active||progress.directory!==dir)throw Error('Open this print in its tour to confirm and export.');
           let state=await current.loadBundle(dir,{program:'source'});
           if(data.revision!==state.revision||data.exportHash!==state.exportHash||!state.program||state.programError)throw Error('The print changed. Review the loaded toolpath before exporting.');
           const shownHash=state.exportHash;
@@ -360,7 +360,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name)}`});res.end(bytes);return;
           }finally{await tour.restoreReference(dir);}
         }
-        if(progress.active&&progress.directory===dir&&(url.pathname==='/api/deliver'||url.pathname==='/api/approve'&&data.stage!=='geometry'))throw Error('Use the export lesson to confirm settings and the exact toolpath.');
+        if(progress.active&&progress.directory===dir&&(url.pathname==='/api/deliver'||url.pathname==='/api/approve'&&data.stage!=='geometry'))throw Error('Use Confirm settings & export to approve and download the tour toolpath.');
         if(url.pathname==='/api/tour-playback'){
           if(!['play','pause','tick'].includes(data.event))throw Error('Unknown playback event');
           send(await tour.playback(data.event));return;

@@ -35,9 +35,10 @@ Reuse the existing Studio server and browser tab by default, including when swit
 
 ## Existing Studio work
 
-For an edit to an existing Studio print, call `begin_studio_work` immediately after receiving the
-request, BEFORE an acknowledgement, status lookup or another
-tool. Omit MCP printId to use the active tour or sole open Studio. CLI agents use
+For an edit to an existing Studio print, call `begin_studio_work` as early as
+practical. You can acknowledge the person first; the claim it records is what
+later edits and result reports depend on, so make it before you mutate geometry
+or recipe or report a result. Omit MCP printId to use the active tour or sole open Studio. CLI agents use
 `node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "Requested change"`;
 omit the directory for the active tour, or use `--request ID` to claim
 Studio-originated work. Add `--include-geometry` when the edit needs the complete

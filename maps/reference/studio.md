@@ -361,8 +361,9 @@ restart the cue.
 Generation switches to the rendered replacement only after its checked source is
 loaded; the previous toolpath remains faded while work is active.
 
-The maker agent calls MCP begin_studio_work as its first operation for an edit,
-before a chat acknowledgement or status lookup. It may omit printId for the
+The maker agent calls MCP begin_studio_work as early as practical for an edit; a
+chat acknowledgement may come first. The claim it records is what later mutations
+and result reports check. It may omit printId for the
 active tour or sole open Studio; with several instances it supplies the returned
 `studioInstanceId`; omission rejects when several owned instances display the
 same print. `request_review` can deliberately open another instance for a shared

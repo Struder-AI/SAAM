@@ -310,7 +310,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
     return summary(printId, await bundle.loadBundle(dir));
   }, false);
   tool('get_approval_status', 'Read the fresh hash-bound final settings/toolpath approval from the saved bundle. Caller-provided approvals are never accepted.', { printId: printIdSchema }, async ({ printId }) => summary(printId, (await read(printId)).state));
-  tool('begin_studio_work','First operation for an edit to an existing print, before acknowledgement or status lookup. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
+  tool('begin_studio_work','Start Studio work as early as practical for an edit to an existing print — you may acknowledge the person first; the claim it records is what later mutations and result reports check, so make it before either. Identify the Studio instance when more than one is open. Edits start Updating preview; guidance stays visually quiet. For a Studio-originated request, pass its requestId to claim that request. Resolve every started request with respond_to_studio_request.',
     {printId:printIdSchema.optional(),studioInstanceId:z.string().optional(),instruction:z.string().min(1).max(8000),requestId:z.string().optional(),kind:z.enum(['edit','guidance']).default('edit')},async({printId,studioInstanceId,instruction,requestId,kind})=>{
       const record=requestId?await agentRequests.get(requestId):null;
       if(!studioInstanceId&&record?.studioInstanceId)studioInstanceId=record.studioInstanceId;

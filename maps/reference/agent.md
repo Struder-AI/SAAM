@@ -75,7 +75,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 |---|---|---|
 | Tour | Run the Studio `--toolkit start-tour --no-open` command immediately in a set-up checkout. | Open `studio.url` from `studio-ready`, then use the returned participation context and listener. |
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
-| Existing Studio print | Run `begin-studio-work` first, with the target or existing request ID. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
+| Existing Studio print | Run `begin-studio-work` early to claim the request, with the target or existing request ID; you can acknowledge the person first. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
 | Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Choose missing skill guidance and API contracts; read region maps when changing core/Studio or investigating their internals. Load contribution guidance when checkpointing/publishing. |
 | Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; use `read-map PAGE` for missing regions and follow their source/contracts. |
 
