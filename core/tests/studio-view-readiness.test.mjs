@@ -73,7 +73,7 @@ async function confirmationHarness({stored=false,generationError,tour=false,pend
   let context;
   context=vm.createContext({state,busy:false,generating:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,agentIndicator,requestReceiptState,activeEditStage,
     generationPending:()=>pending,stalePresentation:pending?{program:{}}:null,
-    document:{getElementById:get},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
+    document:{getElementById:get,addEventListener(){}},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
     fetch:async()=>({ok:true,json:async()=>({requests:[request]})}),
     requestAnimationFrame:callback=>queueMicrotask(()=>{events.push('paint:'+context.tab);callback();}),
     stop(){},clearManual(){},clearProgramView(){},cameras:{mode:'ghost'},layerFade:{reset(){}},

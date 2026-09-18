@@ -1,5 +1,32 @@
 # Development log
 
+## 2026-09-18 — Put the agent-request read back on pushes
+
+A browser network log showed hundreds of `GET /api/agent-requests` shortly after
+a page load. Two sources, both in the browser:
+
+- `agent-ui.mjs` read the endpoint from a fixed 750 ms timer — a continuous short
+  poll on an idle page, contradicting the documented rule that record changes
+  arrive as `studio-change` pushes. The timer exists to re-evaluate request
+  expiry and the lost-contact message locally; it had no reason to read.
+- `render()` called `onPresentation()` on every pass while any unpresented
+  request had a receipt against the drawn view. The server independently decides
+  whether that view receipts the request and may decline (stale export, another
+  instance, another print). When it declined, nothing changed, so the browser
+  re-posted `/api/view-ready` at the same 750 ms cadence, and every
+  acknowledgement the server did accept pushed a `requests` change that drove
+  another read.
+
+The read now follows the revision read: the `requests` push kind, a reopened
+viewer stream, the page becoming visible, and a 15 s heartbeat. The 750 ms timer
+renders only. Acknowledgement is asked once per displayed view and record set and
+asked again whenever either moves. No throttle was added. Verification:
+`studio-agent-ui` (2/2, one new case), `studio-view-readiness`, `studio-work`,
+`studio-agent`, `studio-tour-ui`, `studio-reconnect` (53/53);
+`dev-map.mjs check` passes. The original log was recorded while a separate
+process was also polling and writing request records, which would have added
+push-driven reads on top; that part is not reproduced here.
+
 ## 2026-09-18 — Let a relaunched Studio recover its agent's in-flight work
 
 Relaunching Studio through the toolkit always minted a fresh agent owner, so
