@@ -1,5 +1,5 @@
 // Original SAAM surface-wave implementation. Research and license provenance:
-// ../DEVELOP.md. No PrusaSlicer/OrcaSlicer or Grasshopper source is included.
+// ../BUILDER.md. No PrusaSlicer/OrcaSlicer or Grasshopper source is included.
 import {referencePatch} from '../../../core/geom/reference-surface.mjs';
 import {surfaceDerivatives} from '../../../core/geom/surface-derivatives.mjs';
 import {offsetSurfaceRegion} from '../../../core/region/surface-offset.mjs';

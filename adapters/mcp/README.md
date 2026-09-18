@@ -1,6 +1,6 @@
 # MCP access to local SAAM
 
-This stdio adapter lets an MCP client use SAAM's existing shell/wedge bundles
+This stdio adapter lets an MCP client use SAAM's existing shell/mesh bundles
 and SAAM Studio. It has no compiler, private review bridge, model calls, or
 hardware connection. Machine outputs and skill compatibility remain governed
 by the shared plan, generation and interpreter checks.
@@ -48,16 +48,19 @@ saved IDs; there is no single global plan that overwrites another job.
 |---|---|
 | `list_machines`, `list_skills`, `read_skill` | Read this checkout's known profiles and manuals. Skill entries distinguish printing patterns from task skills such as mesh tools. These small fixed lists are not an automatic discovery or installation system. |
 | `read_guidance` | Read a published Markdown path, optionally ending in `#heading`, or a short ID: `makers`, `development`, `glossary`, `mcp`, `print-tools`. The response resolves documentation links into IDs for further reading. |
-| `get_plan_template` | Read a complete proposed shell or wedge recipe, reusing remembered setup. |
+| `get_plan_template` | Read a complete proposed shell recipe, reusing remembered setup. |
 | `create_print` | Initialize a new unapproved bundle, optionally from a complete recipe. |
 | `import_stl_print` | Read an absolute local `.stl` source path with optional `auto` (default), `mm` or `inch` units; preserve its bytes/hash and use the shared CLI importer and remembered setup. Sources are limited to 64 MiB. |
-| `list_prints`, `get_print` | Reopen saved prints and read their current state/recipe. `get_print` omits geometry and marks `planComplete:false` unless `includeGeometry:true` is supplied. |
-| `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
-| `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates geometry confirmation. |
-| `wait_for_studio_request`, `get_studio_requests` | Receive persisted Studio requests with bounded waits, or inspect their status. Optional `claim:true` marks returned requests working in the same call; do not claim them again. Runs outside the print-work queue. Send edit acknowledgements in chat before waiting; keep the listener active between lessons and answer returned guidance promptly. This does not wake an ended or disconnected chat. |
+| `search_thingi10k` | Search descriptive keywords, a numeric file ID or a Thingiverse thing URL in the mirror. Returns per-file source/license links and pagination. Read the [Thingi10K manual](../../skills/thingi10k/SKILL.md). |
+| `import_thingi10k_print` | Download `fileId` on the SAAM host into a new `printId`, with `machineId` and optional `units`. Return attribution and the mandatory chat license notice, including when strict import fails. Review successful imports with `request_review`. |
+| `list_prints`, `get_print` | `list_prints` discovers names and machines with `programChecked:false`; it does not validate exports. `get_print` reads checked status/recipe, omitting geometry and marking `planComplete:false` unless `includeGeometry:true` is supplied. Neither returns motion arrays. |
+| `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`, supplying `studioInstanceId` when several Studios are open. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
+| `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates final review. |
+| `wait_for_studio_request`, `get_studio_requests` | Receive live Studio requests with bounded event waits, or inspect durable recovery/history state. Optional `studioInstanceId` scopes a wait; `claim:true` marks returned requests working in the same call. Runs outside the print-work queue. This does not wake an ended or disconnected chat. |
+| `get_studio_sessions`, `close_studio_session` | List or close this agent's explicitly owned Studio instances. One agent may own several; no Studio instance is shared between agents. |
 | `get_tour` | Read tour progress and the next maker-agent chat instruction. Optional `after` cursor and `waitMs` wait for a change for up to 25 seconds. |
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
-| `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Geometry confirmation survives. |
+| `change_machine` | Change printer with current `expectedRevision`, using remembered/default setup and shared compatibility checks. Final review is invalidated. |
 | `adjust_print` | Apply a recipe patch with the latest `expectedRevision` from state. |
 | `apply_text` | Add, edit or remove text geometry using the [text skill](../../skills/text/SKILL.md), a local font and current `expectedRevision`. Reuses the shared preparation and review lifecycle. |
 | `heat_set_catalog` | Read packaged heat-set insert IDs and dimensions before choosing a profile. |
@@ -66,9 +69,9 @@ saved IDs; there is no single global plan that overwrites another job.
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
 | `upgrade_print` | Run the owning adapter's explicit migration for an old bundle, preserving delivered files and invalidating affected approvals. |
-| `request_review` | Start/reuse the shared Studio for this print and return its loopback URL. |
-| `get_approval_status` | Read the two hash-bound confirmations from disk; `plan` remains a compatibility field for the combined confirmation. |
-| `generate_print` | Generate and check the machine export from confirmed geometry and complete settings; the active tour print uses a development preview. |
+| `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Supply `studioInstanceId` to rebind an existing owned instance, or `newInstance:true` to open another instance for the same bundle. |
+| `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk; `plan` remains a compatibility field for that combined confirmation. |
+| `generate_print` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
 The [shared print-tool manual](../../core/print/USAGE.md) owns importing,
@@ -85,8 +88,7 @@ and its subsections. This follows the same Markdown files as a local collaborato
 The reader accepts public root manuals and Markdown in the component, skill,
 Studio, machine, adapter and script trees. Private/hidden paths, dependencies,
 build output, source code, traversal and filesystem links are unavailable.
-Existing `wedge-generation` and `wedge-s5-export` aliases still resolve for clients
-that saved them; the selected skill's links provide the normal reference route.
+The selected skill's links provide the normal reference route.
 
 For a tour request in a client with command access, first run
 `node studio/server.mjs --toolkit start-tour --no-open`, open its Studio URL,
@@ -106,22 +108,26 @@ for tests or a headless client. Studio servers are owned by the MCP process,
 use free loopback ports, and close 30 minutes after the last viewer tab
 disconnects (with a grace period for refresh), or when the owning stdio client
 disconnects. There is no deadline to open the first viewer.
-Repeated review requests use the print's still-open server within this adapter;
-after it closes, they start a fresh instance from the saved bundle. Closing a
+Repeated review requests use the print's preferred still-open server within this
+adapter; an explicit instance ID can rebind any other owned server. After it
+closes, review starts a fresh instance from the saved bundle. Closing a
 viewer leaves the MCP connection and its other viewers running. Separate adapter
-processes never adopt each other's Studio sessions. MCP transport closure marks
+processes never adopt each other's Studio sessions. One adapter may own several
+Studio instances, and the same print bundle may be opened by separately owned
+instances. MCP transport closure marks
 that connection's unfinished owned requests failed and pushes a connection-close
 event to its Studio viewers before shutdown. Requests created by its Studio
 servers, or claimed with begin_studio_work, share that ownership. Other agents'
 requests remain unchanged. An ended host turn is not necessarily a transport
 close; abrupt process termination may provide no close callback. The ten-minute
-request timeout remains the fallback. Use separate adapters for independent agent ownership and separate bundles for concurrent edits.
+request timeout remains the fallback. Use separate adapters for independent agent ownership; coordinate concurrent edits through the shared bundle revision contract.
 A separately launched CLI Studio remains independent and is never terminated by
 this adapter.
 
-Only the person confirms geometry, then settings and the exact toolpath together
-in Studio. No MCP tool can approve, accept approval fields, select
-development generation, write arbitrary files, or send a job to a machine.
+Geometry review is advisory and generation is available whenever it helps the
+person inspect the result. Settings and the exact toolpath are confirmed together
+in Studio before export. No MCP tool can grant that final approval, accept approval fields in recipes,
+select development generation, write arbitrary files, or send a job to a machine.
 Status is loaded from disk rather than accepted from the agent. Recipe edits
 invalidate the affected shared approval hashes. Delivery adds no further approval
 and does not regenerate. A catalog entry or passing software checks do not
@@ -135,6 +141,14 @@ and feasibility without becoming a separate preview or approval route. STL
 import reads only the chosen source; it writes the new bundle inside the configured
 Prints root. `upgrade_print` remains available when current-version validation
 prevents normal reopening; it does not silently migrate on read.
+
+Thingi10K tools additionally read a pinned public mirror over HTTPS and cache its
+metadata/downloads under the configured Prints root's `.thingi10k/` folder. They
+accept model identifiers, not arbitrary download URLs. A Thingiverse link is
+looked up in that index; it is not scraped or downloaded directly. The
+[task manual](../../skills/thingi10k/SKILL.md) owns limits, absent-model fallback,
+per-download chat notices and attribution. This works for an MCP-only client
+when the SAAM host can reach Hugging Face and its CDN.
 
 Use `create_print` / `adjust_print`, the shared approvals and `generate_print`;
 `check_print` verifies the persisted print and `deliver_print` delivers its
@@ -151,7 +165,7 @@ accepts the tour-only `startAt` parameter. Revision-only approvals and a global 
 are unsupported.
 
 SDK subprocess integration coverage is available below. Select checks under
-[Avoid check spirals](../../DEVELOP.md#avoid-check-spirals); these commands add no
+[Avoid check spirals](../../BUILDERS.md#avoid-check-spirals); these commands add no
 separate verification pass.
 
 ```sh

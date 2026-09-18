@@ -2,10 +2,13 @@
 // only an explicit generation message may persist output or a generation record.
 import {parentPort,workerData} from 'node:worker_threads';
 import {bundleFor} from './server.mjs';
+import {generationControl} from '../core/print/generation-control.mjs';
 
 const {directory,planHash}=workerData;
+const control=generationControl(workerData.cancellation);
 let lastStage,lastPercent;
 const onProgress=workerData.progress?progress=>{
+  control.check();
   const percent=progress.total>0?Math.floor(100*progress.completed/progress.total):null;
   if(progress.stage===lastStage&&percent===lastPercent)return;
   lastStage=progress.stage;lastPercent=percent;
@@ -28,10 +31,11 @@ parentPort.on('message',async message=>{
     const state=await bundle.loadBundle(directory,{program:false});
     if(state.planHash!==planHash)throw new Error('The prepared print changed. Reload before generating.');
     if(preparationError)throw preparationError;
-    const checks=await bundle.generateBundle(directory,{development:message.development===true,onProgress});
+    control.check();
+    const checks=await bundle.generateBundle(directory,{development:message.development===true,onProgress,beforeCommit:control.beforeCommit});
     const generated=await bundle.loadBundle(directory,{program:'source',allSources:true});
     if(!generated.program||generated.programError)throw new Error(generated.programError??'Checked machine source is unavailable.');
     parentPort.postMessage({type:'generated',checks,source:{planHash:generated.planHash,exportHash:generated.exportHash,
       metadata:generated.program,code:generated.code,sources:generated.sources}});
-  }catch(error){parentPort.postMessage({type:'generated',error:error.message});}
+  }catch(error){parentPort.postMessage({type:'generated',error:error.message,code:error.code});}
 });

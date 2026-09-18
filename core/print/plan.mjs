@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { FULL_FILL_DEFAULTS } from '../../skills/full-fill/scripts/fill.mjs';
 import { DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
-import {loadMachine,validateSetup,toolBounds,requireMachine} from '../machine/profile.mjs';
+import {loadMachine,validateSetup,toolBounds,requireMachine,centeredPlacement} from '../machine/profile.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
@@ -24,6 +24,7 @@ import {pipeMesh} from '../geom/cylinder.mjs';
 import {validateSplineTube} from '../geom/spline-tube.mjs';
 import {gridfinityTemplate,validateGridfinityRecord} from '../../skills/gridfinity/scripts/record.mjs';
 import {textTemplate,validateTextRecord} from '../geom/text-record.mjs';
+import {geometrySelections} from '../geom/selections.mjs';
 import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
@@ -49,7 +50,7 @@ export function defaults(machine=loadMachine()) {
     schema: 'saam-shell-plan/1',
     generatorVersion: VERSION,
     geometry: { shape: 'spline-top', runMm: 40, widthMm: 30, cpU: 5, cpV: 5, heightsMm: domeHeights(5, 5) },
-    placement: { xMm: 140, yMm: 100 },
+    placement: centeredPlacement(machine, machine.defaultSetup.tool, { runMm: 40, widthMm: 30 }) ?? { xMm: 140, yMm: 100 },
     setup: structuredClone(machine.defaultSetup),
     process: {
       firstLayerMm: 0.2, layerMm: 0.2, lineWidthMm: 0.4,
@@ -70,7 +71,7 @@ export function defaults(machine=loadMachine()) {
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
-      'draped-skin': { enabled: true, part: null, ...DRAPED_SKIN_DEFAULTS }
+      'draped-skin': { enabled: machine.capabilities.includes('nonplanar'), part: null, ...DRAPED_SKIN_DEFAULTS }
     },
     composition: { order: [], dependencies: [], batchLayers: 1, regions: [] },
     output: 'griffin-gcode'
@@ -94,10 +95,10 @@ export function domeHeights(cpU, cpV, peak = 6, rise = 1.2) {
 
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
-export function geometryTemplate(shape) {
+export function geometryTemplate(shape,geometry) {
   if(shape==='heat-set')return heatSetTemplate();
   if(shape==='gridfinity')return gridfinityTemplate();
-  if(shape==='text')return textTemplate();
+  if(shape==='text')return textTemplate(geometry);
   if(shape==='spline-tube')return {shape,innerRadiusMm:8,heightMm:24,controlPoints:[]};
   if(shape==='pipe')return {shape:'pipe',innerRadiusMm:8,outerRadiusMm:10.4,heightMm:12,toleranceMm:0.01};
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
@@ -121,6 +122,7 @@ export function validatePlan(plan, machine) {
   plan.skills['pipe-cladding']??=structuredClone(PIPE_CLADDING_DEFAULTS);
   plan.skills['wave-overhangs']??=structuredClone(WAVE_DEFAULTS);
   plan.skills['pipe-cladding'].surface??=null;
+  plan.skills['pipe-cladding'].offsetTightness??=PIPE_CLADDING_DEFAULTS.offsetTightness;
   if(plan.skills['pipe-cladding'].pattern===undefined)plan.skills['pipe-cladding'].pattern=PIPE_CLADDING_DEFAULTS.pattern;
   if(plan.skills['pipe-cladding'].part===undefined)plan.skills['pipe-cladding'].part=null;
   // Shell bundles created before the experimental setting existed retain the
@@ -134,7 +136,7 @@ export function validatePlan(plan, machine) {
   plan.skills['vase-wall']??={enabled:false,part:null,...VASE_WALL_DEFAULTS};
   plan.skills['thick-lip']??={enabled:false,part:null,...THICK_LIP_DEFAULTS};
   plan.skills.supports??=structuredClone(SUPPORT_DEFAULTS);
-  for(const name of ['rimming-planar','rimming-normal'])plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);
+  for(const name of ['rimming-planar','rimming-normal']){plan.skills[name]??=structuredClone(RIMMING_DEFAULTS);plan.skills[name].offsetTightness??=RIMMING_DEFAULTS.offsetTightness;}
   plan.skills['vase-wall'].endTransition??='spiral';
   if(Object.hasOwn(plan.skills['vase-wall'],'paths')){
     requireThat(plan.skills['vase-wall'].paths===null,'Standalone XYZ vase paths are retired. Recreate this recipe as a repeated sleeve pattern; XYZ paths are not reinterpreted.');
@@ -142,6 +144,7 @@ export function validatePlan(plan, machine) {
   }
   plan.skills['vase-wall'].pattern??=null;
   plan.skills['vase-wall'].pathMode??='continuous';
+  plan.skills['vase-wall'].meshSleeve??=null;
   // Preserve the old numerical boundary allowance when opening older recipes.
   // New plans lock this independently from contour subdivision tolerance.
   if(!Object.hasOwn(plan.skills['vase-wall'],'boundaryToleranceMm')) {
@@ -157,7 +160,7 @@ export function validatePlan(plan, machine) {
   const regional=plan.composition.regions.length>0;
   requireThat(Number.isInteger(plan.composition.batchLayers)&&plan.composition.batchLayers>=1&&plan.composition.batchLayers<=20,'Batch size must be 1–20 layers.');
   requireThat(Array.isArray(plan.composition.order) && plan.composition.order.every(id=>typeof id==='string') && Array.isArray(plan.composition.dependencies) && plan.composition.dependencies.every(e=>e && typeof e.before==='string' && typeof e.after==='string' && Object.keys(e).sort().join()==='after,before'), 'Invalid composition rules.');
-  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape) };
+  const expected = { ...defaults(machine), geometry: geometryTemplate(plan.geometry.shape,plan.geometry) };
   // Older recipes retain their original spacing. Regional overrides use these
   // same settings through the ordinary child-plan validation below.
   for(const name of SPACING_SKILLS){
@@ -246,8 +249,21 @@ export function validatePlan(plan, machine) {
   requireThat(['continuous','segmented'].includes(vase.pathMode),'Path mode must be continuous or segmented.');
   validateVasePattern(vase.pattern,vase.pathMode);
   requireThat(vase.pattern!==null||vase.pathMode==='continuous','Segmented mode requires a sleeve pattern; ordinary vase walls are continuous.');
-  requireThat(vase.pattern===null||vase.endTransition==='spiral','Sleeve motifs define their own ending; use endTransition spiral. Automatic level rims apply only to plain spirals.');
   requireThat(['spiral','level'].includes(vase.endTransition),'Vase ending transition must be spiral or level.');
+  if(vase.meshSleeve!==null){
+    const fit=vase.meshSleeve;
+    requireThat(fit&&typeof fit==='object'&&!Array.isArray(fit)&&[
+      'circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls',
+      'circumferentialControls,contactSide,detailToleranceMm,fidelity,heightControls,offsetTightness'
+    ].includes(Object.keys(fit).sort().join()),
+      'Mesh sleeve settings require fidelity, contactSide, circumferentialControls, heightControls and detailToleranceMm, with optional offsetTightness.');
+    number(fit.fidelity,0,1,'Mesh sleeve fidelity');
+    if(Object.hasOwn(fit,'offsetTightness'))number(fit.offsetTightness,0,1,'Mesh sleeve offset tightness');
+    requireThat(['inside','outside'].includes(fit.contactSide),'Mesh sleeve contactSide must be inside or outside.');
+    requireThat(Number.isInteger(fit.circumferentialControls)&&fit.circumferentialControls>=8&&fit.circumferentialControls<=48,'Mesh sleeve circumferentialControls must be an integer from 8 to 48.');
+    requireThat(Number.isInteger(fit.heightControls)&&fit.heightControls>=4&&fit.heightControls<=32,'Mesh sleeve heightControls must be an integer from 4 to 32.');
+    number(fit.detailToleranceMm,.005,.5,'Mesh sleeve detail tolerance');
+  }
   requireThat(typeof vase.enabled==='boolean'&&(vase.part===null||typeof vase.part==='string'),'Invalid vase-wall selection.');
   number(vase.zStartMm,0,200,'Vase start height');
   requireThat(vase.zEndMm===null||(Number.isFinite(vase.zEndMm)&&vase.zEndMm>vase.zStartMm&&vase.zEndMm<=200),'Vase end height must be null or greater than its start, up to 200 mm.');
@@ -331,14 +347,14 @@ export function validatePlan(plan, machine) {
   if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
   if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
-  const regionIds=new Set();
+  const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {
     if(region&&typeof region==='object')region.lowerSurfaceFrom??=null;
     // Retired supportPolicy is accepted only for reading old plans; it has no effect.
     requireThat(region&&Object.keys(region).filter(key=>key!=='supportPolicy').sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
-    const part=geometry.shape==='assembly'?geometry.parts.find(p=>p.id===region.part):null;
-    requireThat(geometry.shape==='assembly'?Boolean(part):region.part===null,'Region must select its geometry component.');
+    const part=selections.get(region.part);
+    requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
     number(region.zStartMm,0,1000,'Region start');
     requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm&&region.zEndMm<=1000),'Region end must exceed its start or be null.');
     requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');

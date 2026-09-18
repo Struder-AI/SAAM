@@ -154,5 +154,5 @@ The outline follows wave growth, so the last full ring can finish before the
 rim. Preparing this larger outline and its toolpath takes longer than the
 small saddle example. It uses the same uninterrupted-slice requirement.
 
-[Implementation and provenance](DEVELOP.md) records the numerical method,
+[Implementation and provenance](BUILDER.md) records the numerical method,
 research attribution, license findings and verification scope.

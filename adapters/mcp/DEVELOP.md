@@ -18,6 +18,25 @@ The fixed skill catalog distinguishes task manuals from printing patterns;
 making a manual readable does not register a new plan operation or MCP tool.
 Its IDs and frontmatter reader come from the shared [skill catalog](../../skills/catalog.mjs),
 which also supplies the generated maker digest.
+Reading one shared manual checks that catalog directly and reads only the selected
+manual. Unknown shared IDs may resolve through the configured local extension.
+`list_prints` returns discovery metadata with `programChecked: false`; it does not
+read native geometry or exports. `get_print`, `check_print` and approval status
+read checked program metadata without copying motion arrays. Edit dispatch reads
+geometry/settings without checking the export it is about to invalidate.
+Unchecked generated-program currency is `null`; an unchecked existing toolpath
+approval is also `null`. Explicit check and delivery retain exact-byte checks.
+The agent-owned request store directly connects MCP to all Studio instances it
+created. Direct subscriptions drive notifications and event-based waits; the
+rebuildable JSON index is restart and independent-process recovery. `history: true`
+on `get_studio_requests` explicitly selects full history. Print tools accept
+`requestIds` to bind real tool activity to owned work. Only those working requests
+receive contact renewal at entry/exit; listener waits and unrelated calls do not.
+`get_studio_sessions`, `request_review.studioInstanceId` / `newInstance` and
+`close_studio_session` explicitly manage the one-agent-to-many-Studio relation;
+an instance never crosses adapter ownership, while print bundles remain shared.
+Tour start-layer writes require the run and lesson identities they were prepared
+for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
 Task manuals identify themselves with `metadata.saam-kind: task` in their
 frontmatter; existing printing manuals retain the default `printing` kind.
 

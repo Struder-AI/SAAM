@@ -16,9 +16,7 @@ failure inspection. It delegates to the operations described here.
 
 Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
 Use a named directory under ignored `Prints/`; quote paths containing spaces.
-The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns. The
-[bounded wedge demo](../../skills/wedge-demo/SKILL.md#setup-and-tools) has its own
-CLI and initialization format, with the same review and delivery lifecycle.
+The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns.
 
 Connected agents use the corresponding MCP tools below. Their `printId` is
 relative to the configured Prints root, so `Prints/my-part` in a CLI example is
@@ -47,9 +45,8 @@ The shell template enables full-fill **and draped-skin**; explicitly disable
 unwanted patterns when choosing another recipe (STL and Gridfinity
 creation already disable draped-skin).
 
-Through MCP, get a complete editable recipe with `get_plan_template`, selecting
-`kind: "shell"` and the machine, then pass the proposed recipe to `create_print`.
-`kind: "wedge"` selects the bounded demo when that is the intended workflow.
+Through MCP, get a complete editable recipe with `get_plan_template` for the
+machine, then pass the proposed recipe to `create_print`.
 Creation stores unapproved geometry and settings; open Studio for review.
 
 ### Import an STL
@@ -68,17 +65,26 @@ The importer accepts ASCII or binary STL, preserves its
 source bytes and hash, checks the mesh, and translates it onto the bed. It reuses
 remembered machine setup and creates a shell recipe with draped skin disabled.
 Adjust printing patterns for the intended result, then show size and placement
-in Studio before geometry approval.
+in Studio for review.
 
 MCP `import_stl_print` takes `printId`, `sourcePath`, optional `units` (default
 `auto`) and `machineId`. Studio shows assumed units beside the dimensions.
 Correct a plain imported mesh later with `stl-units Prints/my-part mm` (or
 `inch`), or MCP `set_stl_units` with the current `expectedRevision`. This rescales
 the current mesh, preserves mesh edits and settings, retains source bytes, and
-invalidates geometry/toolpath confirmation. Text-wrapped or composed geometry
+invalidates the current toolpath confirmation. Text-wrapped or composed geometry
 requires a geometry-specific edit instead.
 The source must be an absolute local `.stl` file on the SAAM computer and no
 larger than 64 MiB. A path on a remote chat device is not a local source.
+
+### Find and download an existing mesh
+
+The [Thingi10K skill](../../skills/thingi10k/SKILL.md) owns keyword search,
+Thingiverse-link lookup and individual downloads. MCP `search_thingi10k` finds
+files and `import_thingi10k_print` downloads on the SAAM host before using this
+same STL importer. The skill supplies CLI equivalents, license/source reporting
+and recovery. Successful imports preserve attribution with the original source;
+delivery includes a neighboring `source-attribution.json` for shared results.
 
 ### When mesh validation fails
 
@@ -86,7 +92,10 @@ If import or reopening reports invalid mesh geometry, read the
 [mesh-tools manual](../../skills/mesh-tools/SKILL.md) with the reported failure.
 It explains how to assess the available correction tools and their effect on
 the part. Import itself preserves the supplied geometry; repair is a
-separate operation whose result needs geometry review. Missing files, wrong
+separate operation whose result needs geometry review. Studio's file-picker flow
+automatically invokes that operation for recognized mesh defects, preserves both
+files and the report, and requires confirmation of the repaired geometry before
+continuing. CLI/MCP import retains strict validation. Missing files, wrong
 units and machine incompatibility need their own corrections.
 
 ### Add or remove text material
@@ -95,6 +104,9 @@ Use the [text skill](../../skills/text/SKILL.md) for raised or recessed letterin
 standalone text and independent spline guides. `shell text` / MCP `apply_text`
 rebuild the selected part through the same geometry and review lifecycle. Its
 manual owns font input, placement, reference-surface and relief settings.
+Prepared lettering exposes separate base and raised-feature material selections
+for regional printing patterns. Changing those assignments preserves the reviewed
+geometry; see [text material selections](../../skills/text/SKILL.md#material-selections-and-printing-patterns).
 
 ## Open and resume review
 
@@ -115,7 +127,7 @@ for picker behavior and unsupported standalone program files.
 
 Read current CLI status with `check` below. Through MCP, `list_prints` finds
 saved IDs, `get_print` reads state and recipe settings, and
-`get_approval_status` reads the two confirmation stages. Set `includeGeometry:true`
+`get_approval_status` reads the final confirmation state. Set `includeGeometry:true`
 on `get_print` when you need the complete editable recipe; the default omits
 geometry and reports `planComplete:false`.
 CLI `adjust` returns a compact checked summary and revision instead of echoing
@@ -135,17 +147,15 @@ and protects against applying an edit to a version that has changed since you
 read it. MCP `adjust_print` requires that fresh `expectedRevision` and the patch.
 After a stale-revision error, reload state and reassess the change.
 
-Studio picks up the revised bundle. Geometry changes require both confirmations
-again; process and setup changes retain unchanged geometry confirmation and require
-combined settings/toolpath review. The maker requests revisions in chat; the agent handles
+Studio picks up the revised bundle. Any geometry, process or setup change
+invalidates final settings/toolpath approval. The maker requests revisions in chat; the agent handles
 the recipe files. Manual replacement of bundle internals can break consistency.
 
 ### Change printer
 
 `node core/print/cli.mjs change-machine Prints/my-part <machine-id> --revision <revision>`
 (or MCP `change_machine`) selects a compatible machine snapshot and its remembered
-or default setup. It retains geometry confirmation and invalidates the combined
-settings/toolpath confirmation. The target printer's declared process defaults
+or default setup. It invalidates final settings/toolpath confirmation. The target printer's declared process defaults
 (such as retraction) replace the corresponding old values; other recipe choices
 are retained. Compatibility is checked before saving; a rejected
 recipe needs adjustment rather than a silent machine-capability override. Change
@@ -164,7 +174,7 @@ line spacing without tripling bead width or extrusion per unit length:
 
 This applies to full-fill, planar-infill, draped-skin, supports, both rimming
 patterns and pipe-cladding, including regional overrides where supported.
-Single-wall vase spirals and the bounded wedge demo do not use this setting.
+Single-wall vase spirals do not use this setting.
 Ordinary recipes need no additional setting. Studio shows a nondefault factor
 in plan review; changing it follows the existing process review lifecycle.
 See the [shared spacing contract](../path/README.md#line-spacing) for density,
@@ -172,20 +182,27 @@ surface fitting and composition behavior.
 
 ## Check, generate and deliver
 
+Every interpreted toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory).
+Read `shortTravel` in generation checks/MCP print state or the program summary
+in CLI/toolkit state. Studio also sends an `advisory` through the existing request
+listener once per displayed export with findings. Preserve its source/operation
+evidence for deferred producer improvement, acknowledge it as completed, and
+continue the user's task. It requests no repair, regeneration or extra approval.
+
 | Operation | CLI suffix after `node core/print/cli.mjs` | MCP tool | Result |
 |---|---|---|---|
 | Read checked state | `check Prints/my-part` | `check_print` | Checks saved inputs and any stored export; reports approval state without generation. |
 | Investigate path feasibility | `check-path Prints/my-part` | `check_path` | Runs shared generation and machine checks without approval or persisted output. Use when feasibility needs investigation; it is not a mandatory extra step. |
-| Generate for review | `generate Prints/my-part` | `generate_print` | Requires geometry confirmation; creates and checks the export for combined settings/toolpath review. |
+| Generate for review | `generate Prints/my-part` | `generate_print` | Creates and checks the export for combined settings/toolpath review; geometry review is advisory. |
 | Deliver approved output | `deliver Prints/my-part` | `deliver_print` | Requires toolpath approval and copies the exact checked export into `delivery/`. |
 
 Studio also supports generation and final export in its review flow. Read the
 current state before repeating a timed-out operation: work may have completed.
 Changed inputs or a stale/edited export require the affected generation and
-reviews again. Only the person enters approvals in Studio. Delivery preserves
+reviews again. Final settings/toolpath confirmation belongs in Studio. Delivery preserves
 the selected machine's filename and extension and does not send a job to hardware.
-An unchanged checked development export can become production after geometry
-confirmation without slicing again; final settings/toolpath confirmation remains
+An unchanged checked development export can become production without slicing
+again; final settings/toolpath confirmation remains
 required. During tour toolpath lessons Studio generates saved setting changes
 automatically, so agents should not start a duplicate CLI generation.
 
@@ -193,7 +210,7 @@ For an explicitly developmental preview, `demo Prints/development/my-part`
 creates or reopens a shell bundle and generates without human approvals. An
 existing recipe can be initialized first. Development output cannot authorize
 delivery, and MCP does not expose this mode. Follow the
-[development testing context](../../DEVELOP.md#testing-through-the-use-context)
+[development testing context](../../BUILDERS.md#testing-through-the-use-context)
 when exercising maker tools during development.
 
 Development generation still needs explicit robot command settings; for a new
@@ -232,7 +249,6 @@ node core/print/cli.mjs upgrade Prints/my-part
 
 Use `upgrade_print` through MCP. Upgrade is explicit and remains available when
 old-version validation prevents normal reopening. The shell adapter installs
-the current machine snapshot, retains unchanged geometry approval and invalidates
-plan/toolpath approvals. Existing exports and delivery files remain unchanged.
+the current machine snapshot, retains any compatible legacy geometry record and
+invalidates the final settings/toolpath confirmation. Existing exports and delivery files remain unchanged.
 Reopen Studio and complete the affected reviews before generating new output.
-The wedge adapter's additional geometry migration is described in its own manual.

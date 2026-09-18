@@ -18,7 +18,7 @@ import {vaseWallResult} from '../scripts/vase.mjs';
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
-  plan.skills['full-fill'].enabled=false;plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;
+  plan.skills['full-fill'].enabled=false;plan.skills['draped-skin'].enabled=false;plan.skills['vase-wall'].enabled=true;plan.skills['vase-wall'].endTransition='spiral';
   return plan;
 }
 const taperedSpline={shape:'spline-shell',runMm:8,widthMm:6,cpU:4,cpV:4,longSideInsetMm:0.1,shortSideOutsetMm:0.1,heightsMm:Array.from({length:4},()=>[1,1,1,1])};
@@ -269,13 +269,12 @@ test('vase native spline and mesh bundles reopen, review and deliver exact S5 by
     const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-vase-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
     await initBundle(dir,vasePlan(loadMachine(),geometry));
     const actor='SYNTHETIC VASE TEST — not a human approval';
-    for(const stage of ['geometry'])await approve(dir,{stage,actor,revision:(await loadBundle(dir)).revision});
     await generateBundle(dir);
     let state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.skills,['vase-wall']);
     await approve(dir,{stage:'toolpath',actor,revision:state.revision});
     const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),await readFile(join(dir,EXPORT_PATH)));
     state=await loadBundle(dir);assert.equal(state.toolpathApproved,true);
     await adjustBundle(dir,{skills:{'vase-wall':{zEndMm:0.8}}});
-    state=await loadBundle(dir,{program:false});assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+    state=await loadBundle(dir,{program:false});assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
   }
 });

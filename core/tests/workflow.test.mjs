@@ -1,4 +1,4 @@
-// The reviewed workflow for shell prints: native geometry, two confirmations and
+// The reviewed workflow for shell prints: native geometry, one final confirmation and
 // delivery of the exact reviewed bytes.
 //
 // Every approval here is written by the test with an actor name that says so.
@@ -36,15 +36,14 @@ async function fixture(t, plan = smallPlan()) {
   return dir;
 }
 
-test('changing printer preserves geometry confirmation, clears the combined confirmation and rejects stale edits',async t=>{
+test('changing printer clears final confirmation and rejects stale edits',async t=>{
   const dir=await fixture(t);let state=await loadBundle(dir);
-  await approve(dir,{stage:'geometry',actor:ACTOR,revision:state.revision});
   await generateBundle(dir);state=await loadBundle(dir);
   state=await approve(dir,{stage:'toolpath',actor:ACTOR,revision:state.revision});
   await assert.rejects(changeMachine(dir,'bambu-h2d',{expectedRevision:'stale'}),/stale/);
   const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision});
   assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
-  assert.equal(next.geometryApproved,true);assert.equal(next.planApproved,false);assert.equal(next.toolpathApproved,false);
+  assert.equal(next.geometryApproved,false);assert.equal(next.planApproved,false);assert.equal(next.toolpathApproved,false);
   assert.deepEqual(next.plan.geometry,state.plan.geometry);
   await assert.rejects(changeMachine(dir,'missing-printer',{expectedRevision:next.revision}),/machine|Unknown/i);
   assert.equal((await loadBundle(dir,{program:false})).revision,next.revision);
@@ -88,17 +87,14 @@ test('development generation of a shell print creates no approvals and cannot de
   assert.ok(state.program);
   assert.equal(state.toolpathApproved, false);
   await assert.rejects(deliver(dir), /requires approval/);
-  await assert.rejects(generateBundle(dir), /Approve/);
+  const production=await generateBundle(dir);assert.equal(production.mode,'production');
+  assert.deepEqual((await loadBundle(dir)).review.approvals,{});
 });
 
-test('two synthetic confirmations, stale views, reopening and byte-identical delivery', async t => {
+test('one final confirmation, stale views, reopening and byte-identical delivery', async t => {
   const dir = await fixture(t);
   let state = await loadBundle(dir);
-  await assert.rejects(approve(dir, { stage: 'plan', actor: ACTOR, revision: state.revision }), /geometry first/);
-  await approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision });
-  await assert.rejects(approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision }), /stale/);
-
-  state = await loadBundle(dir);
+  await assert.rejects(approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision }), /Only the final/);
 
   await assert.rejects(approve(dir, { stage: 'toolpath', actor: ACTOR, revision: (await loadBundle(dir)).revision }),
     /Generate and check/);
@@ -147,20 +143,16 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   const dir = await fixture(t);
   let state = await loadBundle(dir);
   const fingerprint = await bundleFingerprint(dir);
-  await approve(dir, { stage: 'geometry', actor: ACTOR, revision: state.revision });
-  state = await loadBundle(dir);
-
-  state = await loadBundle(dir);
   await generateBundle(dir);state=await loadBundle(dir);
   state=await approve(dir,{stage:'toolpath',actor:ACTOR,revision:state.revision});
   assert.equal(state.planApproved, true, 'the edit must invalidate an existing approval');
   const stale = state.revision;
 
-  // A settings change keeps geometry approval and drops the plan approval.
+  // A settings change drops the final plan/export approval.
   await adjustBundle(dir, { skills: { 'full-fill': { perimeters: 3 } } });
   state = await loadBundle(dir);
   assert.equal(state.plan.skills['full-fill'].perimeters, 3);
-  assert.equal(state.geometryApproved, true);
+  assert.equal(state.geometryApproved, false);
   assert.equal(state.planApproved, false);
   assert.notEqual(fingerprint, await bundleFingerprint(dir));
 
@@ -170,7 +162,7 @@ test('geometry and settings edits invalidate the approvals they affect', async t
 
   // A chat request can switch shapes with different strict fields. It starts
   // from the new shape's template, keeps shared roof controls and rewrites the
-  // 3DM, so the geometry approval falls away as well.
+  // 3DM and invalidates final review as well.
   await adjustBundle(dir, { geometry: { shape: 'spline-shell', longSideInsetMm: 1, shortSideOutsetMm: 1 } });
   state = await loadBundle(dir);
   assert.equal(state.geometryApproved, false);
@@ -232,8 +224,7 @@ test('Studio reviews a shell print and delivers it under its own export name', a
   // Approve through the same route a person uses, then deliver the reviewed bytes.
   const post = (route, body) => fetch(origin + route, { method: 'POST', headers: { Origin: origin, 'X-SAAM-Token': token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   let current = await (await fetch(origin + '/api/state')).json();
-  assert.equal((await post('/api/approve', { stage: 'geometry', actor: ACTOR, revision: current.revision })).status, 200);
-  current = await (await fetch(origin + '/api/state')).json();
+  assert.equal((await post('/api/approve', { stage: 'geometry', actor: ACTOR, revision: current.revision })).status, 400);
   assert.equal((await post('/api/approve', { stage: 'plan', actor: ACTOR, revision: current.revision })).status, 400);
   assert.equal((await post('/api/generate', { development: false })).status, 200);
   current = await (await fetch(origin + '/api/state')).json();
@@ -241,6 +232,21 @@ test('Studio reviews a shell print and delivers it under its own export name', a
 
   const download = await post('/api/deliver', {});
   assert.equal(download.status, 200);
-  assert.match(download.headers.get('content-disposition'), /part\.gcode/);
+  assert.match(download.headers.get('content-disposition'), new RegExp(encodeURIComponent(current.downloadName)));
   assert.equal(await download.text(), await readFile(resolve(dir, EXPORT_PATH), 'utf8'));
+  const unauthorized=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({downloadLink:true})});
+  assert.equal(unauthorized.status,403);
+  const staged=await post('/api/deliver',{downloadLink:true});assert.equal(staged.status,200);
+  const link=await staged.json();assert.match(link.url,/^\/api\/download\/[a-f0-9]{48}$/);
+  const native=await fetch(origin+link.url),bytes=await readFile(resolve(dir,EXPORT_PATH));
+  assert.equal(native.status,200);assert.match(native.headers.get('content-disposition'),/^attachment;/);
+  assert.equal(native.headers.get('content-length'),String(bytes.length));
+  assert.deepEqual(Buffer.from(await native.arrayBuffer()),bytes);
+  assert.equal((await fetch(origin+link.url,{headers:{Origin:'https://foreign.invalid'}})).status,403);
+  assert.equal((await fetch(origin+'/api/download/not-a-issued-capability')).status,404);
+  const before=await readFile(resolve(dir,'review.json'),'utf8');
+  assert.equal((await fetch(origin+link.url)).status,200,'the same capability permits a direct download retry');
+  assert.equal(await readFile(resolve(dir,'review.json'),'utf8'),before,'GET attachment does not mutate review or approval');
+  await writeFile(resolve(dir,'delivery/part.gcode'),'changed after staging');
+  const changed=await fetch(origin+link.url);assert.equal(changed.status,400);assert.match((await changed.json()).error,/staged delivery changed/);
 });

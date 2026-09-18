@@ -16,8 +16,7 @@ Studio through the usual workflow.
 ## Tools and edits
 
 Start from an existing shared shell/mesh print, including imported STL. Select
-one `part` by id for an assembly. The bounded wedge-demo recipe is separate;
-use a shared shell wedge or mesh when lettering is needed.
+one `part` by id for an assembly.
 
 ```sh
 node core/print/cli.mjs text Prints/my-part text-request.json --revision REVISION
@@ -33,10 +32,11 @@ For a portable starting font, resolve [Abel-Regular.ttf](tests/fixtures/Abel-Reg
 to an absolute path on the SAAM computer; replace the example's placeholder path.
 For ordinary planar lettering, disable draped-skin on a fresh shell template,
 as the text demo does; small glyph roofs are not one continuous drape surface.
-Raised letters also interrupt an existing wavy roof. Before generating that
-lettered part, select compatible planar top layers or an explicitly supported
-regional composition; do not leave automatic whole-roof draping enabled and
-retry its discontinuity error unchanged.
+Raised letters interrupt an existing wavy roof. To preserve the curved finish,
+use the [curved lettering composition](#curved-lettering-above-a-draped-roof)
+below. Planar top layers are another process choice; do not silently substitute
+them when the requested part calls for draping. Automatic whole-roof draping of
+the merged lettered solid crosses height discontinuities.
 
 Example request for a 3 mm high part whose top is horizontal:
 
@@ -68,7 +68,9 @@ Edit lettering through this tool; changing its baked recipe with `adjust_print`
 is rejected with a rebuild instruction.
 
 `standalone: true` explicitly replaces the selected target with standalone text;
-it does not add a backing plate or retain the replaced body. The first feature
+it retains the original body only as an editable surface reference, without
+printing it or adding a backing plate. `top` and `part` references therefore work
+without copying the original surface. Subsequent edits retain this mode. The first feature
 must be raised. Use zero `overlapMm` when its bottom should begin exactly at the
 reference. Further features can add or subtract from that text. A final removal
 that would leave no geometry is rejected.
@@ -128,6 +130,79 @@ insets its perimeters. Use a heavier font, larger lettering or explicit positive
 `outlineOffsetMm` when appropriate; these change the reviewed geometry. The 6 mm
 Abel curved-roof example uses 0.15 mm outline expansion because its unmodified
 C/U strokes disappear with a 0.4 mm bead. Geometry visibility alone is insufficient.
+
+## Material selections and printing patterns
+
+Each text edit retains one final solid for review and exposes its material through
+`composition.regions[].part`:
+
+| Selection | Material |
+|---|---|
+| `null` (single part), or the assembly component id | The complete final solid; existing whole-solid consumers keep this behavior. |
+| `base` | The original body after recessed cuts; absent for standalone text. |
+| `text/label` | Material added by raised feature `label`, excluding earlier material and subsequent cuts. |
+| `nameplate/base`, `nameplate/text/label` | The same selections within assembly component `nameplate`, in its existing coordinate frame. |
+
+Recessed features are cutters, not printable regions. Empty material selections
+are omitted. Overlapping raised features give earlier features ownership of the
+overlap, so selecting all partitions deposits the final solid once. Uncut bases
+retain their native surface queries and preparation details, including heat-set
+reinforcement; a cut base uses its resulting mesh. Selecting a whole solid and
+its partitions together needs the shared explicit lower-surface relationship to
+avoid conflicting ownership.
+
+Choose the shape before choosing its printing pattern. Changing only region
+assignments or their settings retains saved geometry and updates process review.
+Old saved text records still work as whole solids; one text rebuild is needed to
+expose selections they did not save. That rebuild follows normal geometry review.
+
+On a regional plan, assign each new raised feature's material deliberately.
+Removing a selected feature requires updating its dependent assignments. Supply
+request-level `regions` (the complete replacement `composition.regions` array)
+alongside `feature` or `remove` to save both changes atomically. Invalid references
+fail without changing the print; the text tool does not silently drop operations.
+
+Selections expose material, not universal pattern compatibility. Horizontal body
+fill, curved finishing layers, and side-wall relief have different requirements.
+They are selected through regional patterns; supports, rimming, cladding, wave
+slices and plastic welds retain their existing global settings and interfaces.
+Planar fill can follow side lettering on a whole solid; continuous vase-wall
+generation can fail at glyph contour transitions. Use the selected pattern's
+geometry limits when deciding its applicability.
+
+## Curved lettering above a draped roof
+
+The lettering shape and its deposition layers are separate choices. Assign
+`draped-skin` to the lettering to deposit curved layers; full-fill above a curved
+lower surface still emits horizontal layers.
+
+Apply raised text to the original roof with `reference: {"kind":"top"}`.
+Use the resulting `base` and `text/label` selections; no duplicated guide,
+extra assembly component or process-specific boolean reconstruction is needed.
+The packaged [draped example](scripts/draped-demo.mjs) builds this composition.
+
+Assign the usual body and draped finish to a region selecting `base`. Assign only
+`draped-skin` to a region selecting `text/label`, with `lowerSurfaceFrom` naming the roof
+region. For 0.8 mm raised lettering, four 0.2 mm skins form the complete relief.
+The shared interface orders all roof operations before the lettering and measures
+the first letter bead's actual gap above the deposited roof. Later skins follow
+the letter tops with the selected normal spacing. Normal-offset geometry and
+vertical skin sampling are approximate, so the first gap need not be exactly
+0.2 mm everywhere.
+
+```sh
+node skills/text/scripts/draped-demo.mjs Prints/draped-lettering SAAM
+node studio/server.mjs Prints/draped-lettering
+```
+
+This creates unapproved geometry using the example S5/PLA setup. Review the
+geometry and generated toolpath through the shared workflow. Check every letter,
+its counters and thin strokes; choose a survey step smaller than those features.
+Disconnected letter tops are separate filled islands, with travel between them.
+Their steep side faces can appear in the excluded-surface survey; inspect the
+actual top coverage. Missing support and a skin stack extending into the finished
+roof are rejected. This composition has software coverage, not physical print
+or nozzle-clearance validation.
 
 ## Circular lettering on a part
 

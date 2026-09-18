@@ -68,7 +68,7 @@ export async function createGeometry(parameters) {
 // shell they form to be the one the descriptor was written for. A file edited
 // outside SAAM fails here rather than being sliced as something else.
 export async function verifyGeometry(bytes, descriptor) {
-  requireThat(hash(bytes) === descriptor.fileHash, 'Geometry file changed; geometry approval is stale.');
+  requireThat(hash(bytes) === descriptor.fileHash, 'Geometry file changed; reload the current geometry.');
   if(descriptor.nativeFile==='model.mesh.json') {
     const saved=JSON.parse(Buffer.from(bytes).toString('utf8'));
     requireThat(saved.schema==='saam-native-geometry/1'&&hash(saved.geometry)===hash(descriptor.parameters),'Native mesh differs from reviewed geometry.');

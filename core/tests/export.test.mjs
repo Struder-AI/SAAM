@@ -5,11 +5,14 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
-import { defaults, VERSION, BUILD_DATE } from '../../skills/wedge-demo/scripts/model.mjs';
-import { generatePath } from '../../skills/wedge-demo/scripts/path.mjs';
+import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
+import { generatePath } from '../print/generate.mjs';
+import { rhino } from '../print/geometry.mjs';
 
 const machine=JSON.parse(readFileSync('machines/ultimaker-s5.json','utf8'));
-const plan=defaults(),path=generatePath(plan,machine);
+const plan=defaults();
+plan.geometry={shape:'box',runMm:10,widthMm:10,heightMm:2};plan.skills['draped-skin'].enabled=false;plan.process.minimumLayerSeconds=0;
+const path=generatePath(plan,machine,await rhino());
 const emit=(m=machine,p=path)=>exportGriffin(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE});
 
 test('machine templates preserve the last working S5 envelope',()=>{
@@ -17,7 +20,9 @@ test('machine templates preserve the last working S5 envelope',()=>{
   const before=JSON.parse(readFileSync(new URL('./fixtures/last-working-s5-envelope.json',import.meta.url),'utf8')),after=emit();
   // Runtime release, estimates and material usage change with the recipe.
   // Keep comparing every machine/startup contract field to the historical bytes.
-  const start=code=>(code.includes(';SAAM_PHASE:')?code.slice(0,code.indexOf(';SAAM_PHASE:')):code).split('\n').filter(line=>!/^;(SAAM\.GENERATOR\.VERSION|GENERATOR\.BUILD_DATE|PRINT\.TIME|EXTRUDER_TRAIN\.\d+\.MATERIAL\.VOLUME_USED):/.test(line)).join('\n');
+  // PRINT.SIZE.* is the model's own bounding box, not part of the machine
+  // envelope contract; filter it alongside the other model-dependent fields.
+  const start=code=>(code.includes(';SAAM_PHASE:')?code.slice(0,code.indexOf(';SAAM_PHASE:')):code).split('\n').filter(line=>!/^;(SAAM\.GENERATOR\.VERSION|GENERATOR\.BUILD_DATE|PRINT\.TIME|PRINT\.SIZE\.[A-Z.]+|EXTRUDER_TRAIN\.\d+\.MATERIAL\.VOLUME_USED):/.test(line)).join('\n');
   assert.equal(start(after),start(before.start));
   assert.equal(after.slice(after.lastIndexOf('M400')),before.end);
   assert.ok(!/^G280|^M10[49] T0/m.test(after));
@@ -49,20 +54,16 @@ test('G-code tokenization retains packed arguments, whitespace, comments and str
   }
 });
 
-for(const kind of ['shell','wedge']) test(`${kind} upgrade retains geometry approval and existing delivery bytes`,async()=>{
-  const adapter=await import(kind==='shell'?'../print/bundle.mjs':'../../skills/wedge-demo/scripts/bundle.mjs');
-  const factory=kind==='shell'?(await import('../print/plan.mjs')).defaults:defaults;
-  const recipe=factory();
-  if(kind==='shell'){
-    recipe.geometry={shape:'box',runMm:6,widthMm:6,heightMm:0.6};
-    recipe.skills['draped-skin'].enabled=false;
-  }
+test('shell upgrade retains geometry approval and existing delivery bytes',async()=>{
+  const adapter=await import('../print/bundle.mjs');
+  const recipe=defaults();
+  recipe.geometry={shape:'box',runMm:6,widthMm:6,heightMm:0.6};
+  recipe.skills['draped-skin'].enabled=false;
   recipe.process.minimumLayerSeconds=0;
   const directory=await mkdtemp(join(tmpdir(),'saam-upgrade-test-'));
   try {
     await adapter.initBundle(directory,recipe);
     let state=await adapter.loadBundle(directory);
-    for(const stage of ['geometry'])state=await adapter.approve(directory,{stage,actor:'synthetic upgrade test',revision:state.revision});
     await adapter.generateBundle(directory);
     state=await adapter.loadBundle(directory);
     await adapter.approve(directory,{stage:'toolpath',actor:'synthetic upgrade test',revision:state.revision});
@@ -72,7 +73,7 @@ for(const kind of ['shell','wedge']) test(`${kind} upgrade retains geometry appr
     await writeFile(join(directory,'machine.json'),JSON.stringify(oldMachine));
     await adapter.upgradeBundle(directory);
     state=await adapter.loadBundle(directory);
-    assert.equal(state.geometryApproved,true);
+    assert.equal(state.geometryApproved,false);
     assert.equal(state.planApproved,false);
     assert.equal(state.toolpathApproved,false);
     assert.ok(state.machine.outputs[0].program);

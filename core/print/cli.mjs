@@ -14,7 +14,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
   const [command, target, argument,extra,last] = args;
   const bundleDirectory = () => resolve(target ?? 'Prints/shell-part');
   const report = state => JSON.stringify({
-    print: state.dir, skills: state.skills, revision: state.revision,
+    print: state.dir, skills: state.skills, revision: state.revision, geometryHash:state.geometryHash,
     geometryApproved: state.geometryApproved, planApproved: state.planApproved, toolpathApproved: state.toolpathApproved,
     program: state.program?.summary ?? null, programError: state.programError ?? null,
     outputAvailability: state.outputAvailability ?? null, machineConfiguration: state.machineConfiguration ?? null,
@@ -29,7 +29,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       const directory = await initBundle(bundleDirectory(), plan,{machineId});
       console.log(`Print created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
-      console.log('Nothing is approved yet; geometry and combined settings/toolpath confirmations are made by a person in Studio.');
+      console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
     } else if(command==='text') {
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
       const state=await applyText(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});

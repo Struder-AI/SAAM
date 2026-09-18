@@ -30,7 +30,7 @@ const fields={
   minFeatureMm:['Smallest sampled feature',' mm'],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
   strokeAngleDeg:['Stroke direction','°'],sampleStepMm:['Maximum sampling step',' mm'],surveyStepMm:['Surface survey grid',' mm'],
   maxAngleDegOverride:['Experimental angle override','°'],zStartMm:['Start above component base',' mm'],zEndMm:['End above component base',' mm'],
-  toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],maxPoints:['Point budget',''],endTransition:['Wall ending','']
+  toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],offsetTightness:['Offset tightness',' · 0 loose / 1 exact'],maxPoints:['Point budget',''],endTransition:['Wall ending','']
 };
 export function skillSettingsRows(name,settings,prefix=skillName(name)){
   if(name==='vase-wall'&&settings.pathMode==='segmented')prefix=prefix.replace(skillName(name),'Segmented paths');
@@ -45,20 +45,31 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
         [s.id+' · Print before',s.beforeParts.map(p=>p??'Part').join(', ')||'No assigned successor']);
       continue;
     }
-    if(name==='vase-wall'&&settings.pattern&&key==='endTransition')continue;
+    if(name==='vase-wall'&&key==='meshSleeve'){
+      if(v)rows.push([prefix+' · Mesh reference','Smooth fitted spline sleeve'],
+        [prefix+' · Mesh fidelity',Math.round(v.fidelity*10000)/100+'% · continuous unilateral contact'],
+        [prefix+' · Offset tightness',Math.round((v.offsetTightness??0)*10000)/100+'% · loose to exact normal distance'],
+        [prefix+' · Contact side',v.contactSide==='inside'?'Keep pattern inside mesh envelope':'Keep pattern outside mesh envelope'],
+        [prefix+' · Spline fit',v.circumferentialControls+' circumferential × '+v.heightControls+' height controls'],
+        [prefix+' · Mesh detail tolerance',v.detailToleranceMm+' mm']);
+      continue;
+    }
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){
+        const tiled=Boolean(v.motif),paths=tiled?[v.motif]:v.paths;
         rows.push([prefix+' · Pattern','Repeated motif on the selected solid or sleeve'],
           [prefix+' · Deposition','Motif strokes only; the guide surface is not printed'],
           [prefix+' · Repetitions',String(v.repeats)],
-          [prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
-          [prefix+' · Mapping','Actual inset contour at each height; fraction of perimeter length']);
-        for(const [i,path] of v.paths.entries())rows.push(
+          [prefix+' · Advance',tiled?'1 perimeter turn / '+v.courseRiseMm+' mm rise':v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
+          [prefix+' · Mapping',settings.meshSleeve?'Smooth fitted sleeve, followed by one-sided mesh contact':'Actual inset contour at each height; fraction of perimeter length']);
+        if(tiled)rows.push([prefix+' · Motif tiling',v.cellsPerTurn+' cells per course × '+v.repeats+' courses'],
+          [prefix+' · Motif tilt',v.tiltDeg+'° about the cell advance direction']);
+        for(const [i,path] of paths.entries())rows.push(
           [prefix+' · Motif path '+(i+1),path.points.length+' points'],
-          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+' (turns, mm)'],
+          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+(tiled?' (cell fraction, mm)':' (turns, mm)')],
           [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
-        for(const [i,path] of v.paths.entries())if(path.offsetMm!==undefined){
+        for(const [i,path] of paths.entries())if(path.offsetMm!==undefined){
           const values=Array.isArray(path.offsetMm)?path.offsetMm:[path.offsetMm];
           rows.push([prefix+' · Contour offset '+(i+1),Math.min(...values)+' to '+Math.max(...values)+' mm; negative extends inward']);
         }
@@ -97,7 +108,7 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     const rendered=key==='pattern'&&name==='pipe-cladding'?claddingPatternName(settings)
       :key==='maxAngleDegOverride'&&v===null?'Machine profile limit'
       :key==='zEndMm'&&v===null?'Geometry top'
-      :key==='endTransition'?({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v))
+      :key==='endTransition'?(settings.pattern?({'level':'Flat motif courses at both ends','spiral':'Authored motif ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
       :value(v)+unit;
     rows.push([prefix+' · '+label,rendered]);
   }

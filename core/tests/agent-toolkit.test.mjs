@@ -9,7 +9,7 @@ import {promisify} from 'node:util';
 import {once} from 'node:events';
 import {preview, beginWork, waitForRequests, inspectFailure, respondToRequest} from '../agent/toolkit.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
-import * as wedge from '../../skills/wedge-demo/scripts/bundle.mjs';
+import * as shell from '../print/bundle.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
 import {readGuidance} from '../agent/manuals.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
@@ -28,7 +28,7 @@ async function fixture(t) {
   }};
 }
 
-test('both onboarding roles return the complete digest and leave skill manuals for individual reads', async t => {
+test('onboarding selects context by role and component; maps and contracts are selective reads', async t => {
   const {library} = await fixture(t);
   const {stdout} = await run(process.execPath, [cli, 'maker-onboarding'], {cwd: library});
   const maker = JSON.parse(stdout);
@@ -36,12 +36,37 @@ test('both onboarding roles return the complete digest and leave skill manuals f
   assert.equal(maker.documents.find(doc => doc.path === 'MAKERS.md').text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
   assert.equal(maker.environment.nodeSupported, true);
   assert.deepEqual(maker.environment.missingDependencies, []);
+  const builder = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'skills'])).stdout);
+  assert.ok(builder.documents.some(doc => doc.path === 'BUILDERS.md'));
+  assert.ok(builder.documents.some(doc => doc.path === 'MAKERS.md'), 'builder context includes maker context');
+  assert.ok(!builder.documents.some(doc => doc.path === 'core/README.md'));
   const dev = JSON.parse((await run(process.execPath, [cli, 'developer-onboarding', '--area', 'mcp', '--area', 'setup', '--area', 'mcp'])).stdout);
   assert.ok(!dev.documents.some(doc => doc.path === 'AGENTS.md'), 'entry-point instructions are already loaded');
   assert.equal(new Set(dev.documents.map(doc => doc.path)).size, dev.documents.length);
+  assert.ok(dev.documents.some(doc => doc.path === 'DEVELOPER-CONTEXT.md'));
+  const orientation = dev.documents.find(doc => doc.path === 'DEVELOPER-CONTEXT.md');
+  assert.equal(orientation.guidanceId, 'DEVELOPER-CONTEXT.md#orientation');
+  assert.equal(orientation.text, (await readGuidance(root, orientation.guidanceId)).text);
+  assert.deepEqual(maker.maps, []);
+  assert.deepEqual(builder.maps, [], 'skill-only builders need no dev maps');
+  assert.deepEqual(dev.maps.map(map => map.source), ['maps/0_system.md']);
+  assert.ok(!dev.documents.some(doc => ['MAKERS.md','core/print/USAGE.md','skills/AUTHORING.md'].includes(doc.path)), 'developers load workflow context when needed');
+  const mapped = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'regions', '--area', 'regions'])).stdout);
+  assert.deepEqual(mapped.maps.map(map => map.source), ['maps/4_regions.md']);
+  const region = JSON.parse((await run(process.execPath, [cli, 'read-map', '4d_perimeters'], {cwd: library})).stdout);
+  assert.equal(region.maps[0].pages.length,1);
+  assert.equal(region.maps[0].pages[0].key,'4d_perimeters');
+  assert.ok(region.maps[0].pages[0].nodes.find(node => node.component === 'offset').shared.some(use => use.page === '4a_offset'));
+  assert.ok(!dev.documents.some(doc=>doc.path==='skills/README.md'));
+  const sliceId = 'maps/4_regions.md#planar-kernel';
+  const slice = JSON.parse((await run(process.execPath, [cli, 'read-guidance', sliceId])).stdout);
+  assert.equal(slice.documents[0].text, (await readGuidance(root, sliceId)).text);
+  assert.ok(slice.documents[0].text.includes('WASM instance'));
+  assert.ok(!slice.documents[0].text.includes('## Perimeter recovery'));
+  await assert.rejects(run(process.execPath, [cli, 'read-map', 'invented']));
   assert.ok(dev.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'SETUP.md'));
-  for (const packet of [maker, dev]) {
+  for (const packet of [maker, builder]) {
     assert.ok(!packet.documents.some(doc => doc.path.endsWith('/SKILL.md')));
     const digest = packet.documents.find(doc => doc.path === 'skills/README.md');
     assert.equal(digest.text, await readFile(resolve(root, 'skills/README.md'), 'utf8'));
@@ -66,28 +91,50 @@ test('both onboarding roles return the complete digest and leave skill manuals f
   });
 });
 
+test('skill role flags are independent, additive and report absent optional manuals', async () => {
+  const read = async (...args) => JSON.parse((await run(process.execPath, [cli, 'read-skill', ...args])).stdout);
+  const maker = await read('planar-infill', '--maker');
+  const implicit = await read('planar-infill');
+  assert.deepEqual(maker, implicit);
+  const both = await read('planar-infill', '--builder', '--maker');
+  assert.deepEqual(both.roles, ['maker', 'builder']);
+  assert.deepEqual(both.unavailableRoles, []);
+  assert.deepEqual(both.documents.map(doc => doc.path), ['skills/planar-infill/SKILL.md', 'skills/planar-infill/BUILDER.md']);
+  const builder = await read('planar-infill', '--builder');
+  assert.deepEqual(builder.roles, ['builder']);
+  assert.deepEqual(builder.documents, [both.documents[1]]);
+  assert.equal(builder.documents[0].text, await readFile(resolve(root, 'skills/planar-infill/BUILDER.md'), 'utf8'));
+  const absent = await read('gridfinity', '--builder', '--developer');
+  assert.deepEqual(absent.roles, ['builder', 'developer']);
+  assert.deepEqual(absent.unavailableRoles, ['builder', 'developer']);
+  assert.deepEqual(absent.documents, []);
+  const mixed = await read('planar-infill', '--maker', '--developer');
+  assert.deepEqual(mixed.documents, maker.documents);
+  assert.deepEqual(mixed.unavailableRoles, ['developer']);
+  await assert.rejects(run(process.execPath, [cli, 'read-skill', 'invented', '--builder']));
+});
+
 test('create-preview reuses isolated setup and opening preserves approved export bytes', async t => {
   const f = await fixture(t), target = join(f.library, 'My part');
   await mkdir(join(f.library, '.machine-setups'));
-  const defaults = await wedge.proposedPlan('ultimaker-s5', {setupFile: join(f.library, 'absent.json')});
+  const defaults = await shell.proposedPlan('ultimaker-s5', {setupFile: join(f.library, 'absent.json')});
   await writeFile(join(f.library, '.machine-setups/ultimaker-s5.json'), JSON.stringify({schema: 'saam-machine-setup/1', machineId: 'ultimaker-s5', setup: {...defaults.setup, bedC: 67}, source: 'SYNTHETIC TEST ONLY'}));
   const ready = [];
-  const made = await f.open({command: 'create-preview', target, kind: 'wedge', onReady: event => ready.push(event)});
+  const made = await f.open({command: 'create-preview', target, kind: 'shell', onReady: event => ready.push(event)});
   assert.equal(ready.length, 1);
   assert.equal(made.result.print.plan.setup.bedC, 67);
   assert.equal(made.result.print.generation.current, false);
   assert.deepEqual(made.result.print.approvals, {geometry: false, settings: false, toolpath: false});
-  let state = await wedge.loadBundle(target);
-  await wedge.approve(target, {stage: 'geometry', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
-  await wedge.generateBundle(target);
-  state = await wedge.loadBundle(target);
-  await wedge.approve(target, {stage: 'toolpath', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
-  const saved = await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/wedge.gcode'].map(name => readFile(join(target, name))));
+  let state = await shell.loadBundle(target);
+  await shell.generateBundle(target);
+  state = await shell.loadBundle(target);
+  await shell.approve(target, {stage: 'toolpath', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
+  const saved = await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name))));
   const reopened = await f.open({command: 'open-print', target: join(target, 'plan.json')});
   assert.equal(reopened.result.print.approvals.toolpath, true);
   assert.equal(reopened.result.print.generation.current, true);
-  assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/wedge.gcode'].map(name => readFile(join(target, name)))), saved);
-  await assert.rejects(f.open({command: 'create-preview', target, kind: 'wedge'}), /already exists/);
+  assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name)))), saved);
+  await assert.rejects(f.open({command: 'create-preview', target, kind: 'shell'}), /already exists/);
 });
 
 test('STL preview preserves original bytes and reports inferred units without approval', async t => {
@@ -124,13 +171,30 @@ test('fresh tours keep earlier bundles and return lesson-one guidance and a list
   assert.ok(second.result.context.documents.some(doc => doc.path === 'examples/prints/README.md'));
 });
 
+test('an owned Studio streams requests and accepts responses through its live agent store',async t=>{
+  const f=await fixture(t);let resolveRequest;
+  const pushed=new Promise(resolve=>{resolveRequest=resolve;});
+  const opened=await f.open({command:'start-tour',onRequest:resolveRequest});
+  const html=await(await fetch(opened.result.studio.url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const response=await fetch(opened.result.studio.url+'/api/agent-request',{method:'POST',headers:{Origin:opened.result.studio.url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:'{}'});
+  assert.equal(response.status,200,await response.clone().text());
+  const event=await pushed;
+  assert.equal(event.studio.instanceId,opened.result.studio.instanceId);
+  assert.equal(event.request.studioInstanceId,opened.result.studio.instanceId);
+  const completed=await respondToRequest({requests:opened.agent.requests,studioInstanceId:opened.result.studio.instanceId,requestId:event.request.id,message:'Handled live'});
+  assert.equal(completed.status,'completed');
+});
+
 test('begin-work marks pending before context reads, correlates claims, and fails unreadable work', async t => {
   const f = await fixture(t), target = join(f.library, 'part');
-  await f.open({command: 'create-preview', target, kind: 'wedge'});
+  await f.open({command: 'create-preview', target, kind: 'shell'});
   const begun = await beginWork({target, library: f.library, instruction: 'SYNTHETIC edit', includeGeometry: true});
   assert.equal(begun.request.status, 'working');
   assert.ok(begun.print.plan.geometry);
   assert.equal(begun.print.planComplete, true);
+  assert.equal(begun.print.generation.programChecked,false,'beginning an edit defers old-export validation');
+  assert.equal(begun.print.approvals.toolpath,null);
+  assert.ok(begun.print.geometryHash,'shape confirmation can use the same context packet');
   const queue = createAgentRequests(f.library);
   const queued = await queue.begin({directory: target, source: 'studio', instruction: 'SYNTHETIC failure: discontinuous roof'});
   const waited = await waitForRequests({library: f.library, waitMs: 0, claim: true});
@@ -148,7 +212,7 @@ test('begin-work marks pending before context reads, correlates claims, and fail
   const diagnostics = await inspectFailure({target, library: f.library, requestId: queued.id});
   assert.match(diagnostics.requests[0].instruction, /discontinuous roof/);
   assert.ok(!diagnostics.context.documents.some(doc => doc.path.endsWith('/SKILL.md')));
-  assert.ok(diagnostics.skillReferences.some(ref => ref.skillId === 'wedge-demo' && ref.guidanceId === 'skills/wedge-demo/SKILL.md'));
+  assert.ok(diagnostics.skillReferences.some(ref => ref.skillId === 'full-fill' && ref.guidanceId === 'skills/full-fill/SKILL.md'));
   await respondToRequest({library: f.library, requestId: queued.id, message: 'SYNTHETIC handled'});
   assert.equal((await queue.list()).find(r => r.id === begun.request.id).status, 'working');
   await assert.rejects(beginWork({target: join(f.library, 'missing'), library: f.library, instruction: 'SYNTHETIC broken'}), error => {
@@ -164,14 +228,14 @@ test('begin-work marks pending before context reads, correlates claims, and fail
 test('failure after creation reports retained bundle and closes only its own server', async t => {
   const f = await fixture(t), target = join(f.library, 'Retained');
   let url;
-  await assert.rejects(preview({command: 'create-preview', target, library: f.library, kind: 'wedge', noOpen: true,
+  await assert.rejects(preview({command: 'create-preview', target, library: f.library, kind: 'shell', noOpen: true,
     onReady: event => {url = event.studio.url; throw Error('SYNTHETIC readiness notification failure');}}), error => {
     assert.equal(error.partial.created, true);
     assert.equal(error.partial.directory, target);
     assert.equal(error.partial.studio.closed, true);
     return true;
   });
-  assert.equal((await wedge.loadBundle(target)).geometryApproved, false);
+  assert.equal((await shell.loadBundle(target)).geometryApproved, false);
   await assert.rejects(fetch(url));
 });
 

@@ -4,9 +4,12 @@ __pycache__/
 *.py[cod]
 
 # build output
+/dev-map/
 dist/
 build/
 *.tsbuildinfo
+/scripts/bench/obj/
+/scripts/bench/bin/
 
 # OS
 .DS_Store

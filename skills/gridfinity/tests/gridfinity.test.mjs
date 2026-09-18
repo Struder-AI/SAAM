@@ -103,7 +103,6 @@ test('dimension updates preserve lettering and plan settings, invalidate reviews
   assert.equal(state.geometry.nativeFile,'model.mesh.json');assert.deepEqual(state.review.approvals,{});
   const fontPath=fileURLToPath(new URL('../../text/tests/fixtures/Abel-Regular.ttf',import.meta.url));
   state=await applyText(dir,{feature:{text:'BO',fontPath,sizeMm:5,positionMm:[10,10],reference:{kind:'plane',origin:[0,0,7],xAxis:[1,0,0],yAxis:[0,1,0]}}},{expectedRevision:state.revision});
-  await approve(dir,{stage:'geometry',revision:state.revision,actor:'SYNTHETIC GRIDFINITY TEST — not a real approval'});
   state=await loadBundle(dir);const revision=state.revision;
   const changed=await updateGridfinityBundle(dir,{xUnits:2},{expectedRevision:revision});
   assert.equal(changed.plan.geometry.shape,'text');assert.equal(changed.plan.geometry.base.parameters.xUnits,2);
@@ -122,7 +121,6 @@ for(const machineId of ['ultimaker-s5','bambu-h2d'])test(`${machineId}: shared p
   const dir=await temp(t);let state=await createGridfinityBundle(dir,{heightUnits:2,stackingLip:false},{machineId,setupFile:resolve(dir,'unused.json')});
   state=await adjustBundle(dir,{process:{minimumLayerSeconds:0}},{expectedRevision:state.revision});
   const actor='SYNTHETIC GRIDFINITY TEST — not a real approval';
-  for(const stage of ['geometry']){state=await loadBundle(dir);await approve(dir,{stage,revision:state.revision,actor});}
   const checks=await generateBundle(dir);assert.ok(checks.moves>0);
   state=await loadBundle(dir);assert.ok(state.program&&!state.programError);
   const bytes=await readFile(resolve(dir,'exports',state.plan.output,state.exportName));

@@ -7,7 +7,7 @@ description: Follow a sloping or curved roof with top-skin strokes instead of ap
 
 Use for top layers that follow a surface rather than stepping across it in flat
 layers. For maker work, read [MAKERS.md](../../MAKERS.md). For development, start
-with the [developer orientation](../../DEVELOP.md) and follow its task-specific
+with the [builder orientation](../../BUILDERS.md) and follow its task-specific
 references. Use the [shared tools](../../core/print/USAGE.md).
 
 The skill queries surface height and normals through the shared geometry
@@ -63,6 +63,17 @@ See [full-fill composition](../full-fill/SKILL.md#composition-and-limits) and th
 Bead coverage and bridging remain numerical approximations without physical
 validation; the fixture's robot setup is explicitly synthetic.
 
+A region containing only draped-skin can also consume `lowerSurfaceFrom`, such
+as a curved lettering material selection on a finished draped roof. Its skins still follow
+the selected component's top; the lower surface supplies the first bead's actual
+support height and operation dependencies. The consumer's bounding-box minimum
+need not reach valleys elsewhere on the producer. Unlike planar fill, it does
+not start on a global horizontal layer grid. A support above the nominal reserve
+can yield a thinner first bead, but support at or above the first deposited skin
+is rejected. Missing support at a stroke is also rejected. See the
+[text composition](../text/SKILL.md#curved-lettering-above-a-draped-roof) for the
+recipe and reproducible example.
+
 ## Settings
 
 | Setting | Default | Meaning |
@@ -86,14 +97,16 @@ remain ordered; heat balancing and lookahead are deferred.
 
 Verified short direct moves may stay down on the current skin. Lifted travel and
 cooling clear the **highest material deposited so far** across all skills plus
-the locked `liftMm` (default 1 mm; zero allowed). The local surface query still controls whether
-a short direct move is permitted. Other operations can disallow that move.
+the locked `liftMm` (default 1 mm; zero allowed). Shared comb routing uses the
+allowed footprint, including holes, and samples each skin's local height for
+detours within `maxCombMm`. The local surface query controls straight-chord
+clearance; completed operations constrain every direct or routed segment.
 Follow the [shared travel contract](../../core/path/README.md#whole-plan-travel-requirement).
 
 ## Validation status
 
 Software tests exercise mesh and spline inputs against both S5 and H2D profiles.
-S5 supports checked Griffin export, Studio's two confirmations and exact-byte
+S5 supports checked Griffin export, Studio's final toolpath/settings confirmation and exact-byte
 delivery. H2D uses the same workflow with experimental sliced-3MF output and
 strict interpretation of the print body. Its firmware service routines are not
 simulated; read the [machine contract](../../core/export/bambu.md#h2d-output-contract).

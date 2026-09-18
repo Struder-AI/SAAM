@@ -111,7 +111,6 @@ test('assigned support recipe survives bundle review and exact delivery; edits i
   t.after(()=>rm(dir,{recursive:true,force:true}));
   const actor='SYNTHETIC SUPPORT TEST — not human approval';
   await initBundle(dir,supportPlan());
-  for(const stage of ['geometry']){const state=await loadBundle(dir);await approve(dir,{stage,actor,revision:state.revision});}
   await generateBundle(dir);
   let state=await loadBundle(dir);assert.ok(state.skills.includes('supports'));
   assert.ok(!(await readdir(dir)).includes('path.saampath'));
@@ -120,5 +119,5 @@ test('assigned support recipe survives bundle review and exact delivery; edits i
   const delivery=await deliver(dir);assert.deepEqual(await readFile(delivery),await readFile(join(dir,'exports/griffin-gcode/part.gcode')));
   const assignments=structuredClone(state.plan.skills.supports.assignments);assignments[0].reason='Changed chosen contact rationale';
   await adjustBundle(dir,{skills:{supports:{assignments}}});
-  state=await loadBundle(dir);assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  state=await loadBundle(dir);assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
 });

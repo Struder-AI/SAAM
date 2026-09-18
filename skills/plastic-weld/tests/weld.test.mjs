@@ -18,6 +18,7 @@ import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from 
 const rhino=await rhino3dm(),release={generatorVersion:VERSION,buildDate:BUILD_DATE};
 function recipe(machine=loadMachine()){
   const p=defaults(machine);p.geometry={shape:'box',runMm:20,widthMm:16,heightMm:6};
+  p.placement={xMm:140,yMm:100};// fixed placement keeps injection coordinates independent of the centering default
   p.skills['draped-skin'].enabled=false;p.process.minimumLayerSeconds=0;
   Object.assign(p.skills['plastic-weld'],{enabled:true,sites:[{id:'anchor',part:null,xMm:7,yMm:8,zBottomMm:0.8,zTopMm:4.8}]});
   return p;
@@ -92,7 +93,6 @@ test('shared bundle reopening and exact-byte delivery include weld settings in a
   t.after(()=>rm(root,{recursive:true,force:true}));
   await initBundle(dir,recipe());
   let state=await loadBundle(dir),actor='SYNTHETIC weld test; not a manufacturing approval';
-  await approve(dir,{stage:'geometry',actor,revision:state.revision});
   await generateBundle(dir);state=await loadBundle(dir);
   assert.equal(state.program.events.filter(e=>e.kind==='injection').length,1);
   state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});

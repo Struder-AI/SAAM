@@ -21,7 +21,7 @@ import {loopDemoPlan,loopHost} from '../scripts/loop-demo.mjs';
 function recipe(machine=loadMachine(),geometry=boxMesh(20,15,2)) {
   const plan=defaults(machine);plan.geometry=geometry;
   for(const s of Object.values(plan.skills))s.enabled=false;
-  Object.assign(plan.skills['vase-wall'],{enabled:true,pattern:{advance:[1,.2],repeats:4,
+  Object.assign(plan.skills['vase-wall'],{enabled:true,endTransition:'spiral',pattern:{advance:[1,.2],repeats:4,
     paths:[{points:[[0,0],[.25,.12],[.5,.08],[.75,.19],[1,.2]],beadHeightMm:.2}]}});
   return plan;
 }
@@ -91,7 +91,7 @@ test('invalid motifs fail explicitly while pattern tilt remains a reported recip
   assert.throws(()=>generatePath(tall,machine,r),/height interval/);
   const steep=recipe();steep.skills['vase-wall'].pattern.paths[0].points=[[0,0],[.0001,1],[1,.2]];
   assert.ok(generatePath(steep,machine,r).summary.vaseWall.maximumAngleDeg>machine.nonplanar.maxAngleDeg);
-  const level=recipe();level.skills['vase-wall'].endTransition='level';assert.throws(()=>validatePlan(level,machine),/own ending/);
+  const level=recipe();level.skills['vase-wall'].endTransition='level';assert.equal(generatePath(level,machine,r).summary.vaseWall.levelRimMm,2);
   const budget=recipe();budget.skills['vase-wall'].maxPoints=100;budget.skills['vase-wall'].sampleStepMm=.1;
   assert.throws(()=>generatePath(budget,machine,r),/budget/);
 });
@@ -189,10 +189,9 @@ test('regional mapping retains translated placement and does not publish an inve
 test('mapped pattern edits use ordinary reviews and exact-byte delivery',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-sleeve-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
   await initBundle(dir,recipe());const actor='SYNTHETIC SLEEVE TEST — not a human approval';
-  for(const stage of ['geometry'])await approve(dir,{stage,actor,revision:(await loadBundle(dir)).revision});
   await generateBundle(dir);let state=await loadBundle(dir);assert.equal(state.programError,undefined);
   await approve(dir,{stage:'toolpath',actor,revision:state.revision});assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,EXPORT_PATH)));
   const pattern=structuredClone(state.plan.skills['vase-wall'].pattern);pattern.repeats=3;
   await adjustBundle(dir,{skills:{'vase-wall':{pattern}}});state=await loadBundle(dir,{program:false});
-  assert.equal(state.geometryApproved,true);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
 });

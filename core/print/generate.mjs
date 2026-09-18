@@ -10,6 +10,7 @@ import { makeShell, assertClosed } from '../geom/shell.mjs';
 import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell, shellFromSurfaces } from '../geom/shapes.mjs';
 import { composeResults } from '../path/compose.mjs';
 import { PathBuilder } from '../path/builder.mjs';
+import {primeBeforePart} from '../path/prime.mjs';
 import { fullFillResult } from '../../skills/full-fill/scripts/fill.mjs';
 import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
@@ -31,6 +32,7 @@ import {waveResults} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {preparePlasticWeld,plasticWeldResult} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-inserts/scripts/feature.mjs';
 import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
+import {geometrySelections} from '../geom/selections.mjs';
 
 export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
@@ -124,7 +126,18 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   const results=[];
   let survey = null;
   if(plan.composition.regions.length) {
-    const regional=generateRegionResults({plan,machine,placed,componentShells});
+    const selections=geometrySelections(plan.geometry),regionShells=new Map();
+    for(const assignment of plan.composition.regions){
+      if(regionShells.has(assignment.part))continue;
+      const part=selections.get(assignment.part);
+      let shell=buildShell(rhino,part.geometry);
+      if(part.detailsFrom){
+        const features=heatSetFeatures(part.detailsFrom);
+        if(features.length)shell.planarDetails=heatSetDetails(features);
+      }
+      regionShells.set(assignment.part,translateShell(shell,plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm));
+    }
+    const regional=generateRegionResults({plan,machine,placed,componentShells:regionShells,selections,onProgress});
     results.push(...regional.results);Object.assign(summary,regional.summary);
   } else {
   requireThat(!plan.skills['thick-lip'].enabled,'thick-lip only applies through composition.regions, assigned directly above a level-ended vase-wall region.');
@@ -177,8 +190,8 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   if(normalResults.length)summary.planarInfill={instances:normalResults.map(r=>({id:r.id,...r.report}))};
   if(vase.enabled) {
     requireThat(vaseShell,'No component selected for vase wall.');
-    const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id))});
-    if(vase.pattern==null)publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
+    const result=vaseWallResult({shell:vaseShell,plan,machine,id:componentShells?vase.part+':vase-wall':'vase-wall',after:results.flatMap(r=>r.operations.map(op=>op.id)),onProgress});
+    if(vase.pattern==null&&!vase.meshSleeve)publishFinishedBoundary(result,{shell:vaseShell,boundary:'side',startMm:result.report.baseTopMm,
       endMm:result.report.endMm-(vase.endTransition==='level'?0:process.layerMm),toleranceMm:vase.boundaryToleranceMm});
     results.push(result);summary.vaseWall=result.report;
   }
@@ -204,6 +217,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
   const welds=plasticWeldResult({plan,sites:weldSites,modelResults:results});
   if(welds){results.push(welds);summary.plasticWeld=welds.report;}
+  primeBeforePart(builder,placed.bounds,results);
   summary.composition=composeResults(builder,results,plan.composition,onProgress);
 
   builder.setContext('finish', 0);

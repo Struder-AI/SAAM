@@ -17,6 +17,7 @@ import { scanlineFill, regionArea, loopArea } from '../../../core/region/region2
 import { offsetRegion } from '../../../core/region/offset.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
 import { composeResults } from '../../../core/path/compose.mjs';
+import {surfacePolicy} from '../../../core/path/builder.mjs';
 import { requireThat, distance, distance2 } from '../../../core/geom/tolerance.mjs';
 import {lineSpacing} from '../../../core/path/spacing.mjs';
 
@@ -184,11 +185,11 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
 
     // The surface this skin lies on, for both clearance and direct travel.
     const surfaceZ = (x, y) => {
-      const top = topAt(shell, x, y);
-      if (!top) return null;
+      const top = roofAt(x, y);
+      if (!top || top.patch==='bottom' || top.slopeDeg>survey.limitDeg+1e-6) return null;
       return top.zMm - below * thickness / Math.cos(top.slopeDeg * Math.PI / 180);
     };
-    const policy = drapedPolicy(shell, process, surfaceZ, thickness);
+    const policy = drapedPolicy(shell, process, surfaceZ, thickness, survey.skinRegion, settings.sampleStepMm);
     const deposition=[];
     for (const stroke of strokes) {
       const volumesMm3=[],segmentMetadata=[];
@@ -244,53 +245,17 @@ function samplePath(shell, from, to, stepMm, below, thickness, process, count,li
 export const bodyTopAt = (reserveZ, process,originZ=0) =>
   originZ+process.firstLayerMm + Math.max(0, Math.floor((reserveZ-originZ - process.firstLayerMm + 1e-9) / process.layerMm)) * process.layerMm;
 
-// Travel over a curved surface cannot use one flat clearance height. Each hop
-// clears the surface it actually crosses, and a short hop between neighbouring
-// strokes stays down when the surface between them is no higher than the ends.
+// Curved combing uses this skin's local surface. Lifted moves still use the
+// shared builder's global deposited height. A straight connection may stay
+// down when its chord clears the local skin within the permitted sag.
 // A straight line between two points on a convex surface passes slightly under
 // it: over one bead spacing on a part-sized curve that is on the order of a
 // micron. Allowing a fraction of the skin thickness keeps that from forcing a
 // lift, and is no closer to the surface than a flat layer's own turnaround.
-export function drapedPolicy(shell, process, surfaceZ = null, skinNormalMm = 0.2) {
-  const sag = Math.min(0.05, skinNormalMm / 4);
-  const heightAlong = (from, to) => {
-    const span = Math.hypot(to[0] - from[0], to[1] - from[1]);
-    const steps = Math.max(2, Math.ceil(span / 1));
-    let highest = -Infinity;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const top = topAt(shell, from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t);
-      if (top) highest = Math.max(highest, top.zMm);
-    }
-    return highest;
-  };
-  // Between neighbouring strokes on the same skin the surface underneath is at
-  // the same height as both ends, so the nozzle can cross directly instead of
-  // retracting, climbing above the whole part and coming back down. The test is
-  // whether the straight 3D line stays at or above the skin surface it crosses.
-  const canTravelDirect = (from, to, maxDistance=process.maxCombMm) => {
-    if (!surfaceZ || !(maxDistance > 0)) return false;
-    const span = Math.hypot(to[0] - from[0], to[1] - from[1]);
-    if (span > maxDistance) return false;
-    const steps = Math.max(2, Math.ceil(span / 0.5));
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const surface = surfaceZ(from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t);
-      if (surface === null) return false;
-      if (from[2] + (to[2] - from[2]) * t < surface - sag) return false;
-    }
-    return true;
-  };
-  return {
-    combRegion: null,
-    maxCombMm: process.maxCombMm,
-    canTravelDirect,
-    clearanceFor: (from, to) => {
-      const surface = heightAlong(from, to);
-      return Math.max(from[2], to[2], Number.isFinite(surface) ? surface : -Infinity) + process.liftMm;
-    },
-    heightAlong
-  };
+export function drapedPolicy(shell, process, surfaceZ = null, skinNormalMm = 0.2, region = null, sampleStepMm = 0.5) {
+  return surfacePolicy(region,{surfaceZ:surfaceZ??(()=>null),maxZ:shell.bounds.max[2],
+    maxCombMm:process.maxCombMm,lineWidthMm:process.lineWidthMm,liftMm:process.liftMm,
+    sampleStepMm,sagMm:Math.min(0.05,skinNormalMm/4)});
 }
 
 export const skinReport = report => ({

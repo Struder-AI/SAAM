@@ -3,15 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "SAAM S5 development demos: inclined wedge, plus full-fill and draped-skin shell slicing.",
+  "description": "SAAM development: composable printing skills with full-fill and draped-skin shell slicing across shared machine output.",
   "scripts": {
     "setup:check": "node scripts/setup-check.mjs",
     "test": "node --test core/tests/*.test.mjs skills/*/tests/*.test.mjs",
     "test:stress": "node --test --test-concurrency=1 core/tests/stress/*.test.mjs",
-    "demo": "node skills/wedge-demo/scripts/cli.mjs demo",
     "studio": "node studio/server.mjs",
     "agent": "node scripts/agent-toolkit.mjs",
-    "check:print": "node skills/wedge-demo/scripts/cli.mjs check",
     "shell": "node core/print/cli.mjs",
     "mcp": "node adapters/mcp/src/server.mjs",
     "setup:mesh": "node scripts/build-mesh-repair.mjs"
@@ -27,5 +25,8 @@
     "manifold-3d": "3.5.3",
     "rhino3dm": "8.32.2",
     "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "acorn": "8.15.0"
   }
 }

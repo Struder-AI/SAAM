@@ -22,3 +22,5 @@ reading path.
    capability does not automatically approve an existing implementation of it.
    Agents can investigate compatibility and explain the proposed adoption so
    humans can make an informed decision.
+
+4. This document is unfinished.

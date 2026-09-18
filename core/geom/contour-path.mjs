@@ -25,5 +25,8 @@ export function contourPath(loop,anchor=null) {
     const t=lengths[lo]?(s-cumulative[lo])/lengths[lo]:0;
     return loop[lo].map((v,k)=>v+t*(loop[(lo+1)%loop.length][k]-v));
   };
-  return {at,seam:best.point,length:total};
+  let knots,nodes;
+  const parameters=()=>knots??=(cumulative.slice(0,-1).map(s=>((s-best.offset)%total+total)%total/total));
+  const breakpoints=()=>nodes??=[{u:0,p:at(0)},...parameters().map((u,i)=>({u,p:loop[i]})).filter(n=>n.u>0).sort((a,b)=>a.u-b.u),{u:1,p:at(0)}];
+  return {at,seam:best.point,length:total,knots:parameters,breakpoints};
 }

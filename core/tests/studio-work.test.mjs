@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {agentIndicator} from '../../studio/work-state.mjs';
+import {agentIndicator,requestReceiptState,hasUnpreparedEdit} from '../../studio/work-state.mjs';
 import {createAgentRequests,workSnapshot} from '../../studio/agent-requests.mjs';
 import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-const original={inputKey:'original',generationKey:'original-program'};
-const updated={inputKey:'updated',generationKey:'updated-program'};
+const original={inputKey:'original',generationKey:'original-program',stage:'toolpath'};
+const updated={inputKey:'updated',generationKey:'updated-program',stage:'toolpath'};
 const request={id:'edit',printId:'part',kind:'edit',status:'working',baseline:original,updatedAt:10,expiresAt:1000};
 const view={printId:'part',snapshot:original,ready:true,loading:false};
 const active=(records,patch={})=>agentIndicator(records,{now:20,view:{...view,...patch}}).active;
@@ -31,7 +31,7 @@ test('early completion retains activity until the updated result is presented',(
 test('waiting, guidance, failures, cancellation and work on another print have distinct activity',()=>{
   assert.equal(active([{...request,status:'waiting'}]),false);
   assert.equal(active([{...request,status:'queued'}]),false);
-  assert.equal(active([{...request,kind:'guidance'}],{snapshot:updated}),true,'an edit does not answer a guidance request');
+  assert.equal(active([{...request,kind:'guidance'}],{snapshot:updated}),false,'chat guidance does not obscure the preview');
   assert.equal(active([{...request,kind:'guidance',status:'completed',result:updated}]),false);
   assert.equal(active([{...request,status:'failed'}]),false);
   assert.equal(active([{...request,status:'cancelled'}]),false);
@@ -58,6 +58,36 @@ test('intermediate playback does not clear an overlapping edit; pausing it resto
   assert.equal(active([first,{...second,status:'failed'}],{snapshot:{...updated,stage:'toolpath'}}),false,'failed remaining work does not lock the delivered preview');
 });
 
+test('intermediate saves, unchanged geometry and unrelated work cannot satisfy or hide an edit',()=>{
+  const unbound={...request,requiresTarget:true};
+  assert.equal(active([unbound],{snapshot:updated}),true,'even a single edit must publish its intended result');
+  assert.equal(requestReceiptState({...request,baseline:{...original,geometryKey:'same'}},{
+    view:{ready:true,snapshot:{...updated,geometryKey:'same',stage:'geometry'}}}).receipt,false,
+  'legacy settings changes are not delivered by unchanged geometry');
+  const bound={...unbound,target:{...updated,stage:'toolpath'}};
+  const waiting={snapshot:{...updated,stage:'geometry'},awaitingConfirmation:true};
+  assert.deepEqual(requestReceiptState(bound,{now:20,view:{...view,...waiting}}),
+    {activity:'waiting',receipt:false,awaitingConfirmation:true});
+  assert.equal(active([bound],waiting),false,'the exact prepared result can wait for shape confirmation');
+  assert.equal(active([bound,unbound],waiting),true,'that confirmation cannot hide an unrelated edit');
+  assert.deepEqual(agentIndicator([{...bound,status:'completed',result:updated}],{now:1001,view}),
+    {active:false,message:'(lost contact)'},'early completion cannot leave an absent result busy forever');
+});
+
+test('one Studio instance cannot present another instance request for the same bundle',()=>{
+  const owned={...request,studioInstanceId:'studio-a',target:{...updated,stage:'toolpath'}};
+  assert.equal(requestReceiptState(owned,{view:{ready:true,snapshot:{...updated,stage:'toolpath',studioInstanceId:'studio-b'}}}).receipt,false);
+  assert.equal(requestReceiptState(owned,{view:{ready:true,snapshot:{...updated,stage:'toolpath',studioInstanceId:'studio-a'}}}).receipt,true);
+});
+
+test('generation waits for saved targets, with guidance and delivered work excluded',()=>{
+  const current={...request,requiresTarget:true,expiresAt:Date.now()+60000};
+  assert.equal(hasUnpreparedEdit([current],updated),true);
+  assert.equal(hasUnpreparedEdit([{...current,target:{...updated,stage:'toolpath'}}],updated),false);
+  assert.equal(hasUnpreparedEdit([{...current,target:{...original,stage:'toolpath'}}],updated),true);
+  assert.equal(hasUnpreparedEdit([{...current,kind:'guidance'},{...current,presented:true}],updated),false);
+});
+
 test('request snapshots survive restart, capture result identity and support waiting and resuming',async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-work-'));t.after(()=>rm(root,{recursive:true,force:true}));
   const directory=join(root,'part');
@@ -66,10 +96,13 @@ test('request snapshots survive restart, capture result identity and support wai
   const save=()=>Promise.all(Object.entries(state).map(([name,value])=>writeFile(join(directory,name+'.json'),JSON.stringify(value))));
   await save();const requests=createAgentRequests(root),started=await requests.begin({directory,instruction:'Make it taller'});
   assert.deepEqual(started.baseline,workSnapshot(state));
+  state.plan.geometry.height=8;await save();
+  const prepared=await requests.update(started.id,{status:'working',resultStage:'toolpath'});
   await requests.update(started.id,{status:'waiting'});
   assert.equal((await createAgentRequests(root).list())[0].status,'waiting');
-  await requests.update(started.id,{status:'working'});
-  state.plan.geometry.height=8;await save();const done=await requests.update(started.id);
+  const resumed=await requests.update(started.id,{status:'working'});
+  assert.deepEqual(resumed.baseline,started.baseline);assert.deepEqual(resumed.target,prepared.target);
+  const done=await requests.update(started.id);
   assert.notEqual(done.baseline.inputKey,done.result.inputKey);
   assert.deepEqual(done.result,workSnapshot(state));
 });
