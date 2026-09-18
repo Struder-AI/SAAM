@@ -205,23 +205,23 @@ async function loadBundle(directory, { program = true, sourceFile, allSources=fa
 
 // A content fingerprint for automatic viewer updates. Changed geometry or plan
 // inputs invalidate their checks; an approval-only change does not.
-async function bundleFingerprint(directory, {program=true,presentation=false}={}) {
+// One snapshot pass yields both change fingerprints: `source` covers every
+// input and review file; `presentation` replaces review.json with its
+// generation identity minus mode, so approval, delivery history and mode
+// changes update controls without replacing mesh/motion.
+async function bundleFingerprints(directory, {program=true}={}) {
   // Polling is a change notification, not a validity boundary. Reuse the file
   // digest while filesystem metadata is unchanged. loadBundle still reads
   // and hashes current bytes before review, approval, generation or delivery.
   const snapshot=(name,parse=false)=>fileSnapshot(resolve(directory,name),{parse});
   const [plan,geometry,machine]=await Promise.all([snapshot('plan.json',true),snapshot('geometry/model.json',true),snapshot('machine.json',true)]);
-  const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl',...(!presentation?['review.json']:[]), ...(program?[exportPath(plan,machine)]:[])];
-  const values = await Promise.all(names.map(async name => {
-    return [name,await snapshot(name)];
-  }));
-  if(presentation){
-    const review=await snapshot('review.json',true),generation=review?.generation;
-    // Mode, confirmations and audit history update controls, not mesh/motion.
-    // Every other generation claim remains part of source validity.
-    const {mode,...identity}=generation??{};values.push(['generation',generation?identity:null]);
-  }
-  return hash(values);
+  const names = ['plan.json', 'machine.json', 'geometry/model.json', nativeFile(geometry), 'geometry/source.stl', ...(program?[exportPath(plan,machine)]:[])];
+  const [values,review,reviewDigest] = await Promise.all([Promise.all(names.map(async name => [name,await snapshot(name)])),snapshot('review.json',true),snapshot('review.json')]);
+  const {mode,...identity}=review?.generation??{};
+  return {source:hash([...values,['review.json',reviewDigest]]),presentation:hash([...values,['generation',review?.generation?identity:null]])};
+}
+async function bundleFingerprint(directory, options) {
+  return (await bundleFingerprints(directory, options)).source;
 }
 
 async function rememberSetup(directory, { setupFile, source = 'User setup supplied through chat' } = {}) {
@@ -473,5 +473,5 @@ async function upgradeBundle(directory) {
   await save(resolve(directory,'machine.json'),machine);
   await save(resolve(directory,'review.json'),review);
 }
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine,upgradeBundle};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,bundleFingerprints,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine,upgradeBundle};
 }

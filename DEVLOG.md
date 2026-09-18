@@ -1,5 +1,26 @@
 # Development log
 
+## 2026-09-17 — One fingerprint pass per Studio state read
+
+`readStableBundle` already bracketed each load with before/after fingerprints,
+but `/api/state` then computed a presentation fingerprint and rechecked the
+source fingerprint in two more passes, and resolved the request print ID twice;
+`/api/revision` and the approve response also took two passes each. The workflow
+now exposes `bundleFingerprints(directory,{program})`, returning `{source,
+presentation}` from one snapshot pass (`bundleFingerprint` is its `source`); the
+tour reference adapter and machine-study adapter provide it too. The stable
+reader returns both fingerprints from its first pass, and the state, revision
+and approve routes take no further passes. The `studio-view-readiness` harness
+sliced `app.mjs` at the old `approval(stage)` signature from the approval
+collapse; its boundary is updated and all nine cases now pass.
+
+Verification: studio-view-readiness (9/9), read-scope, studio-reconnect,
+studio-open, studio-tour, studio-agent, workflow, studio-generation-control,
+machine-study, agent-toolkit and studio-tour-lifetime pass;
+`dev-map.mjs check --since HEAD` passes. Local `.local/` review
+tools that fake a Studio adapter with only `bundleFingerprint` need
+`bundleFingerprints`.
+
 ## 2026-09-17 — One worker supervisor for STL import and repair
 
 Studio's STL import launcher (`importInWorker` plus `studio/import-worker.mjs`)

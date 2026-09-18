@@ -86,7 +86,9 @@ provenance retains its full manifest and order, reading duplicate file entries o
 Recipe adjustment returns the owning update result instead of loading it again;
 the update still checks a fresh revision before saving.
 
-The `presentation` fingerprint separates scene/source identity from approval,
+`bundleFingerprints` returns the `source` and `presentation` fingerprints from
+one snapshot pass (`bundleFingerprint` is its `source`); every Studio bundle
+adapter provides it. The `presentation` fingerprint separates scene/source identity from approval,
 delivery history and generation mode. Other generation claims and current export
 bytes remain part of source identity. Compact review updates still load validated
 state before updating controls. Generation accepts a `beforeCommit` callback for

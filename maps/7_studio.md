@@ -223,7 +223,7 @@ launch > server | directory and options | data
 bundle > state | selected adapter | data
 browser > server | token / origin checked | io
 server > state | state / revision request | gate
-state > snapshot | consistent content identity | data
+state > snapshot | state; source and presentation fingerprints | data
 server > generate | generate request | gate
 generate > server | checks / diagnostic | data | norank
 server > import | uploaded STL | gate

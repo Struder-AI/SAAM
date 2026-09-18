@@ -26,7 +26,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   }
   const resolver=async dir=>{
     assert.equal(JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).schema,'scratch-test/1');
-    return {bundleFingerprint:async()=>dir,loadBundle:async()=>({kind:'shell',marker:dir,review:{approvals:{}}})};
+    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>({kind:'shell',marker:dir,review:{approvals:{}}})};
   };
   const server=createStudio(join(library,'first'),{libraryRoot:library,resolveBundle:resolver});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
@@ -185,7 +185,7 @@ test('preparation diagnostics stay actionable until explicit retry; state pollin
 
 test('Studio opening retries a read spanning a multi-file edit but preserves persistent validation errors',async()=>{
   const {readStableBundle}=await import('../../studio/server.mjs');let reads=0;
-  const adapter={bundleFingerprint:async()=>'current',loadBundle:async()=>{if(reads++===0)throw Error('Plan and geometry disagree. Ask the agent to recreate the geometry.');return {revision:'updated'};}};
+  const adapter={bundleFingerprints:async()=>({source:'current',presentation:'current'}),loadBundle:async()=>{if(reads++===0)throw Error('Plan and geometry disagree. Ask the agent to recreate the geometry.');return {revision:'updated'};}};
   assert.equal((await readStableBundle(adapter,'synthetic',{program:false})).state.revision,'updated');assert.equal(reads,2);
   reads=0;adapter.loadBundle=async()=>{reads++;throw Error('Unconfigured machine');};
   await assert.rejects(readStableBundle(adapter,'synthetic',{}),/Unconfigured machine/);assert.equal(reads,1);

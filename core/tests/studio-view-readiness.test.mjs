@@ -42,7 +42,7 @@ const browserCode=[
   section('async function working(text,task,','\n// Studio reviews'),
   section('async function acknowledgeDisplayedView(){','\nasync function decodeInWorker'),
   section('function setTab(next){','\n'),
-  section('async function approval(stage){','\nasync function download'),
+  section('async function approval(){','\nasync function download'),
   section("$('#confirm').onclick=async()=>{",'\nasync function openPrint')
 ].join('\n');
 

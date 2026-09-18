@@ -15,6 +15,8 @@ const snapshot=createFileSnapshot();
 export async function bundleFingerprint(dir,{program=true}={}){
   return hash(JSON.stringify(await Promise.all(['plan.json','machine.json',...(program?['motion.json']:[])].map(name=>snapshot(resolve(dir,name))))));
 }
+// Studies have no review metadata, so presentation and source identity agree.
+export async function bundleFingerprints(dir,options){const source=await bundleFingerprint(dir,options);return {source,presentation:source};}
 export async function loadBundle(dir,{program=true,allSources=false}={}){
   const [planText,machineText,source]=await files(dir,program||allSources),plan=JSON.parse(planText),machine=JSON.parse(machineText);
   if(plan.schema!=='saam-machine-study/1'||plan.output!=='machine-study')throw Error('Invalid machine study plan');

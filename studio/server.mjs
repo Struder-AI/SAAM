@@ -43,16 +43,18 @@ export async function bundleFor(directory) {
 }
 // A CLI update replaces several bundle files. Retry only reads caught between
 // those replacements; persistent corruption still fails the normal validation.
+// One fingerprint pass on each side of the load yields both the source and
+// presentation fingerprints; presentation derives from files source covers.
 export async function readStableBundle(adapter,directory,options){
   for(let attempt=0;;attempt++){
     let before;
     try{
-      before=await adapter.bundleFingerprint(directory,options);
+      before=await adapter.bundleFingerprints(directory,options);
       const state=await adapter.loadBundle(directory,options);
-      if(before!==await adapter.bundleFingerprint(directory,options))throw Error('The print is being updated.');
-      return {state,fingerprint:before};
+      if(before.source!==(await adapter.bundleFingerprints(directory,options)).source)throw Error('The print is being updated.');
+      return {state,fingerprint:before.source,presentationFingerprint:before.presentation};
     }catch(error){
-      const changing=before!==undefined&&before!==await adapter.bundleFingerprint(directory,options);
+      const changing=before!==undefined&&before.source!==(await adapter.bundleFingerprints(directory,options)).source;
       if(attempt>=3||!changing&&error.code!=='ENOENT'&&!/Plan and geometry disagree|being updated/.test(error.message))throw error;
       await new Promise(resolve=>setTimeout(resolve,60*(attempt+1)));
     }
@@ -271,23 +273,21 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
-        const {state,fingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
+        const {state,fingerprint,presentationFingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
         if(readDir!==dir)throw new Error('The print is being updated.');
         state.tour=guide;state.localPrintDirectory=readDir;state.instanceId=instanceId;
         state.importRepair=await loadStudioImportRepair(readDir);
-        const workPrintId=requests.printId(readDir,{optional:true});
-        state.work={printId:workPrintId??readId,snapshot:{...workSnapshot(state),studioInstanceId:instanceId},requests:workPrintId?records.filter(r=>r.printId===workPrintId):[]};
+        state.work={printId:workId??readId,snapshot:{...workSnapshot(state),studioInstanceId:instanceId},requests:workId?records.filter(r=>r.printId===workId):[]};
         if(generationFailure?.directory===readDir&&generationFailure.planHash===state.planHash&&!state.program)
           state.generationError=generationFailure.message;
         state.generationCancelled=generationCancelled?.directory===readDir&&generationCancelled.planHash===state.planHash;
-        state.presentationFingerprint=viewFingerprint(readId,await bundle.bundleFingerprint(readDir,{program:!geometryOnly(guide),presentation:true}),guide);
-        if(fingerprint!==await bundle.bundleFingerprint(readDir,{program:!geometryOnly(guide)}))throw Error('The print is being updated.');
+        state.presentationFingerprint=viewFingerprint(readId,presentationFingerprint,guide);
         delete state.code;delete state.dir;state.printName=await printName(readDir,state.plan);state.downloadName=downloadName(state.printName,state.exportName);state.printId=readId;state.fingerprint=viewFingerprint(readId,fingerprint,guide);state.sourceTransport='ndjson';send(state);
         // Speculate only on the tour's explicitly selected, confirmed part.
         // Ordinary edits use explicit generation; starting a second worker here
         // competes with the agent and may slice inputs it is still changing.
         if(!state.generationCancelled&&guide.active&&guide.directory===readDir&&guide.step===L.import
-          &&!hasUnpreparedEdit(state.work.requests.filter(r=>r.printId===workPrintId),state.work.snapshot))prepare(state,readDir);
+          &&!hasUnpreparedEdit(state.work.requests,state.work.snapshot))prepare(state,readDir);
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){
@@ -307,8 +307,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }
       if(req.method==='GET'&&url.pathname==='/api/revision'){
         const guide=await tour.info();
-        const options={program:!geometryOnly(guide)},raw=await bundle.bundleFingerprint(readDir,options),fingerprint=viewFingerprint(readId,raw,guide);
-        const presentationFingerprint=viewFingerprint(readId,await bundle.bundleFingerprint(readDir,{...options,presentation:true}),guide);
+        const options={program:!geometryOnly(guide)},current=await bundle.bundleFingerprints(readDir,options),raw=current.source;
+        const fingerprint=viewFingerprint(readId,raw,guide),presentationFingerprint=viewFingerprint(readId,current.presentation,guide);
         let reviewUpdate;
         if(url.searchParams.has('fingerprint')&&url.searchParams.get('fingerprint')!==fingerprint){
           const {state,fingerprint:checked}=await readStableBundle(bundle,readDir,{program:options.program?'source':false});
@@ -442,10 +442,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           const state=await current.approve(dir,{actor:data.actor,revision:data.revision,program:'source'});
           const {revision,review,toolpathApproved}=metadata(state);
           note('approved',{revision});
+          const {source,presentation}=await current.bundleFingerprints(dir,{program:!geometryOnly(progress)});
           send({ok:true,approval:{revision,review,toolpathApproved,
             programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,
-            presentationFingerprint:viewFingerprint(printId(),await current.bundleFingerprint(dir,{program:!geometryOnly(progress),presentation:true}),progress),
-            fingerprint:viewFingerprint(printId(),await current.bundleFingerprint(dir,{program:!geometryOnly(progress)}),progress)}});return;
+            presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}});return;
         }
         else if(url.pathname==='/api/generate'){
           if(data.planHash&&(await current.loadBundle(dir,{program:false})).planHash!==data.planHash)throw Error('The print changed before generation. Review the updated print.');
