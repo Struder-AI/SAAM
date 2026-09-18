@@ -7,6 +7,7 @@ import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {transform,untransform,machineFitBounds,boundsCorners,drawMachineCanvas,machinePalette} from './machine-view.mjs';
+import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
@@ -25,6 +26,16 @@ const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
 let pan=[0,0];
 let redrawFrame=0;
+// View bursts go to the server for agents; failures never reach the person.
+let lastWheel=0,lastMaterialStats=null;
+// Material detail drops while the view moves and the measured frame cost is
+// high; one full-detail frame follows when motion stops.
+// ?motion-quality=N pins a level, still frames included, to inspect or time it.
+const pinnedQuality=/^[0-3]$/.test(new URLSearchParams(location.search).get('motion-quality')??'')?Number(new URLSearchParams(location.search).get('motion-quality')):null;
+let motionQuality=null,lastMotion=0,lastMovingFrame=0,redrawRequested=0,settleTimer=0;
+const viewPerformance=createViewPerformance({report:burst=>void fetch('/api/view-performance',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(burst)}).catch(()=>{}),
+  context:()=>({tab,view:cameras.mode,solid:tab==='toolpath'&&!!materialScene&&!!materialRenderer,moves:state?.program?.moves.length??0,
+    canvasCss:[canvas.clientWidth,canvas.clientHeight],devicePixelRatio:+(devicePixelRatio||1).toFixed(3),userAgent:navigator.userAgent,renderer:materialRenderer?.renderer??null,material:tab==='toolpath'?lastMaterialStats:null})});
 let pathView,meshView;
 let geometryScene,geometryRenderer,geometryProject,geometryError='';
 let materialScene,materialRenderer,materialError='';
@@ -116,7 +127,7 @@ function restoreView(){
 }
 window.addEventListener('pagehide',saveView);
 function requestDraw(){
-  if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
+  if(!redrawFrame){redrawRequested=performance.now();redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});}
 }
 function clearProgramView(){
   playbackCache=null;stalePresentation=null;
@@ -139,7 +150,7 @@ const materialFact=program=>program.summary.materialModel==='relay-estimate'
   : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.summary.volumeMm3??program.volumeMm3))+' g'];
 const materialSetup=state=>state.plan.setup.dobot||state.plan.setup.denso
   ? ['Extrusion','External relay control · '+state.plan.setup.material]
-  : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'+(state.plan.setup.filamentColor?' · '+state.plan.setup.filamentColor:'')+(state.plan.setup.amsSlot?' · intended AMS slot '+state.plan.setup.amsSlot:'')];
+  : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'+(state.plan.setup.filamentColor?' · '+state.plan.setup.filamentColor:'')+(state.plan.setup.ams?' · intended AMS '+state.plan.setup.ams.unit+' slot '+state.plan.setup.ams.slot:'')];
 const vaseSettings=state=>{
   if(state.plan.composition?.regions?.length)return [];
   const vase=state.plan.skills?.['vase-wall'];
@@ -498,7 +509,7 @@ function setTab(next){if(!state)return;clearManual();if(next!=='toolpath'&&camer
 function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight,ratio=devicePixelRatio||1,
   position=seconds,now=performance.now(),fadeState=layerFade,updateUI=true,
   playbackSpeed=playing?Number($('#playback-speed').value):0,machineState=machineDisplay(position)}={}) {
-  const ctx=target.getContext('2d'),seconds=position;
+  const ctx=target.getContext('2d'),seconds=position,drawStart=performance.now(),moving=playing||drawStart-lastMotion<250;let materialMs=0,materialStats=null,quality=0;
   function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
   if(updateUI&&redrawFrame){cancelAnimationFrame(redrawFrame);redrawFrame=0;}
   if(!state)return;
@@ -559,6 +570,8 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
       segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);
     }
     const solidView=!!materialScene&&!!materialRenderer;
+    if(solidView)motionQuality??=createMotionQuality({initial:/basic render|swiftshader|llvmpipe|software/i.test(materialRenderer.renderer)?3:0});
+    quality=updateUI&&solidView?pinnedQuality??(moving?motionQuality.level:0):0;
     const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
     if(machine&&!solidView)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameras.mode,palette:machineColors,filter:c=>c.role!=='tool'});
     const detail=!solidView||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
@@ -571,8 +584,9 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     const fade=fadeState.frame(currentLayer,now,remainingLayerMs(pathView,at.active,seconds,playbackSpeed)),styles=new Map();
     if(solidView){
       try{
-        materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity,machine,machineMode:cameras.mode,machinePalette:machineColors});
-        ctx.drawImage(materialRenderer.canvas,0,0,width,height);
+        const materialStart=performance.now();
+        materialStats=materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity,machine,machineMode:cameras.mode,machinePalette:machineColors,quality});
+        ctx.drawImage(materialRenderer.canvas,0,0,width,height);materialMs=performance.now()-materialStart;
       }catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;requestDraw();}
     }
     // Draw the active layer last so older geometry cannot obscure it.
@@ -611,15 +625,27 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   }
   ctx.globalAlpha=1;
   ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
+  if(updateUI){
+    const end=performance.now();if(materialStats)lastMaterialStats=materialStats;
+    viewPerformance.frame(drag?(drag.pan?'pan':'orbit'):playing?'playback':end-lastWheel<200?'zoom':null,{start:drawStart,drawMs:end-drawStart,materialMs,quality});
+    if(moving&&motionQuality&&tab==='toolpath'){
+      // Playback is paced by its own frame loop; input-driven redraws are
+      // measured from the request so a slow hand is not read as a slow frame.
+      const cost=playing?(drawStart-lastMovingFrame<1000?drawStart-lastMovingFrame:end-drawStart):end-(redrawRequested||drawStart);
+      motionQuality.sample(cost);lastMovingFrame=drawStart;
+      if(quality>0&&pinnedQuality===null){clearTimeout(settleTimer);settleTimer=setTimeout(requestDraw,260);}
+    }
+    redrawRequested=0;
+  }
 }
 
 canvas.onpointerdown=e=>{if(e.button>2)return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pan:e.shiftKey||e.button===1||e.button===2};moved=false;};
-canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>2)moved=true;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;requestDraw();};
-canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}};
+canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>2)moved=true;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;lastMotion=performance.now();requestDraw();};
+canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;viewPerformance.flush();if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}};
 canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
 canvas.oncontextmenu=e=>e.preventDefault();
-canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
-canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();requestDraw();};
+canvas.addEventListener('wheel',e=>{e.preventDefault();lastWheel=lastMotion=performance.now();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
+canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();lastMotion=performance.now();requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
 $$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
 function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?untransform(pose.part,p):p;return [q[0]-plan.placement.xMm,q[1]-plan.placement.yMm,q[2]];}

@@ -22,17 +22,18 @@ Read the contract for the output being changed:
 | Output | Contract |
 |---|---|
 | UltiMaker S5 / Griffin G-code | [Griffin](griffin.md) |
-| Bambu H2D / sliced 3MF | [Bambu](bambu.md) |
+| Bambu H2D and X1 Carbon / sliced 3MF | [Bambu](bambu.md) |
 | Dobot MG400 / Lua source ZIP | [Dobot](dobot.md) |
 | DENSO VP-6242 / RC8 PacScript ZIP | [DENSO](denso.md) |
 
 [Machine files](machine-files.md) hold capabilities and setup declarations.
 [Print lifecycle](lifecycle.md) owns review and delivery of the checked output.
 
-X1 Carbon, Ultimaker 2 Extended and Ultimaker 3 have
+Ultimaker 2 Extended and Ultimaker 3 have
 [geometry/setup profiles](machine-files.md#profiles-for-geometry-and-setup-review),
-but no implemented output contract. The H2D envelope does not apply to X1, and
-S5 startup is not assumed for UM3. UM2 Extended uses volumetric UltiGCode rather
+but no implemented output contract. X1 Carbon shares the H2D exporter with its
+own pinned envelope; the H2D envelope does not apply to it. S5 startup is not
+assumed for UM3. UM2 Extended uses volumetric UltiGCode rather
 than the filament-length extrusion used by Griffin. Their declared output
 limitations are reported before path generation; catalog presence is not export support.
 
@@ -75,6 +76,7 @@ locates the shared checker and adapter-specific paths.
 |---|---|---|
 | UltiMaker S5 | Fill, planar-infill, drape and bounded vase-wall on mesh/splines | Griffin exporter/interpreter, same-file Studio review/delivery. |
 | Bambu H2D | Fill, planar-infill, drape and bounded vase-wall on mesh/splines | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
+| Bambu X1 Carbon | Planar skills only (no nonplanar capability declared); PLA output | The H2D exporter, interpreter and package writer with the X1's own pinned envelope and machine-file package facts; same-file review/delivery. |
 | Dobot MG400 | Shared fill, planar-infill, drape and vase-wall paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
 | DENSO VP-6242 / RC8 + rotary | Native pipe body/cladding plus fixed-orientation mesh/spline regional skills, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
 

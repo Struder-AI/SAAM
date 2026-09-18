@@ -123,7 +123,8 @@ export function createMachineLayer(gl){
   const program=gl.createProgram();shaders.forEach(s=>gl.attachShader(program,s));gl.linkProgram(program);shaders.forEach(s=>gl.deleteShader(s));if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));
   const buffer=gl.createBuffer(),vao=gl.createVertexArray(),projection=gl.getUniformLocation(program,'projection'),viewport=gl.getUniformLocation(program,'viewport');
   gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);for(const [i,n,offset] of [[0,3,0],[1,3,12],[2,1,24],[3,4,28],[4,1,44]]){gl.enableVertexAttribArray(i);gl.vertexAttribPointer(i,n,gl.FLOAT,false,48,offset);}
-  return {draw(machine,{project,matrix,width,height,mode,palette=machinePalette,filter,depth=true}){
+  // under composites behind pixels already drawn (premultiplied destination-over).
+  return {draw(machine,{project,matrix,width,height,mode,palette=machinePalette,filter,depth=true,under=false}){
     const data=[];
     // Sort in camera depth, but keep source coordinates for the shared depth test.
     const emit=(p,q,side,m)=>{const rgb=[1,3,5].map(i=>parseInt(m.color.slice(i,i+2),16)/255);data.push(...p,...q,side,...rgb,m.opacity,m.width??0);};
@@ -133,6 +134,6 @@ export function createMachineLayer(gl){
     }
     if(!data.length)return;
     gl.useProgram(program);gl.uniformMatrix4fv(projection,false,matrix);gl.uniform2f(viewport,width,height);gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);
-    gl.colorMask(true,true,true,true);gl.depthMask(false);depth?gl.enable(gl.DEPTH_TEST):gl.disable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.STENCIL_TEST);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.TRIANGLES,0,data.length/12);gl.bindVertexArray(null);
+    gl.colorMask(true,true,true,true);gl.depthMask(false);depth?gl.enable(gl.DEPTH_TEST):gl.disable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.STENCIL_TEST);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);under?gl.blendFunc(gl.ONE_MINUS_DST_ALPHA,gl.ONE):gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.TRIANGLES,0,data.length/12);gl.bindVertexArray(null);
   },dispose(){gl.deleteBuffer(buffer);gl.deleteVertexArray(vao);gl.deleteProgram(program);}};
 }

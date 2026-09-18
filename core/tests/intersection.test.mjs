@@ -1,13 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { intersect, union, difference } from '../region/intersection.mjs';
 import { intersectionFixtures } from '../../scripts/bench/intersection-fixtures.mjs';
-import { createBundleWorkflow } from '../print/workflow.mjs';
 import { offsetRegion } from '../region/offset.mjs';
 import { pointInRegion } from '../region/region2d.mjs';
 
@@ -31,18 +27,6 @@ test('WASM results match 138 saved unmodified upstream C# results, with exact co
   assert.equal(reference.expected.length,intersectionFixtures.length);
   for(const [i,f] of intersectionFixtures.entries())assert.deepEqual(
     {name:f.name,loops:operations[f.operation](f.a,f.b,{precisionMm:f.precisionMm})},reference.expected[i],f.name);
-});
-
-test('runtime identity hashes binary bytes without lossy UTF-8 decoding',async()=>{
-  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'saam-binary-identity-'));
-  try {
-    const file=path.join(directory,'kernel.wasm'),runtimeFiles=[pathToFileURL(file)];
-    const adapter={runtimeFiles,machineFile:'machines/ultimaker-s5.json'};
-    fs.writeFileSync(file,Buffer.from([0x80]));
-    const before=await createBundleWorkflow(adapter).runtimeHash();
-    fs.writeFileSync(file,Buffer.from([0x81]));
-    assert.notEqual(await createBundleWorkflow(adapter).runtimeHash(),before);
-  } finally { fs.rmSync(path.join(directory,'kernel.wasm'),{force:true});fs.rmdirSync(directory); }
 });
 
 test('closed material operations retain nested holes, islands, overlaps and empty semantics', () => {

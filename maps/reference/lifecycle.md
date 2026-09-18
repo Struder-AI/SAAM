@@ -3,13 +3,15 @@
 ## Implementation ownership and change detection
 
 The lifecycle map owns persistence, input identities and human review records.
-`core/print/bundle.mjs` binds the shared workflow to the shell generator and the
-runtime dependency set. `core/print/cli.mjs` is the command entry point; it does
+`core/print/bundle.mjs` binds the shared workflow to the shell generator.
+`core/print/cli.mjs` is the command entry point; it does
 not own another lifecycle. Its module-level dispatch and destructured workflow
 exports need inspection even where there is no standalone callable map anchor.
-`1d_runtime` names the runtime dependency list, selected limitation messages and
-CLI dispatch. Changes to dependencies must preserve generation invalidation;
-declared limitations describe the selected plan/machine and do not relax checks.
+`1d_runtime` names the shared and selected limitation messages and CLI
+dispatch. Identity is content only: plan, machine snapshot and geometry bytes.
+Changing SAAM's own code does not withdraw a recorded confirmation, because the
+confirmation is bound to the exact exported bytes, which code changes cannot
+alter; `generatorVersion` records which release made them. Declared limitations describe the selected plan/machine and do not relax checks.
 
 `core/print/file-snapshot.mjs` is bounded, stat-keyed change detection for refresh.
 It must not substitute for the current-byte reads used by validation, approval or
@@ -68,11 +70,11 @@ it. The resulting recipe uses the same generation, review and delivery lifecycle
 Generate the machine-declared export from the complete plan whenever it helps review,
 using transient motion objects. Check its actual commands before Studio plays
 that export for combined settings/toolpath confirmation. Delivery copies those reviewed bytes unchanged.
-Geometry, process, composition, runtime or machine changes invalidate the
+Geometry, process, composition or machine changes invalidate the
 combined settings/toolpath confirmation. Development generation records
 `mode: development`, creates no human approvals and cannot satisfy delivery.
 Production generation can reuse a current checked
-development export: it verifies current input/runtime identity, export bytes and
+development export: it verifies current input identity, export bytes and
 saved check hashes, then records production mode without reslicing or changing
 the reviewed bytes. This transition does not approve settings or toolpath.
 Stale source falls back to generation. A plan changed during generation cannot
@@ -81,8 +83,7 @@ receive the earlier candidate.
 Geometry-only bundle reads and their change fingerprints omit export bytes.
 Fingerprint snapshots reuse content digests while file identity, size, modification
 and change times match; this is change detection, not approval evidence. Review,
-approval and delivery still check current bytes at their owning boundary. Runtime
-provenance retains its full manifest and order, reading duplicate file entries once.
+approval and delivery still check current bytes at their owning boundary.
 Recipe adjustment returns the owning update result instead of loading it again;
 the update still checks a fresh revision before saving.
 
@@ -117,7 +118,7 @@ new failure it can detect. If nothing relevant changed, reuse the result or
 remove the call. Do not scatter `validatePlan`, `validateSetup`, `validatePath`
 or equivalent whole-object passes through helper layers merely because they
 are available. Do not add a public skip-validation switch. Reuse must be bound
-to exact relevant content and validator/runtime identity, not a filename,
+to exact relevant content and validator identity, not a filename,
 mutable object identity or a caller's claim that data is trusted. Bound caches
 and prevent caller mutation from changing the recorded validity or shared data.
 
@@ -193,7 +194,7 @@ A cache miss runs the owning validation. Restarting the runtime clears these
 in-memory results. A filename or caller's claim of validity is insufficient.
 
 The adapter also retains its latest checked interpretation, keyed by the
-plan/machine/geometry/runtime identity and actual export hash. Generation seeds
+plan/machine/geometry identity and actual export hash. Generation seeds
 this cache. Reopening interprets saved commands on a miss and returns copies on
 a hit; it never regenerates the path or export. Delivery reads and hashes the
 reviewed export, then copies those bytes. A changed export cannot inherit its
@@ -263,11 +264,11 @@ quality, or that any part prints.
 
 Sources: [workflow.mjs](../../core/print/workflow.mjs), [bundle.mjs](../../core/print/bundle.mjs), [cli.mjs](../../core/print/cli.mjs).
 
-**Contract.** The workflow factory owns plan/native-geometry/machine/export/review files, content-derived identities, cached validation and approval invalidation. The shell binding supplies geometry, generation, limitations and the runtime dependency list; CLI dispatch invokes that same workflow. Geometry-only, source-only and fully interpreted reads have different costs and guarantees. Plan validation can normalize old fields in memory; neither reading nor a development export creates human approval. Remembered setup can select a different supported nozzle; a fresh proposal or machine change retains the current line width when it remains in that tool's envelope and otherwise clamps it to a nozzle-compatible starting width before validation. Any geometry, process, machine or runtime change invalidates the single settings/toolpath approval, which is bound to both the plan and export hashes. See [validation ownership](#validate-at-the-boundary-that-owns-the-data) and [formats](#print-bundle-and-current-formats).
+**Contract.** The workflow factory owns plan/native-geometry/machine/export/review files, content-derived identities, cached validation and approval invalidation. The shell binding supplies geometry, generation, and limitations; CLI dispatch invokes that same workflow. Geometry-only, source-only and fully interpreted reads have different costs and guarantees. Neither reading nor a development export creates human approval. Remembered setup can select a different supported nozzle; a fresh proposal or machine change retains the current line width when it remains in that tool's envelope and otherwise clamps it to a nozzle-compatible starting width before validation. Any geometry, process or machine change invalidates the single settings/toolpath approval, which is bound to both the plan and export hashes. See [validation ownership](#validate-at-the-boundary-that-owns-the-data) and [formats](#print-bundle-and-current-formats).
 
-**Failures.** Stale revision guards, absent/unverified source, invalid native geometry, unavailable output and missing manufacturing approvals reject at their owning boundary. Cached display state and a previous successful export cannot authorize delivery. Multi-file publication is not a transaction or cross-process lock.
+**Failures.** Stale revision guards, absent/unverified source, invalid native geometry, unavailable output and missing manufacturing approvals reject at their owning boundary. Cached display state and a previous successful export cannot authorize delivery. Multi-file publication is not a transaction or cross-process lock. `plan.json` is the commit point: a new bundle writes it last, an edit writes it before the geometry files derived from it, and a reader that finds older geometry beside a committed plan rebuilds those files once instead of refusing the print. Geometry is built before anything is written, so a shape that cannot be made changes nothing.
 
-**Change together.** Update identity construction, runtime dependency registration, review records, command adapters, Studio receipts and the selected exporter together when changing a persisted field. Preserve the distinction between geometry creation, generation checking, generation commit, human review and delivery.
+**Change together.** Update identity construction, review records, command adapters, Studio receipts and the selected exporter together when changing a persisted field. Preserve the distinction between geometry creation, generation checking, generation commit, human review and delivery.
 
 **Verification.** Exercise stale revisions, geometry versus settings invalidation, cold reopen, unchanged-input reuse, development versus production generation and delivery of the exact approved bytes. Use read-scope cases when changing refresh cost. Checks: [workflow.test.mjs](../../core/tests/workflow.test.mjs), [chat-geometry-confirmation.test.mjs](../../core/tests/chat-geometry-confirmation.test.mjs), [read-scope.test.mjs](../../core/tests/read-scope.test.mjs).
 

@@ -9,10 +9,13 @@ The following profiles are selectable through the shared machine catalog. They
 support planar geometry/setup review; their output declarations have
 `implemented: false`. Generation reports the missing machine contract before
 constructing a toolpath. They do not inherit another printer's startup sequence.
+The [Bambu X1 Carbon](../../machines/bambu-x1-carbon.json) profile (single
+hardened 0.4 mm nozzle, conservative bounds excluding the cutter strip) has an
+experimental PLA [output contract](bambu.md#x1-carbon-output-contract); its
+PETG, ABS, ASA, PC and TPU entries remain setup-review material profiles.
 
 | Profile | Installed nozzle assumption | Default / other declared materials | Output still needed |
 |---|---|---|---|
-| [Bambu X1 Carbon](../../machines/bambu-x1-carbon.json) | Single hardened 0.4 mm, 1.75 mm filament | PLA / PETG, ABS, ASA, PC, TPU (95A class) | X1-specific firmware envelope and sliced 3MF |
 | [Ultimaker 2 Extended](../../machines/ultimaker-2-extended.json) | Original single 0.4 mm nozzle, 2.85 mm filament; 305 mm height | PLA / ABS | UltiGCode, with volumetric extrusion and firmware-owned material/startup settings |
 | [Ultimaker 3](../../machines/ultimaker-3.json) | One selected AA 0.4 core, 2.85 mm filament; 200 mm height | PLA / ABS | UM3-specific Griffin startup and shutdown |
 

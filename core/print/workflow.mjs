@@ -5,7 +5,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { exportAndInterpretProgram, interpretProgram, outputAdapter } from '../export/registry.mjs';
-import { loadMachine, validateDobotConfiguration } from '../machine/profile.mjs';
+import { loadMachine, validateDobotConfiguration, lineWidthLimits } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {checkedSourceFor} from './program-handoff.mjs';
@@ -35,7 +35,6 @@ export function createBundleWorkflow(adapter) {
     return EXPORT_NAME.replace(/\.gcode$/,extension);
   };
   const exportPath=(plan,machine)=>{requireThat(/^[a-z0-9-]+$/.test(plan.output),'Invalid output ID.');return `exports/${plan.output}/${exportName(plan,machine)}`;};
-  let runtimeCache;
   // Retain only the latest verified program per adapter. Identity includes the
   // actual file bytes, not mtimes or editable review claims. Approval state is
   // always read afresh; callers receive copies so they cannot alter this cache.
@@ -54,24 +53,6 @@ export function createBundleWorkflow(adapter) {
     const sourceInfo=Object.entries(sources).map(([name,source])=>({name,sha256:hash(source)}));
     verifiedProgram={key,program,code:text,sources,metadata:{...metadata,sources:sourceInfo}};
   }
-  async function runtimeHash(){
-    const reads=new Map();
-    return runtimeCache??=hash(await Promise.all([
-      new URL('./workflow.mjs',import.meta.url), new URL('../export/griffin.mjs',import.meta.url),
-      new URL('../file-write.mjs',import.meta.url),
-      new URL('./program-handoff.mjs',import.meta.url),
-      new URL('../export/registry.mjs',import.meta.url),new URL('../machine/profile.mjs',import.meta.url),
-      new URL('../export/travel-advisory.mjs',import.meta.url),
-      new URL('../export/bambu.mjs',import.meta.url),new URL('../export/zip.mjs',import.meta.url),
-      new URL('../export/gcode-lines.mjs',import.meta.url),
-      new URL('../export/denso.mjs',import.meta.url),new URL('../export/denso-player.mjs',import.meta.url),new URL('../machine/denso.mjs',import.meta.url),new URL('../path/pose.mjs',import.meta.url),
-      new URL('../machine/rules.mjs',import.meta.url),new URL('../export/bambu-player.mjs',import.meta.url),
-      new URL('../path/process-controls.mjs',import.meta.url),
-      new URL('../export/dobot-player.mjs',import.meta.url),
-      new URL('../export/dobot.mjs',import.meta.url),new URL('../export/dobot-lua-subset.mjs',import.meta.url),
-      new URL('../geom/tolerance.mjs',import.meta.url), new URL('../geom/polyline.mjs',import.meta.url), ...adapter.runtimeFiles
-    ].map(async file=>{const path=fileURLToPath(file);if(!reads.has(path))reads.set(path,readFile(file));return [path.slice(root.length).replaceAll('\\','/'),hash(await reads.get(path))];})));
-  }
 async function proposedPlan(machineId, { setupFile } = {}) {
   const machine = machineId ? loadMachine(machineId) : await json(machineFile);
   const plan = defaults(machine);
@@ -81,9 +62,8 @@ async function proposedPlan(machineId, { setupFile } = {}) {
   return plan;
 }
 function fitLineWidthToSetup(plan,machine) {
-  const tool=machine.tools.find(candidate=>candidate.index===plan.setup.tool);
-  if(!tool)return;
-  const limits=plan.process.experimentalDeposition?tool.experimentalPlanar?.lineWidthMm:[plan.setup.nozzleMm*0.75,plan.setup.nozzleMm*2];
+  if(!machine.tools.some(candidate=>candidate.index===plan.setup.tool))return;
+  const limits=lineWidthLimits(plan,machine);
   if(limits&&(plan.process.lineWidthMm<limits[0]||plan.process.lineWidthMm>limits[1]))
     plan.process.lineWidthMm=Math.min(limits[1],Math.max(limits[0],plan.setup.nozzleMm));
 }
@@ -105,12 +85,19 @@ async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,s
       try{await copyFile(sourcePath,temporary);requireThat(await hashFile(temporary)===originalSource(plan.geometry).sha256,'STL source changed during import.');await rename(temporary,target);}finally{await rm(temporary,{force:true});}
     }else{requireThat(sourceBytes&&hash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');await save(resolve(dir,'geometry/source.stl'),sourceBytes);}
   }
+  await saveGeometry(dir, geometry);
+  await save(resolve(dir, 'machine.json'), machine);
+  await save(resolve(dir, 'review.json'), { schema: 'saam-review/1', approvals: {}, history: [], generation: null });
+  await save(resolve(dir, 'plan.json'), plan);
+  return dir;
+}
+
+// Geometry files are derived from plan.geometry. plan.json is the commit point
+// of an edit: it is written first, and a reader that finds older geometry beside
+// it rebuilds these files instead of refusing the print.
+async function saveGeometry(dir, geometry) {
   await save(resolve(dir, nativeFile(geometry.descriptor)), geometry.bytes);
   await save(resolve(dir, 'geometry/model.json'), geometry.descriptor);
-  await save(resolve(dir, 'machine.json'), machine);
-  await save(resolve(dir, 'plan.json'), plan);
-  await save(resolve(dir, 'review.json'), { schema: 'saam-review/1', approvals: {}, history: [], generation: null });
-  return dir;
 }
 
 // Remembered setup is an editable starting point. Only fields this pipeline
@@ -123,17 +110,17 @@ async function rememberedSetup(setupFile, machine) {
   return Object.fromEntries(Object.entries(saved.setup ?? {}).filter(([key]) => Object.hasOwn(known, key)));
 }
 
-async function loadBundle(directory, { program = true, allSources=false } = {}) {
+async function loadBundle(directory, { program = true, allSources=false } = {}, geometryRebuilt=false) {
   const dir = resolve(directory);
-  const [planText, machineText, geometryText, review, runtime] = await Promise.all([
+  const [planText, machineText, geometryText, review] = await Promise.all([
     readFile(resolve(dir, 'plan.json'),'utf8'), readFile(resolve(dir, 'machine.json'),'utf8'), readFile(resolve(dir, 'geometry/model.json'),'utf8'),
-    json(resolve(dir, 'review.json')), runtimeHash()]);
+    json(resolve(dir, 'review.json'))]);
   const machine=JSON.parse(machineText),geometry=JSON.parse(geometryText);
   const bytes=await readFile(resolve(dir,nativeFile(geometry)));
   // Read current bytes at every boundary, but canonicalize large mesh/plan
   // trees only when those bytes change. Keep the established semantic hashes
   // so formatting alone does not invalidate a person's recorded approval.
-  const fileHash=hash(bytes),identityKey=hash([hash(planText),hash(machineText),hash(geometryText),fileHash,runtime]);
+  const fileHash=hash(bytes),identityKey=hash([hash(planText),hash(machineText),hash(geometryText),fileHash]);
   let identity=inputIdentity;
   let plan=JSON.parse(identity?.key===identityKey?identity.planText:planText);
   if(identity?.key!==identityKey){
@@ -148,15 +135,19 @@ async function loadBundle(directory, { program = true, allSources=false } = {}) 
       validatedPlanHash=inputsHash;
       validatedPlanText=JSON.stringify(plan);
     }else plan=JSON.parse(validatedPlanText);
-    requireThat(canonical(plan.geometry)===canonical(geometry.parameters),
-      'Plan and geometry disagree. Ask the agent to recreate the geometry.');
-    identity={key:identityKey,geometryHash,planHash:hash({plan,machine,geometryHash,runtime}),planText:validatedPlanText};
+    if(canonical(plan.geometry)!==canonical(geometry.parameters)){
+      // An edit was interrupted after its plan was committed. Finish it once.
+      requireThat(!geometryRebuilt,'Plan and geometry disagree. Ask the agent to recreate the geometry.');
+      await saveGeometry(dir,await createGeometry(plan.geometry));
+      return loadBundle(directory,{program,allSources},true);
+    }
+    identity={key:identityKey,geometryHash,planHash:hash({plan,machine,geometryHash}),planText:validatedPlanText};
     inputIdentity=identity;
   }
   const {geometryHash,planHash}=identity;
   if(originalSource(plan.geometry))requireThat(await hashFile(resolve(dir,'geometry/source.stl'))===originalSource(plan.geometry).sha256,'Imported STL source changed; reload the current geometry.');
   const state = {
-    kind, dir, plan, machine, geometry, review, geometryHash, planHash, runtime, programChecked:Boolean(program),
+    kind, dir, plan, machine, geometry, review, geometryHash, planHash, programChecked:Boolean(program),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.composition?.regions?.length
@@ -326,11 +317,9 @@ async function updatePlan(directory, plan, revision) {
   if (canonical(plan) === canonical(state.plan)) return state;
 
   const geometryChanged = canonical(plan.geometry) !== canonical(state.plan.geometry);
-  if (geometryChanged) {
-    const geometry = await createGeometry(plan.geometry);
-    await save(resolve(state.dir, nativeFile(geometry.descriptor)), geometry.bytes);
-    await save(resolve(state.dir, 'geometry/model.json'), geometry.descriptor);
-  }
+  // Build the geometry before anything is written, so a shape that cannot be
+  // made changes nothing. Then commit the plan and write what derives from it.
+  const geometry = geometryChanged ? await createGeometry(plan.geometry) : null;
   const review = state.review;
   review.history.push({
     event: 'plan-edited', time: new Date().toISOString(), previousPlanHash: state.planHash,
@@ -339,6 +328,7 @@ async function updatePlan(directory, plan, revision) {
   review.approvals = {};
   review.generation = null;
   await save(resolve(state.dir, 'plan.json'), plan);
+  if (geometry) await saveGeometry(state.dir, geometry);
   await save(resolve(state.dir, 'review.json'), review);
   return loadBundle(directory);
 }
@@ -350,7 +340,7 @@ async function generateBundle(directory, { development = false, onProgress, befo
   const state = await loadBundle(directory, { program: false });
   // Both modes use identical commands. Reuse a checked development export after
   // review, without slicing merely to change its mode. Current
-  // input/runtime and byte identity still belong to loadBundle; no approval is added.
+  // input and byte identity still belong to loadBundle; no approval is added.
   if(!development&&state.review.generation?.mode==='development'){
     onProgress?.({stage:'Checking the reviewed file'});
     const current=await loadBundle(directory,{program:'source'});
@@ -458,5 +448,5 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
   return loadBundle(directory,{program:false});
 }
 
-return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,runtimeHash,proposedPlan,initBundle,loadBundle,bundleFingerprint,bundleFingerprints,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};
+return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,proposedPlan,initBundle,loadBundle,bundleFingerprint,bundleFingerprints,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};
 }

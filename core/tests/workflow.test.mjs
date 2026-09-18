@@ -42,7 +42,7 @@ test('changing printer clears final confirmation and rejects stale edits',async 
   state=await approve(dir,{actor:ACTOR,revision:state.revision});
   await assert.rejects(changeMachine(dir,'bambu-h2d',{expectedRevision:'stale'}),/stale/);
   const setupFile=resolve(dir,'h2d-setup.json');
-  await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',amsSlot:4}}));
+  await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',ams:{unit:2,slot:4}}}));
   const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,setupFile});
   assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
   assert.equal(next.plan.setup.nozzleMm,0.6);assert.equal(next.plan.process.lineWidthMm,0.6);
@@ -257,4 +257,18 @@ test('Studio reviews a shell print and delivers it under its own export name', a
   assert.equal(await readFile(resolve(dir,'review.json'),'utf8'),before,'GET attachment does not mutate review or approval');
   await writeFile(resolve(dir,'delivery/part.gcode'),'changed after staging');
   const changed=await fetch(origin+link.url);assert.equal(changed.status,400);assert.match((await changed.json()).error,/staged delivery changed/);
+});
+
+test('an edit interrupted after its plan was committed is finished on the next open', async t => {
+  const dir = await fixture(t), before = await loadBundle(dir, { program: false });
+  const plan = clone(before.plan); plan.geometry.runMm += 2;
+  // plan.json is the commit point: simulate a stop before the derived geometry was rewritten.
+  await writeFile(resolve(dir, 'plan.json'), JSON.stringify(plan));
+  const state = await loadBundle(dir, { program: false });
+  assert.equal(state.geometry.parameters.runMm, plan.geometry.runMm);
+  assert.equal(JSON.parse(await readFile(resolve(dir, 'geometry/model.json'), 'utf8')).parameters.runMm, plan.geometry.runMm);
+  assert.notEqual(state.geometryHash, before.geometryHash); assert.equal(state.toolpathApproved, false);
+  const bad = clone(state.plan); bad.geometry.runMm = -1;
+  await assert.rejects(updatePlan(dir, bad, state.revision));
+  assert.equal((await loadBundle(dir, { program: false })).revision, state.revision, 'a shape that cannot be made changes nothing');
 });
