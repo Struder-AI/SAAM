@@ -1,5 +1,27 @@
 # Development log
 
+## 2026-09-18 — Report a Studio running behind the files on disk
+
+A live Studio held the plan schema it imported at startup while its generation
+worker, running in a fresh module graph, read the current files. When another
+session retired a plan field, the worker rejected the recipe the server had just
+written; once the recipe was corrected the server rejected it with HTTP 400 and
+the page looped on "Could not update the print: Reconnecting to your print…".
+Nothing named the real cause.
+
+Detection, not hot reload, and no new endpoint or event kind: the server records
+its module-graph load time and, only after a failure has already happened,
+scans `core`, `studio`, `skills` and `machines` for the first `.mjs`/`.json`
+modified since — skipping test and fixture directories. The notice is appended
+once to that error, so the page's review note, the agent event queue, the
+generation-failure request instruction and the HTTP 400 body all name the changed
+file and say to restart Studio. A detected skew is remembered until the process
+restarts; negatives are rechecked at most every three seconds, so a recurring
+poll failure does not rescan. Verification:
+`core/tests/studio-agent.test.mjs` (13/13, one new case covering an untouched
+checkout, test-file churn, a changed module and single annotation).
+`dev-map.mjs check` passes. Not exercised against a real concurrent edit.
+
 ## 2026-09-18 — Name the offending fields when a plan is rejected
 
 `plan.mjs keys()` compared joined key lists and reported only "Unexpected or

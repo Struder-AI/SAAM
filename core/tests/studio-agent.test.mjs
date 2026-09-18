@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,readFile,writeFile,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {once} from 'node:events';
@@ -8,7 +8,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {createTour} from '../../studio/tour.mjs';
-import {createStudio,bundleFor} from '../../studio/server.mjs';
+import {createStudio,bundleFor,sourceSkewNotice,annotateSourceSkew} from '../../studio/server.mjs';
 import {loadBundle,adjustBundle,generateBundle,approve} from '../print/bundle.mjs';
 import {printName,downloadName} from '../../studio/print-name.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
@@ -270,4 +270,25 @@ test('tour lesson changes are delivered with the lesson instruction, and calcula
   assert.ok(progress,'a read during calculation reports its progress');
   assert.equal(progress.requested,true);assert.ok(['preparing','generating'].includes(progress.status));assert.equal(progress.trigger,'generate');
   assert.ok(progress.elapsedMs>=0);assert.ok(progress.progress===null||typeof progress.progress.stage==='string');
+});
+
+test('a running Studio names source that changed after it started, and says so on a failure',async t=>{
+  const base=await fixture(t),module=join(base,'core','print','plan.mjs');
+  await mkdir(join(base,'core','print'),{recursive:true});await mkdir(join(base,'core','tests'),{recursive:true});
+  await writeFile(module,'export const VERSION="0.1.0";\n');
+  await writeFile(join(base,'core','tests','churn.test.mjs'),'// suite churn is not running source\n');
+  const started=(await stat(module)).mtimeMs+1;
+  assert.equal(await sourceSkewNotice(started,{base,roots:['core']}),null,'an untouched checkout reports nothing');
+  await writeFile(join(base,'core','tests','churn.test.mjs'),'// touched later\n');
+  assert.equal(await sourceSkewNotice(started,{base,roots:['core']}),null,'test files are not the running source');
+  await writeFile(module,'export const VERSION="0.2.0";\n');
+  const notice=await sourceSkewNotice(started,{base,roots:['core']});
+  assert.match(notice,/older SAAM source than the files on disk: core\/print\/plan\.mjs/);
+  assert.match(notice,/Restart Studio/);
+  // The annotation reaches whatever already failed, and never twice for one error.
+  const error=Object.assign(new Error('Unexpected or missing fields in plan.skills.planar-infill: unexpected maxPatternCells.'),{code:'X'});
+  const annotated=(await annotateSourceSkew(error)).message;
+  await annotateSourceSkew(error);
+  assert.equal(error.message,annotated);assert.equal(error.code,'X');
+  assert.ok(annotated.startsWith('Unexpected or missing fields'),'the original failure is kept');
 });
