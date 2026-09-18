@@ -1,5 +1,119 @@
 # Development log
 
+## 2026-09-17 — Studio event queue, owner-locked listeners and calculation progress
+
+Studio now writes what the person does, and what its workers produce, to one
+agent-owned **Studio event queue** (`studio/studio-events.mjs`), shared by that
+agent's Studio instances. Held kinds (viewer connections, displayed views,
+approvals, calculation start/finish, tour play/pause, import start, example
+adoption, plan updates) wait for a read. Delivered kinds (tour start/lesson/exit/
+finish, queued and presented requests, failed or cancelled calculations, imports,
+opened prints, exports) push at once and carry every held event with them.
+Pushes never drain the queue; reads do, so a client that never surfaces a push
+still receives the batch on its next tool result, listener wait or explicit
+read. Channels: MCP `get_studio_events`, `studioEvents` on every tool result,
+`events` in `wait_for_studio_request` returns and `saam.studio` notifications;
+toolkit `studio-events` stream lines plus stdin `read-studio-events` and
+`wait-for-studio-request`; and the owner-authenticated
+`GET /api/agent-events` long-poll on any owned Studio, wrapped by
+`read-studio-events --studio URL --agent-owner ID` and
+`wait-for-studio-request --studio URL --agent-owner ID`, so a client that cannot
+write to the live session's stdin still receives pushes through its bounded
+wait. Every read reports `generation`: status, trigger, elapsed time and worker
+progress with a percentage for each owned instance still preparing or
+generating; the passive queue holds only start and finish. This also makes the
+tour's change-suggestion lesson (step 6) reach the agent as a `tour-lesson` event
+with the lesson instruction, beside its existing guidance request.
+
+Confirmed and closed a listener leak: an ownerless request store (the raw
+`node studio/agent-requests.mjs wait` listener, or `wait-for-studio-request`
+without `--agent-owner`) saw and could claim every queued request in the library,
+including requests bound to other agents' Studio instances. A store with an
+owner now sees its own and ownerless records; a store without an owner never
+sees or claims Studio-bound records live and reads them only as explicit
+diagnostic history (`list`/`history:true`). `lifetime.mjs` reports viewer-count
+changes and the start of closing so long-polls end at shutdown.
+
+Verification: new `studio-events.test.mjs` (delivery classes, flush, drain,
+dedupe, bounds, waits); new cases in `studio-agent.test.mjs` (route events,
+owner-authenticated long-poll, cursor, ownerless visibility and claim refusal,
+viewer events, tour lesson events, mid-flight progress), `agent-toolkit.test.mjs`
+(live push, HTTP fallback wait with claim, owner rejection, in-process read) and
+`mcp.test.mjs` (read/drain, wait return, notification, tool-result piggyback,
+history). Two existing cases now listen with the Studio's owner ID. Verified in a
+clean HEAD worktree because the checkout's concurrent vase-wall work was mid-edit.
+Software behavior only; no print or approval.
+
+## 2026-09-17 — Exact vase wall cleans mesh seam steps before the inward offset
+
+Follow-up to the fitted-sleeve fast path below, which recorded the exact
+per-section wall aborting at Z≈24.66 mm on `Prints/rocket-nozzle` with a false
+"inward offset is empty, split or collapsed" rejection. Reproduced with
+`generatePath` at `sleeveToleranceMm: 0` (exact path) and inspected the section:
+a single healthy convex loop, ~1169 mm² and ~38.6 mm across, no holes, no thin
+features. The loop carries near-collinear seam steps (~0.0166 mm edges) where the
+nozzle's ruled NURBS patches meet — a collinear split vertex on an otherwise
+straight edge. Quantized to the 1e-5 mm offset grid, that vertex rounds a hair
+off its edge into a microscopic inward reversal; the inward bead-half-width
+(0.2 mm) round-join offset amplifies it into a degenerate sliver, so the inset
+returns two loops (material 1144.6 mm² plus a −1.9e-7 mm² sliver) and the wall's
+single-loop requirement rejects a valid section. The offset kernel is faithful —
+the map forbids small-area pruning there — so the fix belongs in the caller.
+
+The motif path already removed these seams before offsetting (`motifContour` →
+`cleanPlanarLoop`), and its comment says mesh cuts need that cleanup, but the
+condition gated it to `settings.pattern`, so the standard `pattern: null` mesh
+wall passed the raw cut straight to the offset. `skills/vase-wall/scripts/vase.mjs`
+`section()` now runs `cleanPlanarLoop` on raw mesh cuts (`!reference &&
+shell.kind==='triangle-mesh'`) at the same seam tolerance the motif path uses;
+fitted-sleeve and native-spline sections stay chord-controlled and keep their
+exact contour. The whole rocket-nozzle exact wall now completes; across 1075
+sampled heights the cleaned inward offset never splits and the cleaned-vs-raw
+material area differs by at most 0.03 mm² (of ~1145 mm²).
+
+Verification: `skills/vase-wall` suite passes (13/13), plus `core` offset and
+`skills/thick-lip` suites. A new regression extrudes the captured seam-stepped
+section as a closed prism and asserts the raw section really splits the offset
+while the exact wall completes as one stroke within standoff tolerance; it throws
+the original error with the fix reverted. Software generation only; no physical
+print or manufacturing approval.
+
+## 2026-09-17 — Fitted-sleeve fast path for standard vase walls on meshes
+
+Standard continuous vase mode rebuilt an exact planar section, Clipper2 offset and
+arc-length contour at every rising spiral sample. Because the per-height cache is
+keyed by exact Z and the spiral rises continuously, a curved wall never reuses a
+section, so cost grew with sample count rather than shape. Profiling the
+`Prints/rocket-nozzle` bundle (8642-vertex mesh, 107 mm, 0.2 mm layers, ~539
+turns) showed 51,265 section rebuilds over the first 91 turns and hotspots in
+`cleanPlanarLoop`/`chain` (14%), the Clipper2 offset (~30% across wasm frames) and
+`contourPath` (7%). The exact path also aborted at Z≈24.66 mm with a false
+"inward offset collapsed" rejection, although that section is a single healthy
+~38 mm loop with no thin feature — a numerical artifact of the polygon offset,
+recorded separately as follow-up work.
+
+Standard mesh walls now fit one periodic NURBS sleeve to the wall interval and
+follow its loose horizontal surface offset (`skills/vase-wall/scripts/reference.mjs`,
+`createStandardVaseSleeve`), evaluated analytically per point instead of a planar
+re-cut. The new `sleeveToleranceMm` setting (default 0.08 mm) is a target that
+scales the fit's control resolution and is reported as the achieved sampled
+residual. The fit is accepted when its sampled deviation meets the tolerance, or
+stays within it on average with only isolated near-crease points exceeding; a
+globally poor fit, a section that is not a single sleeve, or a wall thinner than
+the bead (validated by sampling the offset loop for collapse/self-intersection)
+returns to the exact per-section wall. `sleeveToleranceMm: 0` forces the exact
+wall. Spline geometry always uses the exact path. Plan schema, defaults, Studio
+recipe display and the skill manual were updated together.
+
+Measurements (uninstrumented, this machine): the rocket-nozzle wall now generates
+a complete checked program in ~2.3 s after load (generate 1.56 s, checked export
+0.76 s, 110,773 moves) at an achieved max residual of 0.083 mm (RMS 0.017 mm,
+cc48×hc64). The exact path did not complete: it reached only ~25 mm in 8.8 s
+before the false-collapse abort. Verification: `skills/vase-wall` suite passes
+except two motif tests failing on the clean tree beforehand; a new test covers the
+fitted-sleeve path, its bounded standoff and the thin-wall fallback. Software
+generation and checked export only; no physical print or manufacturing approval.
+
 ## 2026-09-17 — Guided-tour review and request receipt state
 
 Revised the guided tour after a live Studio walkthrough. The change-suggestion
@@ -3925,3 +4039,31 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   implicit. These findings are reported to the user; this task makes no vase-wall
   edits. Supports, both rimming skills, mesh-tools, voxel-tools and Gridfinity
   have no additional hidden prerequisite identified in this audit.
+
+## 2026-09-17 — Vase walls take the points their geometry requires
+
+- Source: user, as builder work on the vase-wall skill: a fixed point budget
+  that fails is unacceptable in vase mode; if a memory limit were real, the
+  work would have to be segmented rather than fail.
+- Measured before the change: an ordinary 100 mm diameter, 250 mm tall vase at
+  0.2 mm pitch needs 640513 wall points, over six times the former 100000
+  default, so the default cap rejected everyday parts. With the cap lifted, a
+  2560001-point wall (0.1 mm pitch, 0.5 mm step) generated in 10.6 s and
+  exported a 120 MB program in 7.5 s within 578 MiB of heap on a 4.3 GB Node
+  heap, about 0.2 KB per point end to end. No vase-level memory limit is
+  warranted; the only bound is the Node heap shared by every skill's program.
+- Implemented: removed the vase-wall point and section-query budgets from the
+  plain spiral, the mapped-pattern path and motif tiling. Every loop is finite
+  (turns, authored courses, bounded subdivision depth), so the wall takes the
+  points its geometry, pitch and tolerances require. `maxPoints` left
+  `VASE_WALL_DEFAULTS`, plan validation and the mesh-vase preparer; older
+  recipes and region overrides carrying any value are read and the field
+  dropped, never enforced. Reports no longer carry `maxPoints` or
+  `maxSectionQueries`. The exact per-section cache now keeps a 256-height
+  window in every mode, so a curved exact wall no longer retains every section
+  and its offsets for the entire print. Manuals and the nudge-cup example
+  updated; other skills' budgets are untouched.
+- Verification: the vase-wall suites and affected core suites pass, except
+  three region-composition failures that already fail on a clean checkout of
+  `e783862` and are unrelated to this change. A new regression generates a
+  wall above 100000 points on the exact path and reads old budgets as inert.

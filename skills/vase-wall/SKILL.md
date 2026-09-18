@@ -40,9 +40,17 @@ one bore is allowed. Concave sections work while the requested inset remains one
 closed loop. Multiple islands, split/collapsed contours, arbitrary trimmed CAD
 faces and open uncapped meshes are unsupported.
 
-Standard mode follows changing-height geometry sections directly. It does not
-use the advanced mesh-fitting helper. Choose `zEndMm` explicitly if the upper
-geometry is unsuitable; generation never silently shortens the wall.
+Standard mode follows changing-height geometry sections. On a mesh it fits one
+periodic NURBS sleeve to the wall interval and follows its loose offset, which
+avoids rebuilding a section, offset and contour at every rising sample and is
+dramatically faster on curved walls. `sleeveToleranceMm` (default 0.08 mm) is the
+target deviation from the true section: the fit scales its resolution toward it
+and reports the residual achieved. A wall thinner than the bead, or a section
+that is not a single sleeve, returns to the exact per-section wall. Set
+`sleeveToleranceMm: 0` to force the exact wall — for example when a corner or
+feature must be held to `boundaryToleranceMm` rather than the sleeve tolerance.
+Spline geometry always uses the exact section path. Choose `zEndMm` explicitly if
+the upper geometry is unsuitable; generation never silently shortens the wall.
 
 ## Settings
 
@@ -53,7 +61,14 @@ geometry is unsuitable; generation never silently shortens the wall.
 | `pattern`, `pathMode`, `meshSleeve` | Use `null`, `continuous`, `null` for standard vase mode. |
 | `sampleStepMm`, `toleranceMm` | Emitted segment length and contour subdivision limits. |
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
-| `maxPoints` | Construction allowance; exhaustion fails without a partial wall. |
+| `sleeveToleranceMm` | Target deviation for the fitted-sleeve fast path on meshes (default 0.08 mm); `0` forces the exact per-section wall. |
+
+A wall takes as many points as its geometry, pitch and tolerances require;
+there is no construction cap to exhaust. An ordinary 100 mm × 250 mm vase at
+0.2 mm pitch needs about 640k points. Memory scales with the emitted program
+(about 0.2 KB per point through generation and export), bounded only by the
+Node heap; raise `--max-old-space-size` for extreme programs. An older recipe's
+`maxPoints` is read and dropped, never enforced.
 
 The process layer height controls rise per turn; line width controls the nominal
 wall bead. Cooling can slow the continuous stroke rather than parking between

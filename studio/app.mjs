@@ -19,8 +19,8 @@ const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active),onReque
   if(!state?.work)return;
   state.work.requests=requests;
   if(needsTourToolpath(state))scheduleChange();
-},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));}});
-let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
+},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));},getStage:()=>tab});
+let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,generating=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
 let pan=[0,0];
@@ -128,6 +128,9 @@ function clearProgramView(){
 }
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
 const presentedState=()=>state?.program?state:stalePresentation;
+// A toolpath is being (re)generated and a faded preview is on offer, so the
+// geometry action should return to it rather than start a fresh calculation.
+const generationPending=()=>generating||agentUI.generating()||(!state?.program&&Boolean(stalePresentation?.program));
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
@@ -162,8 +165,8 @@ function activity(text='',fraction=null){
   $('#activity-detail').textContent=measured?'Progress for this stage.':'Please wait. Studio is working.';
   $('main').setAttribute('aria-busy',String(!!text));
 }
-async function working(text,task,{preview=true}={}){
-  if(busy)return;busy=true;stop();if(preview)agentUI.loading();activity(text);if(state)render();$('#open-print').disabled=true;
+async function working(text,task,{preview=true,stage=null}={}){
+  if(busy)return;busy=true;stop();if(preview)agentUI.loading(stage);activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
   let failure;
@@ -447,8 +450,13 @@ function render() {
     samples.append(button);
   }
   $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
-  $('#confirm').disabled=busy;
-  $('#confirm').textContent=tab==='geometry'?(state.program&&!state.programError&&state.review.generation?.mode==='production'?'View toolpath':'Generate toolpath'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
+  // The toolpath pane is worth showing whenever it can render something — the
+  // current program, or the faded previous one while its replacement computes.
+  const toolpathViewable=Boolean(state.program||stalePresentation?.program);
+  // Advancing to the toolpath no longer confirms geometry (that gate is gone), so
+  // the geometry action is a plain Next; the tour keeps its own lesson wording.
+  $('#confirm').disabled=busy&&!(generating&&toolpathViewable);
+  $('#confirm').textContent=tab==='geometry'?(tourUI?.active()?(state.program&&!state.programError&&state.review.generation?.mode==='production'?'View toolpath':'Generate toolpath'):'Next'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
   if($('#reviewed-download'))$('#reviewed-download').hidden=$('#reviewed-download').dataset.exportKey!==exportKey();
   $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
@@ -460,7 +468,10 @@ function render() {
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
   updateMachineStatus();
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',b.dataset.tab==='toolpath'&&state.toolpathApproved);b.disabled=busy||b.dataset.tab==='toolpath'&&!state.program;});
+  // Keep the tabs live during a toolpath generation: the geometry pane stays
+  // reachable (and crisp), and the toolpath pane stays reachable whenever its
+  // faded preview is available, so navigating between them never cancels work.
+  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',b.dataset.tab==='toolpath'&&state.toolpathApproved);b.disabled=(busy&&!generating)||b.dataset.tab==='toolpath'&&!toolpathViewable;});
   // Explicit local scratch adapters can describe historical paths without
   // assigning them a current skill or presenting manufacturing approval controls.
   $('#confirm').hidden=Boolean(state.inspection);
@@ -476,6 +487,9 @@ function render() {
     $('#settings-detail').replaceChildren(table(inspection.settings));
     $('#review-note').textContent=inspection.note;
   }
+  // The active-work fade is pane-specific, so re-evaluate it on every render in
+  // case the tab changed without new agent activity arriving.
+  agentUI.reflectFade();
   requestDraw();
 }
 function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
@@ -659,22 +673,26 @@ async function download(route='deliver',data={}){
 }
 $('#export-name').oninput=event=>{if(!exportNameState)return;exportNameState.value=event.target.value;exportNameState.dirty=event.target.value!==exportNameState.suggested;};
 $('#confirm').onclick=async()=>{
-  if(busy||!state)return;message('');
+  if((busy&&!generating)||!state)return;message('');
   if(tourUI?.active()&&tab!=='geometry'){
     if(!state.program||state.programError||state.review.generation?.mode!=='production')return;
     try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();},{preview:false});}
     catch(e){message(e.message,true);await refresh(false);}return;
   }
+  const validProgram=state.program&&!state.programError&&state.review.generation?.mode==='production';
+  // While a toolpath is still computing, Next just returns to its faded pane; it
+  // must not launch a second calculation or cancel the pending one.
+  if(tab==='geometry'&&!validProgram&&generationPending()){setTab('toolpath');return;}
   try{
     await working(tab==='toolpath'?'Checking your toolpath…':'Preparing your toolpath…',async()=>{
     if(tab==='geometry'){
-      if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
-      else{setTab('toolpath');await acknowledgeDisplayedView();}
+      if(validProgram){setTab('toolpath');await acknowledgeDisplayedView();}
+      else{activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
     }
-    else if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
+    else if(!validProgram){activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
     else {if(!state.toolpathApproved)await approval('toolpath');await download();}
     message('');
-    },{preview:tab==='geometry'||!state.program||Boolean(state.programError)||state.review.generation?.mode!=='production'});
+    },{preview:tab==='geometry'||!validProgram,stage:'toolpath'});
   }catch(e){message(e.message,true);}
 };
 async function openPrint(path){

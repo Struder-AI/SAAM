@@ -38,7 +38,7 @@ test('one cell tiles and rises exactly like an independently authored connected 
 
 test('tilt rotates transverse depth and height before adding the regular course rise',()=>{
   const p=pattern();p.tiltDeg=-90;p.motif.points=[[0,0],[.5,.2],[1,0]];p.motif.offsetMm=[0,-2,0];
-  const path=tileVaseMotif(p,100).paths[0];
+  const path=tileVaseMotif(p).paths[0];
   near(path.points[1][0],.25);near(path.points[1][1],2.05);near(path.offsetMm[1],.2);
   near(path.points[2][0],.5);near(path.points[2][1],.1);near(path.offsetMm[2],0);
   near(path.points.at(-1)[0],1);near(path.points.at(-1)[1],.2);near(path.offsetMm.at(-1),0);
@@ -54,7 +54,8 @@ test('single-motif cells must join, including offset; travel is not an escape fr
   for(const [key,value] of [['cellsPerTurn',0],['cellsPerTurn',1.5],['courseRiseMm',0],['tiltDeg',Infinity]]){
     const p=recipe();p.skills['vase-wall'].pattern[key]=value;assert.throws(()=>validatePlan(p,machine),/Motif/);
   }
-  const huge=pattern();huge.cellsPerTurn=1000;assert.throws(()=>tileVaseMotif(huge,100),/increase.*No partial course/);
+  // A dense course expands completely; there is no construction budget to exhaust.
+  const huge=pattern();huge.cellsPerTurn=1000;assert.equal(tileVaseMotif(huge).paths[0].points.length,1000*(huge.motif.points.length-1)+1);
 });
 
 test('the loop preset doubles back, joins exactly and supports either side of the guide',()=>{
@@ -94,7 +95,7 @@ test('compact recipes survive normal creation and adjustment and are explained b
   assert.ok(rows.some(([,v])=>v==='4 cells per course × 2 courses'));
   assert.ok(rows.some(([,v])=>v==='-5° about the cell advance direction'));
   const compact=structuredClone(state.plan.skills['vase-wall'].pattern);
-  await adjustBundle(dir,{skills:{'vase-wall':{pattern:tileVaseMotif(compact,100)}}},{expectedRevision:state.revision});
+  await adjustBundle(dir,{skills:{'vase-wall':{pattern:tileVaseMotif(compact)}}},{expectedRevision:state.revision});
   state=await loadBundle(dir,{program:false});assert.equal(state.plan.skills['vase-wall'].pattern.motif,undefined);
   await adjustBundle(dir,{skills:{'vase-wall':{pattern:compact}}},{expectedRevision:state.revision});
   state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.skills['vase-wall'].pattern,compact);

@@ -8,9 +8,9 @@ import {contourPath} from '../../../core/geom/contour-path.mjs';
 import {depositionStroke,maximumPathAngle} from '../../../core/path/deposition.mjs';
 import {mappedPatternResult} from './paths.mjs';
 import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
-import {createVaseMeshReference} from './reference.mjs';
+import {createVaseMeshReference,createStandardVaseSleeve} from './reference.mjs';
 
-export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,maxPoints:100000};
+export const VASE_WALL_DEFAULTS={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,sleeveToleranceMm:0.08};
 // Ten-nanometer integer grid: independent of contour/chord and boundary
 // tolerances; shared Clipper2 offsets use this same grid by default.
 const OFFSET_PRECISION_MM=0.00001;
@@ -52,31 +52,31 @@ function outerLoop(loops) {
   return loop;
 }
 
-export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStartMm=null,zEndMm=null,budgetSetting='skills.vase-wall.maxPoints',onProgress}) {
+export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStartMm=null,zEndMm=null,onProgress}) {
   const settings={...VASE_WALL_DEFAULTS,...plan.skills['vase-wall']},process=plan.process;
   const width=process.lineWidthMm,pitch=process.layerMm,base=zStartMm??(shell.bounds.min[2]+settings.zStartMm);
   const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:pitch;
   const start=base+firstHeight,end=zEndMm??(settings.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+settings.zEndMm);
   requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Vase wall needs room for its first ring and a rising wall; choose zStartMm/zEndMm inside the geometry.');
   requireThat(settings.boundaryToleranceMm<width/4,'Vase boundaryToleranceMm must be smaller than one quarter of the bead width.');
-  const maxSectionQueries=Math.min(Number.MAX_SAFE_INTEGER,settings.maxPoints*4);
-  function exhausted(kind,used,limit,z) {
-    const next=Math.min(Number.MAX_SAFE_INTEGER,settings.maxPoints*2);
-    throw new Error(`Vase ${kind} budget exhausted for ${id}: ${used}/${limit} at Z ${z.toFixed(6)} mm (wall ${start.toFixed(6)}–${end.toFixed(6)} mm). Increase ${budgetSetting} from ${settings.maxPoints} to ${next} or higher and retry; this changes the compute allowance, not contour quality. No complete wall was generated.`);
-  }
+  // The wall takes as many points and section queries as its geometry, pitch
+  // and tolerances require: turns are finite and each interval subdivides to a
+  // bounded depth, so there is no construction cap to exhaust. Memory scales
+  // with the emitted program like every other skill's output.
   const cache=new Map();let seam,nudgedSections=0,lastContours,lastValue,sectionQueries=0;
   const cacheSection=(key,value)=>{
-    // Motifs revisit heights, but keeping every distinct height plus all its
-    // offset contours makes memory grow with the entire print.
-    if(settings.pattern&&cache.size>=256)cache.delete(cache.keys().next().value);
+    // Keeping every distinct height plus all its offset contours would make
+    // memory grow with the entire print. The spiral visits heights in order
+    // and motifs revisit only recent ones, so a short window suffices.
+    if(cache.size>=256)cache.delete(cache.keys().next().value);
     cache.set(key,value);return value;
   };
-  const reference=createVaseMeshReference({shell,settings,start,end,width,onProgress});
-  const centerlineOffset=reference&&settings.meshSleeve.contactSide==='outside'?width/2:-width/2;
+  const reference=createVaseMeshReference({shell,settings,start,end,width,onProgress})
+    ??(settings.pattern===null?createStandardVaseSleeve({shell,settings,start,end,width,onProgress}):null);
+  const centerlineOffset=reference&&settings.meshSleeve?.contactSide==='outside'?width/2:-width/2;
   const sectionAt=reference?.sectionAt??createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
-    if(sectionQueries>=maxSectionQueries)exhausted('section query',sectionQueries,maxSectionQueries,z);
     sectionQueries++;
     const cut=sectionAt(z);
     requireThat(Math.abs(cut.nudgedByMm??0)<=settings.boundaryToleranceMm,'Vase section nudge exceeds boundaryToleranceMm.');
@@ -92,8 +92,15 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     // coarser per-height RDP pass can switch retained vertices discontinuously
     // and defeat the tighter prepared-map allowance, forcing thousands of
     // offset rebuilds. Keep its original contour; mesh cuts still need removal
-    // of collinear triangle seams before quantization and offsets.
-    const rawOuter=outerLoop(cut.loops),outer=settings.pattern&&!reference?motifContour(rawOuter,Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4):rawOuter;
+    // of collinear triangle seams before quantization and offsets: a raw
+    // tessellation seam is a near-collinear step that an inward offset can split
+    // off as a degenerate sliver, leaving the inset with two loops. Motifs
+    // re-anchor and grid-round for phase stability through motifContour; the
+    // standard wall only needs the seam removed. Fitted-sleeve and native spline
+    // cuts are already chord-controlled and keep their exact contour.
+    const rawOuter=outerLoop(cut.loops),seamTolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4;
+    const meshCut=!reference&&shell.kind==='triangle-mesh';
+    const outer=settings.pattern&&!reference?motifContour(rawOuter,seamTolerance):meshCut?cleanPlanarLoop(rawOuter,seamTolerance):rawOuter;
     const offsetLoops=offsetRegion([outer],centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     // A motif follows only the outer boundary. Interior offset holes do not
     // supply another wall; multiple outer components still cannot be mapped.
@@ -138,7 +145,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   if(settings.pattern!==null){
     if(reference)return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,
       referenceLengthMm:reference.referenceLengthMm,mappedPoint:(u,z,offset)=>reference.map(reference.pointAt(u,z,offset)),
-      mappingErrorMm:0,budgetSetting,onProgress,sectionReport:()=>({sectionQueries:0,maxSectionQueries,nudgedSections:0,...reference.report()})});
+      mappingErrorMm:0,onProgress,sectionReport:()=>({sectionQueries:0,nudgedSections:0,...reference.report()})});
     const validatedFrames=new WeakSet();
     const curveAt=(z,offset)=>{
       const frame=section(z);
@@ -153,8 +160,8 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const mappingErrorMm=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
     const prepared=prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm});
     return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm:section(start).curve.length,
-      mappedPoint:(u,z,offset)=>{const p=[...prepared.at(u,z,offset),z];return reference?reference.map(p):p;},mappingErrorMm,budgetSetting,onProgress,
-      sectionReport:()=>({sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report,...reference?.report()})});
+      mappedPoint:(u,z,offset)=>{const p=[...prepared.at(u,z,offset),z];return reference?reference.map(p):p;},mappingErrorMm,onProgress,
+      sectionReport:()=>({sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report,...reference?.report()})});
   }
   const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
   const points=[point(0)],times=[0];
@@ -164,7 +171,6 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     if(distance(pa,pb)>settings.sampleStepMm||distance(pm,linear)>settings.toleranceMm/2||pb[2]-pa[2]>settings.minFeatureMm/2) {
       append(a,mid,pa,pm,depth+1);append(mid,b,pm,pb,depth+1);return;
     }
-    if(points.length>=settings.maxPoints)exhausted('point',points.length,settings.maxPoints,pb[2]);
     points.push(pb);times.push(b);
   }
   // At most 1/16 turn per initial interval avoids aliasing an entire revolution.
@@ -198,7 +204,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   return {id,...(levelBoundary?{levelBoundary}:{}),operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
     after,strokes:[stroke],order:'given',continuous:true,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,clearanceFor:()=>end+process.liftMm},clearanceZ:end+process.liftMm}],
-    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,maxPoints:settings.maxPoints,sectionQueries,maxSectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
+    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
       volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,...reference?.report(),
       scope:'One outer section with arc-length correspondence from a fixed projected seam; concavity is supported while the inset remains one loop. Sampled topology and boundary checks; no physical validation.'}};
 }

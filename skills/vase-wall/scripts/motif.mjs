@@ -6,11 +6,10 @@ const at=(value,i)=>Array.isArray(value)?value[i]:value;
 
 // Input validity belongs to validateVasePattern. This expansion retains one
 // stroke per course, including its cooling and layer identity, before mapping.
-export function tileVaseMotif(pattern,maxPoints,budgetSetting='vase-wall.maxPoints'){
+export function tileVaseMotif(pattern){
   const {motif,cellsPerTurn,courseRiseMm,repeats,tiltDeg}=pattern;
   const count=cellsPerTurn*(motif.points.length-1)+1;
-  requireThat(Number.isSafeInteger(count)&&count<=maxPoints,
-    `Vase motif course needs ${count} authored points; increase ${budgetSetting} from ${maxPoints}. No partial course generated.`);
+  requireThat(Number.isSafeInteger(count),`Vase motif course of ${cellsPerTurn} cells exceeds the safe integer point range; no partial course generated.`);
   const points=[],offsetMm=[],beadHeightMm=[];
   const angle=tiltDeg*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
   const originOffset=at(motif.offsetMm??0,0),originHeight=motif.points[0][1];

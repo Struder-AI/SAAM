@@ -54,6 +54,14 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
         [prefix+' · Mesh detail tolerance',v.detailToleranceMm+' mm']);
       continue;
     }
+    if(name==='vase-wall'&&key==='sleeveToleranceMm'){
+      // Only the ordinary continuous wall uses this; a configured mesh sleeve or
+      // an authored pattern own their own following behavior above.
+      if(!settings.meshSleeve&&settings.pattern===null)rows.push([prefix+' · Wall following',v>0
+        ?'Fitted NURBS sleeve within '+v+' mm; exact inset on thin or non-sleeve walls'
+        :'Exact inset contour at every height']);
+      continue;
+    }
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){

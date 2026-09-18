@@ -63,7 +63,8 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
 | `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
 | `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, geometry state and matching tour instruction without checking the old export. | The exact request ID and edit context, with `programChecked: false`. A context-read failure marks that request failed and reports it. |
-| `wait-for-studio-request` | Event-wait on the recovery journal for queued requests for up to 25 seconds; optionally restrict to a Studio instance and claim returned requests in that call. | Requests, their status and an updated `after` list. The original preview session is the primary live path. |
+| `wait-for-studio-request` | Event-wait for up to 25 seconds for queued requests or a delivered Studio event; optionally restrict to a Studio instance and claim returned requests in that call. With `--studio URL --agent-owner ID` from `studio-ready`, read the live Studio's owner-scoped queue across processes; without them, wait on the recovery journal alone. | Requests, their status, the drained Studio `events`, calculation `generation` progress when read live, and an updated `after` list. The original preview session is the primary live path. |
+| `read-studio-events --studio URL --agent-owner ID` | Read and clear the owning agent's Studio event queue from a live Studio; optional bounded `--wait-ms` and `--history`. | `events`, `generation` progress for owned instances still calculating, and `recent` when history is requested. |
 | `respond-to-studio-request ID` | Record a prepared geometry/toolpath target, or update the matching request's response/status through the shared request API. | Updated request. Other outstanding work remains independent. |
 | `inspect-generation-failure DIRECTORY` | Read requests for that print; read current validated recipe/export status, retaining validation errors when loading fails; return generation guidance and links to the recipe's skill manuals. | Diagnostic evidence, settings, machine-configuration gaps, and skill references for individual follow-up reads. No correction, retry or request claim. |
 
@@ -153,8 +154,12 @@ file arguments resolve from the command's working directory.
 Studio commands stay alive in their managed command session. They emit a
 `studio-ready` JSON line immediately after listening, then a `result` line with
 the remaining state/context. Subsequent `studio-request` events identify the
-owning Studio instance; newline-delimited begin/respond/activity controls sent to
-stdin receive correlated `agent-response` events on stdout. Use an early yield
+owning Studio instance, and `studio-events` lines push delivered Studio events
+with their held remainder; newline-delimited begin/respond/activity,
+`read-studio-events` and `wait-for-studio-request` controls sent to stdin receive
+correlated `agent-response` events on stdout. The returned `listener` names the
+stream events and the cross-process fallback (`wait-for-studio-request --studio
+URL --agent-owner ID`) for clients that cannot write to stdin. Use an early yield
 where the client supports it, open the URL, retain the process/session handle,
 and leave review visible.
 Browser dispatch is reported as `browserOpenRequested`; it does not prove that
@@ -173,7 +178,8 @@ and slicing are not prerequisites for that first screen.
 
 ```sh
 node scripts/agent-toolkit.mjs begin-studio-work Prints/my-part --instruction "Change infill"
-node scripts/agent-toolkit.mjs wait-for-studio-request --claim --wait-ms 25000
+node scripts/agent-toolkit.mjs wait-for-studio-request --studio STUDIO_URL --agent-owner AGENT_OWNER_ID --claim --wait-ms 25000
+node scripts/agent-toolkit.mjs read-studio-events --studio STUDIO_URL --agent-owner AGENT_OWNER_ID
 node scripts/agent-toolkit.mjs begin-studio-work --request REQUEST_ID --include-geometry
 node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --status working --result-stage toolpath
 node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --message "Updated and displayed"
@@ -195,7 +201,10 @@ bundle in a separately owned Studio, but it cannot adopt or control this session
 MCP `request_review` can open another owned instance for the same bundle explicitly;
 work on an ambiguously displayed bundle must name its instance.
 JSON request records retain restart and independent-process recovery; they are not
-the primary transport for an owned live session.
+the primary transport for an owned live session. A listener without the agent
+owner ID hears no Studio-bound request: pass `--agent-owner` from `studio-ready`.
+The [Studio event queue](studio.md#studio-event-queue) delivers what the person
+does in an owned instance; reads drain it and report calculation progress.
 
 `respond-to-studio-request` defaults to `completed`; supported statuses are
 `working`, `completed`, `failed`, `waiting`, and `cancelled`. After preparation,

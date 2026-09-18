@@ -61,7 +61,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
   state=await get();assert.equal(state.planApproved,false);assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
-  const requests=createAgentRequests(library);
+  const requests=createAgentRequests(library,{ownerId:server.agentSession().ownerId});
   const shown={stage:'toolpath',revision:state.revision,exportHash:state.exportHash};
   assert.equal((await post('view-ready',{...shown,exportHash:'stale'})).status,200);
   assert.equal((await requests.list()).length,0,'stale displayed data creates no advisory');

@@ -14,7 +14,7 @@ plan.geometry={shape:'assembly',parts:[{id:'cup',xMm:0,yMm:0,zMm:0,geometry:cup.
 plan.placement={xMm:165,yMm:120};
 Object.assign(plan.skills['draped-skin'],{layers:3,normalMm:.2,sampleStepMm:.25,surveyStepMm:.25});
 const region=(id,part,zStartMm,zEndMm,skills)=>({id,part,zStartMm,zEndMm,skills,lowerSurfaceFrom:null});
-plan.composition.regions=[region('open-lip','cup',0,1.2,{'planar-infill':{density:0,perimeters:3}}),region('light-cup','cup',1.2,17.8,{'vase-wall':{endTransition:'level',maxPoints:300000}}),region('weighted-foot','foot',0,null,{'full-fill':{mode:'body',perimeters:3,fillAnglesDeg:[0,90]},'draped-skin':{}})];
+plan.composition.regions=[region('open-lip','cup',0,1.2,{'planar-infill':{density:0,perimeters:3}}),region('light-cup','cup',1.2,17.8,{'vase-wall':{endTransition:'level'}}),region('weighted-foot','foot',0,null,{'full-fill':{mode:'body',perimeters:3,fillAnglesDeg:[0,90]},'draped-skin':{}})];
 plan.composition.dependencies=[{before:'light-cup:vase-wall:wall',after:'weighted-foot:full-fill:0:walls'}];
 return plan;
 }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import {agentIndicator,requestReceiptState} from '../../studio/work-state.mjs';
+import {agentIndicator,requestReceiptState,activeEditStage} from '../../studio/work-state.mjs';
 import {needsTourToolpath} from '../../studio/tour-ui.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
 
@@ -55,7 +55,7 @@ function element(){
 // Exercise the real click handler, readiness acknowledgement, busy lifecycle and
 // agent indicator together. Network generation and drawing are controlled seams;
 // the refresh seam presents its loaded snapshot through the real readiness code.
-async function confirmationHarness({stored=false,generationError,tour=false}={}){
+async function confirmationHarness({stored=false,generationError,tour=false,pending=false}={}){
   const nodes=new Map(),events=[],calls=[];
   const get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);};
   get('agent-status').querySelector=()=>get('typing-dots');
@@ -67,7 +67,8 @@ async function confirmationHarness({stored=false,generationError,tour=false}={})
     work:{printId:'part',snapshot,requests:[request]},review:{generation:stored?{mode:'production'}:null},
     ...(stored?{program:{},exportHash:'export'}:{})};
   let context;
-  context=vm.createContext({state,busy:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,agentIndicator,requestReceiptState,
+  context=vm.createContext({state,busy:false,generating:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,agentIndicator,requestReceiptState,activeEditStage,
+    generationPending:()=>pending,stalePresentation:pending?{program:{}}:null,
     document:{getElementById:get},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
     fetch:async()=>({ok:true,json:async()=>({requests:[request]})}),
     requestAnimationFrame:callback=>queueMicrotask(()=>{events.push('paint:'+context.tab);callback();}),
@@ -134,6 +135,26 @@ test('new geometry remains active until it satisfies the pending toolpath target
   assert.equal(agentIndicator([request],{view}).active,true);
   assert.equal(agentIndicator([request],{view:{...view,loading:true}}).active,true);
   assert.equal(agentIndicator([{...request,baseline:{inputKey:'after'},target:undefined}],{view}).active,true,'unprepared work on this reviewed shape remains visible');
+});
+
+test('a pending toolpath generation lets Next return to its faded pane without regenerating',async()=>{
+  const {context,calls,events}=await confirmationHarness({pending:true});
+  assert.deepEqual(calls,[],'no calculation is launched while one is already pending');
+  assert.equal(context.tab,'toolpath','Next moves to the faded toolpath pane');
+  assert.equal(context.busy,false,'navigation does not enter the blocking work lifecycle');
+  assert.ok(events.includes('render:toolpath'));
+});
+
+test('a toolpath-only generation dims that pane but leaves the geometry pane crisp',()=>{
+  const request={id:'edit',printId:'part',status:'working',updatedAt:1,expiresAt:Date.now()+60000,
+    baseline:{inputKey:'before',generationKey:null},target:{inputKey:'current',stage:'toolpath'}};
+  const view={printId:'part',ready:false,snapshot:{inputKey:'current',stage:'toolpath'}};
+  assert.equal(activeEditStage([request],{view}),'toolpath');
+  assert.equal(activeEditStage([request],{view:{...view,loading:true,loadingStage:'toolpath'}}),'toolpath');
+  // A concurrent geometry-scoped edit widens the scope so both panes dim.
+  assert.equal(activeEditStage([request,{...request,id:'geo',target:{inputKey:'current',stage:'geometry'}}],{view}),'all');
+  assert.equal(activeEditStage([],{view:{...view,loading:true}}),'all','an unscoped full load dims everything');
+  assert.equal(activeEditStage([],{view}),null,'idle work dims nothing');
 });
 
 test('failed generation settles loading without acknowledging an absent toolpath',async()=>{

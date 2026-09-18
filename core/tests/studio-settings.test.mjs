@@ -34,7 +34,7 @@ test('Studio reviews region selections and effective overrides rather than inact
   assert.equal(rows.get('wall · Vase wall · Wall ending'),'Level rim');
   assert.equal(rows.get('cap · Full fill · Walls'),'3');
   assert.equal(rows.has('cap · Support'),false,'retired policy is not presented as a permission choice');
-  assert.equal(rows.get('wall · Vase wall · Point budget'),'100000');
+  assert.equal(rows.has('wall · Vase wall · Point budget'),false,'the retired vase point budget is not presented');
   assert.equal(rows.get('wall · Vase wall · Boundary tolerance'),'0.02 mm');
   assert.match(rows.get('finish · Bottom'),/roof/);
   assert.ok(![...rows.keys()].some(k=>k.startsWith('Draped skin')));

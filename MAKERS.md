@@ -62,7 +62,19 @@ Use one request through its work, result and response:
 
 Send the acknowledgement or guidance before a listener wait. Keep tour listeners
 active between lessons; an ordinary preview can be left for the person's next
-chat request. Optional intermediate previews create no obligation to finish
+chat request.
+
+Studio also tells you what the person does in your Studio instances through the
+[Studio event queue](studio/README.md#studio-event-queue): lesson changes, opened
+prints, imports, exports, displayed results and failed or cancelled calculations
+arrive on their own (as `studioEvents` on MCP tool results and listener waits, as
+notifications, or as `studio-events` lines from a live toolkit session), carrying
+quieter events such as approvals, displayed views and calculation start/finish
+with them. Nothing to subscribe to; every owned Studio reports automatically.
+Read the queue yourself with `get_studio_events` (MCP) or `read-studio-events`
+(toolkit) whenever you want to know what happened or the person asks; a read
+during a toolpath calculation reports its progress. Events arrived one after
+another, not at once: act on the latest state, not on each in turn. Optional intermediate previews create no obligation to finish
 superseded results. The [Studio coordination contract](studio/README.md#agent-request-coordination)
 owns the CLI equivalents, result identity and waiting behavior.
 
@@ -148,8 +160,10 @@ person's choice. Do not suggest geometry or repeat a settled choice; oblige a
 geometry change when the person asks for one independently. This requires an active connected
 agent; Studio does not wake an ended or disconnected chat by itself.
 
-For CLI listeners, `node studio/agent-requests.mjs wait Prints --claim` runs for up to
-25 seconds. If the command tool returns a running session ID, keep reading that
+For CLI listeners, `node scripts/agent-toolkit.mjs wait-for-studio-request --studio URL --agent-owner ID --claim`
+(both values from `studio-ready`) runs for up to
+25 seconds and also returns delivered Studio events; a listener without the
+owner ID hears nothing from an owned Studio. If the command tool returns a running session ID, keep reading that
 same session (in Codex, `write_stdin`) until it returns the JSON result. Do not
 start a background listener and end the turn, abandon its session, or treat a
 session ID as an empty result. The flag claims returned requests in the same

@@ -422,3 +422,29 @@ test('a queued Studio request is pushed to the MCP client and included in the ne
   assert.equal(pushed.request?.id,record.id);assert.ok(Date.now()-record.createdAt<1000);
   const response=await call('get_print',{printId:'tour/handle'});assert.equal(response.studioRequests[0].id,record.id);
 });
+
+test('MCP reads the Studio event queue, and delivered events reach tool results, waits and notifications',async t=>{
+  const {LoggingMessageNotificationSchema}=await import('@modelcontextprotocol/sdk/types.js');
+  const {call,client,printsRoot}=await fixture(t);
+  await call('create_print',{printId:'events',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(call)});
+  const notices=[];client.setNotificationHandler(LoggingMessageNotificationSchema,message=>{if(message.params.logger==='saam.studio'&&message.params.data.type==='studio-events')notices.push(message.params.data.events.map(e=>e.kind));});
+  const {url}=await call('request_review',{printId:'events'});
+  const html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
+  let state=await(await fetch(url+'/api/state')).json();
+  assert.equal((await post('view-ready',{stage:'geometry',revision:state.revision})).status,200);
+  const first=await call('get_studio_events');
+  assert.deepEqual(first.events.map(e=>e.kind),['view-presented']);assert.deepEqual(first.generation,[]);assert.equal(first.studioEvents,undefined);
+  assert.deepEqual((await call('get_studio_events')).events,[],'reads drain the queue');
+  const waiting=call('wait_for_studio_request',{waitMs:5000});await new Promise(done=>setTimeout(done,30));
+  assert.equal((await post('open',{path:resolve(printsRoot,'events')})).status,200);
+  const woke=await waiting;assert.deepEqual(woke.events.map(e=>e.kind),['print-opened']);assert.deepEqual(woke.requests,[]);
+  for(let n=0;n<100&&!notices.length;n++)await new Promise(done=>setTimeout(done,20));
+  assert.deepEqual(notices,[['print-opened']],'a delivered event is pushed as a notification');
+  state=await(await fetch(url+'/api/state')).json();
+  const updated=await post('plan',{plan:state.plan,revision:state.revision});assert.equal(updated.status,200,await updated.text());
+  const summary=await call('get_print',{printId:'events'});
+  assert.deepEqual(summary.studioEvents.map(e=>e.kind),['plan-updated'],'held events ride on the next tool result');
+  assert.equal((await call('get_print',{printId:'events'})).studioEvents,undefined);
+  assert.deepEqual((await call('get_studio_events',{history:true})).recent.map(e=>e.kind),['view-presented','print-opened','plan-updated']);
+});

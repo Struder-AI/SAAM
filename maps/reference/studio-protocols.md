@@ -72,6 +72,16 @@ from one normalized geometry/toolpath view and request context;
 completed activity. Library-wide agent listeners and the currently selected
 browser print intentionally have different selection scopes.
 
+`studio-events.mjs` owns the agent's Studio event queue: one bounded, in-process
+queue per agent, shared by that agent's Studio instances, holding what the
+person did and what the workers produced. Held kinds wait for a read; delivered
+kinds push at once through every channel and carry everything held with them.
+Pushes never drain the queue; reads do, so a client that never surfaces a push
+still receives the batch on its next tool result, listener wait or explicit
+read. The queue is not persisted: it lives and dies with the owning session.
+[Studio coordination](studio.md#studio-event-queue) owns the kinds and their
+delivery class.
+
 Verification: [request coordination](../../core/tests/studio-work.test.mjs),
 [readiness](../../core/tests/studio-view-readiness.test.mjs), and
 [activity display](../../core/tests/studio-spinner.test.mjs).
@@ -105,7 +115,8 @@ does not inspect them. When changing an element ID or its lifecycle, inspect its
 selectors, handlers, accessibility state and associated tests together.
 
 `viewer-session.mjs` owns the page's connection/reconnection; `lifetime.mjs` owns
-one server's viewers and sockets. The first viewer has no opening deadline. The
+one server's viewers and sockets, reporting viewer-count changes and the start of
+closing to the server. The first viewer has no opening deadline. The
 last viewer's departure starts a grace period, and reconnection cancels it.
 Shutdown stops new requests, closes idle sockets, and lets accepted writes finish.
 `changes.mjs` supplies change notifications, not a replacement for reading valid
@@ -136,7 +147,7 @@ Sources: [generation-control.mjs](../../core/print/generation-control.mjs), [pro
 
 Sources: [server.mjs](../../studio/server.mjs), [changes.mjs](../../studio/changes.mjs).
 
-**Contract.** The local server binds a print/study session, serves an explicit asset/module allowlist and routes read/write APIs. Mutations use the session origin and token; source endpoints bind print/revision/export identity. A write queue serializes ordinary mutations while cancellation remains responsive outside generation waits. Filesystem notifications are debounced hints; reconnect/read paths recover authoritative state. The protocol sections above specify approval and source handoff.
+**Contract.** The local server binds a print/study session, serves an explicit asset/module allowlist and routes read/write APIs. Mutations use the session origin and token; source endpoints bind print/revision/export identity. The owner-authenticated `/api/agent-events` read returns queued requests, drains the agent's Studio event queue and reports calculation progress, with a bounded wait that ends on a delivered event and on shutdown; person-driven routes, worker outcomes and displayed results record their events at the point of effect. A write queue serializes ordinary mutations while cancellation remains responsive outside generation waits. Filesystem notifications are debounced hints; reconnect/read paths recover authoritative state. The protocol sections above specify approval and source handoff.
 
 **Failures.** Reject unauthorized origins/tokens, path escapes, oversized/invalid bodies and stale identities. Watcher errors fall back to reconciliation rather than declaring a print changed successfully. A generation failure cannot block cancellation or silently install partial output.
 
@@ -147,15 +158,15 @@ Sources: [server.mjs](../../studio/server.mjs), [changes.mjs](../../studio/chang
 
 ## Changing agent request state and presentation
 
-Sources: [agent-requests.mjs](../../studio/agent-requests.mjs), [request-index.mjs](../../studio/request-index.mjs), [agent-ui.mjs](../../studio/agent-ui.mjs), [work-state.mjs](../../studio/work-state.mjs).
+Sources: [agent-requests.mjs](../../studio/agent-requests.mjs), [request-index.mjs](../../studio/request-index.mjs), [studio-events.mjs](../../studio/studio-events.mjs), [agent-ui.mjs](../../studio/agent-ui.mjs), [work-state.mjs](../../studio/work-state.mjs).
 
-**Contract.** Request records coordinate agent work with the exact Studio instance, print, revision and stage target. One agent-owned request store may serve multiple Studio instances; each instance has one immutable owner and carries its ID on Studio-originated work. Direct subscribers and event-driven waits receive live changes from that store. The index accepts valid request IDs, caches by file identity/size/timestamps, batches reads and periodically reconciles watcher hints for restart and independent-process recovery. Work-state owns one pure classifier returning activity, receipt and confirmation-wait state from a request and normalized displayed view. Agent completion and actual display of the requested result are separate transitions; advisory/guidance activity is not an edit.
+**Contract.** Request records coordinate agent work with the exact Studio instance, print, revision and stage target. One agent-owned request store may serve multiple Studio instances; each instance has one immutable owner and carries its ID on Studio-originated work. Direct subscribers and event-driven waits receive live changes from that store. A store with an owner sees its own and ownerless records; a store without an owner never sees or claims Studio-bound records live, and reads them only as explicit diagnostic history. The Studio event queue records held and delivered observations with sequence numbers; a delivered kind wakes the store's bounded wait and every push carries the held remainder, while only reads drain. The index accepts valid request IDs, caches by file identity/size/timestamps, batches reads and periodically reconciles watcher hints for restart and independent-process recovery. Work-state owns one pure classifier returning activity, receipt and confirmation-wait state from a request and normalized displayed view. Agent completion and actual display of the requested result are separate transitions; advisory/guidance activity is not an edit.
 
-**Failures.** Malformed records become diagnostic failure state; missing directories are handled distinctly from parse errors. A Studio request cannot be claimed through another agent owner's live session. Stale, other-instance or other-print presentation cannot complete the current request. Compatibility matching without an explicit target is limited to older records, not a bypass for requiresTarget.
+**Failures.** Malformed records become diagnostic failure state; missing directories are handled distinctly from parse errors. A Studio request cannot be claimed through another agent owner's live session, nor through an ownerless store. Identical consecutive observations collapse; the queue and its read history are bounded and a closed queue records nothing. Stale, other-instance or other-print presentation cannot complete the current request. Compatibility matching without an explicit target is limited to older records, not a bypass for requiresTarget.
 
 **Change together.** Coordinate toolkit streaming/control, MCP session management, server events, request schema, instance/print identity and browser presentation receipts. The index is a recovery/read cache, not the live transport, a lock or authority to overwrite agent work.
 
-**Verification.** Test live wakeup without timed polling, file replacement, malformed IDs/JSON, reconciliation, multiple agents/instances/prints, completed-but-unpresented work and exact-target receipt matching. Checks: [request-index.test.mjs](../../core/tests/request-index.test.mjs), [studio-agent.test.mjs](../../core/tests/studio-agent.test.mjs), [studio-agent-ui.test.mjs](../../core/tests/studio-agent-ui.test.mjs), [studio-work.test.mjs](../../core/tests/studio-work.test.mjs), [agent-toolkit.test.mjs](../../core/tests/agent-toolkit.test.mjs), [mcp.test.mjs](../../core/tests/mcp.test.mjs).
+**Verification.** Test live wakeup without timed polling, file replacement, malformed IDs/JSON, reconciliation, multiple agents/instances/prints, completed-but-unpresented work, exact-target receipt matching, ownerless visibility, held/delivered event delivery and drain semantics. Checks: [studio-events.test.mjs](../../core/tests/studio-events.test.mjs), [request-index.test.mjs](../../core/tests/request-index.test.mjs), [studio-agent.test.mjs](../../core/tests/studio-agent.test.mjs), [studio-agent-ui.test.mjs](../../core/tests/studio-agent-ui.test.mjs), [studio-work.test.mjs](../../core/tests/studio-work.test.mjs), [agent-toolkit.test.mjs](../../core/tests/agent-toolkit.test.mjs), [mcp.test.mjs](../../core/tests/mcp.test.mjs).
 
 
 ## Changing generation workers
