@@ -31,7 +31,7 @@ let lastWheel=0,lastMaterialStats=null;
 // Material detail drops while the view moves and the measured frame cost is
 // high; one full-detail frame follows when motion stops.
 // ?motion-quality=N pins a level, still frames included, to inspect or time it.
-const pinnedQuality=/^[0-3]$/.test(new URLSearchParams(location.search).get('motion-quality')??'')?Number(new URLSearchParams(location.search).get('motion-quality')):null;
+const pinnedQuality=/^[0-2]$/.test(new URLSearchParams(location.search).get('motion-quality')??'')?Number(new URLSearchParams(location.search).get('motion-quality')):null;
 let motionQuality=null,lastMotion=0,lastMovingFrame=0,redrawRequested=0,settleTimer=0;
 const viewPerformance=createViewPerformance({report:burst=>void fetch('/api/view-performance',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(burst)}).catch(()=>{}),
   context:()=>({tab,view:cameras.mode,solid:tab==='toolpath'&&!!materialScene&&!!materialRenderer,moves:state?.program?.moves.length??0,
@@ -570,7 +570,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
       segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);
     }
     const solidView=!!materialScene&&!!materialRenderer;
-    if(solidView)motionQuality??=createMotionQuality({initial:/basic render|swiftshader|llvmpipe|software/i.test(materialRenderer.renderer)?3:0});
+    if(solidView)motionQuality??=createMotionQuality();
     quality=updateUI&&solidView?pinnedQuality??(moving?motionQuality.level:0):0;
     const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
     if(machine&&!solidView)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameras.mode,palette:machineColors,filter:c=>c.role!=='tool'});

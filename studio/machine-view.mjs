@@ -134,6 +134,6 @@ export function createMachineLayer(gl){
     }
     if(!data.length)return;
     gl.useProgram(program);gl.uniformMatrix4fv(projection,false,matrix);gl.uniform2f(viewport,width,height);gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);
-    gl.colorMask(true,true,true,true);gl.depthMask(false);depth?gl.enable(gl.DEPTH_TEST):gl.disable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.STENCIL_TEST);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);under?gl.blendFunc(gl.ONE_MINUS_DST_ALPHA,gl.ONE):gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.TRIANGLES,0,data.length/12);gl.bindVertexArray(null);
+    gl.colorMask(true,true,true,true);gl.depthMask(false);depth?gl.enable(gl.DEPTH_TEST):gl.disable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.enable(gl.BLEND);under?gl.blendFunc(gl.ONE_MINUS_DST_ALPHA,gl.ONE):gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.drawArrays(gl.TRIANGLES,0,data.length/12);gl.bindVertexArray(null);
   },dispose(){gl.deleteBuffer(buffer);gl.deleteVertexArray(vao);gl.deleteProgram(program);}};
 }

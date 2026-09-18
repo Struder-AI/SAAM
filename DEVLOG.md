@@ -1,5 +1,35 @@
 # Development log
 
+## 2026-09-18 — Toolpath viewer lag: CPU rasterization, lossless renderer savings
+
+- Source: user (builder task), 2026-09-18: the toolpath viewer had become slow on
+  pan and tilt.
+- **Cause.** Not a code regression. The person's Chrome had fallen back to the
+  Microsoft Basic Render Driver (CPU), while another browser on the same PC used
+  the GTX 1660 Ti. `freehand-spline-cat` (124,978 beads, 623 groups, 1366×540)
+  cost 544 ms per frame there, all in the material pass; about 10 ms of
+  main-thread time on the GPU.
+- **Measurement.** Studio now reports interactive redraw timings and the WebGL
+  renderer string to `/api/view-performance`, replacing console snippets. A hidden
+  agent browser pane throttles animation frames and cannot measure frame rate.
+- **Renderer.** One unblended depth-tested pass replaces the depth prepass,
+  stencil and blend pass; bead templates are indexed (box 48→26, oval 192→66
+  vertices) and wound outward for back-face culling; off-screen groups are
+  skipped. Measured on the CPU renderer at full quality: 544 → 155 ms. A pixel
+  diff against the previous renderer on 18 synthetic views (crossing, touching and
+  overlapping beads, views from below, mid-print, zoomed and off-screen) stayed
+  within 2/255 plus at most 14 depth-tie pixels, with identical coverage. An
+  inverted front-face rule was caught by that diff before use.
+- **Rejected.** Merging groups into shared buffers with a per-bead style texture
+  cut 623 draws to 2 but measured slower on the CPU renderer (215–266 ms): two
+  vertex texture fetches per vertex cost more than the draw calls saved. Reverted.
+  Render resolution barely matters there: 9× fewer pixels saved about 5%.
+- **Motion quality.** Resolution levels remain for fill-bound GPUs and undo
+  themselves when they do not pay.
+
+Checks: Studio tests pass except `studio-lifetime` "last viewer closes only its
+instance", which fails identically with these renderer changes stashed.
+
 ## 2026-09-18 — Agents can reuse their Studio when switching prints
 
 - Source: user (developer task), 2026-09-18: maker agents never followed the

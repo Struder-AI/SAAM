@@ -95,20 +95,42 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   return {moves,plan,geometry,groups,bounds,supported,unsupported:[...unsupported]};
 }
 
+// Indexed so each shared corner is transformed once, and wound outward in the
+// bead's right-handed (tangent, wide, short) frame so back faces can be culled.
+// Cap normals come from the tangent; their unused section normal is zero.
 export function materialTemplate(oval=true){
-  const sides=oval?16:4,data=[];
+  const sides=oval?16:4,vertices=[],indices=[],known=new Map();
   const ring=oval?Array.from({length:sides},(_,i)=>[Math.cos(i*2*Math.PI/sides),Math.sin(i*2*Math.PI/sides)])
     :[[1,1],[-1,1],[-1,-1],[1,-1]];
+  const vertex=(x,point,cap,normal)=>{
+    const data=[x,...point,cap,...(cap?[0,0]:normal)],key=data.join();
+    if(!known.has(key)){known.set(key,vertices.length/6);vertices.push(...data);}
+    return known.get(key);
+  };
+  const triangle=(corners,outward)=>{
+    const [a,b,c]=corners.map(([x,point])=>[x,...point]),n=cross(subtract(b,a),subtract(c,a));
+    const ordered=dot(n,outward)<0?[corners[0],corners[2],corners[1]]:corners;
+    indices.push(...ordered.map(([x,point,cap,normal])=>vertex(x,point,cap,normal)));
+  };
   for(let i=0;i<sides;i++){
-    const p=ring[i],q=ring[(i+1)%sides],face=[(p[0]+q[0])/2,(p[1]+q[1])/2];
-    for(const [x,point,cap] of [[0,p,0],[1,p,0],[1,q,0],[0,p,0],[1,q,0],[0,q,0],
-      [0,[0,0],-1],[0,q,-1],[0,p,-1],[1,[0,0],1],[1,p,1],[1,q,1]]){
-      data.push(x,...point,cap,...(oval?point:face));
-    }
+    const p=ring[i],q=ring[(i+1)%sides],face=[(p[0]+q[0])/2,(p[1]+q[1])/2],wall=point=>oval?point:face;
+    triangle([[0,p,0,wall(p)],[1,p,0,wall(p)],[1,q,0,wall(q)]],[0,...face]);
+    triangle([[0,p,0,wall(p)],[1,q,0,wall(q)],[0,q,0,wall(q)]],[0,...face]);
+    triangle([[0,[0,0],-1],[0,q,-1],[0,p,-1]],[-1,0,0]);
+    triangle([[1,[0,0],1],[1,p,1],[1,q,1]],[1,0,0]);
   }
-  return new Float32Array(data);
+  return {vertices:new Float32Array(vertices),indices:new Uint16Array(indices)};
 }
 
+// Bead centres plus the largest half-section bound every vertex of a group.
+function groupBounds(data){
+  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];let reach=0;
+  for(let i=0;i<data.length;i+=18){
+    for(let k=0;k<3;k++){min[k]=Math.min(min[k],data[i+k],data[i+3+k]);max[k]=Math.max(max[k],data[i+k],data[i+3+k]);}
+    for(const o of [6,12])reach=Math.max(reach,Math.hypot(data[i+o],data[i+o+1],data[i+o+2])+Math.hypot(data[i+o+3],data[i+o+4],data[i+o+5]));
+  }
+  return {min:min.map(v=>v-reach),max:max.map(v=>v+reach)};
+}
 export function materialProjection(project,width,height,bounds){
   const o=project([0,0,0]),axes=[[1,0,0],[0,1,0],[0,0,1]].map(p=>subtract(project(p),o));
   let low=Infinity,high=-Infinity;
@@ -124,7 +146,7 @@ export function materialProjection(project,width,height,bounds){
 // becomes the completed section during the fade, never at a discrete boundary.
 // Camera, rotary, scrub and fading update uniforms/counts; curves stay cached.
 export function createMaterialRenderer(documentApi=document){
-  const canvas=documentApi.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:true,antialias:true,stencil:true,preserveDrawingBuffer:true});
+  const canvas=documentApi.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:true,antialias:true,preserveDrawingBuffer:true});
   if(!gl)return null;
   let lost=false;canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();lost=true;});
   const rendererInfo=gl.getExtension('WEBGL_debug_renderer_info');
@@ -152,7 +174,12 @@ export function createMaterialRenderer(documentApi=document){
   const program=gl.createProgram();shaders.forEach(s=>gl.attachShader(program,s));gl.linkProgram(program);shaders.forEach(s=>gl.deleteShader(s));
   if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(program));
   const uniforms=Object.fromEntries(['projection','light','color','detailed'].map(name=>[name,gl.getUniformLocation(program,name)]));
-  function template(oval){const data=materialTemplate(oval),buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW);return {buffer,count:data.length/6};}
+  function template(oval){
+    const {vertices,indices}=materialTemplate(oval),buffer=gl.createBuffer(),elements=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,vertices,gl.STATIC_DRAW);
+    gl.bindVertexArray(null);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,elements);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,indices,gl.STATIC_DRAW);
+    return {buffer,elements,count:indices.length};
+  }
   const templates=[template(false),template(true)];
   let scene=null,partial=null,machineLayer=null;const buffers=new Map();
   function release(entry){gl.deleteBuffer(entry.buffer);for(const vao of entry.vaos)gl.deleteVertexArray(vao);}
@@ -160,7 +187,7 @@ export function createMaterialRenderer(documentApi=document){
   function instanceBuffer(data,usage=gl.STATIC_DRAW){
     const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,usage);
     const vaos=templates.map(t=>{
-      const vao=gl.createVertexArray();gl.bindVertexArray(vao);gl.bindBuffer(gl.ARRAY_BUFFER,t.buffer);
+      const vao=gl.createVertexArray();gl.bindVertexArray(vao);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,t.elements);gl.bindBuffer(gl.ARRAY_BUFFER,t.buffer);
       gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,4,gl.FLOAT,false,24,0);
       gl.enableVertexAttribArray(7);gl.vertexAttribPointer(7,2,gl.FLOAT,false,24,16);
       gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
@@ -173,8 +200,8 @@ export function createMaterialRenderer(documentApi=document){
     // Reported with view performance: software rendering explains a slow viewer.
     renderer:String(gl.getParameter(rendererInfo?rendererInfo.UNMASKED_RENDERER_WEBGL:gl.RENDERER)),
     // quality 0 is the reviewed still image. Motion levels trade detail for
-    // frame time: 1 resolves surfaces in one pass, 2 halves and 3 thirds the
-    // render resolution, and 3 also draws every bead with the square section.
+    // frame time: 1 halves and 2 thirds the render resolution, and 2 also draws
+    // every bead with the square section.
     draw(next,{at,current,fade,project,width,height,ratio,skinPhase,previousLayerOpacity=0.5,machine=null,machineMode='ghost',machinePalette,quality=0}){
       if(lost)throw new Error('3D graphics context was lost. Refresh Studio to restore material rendering.');
       if(scene!==next)reset(next);
@@ -182,17 +209,25 @@ export function createMaterialRenderer(documentApi=document){
       // samples across it before downsampling, instead of allowing its oval
       // facets to alternate between visible and missing as the camera moves.
       const sampling=Math.max(ratio,Math.min(4,2/Math.max(.01,(project.pixelsPerMm??1)*scene.plan.process.lineWidthMm)));
-      const resolution=sampling*(quality>=3?1/3:quality>=2?.5:1);
+      const resolution=sampling*(quality>=2?1/3:quality>=1?.5:1);
       const w=Math.max(1,Math.round(width*resolution)),h=Math.max(1,Math.round(height*resolution));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-      gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.stencilMask(0xff);gl.clearStencil(0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
+      gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       const depthBounds=machine?{min:scene.bounds.min.map((v,i)=>Math.min(v,machine.bounds.min[i])),max:scene.bounds.max.map((v,i)=>Math.max(v,machine.bounds.max[i]))}:scene.bounds;
       const {matrix,light}=materialProjection(project,width,height,depthBounds),commands=[];
+      // A group whose projected bounds miss the viewport cannot reach a pixel.
+      const offscreen=bounds=>{
+        let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity;
+        for(let bits=0;bits<8;bits++){const q=project([0,1,2].map(i=>bounds[(bits>>i)&1?'max':'min'][i]));left=Math.min(left,q[0]);right=Math.max(right,q[0]);top=Math.min(top,q[1]);bottom=Math.max(bottom,q[1]);}
+        return right<0||left>width||bottom<0||top>height;
+      };
+      let culled=0;
       for(const group of scene.groups){
         if(!group.indices.length||group.indices[0]>=at.completed)continue;
-        if(!buffers.has(group))buffers.set(group,instanceBuffer(group.instances));
+        if(!buffers.has(group))buffers.set(group,{...instanceBuffer(group.instances),bounds:groupBounds(group.instances)});
+        if(offscreen(buffers.get(group).bounds)){culled++;continue;}
         let low=0,high=group.indices.length;
         while(low<high){const mid=(low+high)>>1;if(group.indices[mid]<at.completed)low=mid+1;else high=mid;}
-        commands.push({entry:buffers.get(group),count:low,detail:quality>=3?0:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0,
+        commands.push({entry:buffers.get(group),count:low,detail:quality>=2?0:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0,
           style:toolpathStyle(group.move,current,skinPhase,fade.weights.get(group.layerKey)??0,{previousLayerOpacity})});
       }
       const move=scene.moves[at.active];
@@ -200,50 +235,36 @@ export function createMaterialRenderer(documentApi=document){
         if(section){
           const data=beadInstance(section);if(!partial)partial=instanceBuffer(data,gl.DYNAMIC_DRAW);
           else{gl.bindBuffer(gl.ARRAY_BUFFER,partial.buffer);gl.bufferSubData(gl.ARRAY_BUFFER,0,data);}
-          commands.push({entry:partial,count:1,detail:quality>=3?0:1,style:toolpathStyle(move,current,skinPhase)});
+          commands.push({entry:partial,count:1,detail:quality>=2?0:1,style:toolpathStyle(move,current,skinPhase)});
         }
       }
       gl.useProgram(program);gl.uniformMatrix4fv(uniforms.projection,false,matrix);gl.uniform3fv(uniforms.light,light);
       const stats=()=>({cachedGroups:buffers.size,detailedGroups:commands.filter(c=>c.detail).length,
-        groups:commands.length,instances:commands.reduce((sum,c)=>sum+c.count,0),canvas:[w,h],sampling:+sampling.toFixed(2),quality});
+        groups:commands.length,culledGroups:culled,draws:commands.length,instances:commands.reduce((sum,c)=>sum+c.count,0),canvas:[w,h],sampling:+sampling.toFixed(2),quality});
       function drawCommands(){
         for(const {entry,count,detail,style} of commands){
           const rgb=[1,3,5].map(i=>parseInt(style.color.slice(i,i+2),16)/255);gl.uniform4f(uniforms.color,...rgb,style.opacity);gl.uniform1f(uniforms.detailed,detail);
           const shape=detail>0?1:0;
-          gl.bindVertexArray(entry.vaos[shape]);gl.drawArraysInstanced(gl.TRIANGLES,0,templates[shape].count,count);
+          gl.bindVertexArray(entry.vaos[shape]);gl.drawElementsInstanced(gl.TRIANGLES,templates[shape].count,gl.UNSIGNED_SHORT,0,count);
         }
       }
-      if(quality>=1){
-        // One pass: the nearest surface wins the depth test and is written
-        // unblended, so hidden surfaces still cannot accumulate opacity. The
-        // ghost machine then composites underneath instead of being drawn first.
-        gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.colorMask(true,true,true,true);gl.depthMask(true);gl.depthFunc(gl.LESS);drawCommands();
-        if(machine){
-          machineLayer??=createMachineLayer(gl);
-          if(machineMode==='ghost')machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:c=>c.role!=='tool',depth:false,under:true});
-          machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:machineMode==='ghost'?c=>c.role==='tool':null});
-        }
-        gl.bindVertexArray(null);return stats();
-      }
-      // Resolve the nearest material surface before applying layer opacity.
-      // Hidden surfaces do not accumulate darkness inside a completed block.
-      gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.disable(gl.STENCIL_TEST);gl.colorMask(false,false,false,false);gl.depthFunc(gl.LESS);drawCommands();
-      if(machine&&machineMode==='ghost'){
-        machineLayer??=createMachineLayer(gl);
-        machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:c=>c.role!=='tool',depth:false});
-        gl.useProgram(program);gl.enable(gl.DEPTH_TEST);
-      }
-      // Coplanar/overlapping bead faces can share the winning depth. Shade
-      // each visible sample once, avoiding repeated alpha blending stripes.
-      gl.enable(gl.STENCIL_TEST);gl.stencilFunc(gl.EQUAL,0,0xff);gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);
-      gl.colorMask(true,true,true,true);gl.depthMask(false);gl.depthFunc(gl.EQUAL);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);drawCommands();
-      gl.disable(gl.STENCIL_TEST);
+      // One pass: the nearest surface wins the depth test and is written
+      // unblended, so hidden surfaces cannot accumulate opacity inside a
+      // completed block. Beads are closed and convex, so a back face is never
+      // the nearest surface. Clip space looks along +z, so an orientation-
+      // preserving projection shows outward counter-clockwise faces clockwise.
+      const m=matrix,handed=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]);
+      gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);gl.frontFace(handed<0?gl.CCW:gl.CW);
+      gl.disable(gl.BLEND);gl.colorMask(true,true,true,true);gl.depthMask(true);gl.depthFunc(gl.LESS);drawCommands();
+      gl.disable(gl.CULL_FACE);
       if(machine){
+        // The ghost machine composites underneath the material already drawn.
         machineLayer??=createMachineLayer(gl);
+        if(machineMode==='ghost')machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:c=>c.role!=='tool',depth:false,under:true});
         machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:machineMode==='ghost'?c=>c.role==='tool':null});
       }
       gl.bindVertexArray(null);return stats();
     },
-    dispose(){reset(null);if(partial)release(partial);machineLayer?.dispose();templates.forEach(t=>gl.deleteBuffer(t.buffer));gl.deleteProgram(program);}
+    dispose(){reset(null);if(partial)release(partial);machineLayer?.dispose();templates.forEach(t=>{gl.deleteBuffer(t.buffer);gl.deleteBuffer(t.elements);});gl.deleteProgram(program);}
   };
 }

@@ -19,18 +19,24 @@ export function summarizeBurst(kind,frames,context={}){
 // a large window and a large print all settle wherever this machine stays
 // responsive. Level 0 is full detail; still frames and exports always use it.
 // Stepping up needs sustained headroom, and a step up that is immediately
-// reverted doubles that requirement so the level does not oscillate.
-export function createMotionQuality({levels=3,slowMs=50,fastMs=25,window=4,patience=45,initial=0}={}){
-  let level=Math.min(levels,initial),recent=[],good=0,need=patience,raisedAt=-Infinity,frames=0;
+// reverted doubles that requirement so the level does not oscillate. The levels
+// lower render resolution, which a geometry-bound CPU rasterizer barely notices:
+// a step down that saves under a fifth is undone and not tried again.
+export function createMotionQuality({levels=2,slowMs=50,fastMs=25,window=4,patience=45,gain=.8}={}){
+  let level=0,limit=levels,recent=[],good=0,need=patience,raisedAt=-Infinity,frames=0,before=null;
   return {
     get level(){return level;},
     sample(costMs){
       frames++;recent.push(costMs);if(recent.length>window)recent.shift();
       good=costMs<fastMs?good+1:0;
       const median=[...recent].sort((a,b)=>a-b)[recent.length>>1];
-      if(recent.length===window&&median>slowMs&&level<levels){
+      if(recent.length===window&&before!==null){
+        if(median>before*gain){level--;limit=level;recent=[];good=0;}
+        before=null;
+      }
+      if(recent.length===window&&median>slowMs&&level<limit){
         if(frames-raisedAt<=window*2)need=Math.min(need*2,720);
-        level++;recent=[];good=0;
+        before=median;level++;recent=[];good=0;
       }else if(good>=need&&level>0){level--;recent=[];good=0;raisedAt=frames;}
       return level;
     }

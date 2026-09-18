@@ -303,6 +303,8 @@ box time | 7.2.5.3 | sample source time | $sourceTime
 box detail | 7.2.5.4 | select visible detail | @studio/toolpath-view.mjs::toolpathFrame
 box mesh | 7.2.5.5 | shade geometry | @studio/mesh-view.mjs::createGeometryRenderer::draw
 box beads | 7.2.5.6 | shade deposited material | @studio/material-view.mjs::createMaterialRenderer::draw
+box quality | 7.2.5.7 | choose motion quality | @studio/view-performance.mjs::createMotionQuality
+box timing | 7.2.5.8 | report view performance | @studio/view-performance.mjs::createViewPerformance
 port frame | frame displayed
 port out | displayed result
 geometry > draw | mesh scene | data
@@ -319,11 +321,17 @@ draw > mesh | geometry tab; WebGL available | gate
 mesh > draw | shaded canvas | data | norank
 draw > beads | supported material scene | gate
 beads > draw | shaded canvas | data | norank
+draw > quality | moving-frame cost | data
+quality > draw | material quality level | data | norank
+draw > timing | frame timings; renderer | data
 draw > frame | rendered frame | data
 draw > out | scene / fallback lines | io
 ```
 
-Display reduction and line fallback affect only the preview. Unsupported surface
+Display reduction, motion quality and line fallback affect only the preview.
+Moving frames may lower material resolution by measured cost; the still frame,
+exports and movies use full detail. View bursts are posted to the server for
+agents to read (`/api/view-performance`). Unsupported surface
 frames keep their source lines; stationary injections use source-event markers,
 not an invented bead direction. `draw` also serves movie export with explicit
 time/canvas and without mutating live playback. Source identity remains the
@@ -461,7 +469,7 @@ studio-generation | studio/prepared-generation-job.mjs, studio/generation-worker
 studio-import | studio/import-stl.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
 studio-source | studio/source-player.mjs, studio/source-worker.mjs, studio/machine-session.mjs | studio-protocols#changing-source-workers-and-machine-sessions | core/tests/source-player.test.mjs, core/tests/studio-kinematics.test.mjs, core/tests/studio-generation-control.test.mjs
 studio-app | studio/app.mjs | studio#changing-studio-application-coordination | core/tests/studio-view-readiness.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-spinner.test.mjs, core/tests/studio-work.test.mjs
-studio-rendering | studio/camera.mjs, studio/material-view.mjs, studio/mesh-view.mjs, studio/toolpath-view.mjs, studio/machine-view.mjs | rendering#changing-camera-and-displayed-geometry | core/tests/studio-camera.test.mjs, core/tests/studio-material.test.mjs, core/tests/studio-detail.test.mjs, core/tests/studio-geometry.test.mjs, core/tests/studio-kinematics.test.mjs
+studio-rendering | studio/camera.mjs, studio/material-view.mjs, studio/mesh-view.mjs, studio/toolpath-view.mjs, studio/machine-view.mjs, studio/view-performance.mjs | rendering#changing-camera-and-displayed-geometry | core/tests/studio-camera.test.mjs, core/tests/studio-material.test.mjs, core/tests/studio-detail.test.mjs, core/tests/studio-geometry.test.mjs, core/tests/studio-kinematics.test.mjs
 studio-playback | studio/move-store.mjs, studio/playback.mjs | studio-protocols#changing-compact-moves-and-playback-caches | core/tests/studio-movie.test.mjs, core/tests/studio-playback-cache.test.mjs, core/tests/source-player.test.mjs
 studio-controls | studio/settings.mjs, studio/print-name.mjs | studio#changing-recipe-review-and-display-names | core/tests/studio-settings.test.mjs, core/tests/studio-print-name.test.mjs
 studio-tours | studio/tour-catalog.mjs, studio/tour-ui.mjs, studio/tour.mjs | studio#changing-guided-tours | core/tests/studio-tour.test.mjs, core/tests/studio-tour-ui.test.mjs, core/tests/studio-tour-lifetime.test.mjs
