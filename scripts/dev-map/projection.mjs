@@ -63,7 +63,9 @@ export function projectGraph(graph) {
   }
   const all=[...nodes.values()].sort((a,b)=>order(a.file,b.file)||a.start-b.start);
   const largest=[...pages.values()].map(p=>({page:p.key,nodes:all.filter(n=>n.page===p.key).length})).sort((a,b)=>b.nodes-a.nodes)[0];
-  return {pages,nodes,handles,edges,all,totals:{pages:pages.size-1,files:files.length,nodes:all.filter(n=>n.kind!=='module').length,
+  // `owner` maps a declaration id to the node that represents it, for readers that need
+  // per-relation endpoints rather than the merged edges.
+  return {pages,nodes,handles,edges,all,owner,totals:{pages:pages.size-1,files:files.length,nodes:all.filter(n=>n.kind!=='module').length,
     moduleNodes:all.filter(n=>n.kind==='module').length,enclosed:all.reduce((sum,n)=>sum+n.enclosedCount,0),edges:edges.length,largestPage:largest,
     ...(graph.couplings?{couplings:{linked:graph.couplings.linked,unlinked:graph.couplings.unlinked.reduce((out,u)=>{const k=`${u.kind}: ${u.reason}`;out[k]=(out[k]??0)+1;return out;},{})}}:{})}};
 }

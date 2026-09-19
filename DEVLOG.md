@@ -5112,3 +5112,28 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   File links ignore directories. Anonymous route and message handlers project
   onto `createStudio` or a module node.
 - Verification: the six dev-map test files pass 50 of 50; `dev-map.mjs check` passes.
+
+## 2026-09-18 — Flow pages generated from function bodies
+
+- Source: user, as developer work: the by-file generated map says where code
+  lives, not what happens; the map wanted is a Grasshopper-style leveled flow.
+- Implemented, additive: `read-map DECLARATION --generated --flow` and
+  `dev-map.mjs build --flow DECLARATION` (`scripts/dev-map/flow.mjs`, `flow.py`).
+  One function is one page: parameters are input ports, distinct callees are
+  components in first-appearance order, local def-use gives named wires, a
+  mutated receiver gives a state thread, the enclosing test gives the gate,
+  returns are output ports. Every element records the mechanism that produced
+  it and the drawing carries a provenance legend; nothing is authored. Method
+  calls on a receiver resolve through the value a caller passes (opt-in
+  `receiverCalls`), which supplies the ten `builder.*` calls of
+  `composeResults` that extraction previously missed.
+- Measured 2026-09-18: `composeResults` page 15 components, 47 wires, packet
+  24 KB; `travelTo` 16 boxes, 27 wires. Repo-wide receiver-value links 43. The
+  unique-method-name fallback made 1939 links, about 1900 of them built-in
+  `map/push/every/some/has` calls matched to unrelated object methods; it is
+  quarantined and due for removal. Of 4086 other unresolved method calls in
+  core and Studio, 2258 use a name no core/Studio declaration carries.
+- Reads worse than the authored `5_motion`/`5a_travel` pages where parallel
+  wires repeat one variable name, gates are raw test text, one callee box
+  merges several branches, and literal-tagged returns carry nothing.
+- Verification: seven dev-map test files pass 55 of 55; `dev-map.mjs check` passes.

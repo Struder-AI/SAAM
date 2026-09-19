@@ -7,8 +7,16 @@ import {root,loadModel,regionContext} from './dev-map/model.mjs';
 import {inputSnapshot,buildFreshness,recordBuild,changedSince,changesText} from './dev-map/maintenance.mjs';
 
 const [command='build',...args]=process.argv.slice(2);
-if(!['build','check'].includes(command))throw Error('Use: node scripts/dev-map.mjs build [--force] | check [--since REF] [--built] [--json]');
-const {values:options}=parseArgs({args,options:command==='build'?{force:{type:'boolean'}}:{since:{type:'string'},built:{type:'boolean'},json:{type:'boolean'}}});
+if(!['build','check'].includes(command))throw Error('Use: node scripts/dev-map.mjs build [--force] [--flow DECLARATION] | check [--since REF] [--built] [--json]');
+const {values:options}=parseArgs({args,options:command==='build'?{force:{type:'boolean'},flow:{type:'string',multiple:true}}
+  :{since:{type:'string'},built:{type:'boolean'},json:{type:'boolean'}}});
+// Flow pages are a separate generated view with their own output; they touch no authored map.
+if(command==='build'&&options.flow?.length) {
+  const {buildFlow}=await import('./dev-map/flow.mjs');
+  const out=resolve(root,'dev-map/flow');
+  console.log(await buildFlow(options.flow,out));
+  process.exit(0);
+}
 const snapshot=await inputSnapshot(root);
 const freshness=await buildFreshness(root,snapshot);
 if(command==='build'&&freshness.fresh&&!options.force) {

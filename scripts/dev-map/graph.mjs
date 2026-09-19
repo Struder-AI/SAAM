@@ -24,8 +24,11 @@ export async function sourceFiles(repo, roots=['core','studio','skills','adapter
   return files.sort();
 }
 
-export async function extractGraph({repo,files,importAliases={},literalCouplings=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
-  const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[];
+// The projection's mapped set; uniqueness of a method name is asked of that code only.
+const mappedCode=file=>/^(core|studio)\//.test(file);
+
+export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
+  const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[], declFn=new Map();
   const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap();
   const scopes=[], bindings=[];
   const scope=(parent,kind)=>{const s={parent,kind,bindings:new Map()};scopes.push(s);return s;};
@@ -68,7 +71,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const inherited=!!parent&&nodeDecl.has(parent);
       const next=named?[...path,n.id.name]:inherited?path:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
       const d=inherited?nodeDecl.get(parent):declaration(m,n,next,'function',owner,named);
-      d.callable=true;nodeDecl.set(n,d);nodeOwner.set(n,d);m.functions.push(n);
+      d.callable=true;nodeDecl.set(n,d);nodeOwner.set(n,d);declFn.set(d.id,n);m.functions.push(n);
       if(named)bind(s,n.id.name,{fn:n,decl:d,module:m});
       const inner=scope(s,'parameters');nodeScope.set(n,inner);
       if(n.type!=='ArrowFunctionExpression') {
@@ -296,9 +299,48 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   }
   // Opt-in, after every other relation, so relation ids and the authored projection are unchanged without it.
   const coupled=literalCouplings?couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,parents,value,choices,location,edge,property,children,functions,importPath}):null;
+  if(receiverCalls&&!coupled)throw Error('receiverCalls needs literalCouplings: it reuses that value resolver.');
+  const receivers=receiverCalls?resolveReceivers(coupled.origins):null;
+  // A method call on a receiver the callee resolver cannot name. Two rules, in order:
+  // the receiver's value through the coupling resolver, then a method name defined by
+  // exactly one class or object literal in mapped code. Each link records which one found it.
+  function resolveReceivers(origins) {
+    const byName=new Map();
+    for(const d of declarations)if(d.kind==='method'&&mappedCode(d.file))(byName.get(d.name)??byName.set(d.name,[]).get(d.name)).push(d);
+    const method=(v,key)=>{
+      if(v.classNode)return v.classNode.body.body.find(p=>p.type==='MethodDefinition'&&!p.computed&&String(p.key.name??p.key.value)===key&&!!p.static===!!v.static&&p.kind==='method')?.value;
+      if(v.object)return v.object.properties.find(p=>p.type==='Property'&&!p.computed&&String(p.key.name??p.key.value)===key&&functions.has(p.value.type))?.value;
+      return null;
+    };
+    const counts={'receiver-value':0,'unique-method-name':0},unlinked=[];
+    for(const c of calls) {
+      const callee=c.node.callee,key=callee.type==='MemberExpression'?property(callee):null;
+      if(!key||callEdges.has(c.node)||callee.object.type==='Super')continue;
+      const from=c.owner?.id??`${c.module.file}:<module>`,site=location(c.module,c.node);
+      const found=new Map();
+      for(const o of origins(callee.object,c.module))for(const v of choices(value(o.node,nodeScope.get(o.node),o.module))) {
+        const fn=method(v,key),d=fn&&nodeDecl.get(fn);
+        if(d&&mappedCode(d.file))found.set(d.id,{decl:d,fn,by:'receiver-value'});
+      }
+      if(!found.size) {
+        const named=byName.get(key)??[];
+        if(named.length===1)found.set(named[0].id,{decl:named[0],fn:null,by:'unique-method-name'});
+      }
+      if(!found.size) {unlinked.push({from,site,name:key});continue;}
+      for(const {decl,fn,by} of found.values()) {
+        counts[by]++;
+        edge('call',from,decl.id,[site],{resolution:[],resolvedBy:by,receiver:key,possible:found.size>1,
+          args:c.node.arguments.map(passed),params:(fn??declFn.get(decl.id))?.params.map(passed)??[]});
+      }
+    }
+    return {resolved:counts,unresolved:unlinked,
+      limits:['A receiver-value link is as strong as the value resolver: one reaching construction, not proof that this call runs on it.',
+        'A unique-method-name link claims only that one mapped class or object literal declares that name; a same-named host outside mapped code is not excluded.']};
+  }
   const anchorCounts=new Map();for(const d of declarations)if(d.anchor)anchorCounts.set(d.anchor,(anchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(anchorCounts.get(d.anchor)>1)d.ambiguousAnchor=true;
-  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,...(coupled?{couplings:coupled}:{}),
+  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,
+    ...(coupled?{couplings:{linked:coupled.linked,unlinked:coupled.unlinked}}:{}),...(receivers?{receivers}:{}),
     limits:['Static possible relationships, not execution traces or proofs of reachability.',
       'Calls resolve lexical bindings, const aliases, imports, named re-exports, literal object members, finite function-return choices and local class methods. Computed registry selection gives possible targets, not a selected dialect or proof of branch feasibility. Escaped object mutation, arbitrary callback protocols, inheritance, export-star and dynamic imports are not modeled.',
       'Value flow handles direct call results and immutable aliases. Lexical state dependencies do not prove reaching definitions. Control sequence is not inferred from call order.',

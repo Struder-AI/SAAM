@@ -306,5 +306,6 @@ export function couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,
     }
     for(const c of children(n))walk(c);
   })(m.ast);
-  return {linked,unlinked};
+  // `origins` is the resolver itself: receiver resolution in graph.mjs reuses it.
+  return {linked,unlinked,origins};
 }

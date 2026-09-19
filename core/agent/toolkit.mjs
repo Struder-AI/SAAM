@@ -63,7 +63,12 @@ export async function readSkill(id, {maker = false, builder = false, developer =
 
 export async function readMaps(keys, options = {}) {
   if (options.generated) {
-    if (options.section || options.node || options.inventory) throw Error('--generated accepts only --evidence and --tests.');
+    if (options.section || options.node || options.inventory) throw Error('--generated accepts only --evidence, --tests and --flow.');
+    if (options.flow) {
+      const {loadFlow, flowPacket} = await import('../../scripts/dev-map/flow.mjs');
+      const context = await loadFlow();
+      return keys.map(key => flowPacket(context, key));
+    }
     const {loadProjection, generatedContext, importingTests} = await import('../../scripts/dev-map/projection.mjs');
     const projection = await loadProjection();
     return Promise.all(keys.map(async key => ({...generatedContext(projection, key, options), ...(options.tests ? {tests: await importingTests(projection, key)} : {})})));
