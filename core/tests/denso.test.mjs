@@ -108,7 +108,9 @@ test('pipe export retains substrate, tilted axial/hoop shells and radial ownersh
   assert.ok(body.length&&clad.length);const boundary=plan.geometry.outerRadiusMm-2*.2;
   assert.ok(body.every(m=>Math.hypot(...m.to.slice(0,2))<=boundary+1e-6));
   for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=0&&m.to[2]<=plan.geometry.heightMm+1e-8);}
-  assert.ok(path.actions.some(a=>a.travel==='surface-index'&&a.volumeMm3===0));
+  // Each end index between neighboring axial tracks continues deposition.
+  assert.ok(!path.actions.some(a=>a.travel==='surface-index'));assert.ok(path.summary.travel.connected>0);
+  assert.equal(program.summary.shortTravel.count,0);
   // The retired maxPoints budget is an unknown field, and a sampling step far
   // finer than that former 500,000-point budget now completes.
   const stale=structuredClone(plan);stale.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Unexpected or missing fields/);

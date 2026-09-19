@@ -75,8 +75,10 @@ export function thickLipResult({shell, plan, id = 'thick-lip', after = [], zStar
     const operationId = `${id}:${operations.length}`;
     operations.push({
       id: operationId, layerId: 'lip:' + z, phase: 'planar', layer: operations.length, rank: z,
-      after: [...previous], strokes, order: 'nearest',
-      travelPolicy: planarPolicy([outer], {layerZ: z, liftMm: process.liftMm, maxCombMm: process.maxCombMm, lineWidthMm: width})
+      after: [...previous], strokes, order: 'nearest', connectNearby: true,
+      // Centered rings can lie outside the wall section; travel and ring-to-ring
+      // connectors are checked against the material this step itself deposits.
+      travelPolicy: planarPolicy(mid > 0 ? offsetRegion([outer], mid * spacing, {precisionMm: OFFSET_PRECISION_MM}) : [outer], {layerZ: z, liftMm: process.liftMm, maxCombMm: process.maxCombMm, lineWidthMm: width})
     });
     previous = [operationId];
   });
@@ -84,7 +86,7 @@ export function thickLipResult({shell, plan, id = 'thick-lip', after = [], zStar
     id, operations,
     report: {
       steps: settings.steps, startMm: zStartMm, topMm: z,
-      scope: 'Independently closed rings stacked above a level vase-wall rim, each step centered on the wall\'s own centerline rather than kept flush with its outer face; ordinary planar travel between rings, no continuous-spiral phase constraint to preserve. No physical validation.'
+      scope: 'Independently closed rings stacked above a level vase-wall rim, each step centered on the wall\'s own centerline rather than kept flush with its outer face; adjacent rings joined by a short printed connector, no continuous-spiral phase constraint to preserve. No physical validation.'
     }
   };
 }

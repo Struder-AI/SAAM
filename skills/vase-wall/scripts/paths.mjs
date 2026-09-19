@@ -1,6 +1,6 @@
 // Motifs use sleeve coordinates, never independent world XYZ.
 import {distance,requireThat} from '../../../core/geom/tolerance.mjs';
-import {depositionStroke,maximumPathAngle} from '../../../core/path/deposition.mjs';
+import {depositionStroke,maximumPathAngle,trimVanishingEnd} from '../../../core/path/deposition.mjs';
 import {isTiledMotif,tileVaseMotif} from './motif.mjs';
 import {patternCourses} from './boundary-courses.mjs';
 const sameSurfacePoint=(a,b)=>Math.abs((a[0]-b[0])-Math.round(a[0]-b[0]))<=1e-10&&Math.abs(a[1]-b[1])<=1e-9;
@@ -99,6 +99,7 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
     for(const {vertices,heights} of course.paths)emitPath(vertices,heights,course.repeat+(level?2:1));
     onProgress?.({stage:'Mapping vase motif courses',completed:++completed,total});
   }
+  if(level&&paths.length)trimVanishingEnd(paths.at(-1));
   return {id,...(level?{levelBoundary:{zMm:end,strokes:paths.slice(-pattern.paths.length),widthMm:process.lineWidthMm}}:{}),operations:[{id:id+':wall',layerId:id+':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,after,
     strokes:paths,order:'given',continuous,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,constantClearanceZ:maxZ+process.liftMm,clearanceFor:()=>maxZ+process.liftMm}}],

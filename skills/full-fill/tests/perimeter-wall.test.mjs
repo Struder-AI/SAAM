@@ -48,7 +48,7 @@ test('2 mm closed walls emit five loops and no interior in full and ordinary pla
         for (let k = 0; k < 3; k++) assert.ok(Math.abs(program.moves[i].to[k] - expected[i].to[k]) < 6e-6);
         assert.ok(Math.abs(program.moves[i].volumeMm3 - expected[i].volumeMm3) < 1e-4);
       }
-      const volume = path.actions.filter(action => action.layer === 1 && action.volumeMm3 > 0)
+      const volume = path.actions.filter(action => action.layer === 1 && action.volumeMm3 > 0 && !action.connector)
         .reduce((sum, action) => sum + action.volumeMm3, 0);
       assert.ok(Math.abs(volume / (Math.PI * (12 ** 2 - 10 ** 2) * 0.2) - 1) < 0.002,
         'five distinct tracks deposit the nominal wall volume once');

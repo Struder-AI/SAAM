@@ -80,7 +80,7 @@ test('new sparse patterns compose with unchanged solid skins and one wall owner 
     const path=generatePath(plan,loadMachine(),r);checkMachinePath(path,plan,loadMachine());
     assert.ok(path.actions.some(a=>a.role==='infill'));
     assert.deepEqual([...new Set(path.actions.filter(a=>a.role==='fill'&&a.volumeMm3>0).map(a=>a.layer))],[0,1,2,7,8,9]);
-    assert.equal(path.actions.filter(a=>a.layer===4&&a.role==='perimeter'&&a.volumeMm3>0).length,4);
+    assert.equal(path.actions.filter(a=>a.layer===4&&a.role==='perimeter'&&a.volumeMm3>0&&!a.connector).length,4);
     // Closed concentric interiors belong to fill operations, never to wall operations.
     const results=planarInfillResults({shell:buildShell(r,geometry),plan,solid:true});
     assert.ok(results[0].operations.filter(op=>op.id.endsWith(':walls')).every(op=>op.strokes.every(s=>s.role!=='infill')));

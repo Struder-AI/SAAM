@@ -425,8 +425,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
                 evidence:{exportHash:state.exportHash,planHash:state.planHash,skills:state.skills,shortTravel:advisory},
                 instruction:`Toolpath quality advisory for export ${state.exportHash}: ${advisory.message}\n`+
                   `Affected recipe skills: ${(state.skills??[]).join(', ')}. This notification preserves source locations and operation counts in evidence.shortTravel. `+
-                  `${advisory.count} travels have endpoints within ${advisory.thresholdMm} mm. `+
-                  'Record this as evidence for deferred generator improvement and acknowledge this advisory as completed. Continue the current user task; no repair or new approval is required.'});
+                  'Mention this finding to the person in your next reply, then acknowledge this advisory as completed and continue the current user task; no repair or new approval is required.'});
           }
           send({...await tour.acknowledgeView(dir,data,state),presentedRequests});return;
         }

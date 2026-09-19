@@ -34,7 +34,10 @@ provide strokes (3D points, speed, role, and either uniform bead area or per-seg
 volume/metadata) and travel-policy queries. Local `material` queries constrain
 combing against completed operations; policies without them retain their
 conservative `clearanceFor` comparison. An operation is atomic; expose smaller
-operations when within-layer interleaving is permitted.
+operations when within-layer interleaving is permitted. `connectNearby: true`
+declares that gaps of at most 2 mm between this operation's stroke starts and the
+preceding deposition lie inside its own material, permitting
+[deposited connectors](#whole-plan-travel-requirement).
 These runtime results are not separate machine files or a persisted preview
 format. Travel policies may contain geometry-query callbacks.
 
@@ -203,8 +206,8 @@ Ordinary factor-1 recipes retain their existing deposition behavior.
 
 Travel minimization is a design responsibility for every skill and shared
 component. The explicitly authorized [short-travel advisory](output.md#short-travel-advisory)
-flags complete travel endpoints within 2 mm for later skill/shared-function
-improvement. It does not reject or repair a path. Think about where the nozzle
+flags complete same-layer travels whose endpoints are within 2 mm. It does not
+reject or repair a path; producers are expected to leave it nothing to report. Think about where the nozzle
 finishes each stroke and where the next useful deposition can start. Choose
 nearby open endpoints and nearby entry points on closed contours; consider the
 next wall, neighboring component and following layer when deciding seams and
@@ -247,12 +250,31 @@ hole on every row. Full-fill, planar-infill and draped-skin
 use the same scanline implementation. Ordering changes neither row endpoints
 nor deposition coverage; connections still use the shared travel checks.
 
-Stroke starts within 1 mm use direct non-extruding repositioning without a new
-retraction, lift or detour when the material/surface policy permits it, even
-when the longer combing budget is lower. A short distance does not permit
+A stroke of a `connectNearby` operation that starts within 2 mm of the end of
+the preceding deposition continues as deposition: `PathBuilder.connectTo` writes
+one straight connector carrying the next stroke's bead (its uniform area, or its
+first segment's volume per length and metadata). This joins fill rows into a
+zigzag, steps between wall loops and concentric rings, and enters fill from the
+last wall without a travel. The connector must pass the same direct-move checks
+as a travel: inside the operation's region, on its surface, clear of completed
+operations, not retracted and directly after deposition. Planar regions check it
+with `connectClearanceMm`, the half-line-width standoff less 0.05 mm, because
+wall centerlines lie on that standoff less the offset kernel's arc chords.
+Oriented strokes have no footprint query; they connect only across the
+producer's declared `poseJoinMm` index within one operation. Full-fill and its
+callers (planar-infill, supports, regional fill), draped-skin, thick-lip and
+axial pipe/surface cladding opt in. Line networks, mapped vase motifs, rims,
+waves and welds do not: their gaps are authored. A short distance never permits
 crossing an opening or bypassing an earlier operation's clearance restriction.
-No plastic is added to these gaps. Vase-wall's continuous stroke has no internal
-stroke-start travels; its transitions still pass through the shared builder.
+
+Where no connector applies, stroke starts within 1 mm use direct non-extruding
+repositioning without a new retraction, lift or detour when the policy permits
+it, even when the longer combing budget is lower. A planar stroke starting
+within 2 mm on the next layer up is one rising `layer-step` move without
+retraction when the nozzle is already at the top of everything deposited and
+the step lies inside the new layer's region. Vase-wall's continuous stroke has
+no internal stroke-start travels; a level rim ends where its vanishing taper
+holds less than 0.001 mm3, which a machine program could only write as travel.
 
 The shared PathBuilder merges consecutive forward collinear moves with the same
 speed, volume per length and semantic metadata. A fixed line anchors each run
@@ -338,7 +360,8 @@ way to report additional travel cases.
 
 ### Travel planning
 
-`core/path/builder.mjs` classifies each move as joined, combed or hopped.
+`core/path/builder.mjs` classifies each stroke start as joined, connected, combed
+or hopped, and reports the counts in `summary.travel`.
 The shared PathBuilder tracks deposited height; local callbacks decide direct/combed
 eligibility. See [travel requirements](#whole-plan-travel-requirement). Fill
 strokes alternate their direction to keep neighbouring endpoints close. Longer

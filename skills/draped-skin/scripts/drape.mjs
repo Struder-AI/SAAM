@@ -213,7 +213,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     }
     const operationId=id+':'+(skin-1);
     operations.push({id:operationId,layerId:id+':'+(skin-1),phase:'draped-skin',layer:skin-1,
-      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,order:'nearest-cells',travelPolicy:policy});
+      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,order:'nearest-cells',connectNearby:true,travelPolicy:policy});
     previous=[operationId];
   }
   return {id,operations,report};

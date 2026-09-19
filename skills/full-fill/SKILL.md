@@ -75,8 +75,11 @@ of its first or last row. Row order and stroke direction are chosen independentl
 so either side of either end row can be the entry.
 Variable-gap volumes stay attached to their segments when reversed. This is
 straight-line distance ordering; heat balancing and lookahead are deferred.
-Shared motion compacts straight runs and directly
-repositions across permitted gaps of at most 1 mm without retraction or lift. Verified
+Shared motion compacts straight runs. A row, wall loop or fill entry starting
+within 2 mm of the preceding deposition, inside the layer's region, continues as
+a short printed connector rather than a travel: rows print as a zigzag and wall
+loops step into each other. A nearby start on the next layer is one rising move
+without retraction. Verified
 combing stays inside the allowed region at print height, with routes around
 holes when possible within `maxCombMm`. Other traverses clear the highest material
 deposited so far across all skills plus `liftMm` (default 1 mm; zero allowed).

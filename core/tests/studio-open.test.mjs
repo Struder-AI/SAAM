@@ -47,7 +47,13 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   const geometry=join(library,'geometry-only'),ready=join(library,'ready-h2d');
   await shell.initBundle(geometry,boxPlan());
   let state=await shell.loadBundle(geometry);
-  await shell.initBundle(ready,boxPlan(loadMachine('bambu-h2d')),{machineId:'bambu-h2d'});
+  // Producers connect their own nearby strokes; an authored 1 mm gap between
+  // two line-network centerlines remains a short same-layer travel to report.
+  const gapped=boxPlan(loadMachine('bambu-h2d'));
+  for(const settings of Object.values(gapped.skills))settings.enabled=false;
+  Object.assign(gapped.skills['line-network'],{enabled:true,layers:1,networks:[{id:'dashes',strokes:[
+    {closed:false,points:[[0,0],[10,0]]},{closed:false,points:[[11,0],[20,0]]}]}]});
+  await shell.initBundle(ready,gapped,{machineId:'bambu-h2d'});
   await shell.generateBundle(ready);
   const original=await readFile(join(ready,'review.json'));
   const server=createStudio(geometry,{libraryRoot:library});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
@@ -72,6 +78,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.equal(pending.requests[0].evidence.exportHash,state.exportHash);
   assert.deepEqual(pending.requests[0].evidence.shortTravel,state.program.summary.shortTravel);
   assert.ok(pending.requests[0].evidence.shortTravel.count>0);
+  assert.match(pending.requests[0].instruction,/Tell the person[\s\S]*Mention this finding to the person in your next reply/);
   assert.equal(agentIndicator(pending.requests,{now:Date.now()+3600000}).active,false);
   assert.equal(agentIndicator(pending.requests,{now:Date.now()+3600000}).message,'');
   assert.equal((await createAgentRequests(library,{now:()=>Date.now()+3600000}).list())[0].status,'working');

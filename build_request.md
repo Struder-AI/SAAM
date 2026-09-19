@@ -60,14 +60,14 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ### BR-049 — Improve generators identified by short-travel advisories
 
-- Status: open
-- Contributor: Current requester; account attribution unconfirmed.
-- Authorization: human requested — add an advisory for all Studio toolpaths and improve the responsible skills/functions “at some point.” Generator repairs are explicitly deferred; the advisory itself is implemented.
-- Session: Current Codex task, `01a0a650-b120-7bd3-a9c7-93fbede5003b`; title unavailable.
-- Source: 2026-09-15 request: travel start/end points “within 2mm?” indicate a bad path; “it don't block, it doesn't repair, it just let's the agent know about the problem.”
-- Context: The [shared advisory](core/export/README.md#short-travel-advisory) preserves counts, operation labels and source locations for complete travel trips whose XYZ endpoints are at most 2 mm apart. Near endpoints can expose avoidable breaks or detours; recipe membership alone does not identify the responsible algorithm.
-- Remaining: Other advisory-identified cases remain deferred. When taken up, use reported exports and operation/source evidence to identify and improve the responsible skills or shared routing functions while preserving intended deposition and required clearance.
-- Completion: Demonstrate the targeted generator improvement against representative reported cases and record the resolved producer/cause. Keep the advisory nonblocking and avoid automatic repair during review.
+- Status: in progress
+- Contributor: Current requester; account attribution unconfirmed. 2026-09-18 continuation by `remettub` as developer.
+- Authorization: human requested — add an advisory for all Studio toolpaths and improve the responsible skills/functions “at some point”; on 2026-09-18, “fix ALL skills / toolpath generation so they are robust and the travel advisory essentially never triggers”, and have the agent always mention a finding.
+- Session: Codex task `01a0a650-b120-7bd3-a9c7-93fbede5003b` (advisory); Claude Code session 2026-09-18 (generator work).
+- Source: 2026-09-15 and 2026-09-18 requests above; [implementation record](DEVLOG.md#2026-09-18--nearby-strokes-connect-by-deposition-the-short-travel-advisory-reports-only-bad-paths).
+- Context: Fill rows, wall loops, rings, skin rows, lip rings and axial cladding tracks now continue as [deposited connectors](maps/reference/motion.md#whole-plan-travel-requirement); the [advisory](maps/reference/output.md#short-travel-advisory) exempts required transitions and agents report findings.
+- Remaining, from the programs the test suites export (each 1–20 findings; every other program reports none): (1) Neighboring islands or walls closer than 2 mm across open air (raised letters, text, supports, two-component composition, a Bambu fixture) need a lifted travel and are reported with `lifted: true`; decide whether the advisory should exempt lifted travels or a producer should order around them. (2) Planar walls printed after a rim hop on every 0.4–0.6 mm wall step, because rimming publishes no material region and later operations fall back to the conservative `clearanceFor` comparison; give rims a material footprint. (3) Vase walls and mapped motifs whose thickness ramps from or to zero contain segments whose filament amount rounds to nothing mid-stroke and read as direct travels of up to 1 mm; only the level rim's final taper is trimmed. (4) A level vase rim followed by a cap starts the cap 0.2 mm away under the same layer label. (5) Line-network, wave-overhang, plastic-weld and segmented vase motifs keep authored gaps by design.
+- Completion: Representative prints for every producing skill report no advisory, or each residual is an agreed exemption.
 
 ### BR-045 — Complete continuous wave-overhang paths around holes
 

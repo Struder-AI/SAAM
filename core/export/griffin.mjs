@@ -48,6 +48,7 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
   validatePath(path);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const relativeE=extrusionMode==='relative';
+  let residualE=0;
   const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2;
   let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition];
   // This body is also embedded in machine templates. Establish XYZ and feed on
@@ -76,9 +77,13 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
       // must all use these same written coordinates and extrusion value.
       const target=a.to.map(v=>Number(v.toFixed(5)));
       if(a.volumeMm3>0){
-        const filamentMm=a.volumeMm3/area;
+        // Relative amounts carry their rounding remainder forward, as absolute
+        // E does by construction, so many equal short segments keep their total.
+        // A remainder never erases a segment that is writable on its own.
+        const ownMm=a.volumeMm3/area,filamentMm=ownMm+(relativeE?residualE:0);
         if(!relativeE)e+=filamentMm;
-        const nextE=Number((relativeE?filamentMm:e).toFixed(5));
+        let nextE=Number((relativeE?filamentMm:e).toFixed(5));
+        if(relativeE){if(!(nextE>0))nextE=Number(ownMm.toFixed(5));residualE=filamentMm-nextE;}
         const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
         requireThat(length>0, 'A deposition move collapsed at export precision.');
         // Quantized E and XYZ must still obey the locked flow limit, including

@@ -23,6 +23,9 @@ import {requireProcessControl} from './process-controls.mjs';
 // moves, and deleting them changes the start of the next volume-bearing move.
 export const MINIMUM_MOVE_MM = 1e-4;
 export const NEARBY_MOVE_MM = 1;
+// A stroke starting this close to the end of the previous deposition continues
+// as deposition rather than a tiny travel. It matches the short-travel advisory.
+export const CONNECT_MOVE_MM = 2;
 import { pointInRegion, pointSegmentDistance, SegmentIndex } from '../region/region2d.mjs';
 
 export class PathBuilder {
@@ -41,7 +44,7 @@ export class PathBuilder {
     this.layer = 0;
     this.layerSeconds = 0;
     this.depositedMaxZ = 0;
-    this.stats = { joined: 0, combed: 0, hopped: 0, travelMm: 0, retractions: 0, printMm: 0 };
+    this.stats = { joined: 0, connected: 0, combed: 0, hopped: 0, travelMm: 0, retractions: 0, printMm: 0 };
   }
 
   setContext(phase, layer) { this.phase = phase; this.layer = layer; }
@@ -182,6 +185,15 @@ export class PathBuilder {
       this.move(target,this.process.travelSpeedMmS,0,{travel:'combed'});
       return 'combed';
     }
+    // A nearby start on the next layer up is one rising move. Everything
+    // deposited so far is at or below the nozzle and the step is checked inside
+    // the new layer's own footprint, so it needs no retraction, lift or descent.
+    if(gap<=CONNECT_MOVE_MM&&!policy.canTravelDirect&&!this.retracted&&target[2]>this.position[2]&&this.position[2]>=this.depositedMaxZ-1e-9
+      &&this.canComb(target,{...policy,combClearanceMm:policy.connectClearanceMm??policy.combClearanceMm},CONNECT_MOVE_MM,[this.position[0],this.position[1],target[2]])) {
+      this.stats.combed++;
+      this.move(target,this.process.travelSpeedMmS,0,{travel:'layer-step'});
+      return 'combed';
+    }
     if (this.canComb(target, policy)) {
       this.stats.combed++;
       this.recover();
@@ -200,22 +212,50 @@ export class PathBuilder {
     return 'hopped';
   }
 
+  // Continue deposition across a nearby gap when the producer permits it and the
+  // same direct-move checks pass: the chord stays inside this operation's
+  // material, on its surface, clear of earlier operations. The connector carries
+  // the next stroke's bead, so a row-to-row or wall-to-wall step is a short
+  // printed segment instead of a travel. Anything else falls through to travelTo.
+  connectTo(target, policy, speed, volumePerMm, extra, targetPose) {
+    // A fan change at an operation boundary does not interrupt deposition.
+    const last=this.actions.findLast(action=>action.kind!=='fan');
+    if(this.retracted||last?.kind!=='move'||!(last.volumeMm3>0)||!(volumePerMm>0))return false;
+    const gap=distance(this.position,target);
+    if(gap<=1e-9||gap>CONNECT_MOVE_MM)return false;
+    if(this.pose&&(targetPose||!samePose(this.pose,uprightPose()))){
+      // Oriented strokes have no footprint query; only the producer's declared
+      // index step between neighboring tracks of one operation is deposited.
+      if(!(policy.poseJoinMm>0)||last.operation!==this.operationId||gap>policy.poseJoinMm)return false;
+      this.stats.connected++;
+      this.move(target,speed,gap*volumePerMm,{...extra,connector:true,pose:validatePose(targetPose??uprightPose())});
+      return true;
+    }
+    // Wall centerlines sit on the boundary standoff itself, less the offset
+    // kernel's arc chords; the connector is checked with that margin released.
+    const clearance=policy.connectClearanceMm??policy.combClearanceMm;
+    if(!this.canComb(target,{...policy,combClearanceMm:clearance,directClearanceMm:policy.directClearanceMm??clearance},CONNECT_MOVE_MM))return false;
+    this.stats.connected++;
+    this.move(target,speed,gap*volumePerMm,{...extra,connector:true});
+    return true;
+  }
+
   // A hop may be combed when it is short, stays at one height, and the straight
   // line between the two points remains inside this layer's material with the
   // nozzle's own width to spare. Crossing the outline would drag a bead across
   // open air, so that always hops.
-  canComb(target, policy, distanceLimit) {
+  canComb(target, policy, distanceLimit, from = this.position) {
     // A policy may decide for itself: a draped skin travels over a curved
     // surface, where "same height" is the wrong question.
-    if (policy.canTravelDirect) return policy.canTravelDirect(this.position, target, distanceLimit)
-      &&(!policy.combRegion||combSegment(this.position,target,{...policy,combClearanceMm:policy.directClearanceMm??policy.combClearanceMm}))
-      &&(!policy.isTravelClear||policy.isTravelClear(this.position,target));
+    if (policy.canTravelDirect) return policy.canTravelDirect(from, target, distanceLimit)
+      &&(!policy.combRegion||combSegment(from,target,{...policy,combClearanceMm:policy.directClearanceMm??policy.combClearanceMm}))
+      &&(!policy.isTravelClear||policy.isTravelClear(from,target));
     const maxDistance=distanceLimit??policy.maxCombMm;
     if (!policy.combRegion || !(maxDistance > 0)) return false;
-    if (Math.abs(target[2] - this.position[2]) > 1e-9) return false;
-    const span = Math.hypot(target[0] - this.position[0], target[1] - this.position[1]);
+    if (Math.abs(target[2] - from[2]) > 1e-9) return false;
+    const span = Math.hypot(target[0] - from[0], target[1] - from[1]);
     if (span > maxDistance) return false;
-    return combSegment(this.position,target,policy)&&(!policy.isTravelClear||policy.isTravelClear(this.position,target));
+    return combSegment(from,target,policy)&&(!policy.isTravelClear||policy.isTravelClear(from,target));
   }
 
   toPath(summary = {}) {
@@ -257,6 +297,7 @@ export function planarPolicy(loops, { layerZ, liftMm, maxCombMm, lineWidthMm }) 
     combRegion: loops,
     combIndex: index,
     combClearanceMm: lineWidthMm / 2,
+    connectClearanceMm: Math.max(0,lineWidthMm/2-0.05),
     combCorners: prepareCombCorners(loops,lineWidthMm/2),
     maxCombMm,
     material: materialRegion(loops,{maxZ:layerZ,index}),

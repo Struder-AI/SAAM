@@ -130,7 +130,7 @@ test('travel over a curved surface clears that surface, not the whole part', () 
   assert.ok(travels > 0);
   // Verified adjacent moves retain the local surface policy.
   assert.ok(belowPartMax > 0, 'some travel stays below the full part clearance height');
-  assert.ok(builder.stats.combed > 0, 'neighbouring skin strokes cross directly');
+  assert.ok(builder.stats.connected > 0, 'neighbouring skin strokes continue as deposition');
 });
 
 test('a plan whose reserved skin exceeds the part is rejected', () => {

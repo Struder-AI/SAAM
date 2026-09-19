@@ -1,5 +1,6 @@
 // Surface coverage producer. Geometry and normal offsets live in shared core;
 // this skill only chooses courses, local cell widths, poses and dependencies.
+import {CONNECT_MOVE_MM} from '../../../core/path/builder.mjs';
 import {surfaceRegion} from '../../../core/geom/surface-region.mjs';
 import {prepareSurfaceOffsets} from '../../../core/geom/surface-offset.mjs';
 import {sampleSurfaceCurve} from '../../../core/region/normal-surface.mjs';
@@ -132,7 +133,11 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
     }
     const operationId=id+':'+layer,maxZ=strokes.reduce((best,stroke)=>stroke.points.reduce((m,p)=>Math.max(m,p[2]),best),shell.bounds.max[2]);
     operations.push({id:operationId,layerId:operationId,phase,layer,rank:layer,after:previous,
-      strokes,order:'given',continuous:true,regionId:operationId,travelPolicy:{maxCombMm:0,clearanceFor:()=>maxZ+p.liftMm,poseJoinMm:0}});
+      strokes,order:'given',continuous:true,connectNearby:axial,regionId:operationId,
+      // Neighboring axial passes, full or partial, end nearby on the same offset
+      // surface; deposition continues across that index instead of a retreat
+      // and approach.
+      travelPolicy:{maxCombMm:0,clearanceFor:()=>maxZ+p.liftMm,poseJoinMm:axial?CONNECT_MOVE_MM:0}});
     previous=[operationId];
   }
   report.points=points;report.meridianSurveyMm=meridianMax;report.axialSurveyRows=nv+1;

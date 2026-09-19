@@ -87,8 +87,9 @@ even though the vase-wall underneath needs `nonplanar`.
 
 ## Limitations
 
-No physical print has validated this skill. Travel between adjacent rings
-uses the same shared travel/comb policy as every other planar skill; it is
+No physical print has validated this skill. Adjacent rings of one step are
+joined by a short printed connector inside that step's own ring band, checked
+by the same shared travel policy as every other planar skill; it is
 not specially modeled for the hollow interior beneath a single-wall vase.
 A `steps` entry large enough to push a ring's centerline well outside the
 modeled surface has not been tested for adhesion or overhang at that

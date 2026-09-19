@@ -5,7 +5,7 @@ import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../../core/
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 import {contourPath} from '../../../core/geom/contour-path.mjs';
-import {depositionStroke,maximumPathAngle} from '../../../core/path/deposition.mjs';
+import {depositionStroke,maximumPathAngle,trimVanishingEnd} from '../../../core/path/deposition.mjs';
 import {mappedPatternResult} from './paths.mjs';
 import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
 import {createVaseMeshReference,createStandardVaseSleeve} from './reference.mjs';
@@ -199,6 +199,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   const stroke=depositionStroke({role:'vase-wall',points,heightsMm,widthMm:width,speedMmS:speed,
     segmentMetadata:times.slice(1).map((t,i)=>({layer:Math.floor((times[i]+t)/2)}))});
   const volumesMm3=stroke.volumesMm3;
+  if(settings.endTransition==='level'){trimVanishingEnd(stroke);times.length=points.length;}
   const rimStart=settings.endTransition==='level'?times.findIndex(t=>t>=spiralTurns-1e-9):-1;
   const levelBoundary=rimStart>=0?{zMm:end,widthMm:width,strokes:[{...stroke,points:points.slice(rimStart),
     volumesMm3:volumesMm3.slice(rimStart),segmentMetadata:stroke.segmentMetadata.slice(rimStart)}]}:null;

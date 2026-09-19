@@ -103,7 +103,12 @@ export function composeResults(builder, results, rules = {}, onProgress) {
         &&!deposited.some(previous=>previous.material
           ?previous.material.blocksSegment(from,to)
           :previous.clearanceFor(from,to)>op.travelPolicy.clearanceFor(from,to)+1e-9);
-      builder.travelTo(stroke.points[0], policy,stroke.poses?.[0]);
+      const extra=i=>({ role: stroke.role, ...(stroke.poses?{pose:stroke.poses[i+1]}:{}), ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i] ?? {}) });
+      // A producer that declares its nearby gaps to be inside its own material
+      // lets the next stroke's bead continue across them; see PathBuilder.connectTo.
+      const connects=op.connectNearby&&!stroke.stationaryExtrusion&&builder.connectTo(stroke.points[0],policy,stroke.speedMmS,
+        stroke.volumesMm3?stroke.volumesMm3[0]/distance(stroke.points[0],stroke.points[1]):stroke.beadAreaMm2,extra(0),stroke.poses?.[0]);
+      if(!connects)builder.travelTo(stroke.points[0], policy,stroke.poses?.[0]);
       if(stroke.stationaryExtrusion){
         requireThat(stroke.points.length===1&&!stroke.closed&&!stroke.poses,'Stationary extrusion needs one unoriented point.');
         builder.extrude(stroke.stationaryExtrusion.volumeMm3,stroke.stationaryExtrusion.flowMm3S);
@@ -114,8 +119,7 @@ export function composeResults(builder, results, rules = {}, onProgress) {
         const volume = stroke.volumesMm3 ? stroke.volumesMm3[i - 1]
           : distance(stroke.points[i - 1], stroke.points[i]) * stroke.beadAreaMm2;
         requireThat(Number.isFinite(volume) && volume >= 0, 'Invalid operation deposition volume.');
-        builder.move(stroke.points[i], stroke.speedMmS, volume,
-          { role: stroke.role, ...(stroke.poses?{pose:stroke.poses[i]}:{}), ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
+        builder.move(stroke.points[i], stroke.speedMmS, volume, extra(i-1));
       }
     }
     if(op.nozzleC!==undefined){builder.park();builder.nozzle(op.restoreNozzleC);}

@@ -45,13 +45,22 @@ Shared export/interpretation attaches `summary.shortTravel` to every program,
 including saved programs reopened in Studio. A travel is a maximal sequence of
 non-depositing moves: lifts, traverses, descents, detours and sampled robot moves
 remain one trip. Process-only events do not split it; stationary deposition does.
-Initial and final travels are included. The check flags straight-line XYZ distance
+The check flags straight-line XYZ distance
 between trip endpoints **at or below 2 mm**, including coincident endpoints,
-regardless of the distance traveled along the route.
+regardless of the distance traveled along the route. Required transitions are
+counted as travels but never flagged: the approach before the first deposition,
+the departure after the last, and a travel between depositions with different
+known layer labels, where a nearby start is the intended path. A segment of at
+most 0.001 mm inside a stroke, whose filament amount rounded to nothing in the
+written program, is not a travel.
 
-This is a bad-path advisory for later producer improvement, not a validity gate
-or automatic repair. The report includes total/count, operation counts and up to
-20 examples with endpoints and source file/line, phase, layer and adjacent
+Producers [connect nearby strokes by deposition](motion.md#whole-plan-travel-requirement),
+so an ordinary print reports nothing. A finding is a bad-path report, not a
+validity gate or automatic repair, and the agent tells the person about it. The
+report includes total/count, `liftedCount` (trips that rose above both
+endpoints because the producer found the direct line blocked, such as a gap
+between neighboring islands), operation counts and up to 20 examples with
+endpoints, the lifted flag and source file/line, phase, layer and adjacent
 operation labels. Missing labels remain unknown; recipe skills alone do not prove
 which producer caused a travel. The check is one linear scan of interpreted moves,
 cached with the owning program and included in source-only worker handoff.

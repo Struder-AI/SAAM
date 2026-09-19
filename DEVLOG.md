@@ -5041,3 +5041,49 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   three region-composition failures that already fail on a clean checkout of
   `e783862` and are unrelated to this change. A new regression generates a
   wall above 100000 points on the exact path and reads old budgets as inert.
+
+## 2026-09-18 — Nearby strokes connect by deposition; the short-travel advisory reports only bad paths
+
+- Source: user, as developer work: fix all skills and toolpath generation so the
+  short-travel advisory essentially never triggers, then have the agent always
+  mention it when it does (BR-049).
+- Measured before the change, by regenerating saved prints in memory and
+  bucketing every travel of at most 2 mm by its neighboring operations: tour
+  handle 2074 of 2950 travels, freehand cat mesh 1718 of 3876, wavy roof 10959 of
+  14471, DENSO surface cladding 17372 of 18135. About 95% were fill row to next
+  row, wall loop to wall loop and wall to fill, written as non-extruding direct
+  moves; on curved mesh outlines 337 wall-to-wall steps of 0.4 mm were full
+  retract/lift/descend hops because the outer wall centerline sits exactly on
+  the half-line-width combing standoff. The rest were layer changes that started
+  near the previous layer's end (hops), the 1 mm final park, axial cladding index
+  steps, sub-micron gyroid segments whose E rounded to zero, and the vanishing
+  end of a level vase rim.
+- Implemented: `PathBuilder.connectTo` and `connectNearby` operations — a stroke
+  starting within 2 mm of the preceding deposition continues as one printed
+  connector carrying the next stroke's bead, under the same region, surface and
+  completed-material checks as a direct travel, with a 0.05 mm released standoff
+  for wall centerlines; connector moves carry `connector: true` and
+  `summary.travel.connected` counts them. Full-fill (and planar-infill, supports
+  and regional fill through it), draped-skin, thick-lip and axial pipe/surface
+  cladding opt in; authored-gap producers do not. Thick-lip travel now uses the
+  ring band it deposits rather than the wall section. A nearby start on the next
+  layer up is one rising `layer-step` move without retraction. Level vase rims
+  end where the remaining taper holds under 0.001 mm3. Relative-E export carries
+  its rounding remainder, which the many equal connectors exposed as a 0.003 mm3
+  drift on H2D. The advisory no longer flags the first approach, the final
+  departure, travels between different known layer labels, or segments of at
+  most 0.001 mm; it reports `liftedCount` and a per-sample `lifted` flag, and its
+  message and the Studio advisory request tell the agent to inform the person.
+- Measured after: handle 3 (lifted travels between letter islands 1.2 mm apart),
+  cat 0, gyroid check 0, cylinder vase 0, thick-lip example 0, plastic-weld trial
+  0, wave-overhang example 0, heat-set example 0; DENSO surface cladding 17372 to
+  shell changes only. Across every program the test suites export, thirteen
+  still report 1–20 findings each; BR-049 lists their causes. Connectors add
+  material: 0.46% on a five-loop 2 mm ring wall, the usual zigzag turn on solid
+  fill. No physical print has tested them.
+- Verification: affected core and skill suites pass in the shared checkout after
+  updating expectations that encoded the former non-extruding steps. Still
+  failing and unrelated: the known mcp, finished-cladding, plastic-weld and vase
+  interoperability cases, `studio-lifetime` "last viewer closes only its
+  instance" (fails identically without this change), and dev-map suites under
+  concurrent edit by another session.

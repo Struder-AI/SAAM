@@ -47,7 +47,8 @@ test('raised glyphs deposit four curved layers above the finished native roof, w
         const roofZ=roofHeight(p);
         assert.ok(p[2]>roofZ+0.18&&p[2]<roofZ+0.82,'letter material occupies only the requested relief');
       }
-      if(a.operation.endsWith(':0')){
+      // A row-to-row connector carries its following segment's bead and metadata.
+      if(a.operation.endsWith(':0')&&!a.connector){
         const gap=((previous[2]-roofHeight(previous))+(a.to[2]-roofHeight(a.to)))/2;
         assert.ok(Math.abs(a.gapMm-gap)<1e-6,'first bead measures its actual local support');
       }

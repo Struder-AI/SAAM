@@ -67,8 +67,9 @@ export function pipeCladdingResult({plan,shell,after=[],id='pipe-cladding',finis
     const angularStep=Math.min(s.sampleStepMm/radius,2*Math.acos(Math.max(-1,1-Math.min(s.toleranceMm,radius)/radius)))*180/Math.PI;
     const strokes=[],{axial,direction,phase}=claddingCourse(s,shell);
     if(axial){
-      // Index with extrusion off at each end. Each axial bead has a unique
-      // circumferential cell; closing the seam does not repeat the first bead.
+      // Each end index continues deposition into the neighboring track. Each
+      // axial bead has a unique circumferential cell; closing the seam does not
+      // repeat the first bead.
       const tracks=2*Math.ceil(circumference/trackPitch/2),width=circumference/tracks/factor;
       const bottom=width/2,top=g.heightMm-width/2,start=angle;
       for(let i=0;i<tracks;i++){
@@ -103,7 +104,7 @@ export function pipeCladdingResult({plan,shell,after=[],id='pipe-cladding',finis
     }
     const operationId=id+':'+shell;
     operations.push({id:operationId,layerId:operationId,phase,layer:shell,rank:radius,
-      after:previous,strokes,order:'given',continuous:true,regionId:operationId,
+      after:previous,strokes,order:'given',continuous:true,connectNearby:axial,regionId:operationId,
       travelPolicy:{maxCombMm:0,clearanceFor:()=>g.heightMm+p.liftMm,poseJoinMm:axial?p.lineWidthMm*1.01:0}});
     previous=[operationId];
   }

@@ -75,7 +75,7 @@ test('planar infill and full-fill share walls and partition the solid layers on 
     assert.deepEqual(solidLayers,[0,1,2,17,18,19]);
     assert.ok(moves.filter(a=>a.role==='infill').every(a=>a.layer>=3&&a.layer<=16));
     for(let i=0;i<20;i++){
-      const loops=moves.filter(a=>a.layer===i&&a.role==='perimeter').length;
+      const loops=moves.filter(a=>a.layer===i&&a.role==='perimeter'&&!a.connector).length;
       assert.equal(loops,4,'outer wall printed once');
     }
     const volume=layer=>moves.filter(a=>a.layer===layer&&['infill','fill'].includes(a.role)).reduce((s,a)=>s+a.volumeMm3,0);

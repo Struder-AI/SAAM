@@ -157,7 +157,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       // composition. Construct it on first use and retain it for that result.
       let materialRegion;
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
-        after:[...previous,...current],strokes:selected,
+        after:[...previous,...current],strokes:selected,connectNearby:true,
         order:closed&&!lowerSurface?'nearest':!closed&&selected.every(s=>s.scanlineCell!==undefined)?'nearest-cells':'given',region,
         get materialRegion(){const boundary=detail?.interiorBoundary??region;return materialRegion??=role==='fins'?detail.finRegion:closed?union(detail?.wallRegion??[],pitch===width?difference(boundary,offsetRegion(boundary,-width*settings.perimeters)):
           union(Array.from({length:settings.perimeters},(_,ring)=>difference(ring?offsetRegion(boundary,-ring*pitch):boundary,offsetRegion(boundary,-ring*pitch-width))).flat(),[])):

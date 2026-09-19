@@ -128,7 +128,8 @@ test('expanding polygonal cup keeps continuous phase when the first seam enters 
         assert.ok(Math.abs(gap-plan.process.lineWidthMm/2)<=plan.skills['vase-wall'].toleranceMm);
       }
     }
-    assert.ok(Math.abs(turns-15)<1e-5,'foundation, thirteen rising turns and level finish remain intact');
+    // The level finish ends where its vanishing taper holds no writable material.
+    assert.ok(turns>15-0.02&&turns<15+1e-5,'foundation, thirteen rising turns and level finish remain intact: '+turns);
   }
 });
 

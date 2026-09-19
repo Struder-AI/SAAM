@@ -205,8 +205,8 @@ When a matching toolpath view is acknowledged, findings create one `advisory`
 notification per print/export through the agent request listener. It preserves
 the export identity, recipe skills and diagnostic evidence for later generator
 improvement. Advisories do not show busy dots, time out into UI errors, overlap
-edit work or block review/export. Agents acknowledge receipt without repairing
-the path. Reopening the same export does not resend an acknowledged advisory.
+edit work or block review/export. Agents tell the person about the finding in
+their next reply and acknowledge receipt without repairing the path. Reopening the same export does not resend an acknowledged advisory.
 
 The viewer provides click-to-select faces and matching feature buttons.
 Features identify the geometry version and native object UUID or mesh face identity. Geometry edits

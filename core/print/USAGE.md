@@ -185,9 +185,13 @@ surface fitting and composition behavior.
 Every interpreted toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory).
 Read `shortTravel` in generation checks/MCP print state or the program summary
 in CLI/toolkit state. Studio also sends an `advisory` through the existing request
-listener once per displayed export with findings. Preserve its source/operation
-evidence for deferred producer improvement, acknowledge it as completed, and
-continue the user's task. It requests no repair, regeneration or extra approval.
+listener once per displayed export with findings. Producers connect nearby
+strokes, so an ordinary print reports none. Whenever `shortTravel.count` is
+nonzero, however you read it, tell the person: how many travels, which
+operations, and whether they were lifted over a blocked line or moved directly.
+Preserve its source/operation evidence, acknowledge a Studio advisory as
+completed, and continue the user's task. It requests no repair, regeneration or
+extra approval.
 
 | Operation | CLI suffix after `node core/print/cli.mjs` | MCP tool | Result |
 |---|---|---|---|
