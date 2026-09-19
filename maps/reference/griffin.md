@@ -37,6 +37,15 @@ This is incremental parsing, not a fully streamed
 bundle: generation, retained playback moves and
 browser transfer still use memory proportional to the job.
 
+A pause is not limited by what one command can express. Firmware reads at most
+60,000 ms from a single `G4 P`, so the writer splits a longer wait into
+consecutive `G4` commands whose milliseconds sum to the requested wait; a wait
+that fits one command is written exactly as before. The reader checks each
+command against that same per-command maximum and adds their times, reporting one
+dwell event per command. Withdrawn filament that has not been recovered is
+checked against the selected material profile's `maxRetractMm`, or the plan's own
+locked retraction where that is larger, rather than a fixed millimetre figure.
+
 H2D and Dobot have no arbitrary archive-size cutoff. They keep the declared
 ZIP32 container and integrity checks (CRC, member ranges, declared decompression
 length, names and exact expected package contents). Its actual 32-bit member

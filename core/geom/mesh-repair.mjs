@@ -2,11 +2,11 @@
 import {decodeSTL,makeMesh,parseSTL} from './mesh.mjs';
 import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
-import {checkMeshBudget} from './mesh-budget.mjs';
+import {checkMeshCapacity} from './mesh-capacity.mjs';
 
 export function cleanTriangleSoup(input) {
   requireThat(Array.isArray(input.vertices)&&Array.isArray(input.triangles),'Repair needs vertices and triangles.');
-  checkMeshBudget(input.vertices.length,input.triangles.length);
+  checkMeshCapacity(input.vertices.length,input.triangles.length);
   const vertices=[],lookup=new Map(),mapping=input.vertices.map(p=>{
     requireThat(Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),'Repair coordinates must be finite XYZ.');
     const key=p.join(',');if(!lookup.has(key)){lookup.set(key,vertices.length);vertices.push([...p]);}return lookup.get(key);
@@ -56,7 +56,6 @@ function stitchCollapsedEdges(vertices,triangles) {
     if(at!==edge.a||chain.length<=2)continue;
     const points=chain.reverse(),list=splits.get(edge.face)??[];
     list.push({...edge,points});splits.set(edge.face,list);stitchedEdges++;addedTriangles+=points.length-2;
-    checkMeshBudget(vertices.length,triangles.length+addedTriangles);
   }
   if(!stitchedEdges)return {triangles,stitchedEdges,addedTriangles};
   const output=triangles.flatMap((face,i)=>{

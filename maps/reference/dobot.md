@@ -32,10 +32,20 @@ helper and motion files, transforms their fixed-orientation Cartesian commands
 back to the design frame and rejects missing/altered helpers, unsupported Lua
 or motion semantics, incompatible setup and stale artifact hashes.
 
+A program is never refused for its length. The reader stops it only when it stops
+making progress: commanding the machine is the one effect the reader can observe,
+so each host call clears the quiet-step count, and a program that runs more
+statements between two host calls than the whole loaded program contains is
+reported as looping without commanding anything. A generated program is
+straight-line, so its statements run once each and the rule never reaches it.
+
 Only bounded linear `MovL` at `CP=0`, explicit fixed frames/orientation, `DO`,
 `Sync` and relay-off `Wait` are supported. The selected
 `stroke-stop-start-unblended` policy keeps the relay on through consecutive
-deposition moves and switches it off for travel and dwell. Each motion segment
+deposition moves and switches it off for travel and dwell. A pause is not limited
+by what one command can express: the writer splits a longer dwell into consecutive
+`Wait` commands whose milliseconds sum to the requested pause, and the reader keeps
+the 0–60,000 ms range per command, reporting one dwell event for each. Each motion segment
 uses a modeled rest-to-rest acceleration profile. This differs from the legacy
 continuous-through-travel reference and must be explicitly selected in setup.
 No startup positioning, heating commands or priming wait are inserted. External

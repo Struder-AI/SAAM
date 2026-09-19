@@ -69,7 +69,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
-| `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Supply `studioInstanceId` to rebind an existing owned instance, or `newInstance:true` to open another instance for the same bundle. |
+| `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Reuse is the default: the instance already showing the print, else the sole live instance, is rebound in the same browser tab. Supply `studioInstanceId` to choose among several owned instances, or `newInstance:true` to open another only when the person asks or for a compelling reason stated to them. |
 | `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk as `toolpathApproved`, the only approval state print summaries report. |
 | `generate_print` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
@@ -109,7 +109,9 @@ use free loopback ports, and close 30 minutes after the last viewer tab
 disconnects (with a grace period for refresh), or when the owning stdio client
 disconnects. There is no deadline to open the first viewer.
 Repeated review requests use the print's preferred still-open server within this
-adapter; an explicit instance ID can rebind any other owned server. After it
+adapter; a print not yet shown rebinds the sole live server, so switching prints
+keeps one Studio and tab. With several live servers an explicit instance ID
+selects the one to rebind, and an unshown print otherwise opens another. After it
 closes, review starts a fresh instance from the saved bundle. Closing a
 viewer leaves the MCP connection and its other viewers running. Separate adapter
 processes never adopt each other's Studio sessions. One adapter may own several

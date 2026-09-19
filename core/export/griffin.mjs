@@ -3,6 +3,9 @@ import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds,startupRetracted} from '../machine/rules.mjs';
 import {plannedNozzleTemperatures,validateNozzleC} from '../path/process-controls.mjs';
 const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
+// One G4 carries at most this many milliseconds; it is what the firmware reads
+// from a single command, not a limit on how long a path may pause.
+const DWELL_COMMAND_MS=60000;
 
 const fmt=(n,d=5)=>Number(n.toFixed(d)).toString();
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
@@ -108,7 +111,12 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
       motion('G1',null,nextE,a.speedMmS*60);
       if(!relativeE)writtenE=nextE;
     } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);
-    else if(a.kind==='dwell') lines.push(`G4 P${Math.ceil(a.seconds*1000)}`);
+    else if(a.kind==='dwell'){
+      // A longer pause is the same pause in commands the firmware accepts; the
+      // parts sum to the requested milliseconds, so the wait is not shortened.
+      let remaining=Math.ceil(a.seconds*1000);
+      do{const part=Math.min(remaining,DWELL_COMMAND_MS);lines.push(`G4 P${part}`);remaining-=part;}while(remaining>0);
+    }
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
   }
   return lines;
@@ -125,6 +133,9 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   const bounds=toolBounds(machine,plan.setup.tool);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
+  // Withdrawn filament that has not been recovered. The material profile states
+  // how far this feeder may withdraw; the plan's own retraction is never more.
+  const maxWithdrawalMm=Math.max(machine.materials?.[s.material]?.maxRetractMm??0,plan.process.retractMm);
   const temperatures=plannedNozzleTemperatures(plan);
   for(const target of temperatures)validateNozzleC(target,plan,machine);
   const startupZ=machine.startup.zAfterStartupMm;
@@ -183,7 +194,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
       case 'M106':only('S','S');number(args.S,0,255,'Fan');fan=args.S;events.push({line,kind:'fan',value:fan});break;
       case 'M107':only('');fan=0;events.push({line,kind:'fan',value:fan});break;
       case 'M400':only('');events.push({line,kind:'synchronize'});break;
-      case 'G4':only('P','P');number(args.P,0,60000,'Dwell milliseconds');events.push({line,kind:'dwell',seconds:args.P/1000,startSeconds:time});time+=args.P/1000;break;
+      case 'G4':only('P','P');number(args.P,0,DWELL_COMMAND_MS,'Dwell milliseconds');events.push({line,kind:'dwell',seconds:args.P/1000,startSeconds:time});time+=args.P/1000;break;
       case 'G0':case 'G1': {
         only('XYZEF');requireThat(Object.keys(args).length>0,'Empty move.');
         requireThat(metric&&absolute!==null&&absE!==null&&tool===s.tool&&hot&&bedReady,'Unknown initial motion state.');
@@ -221,7 +232,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
             pos=next;e=nextE;
             break;
           }
-          requireThat(debt<=8.001,'Excessive retraction.');
+          requireThat(debt<=maxWithdrawalMm+1e-3,`Retraction beyond the ${fmt(maxWithdrawalMm,3)} mm this material and plan allow.`);
           events.push({line,kind:de<0?'retract':startupRecovery?'startup-recover':'recover',filamentMm:Math.abs(de),startSeconds:time,seconds:Math.abs(de)/feed});time+=Math.abs(de)/feed;
         }
         pos=next;e=nextE;break;
@@ -263,7 +274,7 @@ export function validatePath(path) {
     else if(a.kind==='extrude')requireThat(Number.isFinite(a.volumeMm3)&&a.volumeMm3>0&&Number.isFinite(a.flowMm3S)&&a.flowMm3S>0,'Invalid stationary deposition.');
     else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
     else if(a.kind==='fan') number(a.percent,0,100,'Fan');
-    else if(a.kind==='dwell') number(a.seconds,0,60,'Dwell');
+    else if(a.kind==='dwell') requireThat(Number.isFinite(a.seconds)&&a.seconds>=0,'Dwell outside limits.');
     else throw new Error('Unsupported SAAMpath action: '+a.kind);
   }
 }

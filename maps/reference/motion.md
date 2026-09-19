@@ -288,9 +288,17 @@ the final commands; regression tests compare their coordinates and volume with
 the generator's transient motion objects.
 
 Planar and height-field surface combing check boundary crossings,
-then can route around holes via a bounded visibility graph (256 offset corners
-in the endpoints' connected component, `maxCombMm` XYZ route length); otherwise
-they hop. Disconnected components cannot be joined by combing. Every candidate
+then can route around holes via a visibility graph over the offset corners of the
+endpoints' connected component. The route budget is the only bound: a corner
+joins the graph when going through it stays within the `maxCombMm` XYZ route
+length, so a layer with a detailed outline routes instead of degrading into a hop
+because it has many corners. The search is shortest-first on the route so far plus
+the straight-line distance still to run, which is never longer than any route from
+there, so it settles on the same shortest route while expanding only the corners a
+route of that length can pass. Boundary segments come from the corridor along the
+travel rather than its bounding box, which costs the travel's length instead of its
+area. Where no route fits the budget the move
+hops. Disconnected components cannot be joined by combing. Every candidate
 edge checks both the destination policy and completed material, including edges
 of a detour. Lifted moves retain the global deposited-height clearance above.
 

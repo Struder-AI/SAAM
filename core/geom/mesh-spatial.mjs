@@ -72,10 +72,9 @@ export function trianglesContact(pa,pb,sharedPoints=[]) {
 }
 
 export function checkAdjacentContacts({vertices,triangles}) {
-  let candidates=0;const allowance=Math.max(2000000,triangles.length*100);
   const incident=vertices.map(()=>[]);triangles.forEach((t,i)=>t.forEach(v=>incident[v].push(i)));
   for(const [i,t]of triangles.entries())for(const j of new Set(t.flatMap(v=>incident[v]))){
-    if(j<=i)continue;if(++candidates>allowance)throw Error('Adjacent-contact work budget exceeded; too many incident faces.');const other=triangles[j],shared=t.filter(v=>other.includes(v)).map(v=>vertices[v]);
+    if(j<=i)continue;const other=triangles[j],shared=t.filter(v=>other.includes(v)).map(v=>vertices[v]);
     if(trianglesContact(t.map(v=>vertices[v]),other.map(v=>vertices[v]),shared))throw new Error('Repair has intersecting adjacent triangles beyond their shared vertex or edge.');
   }
 }

@@ -56,7 +56,7 @@ the other settings with the maker; the maker need not edit JSON.
 |---|---|---|
 | `enabled` | `false` | Select thick-lip (only meaningful inside a region). |
 | `part` | `null` | Required component ID in an assembly; null for a single part. |
-| `steps` | `[2]` | One entry per lip layer: how many perimeters that layer prints, 1–20 each, 1–50 layers. |
+| `steps` | `[2]` | One entry per lip layer: how many perimeters that layer prints, one or more each, 1–50 layers. More than about eight perimeters in a step is rarely useful. |
 | `minFeatureMm` | `0.4` | Shared section feature scale for the frozen boundary query, 0.05–5 mm. |
 
 ## Geometry

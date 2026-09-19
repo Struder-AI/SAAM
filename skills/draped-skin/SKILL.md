@@ -80,7 +80,7 @@ recipe and reproducible example.
 |---|---|---|
 | `enabled` | `true` | Select the skin. |
 | `part` | `null` | Roof component for an assembly; otherwise the part roof. |
-| `layers` | `2` | Number of skins. |
+| `layers` | `2` | Number of skins. Any whole count from one up is accepted; more than about eight is rarely useful. |
 | `normalMm` | `0.2` | Skin thickness measured along the surface normal. |
 | `strokeAngleDeg` | `0` | Bed-plane stroke direction. |
 | `sampleStepMm` | `0.5` | Stroke sampling step. |

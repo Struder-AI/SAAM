@@ -7,8 +7,8 @@ const TAU=2*Math.PI;
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 
 export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8192,logRadiusSlopeTarget=256}={}){
-  requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isInteger(samples)&&samples>=32&&samples<=16384,
-    'Directional contour needs positive tolerance and a fixed sample count from32 to16384.');
+  requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isInteger(samples)&&samples>=32,
+    'Directional contour needs positive tolerance and a fixed sample count of at least32.');
   requireThat(Array.isArray(anchor)&&anchor.length===2&&anchor.every(Number.isFinite),'Directional contour needs a finite XY center.');
   const points=Array.from({length:samples},(_,i)=>curve.at(i/samples));
   let samplingErrorMm=0;
@@ -34,12 +34,12 @@ export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8
   // constrained weighted projection remains continuous as source points move.
   const step=Math.min(available/(4*Math.max(...radii)*samples),TAU/(samples*16));
   // A positive angle alone still permits arbitrarily steep radial walls. Give
-  // radial variation angular room, while the same correspondence constraint
-  // rejects any source that cannot accommodate that conditioning within budget.
+  // radial variation angular room; the room every sample needs must fit inside
+  // the one turn the unfolded profile has, which is a property of the source.
   requireThat(Number.isFinite(logRadiusSlopeTarget)&&logRadiusSlopeTarget>0,'Directional conditioning needs a positive log-radius slope target.');
   const prefix=[0];
   for(let i=1;i<=samples;i++)prefix.push(prefix.at(-1)+Math.max(step,Math.abs(Math.log(radii[i%samples]/radii[i-1]))/logRadiusSlopeTarget));
-  requireThat(prefix[samples]<TAU,'Directional contour radial variation exceeds its angular conditioning budget.');
+  requireThat(prefix[samples]<TAU,'Directional contour radial variation needs more angular room than one full turn.');
   const minimum=angles[0],maximum=angles[samples]-prefix[samples],blocks=[];
   let feasibleMinimum=minimum;
   for(let i=1;i<samples;i++){

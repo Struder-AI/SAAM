@@ -33,22 +33,31 @@ function rotationError(target,current){
   if(s<1e-10){if(c<0)throw Error('Seed orientation is opposite the target; choose another model seed');return scale(v,.5);}
   return scale(v,Math.atan2(s,c)/(2*s));
 }
-export function densoInverse(g,pose,{seed,maxIterations=90}={}){
+export function densoInverse(g,pose,{seed}={}){
   validateRigid(rigid(pose.tcp,pose.rotation));
   if(!seed||seed.length!==6||!seed.every(Number.isFinite))throw Error('DENSO nominal IK requires an explicit model-angle seed');
   let q=[...seed];const lever=g.upperMm;
   const sign=v=>Math.abs(v)<1e-5?0:Math.sign(v);
   const branch=q=>[sign(g.forearmMm*Math.cos(q[2]*Math.PI/180)+g.elbowOffsetMm*Math.sin(q[2]*Math.PI/180)),sign(Math.sin(q[4]*Math.PI/180))];
   const chosen=branch(seed);
-  try{for(let iteration=0;iteration<maxIterations;iteration++){
+  // The damped step keeps reducing the pose residual while the seed branch can
+  // reach the target. Iteration ends on that residual, not on a step count: a
+  // solve that stops approaching the pose is the real failure.
+  let best=Infinity,stalls=0;
+  try{for(let iteration=0;;iteration++){
     const s=densoForward(g,q),p=sub(pose.tcp,s.tcp),r=rotationError(pose.rotation,s.rotation);
     if(norm(p)<1e-5&&norm(r)<1e-7){
       if(branch(q).some((v,i)=>v&&chosen[i]&&v!==chosen[i]))return {valid:false,errors:['DENSO solve leaves the declared elbow/wrist seed branch']};
       return {...s,valid:true,errors:[],iterations:iteration};
     }
+    const residual=norm(p)+norm(r)*lever;
+    if(residual<best*(1-1e-9))
+      {best=residual;stalls=0;}
+    else if(++stalls>=8)
+      return {valid:false,errors:[`DENSO nominal IK stopped approaching the requested pose from the declared model seed after ${iteration} iterations`]};
     const columns=s.axes.map((axis,i)=>[...cross(axis,sub(s.tcp,s.origins[i])),...scale(axis,lever)]),error=[...p,...scale(r,lever)];
     const normal=columns.map((c,i)=>columns.map((d,j)=>dot(c,d)+(i===j?.1:0))),rhs=columns.map(c=>dot(c,error)),delta=linear(normal,rhs);
     const factor=Math.min(1,.15/Math.max(...delta.map(Math.abs)));q=q.map((v,i)=>v+delta[i]*factor*180/Math.PI);
+    if(!q.every(Number.isFinite))return {valid:false,errors:['DENSO nominal IK left the model with a nonfinite joint angle']};
   }}catch(error){return {valid:false,errors:[error.message]};}
-  return {valid:false,errors:['DENSO nominal IK did not converge from the declared model seed']};
 }

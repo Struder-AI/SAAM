@@ -21,7 +21,9 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
   const trackPitch=lineSpacing(w,s),factor=spacingFactor(s);
   requireThat(chart.periodicU,'This wrapping producer needs a periodic U region; open-patch raster cladding is not yet implemented.');
   const center=plan.setup.denso.rotaryCenterMm;
-  const options={toleranceMm:s.toleranceMm,maxStepMm:s.sampleStepMm,maxPoints:s.maxPoints};
+  // Chord tolerance and step target decide how many samples every curve needs;
+  // survey and course counts follow the measured surface, not a fixed budget.
+  const options={toleranceMm:s.toleranceMm,maxStepMm:s.sampleStepMm};
   let points=0,angle=0,previous=[...new Set([...after,...(chart.sourceOperationIds??[])])],helixStartU=0;const operations=[];
   const report={backend:chart.backend,shells:s.shells,points:0,partialAxialPasses:0,fullAxialPasses:0,axialPasses:0,
     offsetTightness:offsetField?s.offsetTightness:1,
@@ -38,7 +40,7 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
   };
   const emit=(stroke,samples,widths)=>{
     for(let i=0;i<samples.length;i++){
-      requireThat(++points<=s.maxPoints,`Surface cladding exceeds maxPoints (${s.maxPoints}); increase pipe-cladding.maxPoints.`);
+      points++;
       const e=samples[i];stroke.points.push(e.point);stroke.poses.push(pose(e));
       if(i){const a=samples[i-1],length=distance(a.point,e.point),width=(widths[i-1]+widths[i])/2;
         // Cell width is along U for axial courses, V for hoops. Project it
@@ -59,7 +61,6 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
   requireThat(meridianMax>2*w,'Surface region is too short for cladding.');
   const margin=w/(2*meridianMax),v0=margin,v1=1-margin;
   const nv=Math.max(32,Math.ceil(meridianMax/s.sampleStepMm));
-  requireThat(nv*chart.breaksU.length<s.maxPoints,'Surface coverage survey exceeds maxPoints.');
   const vs=Array.from({length:nv+1},(_,i)=>v0+(v1-v0)*i/nv);
   const cuts=[...new Set([...chart.breaksU,...Array.from({length:17},(_,i)=>i/16)])].sort((a,b)=>a-b);
   for(let layer=0;layer<s.shells;layer++){
@@ -74,7 +75,6 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
           const result={samples,lengths,length:lengths.at(-1)};cache.set(v,result);return result;
         };
         const lengths=vs.map(v=>ring(v).length),count=Math.ceil(Math.max(...lengths)/trackPitch);
-        requireThat(count*vs.length<s.maxPoints,'Surface course survey exceeds maxPoints.');
         for(let k=0;k<count;k++){
           const threshold=k*trackPitch;
           const centerAt=v=>{
@@ -109,7 +109,6 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
       for(const v of [0,.25,.5,.75,1]){const ring=sampleSurfaceCurve(offsetChart(offset),t=>[t,v],offsetField?0:offset,options);
         circumferenceMax=Math.max(circumferenceMax,ring.slice(1).reduce((n,e,j)=>n+distance(ring[j].point,e.point),0));}
       const perTurn=Math.max(64,Math.ceil(circumferenceMax/s.sampleStepMm)),count=Math.ceil(totalTurns*perTurn),stroke=newStroke('circumferential');
-      requireThat(count+points<=s.maxPoints,'Surface helix exceeds maxPoints; increase pipe-cladding.maxPoints.');
       const samples=[],widths=[];
       const uvAt=progress=>{const raw=-beadPitch/2+progress*pitch,u=helixStartU+direction*progress;return [u-Math.floor(u),Math.max(v0,Math.min(v1,raw))];};
       for(let i=0;i<count;i++){
@@ -126,7 +125,6 @@ export function surfaceCladdingResult({shell,plan,after=[],id='pipe-cladding',fi
         for(const e of section.slice(i?1:0)){
           const rawV=-beadPitch/2+progressAt(e.t)*pitch,local=Math.hypot(...e.dv);
           samples.push(e);widths.push(Math.max(0,Math.min(beadPitch,rawV+beadPitch/2,1+beadPitch/2-rawV))*local);
-          requireThat(samples.length+points<=s.maxPoints,'Surface helix exceeds maxPoints; increase pipe-cladding.maxPoints.');
         }
       }
       emit(stroke,samples,widths);strokes.push(stroke);

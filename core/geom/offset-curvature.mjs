@@ -57,8 +57,11 @@ export function prepareOffsetCurvature(patch,directions,{periodicU,periodicV}){
   function limitedPatch(depth){
     if(cache.has(depth))return cache.get(depth);
     const depths=new Float64Array(groupCount).fill(depth);
+    // Every incomplete pass shrinks at least one control depth, so the passes
+    // end on the fold criterion itself. A pass that changes no depth at all has
+    // reached the floating-point floor and cannot unfold the patch.
     let complete=false;
-    for(let pass=0;pass<32&&!complete;pass++){
+    while(!complete){
       complete=true;const factors=new Float64Array(groupCount).fill(1);
       for(const row of rows){
         const [b,c]=row.coefficients(depths),root=firstRoot(b,c);
@@ -66,9 +69,11 @@ export function prepareOffsetCurvature(patch,directions,{periodicU,periodicV}){
         complete=false;
         for(const entry of row.entries)factors[entry.group]=Math.min(factors[entry.group],root*(1-1e-8));
       }
-      if(!complete)for(let i=0;i<groupCount;i++)depths[i]*=factors[i];
+      if(complete)break;
+      let reduced=false;
+      for(let i=0;i<groupCount;i++){const next=depths[i]*factors[i];if(next!==depths[i])reduced=true;depths[i]=next;}
+      requireThat(reduced,'Loose offset local curvature limiting stopped reducing its control depths before the patch unfolded; no folded patch was returned.');
     }
-    requireThat(complete,'Loose offset local curvature limiting did not converge; no folded patch was returned.');
     const cp=patch.cp.slice();let reduction=0;
     for(let i=0;i<count;i++){
       const applied=depths[groups[i]];reduction=Math.max(reduction,Math.abs(depth-applied));

@@ -27,6 +27,26 @@ test('indexed travel queries retain boundary, hole and crossing decisions',()=>{
   assert.equal(changed.contains([21,21]),true);assert.equal(changed.contains([1,1]),false);
 });
 
+test('a detailed outline routes on its own geometry instead of degrading into a hop',()=>{
+  // 320 points around the hole, so the inset outline carries far more corners
+  // than the retired 256-corner bound, on a part of ordinary size.
+  const hole=Array.from({length:320},(_,i)=>{const t=-2*Math.PI*i/320;return [15+5*Math.cos(t),15+5*Math.sin(t)];});
+  const loops=[[[0,0],[30,0],[30,30],[0,30]],hole];
+  const policy=planarPolicy(loops,{layerZ:.2,liftMm:1,maxCombMm:18,lineWidthMm:.4});
+  const from=[9,15,.2],to=[21,15,.2];
+  assert.ok(policy.combCorners(from,to).length>256,'the inset outline exceeds the retired corner bound');
+  const route=combRoute(from,to,policy);
+  assert.ok(route&&route.length>1,'the travel routes around the hole');
+  let length=0,previous=from;
+  for(const point of route){
+    assert.ok(combSegment(previous,point,policy),'every routed edge clears the outline');
+    length+=Math.hypot(...point.map((v,i)=>v-previous[i]));previous=point;
+  }
+  assert.deepEqual(previous,to);
+  assert.ok(length>12&&length<=18,`the detour stays inside the route budget: ${length}`);
+  assert.equal(combRoute(from,to,{...policy,maxCombMm:length-0.001}),null,'a budget under the shortest route still hops');
+});
+
 test('deposition height follows both ends of sloping segments; travel and repeated parks do not raise it',()=>{
   const machine=loadMachine(),plan=defaults(machine);
   const b=new PathBuilder({start:[10,10,6],machine,process:plan.process,generatorVersion:'test'});

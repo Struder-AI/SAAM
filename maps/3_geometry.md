@@ -381,9 +381,9 @@ n3 > out | index triangle boxes result | data
 box n4 | 3.1.3.5.5 | bound nearest distance | @core/geom/mesh-distance.mjs::createMeshDistanceQuery
 in > n4 | bound nearest distance inputs | data
 n4 > out | bound nearest distance result | data
-box n5 | 3.1.3.5.6 | enforce memory budget | @core/geom/mesh-budget.mjs::checkMeshBudget
-in > n5 | enforce memory budget inputs | data
-n5 > out | enforce memory budget result | data
+box n5 | 3.1.3.5.6 | check index capacity | @core/geom/mesh-capacity.mjs::checkMeshCapacity
+in > n5 | check index capacity inputs | data
+n5 > out | check index capacity result | data
 box n6 | 3.1.3.5.7 | stream STL input | @core/geom/stl-file.mjs::decodeSTLFile
 in > n6 | stream STL input inputs | data
 n6 > out | stream STL input result | data
@@ -474,7 +474,7 @@ n2 > out | validate compiled record result | data
 ```saam-responsibilities
 numerics | core/geom/tolerance.mjs, core/geom/nurbs.mjs, core/geom/field.mjs, core/geom/polyline.mjs, core/geom/surface-derivatives.mjs, core/geom/least-squares.mjs | geometry#changing-numerical-foundations | core/tests/geometry.test.mjs, core/tests/contour-cleanup.test.mjs, core/tests/loose-surface-offset.test.mjs
 geometry-query | core/geom/query.mjs, core/geom/shell.mjs, core/geom/section.mjs | geometry#changing-geometry-queries-and-shell-sections | core/tests/geometry.test.mjs, core/tests/mesh.test.mjs, core/tests/interoperability.test.mjs
-mesh-structure | core/geom/mesh.mjs, core/geom/mesh-topology.mjs, core/geom/mesh-spatial.mjs, core/geom/triangle-bvh.mjs, core/geom/mesh-budget.mjs, core/geom/stl-file.mjs | geometry#changing-mesh-topology-and-spatial-queries | core/tests/mesh.test.mjs, core/tests/mesh-boundary.test.mjs, core/tests/mesh-large.test.mjs
+mesh-structure | core/geom/mesh.mjs, core/geom/mesh-topology.mjs, core/geom/mesh-spatial.mjs, core/geom/triangle-bvh.mjs, core/geom/mesh-capacity.mjs, core/geom/stl-file.mjs | geometry#changing-mesh-topology-and-spatial-queries | core/tests/mesh.test.mjs, core/tests/mesh-boundary.test.mjs, core/tests/mesh-large.test.mjs
 geometry-construction | core/geom/shapes.mjs, core/geom/cylinder.mjs, core/geom/spline-tube.mjs, core/geom/tessellate.mjs, core/print/geometry.mjs | geometry#changing-generated-geometry-and-persistence | core/tests/geometry.test.mjs, core/tests/pipeline.test.mjs, core/tests/text-layout.test.mjs
 prepared-contours | core/geom/contour-path.mjs, core/geom/directional-contour.mjs, core/geom/prepared-contours.mjs, core/geom/prepared-radial-contact.mjs | geometry#changing-contour-correspondence-and-prepared-contact | core/tests/prepared-contours.test.mjs, core/tests/directional-contour.test.mjs, core/tests/prepared-radial-contact.test.mjs
 spline-offsets | core/geom/surface-offset.mjs, core/geom/offset-curvature.mjs | geometry#changing-spline-offset-construction | core/tests/loose-surface-offset.test.mjs, core/tests/surface-offset.test.mjs, core/tests/cladding-offset-tightness.test.mjs

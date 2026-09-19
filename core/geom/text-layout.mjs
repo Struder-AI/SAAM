@@ -18,7 +18,7 @@ function baselineMapper(spec,toleranceMm){
   }
   requireThat(spec&&Object.keys(spec).every(k=>['controlPoints','startMm'].includes(k))&&Array.isArray(spec.controlPoints)&&[3,4].includes(spec.controlPoints.length)&&spec.controlPoints.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),'Baseline needs three or four XY Bezier control points.');
   const start=spec.startMm??0;requireThat(Number.isFinite(start)&&start>=0,'Baseline startMm must be nonnegative.');
-  const points=[spec.controlPoints[0]],parameters=[0];flattenBezier(spec.controlPoints,toleranceMm/4,points,0,parameters);
+  const points=[spec.controlPoints[0]],parameters=[0];flattenBezier(spec.controlPoints,toleranceMm/4,points,parameters);
   const lengths=[0];for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+distance(points[i],points[i-1]));
   requireThat(lengths.at(-1)>0,'Text baseline has zero length.');
   return (x,y)=>{

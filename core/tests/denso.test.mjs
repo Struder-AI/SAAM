@@ -101,7 +101,7 @@ test('actual T/EX commands reconstruct fixed-room rotary deposition across multi
   const missing={...files};delete missing[key];assert.throws(()=>interpretDensoFiles(missing,plan,machine),/Missing/);
 });
 
-test('pipe export retains substrate, tilted axial/hoop shells, radial ownership and point budget',async()=>{
+test('pipe export retains substrate, tilted axial/hoop shells and radial ownership at any sample count',async()=>{
   const plan=small(),path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
   const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0','pipe-cladding:1']);
   const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.phase.startsWith('cladding'));
@@ -109,7 +109,11 @@ test('pipe export retains substrate, tilted axial/hoop shells, radial ownership 
   assert.ok(body.every(m=>Math.hypot(...m.to.slice(0,2))<=boundary+1e-6));
   for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=0&&m.to[2]<=plan.geometry.heightMm+1e-8);}
   assert.ok(path.actions.some(a=>a.travel==='surface-index'&&a.volumeMm3===0));
-  const configured=structuredClone(plan);configured.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>generatePath(configured,machine,{}),/maxPoints/);
+  // The retired maxPoints budget is an unknown field, and a sampling step far
+  // finer than that former 500,000-point budget now completes.
+  const stale=structuredClone(plan);stale.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Unexpected or missing fields/);
+  const dense=structuredClone(plan);dense.skills['pipe-cladding'].sampleStepMm=.0005;
+  assert.ok(pipeCladdingResult({plan:dense,after:['body']}).report.points>500000);
 });
 
 test('RC8 uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{

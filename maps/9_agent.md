@@ -28,6 +28,7 @@ box respond | 9.5 | report result | @core/agent/toolkit.mjs::respondToRequest
 box inspect | 9.6 | inspect generation failure | @core/agent/toolkit.mjs::inspectFailure
 box events | 9.7 | read Studio events | @core/agent/toolkit.mjs::readStudioEvents
 box poll | 9.8 | poll owned Studio | @core/agent/toolkit.mjs::pollStudio
+box show | 9.9 | show print in owned Studio | @core/agent/toolkit.mjs::showPrint
 port print | print commands
 port studio | session / requests
 in > context | onboarding / manual read | gate
@@ -37,6 +38,7 @@ in > wait | recovery listener | gate
 in > respond | result / status | gate
 in > inspect | generation diagnostic | gate
 in > events | event read | gate
+in > show | open / create with Studio URL | gate
 preview > print | create / load | data
 preview > studio | identified live session / event stream | data
 begin > studio | claim and edit context | data
@@ -45,6 +47,8 @@ wait > poll | Studio URL / owner ID | data
 events > poll | Studio URL / owner ID | data
 events > studio | in-process queue drain | data
 poll > studio | owner-authenticated long-poll | data
+show > print | create / load | data
+show > studio | owner-authenticated print switch | data
 respond > studio | target / response | data
 inspect > studio | failure and guidance | data
 ```

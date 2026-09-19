@@ -46,7 +46,13 @@ test('shared normal offsets preserve native parameter correspondence and converg
   const coarse=sampleSurfaceCurve(chart,t=>[t,.43],.6,{toleranceMm:.02,maxStepMm:1}),fine=sampleSurfaceCurve(chart,t=>[t,.43],.6,{toleranceMm:.005,maxStepMm:.5});
   const length=xs=>xs.slice(1).reduce((n,e,i)=>n+distance(xs[i].point,e.point),0);
   assert.ok(fine.length>coarse.length);assert.ok(Math.abs(length(fine)-length(coarse))<.04);
-  assert.throws(()=>sampleSurfaceCurve(chart,t=>[t,.4],.6,{maxPoints:4}),/maxPoints/);
+  // The retired maxPoints budget refused any curve past 100,000 evaluations.
+  const parabola={at:(u,v)=>({point:[u,v,u*u],normal:[0,0,1],du:[1,0,2*u],dv:[0,1,0]})};
+  assert.ok(sampleSurfaceCurve(parabola,t=>[t,0],.2,{toleranceMm:1e-9,maxStepMm:8e-6}).length>100000,'sampling ends on its tolerance and step, not on a point budget');
+  // A step in the chart never meets the chord target; refinement reports the
+  // parameter it can no longer halve instead of a spent budget.
+  const stepped={at:u=>({point:[u<.3?0:1,0,0],normal:[0,0,1],du:[1,0,0],dv:[0,1,0]})};
+  assert.throws(()=>sampleSurfaceCurve(stepped,t=>[t,0],0,{toleranceMm:.01,maxStepMm:1}),/no longer distinct/);
 });
 
 test('adaptive normal-offset sampling evaluates each retained parameter only once',()=>{

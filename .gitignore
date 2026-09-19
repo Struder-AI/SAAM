@@ -35,3 +35,6 @@ Thumbs.db
 
 # personal Claude Code permissions; shared .claude/settings.json stays visible
 /.claude/settings.local.json
+
+# agent worktrees are separate checkouts, not source
+/.claude/worktrees/

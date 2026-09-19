@@ -13,12 +13,14 @@ function closest(curve,p){
   return distance(curve(best),p)<distance(curve(t),p)?best:t;
 }
 
-export function tessellateShell(shell,{toleranceMm=0.02,maxTriangles=100000}={}){
+export function tessellateShell(shell,{toleranceMm=0.02}={}){
   if(shell.kind==='triangle-mesh')return shell;
   requireThat(shell.patches&&shell.closure?.unmatched.length===0,'Text target requires a closed mesh or supported spline shell.');
   const edges=shell.closure.edges;
-  for(let count=2;count<=256;count*=2){
-    requireThat(shell.patches.length*count*count*2<=maxTriangles,'Spline tessellation exceeds maxTriangles; increase toleranceMm or simplify the target.');
+  // The grid doubles until the sampled chord error meets the tolerance. A
+  // doubling that no longer reduces that error will never reach it.
+  let previousError=Infinity;
+  for(let count=2;;count*=2){
     const curves=new Map(),paired=new Set();
     for(const edge of edges){
       if(paired.has(edge))continue;
@@ -63,11 +65,13 @@ export function tessellateShell(shell,{toleranceMm=0.02,maxTriangles=100000}={})
         }
       }
     }
-    if(error>toleranceMm)continue;
+    if(error>toleranceMm){
+      requireThat(error<previousError*0.9,'Spline tessellation stops improving before it reaches toleranceMm; the shell needs a coarser tolerance or simpler patches.');
+      previousError=error;continue;
+    }
     orientTriangles(vertices,triangles);
     return {...makeMesh(vertices,triangles),tessellation:{toleranceMm,sampledErrorMm:error,steps:count}};
   }
-  throw new Error('Spline tessellation did not converge to toleranceMm.');
 }
 
 // Patch parameterizations do not encode shell orientation. Propagate edge

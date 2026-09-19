@@ -1,5 +1,786 @@
 # Development log
 
+## 2026-09-18 — Remove fixed failing caps
+
+- Source: owner rule, 2026-09-18: "fixed cap limits like that will ALWAYS fail at
+  some point." Generation, import, repair and export must not refuse work because
+  a count, a size or an elapsed time crossed a number chosen in advance. Real
+  machine limits, input-safety limits on a network boundary, malformed-file guards
+  and schema shape checks stay. Worked from a prepared queue, group by group.
+
+### Group A — skills people hit in ordinary use
+
+- **pipe-cladding `maxPoints` (500,000).** Threw from five places in the circular
+  and surface producers and was passed into the shared surface sampler. Removed
+  the setting; `sampleStepMm` and `toleranceMm` already decide the sample count,
+  which is still reported. A 1.2 mm pipe at a 0.0005 mm step now generates over
+  500,000 points, where the default budget used to refuse it.
+- **wave-overhangs `maxWaves` (1,000), `maxPoints` (200,000),
+  `maxEvaluations` (2,000,000).** All three removed. The front loop already had
+  real non-progress detection — a wave that fails to enlarge the covered area
+  reports that its seed cannot reach the rest of the slice — so the wave count is
+  now unbounded and the post-loop "exhausted maxWaves" throw is gone with it.
+  Evaluations and points are counted for the report only. Five times finer
+  spacing on the test plane runs 34 fronts instead of 6 and simply finishes.
+- **surface offset `maxEvaluations` (250,000), pulled forward from group B.**
+  wave-overhangs fed its own budget into `offsetSurfaceRegion`; leaving the core
+  default in place would have cut the canopy example from 20,000,000 to 250,000
+  evaluations, so the cap went at the same time. Integration already halves its
+  step until the step would stop advancing, which is the real failure. Measured:
+  the same square inset runs 75,919 evaluations at a 0.05 mm step and 332,100 at
+  0.02 mm — past the old ceiling — in about 10 s.
+- **planar-infill `maxPatternCells` (1,000,000).** Removed; the gyroid grid
+  follows `sampleStepMm` and the layer's own size. A 20 mm square at a 0.018 mm
+  step is about 1.24 million cells, runs in 0.32 s and traces the same contours as
+  the coarse grid. Column values are now `Float64Array` rows.
+- **full-fill "Layer count exceeds the supported limit" (20,000).** Removed. The
+  loop already ends at the top of the part; it now rejects only a layer height
+  that would never advance. 1,800 mm at 0.06 mm layers gives 29,997 heights.
+- **Bambu `c.layers < 100000`.** Upper bound removed; the count is still checked
+  as a positive integer, and part height and layer height are bounded elsewhere.
+- **text: baseline subdivision depth 20, Bezier depth 24, three 100,000-triangle
+  limits, eight fixed refinement passes.** The two depth budgets became parameter
+  underflow detection (a midpoint no longer distinct from its ends) plus a finite
+  control-point check. The refinement loop now repeats while the sampled deviation
+  keeps falling and reports a reference it cannot resolve when a pass no longer
+  improves it. The triangle limits are replaced by the solid kernel's own
+  capacity: Manifold addresses 32-bit memory, so `KERNEL_TRIANGLE_CAPACITY`
+  (67,108,864) is what refuses an impossible subdivision, and an actual kernel
+  failure discards the aborted instance and names the setting that caused it.
+  Before this, a kernel abort poisoned the shared instance and failed the next
+  five tests in the same process. "BO" at 7 mm with 0.035 mm edges now compiles
+  107,484 triangles in 2.7 s; the old ceiling refused it before any work ran.
+- **rimming-planar/rimming-normal `maxPoints` (100,000).** Removed, with the
+  remaining-budget argument to the shared section offset.
+- **Plan counts.** line-network dropped its 10-course, 20-group, 100-stroke and
+  1,000-point limits; `primeLine` dropped its 8-pass limit; region and vase-wall
+  start/end heights dropped their 1,000 mm and 200 mm ceilings and keep their
+  finite/ordering checks. A 24-group, 2,880-stroke frame with a 2,000-point curve
+  over 40 courses now validates.
+- **Kept as real limits.** vase-wall's safe-integer point-count checks (a value
+  that cannot be represented), the Bambu positive-integer layer shape check, and
+  `layerHeights` rejecting a non-advancing layer height.
+- **Not yet decided, left for the completeness sweep.** `composition.regions`
+  ≤ 80, `batchLayers` ≤ 20, assembly components ≤ 20, `thick-lip.steps` ≤ 50,
+  text features ≤ 40 and 2,000 characters, geometry dimension ranges (5–200 mm),
+  perimeters ≤ 8 and skin layers ≤ 8.
+
+Checks (targeted, no full suite): `core/tests/denso.test.mjs`,
+`surface-cladding.test.mjs`, `surface-offset.test.mjs`, `line-network.test.mjs`,
+`prime.test.mjs`, `regions.test.mjs`, `pipeline.test.mjs`, `geometry.test.mjs`,
+`bambu.test.mjs`, `studio-settings.test.mjs`, `spacing.test.mjs`,
+`interoperability.test.mjs`, `workflow.test.mjs`, `regional-workflow.test.mjs`,
+`crossed-cladding.test.mjs`, `cladding-offset-tightness.test.mjs`,
+`export.test.mjs`, `composition.test.mjs`, `printer-profiles.test.mjs`,
+`text-layout.test.mjs`, `dev-map*.test.mjs`, `skill-digest.test.mjs`,
+`mcp*.test.mjs`, and the wave-overhangs, planar-infill, full-fill, text,
+rimming-planar, thick-lip, supports, draped-skin, vase-wall, plastic-weld,
+heat-set-inserts and gridfinity skill tests. All pass except the seven failures
+that predate this work. `node scripts/dev-map.mjs check` passes.
+
+### Group B — core samplers and geometry the skills call (B1–B7)
+
+- **Ambient normal sampling `maxPoints` (100,000) and `depth < 25`.** Both gone
+  from `sampleSurfaceCurve`. The chord tolerance and maximum step already decide
+  how far it refines; refinement now stops only when halving the parameter no
+  longer produces a distinct midpoint, and every sample is checked for finite
+  coordinates. A parabolic chart at an 8e-6 mm step returns 262,000 points.
+- **Section offset `maxPoints` (100,000) and `depth < 30`.** Same replacement.
+  Its degenerate-span guard tightened from an absolute 1e-12 in u to exact
+  equality, so a span between 1e-12 and one ulp refines instead of being accepted
+  coarse. The old message told the user to raise a skill setting that no longer
+  exists.
+- **Surface offset subdivision `depth < 30` and disk `depth < 20`.** The last of
+  the surface-offset budgets, after its `maxEvaluations` went with group A.
+- **Lower-surface strokes `maxSegments` (20,000), its 12x sampling counter and
+  `depth <= 30`.** All removed. Subdivision follows the observed gap error and
+  the spatial step; how deep it goes is the stroke's own length over the
+  coincident-point tolerance. A segment still missing its tolerance at twice that
+  width is sitting on a step in the published surface, and the message says so.
+  A 10 mm stroke at a 0.4 µm step is 32,768 segments, well past the old budget,
+  and still integrates to the analytic material area.
+- **Published surface field `(nx+3)*(ny+3) <= 1,000,000`.** The cap was guarding
+  an O(n³) relaxation: a whole-grid sweep repeated once per row or column. The
+  outward extension now walks its own fill front, visiting only the cells
+  touching the previous pass, which is O(n²) and needs no pass ceiling either.
+  On 300 random grids the result is identical except where the old pass ceiling
+  ran out first and wrongly reported that no material top could be published. A
+  1400×1400 grid — 1.96 million cells, refused outright before — fills in 1.4 s
+  against 60.8 s for the old sweep.
+- **Spline tessellation `maxTriangles` (100,000) and its 256-step ceiling.** The
+  dyadic grid now doubles until the sampled chord deviation meets the tolerance,
+  and reports a tolerance the shell cannot reach when a doubling stops lowering
+  that deviation. A six-patch spline top at 0.001 mm needs 128 steps and 196,608
+  triangles; the old budget refused it before any subdivision ran.
+- **Circle resolution `<= 100,000` segments.** Removed; the safe-integer check
+  stays, because a count that cannot be represented is a real limit. A 1e-9 mm
+  chord tolerance on a 10 mm circle gives 222,145 segments.
+
+Checks for group B (targeted): `core/tests/surface-cladding.test.mjs`,
+`surface-offset.test.mjs`, `reservation-surface.test.mjs`, `geometry.test.mjs`,
+`regions.test.mjs`, `regional-workflow.test.mjs`, `assembly-reservation.test.mjs`,
+`finished-cladding.test.mjs`, `text-layout.test.mjs`, `pipeline.test.mjs`,
+`crossed-cladding.test.mjs`, `cladding-offset-tightness.test.mjs`,
+`spacing.test.mjs`, `studio-geometry.test.mjs`, `denso.test.mjs`,
+`line-network.test.mjs`, `dev-map*.test.mjs`, and the rimming-planar, full-fill,
+wave-overhangs, vase-wall, text, heat-set-inserts and draped-skin skill tests.
+All pass except the pre-existing finished-cladding failure.
+`node scripts/dev-map.mjs check` passes.
+
+- **Mesh sleeve `maxSectionPoints` (16,384).** Removed. The points in a complete
+  fitted section already follow the section tolerance and the fitted
+  second-derivative bound; what remains is a representability check. The fluted
+  vase at a 1e-7 mm chord tolerance fits 25,224 segments per section.
+- **Prepared contact `maxProfiles` (100,000), `maxSourceDistanceQueries`
+  (4,000,000) and the depth-16 slab ceiling.** All removed. Halving a height slab
+  brings its two profiles together, so the slab loop now ends where height itself
+  ends: a slab that still misses its interpolation tolerance at one representable
+  height is a step in the source that no mesh transition confirmed, and it says
+  so. A 12→10 mm radius step reports that in 39 ms.
+- **Directional contour sample count capped at 16,384.** Its own sampling-error
+  message asks for a finer fixed sample count, which the cap made impossible. The
+  floor of 32 stays. Its one-turn angular-room check is not a budget — the room a
+  source's radial variation needs must fit in the turn an unfolded profile has —
+  so it stays, with a message that says that instead of "budget".
+- **Mesh intersection and adjacent-contact allowances (`max(2,000,000, faces ×
+  100)`).** Both removed. One loop is over the mesh's own overlapping BVH bounds,
+  the other over its own shared-vertex incidence; the mesh is its own bound.
+- **Loose-offset curvature limiting: 32 passes.** Passes now repeat until every
+  sample clears the area floor. Each incomplete pass shrinks at least one control
+  depth, so the explicit failure is a pass that changes no depth at all.
+- **DENSO inverse kinematics `maxIterations` (90).** It did not throw, but it
+  gave up on solves that were still converging. The damped step now runs while
+  the pose residual keeps falling and reports a solve that stopped approaching
+  the pose after eight consecutive non-improving steps. Unreachable poses end
+  after 299–634 iterations in 18–28 ms, so failures stay fast.
+- **Jog: 48 continuation steps, 24 projection iterations, 15 bisections.** The
+  step ceiling silently coarsened long drags; steps now stay within 8 weighted
+  units of each other however far the drag goes. Projection continues while the
+  worst boundary margin keeps improving, and the boundary search ends on its own
+  0.001-unit interval. The six relaxation sweeps that build one correction vector
+  stay: that is a step's algorithm, not a refusal.
+
+Checks for group B part 2: `core/tests/mesh-sleeve.test.mjs`,
+`directional-contour.test.mjs`, `prepared-radial-contact.test.mjs`,
+`machine-jog.test.mjs`, `machine-presentation.test.mjs`,
+`studio-kinematics.test.mjs`, `mesh.test.mjs`, `mesh-boundary.test.mjs`,
+`mesh-large.test.mjs`, `mesh-distance.test.mjs`, `loose-surface-offset.test.mjs`,
+`cladding-offset-tightness.test.mjs`, `surface-offset.test.mjs`,
+`sleeve-frame.test.mjs`, `sleeve-contact.test.mjs` and the vase-wall skill test.
+All pass. `node scripts/dev-map.mjs check` passes.
+
+### Group B — travel routing, machine commands and program readers (B12–B15)
+
+- **Comb routing's 256 offset corners.** This one degraded silently instead of
+  throwing: a layer whose inset outline carried more corners than that fell back
+  to a hop, and an ordinary part reaches it easily — a 60 × 60 mm plate with 36
+  holes has 3,460 inset corners, so every travel whose straight chord was blocked
+  hopped. The count is gone; the route budget, which the graph already applied to
+  each corner, is the only bound. Two changes keep that affordable, both
+  output-identical. The search is now A* on the remaining straight-line distance,
+  which is never longer than any route from that corner, so it settles on the same
+  shortest route while expanding far fewer corners. And the boundary query follows
+  the travel instead of enclosing it: `SegmentIndex.inCorridor` walks the chord
+  column by column rather than scanning every cell of its bounding box, which took
+  1,600 cell lookups to collect 220 segments for a 20 mm diagonal. One clearance
+  test fell from 142 µs to 21 µs, which speeds up every direct travel check as
+  well. On that plate the four sample travels take 453 ms at a 30 mm budget where
+  the unbounded graph with the old query took 1,335 ms, and 2.0 s instead of 48 s
+  at 60 mm; at the default 6 mm budget no travel reaches the graph at all. Routes
+  are identical.
+- **Griffin dwell limited to 60 s.** Firmware reads at most 60,000 ms from one
+  `G4 P`, which is a property of the command, not of how long a print may pause.
+  The writer now splits a longer wait into consecutive `G4` commands whose
+  milliseconds sum to the requested wait, and the reader adds them back; a wait
+  that fits one command is written exactly as before, so no existing export
+  changes by a byte. A 150 s pause becomes 60000 + 60000 + 30000 and reads back as
+  150 s.
+- **Griffin "Excessive retraction" at 8 mm.** Replaced by the withdrawal the
+  selected material profile allows, or the plan's own locked retraction where that
+  is larger, with the millimetres in the message. S5 PLA allows 10 mm, so nothing
+  that used to pass is refused.
+- **Dobot Lua `stepLimit` (5,000,000).** Removed. Commanding the machine is the
+  only effect the reader can observe, so a host call clears the step count, and a
+  program that runs more statements between two host calls than the whole loaded
+  program contains is reported as looping without commanding anything. A generated
+  program is straight-line, so its statements run once each and the rule never
+  reaches it, however long the part; `while true do end` is still rejected, now
+  after 10,240 steps with the real cause named.
+- **Dobot kinematic preview `maxSamples` (300,000).** `sampleDobotProgram` had no
+  caller anywhere in the repository outside its own test. The module, its test and
+  its map box are deleted rather than left carrying a budget; the rigid-frame page
+  keeps three nodes by documenting the rigid inverse at the same address, and the
+  contract section now describes the playback that exists.
+- **DENSO 2,000-statement blocks: kept.** The helper splits a program of any
+  length into blocks of that size and calls them in order, which changes no
+  motion. That is segmentation, not a refusal. Only the contract wording, which
+  called it a cap, was corrected.
+
+Checks for group B part 3: `core/tests/travel.test.mjs`,
+`material-travel.test.mjs`, `straight-moves.test.mjs`, `scanline-cells.test.mjs`,
+`regions.test.mjs`, `perimeters.test.mjs`, `interoperability.test.mjs`,
+`geometry.test.mjs`, `composition.test.mjs`, `dobot-kinematics.test.mjs`,
+`dobot.test.mjs`, `denso.test.mjs`, `export.test.mjs`, `gcode-stream.test.mjs`,
+`modal-export.test.mjs`, `source-player.test.mjs`, `robot-playback.test.mjs`,
+`machine-presentation.test.mjs`, `bambu.test.mjs`, `pipeline.test.mjs`,
+`travel-advisory.test.mjs`, `studio-kinematics.test.mjs`, `dev-map.test.mjs`,
+`dev-map-reference.test.mjs` and the full-fill, planar-infill and draped-skin
+skill tests. All pass. `node scripts/dev-map.mjs check` passes.
+
+### Group C — time limits
+
+- **Native mesh repair `timeoutMs` (120,000).** Removed. A repair of a large or
+  badly tangled mesh was killed at two minutes and its result discarded, however
+  close it was to finishing. The CGAL child now ends when it finishes, when it
+  fails, or when the caller cancels through `signal`; that path was already wired
+  from the job supervisor through the worker to `spawn`, and nothing else stops a
+  running child.
+- **Why no liveness interval replaced it.** The queue's preferred replacement for
+  a time limit is liveness — never kill a child that is still reporting. The
+  pinned helper cannot support that yet. `mesh-repair.cpp` prints one line as it
+  *enters* each of its four stages and nothing while a stage runs, and the two
+  expensive stages, `remove_self_intersections` and `triangulate_hole`, grow far
+  faster than the triangle count. A working child can therefore be silent for an
+  arbitrarily long time, so any "no sign of life for N seconds" rule would just be
+  a new invented number. The fix is to make those stages report, which means
+  editing the C++ and rebuilding the pinned executable; that is not possible in
+  this checkout (no compiler, and the source hash in the build manifest would mark
+  the existing binary stale the moment the source changed), so the limitation is
+  written down in the native-repair reference instead of guessed at. Until a
+  heartbeat exists, a genuinely hung repair is cancelled by hand.
+- **Native report size (64 KiB) kept.** The report is a single JSON line of about
+  a dozen counts and does not grow with the mesh, so this is a malformed-output
+  guard, not a budget. Its message now names that cause.
+- **Nothing else discards work on a timer.** A sweep of `core/`, `studio/`,
+  `skills/`, `adapters/` and `tools/` for `setTimeout`, `setInterval`,
+  `AbortSignal.timeout` and deadline arithmetic found no other elapsed-time kill.
+  The generation, source and repair workers hold no timers, and movie export
+  yields every eight frames and stops only on cancellation or encoder error. What
+  remains is coordination and presentation, and it stays: agent-request and event
+  waits that return "nothing yet", the viewer grace period and SSE keep-alive,
+  debounce and polling intervals, Windows file-sharing retry backoff, staged
+  download-link expiry, animation and yield slices, and the thingi10k download
+  timeout on its external HTTP boundary.
+
+Checks for group C: `core/tests/mesh-repair.test.mjs` (13 pass, including the
+four native-backend tests, which really ran here), `studio-import.test.mjs`,
+`dev-map.test.mjs`, `dev-map-reference.test.mjs`, `skill-digest.test.mjs` (29
+pass). The old test asserted that a 1 ms limit rejected a repair; it now asserts
+that the same call completes, that a cancelled repair and a failed repair each
+publish no directory. `node scripts/dev-map.mjs check` passes.
+
+### Group D — memory guard
+
+- **Measured first.** Closed, subdivided boxes were written as binary STL outside
+  the repository and run through the real stages in child processes (Node 24.19,
+  4,288 MiB heap limit, 16 GB RAM):
+
+  | triangles | vertices | file | decode | makeMesh | topology | adjacency | peak heap | peak RSS |
+  |---|---|---|---|---|---|---|---|---|
+  | 49,152 | 24,578 | 2.3 MiB | 0.3 s | 2.5 s | 0.1 s | 1.8 s | 31 MiB | 113 MiB |
+  | 199,692 | 99,848 | 9.5 MiB | 1.1 s | 9.8 s | 0.7 s | 6.9 s | 134 MiB | 269 MiB |
+  | 499,392 | 249,698 | 23.8 MiB | 2.7 s | 22.1 s | 1.3 s | 16.2 s | 216 MiB | 372 MiB |
+  | 1,002,252 | 501,128 | 47.8 MiB | 4.2 s | 47.5 s | 2.9 s | 32.2 s | 245 MiB | 467 MiB |
+  | 1,997,568 | 998,786 | 95.3 MiB | 8.0 s | 102.9 s | 6.3 s | 124.7 s | 771 MiB | 2,100 MiB |
+
+- **The estimate was not a bound in either direction.** `vertices*192 +
+  triangles*512 + sourceBytes` predicted 1,040 MiB for the one-million-triangle
+  box on the binary file path, where measured peak heap was 245 MiB; at two
+  million triangles the same formula predicted 1,159 MiB on the deduplicated
+  counts while measured peak RSS was 2,100 MiB. It was several times too
+  pessimistic where it refused work and too optimistic where it allowed it.
+- **Where it refused.** The default budget here was 1,536 MiB, and binary STL
+  import estimated three vertices per triangle before reading a single facet:
+  1,088 bytes per triangle, so any binary STL over **1,480,342 triangles** was
+  rejected on its 84-byte header. Checked against the retired module: 1,480,342
+  allowed, 1,480,343 refused, 1,997,568 refused.
+- **Where the work actually fails.** Two million triangles completes, using 771
+  MiB of the 4,288 MiB heap. Shrinking the heap around the 199,692-triangle box
+  puts the real requirement at about 0.29 KiB of live heap per triangle — it
+  completes at `--max-old-space-size=56` and aborts at 40. Time binds long before
+  memory: the pipeline costs roughly 120 us per triangle, so the two-million
+  triangle box takes four minutes and 1,480,343 triangles was never the point at
+  which this machine ran out of anything.
+- **So the refusal is gone, everywhere.** `core/geom/mesh-budget.mjs` and its
+  `SAAM_MESH_MEMORY_MIB` setting, `meshMemoryBudget()` and the
+  `MESH_MEMORY_BUDGET` error are deleted. What is left is the real
+  representational limit — at most 0x7ffffffe vertices and 0x3ffffffe triangles —
+  in `core/geom/mesh-capacity.mjs` as `checkMeshCapacity`. The periodic re-checks
+  every 4,096 facets during STL decoding and every stitched edge during cleanup
+  existed only to re-test the estimate and went with it.
+- **A failure that is real is reported as one.** `meshAllocation(stage, vertices,
+  triangles, allocate)` converts a `RangeError` — "Invalid array length", "Array
+  buffer allocation failed" — into `MESH_MEMORY_EXHAUSTED`, naming the stage and
+  the mesh size. It wraps the three whole-mesh allocations in `makeMesh` (face
+  normals, edge topology, the intersection index) and the streamed STL read.
+  A V8 heap exhaustion on the main thread is a process abort and cannot be caught
+  at all; in the repair worker, though, Node reports it to the supervisor as
+  `ERR_WORKER_OUT_OF_MEMORY` (verified on this machine), so `runRepairJob` now
+  turns that into "Mesh repair ran out of memory on a N MiB STL source" instead of
+  an anonymous worker failure. Explicit repair still refuses to treat an
+  out-of-memory error as a geometry defect worth repairing.
+- **Nothing was made to work in pieces, on purpose.** Technique (c) applies when
+  memory is genuinely at stake; the numbers say it is not. Deleting the refusal
+  alone moves the ceiling from 1.48 million triangles to whatever the machine
+  holds, which here is several times that. The obvious leanness win if that ever
+  changes is the decoder's vertex table: a `Map` keyed by `"x,y,z"` strings plus
+  an array of three-element arrays, which is most of the decode heap. Changing it
+  would change nothing observable, but it is not needed to lift this cap.
+- **Studio's 64 MiB upload limit stays** — it is an input-safety limit on the HTTP
+  boundary, and it is about 1,342,000 triangles of binary STL, just under where
+  the memory guard used to fire. MCP `import_stl_print` applies the same 64 MiB
+  bound to a local file path; the CLI and the agent toolkit apply none. Studio is
+  therefore now bounded by its upload limit and the CLI by the machine.
+- **One thing is not characterised.** The mesh stages are measured above, but the
+  rest of `importSTLBundle` at these sizes — unit inference, the translated vertex
+  copy and bundle serialization — is not: an end-to-end import of a 1.6 million
+  triangle box was still in the mesh stages after half an hour on a busy machine
+  and was abandoned rather than waited out. Nobody had seen that stretch of the
+  import at this size before, because the estimate refused first.
+- **Output for meshes that were already accepted is unchanged.** A copy of `core/`
+  with exactly these edits reversed was compared against the current tree on the
+  49,152-triangle box: one SHA-256 over decoded vertices and triangles, source
+  hash, bounds, all face normals, the packed edge topology, adjacent-contact and
+  nearest-triangle results, four section heights, cleanup counts, the re-encoded
+  repair STL and the text of three rejection paths. Identical
+  (`de7707ba0037…908b`).
+
+Checks for group D: `core/tests/mesh-large.test.mjs`, `mesh.test.mjs`,
+`mesh-boundary.test.mjs`, `mesh-distance.test.mjs` (16 pass), then
+`mesh-repair.test.mjs`, `studio-import.test.mjs`, `geometry.test.mjs`,
+`pipeline.test.mjs` (39 pass), then `dev-map.test.mjs`,
+`dev-map-reference.test.mjs`, `skill-digest.test.mjs` (25 pass); no failures, no
+skips. The test that asserted the budget throws now asserts the opposite: the
+196,608-face streamed import completes with `SAAM_MESH_MEMORY_MIB=16` set, which
+is the setting that used to refuse it, and a separate fast test covers index
+capacity at its exact boundaries, an injected allocator failure naming its stage
+and size, and the worker out-of-memory mapping. `node scripts/dev-map.mjs check`
+passes.
+
+### Group E — sweep, decisions and register
+
+The owner decided which requested counts are guidance and which are intended
+recipe shape. Upper ceilings on loop counts are gone: full-fill `perimeters`,
+planar-infill `perimeters`, draped-skin `layers`, thick-lip per-step perimeters
+and (by the same reasoning) support `perimeters` now accept any whole count from
+their lower bound up. More than about eight is rarely useful, so that advice
+moved into the five skill manuals, where advice belongs. Nothing downstream
+assumed the old maximum: every consumer loops to the requested number or derives
+its ring offsets from it. Kept, by the owner's decision: geometry dimension
+ranges, `composition.regions` at most 80, assembly `parts` 2–20, text `features`
+at most 40, text length at most 2,000, `thick-lip.steps` at most 50 entries, and
+`composition.batchLayers` 1–20, which stands in for head clearance beside a
+taller neighbour and is to be revisited with the scheduler when more multi-axis
+machines join the test program.
+
+The completeness sweep then read the whole of `core/`, `skills/`, `studio/`,
+`adapters/`, `tools/` and `scripts/` again under six patterns rather than one.
+That mattered: the first file list used `git ls-files 'studio/**/*.mjs'`, which
+matches nothing one level deep and silently omitted every Studio file. Four
+things were still refusing or degrading real work.
+
+- **Three subdivision depth ceilings inside skills.** `depth<24` in the vase
+  spiral and in mapped-motif sleeve paths, `depth<30` in wave curve refinement.
+  Groups A and B replaced exactly this pattern in `core/`; these were in
+  `skills/` and were missed. All three now report parameter underflow — the
+  subdivided midpoint is no longer distinct from its ends — which is a fact about
+  the interval rather than a number, and the `depth` argument is gone.
+- **A silent fill-front ceiling in the draped-skin reserve field.** `extrapolate`
+  ran at most 4,096 passes and then returned a *partly filled* field with no
+  error at all, which is worse than a throw. The loop already had both real
+  criteria: it returns when no sentinel remains and breaks when a pass changes
+  nothing. The ceiling was simply deleted.
+- **The DENSO program reader's step budget** (10,000,000 statements) and its
+  per-command subdivision budget (100,000). The step budget became the same rule
+  group B gave the Dobot Lua reader: emitting a move or a process event is the
+  only effect a reader can observe, so each emission resets the count and the
+  interpreter fails when it runs more statements between two emissions than the
+  whole loaded package contains. A delivered program is straight-line, so the
+  rule never reaches one. Subdivision already follows the commanded rotary sweep
+  and room travel, so its cap became a representability check.
+- **A regression the Griffin dwell work opened.** Relaxing the shared
+  `validatePath` dwell range let a pause over 60 s reach every writer, but only
+  Griffin split it. The Dobot writer emitted one `Wait(120000)` and its own
+  interpreter refused to read it back. The Dobot writer now splits a long pause
+  into consecutive `Wait` commands that sum to it, the reader keeps its per-command
+  0–60,000 ms range, and a pause that fits one command is byte-identical as
+  before — with no `Math.ceil`, because `Wait` accepts fractional milliseconds
+  where `G4 P` does not.
+
+Prose that promised budgets the code no longer has was corrected in the full-fill,
+wave-overhangs and gridfinity manuals and in the STL normalization contract, and
+the two "the retired `maxPoints` setting is rejected as an unknown field" notes
+in the vase-wall manuals were deleted rather than kept as compatibility text.
+Everything else that still names a retired budget is either history in this log,
+a test comment explaining what a new test replaced, or a deliberate pin proving
+the setting is inert. The stale example bundles under `examples/prints/*/prepared/`
+do still carry removed keys, but that directory is git-ignored local output,
+regenerated by `node examples/prints/create.mjs`.
+
+Plenty of numbers were read and kept, and the reasons are now written down where
+the next developer will find them rather than in a scratch file. `maps/reference/system.md`
+gained **Limits that adapt, and limits that are kept**: the rule in three
+sentences, the replacement techniques, and a table of every retained limit with
+its location, what it protects and why it is real rather than a guess — machine
+limits as a class, index and kernel capacity, the Studio upload and request-body
+boundaries, the native report size, cache eviction, the one-turn angular
+conditioning criterion, `validate` depth, jog relaxation sweeps, the one-command
+dwell maximum that splits, ZIP32 container sizes, DENSO's 2,000-statement
+segmentation, malformed-file guards, the schema ranges the owner kept including
+`batchLayers` with its reason and the intent to revisit it, download limits and
+coordination timers. `BUILDERS.md` points at it from the paragraph on what a
+check must earn.
+
+Three things are left for the owner, with no code changed. The MCP adapter still
+refuses an STL source over 64 MiB even though it names a local file path, so with
+the memory guard gone it is now the binding fixed limit on that import route, and
+whether MCP is a boundary like Studio's is his call. `plastic-weld` accepts at
+most 256 sites: it is the same class as the authored-shape bounds he kept, but
+the most reachable of them, since the manual's own 12 mm pitch over a 200 mm
+plate is already 256 sites on one level. And `maxHoleEdges` is capped at 100,000
+because hole triangulation is cubic in the boundary edge count — bounding what
+may be asked for, not what a mesh may contain.
+
+Checks for group E: `skills/full-fill/tests/full-fill.test.mjs`,
+`skills/planar-infill/tests/infill.test.mjs`,
+`skills/draped-skin/tests/draped-skin.test.mjs`, `skills/thick-lip/tests/lip.test.mjs`
+(28 pass), then `core/tests/workflow.test.mjs`, `studio-settings.test.mjs`,
+`composition.test.mjs`, `pipeline.test.mjs` and
+`skills/full-fill/tests/perimeter-wall.test.mjs` (33 pass), then
+`skills/supports/tests/supports.test.mjs` (8 pass), then
+`core/tests/dobot.test.mjs`, `denso.test.mjs`, `export.test.mjs` (20 pass), then
+every `skills/vase-wall/tests/`, `skills/wave-overhangs/tests/` and
+`skills/draped-skin/tests/` file (72 pass, and the two known pre-existing
+vase-wall interoperability failures), then `core/tests/skill-digest.test.mjs`,
+`dev-map.test.mjs`, `dev-map-reference.test.mjs`, `context-map.test.mjs`,
+`agent-toolkit.test.mjs`, `source-player.test.mjs`, `robot-playback.test.mjs`,
+`machine-presentation.test.mjs` and `skills/gridfinity/tests/` (87 pass across
+two runs); no skips. Each removed ceiling is now pinned from the other side: ten
+perimeters on a small box validates and deposits more wall than two, ten draped
+skins reach layer index nine, a 24-perimeter lip step generates, and a 150 second
+Dobot pause exports as 60,000 + 60,000 + 30,000 and reads back as 150 seconds.
+`node scripts/dev-map.mjs check` passes.
+
+## 2026-09-18 — Finish opening Studio in a tab that is never painted
+
+In an embedded browser pane that was not being composited, the page stayed on
+"Opening Studio… Please wait" until a paint was forced. `working()` waited on two
+nested `requestAnimationFrame` callbacks before running its task, so it could
+give the indicator a chance to paint; a hidden or unpainted tab runs no frame
+callback at all, so the task — and the overlay's dismissal — never happened.
+`acknowledgeDisplayedView()` waited the same way, inside the load it gated.
+
+Both now share one `painted()` helper: two frames when frames arrive, otherwise a
+150 ms deadline. Drawing still uses `requestAnimationFrame` alone. Verification:
+`studio-view-readiness` (13/13, one new case whose harness never fires a frame
+callback and which hung before this change), `studio-tour-ui`,
+`studio-reconnect`, `studio-playback-cache`, `studio-spinner` (22/22);
+`dev-map.mjs check` passes. Not reproduced in a real unpainted browser pane.
+
+## 2026-09-18 — Put the agent-request read back on pushes
+
+A browser network log showed hundreds of `GET /api/agent-requests` shortly after
+a page load. Two sources, both in the browser:
+
+- `agent-ui.mjs` read the endpoint from a fixed 750 ms timer — a continuous short
+  poll on an idle page, contradicting the documented rule that record changes
+  arrive as `studio-change` pushes. The timer exists to re-evaluate request
+  expiry and the lost-contact message locally; it had no reason to read.
+- `render()` called `onPresentation()` on every pass while any unpresented
+  request had a receipt against the drawn view. The server independently decides
+  whether that view receipts the request and may decline (stale export, another
+  instance, another print). When it declined, nothing changed, so the browser
+  re-posted `/api/view-ready` at the same 750 ms cadence, and every
+  acknowledgement the server did accept pushed a `requests` change that drove
+  another read.
+
+The read now follows the revision read: the `requests` push kind, a reopened
+viewer stream, the page becoming visible, and a 15 s heartbeat. The 750 ms timer
+renders only. Acknowledgement is asked once per displayed view and record set and
+asked again whenever either moves. No throttle was added. Verification:
+`studio-agent-ui` (2/2, one new case), `studio-view-readiness`, `studio-work`,
+`studio-agent`, `studio-tour-ui`, `studio-reconnect` (53/53);
+`dev-map.mjs check` passes. The original log was recorded while a separate
+process was also polling and writing request records, which would have added
+push-driven reads on top; that part is not reproduced here.
+
+## 2026-09-18 — Let a relaunched Studio recover its agent's in-flight work
+
+Relaunching Studio through the toolkit always minted a fresh agent owner, so
+every request from the previous run became invisible to the new one: the journal
+that exists for restart recovery could never be used for it. The tour's settings
+lesson made that visible — its gate looks for an agent-sourced request whose
+result is the displayed toolpath, and after a relaunch no such record was
+visible, so Next stayed locked although the changed toolpath was on screen.
+
+`start-tour`, `open-print` and `create-preview` now accept `--agent-owner ID`,
+the `agentOwnerId` from an earlier `studio-ready` line. It is validated as an
+agent-minted ID (a `studio:` session fallback is rejected) and only decides which
+request store the new server gets: the relaunch still mints its own instance and
+attaches to no running server, keeping one immutable owner per instance.
+
+The tour gate keeps its intent — a participant-requested agent edit, not
+automatic Studio work or a request predating the lesson, whose result is the
+current displayed export — but reads the print's whole request history through a
+new read-only `anyOwner` option instead of the current owner's share, so it no
+longer depends on who launched Studio. Verification: `studio-tour` (11/11, one
+new relaunch case that also re-checks the automatic-work rejection),
+`agent-toolkit` (11/11, one new owner-resume case), `studio-agent`, `studio-work`,
+`request-index`, `studio-events`, `studio-tour-lifetime` all pass;
+`dev-map.mjs check` passes. The two MCP task-manual/transport-close failures in
+`mcp.test.mjs` are the pre-existing ones already recorded here.
+
+Known remainder, not addressed: a request bound to the previous instance cannot
+be answered through the new instance's stdin live control, which checks
+`studioInstanceId`; the CLI path answers it. A relaunch also does not re-attach
+`studioOwner` in `.tour-progress.json`, so a resumed `open-print` does not become
+the tour's owning Studio.
+
+## 2026-09-18 — Report a Studio running behind the files on disk
+
+A live Studio held the plan schema it imported at startup while its generation
+worker, running in a fresh module graph, read the current files. When another
+session retired a plan field, the worker rejected the recipe the server had just
+written; once the recipe was corrected the server rejected it with HTTP 400 and
+the page looped on "Could not update the print: Reconnecting to your print…".
+Nothing named the real cause.
+
+Detection, not hot reload, and no new endpoint or event kind: the server records
+its module-graph load time and, only after a failure has already happened,
+scans `core`, `studio`, `skills` and `machines` for the first `.mjs`/`.json`
+modified since — skipping test and fixture directories. The notice is appended
+once to that error, so the page's review note, the agent event queue, the
+generation-failure request instruction and the HTTP 400 body all name the changed
+file and say to restart Studio. A detected skew is remembered until the process
+restarts; negatives are rechecked at most every three seconds, so a recurring
+poll failure does not rescan. Verification:
+`core/tests/studio-agent.test.mjs` (13/13, one new case covering an untouched
+checkout, test-file churn, a changed module and single annotation).
+`dev-map.mjs check` passes. Not exercised against a real concurrent edit.
+
+## 2026-09-18 — Name the offending fields when a plan is rejected
+
+`plan.mjs keys()` compared joined key lists and reported only "Unexpected or
+missing fields in plan.skills.planar-infill.", leaving the agent or maker holding
+the recipe to diff the schema by hand. It now lists them: "… in plan.process:
+unexpected layerHeight; missing layerMm." The stem is unchanged, so the six
+existing regex assertions still pass, and `inspect-generation-failure` gains the
+detail for free through `validationError`, which is the loader message verbatim.
+No migration or acceptance of retired fields was added. Verification:
+`core/tests/pipeline.test.mjs` (7/7, one new case), plus the five suites that
+assert the old message — crossed-cladding, spacing, full-fill, planar-infill
+patterns, text interoperability and vase (51/51). `dev-map.mjs check` passes.
+
+## 2026-09-18 — Keep the toolpath viewport occupied while its program is missing
+
+A live tour reported an empty 3D viewport on the toolpath lesson while the
+toolpath was still being calculated. The earlier fix the user remembered is
+`7f2d3a5`: it retains the superseded snapshot in `stalePresentation` and fades
+the canvas with `.stale-toolpath`. That covers only regeneration — the path with
+a previous toolpath to keep. Nothing covered a first generation, a reload during
+one, a tour lesson that starts its own generation or a failed generation, because
+`draw()` gated the whole geometry branch on `tab!=='toolpath'` (the BR-029
+decision to show no part geometry in toolpath view) and the toolpath branch needs
+a program, so the frame held only the background gradient and the bed grid.
+
+`draw()` now renders the part whenever the toolpath pane has nothing else to
+render, two named predicates decide it (`toolpathPlaceholder`, `showingGeometry`),
+and the existing 28% fade applies to both placeholders. The toolpath tab also
+stays reachable while a calculation is pending, and **Confirm** on that pane
+returns to it instead of launching a competing calculation. No geometry is drawn
+once a program exists, so BR-029's rule is unchanged. Verification:
+`core/tests/studio-view-readiness.test.mjs` (12/12) with three new cases that run
+the real `draw()` over a stub 2D context; `dev-map.mjs check --since HEAD` passes.
+Not visually confirmed in a browser. The same file's browser-source harness
+stripped `import` lines with `/^import .*\n/gm`, which cannot match a CRLF
+checkout; five of its cases failed before this change for that reason alone and
+now pass.
+
+## 2026-09-18 — Toolpath viewer lag: CPU rasterization, lossless renderer savings
+
+- Source: user (builder task), 2026-09-18: the toolpath viewer had become slow on
+  pan and tilt.
+- **Cause.** Not a code regression. The person's Chrome had fallen back to the
+  Microsoft Basic Render Driver (CPU), while another browser on the same PC used
+  the GTX 1660 Ti. `freehand-spline-cat` (124,978 beads, 623 groups, 1366×540)
+  cost 544 ms per frame there, all in the material pass; about 10 ms of
+  main-thread time on the GPU.
+- **Measurement.** Studio now reports interactive redraw timings and the WebGL
+  renderer string to `/api/view-performance`, replacing console snippets. A hidden
+  agent browser pane throttles animation frames and cannot measure frame rate.
+- **Renderer.** One unblended depth-tested pass replaces the depth prepass,
+  stencil and blend pass; bead templates are indexed (box 48→26, oval 192→66
+  vertices) and wound outward for back-face culling; off-screen groups are
+  skipped. Measured on the CPU renderer at full quality: 544 → 155 ms. A pixel
+  diff against the previous renderer on 18 synthetic views (crossing, touching and
+  overlapping beads, views from below, mid-print, zoomed and off-screen) stayed
+  within 2/255 plus at most 14 depth-tie pixels, with identical coverage. An
+  inverted front-face rule was caught by that diff before use.
+- **Rejected.** Merging groups into shared buffers with a per-bead style texture
+  cut 623 draws to 2 but measured slower on the CPU renderer (215–266 ms): two
+  vertex texture fetches per vertex cost more than the draw calls saved. Reverted.
+  Render resolution barely matters there: 9× fewer pixels saved about 5%.
+- **Motion quality.** Resolution levels remain for fill-bound GPUs and undo
+  themselves when they do not pay.
+
+Checks: Studio tests pass except `studio-lifetime` "last viewer closes only its
+instance", which fails identically with these renderer changes stashed.
+
+## 2026-09-18 — Agents can reuse their Studio when switching prints
+
+- Source: user (developer task), 2026-09-18: maker agents never followed the
+  MAKERS rule to reuse the existing Studio and tab; find out why and fix the CLI
+  and MCP.
+- **Cause.** The rule had no tool support. Toolkit `open-print`/`create-preview`
+  always created a Studio on a fresh port, the managed session's stdin had no
+  print-switch command, and the only switch route (`/api/open`) needs the viewer
+  token. MCP `request_review` reused an instance per print only, so a different
+  print opened a second Studio unless the agent passed `studioInstanceId`.
+- **CLI.** Studio gains the owner-authenticated `POST /api/agent-open`. Toolkit
+  `showPrint` prepares the print exactly as a launch does, then shows it in the
+  live Studio: `open-print|create-preview DIRECTORY --studio URL --agent-owner ID`
+  from any process (the command exits), or the same commands on the managed
+  session's stdin. Launch results carry `reuse` with the exact command, and help
+  states the default. An adapter or agent open that changes the print now pushes
+  a `print` change, so the tab follows at once rather than on the slow heartbeat.
+- **MCP.** `request_review` falls back to the sole live instance before creating
+  one; with several live instances `studioInstanceId` still chooses.
+- **Guidance.** MAKERS names both reuse routes and allows another instance on the
+  person's request or for a compelling reason stated to the person.
+
+Checks: agent-toolkit (new HTTP/stdin/CLI switch cases pass; the onboarding case
+fails on the unregistered untracked `studio/view-performance.mjs`, unrelated),
+mcp and studio-open (pass except the known task-manual and transport-close
+failures).
+
+## 2026-09-18 — X1 Carbon output through the shared Bambu exporter
+
+- Source: user (builder task), 2026-09-18, after printing the freehand spline cat
+  on the H2D: create an X1 exporter that shares the H2D components rather than
+  parallel wiring.
+- **Physical report, H2D.** The user printed `freehand-spline-cat` (40 mm tall,
+  left 0.4 mm nozzle, PLA, 3 perimeters, 12% gyroid, one two-tip tree support under
+  the chin, v3 envelope) and reported that it completed and "looks great", and that
+  the support was unnecessary. One part on one printer; no measurements.
+- **One Bambu adapter.** `bambu.mjs`, `bambu-player.mjs` and the registry entry
+  are unchanged in number: the X1 Carbon declares the same `bambu-gcode` output.
+  Model facts moved from code into the machine files: output `constraints`
+  (material, nozzles, filament, optional `bedC` window, `endLiftMm`,
+  `parkLimitMm`, `parkRiseMm`, `parkHeightFactor`, `parkSettleMm`) and `package`
+  (`printerModelId` plus literal `projectSettings`). Per-nozzle metadata derives
+  from `machine.tools`, the printer names from `machine.name`, the body origin from
+  `startupPosition`, which must match the pinned startup's final moves. New
+  template values are `{wipeC}` and `{parkSettleZ}`. The artifact context schema is
+  now `saam-bambu-artifact/1`; error messages say Bambu. H2D machine revision 12;
+  existing H2D bundles hold an older snapshot and are recreated.
+- **H2D bytes unchanged.** The pre-change cat archive, with only its context
+  schema string renamed, is reproduced entry-for-entry by the generalized writer.
+- **X1 reference.** The installed Bambu Studio 02.08.02.61 CLI sliced a 20 mm
+  cube from flattened system presets (the CLI does not resolve `inherits` or the
+  start/end `include` templates itself; an unflattened run silently produced a
+  generic 33-line startup). Contract `x1c-02.08.02.61-pla-textured-v1`: 533 start
+  and 67 end commands; see the [X1 contract](maps/reference/bambu.md#x1-carbon-output-contract).
+  The reference archive stays outside Git; the machine file records its SHA-256.
+- First X1 part: `freehand-spline-cat-x1`, 58 mm tall, no supports, 289 layers,
+  about 54 min of body motion and 7.5 cm³. Software checks only; no Bambu Studio
+  viewer import and no physical X1 print.
+
+- **X1 Carbon load failures and first print (user reports, 2026-09-18, microSD,
+  FAT32).** The exporter's archive froze the printer's file loader for several
+  minutes and then failed without a message. Single-change archives isolated it:
+  uppercase MD5 alone failed; adding Bambu Studio's G-code header and CONFIG block
+  failed; Bambu Studio's complete package around the SAAM G-code loaded, with either
+  SAAM's ZIP writer or a .NET one; from that package, SAAM's 256 px thumbnails loaded,
+  SAAM's `project_settings.config` loaded, SAAM's `slice_info.config` froze. The ZIP
+  writer, G-code, header, MD5 case, thumbnails and project settings are therefore
+  cleared; `slice_info.config` is a cause. Rewriting it and `model_settings.config`
+  in Bambu Studio's one-element-per-line layout did not fix the exporter's archive
+  (P1 still froze), so a value in `slice_info.config` and/or an untested entry
+  (empty model, `saam.json`, `plate_1.json`/`filament_sequence.json`) remains.
+  Untested lead: the `X-BBL-Client-Version` value `SAAM-0.1.0`.
+- The hand-assembled fallback (Bambu Studio's reference package, SAAM G-code, only
+  slice_info totals changed) loaded and started printing. The user saw bed leveling,
+  vibration testing and dynamic flow calibration run; the purge line could not be
+  told apart from the calibration lines. This archive bypasses the exporter's
+  package verification; the exporter itself still produces archives the X1 rejects.
+- **AMS selector is logical, not physical.** That print used the second slot from
+  the right (slot 3) although the G-code carries `M620 S0A`/`T0`/`M621 S0A`. The
+  printer maps logical filament 0 to a tray at print start (its own type/colour match
+  or the operator's choice on the confirmation screen). `setup.ams` therefore does
+  not select a physical slot on the X1 Carbon when printing from the card; the same
+  claim for the H2D is unverified.
+
+- **Cause found (user report, same day).** The working package with SAAM's
+  `slice_info.config` (new layout) and only `X-BBL-Client-Version` changed to
+  `02.08.02.61` loaded. The `SAAM-0.1.0` version string is therefore a cause of the
+  freeze; the layout's role is unknown (the compact layout was only tried with the
+  SAAM string). Both machine files now carry `package.clientVersion` and the
+  exporter writes it. The exporter's complete archive, regenerated as
+  `freehand-spline-cat-x1-r2` with identical executable G-code, still awaits a load
+  test on the printer.
+- **Remaining entries cleared (user report).** From the working package, SAAM's
+  empty model with `model_settings.config`, the extra `saam.json`, and
+  `plate_1.json` with `filament_sequence.json` each loaded when swapped in singly
+  (compact pre-layout versions). Every SAAM package entry has now loaded
+  individually; the client version is the only cause found. All of them together,
+  the exporter's own archive, remains the one untested combination.
+- **Exporter archive loads (user report).** `freehand-spline-cat-x1-r2`'s export
+  loaded on the X1 Carbon, confirming the client-version fix end to end. The
+  printer warned that the file does not support manual AMS mapping. Per the user
+  the warning is harmless in use: the gray spool was still pre-selected from the
+  recorded colour and the print could be started; the Bambu-package fallback showed
+  no warning. Cause open; untested isolation archives W1–W3 (Bambu project settings,
+  model/object, slice info and plate JSON swapped into the exporter archive) are kept
+  in the bundle's `diagnostics` folder.
+- **X1 print.** The 58 mm cat printed well from the fallback archive, without
+  supports; the user judged supports unnecessary for this model at either size.
+- **Spool choice resolved.** With the package labelled gray (`#8E9089`, PLA) the
+  printer pre-selected the gray spool. The earlier slot-3 choice was the printer's
+  colour match to the reference package's green label, not a fault.
+- The saved `freehand-spline-cat-x1` plan stopped validating mid-task when other
+  uncommitted work changed the `wave-overhangs` plan fields; the bundle was
+  recreated rather than patched.
+
+Checks: bambu and printer-profiles tests, the H2D byte-identity comparison. The map
+structure check could not run (another task's unregistered `studio/view-performance.mjs`).
+
+## 2026-09-18 — Optional AMS and colour, no code fingerprint, plan-first writes
+
+Follow-up to the TK-Dev port, from a map-driven review.
+
+- **AMS and colour are optional.** `setup.ams` is null or `{unit, slot}`; the
+  H2D profile's `ams` block declares two units of four slots, and slots number
+  continuously across units (unit 2 slot 1 is selector 4). `setup.filamentColor`
+  is null or a hex colour and falls back to the output's `defaultFilamentColor`.
+  Both are blank by default and nothing prompts for them; a printer without an
+  AMS uses the unchanged selector 0. `validateSetup` is the single check; the
+  exporter's duplicate checks and its copies in `saam.json` are gone. Selectors
+  above 3, and pairing an AMS unit with the selected nozzle, are untested on
+  hardware.
+- **H2D v1/v2 startup envelopes removed.** Only v3 is recognized. Local
+  experiment bundles holding a v2 machine snapshot must be recreated.
+- **Runtime fingerprint removed.** Plan identity is plan, machine snapshot and
+  geometry bytes. A confirmation is already bound to the exact exported bytes,
+  which a code change cannot alter, so editing SAAM's code no longer withdraws
+  confirmations. The two hand-kept file lists (`RUNTIME_FILES` and the list in
+  `runtimeHash`) are deleted; they had already drifted (the line-network
+  generator, `path/material.mjs` and `region/perimeters.mjs` were unlisted).
+  Every existing bundle's plan hash changes once, so saved programs read as stale
+  and regenerate.
+- **Non-robot machines are profile data.** `limitations`,
+  `startup.handsOverRetracted` and gantry presentation from `kinematics` replace
+  the S5/H2D machine-ID tests; X1 Carbon, UM2 Extended and UM3 now get the gantry
+  schematic. Only Dobot and DENSO are still selected by ID. The line-width limit
+  has one owner (`lineWidthLimits`).
+- **plan.json is the commit point.** A new bundle writes it last; an edit builds
+  geometry first, writes the plan, then the derived geometry files; a reader that
+  finds older geometry beside a committed plan rebuilds it once.
+- **Failed arm solve.** The provider reports the source-determined part (and tool
+  point) instead of an identity part frame.
+
+Checks: bambu, workflow, machine-presentation, studio-kinematics, intersection,
+studio-settings, line-network, export and the map structure check.
+
 ## 2026-09-18 — Port TK-Dev line networks, regional process and H2D setup
 
 Ported Timothy Keller's `origin/TK-Dev` work onto the current branch: his

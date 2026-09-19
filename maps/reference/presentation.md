@@ -156,8 +156,11 @@ extra stock length needed to support the carriage body beyond its end position.
 The model's [jog controller](../../core/machine/jog.mjs) follows local feasible poses,
 prioritizing the dragged coordinate and projecting small corrections to other
 coordinates against model-owned signed boundary margins. Angular displacement is
-weighted by the modeled tool/rear lever. It stops at a local boundary or solver
-failure, rather than crossing an unsupported configuration. This is local numerical
+weighted by the modeled tool/rear lever. A longer drag takes more continuation
+steps rather than coarser ones, and each projection continues while the worst
+boundary margin keeps improving, so neither is fixed at a step count. It stops at
+a local boundary or solver failure, rather than crossing an unsupported
+configuration. This is local numerical
 continuation, not a globally shortest adjustment, global reach certification or
 collision-aware motion planner. The UI displays accepted coordinates, retains
 the last complete assembly while solving, and keeps source/jog cache identity
@@ -326,6 +329,9 @@ select a different trajectory, clip a commanded pose, or relabel a stale pose.
   and its existing supported marker; show the reason.
 
 Missing frames are omitted, never replaced with identity or a previous pose.
+When a solve throws, the provider still reports the frames the source alone
+determines (the part, and for arms the tool point) with a `model-solve` warning;
+if those cannot be formed either, the pose is `unavailable`.
 A bed/tool-only descriptor can be ready while still listing the absent arm in
 `limitations`. Additional links arrive through a new descriptor; no viewer
 changes are needed. Failed moving frames can be omitted while known static
@@ -430,15 +436,15 @@ Sources: [presentation.mjs](../../core/machine/presentation.mjs), [jog.mjs](../.
 **Verification.** Check bind/rebind/dispose, unavailable models, incremental completion, out-of-order samples and accepted/rejected jog targets. Checks: [machine-presentation.test.mjs](../../core/tests/machine-presentation.test.mjs), [machine-jog.test.mjs](../../core/tests/machine-jog.test.mjs), [studio-kinematics.test.mjs](../../core/tests/studio-kinematics.test.mjs).
 
 
-## Changing rigid frames and incremental playback
+## Changing rigid frames
 
-Sources: [rigid.mjs](../../core/machine/rigid.mjs), [dobot-kinematic-player.mjs](../../core/machine/dobot-kinematic-player.mjs).
+Sources: [rigid.mjs](../../core/machine/rigid.mjs).
 
-**Contract.** Rigid transforms provide the shared position/direction frame operations. Incremental Dobot playback maintains model state along interpreted source time and supplies presentation snapshots under the same coordinate conventions. Translation applies to points, not direction vectors; sampling must preserve time and branch continuity.
+**Contract.** Rigid transforms provide the shared position/direction frame operations used by the kinematic models, presentation providers and machine setup. Translation applies to points, not direction vectors. Robot playback samples interpreted source time through [Studio playback](studio-protocols.md#changing-compact-moves-and-playback-caches) and the [kinematic models](#changing-robot-kinematic-models); there is no separate per-machine sampler.
 
-**Failures.** Invalid transforms/poses and unavailable model solutions must stay explicit. A stale or disposed playback binding must not publish snapshots for a replacement source.
+**Failures.** Invalid transforms and degenerate directions must stay explicit rather than producing a frame that is not orthonormal.
 
-**Change together.** Keep source-time, kinematic solvers, provider identity, machine setup transforms and Studio sampling in agreement.
+**Change together.** Keep kinematic solvers, provider identity, machine setup transforms and Studio sampling in agreement about these conventions.
 
 Rigid transforms use millimetre translation and right-handed orthonormal 3×3
 rotation matrices. Matrix composition applies the child frame within its parent;
@@ -447,4 +453,4 @@ source Euler/rotary fields explicitly named Deg use degrees. Local -Z points
 toward extrusion. Frame validation checks finite dimensions, orthogonality and
 positive handedness; direction normalization rejects a degenerate vector.
 
-**Verification.** Exercise transform/inverse round trips, vectors versus points, nonmonotonic time requests, incremental progress and replacement/disposal. Checks: [dobot-kinematics.test.mjs](../../core/tests/dobot-kinematics.test.mjs), [machine-presentation.test.mjs](../../core/tests/machine-presentation.test.mjs), [robot-playback.test.mjs](../../core/tests/robot-playback.test.mjs).
+**Verification.** Exercise transform/inverse round trips, vectors versus points, degenerate directions, and the nonmonotonic time requests and incremental progress of the playback that uses them. Checks: [machine-presentation.test.mjs](../../core/tests/machine-presentation.test.mjs), [robot-playback.test.mjs](../../core/tests/robot-playback.test.mjs).

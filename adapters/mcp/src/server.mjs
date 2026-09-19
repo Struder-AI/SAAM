@@ -353,12 +353,14 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       const {dir,bundle}=await locate(printId);if(!bundle.changeMachine)throw Error('This adapter cannot change its printer.');
       return summary(printId,await bundle.changeMachine(dir,machineId,{expectedRevision,setupFile:await setupFile(machineId)}));
     },false);
-  tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Supply studioInstanceId to rebind one existing instance, or newInstance to open an additional instance even when this print already has one. Otherwise the preferred instance for this print is reused. Optional startAt selects the tour infill layer. No approval or generation is performed.', { printId: printIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ printId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
+  tool('request_review', 'Serve this bundle through an exclusively owned SAAM Studio instance. Reuse is the default: the instance already showing this print, else the sole live instance, is rebound to it in the same browser tab. With several live instances supply studioInstanceId to choose the one to rebind; otherwise an unshown print opens another. Use newInstance only when the person asks for another Studio, or for a compelling reason you tell them. Optional startAt selects the tour infill layer. No approval or generation is performed.', { printId: printIdSchema,studioInstanceId:z.string().optional(),newInstance:z.boolean().default(false),startAt:z.object({layer:z.number().int().min(1)}).strict().optional(),...localExtension.reviewSchema?.(z) }, async ({ printId,studioInstanceId,newInstance,startAt,...viewOptions }) => {
     if(studioInstanceId&&newInstance)throw Error('Choose an existing studioInstanceId or request a new instance, not both.');
     const { dir, state } = await read(printId);
     const viewPath=await localExtension.reviewPath?.({dir,...viewOptions})??'';
     let session=studioInstanceId?studioSessions.get(studioInstanceId):newInstance?null:studioSessions.get(preferredStudioByPrint.get(printId))
-      ??[...studioSessions.values()].find(({server:studio})=>studio.currentPrint()===dir);
+      ??[...studioSessions.values()].find(({server:studio})=>studio.currentPrint()===dir)
+      // Switching prints reuses the sole live instance; several leave the choice to studioInstanceId.
+      ??(studioSessions.size===1?[...studioSessions.values()][0]:undefined);
     if(studioInstanceId&&!session)throw Error('That Studio instance is not owned by this agent.');
     if (!session?.server.listening) {
       const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests,studioEvents });

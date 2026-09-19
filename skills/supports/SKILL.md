@@ -100,7 +100,7 @@ cutting the support into disconnected pieces.
 | `interfaceLayers` | `2` | Last layers below each selected contact; zero disables the interface. |
 | `topGapMm` | `0.2` | Minimum vertical gap below the assigned contact plane. |
 | `xyGapMm` | `0.3` | Clearance to part sections at support slice planes. |
-| `perimeters` | `1` | Support walls; zero allows only fill. |
+| `perimeters` | `1` | Support walls; zero allows only fill. Any whole count from zero up is accepted; more than about eight is rarely useful. |
 | `fillAnglesDeg` | `[0, 90]` | Straight fill direction alternated by bed layer. |
 | `treeChordMm` | `0.02` | Circle polygon approximation target. |
 

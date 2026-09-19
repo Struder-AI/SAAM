@@ -60,8 +60,9 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Vase wall needs room for its first ring and a rising wall; choose zStartMm/zEndMm inside the geometry.');
   requireThat(settings.boundaryToleranceMm<width/4,'Vase boundaryToleranceMm must be smaller than one quarter of the bead width.');
   // The wall takes as many points and section queries as its geometry, pitch
-  // and tolerances require: turns are finite and each interval subdivides to a
-  // bounded depth, so there is no construction cap to exhaust. Memory scales
+  // and tolerances require: turns are finite and each interval subdivides until
+  // its midpoint stops being distinct from its ends, so there is no
+  // construction cap to exhaust. Memory scales
   // with the emitted program like every other skill's output.
   const cache=new Map();let seam,nudgedSections=0,lastContours,lastValue,sectionQueries=0;
   const cacheSection=(key,value)=>{
@@ -165,11 +166,11 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   }
   const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
   const points=[point(0)],times=[0];
-  function append(a,b,pa,pb,depth=0) {
-    requireThat(depth<24,'Vase contour cannot meet the locked chord tolerance within the subdivision limit.');
+  function append(a,b,pa,pb) {
     const mid=(a+b)/2,pm=point(mid),linear=pa.map((v,i)=>(v+pb[i])/2);
     if(distance(pa,pb)>settings.sampleStepMm||distance(pm,linear)>settings.toleranceMm/2||pb[2]-pa[2]>settings.minFeatureMm/2) {
-      append(a,mid,pa,pm,depth+1);append(mid,b,pm,pb,depth+1);return;
+      requireThat(mid>a&&mid<b,'Vase contour cannot meet the locked chord tolerance: the subdivided turn midpoint is no longer distinct from its ends.');
+      append(a,mid,pa,pm);append(mid,b,pm,pb);return;
     }
     points.push(pb);times.push(b);
   }

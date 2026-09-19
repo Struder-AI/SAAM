@@ -4,12 +4,11 @@ import {layerHeights} from '../../full-fill/scripts/fill.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 import {lineSpacing} from '../../../core/path/spacing.mjs';
 
-export const RIMMING_DEFAULTS={enabled:false,spacingFactor:1,surfaces:[],sampleStepMm:0.5,toleranceMm:0.01,minFeatureMm:0.2,maxPoints:100000,offsetTightness:1};
+export const RIMMING_DEFAULTS={enabled:false,spacingFactor:1,surfaces:[],sampleStepMm:0.5,toleranceMm:0.01,minFeatureMm:0.2,offsetTightness:1};
 export function validateRimming(settings){
   requireThat(typeof settings.enabled==='boolean'&&Array.isArray(settings.surfaces),'Invalid rimming selection.');
   for(const key of ['sampleStepMm','toleranceMm','minFeatureMm'])requireThat(Number.isFinite(settings[key])&&settings[key]>0,`Rimming ${key} must be positive.`);
   requireThat(Number.isFinite(settings.offsetTightness)&&settings.offsetTightness>=0&&settings.offsetTightness<=1,'Rimming offsetTightness must be between zero and one.');
-  requireThat(Number.isSafeInteger(settings.maxPoints)&&settings.maxPoints>0,'Rimming maxPoints must be a positive safe integer.');
   requireThat(!settings.enabled||settings.surfaces.length>0,'Enabled rimming needs explicitly assigned surfaces.');
   const ids=new Set();
   for(const s of settings.surfaces){
@@ -59,9 +58,11 @@ export function rimmingResults({plan,modelResults,mode='horizontal',skillId='rim
       if(z<=patch.bounds.min[2]+1e-8)continue;
       const chains=supportSurfaceSection(patch,z,{minFeatureMm:settings.minFeatureMm}),strokes=[];
       for(const chain of chains)for(const [track,offset] of [width/2,width/2+lineSpacing(width,settings)].entries()){
-        const samples=offsetSurfaceSection(patch,chain,offset,{mode,side:spec.outwardSide,offsetTightness:settings.offsetTightness,toleranceMm:settings.toleranceMm,maxStepMm:settings.sampleStepMm,maxPoints:settings.maxPoints-pointCount});
+        // Chord tolerance and step target set the sample count for each section;
+        // the total is reported, never capped.
+        const samples=offsetSurfaceSection(patch,chain,offset,{mode,side:spec.outwardSide,offsetTightness:settings.offsetTightness,toleranceMm:settings.toleranceMm,maxStepMm:settings.sampleStepMm});
         if(samples.length<2)continue;
-        pointCount+=samples.length;requireThat(pointCount<=settings.maxPoints,`Rim ${spec.id} exhausted maxPoints=${settings.maxPoints}; increase ${skillId}.maxPoints.`);
+        pointCount+=samples.length;
         const volumes=[];
         for(let i=1;i<samples.length;i++){
           const a=samples[i-1],b=samples[i];

@@ -40,6 +40,19 @@ test('shared interpretation rejects cold extrusion, unsupported state, and inval
   assert.throws(()=>emit(broken),/no program templates/);
 });
 
+test('a pause longer than one G4 command is written as commands that sum to it',()=>{
+  const at=path.actions.findIndex(a=>a.kind==='move')+1,neighbour=path.actions[at];
+  const paused=seconds=>({...path,actions:[...path.actions.slice(0,at),
+    {kind:'dwell',seconds,phase:neighbour.phase,layer:neighbour.layer},...path.actions.slice(at)]});
+  const waits=code=>code.split('\n').map(l=>l.trim()).filter(l=>l.startsWith('G4 '));
+  assert.deepEqual(waits(emit(machine,paused(12))),['G4 P12000'],'a pause within one command is written unchanged');
+  const long=emit(machine,paused(150));
+  assert.deepEqual(waits(long),['G4 P60000','G4 P60000','G4 P30000']);
+  const dwells=interpretGriffin(long,plan,machine).events.filter(e=>e.kind==='dwell');
+  assert.equal(dwells.reduce((s,d)=>s+d.seconds,0),150,'the interpreter reads the same wait back');
+  assert.equal(waits(emit()).length,0,'a path without a pause emits no wait');
+});
+
 test('G-code tokenization retains packed arguments, whitespace, comments and strict malformed rejection',()=>{
   const code=emit(),reference=interpretGriffin(code,plan,machine);
   for(const command of ['M109T1S215','  M109\tT1  S215  ','M109 T1 S215 ; T0 S0 is a comment']){

@@ -86,7 +86,8 @@ mapped production code use the relevant behavior tests and map change review.
 
 `printer-profiles.test.mjs` covers X1 Carbon, original Ultimaker 2 Extended and
 Ultimaker 3 profile selection, material changes and remembered setup, reduced
-tool bounds, planar defaults, and refusal of unavailable output before slicing.
+tool bounds, planar defaults, and refusal of unavailable output before slicing
+(Ultimaker 2 Extended and 3; the X1 Carbon resolves the shared Bambu adapter).
 
 `prime.test.mjs` covers profile-owned S5 sacrificial strokes before shell
 deposition, both nozzles, startup/final retraction, zero retraction, generated
@@ -211,7 +212,7 @@ All file names in the core column below are relative to `core/tests/`.
 | `core/export/griffin.mjs`: S5 templates, G-code interpretation | [export.test.mjs](../../core/tests/export.test.mjs) | Pipeline and shell Griffin round trips |
 | Shared modal G-code fields and final-export checks | [modal-export.test.mjs](../../core/tests/modal-export.test.mjs) | S5/H2D, cold bundle reopening |
 | Nonblocking short-travel advisories, complete trip endpoints and bounded evidence | [travel-advisory.test.mjs](../../core/tests/travel-advisory.test.mjs), [studio-open.test.mjs](../../core/tests/studio-open.test.mjs) | S5/H2D interpretation, saved-source reuse, listener deduplication and unchanged approval/delivery |
-| `core/export/bambu.mjs`, H2D profile and ZIP output | [bambu.test.mjs](../../core/tests/bambu.test.mjs) | Shell/regional H2D coverage |
+| `core/export/bambu.mjs`, H2D and X1 Carbon profiles and ZIP output | [bambu.test.mjs](../../core/tests/bambu.test.mjs) | Shell/regional H2D coverage |
 | `core/export/`: streamed G-code lines and chunk-boundary errors | [gcode-stream.test.mjs](../../core/tests/gcode-stream.test.mjs) | Griffin/H2D interpretation and ZIP consumers |
 | Large move counts and G-code/ZIP size boundaries (explicit stress run) | [stress/large-export.test.mjs](../../core/tests/stress/large-export.test.mjs), [stress/large-program.test.mjs](../../core/tests/stress/large-program.test.mjs) | `npm run test:stress`; real former size and call-stack boundaries |
 | Dobot profile, Lua export/interpreter and relay behavior | [dobot.test.mjs](../../core/tests/dobot.test.mjs), [robot-playback.test.mjs](../../core/tests/robot-playback.test.mjs) | Vase and regional machine coverage |

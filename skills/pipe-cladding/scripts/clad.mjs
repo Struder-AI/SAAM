@@ -7,7 +7,7 @@ import {surfaceCladdingResult} from './surface-clad.mjs';
 import {lineSpacing,spacingFactor} from '../../../core/path/spacing.mjs';
 import {CLADDING_PATTERNS,claddingCourse} from './course.mjs';
 
-export const PIPE_CLADDING_DEFAULTS={enabled:false,part:null,pattern:'axial-hoop',spacingFactor:1,shells:4,normalMm:0.2,tiltDeg:45,sampleStepMm:1,toleranceMm:0.01,maxPoints:500000,surface:null,offsetTightness:1};
+export const PIPE_CLADDING_DEFAULTS={enabled:false,part:null,pattern:'axial-hoop',spacingFactor:1,shells:4,normalMm:0.2,tiltDeg:45,sampleStepMm:1,toleranceMm:0.01,surface:null,offsetTightness:1};
 export function validateCladding(plan,machine){
   const s=plan.skills['pipe-cladding'];
   requireThat(CLADDING_PATTERNS.includes(s.pattern),'Cladding pattern must be axial-hoop or crossed-helices.');
@@ -16,7 +16,6 @@ export function validateCladding(plan,machine){
   for(const k of ['normalMm','sampleStepMm','toleranceMm'])requireThat(Number.isFinite(s[k])&&s[k]>0,'Invalid cladding '+k+'.');
   requireThat(Number.isFinite(s.offsetTightness)&&s.offsetTightness>=0&&s.offsetTightness<=1,'Cladding offsetTightness must be between zero and one.');
   requireThat(Number.isFinite(s.tiltDeg)&&s.tiltDeg>0&&s.tiltDeg<90,'Cladding tilt must be between 0 and 90 degrees from downward.');
-  requireThat(Number.isSafeInteger(s.maxPoints)&&s.maxPoints>=100,'Cladding maxPoints must be at least 100.');
   if(s.surface)validateSurfaceSelection(s.surface);
   if(!s.enabled)return;
   requireThat(machine.capabilities?.includes('tool-orientation')&&machine.capabilities?.includes('coordinated-rotary'),'Pipe cladding requires tool orientation and a coordinated rotary.');
@@ -58,9 +57,10 @@ export function pipeCladdingResult({plan,shell,after=[],id='pipe-cladding',finis
   const base=g.outerRadiusMm-s.shells*s.normalMm,operations=[];
   let used=0,angle=0,previous=after;
   const makeStroke=(radius,role)=>({points:[],poses:[],speedMmS:p.skinSpeedMmS,beadAreaMm2:p.lineWidthMm*s.normalMm,role,closed:false});
+  // Sample counts follow sampleStepMm, toleranceMm and the pipe's own size;
+  // the count is reported, never bounded in advance.
   const append=(stroke,r,a,z)=>{
-    requireThat(++used<=s.maxPoints,`Pipe cladding exceeds maxPoints (${s.maxPoints}); increase pipe-cladding.maxPoints.`);
-    stroke.points.push(cylindricalPoint(center,r,a,z));stroke.poses.push(cylindricalPose(a,s.tiltDeg));
+    used++;stroke.points.push(cylindricalPoint(center,r,a,z));stroke.poses.push(cylindricalPose(a,s.tiltDeg));
   };
   for(let shell=0;shell<s.shells;shell++){
     const radius=base+(shell+.5)*s.normalMm,circumference=2*Math.PI*radius;

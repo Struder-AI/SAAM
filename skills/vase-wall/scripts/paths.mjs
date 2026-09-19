@@ -52,7 +52,8 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
   const tiled=isTiledMotif(settings.pattern),pattern=tiled?tileVaseMotif(settings.pattern):settings.pattern;
   const continuous=settings.pathMode==='continuous',role=continuous?'vase-wall':'segmented-path';
   // Every course is authored and finite, and each mapped interval subdivides
-  // to a bounded depth, so the pattern takes the points its tolerances need.
+  // until its tolerance is met or its midpoint stops being distinct from its
+  // ends, so the pattern takes the points its tolerances need.
   const level=settings.endTransition==='level',paths=[];let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity,maximumBeadHeightMm=0;
   const emitPath=(vertices,heights,layer)=>{
     const at=(a,b,t)=>{
@@ -62,12 +63,12 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
     };
     const points=[at(vertices[0],vertices[0],0)],segmentHeights=[];
     count++;
-    const append=(a,b,ha,hb,pa,pb,depth=0)=>{
+    const append=(a,b,ha,hb,pa,pb)=>{
       const mid=a.map((v,k)=>(v+b[k])/2),pm=at(mid,mid,0);
       const error=Math.max(...[.25,.5,.75].map(t=>distance(t===.5?pm:at(a,b,t),pa.map((v,k)=>v+(pb[k]-v)*t))));
       if(distance(pa,pb)>settings.sampleStepMm||error>settings.toleranceMm/2-2*mappingErrorMm||Math.abs(a[1]-b[1])>settings.minFeatureMm/2) {
-        requireThat(depth<24,`Sleeve mapping cannot meet the requested contour tolerance near motif coordinates ${a.join(', ')} to ${b.join(', ')}.`);
-        append(a,mid,ha,(ha+hb)/2,pa,pm,depth+1);append(mid,b,(ha+hb)/2,hb,pm,pb,depth+1);return;
+        requireThat(mid.some((v,k)=>v!==a[k])&&mid.some((v,k)=>v!==b[k]),`Sleeve mapping cannot meet the requested contour tolerance near motif coordinates ${a.join(', ')} to ${b.join(', ')}: the subdivided midpoint is no longer distinct from its ends.`);
+        append(a,mid,ha,(ha+hb)/2,pa,pm);append(mid,b,(ha+hb)/2,hb,pm,pb);return;
       }
       count++;points.push(pb);
       // Only the authored motif deposits; the guide supplies no material.

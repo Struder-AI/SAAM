@@ -7,6 +7,7 @@ import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSi
 import { topAt } from '../geom/field.mjs';
 import { offsetRegion, regionArea, scanlineFill, pointInRegion } from '../region/region2d.mjs';
 import { union, intersect, difference, levelSetRegion, levelSetCoverage } from '../region/boolean.mjs';
+import { circlePoints } from '../geom/cylinder.mjs';
 
 const rhino = await rhino3dm();
 const area = loops => Math.abs(regionArea(loops));
@@ -196,4 +197,13 @@ test('scanline fill completes disconnected components before crossing a gap', ()
   assert.ok(firstRight > 0, 'both disconnected components receive fill rows');
   assert.ok(sides.slice(0, firstRight).every(side => side === 'left'), 'left component is completed first');
   assert.ok(sides.slice(firstRight).every(side => side === 'right'), 'right component starts after the left');
+});
+
+test('circle resolution follows its tolerance instead of a fixed segment ceiling', () => {
+  // A 1e-9 mm chord tolerance needs about 222,000 segments around a 10 mm
+  // circle; the retired ceiling refused anything past 100,000.
+  const fine = circlePoints(10, [0, 0], 1e-9);
+  assert.ok(fine.length > 100000);
+  assert.ok(fine.every(p => Math.abs(Math.hypot(p[0], p[1]) - 10) < 1e-9));
+  assert.ok(circlePoints(10, [0, 0], 0.01).length < fine.length);
 });

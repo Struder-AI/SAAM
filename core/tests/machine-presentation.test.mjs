@@ -12,6 +12,10 @@ test('DENSO drawing zero pose and base quarter turn give independent centerline 
   const g=densoGeometry(),a=densoForward(g,[0,0,0,0,0,0]),b=densoForward(g,[90,0,0,0,0,0]);
   assert.deepEqual(a.tcp,[350,0,565]);near(b.tcp[0],0);near(b.tcp[1],350);near(b.tcp[2],565);
   const solve=densoInverse(g,{tcp:b.tcp,rotation:b.rotation},{seed:[88,1,-1,2,1,-2]});assert.ok(solve.valid,solve.errors.join());solve.tcp.forEach((v,i)=>near(v,b.tcp[i],1e-4));
+  // An unreachable pose ends on a residual that stops improving, not on a spent
+  // iteration count: the retired ceiling gave up after 90 steps.
+  const far=densoInverse(g,{tcp:[5000,0,565],rotation:b.rotation},{seed:[88,1,-1,2,1,-2]});
+  assert.equal(far.valid,false);assert.match(far.errors[0],/stopped approaching the requested pose/);
 });
 test('source-time Euler interpolation, reverse seek and dwell are deterministic',()=>{
   const p=interpretMachineStudy({schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:[0,0,20],anglesDeg:[0,0,0]},moves:[{tcp:[5,5,25],anglesDeg:[20,20,0],seconds:2},{tcp:[5,5,25],anglesDeg:[20,20,0],seconds:1}]});
@@ -39,4 +43,15 @@ test('DENSO ceiling installation and off-center rotary are applied once to the c
   const s=await provider.sample({requestId:1,seconds:.5});assert.equal(s.status,'ready',JSON.stringify(s.diagnostics));
   s.worldFromFrame.tcp.translationMm.forEach((v,i)=>near(v,tip.translationMm[i]));assert.deepEqual(s.worldFromFrame.base,base);
   point(s.worldFromFrame.part,p).forEach((v,i)=>near(v,tip.translationMm[i]));
+});
+test('a failed arm solve keeps the part where the source put it, never at an identity stand-in',async()=>{
+  const machine=loadMachine('dobot-mg400'),tilt=[Math.sin(.3),0,-Math.cos(.3)],up=[0,1,0],center=[10,0,0];
+  const move={from:[0,0,25],to:[0,0,25],startSeconds:0,durationSeconds:2,rotaryFromDeg:90,rotaryToDeg:90,rotaryCenterMm:center,toolAxisFrom:tilt,toolAxisTo:tilt,toolUpFrom:up,toolUpTo:up};
+  const provider=await createMachinePresentation({program:{seconds:2,moves:[move]},machine,sourceIdentity:{printId:'fixture',revision:'1',exportHash:'tilt'},
+    setup:{denso:{rotaryCenterMm:center},dobot:{scaleX:1,scaleY:1},kinematicModel:{worldFromBase:rigid([-300,0,0]),toolLengthMm:70}}});
+  const pose=await provider.sample({requestId:1,seconds:1});
+  assert.equal(pose.diagnostics[0].code,'model-solve');assert.equal(pose.status,'partial');
+  [10,-10,0].forEach((v,i)=>near(pose.worldFromFrame.part.translationMm[i],v));near(pose.worldFromFrame.part.rotation[1][0],1);
+  assert.ok(pose.worldFromFrame.tcp&&!pose.worldFromFrame['arm-0'],'source frames remain; unsolved arm frames are omitted');
+  provider.dispose();
 });

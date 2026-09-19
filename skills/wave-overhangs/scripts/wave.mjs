@@ -9,15 +9,13 @@ import {offsetRegion} from '../../../core/region/offset.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 
 export const WAVE_DEFAULTS={enabled:false,slices:[],lineSpacingMm:0.3,beadHeightMm:0.2,
-  speedMmS:5,fanPercent:100,toleranceMm:0.01,sampleStepMm:0.5,propagationStepMm:0.1,
-  maxWaves:1000,maxPoints:200000,maxEvaluations:2000000};
+  speedMmS:5,fanPercent:100,toleranceMm:0.01,sampleStepMm:0.5,propagationStepMm:0.1};
 
 export function validateWaves(settings){
   requireThat(typeof settings.enabled==='boolean'&&Array.isArray(settings.slices),'Invalid wave-overhangs selection.');
   for(const key of ['lineSpacingMm','beadHeightMm','speedMmS','toleranceMm','sampleStepMm','propagationStepMm'])
     requireThat(Number.isFinite(settings[key])&&settings[key]>0,`Wave ${key} must be positive and finite.`);
   requireThat(Number.isFinite(settings.fanPercent)&&settings.fanPercent>=0&&settings.fanPercent<=100,'Wave fanPercent must be 0–100.');
-  for(const key of ['maxWaves','maxPoints','maxEvaluations'])requireThat(Number.isSafeInteger(settings[key])&&settings[key]>0,`Wave ${key} must be a positive safe integer.`);
   requireThat(!settings.enabled||settings.slices.length>0,'Enable wave-overhangs with assigned spline slices and supported seeds.');
   const ids=new Set();
   for(const slice of settings.slices){
@@ -92,19 +90,21 @@ export function connectWavePasses(patch,waves,domain,settings,lineWidthMm){
 // is generally curved in XYZ. Retain pairs for diagnostics and software tests.
 function samplePath(patch,path,settings,budget){
   const at=uv=>{
-    requireThat(++budget.evaluations<=settings.maxEvaluations,`Wave exhausted maxEvaluations=${settings.maxEvaluations}; increase wave-overhangs.maxEvaluations.`);
+    budget.evaluations++;
     return surfaceDerivatives(patch,...uv.map((x,k)=>{
       const [lo,hi]=[patch.domainU,patch.domainV][k];
       return x>=lo-1e-9&&x<=hi+1e-9?Math.max(lo,Math.min(hi,x)):x;
     }));
   };
   const points=[],normals=[];
-  const append=frame=>{requireThat(++budget.points<=settings.maxPoints,`Wave exhausted maxPoints=${settings.maxPoints}; increase wave-overhangs.maxPoints.`);points.push(frame.point);normals.push(frame.normal);};
-  const refine=(a,b,fa,fb,depth=0)=>{
+  // Evaluations and emitted points are counted for the report only; chord
+  // tolerance and sampleStepMm decide how much work the geometry needs.
+  const append=frame=>{budget.points++;points.push(frame.point);normals.push(frame.normal);};
+  const refine=(a,b,fa,fb)=>{
     const mid=a.map((v,k)=>(v+b[k])/2),fm=at(mid);
     if(distance(fa.point,fb.point)>settings.sampleStepMm||distance(fm.point,fa.point.map((v,k)=>(v+fb.point[k])/2))>settings.toleranceMm){
-      requireThat(depth<30,'Wave curve subdivision cannot resolve the requested tolerance.');
-      refine(a,mid,fa,fm,depth+1);refine(mid,b,fm,fb,depth+1);
+      requireThat(mid.some((v,k)=>v!==a[k])&&mid.some((v,k)=>v!==b[k]),'Wave curve subdivision cannot resolve the requested tolerance: the subdivided midpoint is no longer distinct from its ends.');
+      refine(a,mid,fa,fm);refine(mid,b,fm,fb);
     }else append(fb);
   };
   let frame=at(path[0]);append(frame);
@@ -176,7 +176,7 @@ export function surfaceWaves(patch,domainUv,seedUv,settings){
     for(const loop of [...covered,...remaining]){
       const samples=[];
       for(let i=0;i<loop.length;i++)for(const t of [0,.25,.5,.75]){
-        requireThat(++budget.evaluations<=settings.maxEvaluations,`Wave exhausted maxEvaluations=${settings.maxEvaluations}; increase wave-overhangs.maxEvaluations.`);
+        budget.evaluations++;
         const uv=loop[i].map((x,k)=>x+t*(loop[(i+1)%loop.length][k]-x)),f=surfaceDerivatives(patch,...uv);
         stretch=Math.max(stretch,Math.hypot(...f.du)+Math.hypot(...f.dv));samples.push(f.point);
       }
@@ -194,7 +194,7 @@ export function surfaceWaves(patch,domainUv,seedUv,settings){
       if(!loop.some(p=>nearBoundary(p,covered)))return false;
       const samples=[];
       for(let i=0;i<loop.length;i++)for(const t of [0,0.25,0.5,0.75]){
-        requireThat(++budget.evaluations<=settings.maxEvaluations,`Wave exhausted maxEvaluations=${settings.maxEvaluations}; increase wave-overhangs.maxEvaluations.`);
+        budget.evaluations++;
         const uv=loop[i].map((x,k)=>x+t*(loop[(i+1)%loop.length][k]-x));
         samples.push(surfaceDerivatives(patch,...uv.map((x,k)=>Math.max([patch.domainU,patch.domainV][k][0],Math.min([patch.domainU,patch.domainV][k][1],x)))).point);
         if(samples.length>1&&distance(samples[0],samples.at(-1))>settings.toleranceMm)return false;
@@ -205,15 +205,16 @@ export function surfaceWaves(patch,domainUv,seedUv,settings){
     }
     residualsUv=remaining;residualMaxSampleDiameterMm=maxDiameter;return true;
   };
-  for(let n=0;n<settings.maxWaves;n++){
+  // Waves run until the slice is covered or its residue is resolved, however
+  // many that takes. Every front must enlarge the covered area, so a front that
+  // stops advancing reports that cause instead of spending a fixed wave count.
+  for(let n=0;;n++){
     const remaining=difference(domain,covered,options);
     if(!remaining.length||resolvedResiduals(remaining))break;
     const startArea=regionArea(covered);
     for(let k=0;k<stepCount;k++){
-      const remainingBudget=settings.maxEvaluations-budget.evaluations;
-      requireThat(remainingBudget>0,`Wave exhausted maxEvaluations=${settings.maxEvaluations}; increase wave-overhangs.maxEvaluations.`);
       const grown=offsetSurfaceRegion(patch,covered,step,{toleranceMm:settings.toleranceMm,
-        maxStepMm:Math.min(settings.sampleStepMm,step),precisionUv,maxEvaluations:remainingBudget,constraintLoopsUv:domain});
+        maxStepMm:Math.min(settings.sampleStepMm,step),precisionUv,constraintLoopsUv:domain});
       budget.evaluations+=grown.report.evaluations;boundaryStops+=grown.report.boundaryStops;steps++;
       covered=grown.loopsUv;
       if(!difference(domain,covered,options).length)break;
@@ -230,8 +231,6 @@ export function surfaceWaves(patch,domainUv,seedUv,settings){
     });
     if(sampled.length)waves.push({index:n,paths:sampled});
   }
-  const remaining=difference(domain,covered,options);
-  requireThat(!remaining.length||resolvedResiduals(remaining),`Wave exhausted maxWaves=${settings.maxWaves}; increase wave-overhangs.maxWaves or assign seeds to unreachable regions.`);
   return {waves,report:{status:'experimental',waves:waves.length,propagationSteps:steps,...budget,boundaryStops,
     residualsUv,residualMaxSampleDiameterMm,residualRoundingBandUv,sliverContours,lineSpacingMm:settings.lineSpacingMm,method:'constrained-geodesic-wavefronts',physicalValidation:'not performed'}};
 }
@@ -252,8 +251,7 @@ export function waveResults({plan,machine,placed,componentShells,modelResults}){
       patch={...patch,cp:Float64Array.from(patch.cp,(v,i)=>i%4===0?v+plan.placement.xMm*patch.cp[i+3]:i%4===1?v+plan.placement.yMm*patch.cp[i+2]:v)};
     }
     const generated=surfaceWaves(patch,slice.domainUv,slice.seedUv,settings),operations=[];
-    const connected=connectWavePasses(patch,generated.waves,slice.domainUv,{...settings,
-      maxEvaluations:settings.maxEvaluations-generated.report.evaluations,maxPoints:settings.maxPoints-generated.report.points},plan.process.lineWidthMm);
+    const connected=connectWavePasses(patch,generated.waves,slice.domainUv,settings,plan.process.lineWidthMm);
     requireThat(connected.passes.length===1,`Wave slice ${slice.id} needs ${connected.passes.length} separate passes with short in-domain turns; a continuous slice cannot contain branch restarts. Revise the domain/seed or the continuity requirement.`);
     let previous=[...previousSlice,...modelOps.filter(op=>slice.afterParts.some(part=>belongs(op,part))).map(op=>op.id)];
     for(const part of slice.afterParts)requireThat(modelOps.some(op=>belongs(op,part)),'Wave seed dependency has no deposited operations: '+part);

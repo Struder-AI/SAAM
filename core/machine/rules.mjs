@@ -38,22 +38,36 @@ export function validateSetup(plan,machine,{required=false}={}) {
   range(p.maxFlowMm3S,[0.1,experimental?(profile.experimentalMaxFlowMm3S??profile.maxFlowMm3S):profile.maxFlowMm3S],'Material flow');
   range(p.retractMm,[0,profile.maxRetractMm],'Retraction');range(p.retractSpeedMmS,[1,machine.maxFeedMmS.e],'Retraction speed');
   const layerLimits=experimental?t.experimentalPlanar.layerHeightMm:t.layerHeightMm;
-  const widthLimits=experimental?t.experimentalPlanar.lineWidthMm:[s.nozzleMm*0.75,s.nozzleMm*2];
   range(p.firstLayerMm,layerLimits,'First layer');range(p.layerMm,layerLimits,'Layer height');
-  range(p.lineWidthMm,widthLimits,'Line width');
+  range(p.lineWidthMm,lineWidthLimits(plan,machine),'Line width');
   requireThat(machine.outputs.some(o=>o.id===plan.output),'Output is not declared by the machine.');
   const output=machine.outputs.find(o=>o.id===plan.output);
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
   if(plan.output==='griffin-gcode')requireThat(/^[a-f0-9-]{36}$/i.test(s.materialGuid),'A material GUID is required for Griffin.');
   else requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
-  if(machine.id==='bambu-h2d'&&Object.hasOwn(machine.defaultSetup,'filamentColor')){
-    requireThat(/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Bambu filament color must be a six-digit hex color.');
-    requireThat(s.amsSlot===null||Number.isInteger(s.amsSlot)&&s.amsSlot>=1&&s.amsSlot<=4,'Bambu AMS slot must be null or 1–4.');
-  }
+  // A colour only labels the job in the printer's own software; it is optional.
+  requireThat(s.filamentColor==null||/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Filament color must be a six-digit hex color such as #28A090.');
+  feederSelector(plan,machine);
   if(machine.id==='dobot-mg400'){
     validateDobotConfiguration(plan,machine,{required});
     requireThat(p.retractMm===0&&p.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');
   }
+}
+
+export function lineWidthLimits(plan,machine){
+  const tool=toolFor(machine,plan.setup.tool);
+  return plan.process.experimentalDeposition?tool.experimentalPlanar?.lineWidthMm:[plan.setup.nozzleMm*0.75,plan.setup.nozzleMm*2];
+}
+
+// Optional spool choice from the profile's declared feeder units. No request
+// keeps the first filament path, which a printer without a feeder also uses.
+export function feederSelector(plan,machine){
+  const request=plan.setup.ams,feeder=machine.ams;
+  if(request==null)return 0;
+  requireThat(feeder,'This machine profile declares no AMS.');
+  requireThat([[request.unit,feeder.units],[request.slot,feeder.slotsPerUnit]].every(([value,count])=>Number.isInteger(value)&&value>=1&&value<=count),
+    `AMS choice must be unit 1–${feeder.units} and slot 1–${feeder.slotsPerUnit}.`);
+  return (request.unit-1)*feeder.slotsPerUnit+request.slot-1;
 }
 
 // Machine-instance values are locked by the same setup/plan hash as the recipe.
@@ -82,11 +96,11 @@ export function validateDobotConfiguration(plan,machine,{required=false}={}){
 
 export const startupPosition=(machine,plan)=>plan.setup.denso?.initialPositionMm??plan.setup.dobot?.initialPositionMm??[...toolFor(machine,plan.setup.tool).startupXY,machine.startup.zAfterStartupMm];
 
-// S5 jobs resume with the preceding job's final withdrawal still outstanding.
-// A plan can explicitly override that assumption via startupRetracted; otherwise
-// the S5 handoff applies. H2D hands off unretracted and relay machines have no filament axis.
+// Some startups hand over with the preceding job's final withdrawal still
+// outstanding; the profile's startup block says so (the S5 does, the H2D does
+// not). A plan can override it; relay machines have no filament axis.
 export const startupRetracted=(machine,plan)=>plan.process.retractMm>0
-  && (plan.process.startupRetracted??machine.id==='ultimaker-s5');
+  && (plan.process.startupRetracted??machine.startup.handsOverRetracted===true);
 
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);

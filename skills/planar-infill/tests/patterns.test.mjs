@@ -54,7 +54,7 @@ test('all patterns preserve holes and disconnected islands without extrusion acr
   }
 });
 
-test('gyroid follows its implicit field, changes with Z, converges and reports exhausted budgets',()=>{
+test('gyroid follows its implicit field, changes with Z and converges at any grid size',()=>{
   const options={pattern:'gyroid',widthMm:0.4,density:0.2,zMm:0.73};
   const coarse=infillStrokes(square,{...options,sampleStepMm:0.2}),fine=infillStrokes(square,{...options,sampleStepMm:0.1});
   assert.ok(coarse.some(s=>s.points.length>5));
@@ -65,7 +65,10 @@ test('gyroid follows its implicit field, changes with Z, converges and reports e
     assert.ok(Math.abs(f)<0.012,`gyroid residual ${f}`);
   }
   assert.notDeepEqual(coarse,infillStrokes(square,{...options,zMm:1.1}));
-  assert.throws(()=>infillStrokes(square,{...options,maxPatternCells:10}),/increase.*maxPatternCells/);
+  // About 1.24 million cells: over the retired 1,000,000-cell budget, and the
+  // same contours as the coarse grid.
+  const dense=infillStrokes(square,{...options,sampleStepMm:0.018});
+  assert.ok(Math.abs(length(coarse)/length(dense)-1)<0.01);
 });
 
 test('new sparse patterns compose with unchanged solid skins and one wall owner on mesh and splines',async()=>{
@@ -86,7 +89,7 @@ test('new sparse patterns compose with unchanged solid skins and one wall owner 
 
 test('missing and malformed pattern settings fail before generation',()=>{
   const plan=defaults();assert.equal(plan.skills['planar-infill'].pattern,'rectilinear');
-  for(const field of ['pattern','sampleStepMm','maxPatternCells','perimeterScope']){
+  for(const field of ['pattern','sampleStepMm','perimeterScope']){
     const missing=defaults();delete missing.skills['planar-infill'][field];
     assert.throws(()=>validatePlan(missing,loadMachine()),/Unexpected or missing fields/);
   }

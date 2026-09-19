@@ -187,7 +187,7 @@ export function validatePlan(plan, machine) {
     const p=process.primeLine;
     requireThat(p&&typeof p==='object'&&!Array.isArray(p),'Invalid primeLine.');
     const multi=Object.keys(p).sort().join()==='passes',passes=multi?p.passes:[p];
-    requireThat((multi&&Array.isArray(passes)&&passes.length>=1&&passes.length<=8)||Object.keys(p).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid primeLine fields.');
+    requireThat((multi&&Array.isArray(passes)&&passes.length>=1)||Object.keys(p).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid primeLine fields.');
     for(const pass of passes){
       requireThat(pass&&typeof pass==='object'&&!Array.isArray(pass)&&Object.keys(pass).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid prime pass fields.');
       requireThat([pass.startMm,pass.endMm].every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite))&&
@@ -247,23 +247,25 @@ export function validatePlan(plan, machine) {
     number(fit.detailToleranceMm,.005,.5,'Mesh sleeve detail tolerance');
   }
   requireThat(typeof vase.enabled==='boolean'&&(vase.part===null||typeof vase.part==='string'),'Invalid vase-wall selection.');
-  number(vase.zStartMm,0,200,'Vase start height');
-  requireThat(vase.zEndMm===null||(Number.isFinite(vase.zEndMm)&&vase.zEndMm>vase.zStartMm&&vase.zEndMm<=200),'Vase end height must be null or greater than its start, up to 200 mm.');
+  requireThat(Number.isFinite(vase.zStartMm)&&vase.zStartMm>=0,'Vase start height must be at or above the component base.');
+  requireThat(vase.zEndMm===null||(Number.isFinite(vase.zEndMm)&&vase.zEndMm>vase.zStartMm),'Vase end height must be null or greater than its start.');
   number(vase.sampleStepMm,0.1,5,'Vase sampling step');number(vase.toleranceMm,0.002,0.05,'Vase chord tolerance');
   number(vase.boundaryToleranceMm,0.002,0.05,'Vase boundary tolerance');
   number(vase.minFeatureMm,0.05,5,'Vase minimum section feature');
   const lip=skills['thick-lip'];
   requireThat(typeof lip.enabled==='boolean'&&(lip.part===null||typeof lip.part==='string'),'Invalid thick-lip selection.');
-  requireThat(Array.isArray(lip.steps)&&lip.steps.length>=1&&lip.steps.length<=50&&lip.steps.every(n=>Number.isInteger(n)&&n>=1&&n<=20),'Lip steps must be 1–50 layer entries, each 1–20 perimeters.');
+  requireThat(Array.isArray(lip.steps)&&lip.steps.length>=1&&lip.steps.length<=50&&lip.steps.every(n=>Number.isInteger(n)&&n>=1),'Lip steps must be 1–50 layer entries, each a whole number of perimeters from 1 up.');
   number(lip.minFeatureMm,0.05,5,'Lip minimum section feature');
   requireThat(typeof normal.enabled==='boolean'&&Array.isArray(normal.parts)&&new Set(normal.parts).size===normal.parts.length&&normal.parts.every(id=>typeof id==='string'),'Invalid planar-infill selection.');
-  requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&network.layers<=10&&Array.isArray(network.networks)&&network.networks.length<=20,'Invalid line-network settings.');
+  // Course, group, stroke and point counts follow the authored frame; only the
+  // shape of each entry is checked.
+  requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&Array.isArray(network.networks),'Invalid line-network settings.');
   const networkIds=new Set();
   for(const item of network.networks){
-    requireThat(item&&Object.keys(item).sort().join()==='id,strokes'&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0&&item.strokes.length<=100,'Invalid line network.');networkIds.add(item.id);
+    requireThat(item&&Object.keys(item).sort().join()==='id,strokes'&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0,'Invalid line network.');networkIds.add(item.id);
     for(const stroke of item.strokes){
       const keys=Object.keys(stroke).sort().join();
-      requireThat(stroke&&(keys==='closed,points'||keys==='closed,layers,points')&&typeof stroke.closed==='boolean'&&Array.isArray(stroke.points)&&stroke.points.length>=(stroke.closed?3:2)&&stroke.points.length<=1000&&stroke.points.every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite)),'Invalid line-network stroke.');
+      requireThat(stroke&&(keys==='closed,points'||keys==='closed,layers,points')&&typeof stroke.closed==='boolean'&&Array.isArray(stroke.points)&&stroke.points.length>=(stroke.closed?3:2)&&stroke.points.every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite)),'Invalid line-network stroke.');
       requireThat(stroke.layers===undefined||Array.isArray(stroke.layers)&&stroke.layers.length>0&&new Set(stroke.layers).size===stroke.layers.length&&stroke.layers.every(layer=>Number.isInteger(layer)&&layer>=0&&layer<network.layers),'Invalid line-network stroke layers.');
     }
   }
@@ -309,8 +311,8 @@ export function validatePlan(plan, machine) {
   if(network.enabled)requireMachine(machine,['xyz-extrusion','planar'],'line-network');
   if(!regional&&fill.enabled)requireMachine(machine,['xyz-extrusion','planar'],'full-fill');
   if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
-  number(fill.perimeters, 0, 8, 'perimeters');
   requireThat(Number.isInteger(fill.perimeters), 'perimeters must be an integer.');
+  requireThat(fill.perimeters >= 0, 'perimeters must be zero or more.');
   requireThat(['all','outer'].includes(fill.perimeterScope),'Full-fill perimeterScope must be all or outer.');
   requireThat(fill.holeLineWidthMm===null||(Number.isFinite(fill.holeLineWidthMm)&&fill.holeLineWidthMm>=0.3&&fill.holeLineWidthMm<=process.lineWidthMm),'Full-fill holeLineWidthMm must be null or 0.3 mm through the main line width.');
   requireThat(Array.isArray(fill.fillAnglesDeg) && fill.fillAnglesDeg.length >= 1 && fill.fillAnglesDeg.every(angle => typeof angle === 'number' && angle >= -180 && angle <= 180), 'Invalid fill angles.');
@@ -320,13 +322,12 @@ export function validatePlan(plan, machine) {
   requireThat(normal.density===0||normal.density>=0.01,'Infill density must be zero or 0.01–1.');
   requireThat(INFILL_PATTERNS.includes(normal.pattern),'Unknown infill pattern.');
   number(normal.sampleStepMm,0.01,2,'Infill sample step');
-  requireThat(Number.isSafeInteger(normal.maxPatternCells)&&normal.maxPatternCells>0,'Infill maxPatternCells must be a positive safe integer.');
-  requireThat(Number.isInteger(normal.perimeters)&&normal.perimeters>=0&&normal.perimeters<=8,'Infill perimeters must be 0–8.');
+  requireThat(Number.isInteger(normal.perimeters)&&normal.perimeters>=0,'Infill perimeters must be a whole number, zero or more.');
   requireThat(['all','outer'].includes(normal.perimeterScope),'Planar-infill perimeterScope must be all or outer.');
   requireThat(Array.isArray(normal.fillAnglesDeg)&&normal.fillAnglesDeg.length>0&&normal.fillAnglesDeg.every(v=>Number.isFinite(v)&&v>=-180&&v<=180),'Invalid infill angles.');
   number(normal.fillOverlap,0,0.5,'Infill overlap');number(normal.minFeatureMm,0.05,5,'Infill feature size');
-  number(skin.layers, 1, 8, 'draped skin layers');
   requireThat(Number.isInteger(skin.layers), 'draped skin layers must be an integer.');
+  requireThat(skin.layers >= 1, 'draped skin layers must be one or more.');
   number(skin.normalMm, 0.05, 0.5, 'skin normal thickness');
   number(skin.strokeAngleDeg, -180, 180, 'skin stroke angle');
   number(skin.sampleStepMm, 0.1, 5, 'skin sample step');
@@ -350,8 +351,10 @@ export function validatePlan(plan, machine) {
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
     const part=selections.get(region.part);
     requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
-    number(region.zStartMm,0,1000,'Region start');
-    requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm&&region.zEndMm<=1000),'Region end must exceed its start or be null.');
+    // Region heights are bounded by the geometry and the machine, not by a
+    // chosen ceiling.
+    requireThat(Number.isFinite(region.zStartMm)&&region.zStartMm>=0,'Region start must be a height at or above the bed.');
+    requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm),'Region end must exceed its start or be null.');
     requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
     requireThat(region.skills&&typeof region.skills==='object'&&!Array.isArray(region.skills)&&Object.keys(region.skills).length>0,'A region needs selected skills.');
     const child=structuredClone(plan);child.composition.regions=[];
@@ -379,7 +382,12 @@ export function validatePlan(plan, machine) {
 // Reject misspelled or unused settings instead of silently ignoring them.
 function keys(actual, expected, path = 'plan') {
   requireThat(actual && typeof actual === 'object' && !Array.isArray(actual), `${path} must be an object.`);
-  requireThat(Object.keys(actual).sort().join() === Object.keys(expected).sort().join(), `Unexpected or missing fields in ${path}.`);
+  // Name the offending keys: a retired or misspelled field is otherwise invisible
+  // to the agent or maker holding the recipe.
+  const unexpected = Object.keys(actual).filter(key => !Object.hasOwn(expected, key)).sort();
+  const missing = Object.keys(expected).filter(key => !Object.hasOwn(actual, key)).sort();
+  requireThat(!unexpected.length && !missing.length, `Unexpected or missing fields in ${path}: `
+    + [unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ') + '.');
   for (const key of Object.keys(expected)) {
     const value = expected[key];
     if (value && typeof value === 'object' && !Array.isArray(value)) keys(actual[key], value, `${path}.${key}`);

@@ -163,13 +163,11 @@ CLI launches and separate local MCP adapter processes use separate free loopback
 ports. Identify the current work's print and URL before restarting its viewer.
 Check the loaded geometry and export afterward.
 
-If generation reports "The prepared print changed. Reload before generating."
-after source changes, a browser refresh alone may leave an older server runtime
-active while a new preparation worker imports current code. Restart the owning
-Studio server, reconnect its viewer and check the fresh state. The settings/toolpath
-confirmation is bound to the generator runtime and may require the person to
-review the regenerated result.
-Do not rewrite approval hashes to make an old approval match new code.
+After changing SAAM's own code, restart the owning Studio server so the server
+and its preparation workers run the same code. A confirmation is bound to the
+plan and the exact exported bytes, not to the code that produced them, so a code
+change alone does not ask the person to review an unchanged file again.
+Do not rewrite approval hashes.
 
 Studio tracks open pages through authenticated persistent viewer connections,
 independent of revision polling and background-tab timer throttling. There is no
@@ -261,7 +259,12 @@ slicing. A failed generation stays actionable until inputs change or an explicit
 retry succeeds. Geometry review remains available without pausing the lesson or
 creating an approval. **Continue with this part** selects the displayed print for
 the next lesson. While replacement output is prepared, the previous toolpath stays
-visible at reduced opacity and cannot be approved or exported as current.
+visible at reduced opacity and cannot be approved or exported as current. Whenever
+the toolpath pane has no current program and no retained previous one — first
+generation, a reload mid-calculation, a tour lesson that starts its own generation,
+or a failed generation — it draws the part being sliced at that same reduced
+opacity instead of an empty viewport. The toolpath view still shows no part geometry
+once a program is drawn.
 A toolpath lesson shows preparation status while no current program is available. Generation failures remain visible after
 the saved lesson is refreshed. Playback seeking waits until the program loads.
 Outside the tour, a fresh print without a current export still opens in geometry
@@ -282,7 +285,10 @@ through checks and playback loading, disables duplicate actions, and clears on
 success or error. Generation prepares and checks the toolpath. The final button confirms
 settings and toolpath together and downloads the checked file. After a successful download, that exact print/export shows "Export again" for the current page session, including after switching away and reopening it. Animation respects reduced-motion preferences. It represents
 stage progress where counts are available (layers, composed operations and
-material instances), and indeterminate work otherwise. Percentages describe the
+material instances), and indeterminate work otherwise. Both the overlay and the
+displayed-view acknowledgement give the compositor two frames to show what was
+rendered, then continue on a short deadline: a hidden or unpainted tab runs no
+frame callback, and loading must not depend on one. Percentages describe the
 named stage, not estimated elapsed time or hardware status. The read-only
 `GET /api/preparation` endpoint stays responsive outside the mutation queue and
 binds progress to the current print and plan.
@@ -379,7 +385,8 @@ only Continue keeps blinking. The playback
 lesson stops highlighting Play and unlocks Next on its first use; Pause does not
 restart the cue.
 Generation switches to the rendered replacement only after its checked source is
-loaded; the previous toolpath remains faded while work is active.
+loaded; the previous toolpath remains faded while work is active, and the part
+geometry stands in for it at the same opacity when none is retained.
 
 The maker agent calls MCP begin_studio_work as early as practical for an edit; a
 chat acknowledgement may come first. The claim it records is what later mutations
@@ -457,7 +464,11 @@ also offers help with difficulties printing the downloaded file and asks what
 to make next, as ordinary chat text without a question-box tool. Send it before
 another listener or bookkeeping call. The client updates completion directly
 without reloading the full source and material scene. POST /api/view-ready acknowledges the exact rendered revision
-and export; saving or generating alone does not unlock edit lessons.
+and export; saving or generating alone does not unlock edit lessons. The settings
+lesson opens on a participant-requested agent edit whose result is the displayed
+current toolpath; automatic Studio work and requests recorded before the lesson
+do not count. It reads the print's whole request history rather than the current
+owner's share, so relaunching Studio mid-lesson cannot lock it.
 
 Request begin/respond/wait calls run independently of MCP’s print-work queue.
 New queued requests publish immediately to the owning toolkit stream, emit MCP logging notifications and appear in subsequent
@@ -511,10 +522,22 @@ passive queue holds only the calculation's start and finish; progress exists
 only in a read made while it runs. No channel wakes an ended or disconnected
 chat.
 
+The same owner shows another print in its live instance with
+`POST /api/agent-open` and a JSON body `{owner, path}`; it runs the serialized,
+validated open used by the picker, pushes a `print` change to the viewers and
+returns the agent session. The toolkit wraps it as
+`open-print|create-preview DIRECTORY --studio URL --agent-owner ID`, so switching
+prints reuses the instance and its browser tab.
+
 ## Importing an STL in Studio
 
 **Import STL** opens the native file picker directly and accepts a local ASCII
-or binary STL up to 64 MiB. It assumes units from the loaded size without a popup,
+or binary STL up to 64 MiB. That upload bound is an input-safety limit on the HTTP
+boundary, not a geometry budget; it is about 1,342,000 triangles of binary STL and
+is the only size limit Studio import applies. MCP `import_stl_print` applies the
+same 64 MiB bound to the local file it is given; the CLI and the agent toolkit
+apply none and are bounded only by the memory the machine actually has.
+It assumes units from the loaded size without a popup,
 shows that assumption beside geometry dimensions, and allows correction in chat.
 The provisional policy is [D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption).
 Studio preserves source bytes and uses the
@@ -557,7 +580,7 @@ Sources: [import-stl.mjs](../../studio/import-stl.mjs).
 
 **Contract.** Import reserves a unique new print directory, validates supported STL names/units and the 64 MiB upload limit, resolves paths inside the library and calls core `importOrRepairSTLBundle`, which runs in the shared mesh repair worker job. Strict import precedes repair; only recognized geometry defects enter the repair fallback, with hole closing disabled. Studio maps the job's stage codes to browser progress labels and builds the repair summary from the retained report. Original/repaired source and repair report are retained when applicable. New imports have no human approval.
 
-**Failures.** Invalid input, setup and memory-budget errors do not trigger repair. On failure/cancellation the core job settles once, after terminating its worker, and the coordinator then removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
+**Failures.** Invalid input, setup and exhausted-memory errors do not trigger repair; only recognized geometry defects do, and a mesh is never refused for its predicted size. On failure/cancellation the core job settles once, after terminating its worker, and the coordinator then removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
 
 **Change together.** Coordinate print-name rules, core import/repair worker protocols, plan creation and browser progress. Directory reservation and worker termination order are part of the transaction boundary.
 

@@ -2,7 +2,7 @@ import {agentIndicator,requestReceiptState,activeEditStage} from './work-state.m
 export {agentIndicator} from './work-state.mjs';
 export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
-  let running=false,refreshAgain=false,requests=[],view={},lastActivity;const closedOwners=new Set(),retired=new Map();
+  let running=false,refreshAgain=false,requests=[],view={},lastActivity,askedPresentation;const closedOwners=new Set(),retired=new Map();
   function merge(records,snapshot){
     const merged=new Map(requests.map(r=>[r.id,r]));let changed=false;
     for(const record of records){const previous=merged.get(record.id);
@@ -30,8 +30,14 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
     indicator.setAttribute('aria-label',active?'Updating preview':message);
     if(active!==lastActivity){lastActivity=active;onActivity(active);}
-    if(view.ready&&!view.loading&&requests.some(r=>!r.presented&&['working','completed'].includes(r.status)
-      &&requestReceiptState(r,{view}).receipt))onPresentation();
+    // The server decides whether a drawn view actually receipts a request, and
+    // may decline. Ask again only when the displayed view or the records moved,
+    // so a declined acknowledgement cannot become a standing retry.
+    const receipting=requests.filter(r=>!r.presented&&['working','completed'].includes(r.status)&&requestReceiptState(r,{view}).receipt);
+    const asking=view.ready&&!view.loading&&receipting.length
+      ?JSON.stringify([view.printId,view.snapshot,receipting.map(r=>r.id+':'+r.updatedAt)]):null;
+    if(asking&&asking!==askedPresentation){askedPresentation=asking;onPresentation();}
+    else if(!asking)askedPresentation=null;
   }
   addEventListener('saam-agent-connection-closed',event=>{
     closedOwners.add(event.detail.ownerId);
@@ -48,8 +54,15 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     }while(refreshAgain);})();
     try{await running;}finally{running=false;}
   }
+  // Record changes arrive as pushes, like the revision read: the local timer
+  // only re-evaluates expiry and the lost-contact message, while a reopened
+  // viewer stream, the page becoming visible and a slow heartbeat recover a
+  // push that was missed. Reading every render turned an idle page into a
+  // continuous request poll.
   addEventListener('saam-studio-change',event=>{if(event.detail.kinds.includes('requests'))void refresh();});
-  void refresh();setInterval(()=>{render();void refresh();},750);
+  addEventListener('saam-viewer-connection',()=>{void refresh();});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
+  void refresh();setInterval(render,750);setInterval(()=>{void refresh();},15_000);
   function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
   return {refresh,reflectFade,
     generating(){return activeEditStage(requests,{closedOwners,view})==='toolpath';},

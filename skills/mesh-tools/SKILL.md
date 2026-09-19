@@ -25,7 +25,7 @@ use the explicit command below when working through those entry points.
 | Inconsistent winding or self-intersecting faces | CGAL orientation and local patch repair; review the changed areas. |
 | Open boundaries | Fill only openings within explicit edge-count and physical-size limits, according to the intended solid. |
 | Nonmanifold topology | CGAL can split/orient compatible patches; remaining ambiguous or invalid topology is rejected. |
-| Memory budget failure | Review available RAM/Node heap and the reported working-set estimate; increase the budget when appropriate. |
+| Out of memory for this mesh | The reported stage could not allocate for the reported size; rerun with a larger `--max-old-space-size` or on a machine with more RAM. |
 
 A diagnostic does not determine the intended solid. Preserve the original and
 explain consequential shape changes. Do not automatically fill a large opening
@@ -58,12 +58,13 @@ Optional JSON settings:
 | `maxHoleEdges` | Maximum edges in a boundary to fill; default 0 disables filling. |
 | `maxHoleDiameterMm` | Maximum boundary bounding-box diagonal in mm; default 0. Both hole limits must be positive to enable filling. |
 | `maxSampledDistanceMm` | Reject results exceeding this bidirectional sampled shape change. Optional; sampling is not a certified surface bound. |
-| `timeoutMs` | Native operation timeout; default 120,000 ms. |
 
 No geometry is published after failed repair or validation. The source remains
 unchanged. The command writes stage progress to stderr and the final report to
 stdout. Percentages describe the named stage; native patch processing has no
-known completion count.
+known completion count. A large or awkward mesh takes as long as it takes: there
+is no elapsed-time limit, and the repair ends only when it succeeds, when it
+fails, or when you cancel it.
 
 ## Memory and programmatic use
 
@@ -78,11 +79,13 @@ local `vertices`/`faces`, `firstTriangle`, `completed`, `total` and `percent`.
 The consumer is awaited before the next chunk. Output starts after validation;
 partial failed repairs are never emitted as accepted geometry.
 
-There is no fixed 100,000-face gate. `SAAM_MESH_MEMORY_MIB` controls a conservative
-working-set estimate. Its default is bounded by the Node heap and system RAM;
-see [memory and progress](../../core/geom/README.md#memory-files-and-progress).
-Indexed meshes and CGAL working data still require memory. This is not unlimited
-or fully disk-backed processing.
+There is no fixed face-count gate and no working-set estimate that refuses a mesh
+before reading it; a repair is attempted on the mesh you supply. The only size
+check is index capacity, the representational limit of the indexed arrays. See
+[memory and progress](../../core/geom/README.md#memory-files-and-progress).
+Indexed meshes and CGAL working data still require memory, and this is not
+disk-backed processing: a mesh larger than the machine can hold fails on the
+allocation that failed, naming the stage and the mesh size.
 
 ## Inspect and return to printing
 
