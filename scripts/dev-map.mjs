@@ -7,7 +7,23 @@ import {root,loadModel,regionContext} from './dev-map/model.mjs';
 import {inputSnapshot,buildFreshness,recordBuild,changedSince,changesText} from './dev-map/maintenance.mjs';
 
 const [command='build',...args]=process.argv.slice(2);
-if(!['build','check'].includes(command))throw Error('Use: node scripts/dev-map.mjs build [--force] [--flow DECLARATION] | check [--since REF] [--built] [--json]');
+if(!['build','check','regenerate','flow-evidence'].includes(command))throw Error('Use: node scripts/dev-map.mjs build [--force] [--flow DECLARATION] | check [--since REF] [--built] [--json] | regenerate [INDEX] | flow-evidence INDEX|DECLARATION');
+// Auditing and regeneration of the generated map live here, not on the agent CLI.
+if(command==='flow-evidence') {
+  const {loadFlow,flowPacket}=await import('./dev-map/flow.mjs');
+  const {readIndex,storeDir}=await import('./dev-map/store.mjs');
+  const held=await readIndex(storeDir(root));
+  const target=args[0]??'';
+  const path=held?.nodes[target]?.path??target;
+  console.log(JSON.stringify(flowPacket(await loadFlow(),path,{evidence:true}),null,1));
+  process.exit(0);
+}
+if(command==='regenerate') {
+  const {generate}=await import('./dev-map/store.mjs');
+  const index=args[0];
+  console.log(JSON.stringify(await generate({repo:root,region:index===undefined||index==='0'?null:String(index).split('.')[0]}),null,1));
+  process.exit(0);
+}
 const {values:options}=parseArgs({args,options:command==='build'?{force:{type:'boolean'},flow:{type:'string',multiple:true}}
   :{since:{type:'string'},built:{type:'boolean'},json:{type:'boolean'}}});
 // Flow pages are a separate generated view with their own output; they touch no authored map.

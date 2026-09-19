@@ -5137,3 +5137,37 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   wires repeat one variable name, gates are raw test text, one callee box
   merges several branches, and literal-tagged returns carry nothing.
 - Verification: seven dev-map test files pass 55 of 55; `dev-map.mjs check` passes.
+
+## 2026-09-19 — Generated flow map: complete call accounting, stored map, explicit regeneration
+
+- Source: user, as developer work: one agent path `0` -> region -> page -> code;
+  scanning is an explicit `regenerate`; no prose in packets; no authored lists
+  or thresholds.
+- Implemented, additive (`--generated` gate; authored reads, build and check
+  unchanged): every call site in core and Studio is LINKED, EXTERNAL by a named
+  mechanical rule, or UNRESOLVED; the unique-method-name fallback is deleted;
+  value following covers factory-returned objects and destructuring. Flow pages
+  resolve def-use through scopes, draw early returns and throws as output
+  ports, list assertion-shaped calls as `requires`, keep formula-shaped callees
+  off the page with wire continuity, and carry `calledFrom` and couplings.
+  `scripts/dev-map/store.mjs`, `regions.mjs`, `shapes.mjs`: a stored map under
+  `dev-map/generated/`, `regenerate [INDEX]`, region-local canonical numbering,
+  page 0 and region pages, `unreached`, stale marking by file hash on read,
+  `read-map INDEX --generated [--code]` with `--code` refused on root and
+  region pages.
+- Measured 2026-09-19: call sites LINKED 4633, EXTERNAL 5657, UNRESOLVED 1298
+  (was 6019 incl. 1523 junk / 0 / 5572). 9 regions, 1275 pages, 615 leaves, 273
+  formulas, 4 assertions, 2 unreached nodes. Full regenerate 9.3 s: link 8.0 s,
+  parse 0.14 s, shapes 0.17 s, pages 0.61 s, write 0.18 s. Region-scoped
+  regenerate 8.6-8.8 s: scoping rebuilds only that region's pages and numbers
+  but the link phase is still whole-program. Reads from the store 0.09-0.13 s
+  wall (were 4-8 s). Store 2.6 MB, 135 files. Packets: median 771 B, p90 2.1 KB,
+  max 20 KB (`createStudio`); `composeResults` 7.0 KB (was 23.9 KB).
+- Open: 211 formula/assertion nodes have an index and page but no page lists
+  them as components; `addEventListener` handlers and CLI dispatch under
+  `scripts/` are not detected as entry points; `core/geom` region page admits
+  106 entries; class pages have no wires; 7 gate texts render `??` as `== null`.
+- Verification: seven dev-map test files pass 71 of 71; `dev-map.mjs check`
+  passes; scoped regenerate of every region with no source change leaves the
+  store byte-identical (subagent-run); audit of all pages: 2475 call sites,
+  2711 wire labels, 10027 index references, 0 failures.

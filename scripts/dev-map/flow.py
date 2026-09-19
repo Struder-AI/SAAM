@@ -14,29 +14,36 @@ from viewer import emit
 # Box: how the link from this function to that component was resolved.
 STYLE["ast"] = dict(fill="#ffffff", stroke="#1e293b", sw=1.9, rx=7, tc="#0f172a")
 STYLE["recv"] = dict(fill="#eff6ff", stroke="#2563eb", sw=1.9, rx=7, tc="#1e3a8a")
-STYLE["name"] = dict(fill="#faf5ff", stroke="#7e22ce", sw=1.6, rx=7, tc="#5b21b6", dash="7 3")
 STYLE["heur"] = dict(fill="#fffbeb", stroke="#d97706", sw=1.5, rx=6, tc="#78350f", dash="2 4")
+STYLE["throw"] = dict(fill="#fff1f2", stroke="#be123c", sw=1.5, rx=13, tc="#9f1239")
 EDGE["state"] = dict(stroke="#ca8a04", sw=1.7, head="l-state")
 MARKERS = '<marker id="l-state" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="8" ' \
           'markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,4 L0,8 z" ' \
           'fill="#ca8a04"/></marker></defs>'
 
 LEGEND = [("ast", "box: callee read straight from the AST (ast-call-site, ast-closure)"),
-          ("recv", "box: link resolved by receiver-value — the receiver's construction was followed"),
-          ("name", "box: link resolved by unique-method-name — one mapped class declares that name"),
-          ("heur", "box: held out of the flow by a heuristic; every one is listed below and in the packet")]
+          ("recv", "box: link resolved by following the receiver's or callee's value "
+                   "(receiver-value, value-follow)"),
+          ("port", "port: a parameter in, or a return out, named as the source writes it"),
+          ("throw", "port: a throw out, named by the constructor it throws"),
+          ("heur", "not a box: an assertion becomes a requirement below, a formula stays in the "
+                   "wires that pass through it")]
 WIRES = [("data", "wire: ast-param / ast-def-use / ast-nested-call — a parameter, a bound call "
                   "result or a call written inside another call's arguments, passed on"),
          ("state", "wire: state-thread — the same receiver at successive call sites, in source order"),
          ("gate", "wire: ast-guard — the call is under a test; the test's own source text is the label"),
-         ("io", "wire: ast-return — what leaves through a return")]
+         ("io", "wire: ast-return / ast-throw — what leaves through a return or a throw")]
+# What the drawing's two least literal elements mean. They are stated here, on the page the
+# owner reads, and nowhere else.
+MEANING = ["Boxes are possible callees at a call site, ordered by first call site. That order is "
+           "not an execution trace.",
+           "A state thread is one reaching construction of a receiver, drawn in source order: "
+           "not proof that these calls run on the same object, in this order."]
 ROW = 15.0
 
 
 def kind_of(links):
-    if links and all(l == "unique-method-name" for l in links):
-        return "name"
-    return "recv" if "receiver-value" in links else "ast"
+    return "recv" if ("receiver-value" in links or "value-follow" in links) else "ast"
 
 
 class FlowPage(Page):
@@ -46,24 +53,30 @@ class FlowPage(Page):
         super().__init__(**kw)
         self.packet = packet
         self.opened = opened
-        self.held = packet["vocabulary"] + packet["weak"]
+        self.held = packet["requires"]
+        self.throw_ports = [p["port"] for p in packet["outputs"] if p["kind"] == "throw"]
         self.legend_rows = ([("title", None, "Nothing on this page is authored: every box, wire, "
                                              "label and gate below was produced by "
                                              "scripts/dev-map/flow.mjs from the parsed source.")]
                             + [("legend", k, t) for k, t in LEGEND + WIRES]
-                            + [("rule", None, f'{h["name"]}: {h["rule"]}') for h in packet["heuristics"]]
-                            + [("note", None, f'{len(packet["unresolved"])} call sites in this body '
-                                              f'resolve to no mapped declaration and stay in the packet '
-                                              f'as unresolved: '
-                                              + ", ".join(sorted({u["call"] for u in packet["unresolved"]})))])
+                            + [("meaning", None, t) for t in MEANING]
+                            + [("note", None, f'{len(packet["unresolved"])} call sites here reach code '
+                                              f'the scanner cannot name: '
+                                              + ", ".join(sorted({u["call"] for u in packet["unresolved"]})))]
+                            + [("note", None, f'{len(packet["external"])} call sites here are outside '
+                                              f'core/studio by rule: '
+                                              + ", ".join(sorted({u["rule"] for u in packet["external"]})))])
         if packet["authored"]:
             self.legend_rows.insert(0, ("authored", None, "AUTHORED CONTENT ON THIS PAGE: "
                                                           + ", ".join(map(str, packet["authored"]))))
 
     def layout(self):
         super().layout()
+        # Throw ports lay out as ports — pinned to the right edge — and are drawn as throws.
+        for port in self.throw_ports:
+            self.index[port].kind = "throw"
         self.legend_y = self.H
-        self.H += 26 + ROW * len(self.legend_rows) + (56 + 44 * ((len(self.held) + 2) // 3) if self.held else 0)
+        self.H += 26 + ROW * len(self.legend_rows) + (56 + ROW * len(self.held) if self.held else 0)
         self.W = max(self.W, 80 + max(tw(t, FS_NOTE) for _k, _s, t in self.legend_rows))
         return self
 
@@ -89,7 +102,8 @@ class FlowPage(Page):
                              f'stroke="{e["stroke"]}" stroke-width="{e["sw"]}"{dash} '
                              f'marker-end="url(#{e["head"]})"/>')
                 x += 30
-            fill = {"authored": "#dc2626", "title": "#0f172a", "rule": "#78350f"}.get(kind, "#475569")
+            fill = {"authored": "#dc2626", "title": "#0f172a", "rule": "#78350f",
+                    "meaning": "#0f172a"}.get(kind, "#475569")
             weight = ' font-weight="700"' if kind in ("authored", "title") else ""
             o.append(f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="{fill}"{weight}>'
                      f'{escape(t)}</text>')
@@ -97,27 +111,15 @@ class FlowPage(Page):
         if self.held:
             y += 22
             o.append(f'<text x="{MARGIN_L}" y="{y:.1f}" font-size="{FS_NOTE}" font-weight="700" '
-                     f'fill="#78350f">Held out of the flow by a heuristic — not drawn as steps, '
-                     f'still called by this body:</text>')
+                     f'fill="#78350f">Asserted by the calls in this body:</text>')
             y += 12
-            s = STYLE["heur"]
-            for i, item in enumerate(self.held):
-                col, row = i % 3, i // 3
-                x = MARGIN_L + col * ((self.W - 2 * MARGIN_L) / 3)
-                top = y + row * 44
-                w = min((self.W - 2 * MARGIN_L) / 3 - 12,
-                        max(tw(f'{item["handle"]} {item["label"]}', 12), tw(item["provenance"], FS_FOOT),
-                            tw(item["foot"], FS_FOOT)) + 20)
-                o.append(f'<rect x="{x:.1f}" y="{top:.1f}" width="{w:.1f}" height="36" rx="{s["rx"]}" '
-                         f'fill="{s["fill"]}" stroke="{s["stroke"]}" stroke-width="{s["sw"]}" '
-                         f'stroke-dasharray="{s["dash"]}"/>')
-                o.append(f'<text x="{x + 9:.1f}" y="{top + 14:.1f}" font-size="12" font-weight="700" '
-                         f'fill="{s["tc"]}">{escape(item["handle"])} {escape(item["label"])} '
-                         f'×{item["calls"]}</text>')
-                o.append(f'<text x="{x + 9:.1f}" y="{top + 25:.1f}" font-size="{FS_FOOT}" '
-                         f'fill="#78350f">{escape(item["provenance"])}</text>')
-                o.append(f'<text x="{x + 9:.1f}" y="{top + 33:.1f}" font-size="{FS_FOOT}" '
-                         f'fill="#a16207">{escape(item["foot"])}</text>')
+            for item in self.held:
+                text = f'{item["line"]}: {item["text"]}'
+                if item.get("message"):
+                    text += "  |  " + item["message"]
+                o.append(f'<text x="{MARGIN_L}" y="{y:.1f}" font-size="{FS_NOTE}" '
+                         f'fill="#78350f">{escape(text)}</text>')
+                y += ROW
         return "\n".join(o)
 
 
@@ -137,8 +139,7 @@ def build(model, out):
                 note.append("gate: " + c["gate"]["text"])
             if c["calls"] != 1:
                 note.append(f'{c["calls"]} call sites')
-            if c["opens"]:
-                note.append("▸ opens its own flow page" + (f' — {keys[c["path"]]}' if c["path"] in keys else ""))
+            note.append(f'{c["lines"]} lines')
             node = page.n(c["path"], c["label"], kind=kind_of(c["links"]), num=c["handle"],
                           note="\n".join(note) or None, anchor=c["path"])
             node.anchor_ref = f'{c["file"]}:{c["line"]}-{c["endLine"]}'
@@ -147,7 +148,10 @@ def build(model, out):
             code[node.anchor_ref] = dict(src=c["file"], a=c["line"],
                                          t="\n".join(model["sources"][c["file"]].split("\n")[c["line"] - 1:c["endLine"]]))
         for port in packet["outputs"]:
-            page.n(port["port"], port["name"], kind="port", note=port["provenance"])
+            note = port["provenance"]
+            if port.get("gate"):
+                note += "\ngate: " + port["gate"]["text"]
+            page.n(port["port"], port["name"], kind="port", note=note)
         for w in packet["wires"]:
             gate = w.get("gate")
             label = " ".join(x for x in [w["label"], f'[{gate["text"]}]' if gate else ""] if x)

@@ -63,15 +63,9 @@ export async function readSkill(id, {maker = false, builder = false, developer =
 
 export async function readMaps(keys, options = {}) {
   if (options.generated) {
-    if (options.section || options.node || options.inventory) throw Error('--generated accepts only --evidence, --tests and --flow.');
-    if (options.flow) {
-      const {loadFlow, flowPacket} = await import('../../scripts/dev-map/flow.mjs');
-      const context = await loadFlow();
-      return keys.map(key => flowPacket(context, key));
-    }
-    const {loadProjection, generatedContext, importingTests} = await import('../../scripts/dev-map/projection.mjs');
-    const projection = await loadProjection();
-    return Promise.all(keys.map(async key => ({...generatedContext(projection, key, options), ...(options.tests ? {tests: await importingTests(projection, key)} : {})})));
+    if (options.section || options.node || options.inventory) throw Error('--generated accepts only --code.');
+    const {readGenerated, readCode} = await import('../../scripts/dev-map/store.mjs');
+    return Promise.all(keys.map(key => options.code ? readCode(key) : readGenerated(key)));
   }
   const {loadModel, regionContext} = await import('../../scripts/dev-map/model.mjs');
   const model = await loadModel(), regions = new Map();
@@ -80,6 +74,14 @@ export async function readMaps(keys, options = {}) {
     regions.set(region.page, region);
   }
   return [...regions.values()];
+}
+
+// Scanning is a choice, and this is the only command that makes it. With no index, or `0`, it
+// generates everything; with a region or page index it regenerates that region.
+export async function regenerateMap(target) {
+  const {generate} = await import('../../scripts/dev-map/store.mjs');
+  const region = target === undefined || target === '0' ? null : String(target).split('.')[0];
+  return generate({region});
 }
 
 export async function onboarding({role, areas = []}) {
