@@ -59,6 +59,10 @@ EDGE = {
     "io":   dict(stroke="#0891b2", sw=1.6, head="l-io"),
 }
 ANCHOR_TC, EXPLODE_TC = "#0f766e", "#7c3aed"
+# The third title line: what the marks on this page mean in one line. A page whose marks are
+# not the authored map's says so by setting `key_line`.
+KEY_LINE = ("▸ opens a page   ·   file:lines = the code it is   ·   "
+            "red ↓ = shared uses   ·   dashed red = condition")
 # Co-ownership stub. Its own colour because it says something no other mark on the page
 # says: this declaration is not exclusively ours.
 CO_TC, CO_LEN = "#dc2626", 22
@@ -142,6 +146,8 @@ def _attrs(n):
             "label": " ".join(n.lines), "note": " · ".join(n.note_lines),
             "anchor": n.anchor or "", "ref": n.anchor_ref or "",
             "explodes": n.explodes or "",
+            # The page this box opens, where a page holds boxes that are themselves pages.
+            "go": getattr(n, "go", "") or "",
             "co": " · ".join(n.co)}
     if n.anchor_ref:
         data["src"] = n.source_path
@@ -169,6 +175,7 @@ class Page:
                  breaks=(),
                  zones=(), width=None):
         self.key, self.title, self.subtitle = key, title, subtitle
+        self.key_line = KEY_LINE
         self.parent = parent
         self.ports_in, self.ports_out = list(ports_in), list(ports_out)
         # [(label, [node_id, ...])] -- which machine each part of the page runs on.
@@ -274,7 +281,10 @@ class Page:
         for n in self.nodes:
             if n.kind == "port" and not fpred[n.id]:
                 column[n.id] = 0
-        top = max(column.values())
+        # A page with no boxes at all still has a title, a subtitle and whatever it prints
+        # below the drawing; the extents below fall back to the margins rather than taking
+        # the maximum of nothing.
+        top = max(column.values(), default=0)
         for n in self.nodes:
             if n.kind == "port" and not fsucc[n.id]:
                 column[n.id] = top
@@ -430,12 +440,12 @@ class Page:
                     off = 0.0 if len(ks) == 1 else (j / (len(ks) - 1) - 0.5) * span
                     self.slot[(side, k)] = node.cy + off
 
-        self.right_edge = max(n.x + n.w for n in self.nodes) + 24
+        self.right_edge = max((n.x + n.w for n in self.nodes), default=MARGIN_L) + 24
         self.gutter_lane = {}
         self.wrapped = set()
         self.routes = [self._route(e, back) for e in self.edges]
-        self.W = max(n.x + n.w for n in self.nodes) + MARGIN_R
-        self.H = max(n.y + n.h for n in self.nodes) + MARGIN_B
+        self.W = max((n.x + n.w for n in self.nodes), default=MARGIN_L) + MARGIN_R
+        self.H = max((n.y + n.h for n in self.nodes), default=MARGIN_T) + MARGIN_B
         for _pts, lab in self.routes:
             if lab:
                 self.H = max(self.H, lab[1] + 20)
@@ -478,6 +488,8 @@ class Page:
         interleave in y (different columns, overlapping rows) are untouched, which is why
         this is the fix and packing the components into a stack is not.
         """
+        if not ns:
+            return
         order = sorted(ns, key=lambda n: n.y)
         groups, end = [[order[0]]], order[0].y + order[0].h
         for n in order[1:]:
@@ -594,10 +606,8 @@ class Page:
                  f'fill="#0f172a">{escape(self.title)}</text>')
         o.append(f'<text x="{MARGIN_L}" y="66" font-size="12" fill="#64748b">'
                  f'{escape(self.subtitle)}</text>')
-        key = ("▸ opens a page   ·   file:lines = the code it is   ·   "
-               "red ↓ = shared uses   ·   dashed red = condition")
         o.append(f'<text x="{MARGIN_L}" y="82" font-size="10" fill="#94a3b8">'
-                 f'{escape(key)}</text>')
+                 f'{escape(self.key_line)}</text>')
 
         for k_i, (e, (pts, lab)) in enumerate(zip(self.edges, self.routes)):
             st = EDGE[e["kind"]]

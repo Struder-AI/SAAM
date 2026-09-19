@@ -7,7 +7,7 @@ import {root,loadModel,regionContext} from './dev-map/model.mjs';
 import {inputSnapshot,buildFreshness,recordBuild,changedSince,changesText} from './dev-map/maintenance.mjs';
 
 const [command='build',...args]=process.argv.slice(2);
-if(!['build','check','regenerate','flow-evidence'].includes(command))throw Error('Use: node scripts/dev-map.mjs build [--force] [--flow DECLARATION] | check [--since REF] [--built] [--json] | regenerate [INDEX] | flow-evidence INDEX|DECLARATION');
+if(!['build','check','regenerate','flow-evidence'].includes(command))throw Error('Use: node scripts/dev-map.mjs build [--force] [--generated] [--flow DECLARATION] | check [--since REF] [--built] [--json] | regenerate [INDEX] | flow-evidence INDEX|DECLARATION');
 // Auditing and regeneration of the generated map live here, not on the agent CLI.
 if(command==='flow-evidence') {
   const {loadFlow,flowPacket}=await import('./dev-map/flow.mjs');
@@ -24,8 +24,24 @@ if(command==='regenerate') {
   console.log(JSON.stringify(await generate({repo:root,region:index===undefined||index==='0'?null:String(index).split('.')[0]}),null,1));
   process.exit(0);
 }
-const {values:options}=parseArgs({args,options:command==='build'?{force:{type:'boolean'},flow:{type:'string',multiple:true}}
+const {values:options}=parseArgs({args,options:command==='build'?{force:{type:'boolean'},generated:{type:'boolean'},flow:{type:'string',multiple:true}}
   :{since:{type:'string'},built:{type:'boolean'},json:{type:'boolean'}}});
+// The whole stored map drawn for a person. It reads the store and never scans, so a store that
+// is missing or behind the source is reported and not repaired here.
+if(command==='build'&&options.generated) {
+  const {buildGeneratedView,regenerate}=await import('./dev-map/generated-view.mjs');
+  let result;
+  try {result=await buildGeneratedView({repo:root,out:resolve(root,'dev-map/generated-view')});}
+  catch(error){console.error(error.message);process.exit(1);}
+  console.log(`${result.index}: ${result.pages} pages, ${result.files} files, ${result.bytes.toLocaleString('en-US')} bytes, ${result.ms} ms`);
+  if(result.changed.length) {
+    console.log(`${result.stale} pages are stale; these files changed since the store was written:`);
+    for(const file of result.changed)console.log(`  ${file}`);
+    console.log(`Run: ${regenerate}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
 // Flow pages are a separate generated view with their own output; they touch no authored map.
 if(command==='build'&&options.flow?.length) {
   const {buildFlow}=await import('./dev-map/flow.mjs');

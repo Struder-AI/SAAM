@@ -5200,3 +5200,31 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - Verification: seven dev-map test files pass 78 of 78; `dev-map.mjs check`
   passes; whole-store audit (subagent-run): 0 index, calledFrom, gate-slice or
   call-site failures, 0 nodes off the map.
+
+## 2026-09-19 — Whole generated map drawn for the owner
+
+- Source: user, as developer work: put everything generated so far where it can
+  be viewed.
+- Implemented, additive: `node scripts/dev-map.mjs build --generated` draws the
+  stored map (`scripts/dev-map/generated-view.mjs`, `generated-view.py`) into
+  `dev-map/generated-view/`: page `0`, region, file, class and function pages in
+  the leveled layout, click-through between levels, breadcrumb to `0`, a URL
+  hash per index, search by index or declaration path, a source pane, page
+  lists (`requires`, `formulas`, `calledFrom`, couplings, unresolved, external
+  count), stale pages framed in red with the `regenerate` command, and one
+  legend as the only prose. It reads only the store and exits non-zero when the
+  store is missing or stale. Class `this.` field wires are drawn bundled per
+  field. `leveled.py` no longer fails on a page without boxes.
+  `.claude/launch.json` serves the output for the desktop browser pane.
+- Measured 2026-09-19: 1419 pages (root 1, region 9, file 134, function 1023,
+  method 223, handler 21, class 8), 8442 boxes, 7008 wires; build 2.6 s;
+  output 13.6 MB in 1421 files, shell 0.77 MB with one script sidecar per page;
+  inlining every drawing made the shell 13.3 MB and opening took 18.7 s
+  against 0.1 s. Full regenerate 4.4 s on an idle machine.
+- Reads badly when drawn: `core/geom` and `studio` region pages, `studio/app.mjs`
+  and `core/geom/tolerance.mjs` file pages, `createStudio`, `validatePlan`
+  (60 assertions), `PathBuilder` and `LuaRuntime` class pages, and pages whose
+  parameters fan to every component such as `exportAndInterpretProgram`.
+- Verification: eight dev-map test files pass 82 of 82; `dev-map.mjs check`
+  passes; viewer opened in the browser pane at `0` and `#6.3.1`; the first-open
+  fit was wrong and is fixed.
