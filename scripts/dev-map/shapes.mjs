@@ -62,9 +62,13 @@ export function assertionOf(fn) {
     line:fn.loc.start.line,params:params.length};
 }
 
-// One returned expression, no assignment or update anywhere in it.
-export function formulaShape(fn) {
-  if(!fn)return false;
+// One returned expression that only computes. It assigns and deletes nothing, suspends nothing
+// (no async, generator, await or yield), constructs nothing, encloses no block-bodied function,
+// and every call it makes is accounted for — a call whose target is unresolved could do anything,
+// so the body cannot be read as an expression the data merely passes through.
+// `unresolvedAt(start)` answers for a call site in this function's own file.
+export function formulaShape(fn,unresolvedAt=null) {
+  if(!fn||fn.async||fn.generator)return false;
   let body=null;
   if(fn.body.type!=='BlockStatement')body=fn.body;
   else {
@@ -73,7 +77,14 @@ export function formulaShape(fn) {
     body=only.argument;
   }
   let clean=true;
-  (function walk(n){if(!clean)return;if(writes.has(n.type)||n.type==='UnaryExpression'&&n.operator==='delete'){clean=false;return;}for(const c of kids(n))walk(c);})(body);
+  (function walk(n){
+    if(!clean)return;
+    if(writes.has(n.type)||n.type==='UnaryExpression'&&n.operator==='delete')return void(clean=false);
+    if(['AwaitExpression','YieldExpression','NewExpression'].includes(n.type))return void(clean=false);
+    if(functions.has(n.type)&&n.body.type==='BlockStatement')return void(clean=false);
+    if(n.type==='CallExpression'&&unresolvedAt?.(n.start))return void(clean=false);
+    for(const c of kids(n))walk(c);
+  })(body);
   return clean;
 }
 
@@ -83,6 +94,10 @@ export function classify({graph,projection,asts}) {
   const assertions=new Map(),formula=new Set(),fns=new Map();
   const spanOf=new Map();
   for(const d of graph.declarations)if(d.anchor&&!d.ambiguousAnchor&&!spanOf.has(d.anchor))spanOf.set(d.anchor,d);
+  // A call site the accounting left unlinked is UNRESOLVED unless the rule that decided it is one
+  // of the EXTERNAL rules — the same reading the pages give it.
+  const externalRule=new Set(Object.keys(graph.callSites?.external??{})),unlinked=graph.callSites?.unlinked??{};
+  const unresolvedIn=file=>start=>{const rule=unlinked[`${file}:${start}`];return rule!==undefined&&!externalRule.has(rule);};
   for(const n of projection.nodes.values()) {
     if(n.kind==='module')continue;
     const ast=asts.get(n.file),d=spanOf.get(n.path);if(!ast||!d)continue;
@@ -90,7 +105,7 @@ export function classify({graph,projection,asts}) {
     fns.set(n.path,fn);
     const assertion=assertionOf(fn);
     if(assertion)assertions.set(n.path,assertion);
-    else if(formulaShape(fn))formula.add(n.path);
+    else if(formulaShape(fn,unresolvedIn(n.file)))formula.add(n.path);
   }
   const out=new Map();
   for(const r of graph.relations)if(['call','construct'].includes(r.kind)) {

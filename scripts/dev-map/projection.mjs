@@ -4,8 +4,9 @@ import {posix,resolve} from 'node:path';
 import {parse} from 'acorn';
 import {extractGraph,sourceFiles} from './graph.mjs';
 import {importAliases} from './generate.mjs';
+import {isMapped} from './scope.mjs';
 
-const mapped=file=>/^(core|studio)\//.test(file);
+const mapped=isMapped;
 const positional=/<callback@\d+:\d+>/;
 const callable=d=>['function','class','method','handler'].includes(d.kind)||!!d.callable;
 const dirname=file=>file.slice(0,file.lastIndexOf('/'));

@@ -11,6 +11,7 @@ import {extractGraph,sourceFiles} from './graph.mjs';
 import {projectGraph,select} from './projection.mjs';
 import {classify,functionAt} from './shapes.mjs';
 import {importAliases} from './generate.mjs';
+import {scanRoots} from './scope.mjs';
 
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
@@ -120,7 +121,7 @@ function gateFor(parent,child,text) {
   if(parent.type==='ConditionalExpression'&&parent.consequent===child)return {text:src(text,parent.test),kind:'ternary'};
   if(parent.type==='ConditionalExpression'&&parent.alternate===child)return {text:`!(${src(text,parent.test)})`,kind:'ternary'};
   if(parent.type==='LogicalExpression'&&parent.right===child)
-    return {text:parent.operator==='&&'?src(text,parent.left):parent.operator==='||'?`!(${src(text,parent.left)})`:`${src(text,parent.left)} == null`,kind:parent.operator};
+    return {text:parent.operator==='||'?`!(${src(text,parent.left)})`:src(text,parent.left),kind:parent.operator};
   if(['ForStatement','WhileStatement'].includes(parent.type)&&parent.body===child&&parent.test)return {text:src(text,parent.test),kind:'loop'};
   if(['ForOfStatement','ForInStatement'].includes(parent.type)&&parent.body===child)
     return {text:`${parent.type==='ForOfStatement'?'of':'in'} ${src(text,parent.right)}`,kind:'loop'};
@@ -140,6 +141,55 @@ function thrown(n,text) {
   return src(text,n);
 }
 
+// The `this.` fields a span reads and writes, taken from the span's own AST.
+function thisFields(ast,start,end) {
+  const read=new Set(),written=new Set();
+  (function walk(n,assigned) {
+    if(n.end<start||n.start>end)return;
+    if(n.type==='MemberExpression'&&n.object.type==='ThisExpression'&&!n.computed&&n.property.type!=='PrivateIdentifier'&&n.property.name)
+      (assigned?written:read).add(n.property.name);
+    if(n.type==='MemberExpression'&&n.object.type==='ThisExpression'&&n.property.type==='PrivateIdentifier')
+      (assigned?written:read).add(`#${n.property.name}`);
+    for(const c of kids(n))walk(c,c===n.left&&(n.type==='AssignmentExpression')||c===n.argument&&n.type==='UpdateExpression');
+  })(ast,false);
+  return {read,written};
+}
+
+// A class page: its members as boxes, the calls and shared fields between them as wires, and
+// every caller outside the class as a port.
+function classPage(node,{graph,projection},ast,head) {
+  const members=node.children;
+  const inside=new Set();
+  (function mark(n){inside.add(n.path);for(const c of n.children)mark(c);})(node);
+  const spans=byAnchor(graph);
+  const fields=new Map(members.map(m=>{const d=spans.get(m.path);return [m.path,d?thisFields(ast,d.start,d.end):{read:new Set(),written:new Set()}];}));
+  const wires=[],seen=new Set();
+  const wire=w=>{const k=`${w.from}\n${w.to}\n${w.label}\n${w.kind}`;if(seen.has(k))return;seen.add(k);wires.push(w);};
+  const mine=new Set(members.map(m=>m.path));
+  const ports=new Map();
+  for(const r of graph.relations) {
+    if(!['call','construct'].includes(r.kind))continue;
+    const to=projection.owner.get(r.to);if(!to||!inside.has(to.path))continue;
+    const from=projection.owner.get(r.from);
+    if(from&&inside.has(from.path)) {
+      if(mine.has(from.path)&&mine.has(to.path)&&from!==to)wire({from:from.path,to:to.path,label:'',kind:'call',provenance:'ast-call-site'});
+      continue;
+    }
+    if(!from||from.kind==='module')continue;
+    ports.set(from.path,{index:from.handle,label:from.path.slice(from.file.length+2),file:from.file});
+  }
+  for(const a of members)for(const b of members) {
+    if(a===b)continue;
+    for(const field of fields.get(a.path).written)
+      if(fields.get(b.path).read.has(field)||fields.get(b.path).written.has(field))
+        wire({from:a.path,to:b.path,label:field,kind:'state',provenance:'ast-this-field'});
+  }
+  return {flow:true,generated:true,authored:[],node:head(node),inputs:[],outputs:[],requires:[],formulas:[],
+    components:members.map((child,i)=>({...head(child),order:i+1,calls:0,links:['ast-member'],provenance:'ast-member',sites:[]})),
+    ports:[...ports.values()].sort((a,b)=>a.index<b.index?-1:a.index>b.index?1:0),
+    wires,external:[],unresolved:[]};
+}
+
 export function flowPage({graph,projection,sources,asts,shapes},target) {
   const {node}=select(projection,target);
   if(!node||node.kind==='module')throw Error(`A flow page needs a function, method or class node; ${target} is not one.`);
@@ -151,10 +201,10 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
 
   // The function this node is: the declaration's own node, or the function it holds.
   const fn=functionAt(ast,declaration.start,declaration.end);
-  // A class holds no body of its own; what it is, is the members declared inside it.
-  if(!fn)return {flow:true,generated:true,authored:[],node:head(node),inputs:[],outputs:[],requires:[],
-    components:node.children.map((child,i)=>({...head(child),order:i+1,calls:0,links:['ast-member'],provenance:'ast-member',sites:[]})),
-    wires:[],external:[],unresolved:[]};
+  // A class holds no body of its own; what it is, is the members declared inside it, what they
+  // call in each other, and the fields they share. A field one member writes and another reads is
+  // a state wire between them, read off `this.` in each member's own span.
+  if(!fn)return classPage(node,{graph,projection,asts},ast,head);
   const {binding,parameter}=scopeTree(fn);
   const key=n=>binding(n)?.id??null;
 
@@ -177,7 +227,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   // Components, in order of first appearance: a local closure where it is declared, any
   // other callee at its first call site. An assertion becomes a requirement, a formula stays
   // in the wires it passes data through, and neither is drawn as a step.
-  const components=new Map(),unlinked=[],requires=[],childAt=new Map(node.children.map(c=>[c.start,c]));
+  const components=new Map(),unlinked=[],requires=[],used=new Map(),childAt=new Map(node.children.map(c=>[c.start,c]));
   const rules=graph.callSites?.unlinked??{},externalRule=new Set(Object.keys(graph.callSites?.external??{}));
   const held=n=>shapes.formulas.has(n.path)||shapes.assertions.has(n.path);
   for(const child of node.children)if(!held(child))components.set(child.path,{node:child,order:child.start,sites:[],links:new Set(['ast-closure'])});
@@ -201,10 +251,15 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         const message=said?.type==='Literal'&&typeof said.value==='string'?said.value
           :said?.type==='TemplateLiteral'&&!said.expressions.length?said.quasis[0].value.cooked:null;
         requires.push({text:held?src(text,held):src(text,site.node),...(message?{message}:{}),
-          line:site.node.loc.start.line,by:to.path,provenance:'ast-assertion'});
+          line:site.node.loc.start.line,by:to.path,handle:to.handle,provenance:'ast-assertion'});
         continue;
       }
-      if(shapes.formulas.has(to.path))continue;
+      // A formula draws no box, but it is a node of the map and this body is where it is used.
+      if(shapes.formulas.has(to.path)) {
+        const f=used.get(to.path)??used.set(to.path,{node:to,order:site.node.start,lines:new Set()}).get(to.path);
+        f.order=Math.min(f.order,site.node.start);f.lines.add(site.node.loc.start.line);
+        continue;
+      }
       let c=components.get(to.path);
       if(!c)components.set(to.path,c={node:to,order:site.node.start,sites:[],links:new Set()});
       c.order=Math.min(c.order,site.node.start);
@@ -345,6 +400,8 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       lines:node.endLine-node.line+1,kind:node.kind},
     inputs:params,outputs,
     requires:requires.filter(r=>{const k=`${r.text}\n${r.message??''}\n${r.line}`;if(seenRequire.has(k))return false;seenRequire.add(k);return true;}),
+    formulas:[...used.values()].sort((a,b)=>a.order-b.order)
+      .map(f=>({handle:f.node.handle,path:f.node.path,file:f.node.file,lines:[...f.lines].sort((a,b)=>a-b)})),
     components:drawn,
     wires:wires.filter(live),
     external:unlinked.filter(u=>u.state==='external'),
@@ -375,8 +432,12 @@ export function flowPacket(context,target,{evidence=false}={}) {
     ...(page.components.length?{}:{leaf:true}),
     inputs:page.inputs.map(({provenance,...p})=>p),
     outputs:page.outputs.map(({provenance,kind,gate,...o})=>({...o,...(kind==='return'?{}:{kind}),...(gate?{gate:gateIndex(gate)}:{})})),
-    requires:page.requires.map(({provenance,by,...r})=>r),
+    // `by` and `file`+`label` name the callee the way a component does, so a renumbered region is
+    // followed here too; `index` is that callee's page.
+    requires:page.requires.map(({provenance,by,handle,...r})=>({...r,by,index:handle})),
+    formulas:page.formulas.map(f=>({index:f.handle,label:f.path.slice(f.file.length+2),file:f.file,lines:f.lines})),
     components:page.components.map(component),
+    ...(page.ports?{ports:page.ports}:{}),
     wires:page.wires.map(wire),
     gates,
     calledFrom:[],couplings:[],
@@ -403,7 +464,7 @@ export async function buildFlow(targets,out,{repo=fileURLToPath(new URL('../../'
 }
 
 export async function loadFlow({repo=fileURLToPath(new URL('../../',import.meta.url)),files,readSource=file=>readFile(resolve(repo,file),'utf8')}={}) {
-  const list=files??await sourceFiles(repo),sources=new Map();
+  const list=files??await sourceFiles(repo,scanRoots),sources=new Map();
   const read=async file=>{const text=await readSource(file);sources.set(file,text);return text;};
   const started=Date.now();
   const graph=await extractGraph({repo,files:list,importAliases,literalCouplings:true,receiverCalls:true,readSource:read});

@@ -5171,3 +5171,32 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   passes; scoped regenerate of every region with no source change leaves the
   store byte-identical (subagent-run); audit of all pages: 2475 call sites,
   2711 wire labels, 10027 index references, 0 failures.
+
+## 2026-09-19 — Generated flow map: faster linker, file level, class pages, entry points
+
+- Source: user, as developer work: density is solved by more nesting; nothing
+  unlisted; no thresholds; benchmark regeneration.
+- Implemented, additive: linker hot spots removed (per-node `children`,
+  per-function returns, memoised value resolution) with the store byte-identical
+  before and after. Index path is now `0` -> region -> file -> entry -> callees;
+  `--code` is allowed on a file page and refused on `0` and region pages. Every
+  page lists its formula-shaped callees; formulas additionally exclude async,
+  `await`, `new`, nested block functions and unresolved calls (273 -> 201).
+  Class pages draw method calls and shared `this.` fields as state wires.
+  `scripts/dev-map/scope.mjs` is the one authored scan scope (mapped: core,
+  studio; outside callers: skills, adapters, scripts). Event-listener
+  registrations are entry points. `??` gates show the source slice.
+- Measured 2026-09-19: full regenerate 7.7 s wall (link 5.6 s, pages 0.9 s,
+  parse 0.36 s), was 9.3 s; on the former 180-file scope the link phase is 2.6 s
+  (was 8.3 s); the added `scripts` root and listener pass account for the rest.
+  Region-scoped regenerate 6.9-7.1 s: the link phase remains whole-program.
+  Reads: `0` 4.7 KB, `core/path` region 3.8 KB (was 10.5 KB), `compose.mjs`
+  file page 1.0 KB, `composeResults` 7.9 KB. `core/geom` region page 39 KB ->
+  17 KB. `PathBuilder` class page: 12 method calls, 128 state wires over 15
+  fields. Entries 451; unreached list empty. Call sites linked 4633, external
+  5653, unresolved 1302, of which about 726 are `map/every/slice/filter/some/
+  push/at` on untyped receivers, kept unresolved because
+  `studio/move-store.mjs` defines methods with those names.
+- Verification: seven dev-map test files pass 78 of 78; `dev-map.mjs check`
+  passes; whole-store audit (subagent-run): 0 index, calledFrom, gate-slice or
+  call-site failures, 0 nodes off the map.

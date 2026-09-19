@@ -56,6 +56,8 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   for(const packet of packets.values()) {
     packet.index=index.get(packet.path)??packet.index;
     for(const c of packet.components)c.index=index.get(`${c.file}::${c.label}`)??c.index;
+    for(const f of packet.formulas)f.index=index.get(`${f.file}::${f.label}`)??f.index;
+    for(const r of packet.requires)r.index=index.get(r.by)??r.index;
   }
   // Consequences: `calledFrom` is the exact inverse of the components, couplings carry the other
   // end's index, and the leaf mark says a component's own page holds no further step.
@@ -83,9 +85,15 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     for(const c of packet.components){if(leafOf(`${c.file}::${c.label}`))c.leaf=true;else delete c.leaf;}
   }
 
-  // Root and region pages, and the file records they are stored in.
+  // Root, region and file pages, and the file records the node pages are stored in.
   const regionPages=new Map(held?Object.entries(held.regionPages??{}):[]);
-  for(const r of scoped)regionPages.set(r.index,regionPage(m,r,trees.get(r.index),index,packets,lines));
+  const filePages=new Map(held?Object.entries(held.filePages??{}):[]);
+  if(region)for(const [at,page] of [...filePages])if(at.split('.')[0]===region)filePages.delete(at);
+  for(const r of scoped) {
+    const numbered=trees.get(r.index);
+    regionPages.set(r.index,regionPage(m,r,numbered,index,packets,lines));
+    for(const f of numbered.files)filePages.set(f.index,filePage(m,r,f,numbered,index,packets,lines));
+  }
   const root=rootPage(m,lines);
   const records=new Map();
   for(const f of graph.files) {
@@ -98,8 +106,10 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     files:Object.fromEntries([...records.values()].map(r=>[r.file,{sha256:r.sha256,lines:r.lines,region:r.region}])),
     records:Object.fromEntries([...records.keys()].map(f=>[f,`${slug(f)}.json`])),
     nodes:Object.fromEntries([...packets.values()].map(p=>[p.index,{path:p.path,file:p.file}]).sort((a,b)=>byIndex(a[0],b[0]))),
-    byPath:Object.fromEntries([...packets.values()].map(p=>[p.path,p.index]).sort((a,b)=>order(a[0],b[0]))),
-    root,regionPages:Object.fromEntries([...regionPages].sort((a,b)=>byIndex(a[0],b[0])))};
+    byPath:Object.fromEntries([...[...packets.values()].map(p=>[p.path,p.index]),
+      ...[...filePages.values()].map(p=>[p.file,p.index])].sort((a,b)=>order(a[0],b[0]))),
+    root,regionPages:Object.fromEntries([...regionPages].sort((a,b)=>byIndex(a[0],b[0]))),
+    filePages:Object.fromEntries([...filePages].sort((a,b)=>byIndex(a[0],b[0])))};
   await clock('write',async()=>{
     if(!region)await rm(resolve(dir,'files'),{recursive:true,force:true});
     await mkdir(resolve(dir,'files'),{recursive:true});
@@ -145,35 +155,68 @@ function rootPage(m,lines) {
     children:components.map(c=>({index:c.index,path:c.path,files:c.files,lines:c.lines,nodes:c.nodes}))};
 }
 
-// A region page: its entry points as components, the mechanisms that reach them as ports, and
-// one derived `unreached` box for whatever the walk down from those entries never reaches.
-function regionPage(m,r,numbered,index,packets,lines) {
-  const box=n=>({index:index.get(n.path),label:n.path.slice(n.file.length+2),file:n.file,line:n.line,
-    endLine:n.endLine,lines:n.endLine-n.line+1,...(packets.get(n.path)?.components.length?{}:{leaf:true})});
-  const components=numbered.entries.map(box);
+const links=()=>{
   const wires=new Map(),ports=new Map();
   const add=(from,to,kind,label)=>{
+    if(from===undefined||to===undefined||from===to)return;
     const key=`${from}\n${to}`,w=wires.get(key)??wires.set(key,{from,to,kinds:{},count:0,labels:new Set()}).get(key);
     w.kinds[kind]=(w.kinds[kind]??0)+1;w.count++;if(label)w.labels.add(label);
   };
-  const shown=new Set(components.map(c=>c.index));
-  for(const n of numbered.entries)for(const {mechanism} of m.reached.get(n.path)??[]) {
-    ports.set(mechanism,mechanism);add(mechanism,index.get(n.path),mechanism,null);
-  }
+  const port=(name,to,kind,label)=>{ports.set(name,name);add(name,to,kind,label);};
+  const drawn=()=>({ports:[...ports.keys()].sort(order).map(p=>({port:p,mechanism:p})),
+    wires:[...wires.values()].sort((a,b)=>order(a.from,b.from)||order(a.to,b.to))
+      .map(w=>({from:w.from,to:w.to,kinds:w.kinds,count:w.count,...(w.count===1&&w.labels.size===1?{label:[...w.labels][0]}:{})}))});
+  return {add,port,drawn};
+};
+
+// A region page: the files it holds as components, the links between those files as wires, and
+// every way into the region from outside it as a port. A file is a bounded unit of code, so the
+// summary a region owes is which of its files reach which.
+function regionPage(m,r,numbered,index,packets,lines) {
+  const at=new Map(numbered.files.map(f=>[f.file,f.index]));
+  const count=new Map(r.files.map(f=>[f,0]));
+  for(const n of m.inRegion.get(r.index))count.set(n.file,count.get(n.file)+1);
+  const components=numbered.files.map(f=>({index:f.index,file:f.file,lines:lines.get(f.file)??0,
+    nodes:count.get(f.file),entries:f.entries.length,...(f.unreached?{unreached:f.unreached.children.length}:{})}));
+  const {add,port,drawn}=links();
+  for(const n of m.inRegion.get(r.index))for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,at.get(n.file),mechanism,label);
   for(const c of m.calls) {
-    if(!c.from)continue;
-    const from=index.get(c.from.path),to=index.get(c.to.path);
-    if(!from||!to||!shown.has(from)||!shown.has(to)||from===to)continue;
-    add(from,to,c.relation.kind,c.label||null);
+    if(!c.from||m.regionOf.get(c.from.file)!==r||m.regionOf.get(c.to.file)!==r)continue;
+    add(at.get(c.from.file),at.get(c.to.file),c.relation.kind,c.label||null);
   }
-  const unreached=numbered.unreached?numbered.unreached.children.map(child=>box(child.node)):[];
+  for(const c of m.couplings) {
+    if(!c.fromFile||!c.toFile||m.regionOf.get(c.fromFile)!==r||m.regionOf.get(c.toFile)!==r)continue;
+    add(at.get(c.fromFile),at.get(c.toFile),c.kind,c.label||null);
+  }
   return {flow:true,generated:true,index:r.index,kind:'region',path:r.path,
     files:r.files,lines:r.files.reduce((sum,f)=>sum+(lines.get(f)??0),0),nodes:m.inRegion.get(r.index).length,
-    ports:[...ports.keys()].sort(order).map(port=>({port,mechanism:port})),
-    components,
-    wires:[...wires.values()].sort((a,b)=>order(a.from,b.from)||order(a.to,b.to))
-      .map(w=>({from:w.from,to:w.to,kinds:w.kinds,count:w.count,...(w.count===1&&w.labels.size===1?{label:[...w.labels][0]}:{})})),
-    ...(numbered.unreached?{unreached:{index:numbered.unreached.index,nodes:unreached}}:{unreached:{nodes:[]}}),
+    ...drawn(),components,
+    children:components.map(c=>({index:c.index,file:c.file,lines:c.lines,nodes:c.nodes}))};
+}
+
+// A file page: the entry points declared in it as components, the derived `unreached` box for
+// whatever the walk from those entries never reaches, and everything that reaches them — other
+// files of the region, other regions, outside callers — as ports.
+function filePage(m,r,f,numbered,index,packets,lines) {
+  const at=new Map(numbered.files.map(x=>[x.file,x.index]));
+  const box=n=>({index:index.get(n.path),label:n.path.slice(n.file.length+2),file:n.file,line:n.line,
+    endLine:n.endLine,lines:n.endLine-n.line+1,...(packets.get(n.path)?.components.length?{}:{leaf:true})});
+  const components=f.entries.map(b=>box(b.node));
+  const unreached=f.unreached?f.unreached.children.map(b=>box(b.node)):[];
+  const shown=new Set(components.map(c=>c.index));
+  const {add,port,drawn}=links();
+  for(const b of f.entries)for(const {mechanism,label} of m.reached.get(b.node.path)??[])port(mechanism,b.index,mechanism,label);
+  for(const c of m.calls) {
+    if(!c.from)continue;
+    const to=index.get(c.to.path);if(!shown.has(to))continue;
+    const from=index.get(c.from.path);
+    if(shown.has(from))add(from,to,c.relation.kind,c.label||null);
+    else if(m.regionOf.get(c.from.file)===r&&c.from.file!==f.file)port(`file:${at.get(c.from.file)}`,to,c.relation.kind,c.label||null);
+  }
+  return {flow:true,generated:true,index:f.index,kind:'file',file:f.file,region:r.index,
+    lines:lines.get(f.file)??0,nodes:m.inRegion.get(r.index).filter(n=>n.file===f.file).length,
+    ...drawn(),components,
+    ...(f.unreached?{unreached:{index:f.unreached.index,nodes:unreached}}:{unreached:{nodes:[]}}),
     children:[...components,...unreached].map(c=>({index:c.index,label:c.label,file:c.file,lines:c.lines}))};
 }
 
@@ -189,10 +232,11 @@ export async function readGenerated(target,{repo=repoRoot,code=false,readSource=
   const key=String(target).replaceAll('\\','/').replace(/\/$/,'');
   const at=/^\d+(\.\d+)*$/.test(key)?key:held.byPath[key];
   if(at===undefined)throw Error(`No generated page for ${key}. Read 0 for the regions.`);
-  const page=at==='0'?held.root:held.regionPages[at]??await nodePage(dir,held,at);
+  const page=at==='0'?held.root:held.regionPages[at]??held.filePages?.[at]??await nodePage(dir,held,at);
   if(!page)throw Error(`No generated page ${at}. Read 0 for the regions.`);
   const behind=at==='0'?Object.keys(held.files)
     :page.kind==='region'?page.files
+    :page.kind==='file'?[page.file]
     :[...new Set([page.file,...page.components.map(c=>c.file)])];
   const stale=await staleness(held,behind,readSource);
   if(code)return {...codeFor(page,held),...(stale?{stale}:{})};
@@ -218,11 +262,14 @@ async function staleness(held,behind,readSource) {
   return {regenerate:regions.length===1?regions[0]:'0',files:changed.sort(order)};
 }
 
-// `--code` answers a function page or a leaf with its own span. A root or region page has no
-// span of its own, so it answers with its children and how many lines each one is.
+// `--code` answers a function page or a leaf with its own span, and a file page with the whole
+// file: a file is a bounded unit of code whose size the page already states. A root or region page
+// spans no code of its own, so it answers with its children and how many lines each one is.
 function codeFor(page,held) {
   if(page.kind==='root'||page.kind==='region')
     return {generated:true,index:page.index,kind:page.kind,code:false,children:page.children};
+  if(page.kind==='file')
+    return {generated:true,index:page.index,kind:page.kind,file:page.file,line:1,endLine:page.lines,lines:page.lines,code:true};
   return {generated:true,index:page.index,path:page.path,file:page.file,line:page.line,endLine:page.endLine,lines:page.lines,code:true};
 }
 

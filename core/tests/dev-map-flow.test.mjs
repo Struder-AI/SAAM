@@ -315,7 +315,8 @@ test('an assertion is recognised by its shape, under any name, and becomes a req
   // A function that throws and also does work is not an assertion.
   assert.ok(!context.shapes.assertions.has('core/beta/guards.mjs::alsoThrows'));
   const p=flowPacket(context,'core/alpha/helper.mjs::helper');
-  assert.deepEqual(p.requires,[{text:'input.length>0',message:'needs input',line:4}]);
+  assert.deepEqual(p.requires,[{text:'input.length>0',message:'needs input',line:4,
+    by:'core/beta/guards.mjs::guardThat',index:p.requires[0].index}]);
   assert.ok(!p.components.some(c=>c.label==='guardThat'));
 });
 
@@ -364,7 +365,12 @@ test('the store round-trips: a read returns the stored page and never scans',asy
   const root=await fixture.page('0');
   assert.deepEqual(root.regions.map(r=>[r.index,r.path]),[['1','core/alpha'],['2','core/beta']]);
   const main=await fixture.page('core/alpha/entry.mjs::main');
-  assert.equal(main.index,(await fixture.page('1')).components.find(c=>c.label==='main').index);
+  const entryFile=await fixture.page('core/alpha/entry.mjs');
+  assert.equal(entryFile.kind,'file');
+  assert.equal(main.index,entryFile.components.find(c=>c.label==='main').index);
+  // The region page holds the region's files, in sorted path order.
+  assert.deepEqual((await fixture.page('1')).components.map(c=>[c.index,c.file]),
+    [['1.1','core/alpha/entry.mjs'],['1.2','core/alpha/helper.mjs']]);
   // The same page comes back by index and by declaration path.
   assert.deepEqual(await fixture.page(main.index),main);
   assert.ok(!('stale' in main));
@@ -436,13 +442,17 @@ test('a node called from two pages carries one canonical index, and calledFrom i
 test('nothing is off the map: what no entry reaches is listed under the unreached box',async t=>{
   const fixture=await fixtureStore(t);
   await fixture.run();
-  const beta=await fixture.page('2');
-  assert.deepEqual(beta.unreached.nodes.map(n=>n.label).sort(),['ping','pong']);
-  assert.ok(beta.unreached.index.startsWith('2.'));
-  // Every node of the region is reachable by walking down from the region page.
+  const shared=await fixture.page('core/beta/shared.mjs');
+  assert.deepEqual(shared.unreached.nodes.map(n=>n.label).sort(),['ping','pong']);
+  assert.ok(shared.unreached.index.startsWith(shared.index+'.'));
+  // Every node of the region is reachable by walking down from its file's boxes.
   const held=JSON.parse(await readFile(resolve(storeDir(fixture.repo),'index.json'),'utf8'));
-  const inRegion=Object.entries(held.byPath).filter(([,at])=>at.split('.')[0]==='2').map(([,at])=>at);
-  const roots=[...beta.components,...beta.unreached.nodes].map(c=>c.index);
+  const inRegion=Object.entries(held.nodes).filter(([at])=>at.split('.')[0]==='2').map(([at])=>at);
+  const roots=[];
+  for(const at of Object.keys(held.filePages))if(at.split('.')[0]==='2') {
+    const file=await fixture.page(at);
+    roots.push(...[...file.components,...file.unreached.nodes].map(c=>c.index));
+  }
   assert.ok(inRegion.every(at=>roots.some(root=>at===root||at.startsWith(root+'.'))));
 });
 
@@ -475,4 +485,157 @@ test('no packet in the store carries a sentence',async t=>{
   assert.ok(strings.length>200);
   assert.ok(strings.every(s=>!/[.!?] [A-Z]/.test(s)),'no sentence boundaries');
   assert.ok(strings.every(s=>s.split(' ').length<=12));
+});
+
+// ---- shapes tightened, and every node listed ----------------------------------------------
+const tightened={
+  'core/shape/use.mjs':`import {plain,waits,builds,blocky,loose} from './forms.mjs';
+export function useAll(x){return [plain(x),waits(x),builds(x),blocky(x),loose(x)];}
+`,
+  'core/shape/forms.mjs':`export const plain=x=>x+1;
+export const waits=async x=>await plain(x);
+export const builds=x=>new Error(x);
+export const blocky=x=>[x].map(v=>{return v+1;});
+export const loose=x=>x.reach(1);
+export class Holder{reach(n){return n;}}
+`};
+
+test('a formula only computes: async, await, new, a block-bodied callback or an unresolved call is not one',async()=>{
+  const context=await loadFlow({repo:'',files:Object.keys(tightened),readSource:f=>tightened[f]});
+  const has=n=>context.shapes.formulas.has(`core/shape/forms.mjs::${n}`);
+  assert.ok(has('plain'));
+  for(const n of ['waits','builds','blocky','loose'])assert.ok(!has(n),`${n} is not a formula`);
+  // `loose` is rejected by the call it makes, not by its own body shape: the receiver is a
+  // parameter and `reach` is a name mapped code carries, so the site stays UNRESOLVED.
+  assert.equal(context.graph.callSites.unresolved.find(u=>u.name==='reach').reason,'member-receiver-unresolved');
+  const p=flowPacket(context,'core/shape/use.mjs::useAll');
+  assert.deepEqual(p.formulas.map(f=>[f.label,f.file,f.lines]),[['plain','core/shape/forms.mjs',[2]]]);
+  assert.deepEqual(p.components.map(c=>c.label).sort(),['blocky','builds','loose','waits']);
+});
+
+const nullish={
+  'core/shape/pick.mjs':`import {fallback} from './other.mjs';
+export function pick(a){return a.chosen??fallback(a);}
+`,
+  'core/shape/other.mjs':`export function fallback(a){const out=a;return out;}
+`};
+
+test('a nullish gate is the left operand as written, not a synthesized null test',async()=>{
+  const context=await loadFlow({repo:'',files:Object.keys(nullish),readSource:f=>nullish[f]});
+  const p=flowPacket(context,'core/shape/pick.mjs::pick');
+  assert.deepEqual(p.gates,[{text:'a.chosen',kind:'??'}]);
+  const source=nullish['core/shape/pick.mjs'];
+  assert.ok(p.gates.every(g=>source.includes(g.text)),'every gate is a slice of the source');
+});
+
+// ---- the file level -----------------------------------------------------------------------
+test('a region holds its files, a file holds its entries, and every node is reachable from 0',async t=>{
+  const fixture=await fixtureStore(t);
+  await fixture.run();
+  const region=await fixture.page('1');
+  assert.equal(region.kind,'region');
+  assert.deepEqual(region.components.map(c=>[c.index,c.file]),
+    [['1.1','core/alpha/entry.mjs'],['1.2','core/alpha/helper.mjs']]);
+  const file=await fixture.page('1.2');
+  assert.equal(file.kind,'file');
+  assert.equal(file.file,'core/alpha/helper.mjs');
+  assert.ok(file.components.every(c=>c.index.startsWith('1.2.')));
+  // Following the lists from 0 reaches every node the store holds.
+  const held=JSON.parse(await readFile(resolve(storeDir(fixture.repo),'index.json'),'utf8'));
+  const reached=new Set(),queue=[];
+  const see=at=>{if(at!==undefined&&at!==null&&!reached.has(String(at))){reached.add(String(at));queue.push(String(at));}};
+  for(const r of held.root.regions)see(r.index);
+  while(queue.length) {
+    const at=queue.shift(),page=await fixture.page(at);
+    for(const list of [page.regions,page.components,page.formulas,page.unreached?.nodes])for(const x of list??[])see(x.index);
+    for(const r of page.requires??[])see(r.index);
+  }
+  assert.deepEqual(Object.keys(held.nodes).filter(at=>!reached.has(at)),[]);
+});
+
+test('a file page answers --code with the whole file; a region and the root still refuse',async t=>{
+  const fixture=await fixtureStore(t);
+  await fixture.run();
+  const code=await fixture.code('core/alpha/helper.mjs');
+  assert.equal(code.code,true);
+  assert.equal(code.kind,'file');
+  assert.equal(code.line,1);
+  assert.equal(code.source.split('\n').length,code.lines);
+  assert.match(code.source.split('\n')[0],/^1\timport \{guardThat\}/);
+  for(const key of ['0','1']) {
+    const refused=await fixture.code(key);
+    assert.equal(refused.code,false);
+    assert.ok(!('source' in refused));
+  }
+  // Every box on a file page states its size before it is read.
+  const file=await fixture.page('core/alpha/helper.mjs');
+  assert.ok(file.components.every(c=>typeof c.lines==='number'));
+});
+
+// ---- classes, outside roots and registrations ---------------------------------------------
+const klass={
+  'core/cls/box.mjs':`export class Box{
+  constructor(){this.total=0;this.log=[];}
+  add(v){this.total+=v;this.note(v);}
+  note(v){this.log.push(v);}
+  read(){const t=this.total;return t;}
+}
+`,
+  'core/cls/use.mjs':`import {Box} from './box.mjs';
+export function tally(list){const b=new Box();for(const v of list)b.add(v);return b.read();}
+`};
+
+test('a class page is its members, the calls between them, the fields they share and who calls in',async()=>{
+  const context=await loadFlow({repo:'',files:Object.keys(klass),readSource:f=>klass[f]});
+  const p=flowPacket(context,'core/cls/box.mjs::Box');
+  const at=new Map(p.components.map(c=>[c.label.split('::').at(-1),c.index]));
+  assert.deepEqual([...at.keys()],['constructor','add','note','read']);
+  const wire=(from,to,kind,label)=>p.wires.some(w=>w.from===at.get(from)&&w.to===at.get(to)&&w.kind===kind&&(label===undefined||w.label===label));
+  assert.ok(wire('add','note','call'),'a method calling another is a wire');
+  assert.ok(wire('constructor','read','state','total'),'a field written in one member and read in another is a state wire');
+  assert.ok(wire('constructor','note','state','log'));
+  assert.ok(!wire('read','note','state'),'members sharing no field are not wired');
+  assert.deepEqual(p.ports.map(x=>x.label),['tally']);
+});
+
+test('an outside root is a port, not a region',async t=>{
+  const fixture=await fixtureStore(t,{...shaped,
+    'scripts/cli.mjs':`import {main} from '../core/alpha/entry.mjs';\nexport function run(x){return main(x);}\n`});
+  await fixture.run();
+  const root=await fixture.page('0');
+  assert.ok(!root.regions.some(r=>r.path.startsWith('scripts')),'scripts is mapped as no region');
+  assert.ok(root.ports.some(p=>p.port==='scripts'),'scripts reaches the map as a port');
+  assert.ok(root.wires.some(w=>w.from==='scripts'&&w.to==='1'));
+  const file=await fixture.page('core/alpha/entry.mjs');
+  assert.ok(file.ports.some(p=>p.port==='scripts'));
+});
+
+const events={
+  'core/ev/host.mjs':`export function attach(bus,name){
+  bus.on('ready',handleReady);
+  bus.once('tick',handleTick);
+  bus.send('ready',plainValue);
+  bus.on(name,handleReady);
+  bus.on('late',plainValue);
+  return bus;
+}
+export function handleReady(e){const x=e;return x;}
+export function handleTick(){const y=1;return y;}
+const plainValue=1;
+`};
+
+test('a registration shape makes its handler an entry; a non-literal or non-function does not',async t=>{
+  const g=await extractGraph({repo:'',files:Object.keys(events),readSource:f=>events[f],
+    literalCouplings:true,receiverCalls:true});
+  const name=anchors(g);
+  // `send` is handed no function, `bus.on(name,…)` no literal and `bus.on('late',plainValue)` no
+  // function value: the call shape decides, and the method's spelling never does.
+  assert.deepEqual(g.relations.filter(r=>r.kind==='event-listener').map(r=>[r.receiver,r.label,name.get(r.to)]),
+    [['on','ready','core/ev/host.mjs::handleReady'],['once','tick','core/ev/host.mjs::handleTick']]);
+  const fixture=await fixtureStore(t,events);
+  await fixture.run();
+  const file=await fixture.page('core/ev/host.mjs');
+  assert.ok(file.ports.some(p=>p.port==='event-listener'));
+  const handler=await fixture.page('core/ev/host.mjs::handleReady');
+  assert.deepEqual(file.wires.filter(w=>w.to===handler.index&&w.from==='event-listener').map(w=>w.label),['ready']);
 });

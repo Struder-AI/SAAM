@@ -2,10 +2,10 @@
 // in sorted path order. Inside a region numbering follows the flow: entry points in source order,
 // then each entry's in-region callees breadth-first, each node numbered once at its first reach.
 // Nothing here is authored; every box, port and wire names the mechanism that produced it.
-const ROOTS=['core','studio'];
+import {mappedRoots as ROOTS} from './scope.mjs';
 const dirname=f=>f.slice(0,f.lastIndexOf('/'));
 const order=(a,b)=>a<b?-1:a>b?1:0;
-const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry']);
+const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry','event-listener']);
 // A declaration written as `x.onthing = function` is reached by the host that fires it.
 const domHandler=d=>d.kind==='handler'&&/^on[a-z]/.test(d.name);
 
@@ -43,9 +43,9 @@ export function model(graph,projection) {
     }
   }
   // How a node is reached from outside its own region, by mechanism.
-  const reached=new Map(),note=(n,mechanism,from)=>{
+  const reached=new Map(),note=(n,mechanism,from,label=null)=>{
     const key=n.path,list=reached.get(key)??reached.set(key,[]).get(key);
-    if(!list.some(e=>e.mechanism===mechanism&&e.from===from))list.push({mechanism,from});
+    if(!list.some(e=>e.mechanism===mechanism&&e.from===from&&e.label===label))list.push({mechanism,from,label});
   };
   const hasCaller=new Set();
   for(const c of calls) {
@@ -60,7 +60,7 @@ export function model(graph,projection) {
     }
   }
   for(const c of couplings) {
-    if(c.to){hasCaller.add(c.to.path);note(c.to,c.kind,c.from?.path??c.fromFile);}
+    if(c.to){hasCaller.add(c.to.path);note(c.to,c.kind,c.from?.path??c.fromFile,c.label);}
     if(c.from&&c.kind==='registry-entry')hasCaller.add(c.from.path);
   }
   for(const path of domNodes)if(projection.nodes.has(path))note(projection.nodes.get(path),'dom-event',null);
@@ -88,13 +88,17 @@ function names(r,byId) {
   return r.label?[r.label]:[];
 }
 
-// Region-local numbering. Entries first, in source order; then breadth-first through in-region
-// callees. Anything the walk never reaches is listed under one derived `unreached` box.
+// Region-local numbering, one level per containment the code already has. A region holds files in
+// sorted path order; a file holds the entry points declared in it, in source order; each entry
+// holds its in-region callees breadth-first, each node numbered once at its first reach. Whatever
+// the walk never reaches is listed under the derived `unreached` box of the file that declares it.
 export function numberRegion(m,region) {
-  const entries=m.entries(region.index),index=new Map(),tree=[];
-  const queue=[];
+  const entries=m.entries(region.index),index=new Map(),queue=[];
+  const entriesOf=new Map(region.files.map(f=>[f,[]]));
+  for(const n of entries)entriesOf.get(n.file)?.push(n);
+  const files=region.files.map((file,i)=>({file,index:`${region.index}.${i+1}`,entries:[],unreached:null}));
   const place=(n,handle,into)=>{index.set(n.path,handle);const box={index:handle,node:n,children:[]};into.push(box);queue.push(box);return box;};
-  entries.forEach((n,i)=>place(n,`${region.index}.${i+1}`,tree));
+  for(const f of files)entriesOf.get(f.file).forEach((n,i)=>place(n,`${f.index}.${i+1}`,f.entries));
   const walk=()=>{
     while(queue.length) {
       const box=queue.shift();
@@ -104,12 +108,11 @@ export function numberRegion(m,region) {
   };
   walk();
   const left=m.inRegion.get(region.index).filter(n=>!index.has(n.path));
-  let unreached=null;
-  if(left.length) {
-    unreached={index:`${region.index}.${entries.length+1}`,kind:'unreached',children:[]};
-    tree.push(unreached);
-    left.forEach((n,i)=>place(n,`${unreached.index}.${i+1}`,unreached.children));
-    walk();
+  for(const f of files) {
+    const mine=left.filter(n=>n.file===f.file);if(!mine.length)continue;
+    f.unreached={index:`${f.index}.${f.entries.length+1}`,kind:'unreached',children:[]};
+    mine.forEach((n,i)=>place(n,`${f.unreached.index}.${i+1}`,f.unreached.children));
   }
-  return {entries,index,tree,unreached};
+  walk();
+  return {entries,index,files};
 }

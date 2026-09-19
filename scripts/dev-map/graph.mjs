@@ -3,10 +3,25 @@ import {posix, resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
 import {couplings} from './couplings.mjs';
+import {isMapped} from './scope.mjs';
 
 const functions = new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
-const children = node => Object.entries(node).flatMap(([key,value]) =>
-  ['loc','start','end'].includes(key) ? [] : Array.isArray(value) ? value.filter(v=>v?.type) : value?.type ? [value] : []);
+// The child nodes of an AST node. Every walk in this file asks the same node the same question,
+// so the answer is held per node rather than rebuilt from `Object.entries` each time.
+const childCache = new WeakMap();
+const children = node => {
+  const found = childCache.get(node);
+  if (found) return found;
+  const out = [];
+  for (const key of Object.keys(node)) {
+    if (key==='loc'||key==='start'||key==='end') continue;
+    const value = node[key];
+    if (Array.isArray(value)) {for(const v of value)if(v?.type)out.push(v);}
+    else if (value?.type) out.push(value);
+  }
+  childCache.set(node,out);
+  return out;
+};
 const property = node => !node.computed ? node.property?.name : node.property?.type==='Literal' ? String(node.property.value) : null;
 const passed = n => n.type==='Identifier'?n.name:n.type==='AssignmentPattern'?passed(n.left):n.type==='RestElement'&&n.argument.type==='Identifier'?`...${n.argument.name}`:
   n.type==='ObjectPattern'&&n.properties.every(p=>p.type==='Property'&&!p.computed)?`{${n.properties.map(p=>p.key.name??p.key.value).join(',')}}`:null;
@@ -25,7 +40,7 @@ export async function sourceFiles(repo, roots=['core','studio','skills','adapter
 }
 
 // The projection's mapped set; uniqueness of a method name is asked of that code only.
-const mappedCode=file=>/^(core|studio)\//.test(file);
+const mappedCode=isMapped;
 
 export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
   const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[], declFn=new Map();
@@ -168,8 +183,33 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     }
     return null;
   }
+  // The expressions a function returns. A function's own body does not change while the graph is
+  // built, so the walk that finds them runs once per function instead of once per call site.
+  const returnCache=new WeakMap();
+  function returnedBy(fn) {
+    const found=returnCache.get(fn);if(found)return found;
+    const returned=[];
+    if(fn.body.type==='BlockStatement')(function returns(node) {
+      if(node!==fn&&functions.has(node.type))return;
+      if(node.type==='ReturnStatement') {if(node.argument)returned.push(node.argument);return;}
+      for(const child of children(node))returns(child);
+    })(fn);else returned.push(fn.body);
+    returnCache.set(fn,returned);return returned;
+  }
+  // A resolution that starts with nothing visited is a pure function of the node, the scope it is
+  // read in and the module it belongs to, so it is held: several passes ask for the same callee.
+  const valueCache=new WeakMap();
   function value(n,s,m,seen=new Set()) {
     if(!n)return null;
+    if(seen.size===0&&s&&m) {
+      let byScope=valueCache.get(n);if(!byScope)valueCache.set(n,byScope=new WeakMap());
+      let byModule=byScope.get(s);if(!byModule)byScope.set(s,byModule=new WeakMap());
+      const held=byModule.get(m);if(held!==undefined)return held.v;
+      const computed=resolveValue(n,s,m,seen);byModule.set(m,{v:computed});return computed;
+    }
+    return resolveValue(n,s,m,seen);
+  }
+  function resolveValue(n,s,m,seen) {
     if(seen.has(n))return null;seen=new Set(seen).add(n);
     if(n.type==='ChainExpression'||n.type==='AwaitExpression')return value(n.expression??n.argument,s,m,seen);
     if(functions.has(n.type))return {fn:n,decl:nodeDecl.get(n),module:m};
@@ -182,13 +222,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const values=[];
       for(const target of choices(value(n.callee,s,m,seen))) {
         if(!target.fn) {values.push({unknown:true});continue;}
-        const returned=[];
-        function returns(node) {
-          if(node!==target.fn&&functions.has(node.type))return;
-          if(node.type==='ReturnStatement') {if(node.argument)returned.push(node.argument);return;}
-          for(const child of children(node))returns(child);
-        }
-        if(target.fn.body.type==='BlockStatement')returns(target.fn);else returned.push(target.fn.body);
+        const returned=returnedBy(target.fn);
         for(const ret of returned)for(const v of choices(value(ret,nodeScope.get(ret),target.module,seen)??{unknown:true}))values.push({...v,selections:Object.fromEntries(Object.entries(v.selections??{}).map(([k,v])=>[`${m.file}:${n.start}/${k}`,v])),resolution:[...target.resolution??[],location(m,n),location(target.module,ret),...v.resolution??[]]});
       }
       return union(values);
@@ -414,6 +448,22 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     }
     return {states:{linked:Object.values(linked).reduce((a,b)=>a+b,0),external:Object.values(external).reduce((a,b)=>a+b,0),unresolved:unresolved.length},
       linked,links,external,rules,unresolved,unlinked};
+  }
+  // Registrations. A call the accounting could not link, made on a receiver's method, handed a
+  // string literal and a function, enters that function whenever the named event fires. The shape
+  // decides it, not the method's spelling; the spelling is carried so the match can be read back.
+  if(accounting)for(const c of calls) {
+    if(c.node.type!=='CallExpression'||!mappedCode(c.module.file)||callEdges.has(c.node))continue;
+    const callee=c.node.callee,key=callee.type==='MemberExpression'?property(callee):null;
+    if(key===null||!Object.hasOwn(accounting.unlinked,`${c.module.file}:${c.node.start}`))continue;
+    const [first,second]=c.node.arguments;
+    if(first?.type!=='Literal'||typeof first.value!=='string'||!second)continue;
+    const handlers=functions.has(second.type)?[second]:choices(value(second,c.scope,c.module)).filter(v=>v.fn).map(v=>v.fn);
+    for(const fn of new Set(handlers)) {
+      const d=nodeDecl.get(fn);if(!d||!mappedCode(d.file))continue;
+      edge('event-listener',c.owner?.id??`${c.module.file}:<module>`,d.id,[location(c.module,c.node)],
+        {label:first.value,receiver:key,rule:accounting.unlinked[`${c.module.file}:${c.node.start}`]});
+    }
   }
   const anchorCounts=new Map();for(const d of declarations)if(d.anchor)anchorCounts.set(d.anchor,(anchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(anchorCounts.get(d.anchor)>1)d.ambiguousAnchor=true;
