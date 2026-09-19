@@ -57,7 +57,7 @@ saved IDs; there is no single global plan that overwrites another job.
 | `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`, supplying `studioInstanceId` when several Studios are open. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
 | `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates final review. |
 | `wait_for_studio_request`, `get_studio_requests` | Receive live Studio requests with bounded event waits, or inspect durable recovery/history state. Optional `studioInstanceId` scopes a wait; `claim:true` marks returned requests working in the same call. The wait also ends on a delivered Studio event and returns the drained `events`. Runs outside the print-work queue. This does not wake an ended or disconnected chat. |
-| `get_studio_events` | Read and clear the Studio event queue: what the person did in this agent's Studio instances, plus `generation` progress for any instance still calculating. Delivered events also arrive as `studioEvents` on every tool result and as `saam.studio` notifications. Optional `history` includes recently read events. |
+| `get_studio_events` | Read and clear the [Studio event queue](../../studio/README.md#studio-event-queue): what the person did in this agent's Studio instances, plus `generation` progress for any instance still calculating. Delivered events also arrive as `studioEvents` on every tool result and as `saam.studio` notifications. Optional `history` includes recently read events. |
 | `get_studio_sessions`, `close_studio_session` | List or close this agent's explicitly owned Studio instances. One agent may own several; no Studio instance is shared between agents. |
 | `get_tour` | Read tour progress and the next maker-agent chat instruction. Optional `after` cursor and `waitMs` wait for a change for up to 25 seconds. |
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
@@ -83,8 +83,8 @@ through the local CLI; this adapter exposes STL import, with no repair tool.
 
 Manual responses include their repository-relative `path`, available `headings`,
 and `links` whose `guidanceId` values can be passed straight to `read_guidance`.
-For example, `MAKERS.md#standard-parameter-policy` reads that section and its
-subsections. This follows the same Markdown files as a local collaborator.
+For example, `core/export/griffin.md#s5-startup-observations` reads that section
+and its subsections. This follows the same Markdown files as a local collaborator.
 The reader accepts public root manuals and Markdown in the component, skill,
 Studio, machine, adapter and script trees. Private/hidden paths, dependencies,
 build output, source code, traversal and filesystem links are unavailable.

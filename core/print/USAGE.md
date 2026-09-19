@@ -3,13 +3,14 @@
 Use this manual to create, import, revise, review and deliver a print. The
 [selected skill](../../skills/README.md) owns its geometry support, settings and
 process limits; [MAKERS](../../MAKERS.md) owns the conversation and human review.
+The [lifecycle reference](README.md) explains implementation contracts.
 
 Apply the [standard parameter policy](../../MAKERS.md#standard-parameter-policy)
 when choosing or revising geometry, feature, process and machine settings.
 
 ## Choose the tool entry point
 
-The agent CLI toolkit (`node scripts/agent-toolkit.mjs`) bundles onboarding, print
+The [agent CLI toolkit](../agent/README.md) bundles onboarding, print
 creation/import plus Studio opening, saved-print opening, work context and
 failure inspection. It delegates to the operations described here.
 
@@ -116,11 +117,13 @@ node studio/server.mjs Prints/my-part
 Open the printed local URL. `npm run studio -- Prints/my-part` is the equivalent
 human-facing alias; agent launcher permissions use the direct command above.
 MCP `request_review` starts or reuses Studio and returns its local URL. Keep the
-viewer available while the person reviews.
+viewer available while the person reviews. [Studio access and lifetime](../../studio/README.md#studio-agent-permissions)
+explain client permissions and how to close or resume your instance.
 
 Studio's **Open print** selects saved bundles or a file inside a bundle. Opening
 resumes the current review stage without generating new output or granting
-approval.
+approval. See [opening local prints](../../studio/README.md#opening-local-prints-in-studio)
+for picker behavior and unsupported standalone program files.
 
 Read current CLI status with `check` below. Through MCP, `list_prints` finds
 saved IDs, `get_print` reads state and recipe settings, and
@@ -174,10 +177,12 @@ patterns and pipe-cladding, including regional overrides where supported.
 Single-wall vase spirals do not use this setting.
 Ordinary recipes need no additional setting. Studio shows a nondefault factor
 in plan review; changing it follows the existing process review lifecycle.
+See the [shared spacing contract](../path/README.md#line-spacing) for density,
+surface fitting and composition behavior.
 
 ## Check, generate and deliver
 
-Every interpreted toolpath carries a short-travel advisory.
+Every interpreted toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory).
 Read `shortTravel` in generation checks/MCP print state or the program summary
 in CLI/toolkit state. Studio also sends an `advisory` through the existing request
 listener once per displayed export with findings. Producers connect nearby
@@ -215,7 +220,7 @@ when exercising maker tools during development.
 Development generation still needs explicit robot command settings; for a new
 provisional part use the reusable setup instructions for
 [DENSO](../../skills/pipe-cladding/SKILL.md#public-workflow-and-development-demo)
-or Dobot, independently of its shape.
+or [Dobot](../export/dobot.md#dobot-output-contract), independently of its shape.
 CLI `check` reports `outputAvailability` and missing `machineConfiguration`
 fields from the saved state, without attempting generation.
 
@@ -236,4 +241,6 @@ conversation when reusing those parameters.
 
 A firmware-version change clears startup verification unless verification is
 explicitly supplied with it. Keep user-reported findings distinct from assumed
-profile behavior.
+profile behavior. The [S5 setup guidance](../export/griffin.md#s5-setup-and-troubleshooting)
+and other [machine contracts](../export/README.md) own installation-specific
+questions and required calibration.

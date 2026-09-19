@@ -27,8 +27,8 @@ const schemas = {
 export const help = {
   commands: {
     'maker-onboarding': 'Maker guidance, complete skill digest and print tools; choose follow-up reads for the task.',
-    'builder-onboarding [--area AREA]': 'Builder and maker context, skill authoring and digest; each --area is a map region (path or index) or one of the outside areas.',
-    'developer-onboarding [--area AREA]': 'Developer policy and map page 0; each --area adds that region page (path or index) or an outside area’s references.',
+    'builder-onboarding [--area AREA]': 'Builder and maker context, skill authoring and digest; each --area adds its component manual and, for a region of the map, that region page.',
+    'developer-onboarding [--area AREA]': 'The developer orientation and map page 0 — no component manuals; each --area adds that region page (path or index) or an outside area’s references.',
     'read-map INDEX|DECLARATION [--code]': 'Read one stored page: 0 for the regions, N for a region, N.F for a file, N.F.E… or a declaration path for a function page. --code returns that page’s own source span with line numbers; it is refused on 0 and on a region page. Reads the store; it never scans.',
     'regenerate [INDEX]': 'Scan the source and write the stored map. No index, or 0, generates everything; a region or page index regenerates that region.',
     'read-skill ID [--maker] [--builder] [--developer]': 'Read only the selected skill roles; defaults to maker. Missing optional manuals are reported in unavailableRoles.',

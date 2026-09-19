@@ -2,11 +2,17 @@
 
 ## Orientation
 
-The dev map is the account of core and Studio, generated from the source. There
-is no parallel core/Studio manual hierarchy and nothing on a page is authored.
-Walk it from `0`: `0` is the regions, `N` a region and its files, `N.F` a file
-and its entry points, `N.F.E` a declaration with its callees, `calledFrom`,
-couplings and `unresolved` count.
+This is the whole of a developer's orientation. The account of core and Studio
+is the **dev map**, generated from the source: nothing on a page is authored,
+and there is no prose manual in the developer's reading. The component manuals
+under `core/` and `studio/` are maker and builder documentation; read one only
+when a person asks about the behaviour it describes, never to find your way
+around the code.
+
+Walk the map from `0`. `0` is the regions, `N` a region and its files, `N.F` a
+file and its entry points, `N.F.E` a declaration with its callees, `calledFrom`,
+`couplings` and `unresolved` count. Read a page, read its source with `--code`,
+make the edit, `regenerate` the region, read again.
 
 ```sh
 node scripts/agent-toolkit.mjs read-map 0
@@ -16,29 +22,45 @@ node scripts/agent-toolkit.mjs read-map studio/source.mjs::bindSource --code
 node scripts/agent-toolkit.mjs regenerate 9
 ```
 
-A read comes out of the stored map and never scans; `regenerate` is the only
-scan. A page whose source has moved since the store was written says so in its
-`stale` field. Indexes are regenerated and may change: say the index and the
-name when talking about a page, and write the declaration path when something
-must keep pointing at it. Reuse context already read. Prefer the walk over text
-search when orienting: it is what shows who calls and consumes the code being
-changed. The [map guide](maps/README.md) owns the commands, the page fields and
-the external-fact rows; `node scripts/dev-map.mjs build` draws the same stored
-map for a person.
+A read comes out of the stored map and never scans; `regenerate [INDEX]` is the
+only scan. A page whose source has moved since the store was written says so in
+its `stale` field, naming the files and the index to regenerate. Indexes are
+regenerated and may change: say the index and the name when talking about a
+page, and write the **declaration path** (`file.mjs::name`) when something must
+keep pointing at it. Reuse context already read.
 
-Scope follows components, not roles. Makers operate existing tools and need no
-dev maps. Builders changing skills use [skill authoring](skills/AUTHORING.md), the
-selected skill's role manual and consumed API contracts; contract-only reads do
-not require implementation maps. Builders changing or investigating core/Studio
-walk the affected regions. Developers use the map for core/Studio and load maker
-or skill context when their work needs it. Skills and
-[client adapters](adapters/mcp/DEVELOP.md) retain separate implementation
-references and remain visible as external callers into the map.
+**Text search for orientation is discouraged.** Searching finds names; the walk
+is what shows who calls and consumes the code you are about to change.
+
+External facts — versions, licences, hardware observations, anything the scanner
+cannot see in the source — are rows in [maps/facts.tsv](maps/facts.tsv), the one
+place authored content enters the map. `scripts/dev-map/scope.mjs` holds the
+whole authored scan scope: which roots are mapped and which are scanned only so
+their calls into the mapped roots are seen. The [map guide](maps/README.md) owns
+the commands and the fields each page carries; `node scripts/dev-map.mjs build`
+draws the same stored map for a person.
+
+### Code shape
+
+The map is only as good as the code's shape, so shape the code for it:
+
+- Write functions of inputs to outputs. No mutable state crosses a function
+  boundary.
+- Name handlers and stages, so each becomes a node on a page instead of an
+  anonymous body inside one.
+- A coupling the scanner cannot see is a finding about the code, not a gap in
+  the map. Fix the code, or record the fact in `facts.tsv` and say why.
+
+### What keeps its own owner
 
 Repository policy, setup, contribution procedures, decisions and historical
-evidence retain their existing owners. Onboarding supplies engineering policy;
-it does not preload skill catalogs or every technical contract. Source remains
-authoritative for implementation; software checks do not establish physical results.
+evidence retain their existing owners. Skills and
+[client adapters](adapters/mcp/DEVELOP.md) are outside the mapped roots, keep
+their own authoring references, and appear in the map as external callers.
+[CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md) owns checkpoint and remote
+contribution rules; read it only immediately before committing or publishing.
+Source remains authoritative for implementation; software checks do not
+establish physical results.
 
 ## Status note
 

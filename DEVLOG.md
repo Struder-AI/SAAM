@@ -5261,3 +5261,42 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   linked, 1285 unresolved, 5383 external, 0 unreached); `check-repo.mjs` reports
   only BR-049's existing "Remaining" format error; no reference to the deleted
   system remains outside DEVLOG and DECISIONS history.
+
+## 2026-09-19 — Maker and builder manuals restored; three reading roles; viewer follows the map
+
+- Source: user correction: makers and builders keep their prose documentation;
+  developers read the generated map and one small orientation file. The
+  switch-over (ab61e96) had deleted the component manuals along with the map
+  prose, because since 8b4b148 (2026-09-17) their content had lived under
+  `maps/reference/` behind redirect stubs.
+- Restored at their own paths, newest text from 5526585: 21 component manuals
+  (`core/README.md`, `core/agent`, `core/export` and its four machine manuals,
+  `core/geom` and `native`, `core/machine`, `core/path` and its collision
+  proposal, `core/print`, `core/region`, `core/tests`, `machines`,
+  `scripts/bench` and its region reference, `studio` README, KINEMATICS and
+  RENDERING). Dropped from them: every `Implementation responsibilities` section
+  and every `Changing ...` section with the Contract/Failures/Change
+  together/Verification shape, which were added on 2026-09-17 for the deleted
+  responsibilities check. `maps/reference/generation.md` was that apparatus only
+  and is not restored; the ordinary sections of `studio-protocols.md` are now
+  `studio/README.md#studio-state-and-worker-protocols`. Nothing is restored
+  under `maps/`. 136 inbound links restored across MAKERS, SETUP, GLOSSARY,
+  USAGE, skill manuals, adapters, AGENTS and BUILDERS; both context-map pages
+  have their nodes back, pointing at the component manuals.
+- Roles: maker reads prose, no maps; builder reads prose and may walk the map
+  for the region touched (`builder-onboarding --area core/path` returns the
+  builder documents, `core/path/README.md` and region page 6); developer reads
+  the map from `0` and `DEVELOPER-CONTEXT.md` only (66 lines; developer
+  onboarding no longer returns BUILDERS.md).
+- Viewer: index rows were not clickable; fixed. The index is indented,
+  collapsible and can be hidden. `dev-map/view/index.html` is overwritten in
+  place and reloads itself when a new drawing lands; every `regenerate` redraws
+  it (8.6 s together); a stale store is still drawn with the affected pages
+  marked, and `build` fails only when there is no store.
+- Not documented anywhere but this log: a locked `process.primeLine` replacing
+  profile priming (was in the dropped generation apparatus).
+- Verification: `check-repo.mjs` passes link and anchor checks (only the known
+  BR-049 format error); toolkit, context-map, mcp-access, dev-map-flow and
+  dev-map-view tests pass 56 of 56; `mcp.test.mjs` 16 of 17 with the known
+  transport-close failure; no tracked file mentions `maps/reference`,
+  `saam-map-reference`, `Implementation responsibilities` or `map-owned`.

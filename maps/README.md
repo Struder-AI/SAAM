@@ -23,13 +23,18 @@ page, which span no code of their own.
 
 `regenerate` is the only command that reads source. With no argument, or `0`, it
 rescans everything; with a region or page index it regenerates that region and
-leaves every other region's stored pages byte-identical.
+leaves every other region's stored pages byte-identical. Every `regenerate` also
+redraws the viewer, and reports it as `view` in its result.
 
 `build` draws the whole stored map for a person into `dev-map/view/`; open
 `dev-map/view/index.html`, or serve that directory (the `generated-map`
-configuration in `.claude/launch.json` serves it on port 8765). It reads the
-store and never scans, so it refuses when there is no store and marks a page
-whose source has moved. It needs Python 3; set `PYTHON` if it is not `python`.
+configuration in `.claude/launch.json` serves it on port 8765). That one page is
+the stable place to keep open: it is overwritten in place, never removed, and an
+open viewer reloads itself onto the same index when a new drawing lands. `build`
+reads the store and never scans. It refuses only when there is no store; a store
+behind the source is still drawn, with each page whose source has moved marked on
+its own drawing, so the map stays readable while code is being changed. It needs
+Python 3; set `PYTHON` if it is not `python`.
 `check` is described under [Checking](#checking). `flow-evidence` re-derives one
 page from source with its call sites and columns, for auditing the generator.
 

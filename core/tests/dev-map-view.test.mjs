@@ -101,7 +101,11 @@ test('every clickable target is a page that was emitted, and every breadcrumb re
   // The viewer opens from the filesystem: sidecars arrive as scripts, never through fetch.
   const html=await readFile(resolve(fixture.out,'index.html'),'utf8');
   assert.ok(!/\bfetch\(|XMLHttpRequest|type="module"/.test(html));
-  assert.ok(html.includes("s.src='svg/'+key+'.js'")&&html.includes("s.src='sources.js'"));
+  assert.ok(html.includes("s.src='svg/'+key+'.js?'")&&html.includes("s.src='sources.js'"));
+  // The index rows open their page, and an open viewer follows the next build by its stamp.
+  assert.ok(html.includes("#tree [data-go]"));
+  const stamp=(await readFile(resolve(fixture.out,'stamp.js'),'utf8')).match(/^stampAt\("(.+)"\)$/)?.[1];
+  assert.ok(stamp&&html.includes(`const BUILT="${stamp}"`));
 });
 
 test('a page whose source moved says so on its own drawing and names what to run',async t=>{

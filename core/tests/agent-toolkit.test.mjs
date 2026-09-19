@@ -42,6 +42,7 @@ test('onboarding selects context by role and area; the map is read from the stor
   assert.ok(builder.documents.some(doc => doc.path === 'BUILDERS.md'));
   assert.ok(builder.documents.some(doc => doc.path === 'MAKERS.md'), 'builder context includes maker context');
   assert.ok(!builder.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
+  assert.ok(builder.documents.some(doc => doc.path === 'skills/AUTHORING.md'));
   const dev = JSON.parse((await run(process.execPath, [cli, 'developer-onboarding', '--area', 'mcp', '--area', 'setup', '--area', 'mcp'])).stdout);
   assert.ok(!dev.documents.some(doc => doc.path === 'AGENTS.md'), 'entry-point instructions are already loaded');
   assert.equal(new Set(dev.documents.map(doc => doc.path)).size, dev.documents.length);
@@ -52,10 +53,15 @@ test('onboarding selects context by role and area; the map is read from the stor
   assert.deepEqual(maker.maps, []);
   assert.deepEqual(builder.maps, [], 'skill-only builders need no dev maps');
   assert.deepEqual(dev.maps.map(map => [map.index, map.kind]), [['0', 'root']], 'a developer starts at page 0');
-  assert.ok(!dev.documents.some(doc => ['MAKERS.md','core/print/USAGE.md','skills/AUTHORING.md'].includes(doc.path)), 'developers load workflow context when needed');
+  assert.ok(!dev.documents.some(doc => ['BUILDERS.md','MAKERS.md','core/print/USAGE.md','skills/AUTHORING.md'].includes(doc.path)), 'a developer reads the map and one orientation file, not the prose manuals');
   // An --area is a region of the map, named by its path or by its index.
   const mapped = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'core/region', '--area', 'core/region'])).stdout);
   assert.deepEqual(mapped.maps.map(map => [map.kind, map.path]), [['region', 'core/region']]);
+  // A builder gets that component's manual with the region; a developer gets neither manual nor prose.
+  assert.ok(mapped.documents.some(doc => doc.path === 'core/region/README.md'));
+  const devRegion = JSON.parse((await run(process.execPath, [cli, 'developer-onboarding', '--area', 'core/region'])).stdout);
+  assert.deepEqual(devRegion.documents.map(doc => doc.path), ['DEVELOPER-CONTEXT.md']);
+  assert.deepEqual(devRegion.maps.map(map => [map.index, map.kind]), [['0', 'root'], [mapped.maps[0].index, 'region']]);
   const byIndex = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', mapped.maps[0].index])).stdout);
   assert.deepEqual(byIndex.maps, mapped.maps);
   // A declaration path and its index return the same page; --code adds that page's own source.

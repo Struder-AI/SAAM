@@ -33,14 +33,18 @@ Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md).
 
 Skills should work across geometry types and machines through shared interfaces,
 with explicit, narrow exceptions. Prints keep geometry, the process plan,
-the checked export, and review records together locally.
+the checked export, and review records together locally. The
+[developer principles](core/README.md#interoperability-and-one-workflow) explain
+how changes extend this shared system.
 
 ## What works today
 
 This is a development checkout. Choose a pattern through the [skill
-index](skills/README.md); each manual owns its current shapes, settings and
-limits, including the scope of reported physical observations. Software checks
-do not establish physical print success.
+index](skills/README.md); each manual owns its current shapes, settings and limits.
+[Machine support and output contracts](core/export/README.md#machine-interoperability-design)
+describe what each machine's export and playback cover, including the scope of
+reported physical observations. Software checks do not establish physical print
+success.
 
 The [MCP adapter](adapters/mcp/README.md) connects compatible chat clients to the
 same local workflow. Its manual covers available tools and local stdio connections.

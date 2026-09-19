@@ -48,8 +48,8 @@ Cleanup merges identical coordinates and removes duplicate/degenerate facets and
 unused vertices. It stitches a long edge to a complete, oppositely directed
 collinear chain at existing vertices, with a 1e-9 mm line-distance tolerance.
 An already valid cleaned surface returns directly. Otherwise the command uses
-CGAL 6.2.1 local patch repair with smoothing disabled. That backend must be
-built with `npm run setup:mesh`.
+CGAL 6.2.1 local patch repair with smoothing disabled. That backend must be built;
+see [native setup and licensing](../../core/geom/native/README.md).
 
 Optional JSON settings:
 
@@ -81,7 +81,8 @@ partial failed repairs are never emitted as accepted geometry.
 
 There is no fixed face-count gate and no working-set estimate that refuses a mesh
 before reading it; a repair is attempted on the mesh you supply. The only size
-check is index capacity, the representational limit of the indexed arrays.
+check is index capacity, the representational limit of the indexed arrays. See
+[memory and progress](../../core/geom/README.md#memory-files-and-progress).
 Indexed meshes and CGAL working data still require memory, and this is not
 disk-backed processing: a mesh larger than the machine can hold fails on the
 allocation that failed, naming the stage and the mesh size.
@@ -98,4 +99,6 @@ create no approvals. Each printing pattern's shape restrictions still apply.
 With MCP-only access, `read_skill` retrieves this manual and `import_stl_print`
 imports an available result; the connector currently has no repair tool.
 
-[The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files.
+[The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files;
+[the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns the
+algorithms, numerical assumptions and memory contract.

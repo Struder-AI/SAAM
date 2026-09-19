@@ -305,5 +305,6 @@ is reported as a reference that cannot be resolved. Errors leave the saved print
 unchanged; revise the geometry or quality settings rather than treating a failed
 mesh as printable.
 
-Tests establish software behavior, not
+The [geometry reference](../../core/geom/README.md#text-and-solid-modifiers)
+owns algorithms and precision limits. Tests establish software behavior, not
 physical lettering quality or machine clearance.

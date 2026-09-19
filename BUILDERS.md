@@ -8,8 +8,8 @@ test that work in development. For core or cross-cutting work, see the
 For builder work with missing context, run
 `node scripts/agent-toolkit.mjs builder-onboarding` directly; use `--area AREA`
 when the affected component is already known. The command returns this manual,
-maker context, skill authoring and the complete skill digest, plus selected
-core/Studio map pages or references for areas outside that scope. Use that returned text without
+maker context, skill authoring and the complete skill digest, plus the selected
+area's component manual and, for a region of the map, that region's page. Use that returned text without
 reading the same sources before or after the command. If builder context is
 already loaded, continue from it and read only missing task-specific references.
 Individual skill manuals remain separate choices. A client without command access
@@ -19,13 +19,15 @@ reads the same sources directly once.
 [MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
 Developer onboarding supplies this engineering baseline; developers load maker
 workflow and skill-authoring guidance when their task needs it. Reuse prior reads.
-**Walk the dev map to what you are changing before changing core or Studio, or
-investigating their internals**, including everything that calls it. Changes
+**Read the component manual for what you are changing before changing core or
+Studio, or investigating their internals**, and walk that region of the dev map
+when you need to see everything that calls it. The manuals are listed under
+[implementation reference](#implementation-reference); they own behaviour,
+contracts and limits, and the map owns structure. Changes
 confined to skill scripts need skill guidance and consumed API contracts; they
 do not automatically require the map, which covers core and Studio. Follow the
 [map contract](#maps-and-local-documentation); reading implementation context
-does not require a role change. The [developer orientation](DEVELOPER-CONTEXT.md)
-owns the walk. Read a page with
+does not require a role change. Read a page with
 `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`. When a maker or builder session
 grows past roughly 250k tokens and the next request is unrelated or a substantial
 pivot, suggest a fresh chat.
@@ -52,7 +54,8 @@ does not establish that two skills compose.
 Use one generation, review and delivery workflow, with narrow adapters for
 different recipes and machines. Extend shared interfaces around demonstrated
 needs. Necessary parallel paths need explicit responsibilities, boundaries and
-integration points.
+integration points. [Core architecture](core/README.md) locates the implemented
+stages and current exceptions.
 
 ## Engineering priorities
 
@@ -83,7 +86,7 @@ Use established numerical methods through small shared interfaces. Preserve
 their preconditions, topology and tolerance semantics, and evaluate adaptations
 against reference behavior. Precision belongs to a quantity and an operation;
 accuracy, supported geometry and cost should be explicit enough to assess a
-tradeoff.
+tradeoff. The [geometry reference](core/geom/README.md) defines these contracts.
 
 Measure performance from a user action to the useful result, with stage timings
 that identify the responsible work. Examine whether a computation is necessary,
@@ -170,12 +173,34 @@ any fact row that names a declaration the map no longer holds.
 Role describes the work, not exclusive access to documents. Maker-facing manuals
 own settings, supported behavior and recovery. Caller-facing contracts belong
 to every builder or developer using that interface, including skill results,
-geometry queries and Studio extension boundaries. Core/Studio implementation mechanics and caller contracts are read from the
-generated map and the source it names. Skills and adapters retain
+geometry queries and Studio extension boundaries. Core/Studio behaviour, contracts
+and limits belong to the [component manuals](#implementation-reference);
+structure — what exists and what calls what — is read from the generated map and
+the source it names. Skills and adapters retain
 their separate implementation references. Select context by the boundary being consumed or
 changed, rather than labeling an entire mixed component manual developer-only.
 
-Keep core/Studio behavior and contracts in their owning map references, future work and
+### Implementation reference
+
+One manual per component, beside the code it describes. Read the one you are
+changing; walk that region of the map when you need its structure.
+
+| Component | Manual |
+|---|---|
+| Core architecture and shared boundaries | [core/README.md](core/README.md) |
+| Agent CLI toolkit | [core/agent/README.md](core/agent/README.md) |
+| Machine interfaces and program output | [core/export/README.md](core/export/README.md), with [Bambu](core/export/bambu.md), [DENSO](core/export/denso.md), [Dobot](core/export/dobot.md) and [Griffin](core/export/griffin.md) |
+| Geometry and numerical contracts | [core/geom/README.md](core/geom/README.md), with [native mesh repair](core/geom/native/README.md) |
+| Machine presentation models | [core/machine/README.md](core/machine/README.md) |
+| Skill composition and travel | [core/path/README.md](core/path/README.md), with the [collision-planning proposal](core/path/collision-proposal.md) |
+| Print lifecycle and persistence | [core/print/README.md](core/print/README.md) |
+| Regions, offsets and intersections | [core/region/README.md](core/region/README.md) |
+| Development tests | [core/tests/README.md](core/tests/README.md) |
+| Machine files | [machines/README.md](machines/README.md) |
+| Benchmarks and kernel provenance | [scripts/bench/README.md](scripts/bench/README.md) and [region-reference.md](scripts/bench/region-reference.md) |
+| Studio | [studio/README.md](studio/README.md), with [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md) |
+
+Keep core/Studio behavior and contracts in their owning component manual, future work and
 proposals clearly marked at their owners, and past work and observations in
 [DEVLOG.md](DEVLOG.md). Future possibilities must not read as implemented
 capabilities. Implement current requests directly; do not create a build-request
@@ -270,7 +295,7 @@ requirement, manufacturing approval or software-test gate.
 ## Avoid check spirals
 
 Choose verification for the behavior being changed and a concrete failure it
-could introduce. Use the existing coverage under `core/tests/` first. Once the
+could introduce. Use [existing coverage](core/tests/README.md) first. Once the
 applicable checks resolve the uncertainty, continue toward completion. Run or
 broaden checks again only when relevant inputs change, a failure appears, or a
 specific uncertainty remains. Reuse valid results across tasks and contributors.
@@ -289,8 +314,9 @@ geometry, toolpathing or extrusion gate has ambiguous value or placement, discus
 its failure case, evidence, cost and alternatives within existing authorization.
 A maker's judgment about a print does not itself change general product policy.
 Resource-budget failures should state the limit and how to raise it, leaving
-geometry and quality choices explicit. Prefer a limit that adapts to the input
-over a fixed count, size or elapsed-time cap.
+geometry and quality choices explicit. Before adding any count, size or elapsed-time
+limit, read [limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept),
+which owns the rule and the register of limits deliberately retained.
 
 ## Reproducible examples
 
@@ -328,8 +354,9 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Maker interaction and print approval | [MAKERS.md](MAKERS.md) |
 | Installation and first-use capability | [SETUP.md](SETUP.md) |
 | Checkpointing and remote contribution | [Contribution guidance](CONTRIBUTING-AGENTS.md), at that stage |
-| Test design and coverage selection | [Avoid check spirals](#avoid-check-spirals) and the existing tests under `core/tests/` |
-| Core/Studio technical reference | The generated map: `read-map 0`, then the region, file and declaration the change touches |
+| Test design and coverage selection | [Test reference](core/tests/README.md) |
+| Core/Studio behaviour, contracts and limits | The [component manuals](#implementation-reference); skill callers may read them independently |
+| Core/Studio structure — what exists and what calls what | The generated map: `read-map 0`, then the region, file and declaration the change touches |
 | Adapter implementation | [MCP development](adapters/mcp/DEVELOP.md) |
 | Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/README.md) |
 | Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
@@ -366,19 +393,19 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Task | Start here |
 |---|---|
 | Unused checkout | [Setup](SETUP.md) |
-| Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then the existing tests under `core/tests/` |
+| Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then the [test reference](core/tests/README.md) |
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
 | Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
-| Trace the system or change an interface | `read-map 0`, then the region the change touches |
-| Geometry representation, queries, precision or mesh repair | `read-map core/geom` |
-| Offsets, intersections or material ownership | `read-map core/region` |
-| Skill operations, scheduling or travel | `read-map core/path`, then the relevant [skill](skills/README.md) |
-| Plans, validation, persistence, generation or delivery | `read-map core/print` |
+| Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the region the change touches |
+| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md); `read-map core/geom` for structure |
+| Offsets, intersections or material ownership | [Regions](core/region/README.md); `read-map core/region` for structure |
+| Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/README.md); `read-map core/path` for structure |
+| Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md); `read-map core/print` for structure |
 | Using shared print commands or changing their task guidance | [Print tools](core/print/USAGE.md) |
-| Machine capabilities, emission or interpretation | `read-map core/export` and `read-map core/machine` |
-| Studio interaction, lifetime or rendering | `read-map studio` |
+| Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [machine files](machines/README.md); `read-map core/export` and `read-map core/machine` for structure |
+| Studio interaction, lifetime or rendering | [Studio](studio/README.md), [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md); `read-map studio` for structure |
 | Chat-client connection or adapter tools | [MCP](adapters/mcp/README.md) and its [implementation notes](adapters/mcp/DEVELOP.md) |
-| Performance measurement | The benchmarks under `scripts/bench/` and the owning region |
+| Performance measurement | [Slicing benchmarks](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](#testing-through-the-use-context) |
 | Documentation | [Ownership and maintenance](#documentation-maintenance) |
 | Project direction, outstanding work, history or terminology | Relevant [decisions](DECISIONS.md), [requests](build_request.md#outstanding-work), [devlog](DEVLOG.md) or [terms](GLOSSARY.md) |

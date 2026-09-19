@@ -77,5 +77,5 @@ the spiral's slope is checked against its declared angle limit.
 Review geometry, process settings and the actual toolpath in Studio before
 delivery. Software generation does not establish physical clearance, support,
 watertightness or a successful print. [MAKERS](../../MAKERS.md) owns review and
-approval; the shared print lifecycle owns generation and
+approval; the [shared lifecycle](../../core/print/README.md) owns generation and
 delivery of the checked machine bytes.

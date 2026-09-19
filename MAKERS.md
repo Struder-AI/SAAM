@@ -70,7 +70,7 @@ active between lessons; an ordinary preview can be left for the person's next
 chat request.
 
 Studio also tells you what the person does in your Studio instances through the
-Studio event queue: lesson changes, opened
+[Studio event queue](studio/README.md#studio-event-queue): lesson changes, opened
 prints, imports, exports, displayed results and failed or cancelled calculations
 arrive on their own (as `studioEvents` on MCP tool results and listener waits, as
 notifications, or as `studio-events` lines from a live toolkit session), carrying
@@ -80,7 +80,8 @@ Read the queue yourself with `get_studio_events` (MCP) or `read-studio-events`
 (toolkit) whenever you want to know what happened or the person asks; a read
 during a toolpath calculation reports its progress. Events arrived one after
 another, not at once: act on the latest state, not on each in turn. Optional intermediate previews create no obligation to finish
-superseded results.
+superseded results. The [Studio coordination contract](studio/README.md#agent-request-coordination)
+owns the CLI equivalents, result identity and waiting behavior.
 
 ## Tour startup
 
@@ -228,11 +229,13 @@ Follow additional references when the part needs them:
 
 | Need | Read |
 |---|---|
-| Initial installation or Studio access | [Setup and checks](SETUP.md). |
-| Several printing patterns or material regions in one part | The chosen skill manuals. |
+| Initial installation or Studio access | [Setup and checks](SETUP.md), then [Studio agent permissions](studio/README.md#studio-agent-permissions). |
+| Machine-specific setup, export or playback limits | The relevant contract under [machine interoperability](core/export/README.md#machine-interoperability-design). |
+| Several printing patterns or material regions in one part | The chosen skill manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces). |
 | Sacrificial or edge supports | [Supports](skills/supports/SKILL.md), [rimming-planar](skills/rimming-planar/SKILL.md) or [rimming-normal](skills/rimming-normal/SKILL.md), as applicable. |
 | Creating or importing a print, changing settings or reusing setup | [Shared print tools](core/print/USAGE.md). |
 | A connected chat client | The [MCP adapter manual](adapters/mcp/README.md), including its connection and local-file access limits. |
+| A saved print | [Opening local prints in Studio](studio/README.md#opening-local-prints-in-studio). |
 
 Read missing references relevant to the part and workflow; the onboarding's
 shared print-tool text already satisfies links to its sections. Use
@@ -281,12 +284,14 @@ current settings and exact toolpath together in Studio immediately before export
 The plan contains the choices needed for direct generation. If generation
 requires a different process choice, revise the plan with the person before
 generating again. Reopening a saved print reads its checked export without
-regenerating it; intermediate motion need not be saved.
+regenerating it; intermediate motion need not be saved. The
+[shared generation contract](core/print/README.md#generation-and-review) owns these
+implementation requirements.
 
 The person requests recipe adjustments in chat; apply them with the skill's
 adjustment tool and Studio updates automatically. The maker need not edit JSON
 or complete a technical form. Camera, playback speed and travel visibility are
-viewer controls.
+viewer controls; the [Studio manual](studio/README.md) describes their use.
 
 ## Standard parameter policy
 
@@ -345,4 +350,6 @@ unchecked behavior in language suited to the person.
   explicit selection by the person.
 
 Opening, inspecting, restarting and closing your own Studio instances are part
-of authorized project work. Leave a requested review open for the person.
+of authorized project work. Follow the [Studio instructions](studio/README.md#studio-agent-permissions)
+for the launcher, client permissions and instance ownership, and leave a
+requested review open for the person.

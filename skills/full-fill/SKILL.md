@@ -14,13 +14,14 @@ Supported geometry: validated indexed triangle meshes (including STL import),
 closed untrimmed spline shells from the existing shape builders, and assemblies
 of those components. Arbitrary edited 3DM and trimmed CAD import are unsupported.
 The shared geometry interface supplies each layer's real cross section.
-Closed planar masks and material reservations use the shared Clipper2 region
-tool.
+Closed planar masks and material reservations use the
+[shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections).
 This does not add new input geometry types.
 
 Software checks exercise this skill on both S5 and H2D profiles and both geometry
 backends, including the shared export, toolpath review and delivery workflow.
-H2D output is experimental. Firmware service routines are not simulated by playback.
+H2D output is experimental; read its [machine contract](../../core/export/bambu.md#h2d-output-contract)
+before use. Firmware service routines are not simulated by playback.
 No physical print from this skill has been validated.
 
 ## Setup and tools
@@ -83,7 +84,7 @@ combing stays inside the allowed region at print height, with routes around
 holes when possible within `maxCombMm`. Other traverses clear the highest material
 deposited so far across all skills plus `liftMm` (default 1 mm; zero allowed).
 Cooling uses the same height; an out-of-bounds clearance is rejected.
-This is not a full head collision model.
+This is not a full head collision model. See [shared travel](../../core/path/README.md#whole-plan-travel-requirement).
 
 ## Composition and limits
 
@@ -100,7 +101,8 @@ example base, cap, and solid material above a draped roof. Each region has an ID
 selected component, component-relative Z bounds and skill setting overrides.
 Layer intervals are open at the start and closed at the end on
 the component's shared layer grid. Sparse and solid masks can share one region;
-two complete body owners cannot overlap the same material.
+two complete body owners cannot overlap the same material. See the
+[shared contract](../../core/path/README.md#skill-result-composition).
 
 An optional `lowerSurfaceFrom` references another region's published material
 top. Full-fill keeps horizontal layers, clips them above that actual lower
@@ -123,7 +125,8 @@ base, vase, cap, sparse walls, drape and horizontal fill over the wavy lower
 surface. Its invented robot configuration is software-test data, not a usable
 hardware setup. Region settings and source references are part of combined settings/toolpath confirmation.
 
-The shared geometry interface owns validation and backend limits. Mesh normals are faceted; spline contour
+The [geometry contract](../../core/geom/README.md#geometry-interoperability-for-skill-authors)
+owns validation and backend limits. Mesh normals are faceted; spline contour
 sampling may miss features below `minFeatureMm`. Thin regions may disappear under
 bead-width offsets. Rectangular beads and overlap are approximations. Automatic
 support, geometric overlap resolution between arbitrary components and physical

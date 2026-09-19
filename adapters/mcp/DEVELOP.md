@@ -1,7 +1,8 @@
 # MCP implementation
 
 Adapter boundaries and integration tests. [The adapter manual](README.md)
-owns client configuration and tool usage.
+owns client configuration and tool usage; [the print lifecycle](../../core/print/README.md)
+owns manufacturing state.
 
 ## Local MCP access
 
@@ -37,7 +38,7 @@ receive contact renewal at entry/exit; listener waits and unrelated calls do not
 sole live instance, so switching prints opens no second Studio;
 an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
-for.
+for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).
 Task manuals identify themselves with `metadata.saam-kind: task` in their
 frontmatter; existing printing manuals retain the default `printing` kind.
 

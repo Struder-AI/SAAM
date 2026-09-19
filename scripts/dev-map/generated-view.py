@@ -363,6 +363,14 @@ CSS = BASE_CSS + """
 #tree a{font-family:ui-monospace,Consolas,monospace;font-size:11.4px;white-space:nowrap;
         overflow:hidden;text-overflow:ellipsis}
 #tree a .ix{color:#64748b;margin-right:7px}
+#tree a{cursor:pointer;padding-top:3px;padding-bottom:3px}
+#tree a .tw{display:inline-block;width:13px;margin-left:-13px;color:#64748b;text-align:center}
+#tree a .tw:hover{color:#f8fafc}
+#tree a.open>.tw{transform:rotate(90deg)}
+body.noside #side{display:none}
+#bar{flex-wrap:wrap}
+#crumb{flex:1 1 260px;max-height:3.1em;overflow:hidden}
+@media (max-width:760px){#side{width:200px;flex-basis:200px}}
 .fm-src{cursor:pointer}
 .fm-src:hover{fill-opacity:0.16!important}
 .fm-go{cursor:pointer}
@@ -411,7 +419,7 @@ function actual(){const s=canvas.firstElementChild;if(!s)return;const r=stage.ge
 /* One page's drawing at a time, fetched as a script so the viewer opens from file:// with no
    server. The whole map inlined is an order of magnitude more bytes on every open. */
 function load(key,then){if(SVG[key]!==undefined)return then();
-  const s=document.createElement('script');s.src='svg/'+key+'.js';
+  const s=document.createElement('script');s.src='svg/'+key+'.js?'+encodeURIComponent(BUILT);
   s.onload=()=>then();s.onerror=()=>{SVG[key]=null;then();};document.head.appendChild(s);}
 
 function trail(key){const out=[];let k=key;
@@ -423,6 +431,7 @@ function show(key,push){const p=PAGES[key];if(!p)return false;
   load(key,()=>{canvas.innerHTML=SVG[key]||'';cur=key;hot(null);closeCode();
     crumb.innerHTML=trail(key);
     document.getElementById('stale').textContent=p.x?('stale: '+p.x):'';
+    reveal(key);paint();
     document.querySelectorAll('#tree a.on').forEach(a=>a.classList.remove('on'));
     const row=document.querySelector(`#tree a[data-key="${CSS.escape(key)}"]`);
     if(row){row.classList.add('on');row.scrollIntoView({block:'nearest'});}
@@ -464,8 +473,28 @@ stage.addEventListener('click',e=>{if(moved)return;
   const go=el.closest('[data-go]');
   if(go&&go.dataset.go&&PAGES[go.dataset.go]){show(go.dataset.go);return;}
   closeCode();});
-document.addEventListener('click',e=>{const go=e.target.closest('#bar [data-go]');
+document.addEventListener('click',e=>{
+  const tw=e.target.closest('#tree .tw');
+  if(tw){const k=tw.parentElement.dataset.key;collapsed.has(k)?collapsed.delete(k):collapsed.add(k);paint();return;}
+  const go=e.target.closest('#bar [data-go],#tree [data-go]');
   if(go&&PAGES[go.dataset.go])show(go.dataset.go);});
+
+/* -- the index: a tree of pages, closed below the regions until a page is opened -- */
+const ROWS=[...document.querySelectorAll('#tree a')];
+const collapsed=new Set(ROWS.filter(a=>a.querySelector('.tw')&&a.dataset.key!=='0').map(a=>a.dataset.key));
+function reveal(key){collapsed.delete(key);
+  for(let p=PAGES[key]&&PAGES[key].p;p!=null&&PAGES[p];p=PAGES[p].p)collapsed.delete(p);}
+
+/* -- the viewer follows the map: every build writes a new stamp, and an open viewer that
+   sees one reloads onto the same page. A script tag, so it works from file:// as well. -- */
+function stampAt(v){if(v!==BUILT)location.reload();}
+setInterval(()=>{const s=document.createElement('script');s.src='stamp.js?'+Date.now();
+  s.onload=s.onerror=()=>s.remove();document.head.appendChild(s);},3000);
+function shut(key){for(let p=PAGES[key].p;p!=null&&PAGES[p];p=PAGES[p].p)if(collapsed.has(p))return true;return false;}
+function paint(){const q=filter.value.trim().toLowerCase();
+  for(const a of ROWS){const k=a.dataset.key;
+    a.classList.toggle('hide',q?!a.dataset.find.includes(q):shut(k));
+    a.classList.toggle('open',!collapsed.has(k));}}
 
 /* -- the code pane: what the box is, from the repo at build time ----------- */
 function need(then){if(SRC)return then();
@@ -491,9 +520,7 @@ function copy(t){navigator.clipboard.writeText(t);}
 function toggleLegend(){closeCode();legendPane.classList.toggle('on');}
 
 /* -- search: an index, or a substring of a declaration path ---------------- */
-filter.addEventListener('input',()=>{const q=filter.value.trim().toLowerCase();
-  document.querySelectorAll('#tree a').forEach(a=>
-    a.classList.toggle('hide',!!q&&!a.dataset.find.includes(q)));});
+filter.addEventListener('input',paint);
 filter.addEventListener('keydown',e=>{if(e.key!=='Enter')return;
   const q=filter.value.trim();
   if(PAGES[q]){show(q);return;}
@@ -551,25 +578,47 @@ def emit(out, model, pages, svgs):
                                     + ")", encoding="utf-8")
     # A source line holding `</script>` would close the block early, so the sequence is broken
     # the way it has to be broken in HTML.
+    (out / "stamp.js").write_text(f'stampAt({json.dumps(model.get("built", ""))})', encoding="utf-8")
     page_data = json.dumps(pages).replace("</", "<\\/")
-    rows = []
+    rows, parents = [], {p["p"] for p in pages.values()}
+
+    def depth(key):
+        d, k = 0, pages[key]["p"]
+        while k is not None and k in pages:
+            d, k = d + 1, pages[k]["p"]
+        return d
+
+    # Rows follow the page tree: a row sits directly under the page that opens it.
+    kids = {}
     for key in sorted(pages, key=at):
+        kids.setdefault(pages[key]["p"], []).append(key)
+    order, stack = [], [k for k in reversed(kids.get(None, []))]
+    while stack:
+        key = stack.pop()
+        order.append(key)
+        stack.extend(reversed(kids.get(key, [])))
+    order += [k for k in sorted(pages, key=at) if k not in set(order)]
+    for key in order:
         p = pages[key]
+        twisty = '<span class="tw">&#9656;</span>' if key in parents else ''
         rows.append(f'<a data-key="{escape(key, QUOTE)}" data-find="{escape(p["find"].lower(), QUOTE)}"'
-                    f' data-go="{escape(key, QUOTE)}"><span class="ix">{escape(key)}</span>'
+                    f' data-go="{escape(key, QUOTE)}" style="padding-left:{26 + 11 * depth(key)}px">'
+                    f'{twisty}<span class="ix">{escape(key)}</span>'
                     f'{escape(p["t"].split(" ", 1)[-1])}</a>')
     html = f"""<!doctype html><meta charset="utf-8"><title>SAAM generated map</title>
 <style>{CSS}</style>
 <div id="side">
   <h1>SAAM — the generated map</h1>
-  <div class="sub">{len(pages)} pages, generated {escape(model["generated"])}. Read by
-    <code>read-map INDEX|DECLARATION</code>; drawn by
-    <code>node scripts/dev-map.mjs build</code>.</div>
+  <div class="sub">{len(pages)} pages, stored {escape(model["generated"])}, drawn
+    {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
+    {f'<b style="color:#fda4af">{len(model["stale"])} pages stale</b> — the code has moved since; still readable, marked in red.' if model["stale"] else 'Current with the code.'}
+    Redrawn by every <code>regenerate</code>; this page reloads itself.</div>
   <input id="filter" placeholder="index or declaration path…" autocomplete="off">
   <div id="tree">{''.join(rows)}</div>
 </div>
 <div id="main">
   <div id="bar">
+    <button onclick="document.body.classList.toggle('noside');fit()" title="show or hide the index">&#9776;</button>
     <div id="crumb"></div>
     <span id="stale"></span>
     <button onclick="toggleLegend()">Legend</button>
@@ -588,6 +637,7 @@ def emit(out, model, pages, svgs):
 </div>
 <script>
 const PAGES={page_data};
+const BUILT={json.dumps(model.get("built", ""))};
 {JS}
 </script>
 """

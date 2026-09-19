@@ -8,13 +8,26 @@ import {readGuidance} from './manuals.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-// Areas outside the map: skills, adapters and setup are not core/Studio, so they have their own
-// guidance instead of a region page. Every other `--area` value is a map target — a region path
-// like `core/path`, or its index.
-export const developmentAreas = {
+// Areas outside the map: skills, adapters, setup and the tests are not core/Studio regions, so
+// they have their own guidance instead of a region page. Every other `--area` value is a map
+// target — a region path like `core/path`, or its index.
+export const outsideAreas = {
   mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
   skills: ['skills/AUTHORING.md'], setup: ['SETUP.md']
 };
+// One prose manual per component, beside the code it describes. A builder gets the manual for the
+// area it names; a developer gets none of them, because the map and DEVELOPER-CONTEXT are the
+// developer's whole orientation.
+export const componentManuals = {
+  core: ['core/README.md'], 'core/agent': ['core/agent/README.md'],
+  'core/export': ['core/export/README.md'], 'core/geom': ['core/geom/README.md'],
+  'core/machine': ['core/machine/README.md', 'machines/README.md'],
+  'core/path': ['core/path/README.md'], 'core/print': ['core/print/README.md'],
+  'core/region': ['core/region/README.md'],
+  studio: ['studio/README.md', 'studio/KINEMATICS.md', 'studio/RENDERING.md'],
+  tests: ['core/tests/README.md'] // the tests are documented, but they are not a region of the map
+};
+export const developmentAreas = {...outsideAreas, ...componentManuals};
 const json = async path => JSON.parse(await readFile(path, 'utf8'));
 
 export async function contextPacket(ids) {
@@ -71,19 +84,23 @@ export async function readMaps(keys, options = {}) {
 export async function regenerateMap(target) {
   const {generate} = await import('../../scripts/dev-map/store.mjs');
   const region = target === undefined || target === '0' ? null : String(target).split('.')[0];
-  return generate({region});
+  const result = await generate({region});
+  // The person's viewer follows every regenerate, so it always shows the latest stored map.
+  const {drawView} = await import('../../scripts/dev-map/generated-view.mjs');
+  return {...result, view: await drawView()};
 }
 
-// A developer starts at page `0`; a builder starts at the region it was given. `--area` is
-// either an outside area with its own guidance, or a region of the map.
+// Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
+// manual, skill authoring and the component manual for the area — and may walk that region. A
+// developer reads the map from `0` and one orientation file, and no manual at all.
 export async function onboarding({role, areas = []}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
-  const outside = areas.filter(area => Object.hasOwn(developmentAreas, area));
-  const regions = [...new Set(areas.filter(area => !Object.hasOwn(developmentAreas, area)))];
-  const areaIds = [...new Set(outside.flatMap(area => developmentAreas[area]))];
+  const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));
+  const regions = [...new Set(areas.filter(area => !Object.hasOwn(outsideAreas, area) && area !== 'tests'))];
+  const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
   const ids = role === 'maker' ? ['MAKERS.md', 'skills/README.md', 'core/print/USAGE.md']
-    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/README.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...areaIds]
-    : ['DEVELOPER-CONTEXT.md#orientation', 'BUILDERS.md', ...areaIds];
+    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/README.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...builderAreaIds]
+    : ['DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...regions];
   if (mapKeys.length) {
     const {readIndex, storeDir} = await import('../../scripts/dev-map/store.mjs');
@@ -92,7 +109,8 @@ export async function onboarding({role, areas = []}) {
   const [context, environment, maps] = await Promise.all([contextPacket(ids), environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
   return {role, environment, ...context, maps,
     nextStep: role === 'maker' ? 'Reuse the returned context and choose individual skill manuals when an edit needs them.'
-      : 'Reuse the returned context. Walk the map from the returned page: a region page names its files, a file page its entry points, an entry point what it calls. Read a page with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a page, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references.'};
+      : role === 'builder' ? 'Reuse the returned context. The component manual for the area you are changing owns its behaviour, contracts and limits; read the one for the code you touch. The map owns structure: walk the returned region page for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
+      : 'Reuse the returned context. Walk the map from the returned page: a region page names its files, a file page its entry points, an entry point what it calls. Read a page with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a page, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The component manuals are maker and builder documentation; the map and DEVELOPER-CONTEXT.md are your orientation.'};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }

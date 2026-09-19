@@ -23,12 +23,15 @@ if(command==='flow-evidence') {
 if(command==='regenerate') {
   const {generate}=await import('./dev-map/store.mjs');
   const index=args[0];
-  console.log(JSON.stringify(await generate({repo:root,region:index===undefined||index==='0'?null:String(index).split('.')[0]}),null,1));
+  const result=await generate({repo:root,region:index===undefined||index==='0'?null:String(index).split('.')[0]});
+  const {drawView}=await import('./dev-map/generated-view.mjs');
+  console.log(JSON.stringify({...result,view:await drawView({repo:root})},null,1));
   process.exit(0);
 }
 
-// The whole stored map drawn for a person. It reads the store and never scans, so a store that
-// is missing or behind the source is reported and not repaired here.
+// The whole stored map drawn for a person. It reads the store and never scans. A store behind
+// the source is still drawn, with the pages that moved marked on their own drawings, so the
+// map stays readable while code is being changed; only a missing store is a failure here.
 if(command==='build') {
   if(args.length)throw Error(usage);
   const {buildGeneratedView,regenerate}=await import('./dev-map/generated-view.mjs');
@@ -40,7 +43,6 @@ if(command==='build') {
     console.log(`${result.stale} pages are stale; these files changed since the store was written:`);
     for(const file of result.changed)console.log(`  ${file}`);
     console.log(`Run: ${regenerate}`);
-    process.exit(1);
   }
   process.exit(0);
 }
