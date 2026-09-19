@@ -31,12 +31,11 @@ in the shell template and otherwise reserves roof material for a separate skin.
 |---|---|---|
 | `enabled` | `false` | Select the pattern. |
 | `parts` | `[]` | Assembly components; empty selects all. |
-| `perimeters` | `2` | Maximum inward loops from each boundary per layer. |
+| `perimeters` | `2` | Maximum inward loops from each boundary per layer. Any whole count from zero up is accepted; more than about eight is rarely useful. |
 | `perimeterScope` | `all` | `all` prints outer and hole boundaries; `outer` prints only exterior boundaries while infill remains clipped around holes. |
 | `density` | `0.2` | Zero leaves the interior empty; otherwise 0.01–1 sets approximate interior volume fraction, with spacing = line width / density. |
 | `pattern` | `rectilinear` | Sparse interior pattern, described below. |
-| `sampleStepMm` | `0.2` | Gyroid maximum sampling grid step, also limited to 1/32 of its period. |
-| `maxPatternCells` | `1000000` | Gyroid sampling cells per layer; raise explicitly for larger/finer slices. |
+| `sampleStepMm` | `0.2` | Gyroid maximum sampling grid step, also limited to 1/32 of its period. The cell count follows from this step and the layer's own size; there is no cell budget. |
 | `fillAnglesDeg` | `[45, 135]` | Rectilinear and solid-skin directions alternate by layer. Grid/triangles use the first angle as their stable orientation; concentric/gyroid ignore angles for sparse fill. |
 | `fillOverlap` | `0.15` | Overlap with the inner wall as a fraction of bead width. |
 | `minFeatureMm` | `0.4` | Smallest sampled spline section feature. |

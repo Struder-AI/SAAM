@@ -46,3 +46,14 @@ test('top reference also uses mesh geometry and reverses the relief normal expli
   const mesh=tessellateShell(box),p=referenceSurface({kind:'top',normalSide:-1},mesh)(7,5);
   assert.deepEqual(p.point,[7,5,3]);near(p.normal[2],-1);
 });
+
+test('spline tessellation refines until its tolerance is met, past the retired triangle budget',async()=>{
+  const shell=buildShell(await rhino(),{shape:'spline-top',runMm:20,widthMm:12,cpU:4,cpV:4,
+    heightsMm:[[3,3,3,3],[3,5,5,3],[3,5,5,3],[3,3,3,3]]});
+  // Six patches at 128 steps are 196,608 triangles; the old 100,000-triangle
+  // budget refused this tolerance before any subdivision ran.
+  const mesh=tessellateShell(shell,{toleranceMm:0.001});
+  assert.equal(mesh.tessellation.steps,128);
+  assert.ok(mesh.triangles.length>100000);
+  assert.ok(mesh.tessellation.sampledErrorMm<=0.001);
+});

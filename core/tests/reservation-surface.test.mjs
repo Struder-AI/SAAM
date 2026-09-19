@@ -20,12 +20,17 @@ test('horizontal surface strokes integrate changing first-contact gap with bound
   for(let i=1;i<stroke.points.length;i++)assert.ok(Math.hypot(stroke.points[i][0]-stroke.points[i-1][0],stroke.points[i][1]-stroke.points[i-1][1])<=0.5+1e-9);
   assert.throws(()=>surfaceStroke({points2d:[[0,5],[10,5]],z:0.5,nominalHeightMm:0.2,widthMm:0.4,surface}),/clipping boundary/);
 });
-test('surface sampling sees interior curvature, closes wall strokes and refuses exhausted budgets',()=>{
+test('surface sampling sees interior curvature, closes wall strokes and reports an unresolvable step',()=>{
   const curved={...surface,topAt:x=>0.3+0.1*Math.sin(Math.PI*x/10)};
   const args={points2d:[[0,5],[10,5]],z:0.5,nominalHeightMm:0.3,widthMm:0.4,surface:curved,maxStepMm:0.25,toleranceMm:1e-5};
   const stroke=surfaceStroke(args),expected=0.4*(2-2/Math.PI);
   assert.ok(Math.abs(stroke.volumesMm3.reduce((a,b)=>a+b,0)-expected)<1e-4);
   const closed=surfaceStroke({...args,points2d:rectangle(1,1,2,2),closed:true});assert.deepEqual(closed.points[0],closed.points.at(-1));
-  assert.throws(()=>surfaceStroke({...args,maxSegments:2}),/budget exceeded/);
+  // The retired maxSegments budget (20,000) refused this stroke before it ran.
+  const dense=surfaceStroke({...args,maxStepMm:4e-4});
+  assert.ok(dense.volumesMm3.length>20000);
+  assert.ok(Math.abs(dense.volumesMm3.reduce((a,b)=>a+b,0)-expected)<1e-4);
+  // A step in the published surface is what subdivision cannot resolve.
+  assert.throws(()=>surfaceStroke({...args,surface:{...curved,topAt:x=>x<5?0.3:0.35}}),/does not converge/);
   assert.throws(()=>surfaceStroke({...args,surface:{...curved,topAt:()=>null}}),/does not cover/);
 });

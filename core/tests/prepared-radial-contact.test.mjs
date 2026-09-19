@@ -62,3 +62,12 @@ test('a horizontal mesh ledge permits a continuous centerline transition within 
   assert.ok(Math.hypot(...points[0].map((v,k)=>v-points[2][k]))<.01);
   assert.deepEqual(contact.at([2,0,1]),[2,0,1]);
 });
+
+test('a step the source cannot interpolate is reported as a step, not a spent budget',()=>{
+  const ring=r=>Array.from({length:32},(_,i)=>[r*Math.cos(i*Math.PI/16),r*Math.sin(i*Math.PI/16)]);
+  const contact=prepareRadialSleeveContact({curveAt:z=>contourPath(ring(z<=1?12:10)),anchorAt:()=>[0,0],
+    startMm:.2,endMm:1.8,stepMm:.4,toleranceMm:.1,samples:256});
+  assert.throws(()=>contact.at([15,0,1]),/steps within one representable height/);
+  // The retired depth-16 ceiling stopped long before the height itself ran out.
+  assert.ok(contact.report.maxDepth>16);
+});

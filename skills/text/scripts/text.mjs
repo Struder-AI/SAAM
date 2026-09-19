@@ -1,5 +1,5 @@
 import {requireThat,distance,cross,normalize} from '../../../core/geom/tolerance.mjs';
-import {solidKernel,solidFromMesh,meshFromSolid,combineSolids} from '../../../core/geom/solid.mjs';
+import {solidKernel,solidFromMesh,meshFromSolid,combineSolids,discardSolidKernel,KERNEL_TRIANGLE_CAPACITY} from '../../../core/geom/solid.mjs';
 import {textOutlines} from '../../../core/geom/text-outline.mjs';
 import {textLayout} from '../../../core/geom/text-layout.mjs';
 import {referenceSurface} from '../../../core/geom/reference-surface.mjs';
@@ -33,11 +33,14 @@ function layoutGroup(group,feature,toleranceMm){
     const x=dx.map(v=>v/length),y=[-x[1],x[0]].map(v=>v*(feature.mirror?-1:1));
     map=(u,v)=>anchor.map((p,i)=>p+(u-a[0])*x[i]+(v-a[1])*y[i]);
   }
-  const refine=(a,b,pa,pb,out,depth=0)=>{
+  // The chord tolerance decides the subdivision; it ends when a midpoint is no
+  // longer distinct from its ends, which is reported instead of a depth budget.
+  const refine=(a,b,pa,pb,out)=>{
     const m=a.map((v,i)=>(v+b[i])/2),pm=map(...m),chord=pa.map((v,i)=>(v+pb[i])/2);
+    requireThat(pm.every(Number.isFinite),'Baseline layout produced a non-finite point.');
     if(distance(pm,chord)<=toleranceMm){out.push(pb);return;}
-    requireThat(depth<20,'Baseline layout subdivision exceeded its budget.');
-    refine(a,m,pa,pm,out,depth+1);refine(m,b,pm,pb,out,depth+1);
+    requireThat(m.some((v,i)=>v!==a[i])&&m.some((v,i)=>v!==b[i]),'Baseline layout reached the smallest representable step without meeting its chord tolerance.');
+    refine(a,m,pa,pm,out);refine(m,b,pm,pb,out);
   };
   const loops=group.loops.map(loop=>{const out=[];for(let i=0;i<loop.length;i++){const a=loop[i],b=loop[(i+1)%loop.length];refine(a,b,map(...a),map(...b),out);}return out;});
   // Curve-following layout is still planar: normalize and triangulate after
@@ -59,16 +62,26 @@ function mappedSolid(kernel,loops,map,lower,upper,{maxEdgeMm,toleranceMm,normalS
   let solid=kernel.Manifold.extrude(loops,upper-lower);
   try{
     const shifted=solid.translate([0,0,lower]);solid.delete();solid=shifted;
+    // maxEdgeMm and toleranceMm decide the triangle count. Only a mesh the
+    // 32-bit kernel cannot address at all is refused in advance; an actual
+    // kernel failure discards the aborted instance and names its cause.
     const input=solid.getMesh();let estimated=0;
     const point=id=>Array.from(input.vertProperties.slice(id*input.numProp,id*input.numProp+3));
     for(let i=0;i<input.triVerts.length;i+=3){
       const p=Array.from(input.triVerts.slice(i,i+3),point),n=Math.ceil(Math.max(...p.map((v,j)=>distance(v,p[(j+1)%3])))/maxEdgeMm);
       estimated+=n*n;
     }
-    requireThat(estimated<=100000,'Text subdivision may exceed 100000 triangles; increase maxEdgeMm or shorten the text.');
-    const refined=solid.refineToLength(maxEdgeMm);solid.delete();solid=refined;
-    for(let pass=0;pass<8;pass++){
-      const mesh=solid.getMesh();requireThat(mesh.numTri<=100000,'Text exceeds 100000 triangles; increase maxEdgeMm/toleranceMm or shorten the text.');
+    requireThat(estimated<=KERNEL_TRIANGLE_CAPACITY,`Text subdivision at ${maxEdgeMm} mm needs about ${estimated} triangles, beyond the ${KERNEL_TRIANGLE_CAPACITY} the solid kernel can address; increase maxEdgeMm or shorten the text.`);
+    const grow=(step,what)=>{
+      try{const next=step();solid.delete();return next;}
+      catch(error){discardSolidKernel();throw new Error(`The solid kernel failed while ${what}: ${error.message}. Increase maxEdgeMm or toleranceMm, or shorten the text.`);}
+    };
+    solid=grow(()=>solid.refineToLength(maxEdgeMm),`refining text to ${maxEdgeMm} mm edges`);
+    // Each pass quarters the sampled deviation of a smooth reference, so a pass
+    // that fails to reduce it is reported as a reference that cannot be
+    // resolved rather than counted against a fixed number of passes.
+    for(let previousError=Infinity;;){
+      const mesh=solid.getMesh();
       let error=0;
       const at=id=>Array.from(mesh.vertProperties.slice(id*mesh.numProp,id*mesh.numProp+3));
       for(let i=0;i<mesh.triVerts.length;i+=3){
@@ -88,11 +101,13 @@ function mappedSolid(kernel,loops,map,lower,upper,{maxEdgeMm,toleranceMm,normalS
         finally{if(source!==solid)source.delete();}
         try{meshFromSolid(warped);return warped;}catch(error){warped.delete();throw error;}
       }
-      requireThat(mesh.numTri*4<=100000,'Text refinement exceeds 100000 triangles; increase toleranceMm or reduce reference curvature.');
-      const next=solid.refine(2);solid.delete();solid=next;
+      requireThat(error<previousError*0.9,`Curved text tessellation stopped converging at ${error.toFixed(6)} mm against a ${toleranceMm} mm tolerance; revise the reference or toleranceMm.`);
+      previousError=error;
+      solid=grow(()=>solid.refine(2),'refining curved text against its reference');
     }
-    throw new Error('Curved text tessellation did not converge; revise the reference or toleranceMm.');
-  }finally{solid.delete();}
+    // A discarded kernel cannot free its own solids; releasing this one must not
+    // replace the failure that discarded it.
+  }finally{try{solid.delete();}catch{}}
 }
 
 export async function compileText(base,features,{buildGeometry,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){

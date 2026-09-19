@@ -6,7 +6,7 @@ import {clipReservedRegion,clipAboveSurface} from '../../../core/region/reservat
 import {infillStrokes} from './patterns.mjs';
 import {lineSpacing} from '../../../core/path/spacing.mjs';
 
-export const PLANAR_INFILL_DEFAULTS={spacingFactor:1,perimeters:2,perimeterScope:'all',density:0.2,pattern:'rectilinear',sampleStepMm:0.2,maxPatternCells:1000000,fillAnglesDeg:[45,135],fillOverlap:0.15,minFeatureMm:0.4};
+export const PLANAR_INFILL_DEFAULTS={spacingFactor:1,perimeters:2,perimeterScope:'all',density:0.2,pattern:'rectilinear',sampleStepMm:0.2,fillAnglesDeg:[45,135],fillOverlap:0.15,minFeatureMm:0.4};
 
 // One owner for walls; full-fill owns only selected solid interiors. Neither
 // pattern makes a second toolpath or chooses process parameters at generation.

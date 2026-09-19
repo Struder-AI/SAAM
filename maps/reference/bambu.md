@@ -125,5 +125,44 @@ capped at 250 mm, then settles 2 mm without descending below that lift. Other
 materials in the X1 profile remain setup-review profiles without output.
 
 Software tests cover the round trip, rendered substitutions, package facts,
-bed/material/startup/envelope rejection and cross-model rejection. No Bambu
-Studio program-viewer import and no physical X1 print has been validated.
+bed/material/startup/envelope rejection and cross-model rejection.
+
+**Package facts the X1 Carbon's card loader needs.** `slice_info.config` must
+carry a Bambu Studio release as `X-BBL-Client-Version`: with `SAAM-0.1.0` the
+loader froze for several minutes and then failed without a message, and with
+`02.08.02.61` the same file loaded. `package.clientVersion` in each machine file
+supplies it; SAAM remains identified in the G-code header and the model's
+`Application` metadata. Both XML configs use Bambu Studio's one-element-per-line
+layout; whether the loader needs that is untested. The H2D accepted either
+version string.
+
+**Physical status.** One user-reported X1 Carbon print (58 mm cat, PLA, no
+supports, 2026-09-18) used this contract's G-code inside Bambu Studio's reference
+package, hand-assembled outside the exporter. Bed leveling, vibration testing and
+dynamic flow calibration ran and the part printed well; the purge line could not
+be told apart from the calibration lines. SAAM's own `slice_info.config` with the
+client version above also loaded inside that package, and so did each other SAAM
+entry swapped in singly: the 256 px thumbnails, `project_settings.config`, the
+empty model with `model_settings.config`, the extra `saam.json`, and
+`plate_1.json` with `filament_sequence.json`. The client version is the only cause
+found. The exporter's complete archive then loaded too, with a printer warning that
+the file does not support manual AMS mapping. The warning does not block: the
+printer still pre-selected the spool matching the recorded colour and let the print
+start; only changing the tray on the printer's screen is lost. Bambu Studio's
+reference package around the same G-code gives no such warning, so a package fact
+is missing; which one is not yet known (SAAM's `project_settings.config` omits about
+130 filament/AMS keys Bambu Studio writes, its model has no object, and its
+slice/plate records are minimal). Isolation archives `W1`–`W3` are in
+`Prints/freehand-spline-cat-x1-r2/diagnostics/`, untested. The exporter's archive
+has not itself been printed. A failed load costs the
+operator several minutes, so test package changes from an archive known to load.
+The [diagnosis record](../../DEVLOG.md#2026-09-18--x1-carbon-output-through-the-shared-bambu-exporter)
+lists what is cleared.
+
+**Choosing the spool.** On the X1 Carbon the `M620 S<n>A`/`T<n>` selector names a
+logical filament. When a card print starts, the printer maps it to an AMS tray by
+matching the package's recorded filament type and colour against the loaded
+spools, and the operator can change that on the confirmation screen. So
+`setup.filamentColor` is what steers the choice: set it to the colour of the
+intended spool (a gray label selected the gray spool). `setup.ams` does not pick
+a physical slot from the card; whether it does on the H2D is unverified.

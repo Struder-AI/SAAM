@@ -568,6 +568,7 @@
       },
       "package": {
         "printerModelId": "O1D",
+        "clientVersion": "02.08.02.61",
         "projectSettings": {
           "filament_map_mode": "Manual",
           "nozzle_type": ["hardened_steel", "hardened_steel", "hardened_steel", "hardened_steel", "hardened_steel"]

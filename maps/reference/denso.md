@@ -51,8 +51,9 @@ and a machine/setup identity manifest. It is not a complete WINCAPS project.
 The exporter uses literal `Move L, @0 T(x,y,z,ox,oy,oz,ax,ay,az,figure)` with
 relative `EX((axis,delta))` and requested `Time` milliseconds. `TakeArm`,
 `ChangeTool`, `ChangeWork`, `Set/Reset IO` and off-state `Delay` form the rest of
-the bounded source subset. Helpers cap source blocks at 2,000 statements;
-installed compiler/project limits are not verified. The source must be added
+the bounded source subset. A program of any length is written: helpers split it
+into source blocks of at most 2,000 statements each, called in order, which
+changes no motion; installed compiler/project limits are not verified. The source must be added
 to a correctly configured WINCAPS III RC8 project and compiled/transferred there.
 RC8 solves Cartesian IK using its installed tool/work definitions and figure.
 
@@ -71,6 +72,10 @@ The same browser-safe interpreter reads the actual T, EX, TIME and IO commands
 from the checked ZIP. Comments supply process identity and volume intent only,
 never playback coordinates. It reconstructs deposition relative to the bed,
 including a fixed-room TCP tracing a curve during multiple rotary revolutions.
+A program of any length is read: each command subdivides as far as its own sweep
+and travel require, and the reader fails only when a source keeps executing
+statements without emitting motion or a process event for longer than the whole
+loaded package could run straight through.
 Studio defaults to a rotating bed/material view; **Follow build plate** uses
 the same data with a stationary part. The nozzle is shown without invented
 joint animation. Playback assumes synchronized linear Cartesian/rotary progress

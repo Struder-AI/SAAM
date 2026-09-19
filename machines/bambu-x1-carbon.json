@@ -815,6 +815,7 @@
       },
       "package": {
         "printerModelId": "BL-P001",
+        "clientVersion": "02.08.02.61",
         "projectSettings": {
           "filament_map_mode": "Auto For Flush",
           "filament_nozzle_map": [

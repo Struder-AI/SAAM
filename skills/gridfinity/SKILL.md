@@ -200,9 +200,9 @@ errors, text composition, assemblies, CLI/MCP access and the shared review/expor
 lifecycle. Synthetic approvals remain confined to temporary test bundles.
 These are software checks; no physical print has been validated. Label ramps,
 screw holes, scoops, half-grid variants and arbitrary object-shaped insert
-cutouts are not implemented. The shared 100000-triangle and intersection-check
-budgets still apply; refine or simplify explicitly when a construction exceeds
-them.
+cutouts are not implemented. Construction takes the triangles and intersection
+tests its geometry needs; the only refusal is a subdivision the solid kernel
+cannot address, and no construction is simplified silently.
 
 Dated implementation checks and Studio observations are in the
 [development record](references/development-record.md).

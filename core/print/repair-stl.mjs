@@ -31,7 +31,7 @@ async function prepare(source,options){
   progress({stage:'read-source'});const input=typeof source==='string'?await decodeSTLFile(source,{units,signal,progress}):decodeSTL(source,{units});
   const sourceHash=input.sha256??hash(source),clean=cleanTriangleSoup(input);let result,sourceError;
   progress({stage:'cleanup'});
-  try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_BUDGET')throw error;sourceError=error.message;}
+  try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
   if(!result)result=await repairMeshNative(clean,options);
   signal?.throwIfAborted();progress({stage:'validate',triangles:result.triangles.length});makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);
   const changes=shapeChanges(clean,result,progress,signal);

@@ -75,9 +75,11 @@ not a proof of geometric contact or compatible material ownership.
 | `toleranceMm` | 0.01 | Local integration/chord and terminal residual sampling tolerance. |
 | `sampleStepMm` | 0.5 | Maximum XYZ chord length during surface construction and output refinement. |
 | `propagationStepMm` | 0.1 | Maximum internal advance before re-clipping to the allowed region. |
-| `maxWaves` | 1000 | Maximum fronts per slice. |
-| `maxPoints` | 200000 | Maximum emitted surface samples per slice. |
-| `maxEvaluations` | 2000000 | Aggregate surface evaluation budget per slice. |
+
+A slice has no front, point or evaluation budget. Fronts continue until the
+assigned material is covered or its terminal residue is resolved; a front that
+fails to enlarge the covered area reports that the seed cannot reach the rest of
+the slice. The report still carries the actual wave, point and evaluation counts.
 
 Spacing and bead width are separate because lateral attachment usually needs
 overlap. Choose them together; no material-specific adhesion rule is imposed.
@@ -110,8 +112,8 @@ scaled using sampled native derivatives to the physical
 tolerance. `residualRoundingBandUv` records that diagnostic band's width; the
 actual sampled diameter is still reported. This check does not advance a front
 or emit the rim strips. Larger unreachable regions fail
-generation with a seed/region recovery message. Budget errors name the setting
-to increase and do not save a successful partial program.
+generation with a seed/region recovery message. A slice has no work budget to
+exhaust; a failure names its own cause and saves no partial program.
 Collapsed closed contours or caps returning to the same domain edge are excluded
 when their sampled width is at most `toleranceMm / 4`; their UV geometry and width
 remain in `sliverContours`. Boundary coverage is not certified: the final front

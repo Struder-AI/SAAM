@@ -28,6 +28,21 @@ test('line-network rejects centerlines outside the selected tool bounds',async()
   const r=await rhino();assert.throws(()=>generatePath(plan,machine,r),/Line network panel exceeds the selected tool bounds/);
 });
 
+test('an authored frame past the retired count limits validates on its own shape',()=>{
+  const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.geometry=boxMesh();plan.placement={xMm:80,yMm:80};
+  for(const settings of Object.values(plan.skills))settings.enabled=false;
+  // 24 groups of 120 strokes, one of them a 2,000-point curve, over 40 courses:
+  // past the retired 20 group, 100 stroke, 1,000 point and 10 course limits.
+  const curve=Array.from({length:2000},(_,i)=>[i/200,Math.sin(i/50)]);
+  const networks=Array.from({length:24},(_,n)=>({id:'frame-'+n,strokes:Array.from({length:120},(_,s)=>
+    s?{closed:false,points:[[s/10,0],[s/10,10]]}:{closed:false,points:curve})}));
+  Object.assign(plan.skills['line-network'],{enabled:true,layers:40,networks});
+  validatePlan(plan,machine);
+  // A prime line with more passes than the retired eight is equally ordinary.
+  plan.process.primeLine={passes:Array.from({length:12},(_,i)=>({startMm:[10,10+i],endMm:[40,10+i],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:20}))};
+  validatePlan(plan,machine);
+});
+
 test('line-network supports course-specific reinforcement strokes',async()=>{
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.geometry=boxMesh();plan.placement={xMm:80,yMm:80};
   for(const settings of Object.values(plan.skills))settings.enabled=false;

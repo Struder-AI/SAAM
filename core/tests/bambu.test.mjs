@@ -166,7 +166,9 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const project=JSON.parse(entries.get('Metadata/project_settings.config')),slice=entries.get('Metadata/slice_info.config').toString();
   assert.equal(project.printer_model,'Bambu Lab X1 Carbon');assert.equal(project.printer_settings_id,'Bambu Lab X1 Carbon 0.4 nozzle');
   assert.deepEqual([project.nozzle_diameter,project.physical_extruder_map,project.filament_map_mode],[['0.4'],['0'],'Auto For Flush']);
-  assert.match(slice,/key="printer_model_id" value="BL-P001"/);assert.match(slice,/key="extruder_type" value="0"/);assert.match(slice,/key="nozzle_diameters" value="0.4"/);
+  assert.match(slice,/key="printer_model_id" value="BL-P001"/);
+  // The X1 Carbon's card loader hangs on a client version it cannot read as a Bambu Studio release.
+  assert.match(slice,/<header_item key="X-BBL-Client-Version" value="02\.08\.02\.61"\/>\n/);assert.match(slice,/key="extruder_type" value="0"/);assert.match(slice,/key="nozzle_diameters" value="0.4"/);
 
   const cool=structuredClone(plan);cool.setup.bedC=45;assert.throws(()=>exportProgram(path,cool,machine,release),/bed temperature of 46–70 C/);
   const petg=structuredClone(plan);Object.assign(petg.setup,{material:'PETG',nozzleC:250,bedC:70});assert.throws(()=>exportProgram(path,petg,machine,release),/requires a declared 0\.4 mm PLA setup/);

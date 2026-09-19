@@ -20,13 +20,12 @@ const midpoint=(a,b)=>a.map((x,k)=>(x+b[k])/2);
 const distance=(a,b)=>Math.hypot(...a.map((x,k)=>x-b[k]));
 
 export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
-  toleranceMm=0.01, maxStepMm=0.5, precisionUv=1e-10, maxEvaluations=250000,
+  toleranceMm=0.01, maxStepMm=0.5, precisionUv=1e-10,
   constraintLoopsUv=null
 }={}) {
   requireThat(Number.isFinite(deltaMm), 'Surface offset distance must be finite.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxStepMm)&&maxStepMm>0,
     'Surface offset toleranceMm and maxStepMm must be positive and finite.');
-  requireThat(Number.isSafeInteger(maxEvaluations)&&maxEvaluations>0, 'Surface offset maxEvaluations must be a positive integer.');
   requireThat(patch?.cp && patch.domainU && patch.domainV, 'Surface offset requires a native NURBS patch.');
   // Geodesic ODE needs a continuous second derivative through internal knots.
   for(const [knots,order,domain] of [[patch.knotsU,patch.orderU,patch.domainU],[patch.knotsV,patch.orderV,patch.domainV]]) {
@@ -41,7 +40,7 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
       return x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
     });
     const key=uv.join(','); if(cache.has(key))return cache.get(key);
-    requireThat(++evaluations<=maxEvaluations,`Surface offset exhausted maxEvaluations=${maxEvaluations}; increase maxEvaluations to retain the requested tolerance.`);
+    evaluations++;
     const result=surfaceDerivatives(patch,...uv);cache.set(key,result);return result;
   };
   const origin=constraintLoopsUv===null?null:[patch.domainU[0],patch.domainV[0]];
@@ -196,7 +195,7 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
         triangle(p,q,t);triangle(p,t,s);
       }
     };
-    const subdivide=(lo,hi,depth=0)=>{
+    const subdivide=(lo,hi)=>{
       const l=sample(lo),r=sample(hi),mid=(lo+hi)/2,m=sample(mid);
       let error=distance(m.point,midpoint(l.point,r.point));
       for(const side of ['offset']) {
@@ -204,8 +203,8 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
         error=Math.max(error,distance(at(s).point,at(midpoint(p,q)).point));
       }
       if((error>toleranceMm/4||distance(l.point,r.point)>maxStepMm)&&!(constraint!==null&&distance(l.point,r.point)<=toleranceMm*1e-3)) {
-        requireThat(depth<30,'Surface offset subdivision cannot resolve the requested tolerance.');
-        subdivisions++;subdivide(lo,mid,depth+1);subdivide(mid,hi,depth+1);
+        requireThat(mid>lo&&mid<hi,'Surface offset subdivision cannot resolve the requested tolerance: the strip parameter is one representable step wide.');
+        subdivisions++;subdivide(lo,mid);subdivide(mid,hi);
       }else {connect(l,r,'offset');}
     };
     subdivide(0,1);
@@ -226,11 +225,11 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
       if(!rays.has(angle))rays.set(angle,shoot(uv,x.map((v,k)=>v*Math.cos(angle)+y[k]*Math.sin(angle))));
       return rays.get(angle);
     };
-    const sector=(a,b,depth=0)=>{
+    const sector=(a,b)=>{
       const p=ray(a).at(-1),q=ray(b).at(-1),m=ray((a+b)/2).at(-1);
       if(distance(at(m).point,at(midpoint(p,q)).point)>toleranceMm/4&&!(constraint!==null&&radius*Math.abs(b-a)<=toleranceMm*1e-3)) {
-        requireThat(depth<20,'Surface offset disk cannot resolve the requested tolerance.');
-        subdivisions++;sector(a,(a+b)/2,depth+1);sector((a+b)/2,b,depth+1);
+        requireThat((a+b)/2!==a&&(a+b)/2!==b,'Surface offset disk cannot resolve the requested tolerance: the sector is one representable step of angle.');
+        subdivisions++;sector(a,(a+b)/2);sector((a+b)/2,b);
       }else {
         // Radial fan strips retain the geodesic sweep if its UV rays bend.
         const l=ray(a),r=ray(b),n=Math.max(l.length,r.length)-1;
@@ -268,6 +267,6 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
   return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',
-    toleranceMm,precisionUv,evaluations,maxEvaluations,integrationSteps:integrations,subdivisions,
+    toleranceMm,precisionUv,evaluations,integrationSteps:integrations,subdivisions,
     inverseMappings:0,bandTriangles:bands.length,boundaryStops,simplificationUv}};
 }

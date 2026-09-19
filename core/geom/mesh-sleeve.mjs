@@ -78,7 +78,7 @@ export function detectMeshSleeveInterval(mesh,{
 export function fitMeshSleeve(mesh,{
   zMinMm=mesh?.bounds?.min[2],zMaxMm=mesh?.bounds?.max[2],
   circumferentialControls=12,heightControls=6,circumferentialSamples=96,heightSamples=25,
-  toleranceMm=0.02,maxSectionPoints=16384,maxSecondaryAreaFraction=0.001
+  toleranceMm=0.02,maxSecondaryAreaFraction=0.001
 }={}){
   requireThat(mesh?.kind==='triangle-mesh','Mesh sleeve fitting requires validated triangle-mesh geometry.');
   requireThat(Number.isFinite(zMinMm)&&Number.isFinite(zMaxMm)&&zMaxMm>zMinMm&&zMinMm>=mesh.bounds.min[2]&&zMaxMm<=mesh.bounds.max[2],
@@ -87,7 +87,7 @@ export function fitMeshSleeve(mesh,{
   requireThat(Number.isFinite(maxSecondaryAreaFraction)&&maxSecondaryAreaFraction>=0&&maxSecondaryAreaFraction<=.05,
     'Mesh sleeve maxSecondaryAreaFraction must be between zero and 0.05.');
   for(const [name,count,min,max] of [['circumferentialControls',circumferentialControls,4,64],['heightControls',heightControls,4,64],
-    ['circumferentialSamples',circumferentialSamples,16,1024],['heightSamples',heightSamples,4,257],['maxSectionPoints',maxSectionPoints,16,100000]])
+    ['circumferentialSamples',circumferentialSamples,16,1024],['heightSamples',heightSamples,4,257]])
     requireThat(Number.isInteger(count)&&count>=min&&count<=max,`Mesh sleeve ${name} must be an integer from ${min} to ${max}.`);
   requireThat(circumferentialSamples>=2*circumferentialControls&&heightSamples>=heightControls,
     'Mesh sleeve fitting needs at least twice as many circumferential samples as controls and at least as many height samples as controls.');
@@ -149,7 +149,7 @@ export function fitMeshSleeve(mesh,{
     secondDerivativeBound=Math.max(secondDerivativeBound,Math.hypot(...second));
   }
   const sectionSegments=n*Math.max(1,Math.ceil(Math.sqrt(secondDerivativeBound/(8*toleranceMm))/n));
-  requireThat(sectionSegments<=maxSectionPoints,'Fitted sleeve section exceeds maxSectionPoints; no complete section was produced.');
+  requireThat(Number.isSafeInteger(sectionSegments),'Fitted sleeve toleranceMm is too fine to resolve a representable section point count.');
   const sectionChordBoundMm=secondDerivativeBound/(8*sectionSegments*sectionSegments);
   function sectionAt(z){
     if(fittedCache.has(z))return fittedCache.get(z);

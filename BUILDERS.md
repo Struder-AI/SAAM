@@ -342,7 +342,9 @@ geometry, toolpathing or extrusion gate has ambiguous value or placement, discus
 its failure case, evidence, cost and alternatives within existing authorization.
 A maker's judgment about a print does not itself change general product policy.
 Resource-budget failures should state the limit and how to raise it, leaving
-geometry and quality choices explicit.
+geometry and quality choices explicit. Before adding any count, size or elapsed-time
+limit, read [limits that adapt, and limits that are kept](maps/reference/system.md#limits-that-adapt-and-limits-that-are-kept),
+which owns the rule and the register of limits deliberately retained.
 
 ## Reproducible examples
 

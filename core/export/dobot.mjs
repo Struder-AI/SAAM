@@ -3,7 +3,7 @@
 // Cartesian command space only: this is not robot IK or a measured flow model.
 import {createHash} from 'node:crypto';
 import {packZip,unpackZip} from './zip.mjs';
-import {interpretDobotFiles,DOBOT_LIMITATIONS,config,num,transform,inside,equal} from './dobot-player.mjs';
+import {interpretDobotFiles,DOBOT_LIMITATIONS,WAIT_COMMAND_MS,config,num,transform,inside,equal} from './dobot-player.mjs';
 export {motionProfile,DOBOT_LIMITATIONS} from './dobot-player.mjs';
 import {validatePath} from './griffin.mjs';
 import {requireThat,distance} from '../geom/tolerance.mjs';
@@ -29,7 +29,11 @@ export function exportDobot(path,plan,machine,release={}){
       lines.push(`  MovL(P(${a.to.map(num).join(',')}),{SpeedL=${num(percent)},AccL=${num(c.accelerationPercent)},CP=0}) -- SAAM ${JSON.stringify(label)}`);
       from=a.to;
     }else if(a.kind==='dwell'){
-      switchRelay(false);lines.push('  Sync()',`  Wait(${num(a.seconds*1000)})`);
+      // A longer pause is the same pause in commands the controller accepts;
+      // the parts sum to the requested milliseconds, so it is not shortened.
+      switchRelay(false);lines.push('  Sync()');
+      let remaining=a.seconds*1000;
+      do{const part=Math.min(remaining,WAIT_COMMAND_MS);lines.push(`  Wait(${num(part)})`);remaining-=part;}while(remaining>0);
     }else if(['retract','recover'].includes(a.kind))requireThat(a.filamentMm===0,'Dobot relay extrusion cannot retract or recover filament.');
     else if(a.kind==='fan')requireThat(a.percent===0,'Dobot output has no fan control.');
     else throw new Error(`Unsupported Dobot action ${a.kind}.`);

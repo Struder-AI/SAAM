@@ -285,9 +285,14 @@ Request-level `toleranceMm` defaults to 0.02 mm for outline flattening and sampl
 surface chord refinement; `maxEdgeMm` defaults to 1 mm before warping. These are
 construction controls, not a certified global surface error bound. Tight folds,
 offset self-intersections, singular surfaces, mismatched target seams, and meshes
-outside shared validation limits can fail. The current mesh ceiling is 100000
-triangles. Errors leave the saved print unchanged; revise the geometry or quality
-settings rather than treating a failed mesh as printable.
+outside shared validation limits can fail. There is no chosen triangle ceiling:
+the mesh is as large as `maxEdgeMm`, `toleranceMm` and the reference curvature
+require. Only a subdivision too large for the 32-bit solid kernel to address is
+refused in advance, and an actual kernel failure names the setting that caused
+it. Refinement stops when a pass no longer reduces the sampled deviation, which
+is reported as a reference that cannot be resolved. Errors leave the saved print
+unchanged; revise the geometry or quality settings rather than treating a failed
+mesh as printable.
 
 The [geometry reference](../../core/geom/README.md#text-and-solid-modifiers)
 owns algorithms and precision limits. Tests establish software behavior, not

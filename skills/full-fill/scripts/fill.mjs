@@ -38,13 +38,17 @@ export const FULL_FILL_DEFAULTS = {
 };
 
 // Layer heights from the first layer up to the top of what this skill prints.
+// The part's height and the layer height decide how many there are; a tall or
+// finely layered part is sliced, never refused. A non-advancing layer height
+// would never reach the top, so it is rejected as an invalid process.
 export function layerHeights(process, fromMm, toMm) {
+  requireThat(Number.isFinite(process.layerMm) && process.layerMm > 0 && Number.isFinite(process.firstLayerMm),
+    'Layer heights need a positive layer height; this process would never advance.');
   const heights = [];
   for (let index = 0; ; index++) {
     const z = fromMm + process.firstLayerMm + index * process.layerMm;
     if (z > toMm + 1e-9) break;
     heights.push(z);
-    if (heights.length > 20000) throw new Error('Layer count exceeds the supported limit.');
   }
   return heights;
 }

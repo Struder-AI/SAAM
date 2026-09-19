@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {defaults} from '../../../core/print/plan.mjs';
+import {defaults,validatePlan} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
@@ -22,6 +22,21 @@ test('sparse and solid partners clip a shared reservation only once per layer',(
     assert.deepEqual(results.map(r=>r.operations.map(op=>op.strokes)),expected.map(r=>r.operations.map(op=>op.strokes)));
     assert.ok(results.some(r=>r.operations.length));
   }
+});
+
+test('a wall count above the rarely-useful advice is accepted and printed',async()=>{
+  // Eight walls is manual advice, not a ceiling; ten walls must generate.
+  const r=await rhino(),machine=loadMachine(),plan=defaults(machine);
+  plan.geometry={shape:'box',runMm:16,widthMm:14,heightMm:1};plan.process.minimumLayerSeconds=0;
+  plan.skills['draped-skin'].enabled=false;
+  Object.assign(plan.skills['planar-infill'],{enabled:true,perimeters:10});
+  Object.assign(plan.skills['full-fill'],{mode:'solid-surfaces',bottomLayers:0,topLayers:0});
+  validatePlan(plan,machine);
+  const walls=n=>{const p=structuredClone(plan);p.skills['planar-infill'].perimeters=n;
+    return generatePath(p,machine,r).actions.filter(a=>a.volumeMm3>0&&a.role?.startsWith('perimeter')).length;};
+  assert.ok(walls(10)>walls(2),'ten walls deposit more than two');
+  plan.skills['planar-infill'].perimeters=-1;
+  assert.throws(()=>validatePlan(plan,machine),/Infill perimeters/);
 });
 
 test('zero infill makes an open vessel with planar walls and a solid base through both exporters',async()=>{

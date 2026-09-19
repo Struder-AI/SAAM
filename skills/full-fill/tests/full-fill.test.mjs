@@ -5,7 +5,7 @@ import rhino3dm from 'rhino3dm';
 import { defaults } from '../../../core/print/plan.mjs';
 import { buildShell, translateShell } from '../../../core/print/generate.mjs';
 import { PathBuilder } from '../../../core/path/builder.mjs';
-import { generateFullFill,fullFillResult } from '../scripts/fill.mjs';
+import { generateFullFill,fullFillResult,layerHeights } from '../scripts/fill.mjs';
 import { sectionShell } from '../../../core/geom/shell.mjs';
 import { regionArea } from '../../../core/region/region2d.mjs';
 
@@ -30,6 +30,15 @@ test('machine wall precision changes deposition only and rebuilds variable-gap m
     assert.ok(Math.abs(stroke.volumesMm3[i-1]-expected)<1e-10);
     assert.ok(Math.abs(stroke.segmentMetadata[i-1].gapMm-(ga+gb)/2)<1e-10);
   }
+});
+
+test('layer heights follow the part and the layer height, with no supported layer limit',()=>{
+  const process={firstLayerMm:0.2,layerMm:0.06};
+  // 1800 mm at the finest layer height: far past the retired 20,000-layer cap.
+  const heights=layerHeights(process,0,1800);
+  assert.equal(heights.length,29997);
+  assert.ok(Math.abs(heights.at(-1)-1799.96)<1e-9);
+  assert.throws(()=>layerHeights({firstLayerMm:0.2,layerMm:0},0,10),/never advance/);
 });
 
 const rhino = await rhino3dm();
@@ -164,4 +173,15 @@ test('an unsupported layer height or missing setting is rejected before generati
   const spelling = planFor({ shape: 'box', runMm: 20, widthMm: 15, heightMm: 3 });
   spelling.skills['full-fill'].perimiters = 2;
   assert.throws(() => validatePlan(spelling, machine), /Unexpected or missing fields/);
+});
+
+test('a wall count above the rarely-useful advice is accepted and printed', async () => {
+  const { validatePlan } = await import('../../../core/print/plan.mjs');
+  const geometry = { shape: 'box', runMm: 20, widthMm: 15, heightMm: 1 };
+  const plan = planFor(geometry, { perimeters: 10 });
+  validatePlan(plan, machine);
+  const closedOn = result => result.path.actions.filter(a => a.volumeMm3 > 0 && a.role?.startsWith('perimeter') && a.to[2] < plan.process.firstLayerMm + 1e-9).length;
+  assert.ok(closedOn(run(plan)) > closedOn(run(planFor(geometry, { perimeters: 2 }))), 'ten loops deposit more wall than two');
+  const negative = planFor(geometry, { perimeters: -1 });
+  assert.throws(() => validatePlan(negative, machine), /perimeters must be zero or more/);
 });

@@ -10,13 +10,17 @@ const distanceToSegment=(p,a,b)=>{
   const t=length?Math.max(0,Math.min(1,q.reduce((s,v,i)=>s+v*d[i],0)/length)):0;
   return Math.hypot(...p.map((v,i)=>v-a[i]-t*d[i]));
 };
-export function flattenBezier(points,toleranceMm,output,depth=0,parameters=null,t0=0,t1=1){
+// Subdivision ends on the flatness tolerance, which control-point convergence
+// reaches for any finite curve. The only real failure is a parameter interval
+// too small to halve again, which is reported as such.
+export function flattenBezier(points,toleranceMm,output,parameters=null,t0=0,t1=1){
+  requireThat(points.every(p=>p.every(Number.isFinite)),'Text curve control point is not finite.');
   if(points.slice(1,-1).every(p=>distanceToSegment(p,points[0],points.at(-1))<=toleranceMm)){output.push(points.at(-1));parameters?.push(t1);return;}
-  requireThat(depth<24,'Text curve subdivision exceeded its depth budget.');
   const left=[points[0]],right=[points.at(-1)];let row=points;
   while(row.length>1){row=row.slice(1).map((p,i)=>midpoint(row[i],p));left.push(row[0]);right.unshift(row.at(-1));}
   const tm=(t0+t1)/2;
-  flattenBezier(left,toleranceMm,output,depth+1,parameters,t0,tm);flattenBezier(right,toleranceMm,output,depth+1,parameters,tm,t1);
+  requireThat(tm>t0&&tm<t1,'Text curve subdivision reached the smallest representable parameter step without meeting its flatness tolerance.');
+  flattenBezier(left,toleranceMm,output,parameters,t0,tm);flattenBezier(right,toleranceMm,output,parameters,tm,t1);
 }
 export function textOutlines(feature,toleranceMm){
   const bytes=Buffer.from(feature.font.data,'base64');

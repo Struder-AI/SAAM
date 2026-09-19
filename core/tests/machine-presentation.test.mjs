@@ -12,6 +12,10 @@ test('DENSO drawing zero pose and base quarter turn give independent centerline 
   const g=densoGeometry(),a=densoForward(g,[0,0,0,0,0,0]),b=densoForward(g,[90,0,0,0,0,0]);
   assert.deepEqual(a.tcp,[350,0,565]);near(b.tcp[0],0);near(b.tcp[1],350);near(b.tcp[2],565);
   const solve=densoInverse(g,{tcp:b.tcp,rotation:b.rotation},{seed:[88,1,-1,2,1,-2]});assert.ok(solve.valid,solve.errors.join());solve.tcp.forEach((v,i)=>near(v,b.tcp[i],1e-4));
+  // An unreachable pose ends on a residual that stops improving, not on a spent
+  // iteration count: the retired ceiling gave up after 90 steps.
+  const far=densoInverse(g,{tcp:[5000,0,565],rotation:b.rotation},{seed:[88,1,-1,2,1,-2]});
+  assert.equal(far.valid,false);assert.match(far.errors[0],/stopped approaching the requested pose/);
 });
 test('source-time Euler interpolation, reverse seek and dwell are deterministic',()=>{
   const p=interpretMachineStudy({schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:[0,0,20],anglesDeg:[0,0,0]},moves:[{tcp:[5,5,25],anglesDeg:[20,20,0],seconds:2},{tcp:[5,5,25],anglesDeg:[20,20,0],seconds:1}]});

@@ -21,7 +21,11 @@ test('fitted sections share a stable parameter grid with a height-wide cubic cho
       assert.ok(error<=fit.report.sectionChordBoundMm+1e-10,`chord discrepancy ${error}`);
     }
   }
-  assert.throws(()=>fitMeshSleeve(flutedVase(),{toleranceMm:1e-7,maxSectionPoints:16}),/maxSectionPoints/);
+  // The retired maxSectionPoints allowance (16,384) refused this tolerance.
+  const fine=fitMeshSleeve(flutedVase(),{toleranceMm:1e-7});
+  assert.ok(fine.report.sectionSegments>16384);
+  assert.ok(fine.report.sectionChordBoundMm<=1e-7);
+  assert.equal(fine.sectionAt(5).outer.length,fine.report.sectionSegments);
 });
 
 test('Householder fit recovers an affine signal, respects least-squares orthogonality and rejects rank loss',()=>{

@@ -519,7 +519,12 @@ prints reuses the instance and its browser tab.
 ## Importing an STL in Studio
 
 **Import STL** opens the native file picker directly and accepts a local ASCII
-or binary STL up to 64 MiB. It assumes units from the loaded size without a popup,
+or binary STL up to 64 MiB. That upload bound is an input-safety limit on the HTTP
+boundary, not a geometry budget; it is about 1,342,000 triangles of binary STL and
+is the only size limit Studio import applies. MCP `import_stl_print` applies the
+same 64 MiB bound to the local file it is given; the CLI and the agent toolkit
+apply none and are bounded only by the memory the machine actually has.
+It assumes units from the loaded size without a popup,
 shows that assumption beside geometry dimensions, and allows correction in chat.
 The provisional policy is [D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption).
 Studio preserves source bytes and uses the
@@ -562,7 +567,7 @@ Sources: [import-stl.mjs](../../studio/import-stl.mjs).
 
 **Contract.** Import reserves a unique new print directory, validates supported STL names/units and the 64 MiB upload limit, resolves paths inside the library and calls core `importOrRepairSTLBundle`, which runs in the shared mesh repair worker job. Strict import precedes repair; only recognized geometry defects enter the repair fallback, with hole closing disabled. Studio maps the job's stage codes to browser progress labels and builds the repair summary from the retained report. Original/repaired source and repair report are retained when applicable. New imports have no human approval.
 
-**Failures.** Invalid input, setup and memory-budget errors do not trigger repair. On failure/cancellation the core job settles once, after terminating its worker, and the coordinator then removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
+**Failures.** Invalid input, setup and exhausted-memory errors do not trigger repair; only recognized geometry defects do, and a mesh is never refused for its predicted size. On failure/cancellation the core job settles once, after terminating its worker, and the coordinator then removes only the newly reserved directory it owns. Existing prints must never be cleaned up as failed imports.
 
 **Change together.** Coordinate print-name rules, core import/repair worker protocols, plan creation and browser progress. Directory reservation and worker termination order are part of the transaction boundary.
 

@@ -50,19 +50,21 @@ export function planarSupportTopAt(supports,process) {
 function surfaceField(shell,query,step=0.5) {
   const [minX,minY]=shell.bounds.min,[maxX,maxY]=shell.bounds.max;
   const nx=Math.max(2,Math.ceil((maxX-minX)/step)),ny=Math.max(2,Math.ceil((maxY-minY)/step));
-  requireThat((nx+3)*(ny+3)<=1000000,'Published surface sampling budget exceeded.');
   const xs=Array.from({length:nx+3},(_,i)=>minX+(maxX-minX)*(i-1)/nx),ys=Array.from({length:ny+3},(_,i)=>minY+(maxY-minY)*(i-1)/ny);
   const values=xs.map(x=>ys.map(y=>query(x,y)));
   // The footprint bounds material ownership. Extend the numeric field outside
   // it to keep interpolation at its edge from introducing an artificial cliff.
-  for(let pass=0;pass<Math.max(nx,ny)+4;pass++) {
-    let changed=false;const next=values.map(row=>[...row]);
-    for(let i=0;i<xs.length;i++)for(let j=0;j<ys.length;j++)if(values[i][j]===null) {
-      const neighbors=[[i-1,j],[i+1,j],[i,j-1],[i,j+1]].map(([a,b])=>values[a]?.[b]).filter(Number.isFinite);
-      if(neighbors.length){next[i][j]=neighbors.reduce((a,b)=>a+b,0)/neighbors.length;changed=true;}
-    }
-    for(let i=0;i<values.length;i++)values[i]=next[i];
-    if(!changed)break;
+  // Each pass fills the cells touching the previous pass's values, so the fill
+  // walks its own front instead of sweeping the whole grid once per pass.
+  const around=(i,j)=>[[i-1,j],[i+1,j],[i,j-1],[i,j+1]];
+  let front=[];
+  for(let i=0;i<xs.length;i++)for(let j=0;j<ys.length;j++)if(Number.isFinite(values[i][j]))front.push([i,j]);
+  while(front.length) {
+    const candidates=new Map();
+    for(const [i,j] of front)for(const [a,b] of around(i,j))if(values[a]?.[b]===null)candidates.set(a*ys.length+b,[a,b]);
+    const filled=[...candidates.values()].map(([i,j])=>[i,j,around(i,j).map(([a,b])=>values[a]?.[b]).filter(Number.isFinite)]);
+    for(const [i,j,neighbors] of filled)values[i][j]=neighbors.reduce((a,b)=>a+b,0)/neighbors.length;
+    front=filled.map(([i,j])=>[i,j]);
   }
   requireThat(values.every(row=>row.every(Number.isFinite)),'No complete material top can be published for this region.');
   return {xs,ys,values};

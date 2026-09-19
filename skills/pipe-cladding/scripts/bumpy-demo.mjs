@@ -18,7 +18,7 @@ export function bumpyPlan(){
   }));
   plan.geometry={shape:'spline-tube',innerRadiusMm:8,heightMm:height,controlPoints};
   plan.skills['full-fill'].perimeters=3;plan.skills['full-fill'].fillOverlap=.15;
-  Object.assign(plan.skills['pipe-cladding'],{shells:6,sampleStepMm:.65,toleranceMm:.01,maxPoints:500000,
+  Object.assign(plan.skills['pipe-cladding'],{shells:6,sampleStepMm:.65,toleranceMm:.01,
     surface:{kind:'spline',patch:'outer',periodicU:true,normalSide:1,uvBounds:[[0,16],[0,1]]}});
   return plan;
 }

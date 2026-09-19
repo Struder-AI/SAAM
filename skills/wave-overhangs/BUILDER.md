@@ -93,7 +93,7 @@ decision; this work does not silently relicense SAAM.
 
 [Wave tests](tests/wave.test.mjs) use analytical inclined/rescaled planes, an
 independently unrolled rational cylinder, a doubly curved polynomial surface,
-holes, seeded/disconnected islands, budgets and shared composition/export.
+holes, seeded/disconnected islands, unbudgeted propagation and shared composition/export.
 Regressions require complete saddle fronts, a single deposited stroke per
 accepted slice, no internal rapid moves/dwells in exported G-code, and rejection
 of hole branches that would require separate passes.

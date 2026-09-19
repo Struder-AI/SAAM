@@ -99,9 +99,9 @@ n0 > out | compose rigid transforms result | data
 box n1 | 8.9.2 | validate rigid frame | @core/machine/rigid.mjs::validateRigid
 in > n1 | validate rigid frame inputs | data
 n1 > out | validate rigid frame result | data
-box n2 | 8.9.3 | sample Dobot joints | @core/machine/dobot-kinematic-player.mjs::sampleDobotProgram
-in > n2 | sample Dobot joints inputs | data
-n2 > out | sample Dobot joints result | data
+box n2 | 8.9.3 | invert rigid transform | @core/machine/rigid.mjs::invert
+in > n2 | invert rigid transform inputs | data
+n2 > out | invert rigid transform result | data
 ```
 
 
@@ -109,5 +109,5 @@ n2 > out | sample Dobot joints result | data
 machine-policy | core/machine/profile.mjs, core/machine/rules.mjs, core/machine/denso.mjs | machine#changing-machine-profiles-and-capability-checks | core/tests/printer-profiles.test.mjs, core/tests/export.test.mjs, core/tests/denso.test.mjs, core/tests/dobot.test.mjs
 kinematics | core/machine/dobot-kinematics.mjs, core/machine/denso-kinematics.mjs | presentation#changing-robot-kinematic-models | core/tests/dobot-kinematics.test.mjs, core/tests/studio-kinematics.test.mjs, core/tests/machine-presentation.test.mjs
 presentation-provider | core/machine/presentation.mjs, core/machine/jog.mjs | presentation#changing-presentation-and-jog-contracts | core/tests/machine-presentation.test.mjs, core/tests/machine-jog.test.mjs, core/tests/studio-kinematics.test.mjs
-machine-frames | core/machine/rigid.mjs, core/machine/dobot-kinematic-player.mjs | presentation#changing-rigid-frames-and-incremental-playback | core/tests/dobot-kinematics.test.mjs, core/tests/machine-presentation.test.mjs, core/tests/robot-playback.test.mjs
+machine-frames | core/machine/rigid.mjs | presentation#changing-rigid-frames | core/tests/machine-presentation.test.mjs, core/tests/robot-playback.test.mjs
 ```

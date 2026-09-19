@@ -17,7 +17,7 @@ export function validateSupports(settings,process) {
   requireThat(finite(settings.density,0.01,1)&&finite(settings.interfaceDensity,0.01,1),'Support density must be 0.01–1.');
   requireThat(Number.isInteger(settings.interfaceLayers)&&settings.interfaceLayers>=0&&settings.interfaceLayers<=20,'Support interfaceLayers must be 0–20.');
   requireThat(finite(settings.topGapMm,0,10)&&finite(settings.xyGapMm,0,10),'Support gaps must be 0–10 mm.');
-  requireThat(Number.isInteger(settings.perimeters)&&settings.perimeters>=0&&settings.perimeters<=8,'Support perimeters must be 0–8.');
+  requireThat(Number.isInteger(settings.perimeters)&&settings.perimeters>=0,'Support perimeters must be a whole number, zero or more.');
   requireThat(finite(settings.treeChordMm,0.001,0.2),'Support treeChordMm must be 0.001–0.2 mm.');
   requireThat(Array.isArray(settings.fillAnglesDeg)&&settings.fillAnglesDeg.length&&settings.fillAnglesDeg.every(v=>finite(v,-180,180)),'Invalid support fill angles.');
   const ids=new Set();

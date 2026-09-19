@@ -21,16 +21,16 @@ export function claddingSubstrateName(plan){
 }
 const fields={
   lineSpacingMm:['Wave spacing along surface',' mm'],beadHeightMm:['Bead height',' mm'],speedMmS:['Deposition speed',' mm/s'],
-  fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],maxWaves:['Wave budget',''],maxEvaluations:['Surface evaluation budget',''],
+  fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],
   spacingFactor:['Line spacing','× nominal spacing; bead width unchanged'],
-  pattern:['Pattern',''],maxPatternCells:['Pattern cell budget',''],interfaceDensity:['Interface fraction',''],
+  pattern:['Pattern',''],interfaceDensity:['Interface fraction',''],
   interfaceLayers:['Interface layers',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
   mode:['Fill mode',''],bottomLayers:['Solid bottom layers',''],topLayers:['Solid top layers',''],
   perimeters:['Walls',''],density:['Infill fraction',''],fillAnglesDeg:['Fill directions','°'],fillOverlap:['Wall overlap (bead fraction)',''],
   minFeatureMm:['Smallest sampled feature',' mm'],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
   strokeAngleDeg:['Stroke direction','°'],sampleStepMm:['Maximum sampling step',' mm'],surveyStepMm:['Surface survey grid',' mm'],
   maxAngleDegOverride:['Experimental angle override','°'],zStartMm:['Start above component base',' mm'],zEndMm:['End above component base',' mm'],
-  toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],offsetTightness:['Offset tightness',' · 0 loose / 1 exact'],maxPoints:['Point budget',''],endTransition:['Wall ending','']
+  toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],offsetTightness:['Offset tightness',' · 0 loose / 1 exact'],endTransition:['Wall ending','']
 };
 export function skillSettingsRows(name,settings,prefix=skillName(name)){
   if(name==='vase-wall'&&settings.pathMode==='segmented')prefix=prefix.replace(skillName(name),'Segmented paths');
