@@ -14,10 +14,9 @@ function unresolvedGroups(items) {
   return [...groups.values()];
 }
 
+export const importAliases={'studio/app.mjs:./studio/machine-session.mjs':'studio/machine-session.mjs'};
 export async function generateModel(model,repo) {
-  const graph=await extractGraph({repo,files:await sourceFiles(repo),importAliases:{
-    'studio/app.mjs:./studio/machine-session.mjs':'studio/machine-session.mjs'
-  }});
+  const graph=await extractGraph({repo,files:await sourceFiles(repo),importAliases});
   const report=compareEvidence(model,graph,{pilotPages:model.pages.map(p=>p.key)});
   model.containment=containment(graph,report);
   for(const file of model.containment) {

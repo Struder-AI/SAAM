@@ -2,11 +2,14 @@ import {readFile, readdir} from 'node:fs/promises';
 import {posix, resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
+import {couplings} from './couplings.mjs';
 
 const functions = new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const children = node => Object.entries(node).flatMap(([key,value]) =>
   ['loc','start','end'].includes(key) ? [] : Array.isArray(value) ? value.filter(v=>v?.type) : value?.type ? [value] : []);
 const property = node => !node.computed ? node.property?.name : node.property?.type==='Literal' ? String(node.property.value) : null;
+const passed = n => n.type==='Identifier'?n.name:n.type==='AssignmentPattern'?passed(n.left):n.type==='RestElement'&&n.argument.type==='Identifier'?`...${n.argument.name}`:
+  n.type==='ObjectPattern'&&n.properties.every(p=>p.type==='Property'&&!p.computed)?`{${n.properties.map(p=>p.key.name??p.key.value).join(',')}}`:null;
 
 export async function sourceFiles(repo, roots=['core','studio','skills','adapters']) {
   const files=[];
@@ -21,7 +24,7 @@ export async function sourceFiles(repo, roots=['core','studio','skills','adapter
   return files.sort();
 }
 
-export async function extractGraph({repo,files,importAliases={},readSource=file=>readFile(resolve(repo,file),'utf8')}) {
+export async function extractGraph({repo,files,importAliases={},literalCouplings=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
   const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[];
   const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap();
   const scopes=[], bindings=[];
@@ -222,8 +225,9 @@ export async function extractGraph({repo,files,importAliases={},readSource=file=
   }
   for(const c of calls) {
     const v=value(c.node.callee,c.scope,c.module),site=location(c.module,c.node);
-    const targets=choices(v).filter(v=>v.decl),resolved=[];
-    for(const target of targets)if(!resolved.some(e=>e.to===target.decl.id&&JSON.stringify(e.selections)===JSON.stringify(target.selections)))resolved.push(edge(c.node.type==='NewExpression'?'construct':'call',c.owner?.id??`${c.module.file}:<module>`,target.decl.id,[site],{resolution:target.resolution??[],selections:target.selections,possible:!!target.possible||targets.length>1}));
+    const targets=choices(v).filter(v=>v.decl),resolved=[];c.targets=targets;
+    for(const target of targets)if(!resolved.some(e=>e.to===target.decl.id&&JSON.stringify(e.selections)===JSON.stringify(target.selections)))resolved.push(edge(c.node.type==='NewExpression'?'construct':'call',c.owner?.id??`${c.module.file}:<module>`,target.decl.id,[site],{resolution:target.resolution??[],selections:target.selections,possible:!!target.possible||targets.length>1,
+      args:c.node.arguments.map(passed),params:(target.fn??target.classNode?.body.body.find(p=>p.kind==='constructor')?.value)?.params.map(passed)??[]}));
     if(resolved.length)callEdges.set(c.node,resolved);
     else unresolved.push({kind:c.node.type==='NewExpression'?'construct':'call',from:c.owner?.id??`${c.module.file}:<module>`,site,reason:unresolvedReason(c.node.callee,c.scope)});
     if(resolved.length&&choices(v).some(v=>v.unknown))unresolved.push({kind:'call',from:c.owner?.id??`${c.module.file}:<module>`,site,reason:'partially-resolved-target',knownTargets:resolved.map(e=>e.to)});
@@ -247,7 +251,7 @@ export async function extractGraph({repo,files,importAliases={},readSource=file=
     }
     let parent=parents.get(c.node);
     if(parent?.type==='AwaitExpression')parent=parents.get(parent);
-    if(parent?.type==='VariableDeclarator'||parent?.type==='ReturnStatement')edge('return-value',consumer.to,consumer.from,consumer.evidence,{path:[consumer.id],meaning:'Call result assigned or returned in caller; not a claim about payload contents.'});
+    if(parent?.type==='VariableDeclarator'||parent?.type==='ReturnStatement')edge('return-value',consumer.to,consumer.from,consumer.evidence,{path:[consumer.id],...(parent.id?.type==='Identifier'?{result:parent.id.name}:{}),meaning:'Call result assigned or returned in caller; not a claim about payload contents.'});
     }
   }
   // Keep storage explicit: a lexical dependency is not an execution-order claim.
@@ -290,9 +294,11 @@ export async function extractGraph({repo,files,importAliases={},readSource=file=
       }
     }
   }
+  // Opt-in, after every other relation, so relation ids and the authored projection are unchanged without it.
+  const coupled=literalCouplings?couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,parents,value,choices,location,edge,property,children,functions,importPath}):null;
   const anchorCounts=new Map();for(const d of declarations)if(d.anchor)anchorCounts.set(d.anchor,(anchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(anchorCounts.get(d.anchor)>1)d.ambiguousAnchor=true;
-  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash})),declarations,relations,unresolved,workerLinks,
+  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,...(coupled?{couplings:coupled}:{}),
     limits:['Static possible relationships, not execution traces or proofs of reachability.',
       'Calls resolve lexical bindings, const aliases, imports, named re-exports, literal object members, finite function-return choices and local class methods. Computed registry selection gives possible targets, not a selected dialect or proof of branch feasibility. Escaped object mutation, arbitrary callback protocols, inheritance, export-star and dynamic imports are not modeled.',
       'Value flow handles direct call results and immutable aliases. Lexical state dependencies do not prove reaching definitions. Control sequence is not inferred from call order.',

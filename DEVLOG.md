@@ -5087,3 +5087,28 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   interoperability cases, `studio-lifetime` "last viewer closes only its
   instance" (fails identically without this change), and dev-map suites under
   concurrent edit by another session.
+
+## 2026-09-18 — Dev map generated from code, alongside the authored maps
+
+- Source: user, as developer work: agents orient from graph structure only; node
+  set, grouping, addresses, labels, boundaries and couplings come from a scan, and
+  map prose is to be removed.
+- Implemented, additive: `read-map TARGET --generated` (`scripts/dev-map/projection.mjs`).
+  Identity is the declaration path; a numeric handle is recomputed every scan and
+  stored nowhere. Nodes are named callables with a unique, non-positional path;
+  other code is enclosed in its nearest such ancestor or a module node. Pages are
+  directories, page reads return a file-level index, file and node reads return
+  per-node edges with labels taken from parameter, argument and result names.
+  `scripts/dev-map/couplings.mjs` links literal worker message types, HTTP
+  method/path, file writer/reader names and registry entries; `--tests` lists
+  importing tests on request. Authored reads, build and check are unchanged.
+- Measured 2026-09-18: 9 pages, 134 files, 1274 nodes, 6119 enclosed
+  declarations, 4070 edges; couplings linked 24 worker-message, 26 http-route,
+  84 file, 4 registry-entry; not linked 24 http and 59 file sites. Packets:
+  `core/path` page 9.8 KB (authored `5_motion` 12.6 KB), `studio` page 57 KB,
+  one declaration 1.5 KB.
+- Found without a matchable signature: `/api/download/<id>` followed from a
+  returned URL, the export file name computed from plan data, zip entry names.
+  File links ignore directories. Anonymous route and message handlers project
+  onto `createStudio` or a module node.
+- Verification: the six dev-map test files pass 50 of 50; `dev-map.mjs check` passes.
