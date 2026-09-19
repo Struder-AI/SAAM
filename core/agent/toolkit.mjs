@@ -180,11 +180,17 @@ export async function showPrint({command, target, library, recipe, stl, kind = '
 
 // The caller owns this live server. No detached process or global session registry.
 export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
-  units = 'auto', startAtLayer = 12, noOpen = false, onReady = () => {},onRequest=()=>{},onEvents=()=>{}}) {
+  units = 'auto', startAtLayer = 12, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{}}) {
   if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
   validatePreview({command, target, recipe, stl, kind, units});
   if (!Number.isInteger(startAtLayer) || startAtLayer < 1) throw Error('Start layer must be a positive integer.');
-  const libraryRoot = libraryPath(library), partial = {command},ownerId=randomUUID();
+  if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
+  // A relaunch may resume the agent owner it reports in studio-ready, so the
+  // requests and events of the previous run stay visible to the same agent.
+  // It always mints a fresh instance; it never attaches to a running server.
+  if(resumeOwner!==undefined&&!/^[A-Za-z0-9_-]{8,200}$/.test(resumeOwner))
+    throw Error('--agent-owner must be the agentOwnerId reported by an earlier studio-ready line.');
+  const libraryRoot = libraryPath(library), partial = {command},ownerId=resumeOwner??randomUUID();
   const {createAgentRequests}=await import('../../studio/agent-requests.mjs');
   const {createStudioEvents}=await import('../../studio/studio-events.mjs');
   const studioEvents=createStudioEvents();

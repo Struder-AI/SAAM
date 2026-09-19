@@ -142,6 +142,11 @@ const presentedState=()=>state?.program?state:stalePresentation;
 // A toolpath is being (re)generated and a faded preview is on offer, so the
 // geometry action should return to it rather than start a fresh calculation.
 const generationPending=()=>generating||agentUI.generating()||(!state?.program&&Boolean(stalePresentation?.program));
+// The toolpath pane never goes empty. Without a current program it shows a faded
+// placeholder — the previous toolpath when one is retained, otherwise the part
+// being sliced — through first generation, regeneration, reload and failure.
+const toolpathPlaceholder=()=>tab==='toolpath'&&!state?.program;
+const showingGeometry=()=>tab!=='toolpath'||!presentedState()?.program;
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
@@ -179,10 +184,19 @@ function activity(text='',fraction=null){
 async function working(text,task,{preview=true,stage=null}={}){
   if(busy)return;busy=true;stop();if(preview)agentUI.loading(stage);activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
-  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await painted();
   let failure;
   try{return await task();}catch(error){failure=error;throw error;}
   finally{busy=false;if(preview)agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
+}
+// Give the compositor two frames to show what was just rendered, then continue
+// regardless: a hidden or unpainted tab runs no frame callback at all, and
+// opening, loading and acknowledging a drawn view must not wait on one.
+function painted(){
+  return new Promise(resolve=>{
+    const timer=setTimeout(resolve,150),done=()=>{clearTimeout(timer);resolve();};
+    requestAnimationFrame(()=>requestAnimationFrame(done));
+  });
 }
 
 // Studio reviews more than one kind of print. Everything that depends on which
@@ -401,7 +415,7 @@ async function acknowledgeDisplayedView(){
   if(acknowledging)return;
   acknowledging=true;
   try{
-  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await painted();
   if(agentUI.presentState(state,tab,{requiresToolpath:needsTourToolpath(state)})){
     const presented=await tourUI?.acknowledgeView(state,tab);
     if(presented)agentUI.updated(presented);
@@ -463,7 +477,7 @@ function render() {
   $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
   // The toolpath pane is worth showing whenever it can render something — the
   // current program, or the faded previous one while its replacement computes.
-  const toolpathViewable=Boolean(state.program||stalePresentation?.program);
+  const toolpathViewable=Boolean(state.program||stalePresentation?.program)||generationPending();
   // Advancing to the toolpath no longer confirms geometry (that gate is gone), so
   // the geometry action is a plain Next; the tour keeps its own lesson wording.
   $('#confirm').disabled=busy&&!(generating&&toolpathViewable);
@@ -473,8 +487,9 @@ function render() {
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#play').disabled=busy||!state.program||Boolean(state.programError);
   $('#selection').hidden=tab==='toolpath';
-  canvas.setAttribute('aria-label',tab==='toolpath'?(state.program?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.':'Previous toolpath shown while its replacement is prepared.'):'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
-  canvas.classList.toggle('stale-toolpath',tab==='toolpath'&&!state.program&&Boolean(stalePresentation?.program));
+  canvas.setAttribute('aria-label',tab==='toolpath'?(state.program?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.'
+    :stalePresentation?.program?'Previous toolpath shown while its replacement is prepared.':'Part geometry shown while its toolpath is prepared.'):'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
+  canvas.classList.toggle('stale-toolpath',toolpathPlaceholder());
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
@@ -534,7 +549,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
   ctx.globalAlpha=1;
   if(updateUI)polygons=[];
-  if(tab!=='toolpath') {
+  if(showingGeometry()) {
     geometryProject=project;
     if(geometryRenderer){
       try{
@@ -713,7 +728,7 @@ $('#confirm').onclick=async()=>{
   const validProgram=state.program&&!state.programError&&state.review.generation?.mode==='production';
   // While a toolpath is still computing, Next just returns to its faded pane; it
   // must not launch a second calculation or cancel the pending one.
-  if(tab==='geometry'&&!validProgram&&generationPending()){setTab('toolpath');return;}
+  if(!validProgram&&generationPending()){if(tab==='geometry')setTab('toolpath');return;}
   try{
     await working(tab==='toolpath'?'Checking your toolpath…':'Preparing your toolpath…',async()=>{
     if(tab==='geometry'){

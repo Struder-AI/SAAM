@@ -63,6 +63,21 @@ test('an explicit per-print angle override leaves the machine declaration visibl
   assert.throws(() => validatePlan(invalid, machine), /Experimental non-planar override/);
 });
 
+test('strict field checking names the unexpected and missing settings', () => {
+  const retired = smallPlan();
+  retired.skills['planar-infill'] = {...retired.skills['planar-infill'], maxPatternCell: 400000};
+  assert.throws(() => validatePlan(retired, machine),
+    /Unexpected or missing fields in plan\.skills\.planar-infill: unexpected maxPatternCell\.$/m);
+  const stripped = smallPlan();
+  delete stripped.process.layerMm;delete stripped.process.fanPercent;
+  assert.throws(() => validatePlan(stripped, machine),
+    /Unexpected or missing fields in plan\.process: missing fanPercent, layerMm\.$/m);
+  const both = smallPlan();
+  both.process = {...both.process, layerHeight: both.process.layerMm};delete both.process.layerMm;
+  assert.throws(() => validatePlan(both, machine),
+    /Unexpected or missing fields in plan\.process: unexpected layerHeight; missing layerMm\.$/m);
+});
+
 test('the export round trips through a strict interpreter', () => {
   const plan = smallPlan();
   const path = generatePath(plan, machine, rhino);

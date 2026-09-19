@@ -461,6 +461,141 @@ skins reach layer index nine, a 24-perimeter lip step generates, and a 150 secon
 Dobot pause exports as 60,000 + 60,000 + 30,000 and reads back as 150 seconds.
 `node scripts/dev-map.mjs check` passes.
 
+## 2026-09-18 — Finish opening Studio in a tab that is never painted
+
+In an embedded browser pane that was not being composited, the page stayed on
+"Opening Studio… Please wait" until a paint was forced. `working()` waited on two
+nested `requestAnimationFrame` callbacks before running its task, so it could
+give the indicator a chance to paint; a hidden or unpainted tab runs no frame
+callback at all, so the task — and the overlay's dismissal — never happened.
+`acknowledgeDisplayedView()` waited the same way, inside the load it gated.
+
+Both now share one `painted()` helper: two frames when frames arrive, otherwise a
+150 ms deadline. Drawing still uses `requestAnimationFrame` alone. Verification:
+`studio-view-readiness` (13/13, one new case whose harness never fires a frame
+callback and which hung before this change), `studio-tour-ui`,
+`studio-reconnect`, `studio-playback-cache`, `studio-spinner` (22/22);
+`dev-map.mjs check` passes. Not reproduced in a real unpainted browser pane.
+
+## 2026-09-18 — Put the agent-request read back on pushes
+
+A browser network log showed hundreds of `GET /api/agent-requests` shortly after
+a page load. Two sources, both in the browser:
+
+- `agent-ui.mjs` read the endpoint from a fixed 750 ms timer — a continuous short
+  poll on an idle page, contradicting the documented rule that record changes
+  arrive as `studio-change` pushes. The timer exists to re-evaluate request
+  expiry and the lost-contact message locally; it had no reason to read.
+- `render()` called `onPresentation()` on every pass while any unpresented
+  request had a receipt against the drawn view. The server independently decides
+  whether that view receipts the request and may decline (stale export, another
+  instance, another print). When it declined, nothing changed, so the browser
+  re-posted `/api/view-ready` at the same 750 ms cadence, and every
+  acknowledgement the server did accept pushed a `requests` change that drove
+  another read.
+
+The read now follows the revision read: the `requests` push kind, a reopened
+viewer stream, the page becoming visible, and a 15 s heartbeat. The 750 ms timer
+renders only. Acknowledgement is asked once per displayed view and record set and
+asked again whenever either moves. No throttle was added. Verification:
+`studio-agent-ui` (2/2, one new case), `studio-view-readiness`, `studio-work`,
+`studio-agent`, `studio-tour-ui`, `studio-reconnect` (53/53);
+`dev-map.mjs check` passes. The original log was recorded while a separate
+process was also polling and writing request records, which would have added
+push-driven reads on top; that part is not reproduced here.
+
+## 2026-09-18 — Let a relaunched Studio recover its agent's in-flight work
+
+Relaunching Studio through the toolkit always minted a fresh agent owner, so
+every request from the previous run became invisible to the new one: the journal
+that exists for restart recovery could never be used for it. The tour's settings
+lesson made that visible — its gate looks for an agent-sourced request whose
+result is the displayed toolpath, and after a relaunch no such record was
+visible, so Next stayed locked although the changed toolpath was on screen.
+
+`start-tour`, `open-print` and `create-preview` now accept `--agent-owner ID`,
+the `agentOwnerId` from an earlier `studio-ready` line. It is validated as an
+agent-minted ID (a `studio:` session fallback is rejected) and only decides which
+request store the new server gets: the relaunch still mints its own instance and
+attaches to no running server, keeping one immutable owner per instance.
+
+The tour gate keeps its intent — a participant-requested agent edit, not
+automatic Studio work or a request predating the lesson, whose result is the
+current displayed export — but reads the print's whole request history through a
+new read-only `anyOwner` option instead of the current owner's share, so it no
+longer depends on who launched Studio. Verification: `studio-tour` (11/11, one
+new relaunch case that also re-checks the automatic-work rejection),
+`agent-toolkit` (11/11, one new owner-resume case), `studio-agent`, `studio-work`,
+`request-index`, `studio-events`, `studio-tour-lifetime` all pass;
+`dev-map.mjs check` passes. The two MCP task-manual/transport-close failures in
+`mcp.test.mjs` are the pre-existing ones already recorded here.
+
+Known remainder, not addressed: a request bound to the previous instance cannot
+be answered through the new instance's stdin live control, which checks
+`studioInstanceId`; the CLI path answers it. A relaunch also does not re-attach
+`studioOwner` in `.tour-progress.json`, so a resumed `open-print` does not become
+the tour's owning Studio.
+
+## 2026-09-18 — Report a Studio running behind the files on disk
+
+A live Studio held the plan schema it imported at startup while its generation
+worker, running in a fresh module graph, read the current files. When another
+session retired a plan field, the worker rejected the recipe the server had just
+written; once the recipe was corrected the server rejected it with HTTP 400 and
+the page looped on "Could not update the print: Reconnecting to your print…".
+Nothing named the real cause.
+
+Detection, not hot reload, and no new endpoint or event kind: the server records
+its module-graph load time and, only after a failure has already happened,
+scans `core`, `studio`, `skills` and `machines` for the first `.mjs`/`.json`
+modified since — skipping test and fixture directories. The notice is appended
+once to that error, so the page's review note, the agent event queue, the
+generation-failure request instruction and the HTTP 400 body all name the changed
+file and say to restart Studio. A detected skew is remembered until the process
+restarts; negatives are rechecked at most every three seconds, so a recurring
+poll failure does not rescan. Verification:
+`core/tests/studio-agent.test.mjs` (13/13, one new case covering an untouched
+checkout, test-file churn, a changed module and single annotation).
+`dev-map.mjs check` passes. Not exercised against a real concurrent edit.
+
+## 2026-09-18 — Name the offending fields when a plan is rejected
+
+`plan.mjs keys()` compared joined key lists and reported only "Unexpected or
+missing fields in plan.skills.planar-infill.", leaving the agent or maker holding
+the recipe to diff the schema by hand. It now lists them: "… in plan.process:
+unexpected layerHeight; missing layerMm." The stem is unchanged, so the six
+existing regex assertions still pass, and `inspect-generation-failure` gains the
+detail for free through `validationError`, which is the loader message verbatim.
+No migration or acceptance of retired fields was added. Verification:
+`core/tests/pipeline.test.mjs` (7/7, one new case), plus the five suites that
+assert the old message — crossed-cladding, spacing, full-fill, planar-infill
+patterns, text interoperability and vase (51/51). `dev-map.mjs check` passes.
+
+## 2026-09-18 — Keep the toolpath viewport occupied while its program is missing
+
+A live tour reported an empty 3D viewport on the toolpath lesson while the
+toolpath was still being calculated. The earlier fix the user remembered is
+`7f2d3a5`: it retains the superseded snapshot in `stalePresentation` and fades
+the canvas with `.stale-toolpath`. That covers only regeneration — the path with
+a previous toolpath to keep. Nothing covered a first generation, a reload during
+one, a tour lesson that starts its own generation or a failed generation, because
+`draw()` gated the whole geometry branch on `tab!=='toolpath'` (the BR-029
+decision to show no part geometry in toolpath view) and the toolpath branch needs
+a program, so the frame held only the background gradient and the bed grid.
+
+`draw()` now renders the part whenever the toolpath pane has nothing else to
+render, two named predicates decide it (`toolpathPlaceholder`, `showingGeometry`),
+and the existing 28% fade applies to both placeholders. The toolpath tab also
+stays reachable while a calculation is pending, and **Confirm** on that pane
+returns to it instead of launching a competing calculation. No geometry is drawn
+once a program exists, so BR-029's rule is unchanged. Verification:
+`core/tests/studio-view-readiness.test.mjs` (12/12) with three new cases that run
+the real `draw()` over a stub 2D context; `dev-map.mjs check --since HEAD` passes.
+Not visually confirmed in a browser. The same file's browser-source harness
+stripped `import` lines with `/^import .*\n/gm`, which cannot match a CRLF
+checkout; five of its cases failed before this change for that reason alone and
+now pass.
+
 ## 2026-09-18 — Toolpath viewer lag: CPU rasterization, lossless renderer savings
 
 - Source: user (builder task), 2026-09-18: the toolpath viewer had become slow on

@@ -66,7 +66,10 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
   async function editLessonBaseline(data){
     const printId=requests.printId(await confined(data.selected));
     if(data.editLesson?.printId===printId)return false;
-    const records=await requests.list({printId});
+    // Read the print's whole request history, not this owner's share of it: a
+    // Studio relaunch may carry a different agent owner, and a record made
+    // before the lesson must still count as prior work.
+    const records=await requests.list({printId,anyOwner:true});
     data.editLesson={printId,inputKey:await signature({...data,step:L.settings}),
       priorRequestIds:records.filter(r=>r.printId===printId).map(r=>r.id)};
     data.baseline=data.editLesson.inputKey;
@@ -132,7 +135,12 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       if(data.step===L.settings){
         if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
         const shown={...workSnapshot(state),stage:'toolpath'},baseline=data.editLesson;
-        const requested=(await requests.list({printId:baseline.printId})).some(r=>r.source==='agent'&&r.kind!=='guidance'
+        // The lesson opens on a change the participant asked their agent for,
+        // displayed as the current toolpath. Automatic Studio work and requests
+        // that predate the lesson do not count. The record is read from the
+        // print's whole history, because a Studio restart mints a new agent
+        // owner and would otherwise hide the very edit that was made.
+        const requested=(await requests.list({printId:baseline.printId,anyOwner:true})).some(r=>r.source==='agent'&&r.kind!=='guidance'
           &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)
           &&r.baseline?.inputKey!==shown.inputKey&&requestReceiptState({...r,presented:false},{view:{ready:true,snapshot:shown}}).receipt);
         if(!requested)return describe(data);

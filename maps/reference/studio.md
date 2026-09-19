@@ -259,7 +259,12 @@ slicing. A failed generation stays actionable until inputs change or an explicit
 retry succeeds. Geometry review remains available without pausing the lesson or
 creating an approval. **Continue with this part** selects the displayed print for
 the next lesson. While replacement output is prepared, the previous toolpath stays
-visible at reduced opacity and cannot be approved or exported as current.
+visible at reduced opacity and cannot be approved or exported as current. Whenever
+the toolpath pane has no current program and no retained previous one — first
+generation, a reload mid-calculation, a tour lesson that starts its own generation,
+or a failed generation — it draws the part being sliced at that same reduced
+opacity instead of an empty viewport. The toolpath view still shows no part geometry
+once a program is drawn.
 A toolpath lesson shows preparation status while no current program is available. Generation failures remain visible after
 the saved lesson is refreshed. Playback seeking waits until the program loads.
 Outside the tour, a fresh print without a current export still opens in geometry
@@ -280,7 +285,10 @@ through checks and playback loading, disables duplicate actions, and clears on
 success or error. Generation prepares and checks the toolpath. The final button confirms
 settings and toolpath together and downloads the checked file. After a successful download, that exact print/export shows "Export again" for the current page session, including after switching away and reopening it. Animation respects reduced-motion preferences. It represents
 stage progress where counts are available (layers, composed operations and
-material instances), and indeterminate work otherwise. Percentages describe the
+material instances), and indeterminate work otherwise. Both the overlay and the
+displayed-view acknowledgement give the compositor two frames to show what was
+rendered, then continue on a short deadline: a hidden or unpainted tab runs no
+frame callback, and loading must not depend on one. Percentages describe the
 named stage, not estimated elapsed time or hardware status. The read-only
 `GET /api/preparation` endpoint stays responsive outside the mutation queue and
 binds progress to the current print and plan.
@@ -377,7 +385,8 @@ only Continue keeps blinking. The playback
 lesson stops highlighting Play and unlocks Next on its first use; Pause does not
 restart the cue.
 Generation switches to the rendered replacement only after its checked source is
-loaded; the previous toolpath remains faded while work is active.
+loaded; the previous toolpath remains faded while work is active, and the part
+geometry stands in for it at the same opacity when none is retained.
 
 The maker agent calls MCP begin_studio_work as early as practical for an edit; a
 chat acknowledgement may come first. The claim it records is what later mutations
@@ -455,7 +464,11 @@ also offers help with difficulties printing the downloaded file and asks what
 to make next, as ordinary chat text without a question-box tool. Send it before
 another listener or bookkeeping call. The client updates completion directly
 without reloading the full source and material scene. POST /api/view-ready acknowledges the exact rendered revision
-and export; saving or generating alone does not unlock edit lessons.
+and export; saving or generating alone does not unlock edit lessons. The settings
+lesson opens on a participant-requested agent edit whose result is the displayed
+current toolpath; automatic Studio work and requests recorded before the lesson
+do not count. It reads the print's whole request history rather than the current
+owner's share, so relaunching Studio mid-lesson cannot lock it.
 
 Request begin/respond/wait calls run independently of MCP’s print-work queue.
 New queued requests publish immediately to the owning toolkit stream, emit MCP logging notifications and appear in subsequent

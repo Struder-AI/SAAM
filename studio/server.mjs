@@ -8,7 +8,7 @@ import http from 'node:http';
 import {watchStudioChanges} from './changes.mjs';
 import {createStudioEvents} from './studio-events.mjs';
 import { readFile, readdir, stat, realpath } from 'node:fs/promises';
-import { resolve, dirname, basename, isAbsolute } from 'node:path';
+import { resolve, dirname, basename, isAbsolute, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import { Worker } from 'node:worker_threads';
@@ -19,6 +19,44 @@ import {loadLocalExtension} from '../core/local-extension.mjs';
 const here=dirname(fileURLToPath(import.meta.url));
 export const root=resolve(here,'..');
 const installedExtension=await loadLocalExtension(root);
+// This process keeps one module graph for its lifetime, while generation
+// workers, the CLI and MCP load whatever is on disk at the moment they run.
+// Source edited after startup is therefore a real explanation for a rejected
+// recipe or a failed generation that the print itself cannot produce. Scanned
+// only once something has already failed, so the working path pays nothing.
+const SOURCE_ROOTS=['core','studio','skills','machines'];
+const loadedAtMs=Date.now();
+async function changedSince(dir,sinceMs,base,depth=0){
+  let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch{return null;}
+  for(const entry of entries){
+    if(entry.name.startsWith('.')||['node_modules','tests','fixtures'].includes(entry.name))continue;
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory()){
+      const found=depth<6?await changedSince(path,sinceMs,base,depth+1):null;
+      if(found)return found;continue;
+    }
+    if(!/\.(mjs|json)$/.test(entry.name))continue;
+    try{if((await stat(path)).mtimeMs>sinceMs)return relative(base,path).replaceAll('\\','/');}catch{/* removed mid-scan */}
+  }
+  return null;
+}
+export async function sourceSkewNotice(sinceMs=loadedAtMs,{base=root,roots=SOURCE_ROOTS}={}){
+  for(const name of roots){
+    const changed=await changedSince(resolve(base,name),sinceMs,base);
+    if(changed)return `Studio is running older SAAM source than the files on disk: ${changed} changed after Studio started. Restart Studio, then retry.`;
+  }
+  return null;
+}
+// Appended to a failure that already happened, once per error. A detected skew
+// persists until this process restarts, which is the only cure for it.
+let skewNotice=null,skewCheckedAt=0;
+export async function annotateSourceSkew(error){
+  if(!(error instanceof Error)||error.sourceSkewChecked)return error;
+  error.sourceSkewChecked=true;
+  if(!skewNotice&&Date.now()-skewCheckedAt>=3000){skewCheckedAt=Date.now();skewNotice=await sourceSkewNotice();}
+  if(skewNotice)error.message+=' '+skewNotice;
+  return error;
+}
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
@@ -184,6 +222,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(guide.active&&guide.directory===generationDir&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
     }catch(error){
       if(error.code==='GENERATION_CANCELLED')throw error;
+      // Before the message reaches the page, the event queue and the failure
+      // request, say whether this process is behind the files the worker read.
+      await annotateSourceSkew(error);
       generationFailure={directory:generationDir,planHash:state.planHash,message:error.message};
       try{const record=await requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
         key:'generation-failure:'+generationDir+':'+state.planHash+':'+error.message,
@@ -474,7 +515,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         send({ok:true});
       });
       queue=run.catch(()=>{});await run;
-    } catch(error){if(!res.headersSent)send({error:error.message,code:error.code},400);else res.end();}
+    } catch(error){if(!res.headersSent){await annotateSourceSkew(error);send({error:error.message,code:error.code},400);}else res.end();}
   });
   // Local adapters reopen through the same serialized and validated operation
   // as the picker, including when the person changed this viewer's print.
