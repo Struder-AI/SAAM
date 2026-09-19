@@ -46,10 +46,11 @@ export function couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,
     return e.source?exportedBinding(modules.get(importPath(m,e.source)),e.name,depth+1):e.binding;
   }
   // at: the argument (or iterated element) where the value last entered a function; that declaration is the one naming it.
-  function origins(node,module,seen=new Set(),at) {
+  function origins(node,module,seen=new Set(),at,awaited=false) {
     if(!node||seen.has(node))return [];seen.add(node);
-    const again=(n,m=module,from=at)=>origins(n,m,seen,from);
-    if(node.type==='AwaitExpression'||node.type==='ChainExpression')return again(node.argument??node.expression);
+    const again=(n,m=module,from=at)=>origins(n,m,seen,from,awaited);
+    if(node.type==='AwaitExpression')return origins(node.argument,module,seen,at,true);
+    if(node.type==='ChainExpression')return again(node.expression);
     if(node.type==='ConditionalExpression')return [...again(node.consequent),...again(node.alternate)];
     if(node.type==='LogicalExpression')return [...again(node.left),...again(node.right)];
     if(node.type==='Identifier') {
@@ -71,8 +72,16 @@ export function couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,
       const stores=fields.get(classOf(node))?.get(fieldKey(node));
       if(stores)return stores.flatMap(a=>again(a.node,a.module));
     }
-    if(node.type==='CallExpression') {const out=targetFns(node,module,seen).flatMap(t=>returns(t.fn).flatMap(r=>again(r,t.module)));if(out.length)return out;}
-    return [{node,module,at}];
+    if(node.type==='CallExpression') {
+      const targets=targetFns(node,module,seen);
+      // Callback/protocol inference cannot turn a Promise or iterator into the
+      // object a function eventually returns. Keep that call as an unknown origin.
+      if(targets.some(t=>t.fn.generator||t.fn.async&&!awaited))return [{node,module,at}];
+      const out=targets.flatMap(t=>returns(t.fn).flatMap(r=>again(r,t.module)));
+      if(out.length)return out;
+    }
+    if(awaited&&node.type==='ObjectExpression'&&node.properties.some(p=>p.type==='SpreadElement'||p.computed||key(p)==='then'))return [];
+    return [{node,module,at,...(awaited?{awaited:true}:{})}];
   }
   const fieldKey=n=>(n.property.type==='PrivateIdentifier'?'#':'')+property(n);
   const classOf=n=>{let s=nodeScope.get(n);while(s&&!s.classNode)s=s.parent;return s?.classNode;};

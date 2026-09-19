@@ -13,13 +13,12 @@ export function depositionStroke({points,heightsMm,widthMm,speedMmS,role,segment
 
 // A bead that tapers to nothing ends where its remaining material is no longer
 // writable: a machine program can only express those last moves as travel.
-// The stroke's arrays are shortened in place.
+// Return shortened arrays while preserving the producer's stroke.
 export function trimVanishingEnd(stroke,minimumMm3=1e-3) {
   let tail=0,keep=stroke.volumesMm3.length;
   while(keep>1&&tail+stroke.volumesMm3[keep-1]<minimumMm3)tail+=stroke.volumesMm3[--keep];
-  stroke.points.length=keep+1;stroke.volumesMm3.length=keep;
-  if(stroke.segmentMetadata)stroke.segmentMetadata.length=keep;
-  return stroke;
+  return {...stroke,points:stroke.points.slice(0,keep+1),volumesMm3:stroke.volumesMm3.slice(0,keep),
+    ...(stroke.segmentMetadata?{segmentMetadata:stroke.segmentMetadata.slice(0,keep)}:{})};
 }
 
 export function maximumPathAngle(points) {

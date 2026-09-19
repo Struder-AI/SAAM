@@ -1,13 +1,14 @@
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
 import { advancePlayback, frameAtTime, displayPoint, exportMovie } from './playback.mjs';
 import { createProjection } from './camera.mjs';
-import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
+import { buildToolpathView, toolpathFrame, toolpathPresentation, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {transform,untransform,machineFitBounds,boundsCorners,drawMachineCanvas,machinePalette} from './machine-view.mjs';
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
+import {planProgramPresentation,planRefreshNavigation} from './refresh-plan.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
@@ -16,11 +17,12 @@ let tourUI;
 let generationTarget=null,progressPolling=false,acknowledging=false;
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentUI} from './agent-ui.mjs';
-const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active),onRequests:requests=>{
+const agentUI=initializeAgentInterface();
+function initializeAgentInterface(){return createAgentUI({onActivity:active=>tourUI?.activity(active),onRequests:requests=>{
   if(!state?.work)return;
   state.work.requests=requests;
   if(needsTourToolpath(state))scheduleChange();
-},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));},getStage:()=>tab});
+},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));},getStage:()=>tab});}
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,generating=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
@@ -125,7 +127,8 @@ function restoreView(){
     $('#fit-program').textContent=fitBounds?.allMoves?'Fit part':'Fit all moves';
   }catch{}
 }
-window.addEventListener('pagehide',saveView);
+function connectViewPersistence(){window.addEventListener('pagehide',saveView);}
+connectViewPersistence();
 function requestDraw(){
   if(!redrawFrame){redrawRequested=performance.now();redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});}
 }
@@ -325,7 +328,8 @@ async function pollPreparation(){
     if(job.progress&&['preparing','generating','importing'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
-setInterval(pollPreparation,250);
+function startPreparationPolling(){return setInterval(pollPreparation,250);}
+startPreparationPolling();
 $('#cancel-generation').onclick=async()=>{
   const target=generationTarget;if(!target)return;
   $('#cancel-generation').disabled=true;
@@ -361,42 +365,13 @@ async function refresh(follow=false,reopen=false) {
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
   }
-  // Toolpath and material views both cache the program's move buffer; each
-  // rebuilds only when that buffer is replaced.
-  const staleForMoves=view=>view?.moves!==state.program?.moves;
-  // Geometry-only tour responses deliberately omit source. Retain at most the
-  // current print's decoded view so Back/Continue can reuse unchanged bytes.
-  if(!state.program){
-    const replacing=follow&&previous?.printId===state.printId&&Boolean(previous.program||stalePresentation?.program);
-    if(replacing){if(previous.program)stalePresentation=previous;}
-    else if(!(state.tour?.active&&state.tour.step<L.playback&&playbackCache?.printId===state.printId&&playbackCache.planHash===state.planHash))clearProgramView();
-  }else{
-    stalePresentation=null;
-    if(staleForMoves(pathView))pathView=buildToolpathView(state.program.moves);
-    playbackCache={printId:state.printId,planHash:state.planHash,exportHash:state.exportHash,program:state.program};
-  }
-  if(state.program&&staleForMoves(materialScene)){
-    materialError='';
-    try{
-      materialRenderer??=createMaterialRenderer();
-      if(materialRenderer&&state.program.previewMaterial){materialScene={...state.program.previewMaterial,moves:state.program.moves,plan:state.plan,geometry:state.geometry};delete state.program.previewMaterial;}
-      else if(materialRenderer)materialScene=await buildMaterialScene(state.program.moves,state.plan,state.geometry,
-        {onProgress:progress=>activity('Preparing material view…',progress)});
-      else materialError='3D material rendering needs WebGL2. Showing toolpath lines.';
-    }catch(error){materialScene=null;materialError='Material view unavailable: '+error.message+' Showing toolpath lines.';}
-  }
+  const programPlan=planProgramPresentation(next,{previous,follow,stalePresentation,playbackCache,
+    pathMoves:pathView?.moves,materialMoves:materialScene?.moves});
+  const presentation=await applyProgramPresentation(programPlan,next);
   layerFade.reset();
-  if(previous?.exportHash!==next.exportHash){stop();seconds=duration();if(cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));cameras.reset();fitBounds=null;}
-  if(!previous) {
-    stop();selected=null;fitBounds=null;zoom=1;pan=[0,0];seconds=duration();
-    cameras.reset();$('#follow-plate').checked=true;
-    if(state.tourExample?.id==='surface-drape'){yaw=-.45;tilt=.52;zoom=1.25;}
-    tab=state.tourExample?(tourUI?.initialTab()??'geometry'):state.program?'toolpath':'geometry';
-    if(!state.tourExample)restoreView();
-  }
-  else if(follow&&previous.planHash!==state.planHash){tab=previous.geometryHash!==state.geometryHash?'geometry':'toolpath';message('Updated from chat.');}
-  else if(follow&&state.toolpathApproved&&!previous.program&&state.program)tab='toolpath';
-  if(!selected||!state.geometry.labels.includes(selected)&&(!geometryScene.edgeFeatures.has(selected)||previous?.geometry.geometryVersion!==state.geometry.geometryVersion))selectFeature(null);
+  const navigation=planRefreshNavigation(previous,next,{follow,tab,seconds,duration:presentation.duration,selected,
+    hasSelectedEdge:geometryScene.edgeFeatures.has(selected),tourInitialTab:!previous&&next.tourExample?tourUI?.initialTab():undefined});
+  applyRefreshNavigation(navigation);
   machineColors=machineTheme();
   if(machineSession?.scene){
     const d=machineSession.scene.descriptor;$('#machine-basis').textContent=d.basis;
@@ -410,6 +385,35 @@ async function refresh(follow=false,reopen=false) {
     try{await api('generate',{development:false,planHash:state.planHash});return refresh(follow);}
     catch(error){state.generationError=error.message;message(error.message,true);render();}
   }
+}
+async function applyProgramPresentation(decision,next){
+  if(decision.action==='clear')clearProgramView();
+  else stalePresentation=decision.stalePresentation;
+  if(decision.buildPath)pathView=buildToolpathView(next.program.moves);
+  if(decision.action!=='clear')playbackCache=decision.playbackCache;
+  if(decision.buildMaterial){
+    materialError='';
+    try{
+      materialRenderer??=createMaterialRenderer();
+      if(materialRenderer&&next.program.previewMaterial){materialScene={...next.program.previewMaterial,moves:next.program.moves,plan:next.plan,geometry:next.geometry};delete next.program.previewMaterial;}
+      else if(materialRenderer)materialScene=await buildMaterialScene(next.program.moves,next.plan,next.geometry,
+        {onProgress:progress=>activity('Preparing material view…',progress)});
+      else materialError='3D material rendering needs WebGL2. Showing toolpath lines.';
+    }catch(error){materialScene=null;materialError='Material view unavailable: '+error.message+' Showing toolpath lines.';}
+  }
+  return {duration:duration()};
+}
+function applyRefreshNavigation(decision){
+  if(decision.resetExport){stop();seconds=decision.seconds;if(cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));cameras.reset();fitBounds=null;}
+  if(decision.resetView) {
+    stop();selected=null;fitBounds=null;zoom=1;pan=[0,0];seconds=decision.seconds;
+    cameras.reset();$('#follow-plate').checked=true;
+    if(decision.surfaceDrape){yaw=-.45;tilt=.52;zoom=1.25;}
+  }
+  tab=decision.tab;
+  if(decision.notice)message(decision.notice);
+  if(decision.restoreSavedView)restoreView();
+  if(decision.resetSelection)selectFeature(null);
 }
 async function acknowledgeDisplayedView(){
   if(acknowledging)return;
@@ -593,9 +597,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     if(updateUI)$('#viewer-detail').textContent=solidView
       ?(materialScene.unsupported.length?'Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':'')
       :materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
-    const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[count].from}]:detail.segments;
-    const current=moves[at.active];
-    const currentLayer=current?.phase==='finish'?moves.findLast(m=>m.extruding):current;
+    const {displayed,current,currentLayer}=toolpathPresentation(moves,at,detail);
     const fade=fadeState.frame(currentLayer,now,remainingLayerMs(pathView,at.active,seconds,playbackSpeed)),styles=new Map();
     if(solidView){
       try{
@@ -850,7 +852,7 @@ async function poll(){
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
 }
-tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,seek:startAt=>{
+function seekTourLayer(startAt){
   if(!Number.isInteger(startAt?.layer)||startAt.layer<1)throw Error('Your agent must choose an infill layer for this tour.');
   let move,first;for(const candidate of state.program?.moves??[])if(candidate.extruding){
     first??=candidate;
@@ -860,19 +862,39 @@ tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>s
   if(!move)throw Error('That layer has no sparse infill. Ask your agent to choose another startAt layer.');
   stop();seconds=move.startSeconds;$('#scrub').value=seconds;layerFade.reset();requestDraw();
   return {layer:move.layer};
-}});
-working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
+}
+function createStudioTour(){
+  return createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,seek:seekTourLayer});
+}
+async function loadStudio(){await tourUI.load();await refresh();}
 let changeTimer;
 function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
 // Pushed changes drive revision checks. Request activity only changes the
 // revision response through tour gating. A dropped or reopened viewer stream,
 // a page becoming visible and a slow heartbeat cover what pushes cannot.
-window.addEventListener('saam-studio-change',event=>{
+function studioChanged(event){
   const {kinds}=event.detail;
   if(kinds.includes('print')||kinds.includes('tour')||kinds.includes('requests')&&state?.tour?.active)scheduleChange();
-});
-window.addEventListener('saam-viewer-connection',scheduleChange);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleChange();});
-setInterval(poll,15_000);
-window.addEventListener('pagehide',()=>machineSession?.dispose());
-window.addEventListener('pageshow',event=>{if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));});
+}
+function studioVisible(){if(document.visibilityState==='visible')scheduleChange();}
+function connectStudioUpdates(){
+  window.addEventListener('saam-studio-change',studioChanged);
+  window.addEventListener('saam-viewer-connection',scheduleChange);
+  document.addEventListener('visibilitychange',studioVisible);
+  return setInterval(poll,15_000);
+}
+function disposeStudioSession(){machineSession?.dispose();}
+function restoreStudioSession(event){
+  if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));
+}
+function connectStudioSession(){
+  window.addEventListener('pagehide',disposeStudioSession);
+  window.addEventListener('pageshow',restoreStudioSession);
+}
+function initializeStudio(){
+  tourUI=createStudioTour();
+  working('Opening Studio…',loadStudio).catch(error=>message(error.message,true));
+  connectStudioUpdates();
+  connectStudioSession();
+}
+initializeStudio();

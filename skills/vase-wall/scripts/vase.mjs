@@ -196,17 +196,17 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const middle=(times[i]+times[i+1])/2;
     return times[i+1]<=1+1e-9?firstHeight:zAt(middle)-zAt(middle-1);
   });
-  const stroke=depositionStroke({role:'vase-wall',points,heightsMm,widthMm:width,speedMmS:speed,
+  const depositedStroke=depositionStroke({role:'vase-wall',points,heightsMm,widthMm:width,speedMmS:speed,
     segmentMetadata:times.slice(1).map((t,i)=>({layer:Math.floor((times[i]+t)/2)}))});
-  const volumesMm3=stroke.volumesMm3;
-  if(settings.endTransition==='level'){trimVanishingEnd(stroke);times.length=points.length;}
-  const rimStart=settings.endTransition==='level'?times.findIndex(t=>t>=spiralTurns-1e-9):-1;
-  const levelBoundary=rimStart>=0?{zMm:end,widthMm:width,strokes:[{...stroke,points:points.slice(rimStart),
+  const stroke=settings.endTransition==='level'?trimVanishingEnd(depositedStroke):depositedStroke;
+  const volumesMm3=stroke.volumesMm3,strokeTimes=times.slice(0,stroke.points.length);
+  const rimStart=settings.endTransition==='level'?strokeTimes.findIndex(t=>t>=spiralTurns-1e-9):-1;
+  const levelBoundary=rimStart>=0?{zMm:end,widthMm:width,strokes:[{...stroke,points:stroke.points.slice(rimStart),
     volumesMm3:volumesMm3.slice(rimStart),segmentMetadata:stroke.segmentMetadata.slice(rimStart)}]}:null;
   return {id,...(levelBoundary?{levelBoundary}:{}),operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
     after,strokes:[stroke],order:'given',continuous:true,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,clearanceFor:()=>end+process.liftMm}}],
-    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
+    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:stroke.points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
       volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,...reference?.report(),
       scope:'One outer section with arc-length correspondence from a fixed projected seam; concavity is supported while the inset remains one loop. Sampled topology and boundary checks; no physical validation.'}};
 }

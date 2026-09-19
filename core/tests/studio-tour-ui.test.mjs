@@ -185,7 +185,7 @@ for(const startAt of [null,{layer:999}])for(const fallbackLayer of [1,0])test((s
 
 test('browser fallback seeks deposited layer 2 or the only layer while explicit agent layers require sparse infill',async()=>{
   const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
-  const registration=app.slice(app.indexOf('tourUI=createTourUI('),app.indexOf("\nworking('Opening Studio"));
+  const registration=app.slice(app.indexOf('function seekTourLayer('),app.indexOf('\nasync function loadStudio('))+'\ntourUI=createStudioTour();';
   const scrub={},noop=()=>{},context=vm.createContext({createTourUI:({seek})=>seek,
     api:noop,refresh:noop,working:noop,setTab:noop,stop:noop,layerFade:{reset:noop},requestDraw:noop,$:()=>scrub,
     state:{program:{moves:[{layer:1,extruding:false,startSeconds:0},

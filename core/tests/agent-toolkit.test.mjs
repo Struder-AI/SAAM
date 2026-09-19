@@ -65,7 +65,7 @@ test('onboarding selects context by role and area; the map is read from the stor
   const byIndex = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', mapped.maps[0].index])).stdout);
   assert.deepEqual(byIndex.maps, mapped.maps);
   // A declaration path and its index return the same page; --code adds that page's own source.
-  const declaration = 'core/path/compose.mjs::composeResults';
+  const declaration = 'core/path/compose.mjs::planComposition';
   const page = JSON.parse((await run(process.execPath, [cli, 'read-map', declaration], {cwd: library})).stdout).maps[0];
   assert.equal(page.path, declaration);
   assert.equal(page.file, 'core/path/compose.mjs');
@@ -73,7 +73,7 @@ test('onboarding selects context by role and area; the map is read from the stor
   assert.deepEqual(sameByIndex, page);
   const code = JSON.parse((await run(process.execPath, [cli, 'read-map', declaration, '--code'], {cwd: library})).stdout).maps[0];
   assert.equal(code.code, true);
-  assert.equal(code.source.split('\n').length, code.endLine - code.line + 1);
+  assert.equal(code.source.split('\n').length, code.range[1] - code.range[0] + 1);
   assert.ok(!dev.documents.some(doc=>doc.path==='skills/README.md'));
   const sliceId = 'BUILDERS.md#avoid-check-spirals';
   const whole = await readFile(resolve(root, 'BUILDERS.md'), 'utf8');
@@ -86,7 +86,7 @@ test('onboarding selects context by role and area; the map is read from the stor
     assert.match(JSON.parse(error.stdout).error, /No generated page for 5_motion/); return true;
   });
   await assert.rejects(run(process.execPath, [cli, 'read-map', '0', '--code']), error => {
-    assert.match(JSON.parse(error.stdout).error, /spans no code of its own/); return true;
+    assert.match(JSON.parse(error.stdout).error, /Page 0 is a root page/); return true;
   });
   assert.ok(dev.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'SETUP.md'));

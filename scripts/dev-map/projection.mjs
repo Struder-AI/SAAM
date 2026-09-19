@@ -8,7 +8,9 @@ const order=(a,b)=>a<b?-1:a>b?1:0;
 const fail=message=>{throw Error(message);};
 export const qualifies=d=>mapped(d.file)&&!!d.anchor&&!d.ambiguousAnchor&&!positional.test(d.anchor)&&callable(d);
 
-// Identity is the declaration path. Handles are positions in this scan and are stored nowhere.
+// Identity is the declaration path. Anonymous returned/invoked callables receive
+// a generated source-position path rather than borrowing an enclosing function.
+// Handles are positions in this scan and are stored nowhere.
 export function projectGraph(graph) {
   const byId=new Map(graph.declarations.map(d=>[d.id,d])),relation=new Map(graph.relations.map(r=>[r.id,r]));
   const files=graph.files.filter(f=>mapped(f.file)).map(f=>f.file).sort(order),lines=new Map(graph.files.map(f=>[f.file,f.lines]));

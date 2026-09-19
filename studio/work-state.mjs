@@ -42,8 +42,8 @@ export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set
   return {activity,receipt:false,awaitingConfirmation};
 }
 
-export function hasUnpreparedEdit(requests=[],snapshot){
-  return requests.some(request=>requestReceiptState(request).activity==='working'
+export function hasUnpreparedEdit(requests=[],snapshot,{now=Date.now()}={}){
+  return requests.some(request=>requestReceiptState(request,{now}).activity==='working'
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
 }
 

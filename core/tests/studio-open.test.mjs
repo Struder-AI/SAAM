@@ -24,15 +24,24 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
     await writeFile(join(library,id,'plan.json'),JSON.stringify({schema:'scratch-test/1'}));
     await writeFile(join(library,id,'machine.json'),JSON.stringify({name:'Synthetic scratch machine'}));
   }
+  const supplied=new Map();
   const resolver=async dir=>{
     assert.equal(JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).schema,'scratch-test/1');
-    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>({kind:'shell',marker:dir,review:{approvals:{}}})};
+    const state=Object.freeze({kind:'shell',marker:dir,code:'adapter-only',dir,review:Object.freeze({approvals:Object.freeze({})})});
+    supplied.set(dir,state);
+    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>state};
   };
   const server=createStudio(join(library,'first'),{libraryRoot:library,resolveBundle:resolver});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`;
   const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
-  assert.equal((await(await fetch(origin+'/api/state')).json()).marker,join(library,'first'));
+  const refreshModule=await fetch(origin+'/refresh-plan.mjs');
+  assert.equal(refreshModule.status,200);assert.match(refreshModule.headers.get('content-type'),/javascript/);
+  assert.equal(await refreshModule.text(),await readFile(new URL('../../studio/refresh-plan.mjs',import.meta.url),'utf8'));
+  const first=await(await fetch(origin+'/api/state')).json();
+  assert.equal(first.marker,join(library,'first'));assert.equal(first.code,undefined);assert.equal(first.dir,undefined);
+  assert.equal(first.printName,'first');assert.equal(first.downloadName,'first');assert.equal(first.work.snapshot.studioInstanceId,first.instanceId);
+  assert.equal(supplied.get(join(library,'first')).code,'adapter-only');assert.equal(supplied.get(join(library,'first')).tour,undefined);
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
   const response=await fetch(origin+'/api/open',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({path:join(library,'second','plan.json')})});
   assert.equal(response.status,200);

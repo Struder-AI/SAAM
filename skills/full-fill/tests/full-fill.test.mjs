@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import rhino3dm from 'rhino3dm';
 import { defaults } from '../../../core/print/plan.mjs';
 import { buildShell, translateShell } from '../../../core/print/generate.mjs';
-import { PathBuilder } from '../../../core/path/builder.mjs';
-import { generateFullFill,fullFillResult,layerHeights } from '../scripts/fill.mjs';
+import {createPlanningState,planningPath} from '../../../core/path/planning.mjs';
+import {planComposition} from '../../../core/path/compose.mjs';
+import { fullFillResult,layerHeights } from '../scripts/fill.mjs';
 import { sectionShell } from '../../../core/geom/shell.mjs';
 import { regionArea } from '../../../core/region/region2d.mjs';
 
@@ -77,12 +78,13 @@ function planFor(geometry, overrides = {}) {
 
 function run(plan) {
   const shell = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
-  const builder = new PathBuilder({
+  const initial = createPlanningState({
     start: [...machine.tools[plan.setup.tool].startupXY, machine.startup.zAfterStartupMm],
     process: plan.process, machine, generatorVersion: 'test'
   });
-  const report = generateFullFill(builder, { shell, plan, reserve: null });
-  return { shell, builder, report, path: builder.toPath({}) };
+  const result = fullFillResult({ shell, plan, reserve: null });
+  const composed=planComposition(initial,[result]);
+  return { shell, state:composed.state, report:result.report, path:planningPath(composed.state,[composed.actions]) };
 }
 
 test('the pattern follows each shape, not a fixed outline', () => {
@@ -136,8 +138,8 @@ test('fill direction alternates between layers', () => {
 
 test('travel between fill strokes stays down instead of lifting over the part', () => {
   const plan = planFor({ shape: 'box', runMm: 25, widthMm: 20, heightMm: 2 });
-  const { builder } = run(plan);
-  const stats = builder.stats;
+  const { state } = run(plan);
+  const stats = state.stats;
   assert.ok(stats.connected > 20 * (stats.hopped+stats.combed), `connected ${stats.connected} against combed ${stats.combed}, hopped ${stats.hopped}`);
   // Neighboring rows and walls continue as deposition, so retraction is rare.
   assert.ok(stats.retractions < stats.connected / 20, `retractions ${stats.retractions}`);

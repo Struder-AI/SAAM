@@ -89,8 +89,7 @@ This is not a full head collision model. See [shared travel](../../core/path/REA
 ## Composition and limits
 
 `fullFillResult({shell, plan, reserve, id})` returns wall and interior operations.
-`generateFullFill(builder, options)` uses the same result/composer for a single
-instance. General composition uses all results together, with one travel state
+`planComposition(state, results)` plans all skill results together, with one travel state
 and one deposited-height record. Assemblies can alternate or batch compatible layers;
 body operations precede their draped skins. A drape reserve removes only its
 owned footprint from planar sections, including separate components supporting

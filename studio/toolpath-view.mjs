@@ -162,6 +162,12 @@ export function toolpathFrame(view,count,travel,{pointCap=VIEWER_POINT_CAP}={}) 
   const result=selectFrame(view,count,travel,pointCap);
   view.frameKey=key;view.frame=result;return result;
 }
+export function toolpathPresentation(moves,at,detail) {
+  const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[at.completed].from}]:detail.segments;
+  const current=moves[at.active];
+  const currentLayer=current?.phase==='finish'?moves.findLast(move=>move.extruding):current;
+  return {displayed,current,currentLayer};
+}
 function selectFrame(view,count,travel,pointCap) {
   // Reserve endpoints for the partial simplified edge and exact active move.
   const budget=Math.max(0,Math.floor(pointCap/2)-2);

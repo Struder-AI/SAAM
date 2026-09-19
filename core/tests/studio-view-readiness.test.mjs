@@ -27,7 +27,7 @@ test('compact review updates retain playback and avoid loading the scene again',
       reviewUpdate:{revision:'approved',toolpathApproved:true},tour:{active:false}})}),
     needsTourToolpath:()=>false,render:()=>renders++,working:async(_text,action)=>action(),refresh:()=>reloads++,
     message(){},agentUI:{settled(){}},$:()=>({}),window:{location:{reload(){throw Error('Unexpected reload');}}}});
-  vm.runInContext(section('async function poll(){','\ntourUI=createTourUI'),context);
+  vm.runInContext(section('async function poll(){','\nfunction seekTourLayer('),context);
   await context.poll();
   assert.equal(reloads,0);assert.equal(renders,1);assert.equal(state.seconds,12);
   assert.equal(state.toolpathApproved,true);assert.equal(state.revision,'approved');assert.equal(state.fingerprint,'new-review');

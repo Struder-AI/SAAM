@@ -1,0 +1,176 @@
+{
+  "schema": 1,
+  "flows": [
+    {
+      "path": "core/region",
+      "groups": [
+        {
+          "id": "planar",
+          "label": "planarRegions",
+          "members": [
+            "core/region/boolean.mjs",
+            "core/region/clipper.mjs",
+            "core/region/clipper2.mjs",
+            "core/region/intersection.mjs",
+            "core/region/offset.mjs",
+            "core/region/stroke.mjs"
+          ],
+          "groups": [
+            {
+              "id": "operations",
+              "label": "booleanAndOffset",
+              "members": [
+                "core/region/intersection.mjs",
+                "core/region/offset.mjs",
+                "core/region/stroke.mjs"
+              ]
+            },
+            {
+              "id": "level-sets",
+              "label": "sampledLevelSets",
+              "members": [
+                "core/region/boolean.mjs"
+              ]
+            },
+            {
+              "id": "clipper",
+              "label": "integerClippingKernel",
+              "members": [
+                "core/region/clipper.mjs",
+                "core/region/clipper2.mjs"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fill",
+          "label": "regionQueriesAndFill",
+          "members": [
+            "core/region/region2d.mjs",
+            "core/region/perimeters.mjs"
+          ]
+        },
+        {
+          "id": "surface",
+          "label": "surfaceRegions",
+          "members": [
+            "core/region/normal-surface.mjs",
+            "core/region/reservation.mjs",
+            "core/region/section-offset.mjs",
+            "core/region/surface-offset.mjs"
+          ],
+          "groups": [
+            {
+              "id": "reservation",
+              "label": "materialReservation",
+              "members": [
+                "core/region/reservation.mjs"
+              ]
+            },
+            {
+              "id": "offset",
+              "label": "surfaceOffset",
+              "members": [
+                "core/region/normal-surface.mjs",
+                "core/region/section-offset.mjs",
+                "core/region/surface-offset.mjs"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/region/region2d.mjs",
+      "groups": [
+        {
+          "id": "queries",
+          "label": "regionQueries",
+          "members": [
+            "core/region/region2d.mjs::loopArea",
+            "core/region/region2d.mjs::regionArea",
+            "core/region/region2d.mjs::pointInRegion",
+            "core/region/region2d.mjs::SegmentIndex",
+            "core/region/region2d.mjs::SegmentIndex::constructor",
+            "core/region/region2d.mjs::SegmentIndex::add",
+            "core/region/region2d.mjs::SegmentIndex::near",
+            "core/region/region2d.mjs::SegmentIndex::inBox",
+            "core/region/region2d.mjs::SegmentIndex::inCorridor",
+            "core/region/region2d.mjs::SegmentIndex::contains",
+            "core/region/region2d.mjs::SegmentIndex::distanceTo",
+            "core/region/region2d.mjs::pointSegmentDistance",
+            "core/region/region2d.mjs::dedupe",
+            "core/region/region2d.mjs::segmentIntersection"
+          ]
+        },
+        {
+          "id": "fill",
+          "label": "connectedScanlineCells",
+          "members": [
+            "core/region/region2d.mjs::regionComponents",
+            "core/region/region2d.mjs::regionComponents::<callable@157:11>",
+            "core/region/region2d.mjs::componentKey",
+            "core/region/region2d.mjs::scanlineFill",
+            "core/region/region2d.mjs::scanlineFillComponent",
+            "core/region/region2d.mjs::scanlineFillComponent::toScan",
+            "core/region/region2d.mjs::scanlineFillComponent::toWorld"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/region/reservation.mjs",
+      "groups": [
+        {
+          "id": "footprints",
+          "label": "reservationFootprints",
+          "members": [
+            "core/region/reservation.mjs::reservationFootprint",
+            "core/region/reservation.mjs::bounds",
+            "core/region/reservation.mjs::boundsOverlap",
+            "core/region/reservation.mjs::intersectsReservation",
+            "core/region/reservation.mjs::clipReservedRegion"
+          ]
+        },
+        {
+          "id": "surface",
+          "label": "surfaceMaterialClipping",
+          "members": [
+            "core/region/reservation.mjs::surfaceHeight",
+            "core/region/reservation.mjs::clipAboveSurface",
+            "core/region/reservation.mjs::surfaceStroke",
+            "core/region/reservation.mjs::surfaceStroke::sample",
+            "core/region/reservation.mjs::surfaceStroke::append",
+            "core/region/reservation.mjs::surfaceStroke::split"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/region/surface-offset.mjs::offsetSurfaceRegion",
+      "groups": [
+        {
+          "id": "geodesic",
+          "label": "geodesicTracing",
+          "members": [
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::at",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::stopAtBoundary",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::frameAtState",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::rhs",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::rk4",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::shoot"
+          ]
+        },
+        {
+          "id": "swept-bands",
+          "label": "sweptStripsAndCorners",
+          "members": [
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::triangle",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::addStrip",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion::addDisk"
+          ]
+        }
+      ]
+    }
+  ]
+}

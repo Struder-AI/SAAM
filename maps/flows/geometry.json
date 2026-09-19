@@ -1,0 +1,382 @@
+{
+  "schema": 1,
+  "flows": [
+    {
+      "path": "core/geom",
+      "groups": [
+        {
+          "id": "mesh-backend",
+          "label": "triangleMesh",
+          "members": [
+            "core/geom/mesh.mjs",
+            "core/geom/mesh-capacity.mjs",
+            "core/geom/mesh-distance.mjs",
+            "core/geom/mesh-native.mjs",
+            "core/geom/mesh-repair.mjs",
+            "core/geom/mesh-spatial.mjs",
+            "core/geom/mesh-topology.mjs",
+            "core/geom/stl-file.mjs",
+            "core/geom/triangle-bvh.mjs",
+            "core/geom/solid.mjs"
+          ],
+          "groups": [
+            {
+              "id": "ingestion",
+              "label": "ingestionAndTopology",
+              "members": [
+                "core/geom/mesh.mjs",
+                "core/geom/mesh-capacity.mjs",
+                "core/geom/mesh-topology.mjs",
+                "core/geom/stl-file.mjs"
+              ]
+            },
+            {
+              "id": "repair",
+              "label": "meshRepair",
+              "members": [
+                "core/geom/mesh-native.mjs",
+                "core/geom/mesh-repair.mjs"
+              ]
+            },
+            {
+              "id": "spatial",
+              "label": "spatialQueries",
+              "members": [
+                "core/geom/mesh-distance.mjs",
+                "core/geom/mesh-spatial.mjs",
+                "core/geom/triangle-bvh.mjs"
+              ]
+            },
+            {
+              "id": "solid",
+              "label": "solidBooleanKernel",
+              "members": [
+                "core/geom/solid.mjs"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "spline-shells",
+          "label": "splineShells",
+          "members": [
+            "core/geom/cylinder.mjs",
+            "core/geom/nurbs.mjs",
+            "core/geom/shapes.mjs",
+            "core/geom/shell.mjs",
+            "core/geom/spline-tube.mjs"
+          ],
+          "groups": [
+            {
+              "id": "construction",
+              "label": "shellConstruction",
+              "members": [
+                "core/geom/cylinder.mjs",
+                "core/geom/shapes.mjs",
+                "core/geom/spline-tube.mjs"
+              ]
+            },
+            {
+              "id": "shell",
+              "label": "shellClosureAndSections",
+              "members": [
+                "core/geom/shell.mjs"
+              ]
+            },
+            {
+              "id": "nurbs",
+              "label": "patchEvaluation",
+              "members": [
+                "core/geom/nurbs.mjs"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "contours-contact",
+          "label": "contoursAndContact",
+          "members": [
+            "core/geom/contour-path.mjs",
+            "core/geom/directional-contour.mjs",
+            "core/geom/mesh-sleeve.mjs",
+            "core/geom/polyline.mjs",
+            "core/geom/prepared-contours.mjs",
+            "core/geom/prepared-radial-contact.mjs",
+            "core/geom/section.mjs",
+            "core/geom/sleeve-contact.mjs",
+            "core/geom/sleeve-frame.mjs"
+          ],
+          "groups": [
+            {
+              "id": "mesh-sleeves",
+              "label": "meshSleeveContact",
+              "members": [
+                "core/geom/directional-contour.mjs",
+                "core/geom/mesh-sleeve.mjs",
+                "core/geom/prepared-radial-contact.mjs"
+              ]
+            },
+            {
+              "id": "contours",
+              "label": "sectionContours",
+              "members": [
+                "core/geom/contour-path.mjs",
+                "core/geom/polyline.mjs",
+                "core/geom/prepared-contours.mjs",
+                "core/geom/section.mjs"
+              ]
+            },
+            {
+              "id": "sleeves",
+              "label": "sleeveContact",
+              "members": [
+                "core/geom/sleeve-contact.mjs",
+                "core/geom/sleeve-frame.mjs"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "surface-fields",
+          "label": "surfaceFields",
+          "members": [
+            "core/geom/field.mjs",
+            "core/geom/offset-curvature.mjs",
+            "core/geom/reference-surface.mjs",
+            "core/geom/support-surface.mjs",
+            "core/geom/surface-derivatives.mjs",
+            "core/geom/surface-offset.mjs",
+            "core/geom/surface-region.mjs",
+            "core/geom/tessellate.mjs"
+          ],
+          "groups": [
+            {
+              "id": "surface-query",
+              "label": "surfaceSampling",
+              "members": [
+                "core/geom/field.mjs",
+                "core/geom/surface-derivatives.mjs",
+                "core/geom/surface-region.mjs"
+              ]
+            },
+            {
+              "id": "surface-offset",
+              "label": "surfaceOffsets",
+              "members": [
+                "core/geom/offset-curvature.mjs",
+                "core/geom/surface-offset.mjs"
+              ]
+            },
+            {
+              "id": "surface-build",
+              "label": "surfaceConstruction",
+              "members": [
+                "core/geom/reference-surface.mjs",
+                "core/geom/support-surface.mjs",
+                "core/geom/tessellate.mjs"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "text",
+          "label": "textGeometry",
+          "members": [
+            "core/geom/text-layout.mjs",
+            "core/geom/text-outline.mjs",
+            "core/geom/text-record.mjs"
+          ]
+        },
+        {
+          "id": "query-numerics",
+          "label": "geometryQueriesAndNumerics",
+          "members": [
+            "core/geom/query.mjs",
+            "core/geom/selections.mjs",
+            "core/geom/tolerance.mjs",
+            "core/geom/least-squares.mjs"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/geom/mesh.mjs",
+      "groups": [
+        {
+          "id": "ingestion",
+          "label": "validatedMesh",
+          "members": [
+            "core/geom/mesh.mjs::requireMeshInput",
+            "core/geom/mesh.mjs::meshInputError",
+            "core/geom/mesh.mjs::meshResult",
+            "core/geom/mesh.mjs::meshResult::get",
+            "core/geom/mesh.mjs::meshResult::set",
+            "core/geom/mesh.mjs::meshIdentity",
+            "core/geom/mesh.mjs::meshIdentity::put",
+            "core/geom/mesh.mjs::makeMesh",
+            "core/geom/mesh.mjs::validateMeshInput",
+            "core/geom/mesh.mjs::meshFaceGeometry",
+            "core/geom/mesh.mjs::validateMeshGeometry",
+            "core/geom/mesh.mjs::retainValidatedMesh",
+            "core/geom/mesh.mjs::decodeSTL",
+            "core/geom/mesh.mjs::decodeSTL::addFacet",
+            "core/geom/mesh.mjs::decodeSTL::read",
+            "core/geom/mesh.mjs::decodeSTL::take",
+            "core/geom/mesh.mjs::decodeSTL::word",
+            "core/geom/mesh.mjs::decodeSTL::number",
+            "core/geom/mesh.mjs::parseSTL"
+          ]
+        },
+        {
+          "id": "queries",
+          "label": "meshSectionsAndHeight",
+          "members": [
+            "core/geom/mesh.mjs::translateMesh",
+            "core/geom/mesh.mjs::translateMesh::data",
+            "core/geom/mesh.mjs::createMeshSectionQuery",
+            "core/geom/mesh.mjs::createMeshSectionQuery::build",
+            "core/geom/mesh.mjs::createMeshSectionQuery::nearVertex",
+            "core/geom/mesh.mjs::createMeshSectionQuery::trianglesAt",
+            "core/geom/mesh.mjs::createMeshSectionQuery::trianglesAt::visit",
+            "core/geom/mesh.mjs::createMeshSectionQuery::contoursAt",
+            "core/geom/mesh.mjs::createMeshSectionQuery::<return@172:10>",
+            "core/geom/mesh.mjs::sectionMesh",
+            "core/geom/mesh.mjs::sectionMesh::<callable@176:25>",
+            "core/geom/mesh.mjs::sectionMesh::<callable@176:78>",
+            "core/geom/mesh.mjs::meshContourEdges",
+            "core/geom/mesh.mjs::cutMesh",
+            "core/geom/mesh.mjs::meshTopAt"
+          ]
+        },
+        {
+          "id": "intersection",
+          "label": "triangleIntersection",
+          "members": [
+            "core/geom/mesh.mjs::sub",
+            "core/geom/mesh.mjs::cross",
+            "core/geom/mesh.mjs::dot",
+            "core/geom/mesh.mjs::edgeKey",
+            "core/geom/mesh.mjs::rejectIntersections",
+            "core/geom/mesh.mjs::rejectIntersections::<callable@90:24>",
+            "core/geom/mesh.mjs::separatedTriangles",
+            "core/geom/mesh.mjs::separatedTriangles::normal"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/geom/shell.mjs",
+      "groups": [
+        {
+          "id": "closure",
+          "label": "shellClosure",
+          "members": [
+            "core/geom/shell.mjs::makeShell",
+            "core/geom/shell.mjs::assertClosed",
+            "core/geom/shell.mjs::shellBounds",
+            "core/geom/shell.mjs::boundaryCurve",
+            "core/geom/shell.mjs::boundaryCurve::at",
+            "core/geom/shell.mjs::boundaryCurve::<return@56:10>",
+            "core/geom/shell.mjs::verifyClosure",
+            "core/geom/shell.mjs::endpointsMatch",
+            "core/geom/shell.mjs::sameCurve",
+            "core/geom/shell.mjs::distanceToCurve"
+          ]
+        },
+        {
+          "id": "sections",
+          "label": "shellSections",
+          "members": [
+            "core/geom/shell.mjs::sectionShell",
+            "core/geom/shell.mjs::sectionAt",
+            "core/geom/shell.mjs::joinChains",
+            "core/geom/shell.mjs::toPlanar",
+            "core/geom/shell.mjs::signedArea",
+            "core/geom/shell.mjs::pointInLoop",
+            "core/geom/shell.mjs::orientLoops"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/geom/section.mjs",
+      "groups": [
+        {
+          "id": "sampling",
+          "label": "patchContourSampling",
+          "members": [
+            "core/geom/section.mjs::positive",
+            "core/geom/section.mjs::sectionPatch",
+            "core/geom/section.mjs::sectionPatch::g",
+            "core/geom/section.mjs::contourGrid",
+            "core/geom/section.mjs::resolved",
+            "core/geom/section.mjs::edgesSimple",
+            "core/geom/section.mjs::cellCounts",
+            "core/geom/section.mjs::spanIndexOf",
+            "core/geom/section.mjs::cellSegments",
+            "core/geom/section.mjs::cellSegments::<callable@154:9>",
+            "core/geom/section.mjs::cellSegments::<callable@155:9>",
+            "core/geom/section.mjs::cellSegments::<callable@156:24>"
+          ]
+        },
+        {
+          "id": "tracing",
+          "label": "contourAssemblyAndRefinement",
+          "members": [
+            "core/geom/section.mjs::joinSegments",
+            "core/geom/section.mjs::joinSegments::cell",
+            "core/geom/section.mjs::joinSegments::add",
+            "core/geom/section.mjs::joinSegments::near",
+            "core/geom/section.mjs::refine",
+            "core/geom/section.mjs::withPoint",
+            "core/geom/section.mjs::split",
+            "core/geom/section.mjs::contourPointNear",
+            "core/geom/section.mjs::contourPointNear::<callable@252:26>"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/geom/shapes.mjs",
+      "groups": [
+        {
+          "id": "faceted",
+          "label": "facetedShells",
+          "members": [
+            "core/geom/shapes.mjs::boxShell",
+            "core/geom/shapes.mjs::boxShell::<callable@32:70>",
+            "core/geom/shapes.mjs::wedgeShell",
+            "core/geom/shapes.mjs::wedgeShell::<callable@38:82>",
+            "core/geom/shapes.mjs::prismShell"
+          ]
+        },
+        {
+          "id": "spline",
+          "label": "splineShells",
+          "members": [
+            "core/geom/shapes.mjs::splineTopSurface",
+            "core/geom/shapes.mjs::splineShellFromSurfaces",
+            "core/geom/shapes.mjs::splineShellFromTop",
+            "core/geom/shapes.mjs::splineTopShell",
+            "core/geom/shapes.mjs::splineSideShell",
+            "core/geom/shapes.mjs::verticalSplineSideShell",
+            "core/geom/shapes.mjs::verticalSplineSideShell::bump",
+            "core/geom/shapes.mjs::verticalSplineSideShell::footprint",
+            "core/geom/shapes.mjs::verticalSplineSideShell::bottom::heights"
+          ]
+        },
+        {
+          "id": "patches",
+          "label": "patchConstruction",
+          "members": [
+            "core/geom/shapes.mjs::shellFromSurfaces",
+            "core/geom/shapes.mjs::ruled",
+            "core/geom/shapes.mjs::line",
+            "core/geom/shapes.mjs::quad",
+            "core/geom/shapes.mjs::greville"
+          ]
+        }
+      ]
+    }
+  ]
+}

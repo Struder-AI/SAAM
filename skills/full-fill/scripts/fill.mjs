@@ -11,7 +11,6 @@
 // reserved surface is still above the layer - the general form of a flat
 // "core plane" reservation.
 
-import { composeResults } from '../../../core/path/compose.mjs';
 import { createSectionQuery } from '../../../core/geom/query.mjs';
 import { scanlineFill, regionArea, loopArea, pointInRegion } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
@@ -177,11 +176,4 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
   requireThat(!reserves.length || report.layers > 0,
     'No planar layers fit below the reserved surface; the reserved skin leaves no printable body.');
   return {id,operations,report};
-}
-
-// Compatibility callable, using the same result/composition implementation.
-export function generateFullFill(builder,options){
-  const result=fullFillResult(options);
-  composeResults(builder,[result]);
-  return result.report;
 }

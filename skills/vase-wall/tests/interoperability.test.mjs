@@ -28,8 +28,11 @@ test('single motifs share solid-base composition on native spline and mesh compo
     const regional=generatePath(p,machine,native);
     assert.deepEqual(wall(regional).map(a=>[a.to,a.volumeMm3]),wall(ordinary).map(a=>[a.to,a.volumeMm3]));
     assert.equal(regional.summary.regions.find(r=>r.id==='motifs').publishedSurface,'rim','only the flat final motif footprint is published');
-    const deposited=regional.actions.filter(a=>a.volumeMm3>0);
-    assert.deepEqual([...new Set(deposited.map(a=>a.region))],['base','motifs']);
+    const deposited=regional.actions.filter(a=>a.volumeMm3>0),prime=deposited.filter(a=>a.phase==='prime');
+    assert.ok(prime.length>0,'machine priming remains before model deposition');
+    assert.ok(prime.every(a=>a.region===undefined&&a.operation===undefined),'machine priming belongs to no model region');
+    const model=deposited.filter(a=>a.phase!=='prime');
+    assert.deepEqual([...new Set(model.map(a=>a.region))],['base','motifs']);
   }
 });
 
@@ -42,7 +45,7 @@ test('a selected translated assembly component owns the motif while another comp
   const actual=generatePath(p,machine,native),mapped=wall(actual);
   assert.equal(mapped.length,expected.length);
   mapped.forEach((a,i)=>a.to.forEach((v,k)=>assert.ok(Math.abs(v-expected[i].to[k]-[7,3,0][k])<1e-8)));
-  assert.ok(actual.actions.some(a=>a.volumeMm3>0&&a.operation.startsWith('block:')));
+  assert.ok(actual.actions.some(a=>a.volumeMm3>0&&a.phase!=='prime'&&a.operation.startsWith('block:')));
   assert.ok(mapped.every(a=>a.operation.startsWith('vase:')));
 });
 

@@ -146,7 +146,7 @@ test('shared composition orders the supporting body before waves and exports the
   assert.ok(exported.slice(firstExtrusion,lastExtrusion+1).every(m=>m.extruding||Math.hypot(...m.to.map((x,k)=>x-m.from[k]))<0.001),
     'Only sub-E-quantum movements may lack a rounded extrusion increment.');
   assert.ok(wave.some(m=>Math.abs(m.to[2]-m.from[2])>1e-4));
-  // PathBuilder omits movements wholly inside one five-decimal XYZ cell.
+  // Path planning omits movements wholly inside one five-decimal XYZ cell.
   // The next segment's start can differ by at most that cell's diagonal.
   const beadArea=plan.process.lineWidthMm*settings.beadHeightMm;
   for(const m of wave){const expected=Math.hypot(...m.to.map((v,i)=>v-m.from[i]))*beadArea;

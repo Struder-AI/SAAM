@@ -16,7 +16,6 @@ import { topAt } from '../../../core/geom/query.mjs';
 import { scanlineFill, regionArea, loopArea } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
 import { levelSetRegion, intersect, SENTINEL } from '../../../core/region/boolean.mjs';
-import { composeResults } from '../../../core/path/compose.mjs';
 import {surfacePolicy} from '../../../core/path/builder.mjs';
 import { requireThat, distance, distance2 } from '../../../core/geom/tolerance.mjs';
 import {lineSpacing} from '../../../core/path/spacing.mjs';
@@ -264,7 +263,3 @@ export const skinReport = report => ({
   ...report,
   excludedPercent: Number((report.excludedFraction * 100).toFixed(2))
 });
-
-export function generateDrapedSkin(builder,options){
-  const result=drapedSkinResult(options);composeResults(builder,[result]);return result.report;
-}

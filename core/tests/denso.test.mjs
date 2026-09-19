@@ -1,3 +1,4 @@
+import {createPlanningState,planningPath,planMove} from '../path/planning.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
@@ -15,7 +16,6 @@ import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
-import {PathBuilder} from '../path/builder.mjs';
 import {pipeCladdingResult} from '../../skills/pipe-cladding/scripts/clad.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
 import {frameAtTime,displayPoint} from '../../studio/playback.mjs';
@@ -76,11 +76,12 @@ test('existing mesh/spline regional skills use RC8 at fixed orientation',async()
 });
 
 test('oriented motion preserves pose-only actions and unsupported outputs reject rather than flatten',()=>{
-  const plan=small(),b=new PathBuilder({start:[10,0,1],machine,process:plan.process,generatorVersion:'test',motion:plan.setup.denso});
-  b.move([10,0,1],10,0,{pose:{...uprightPose(),rotaryDeg:720},durationSeconds:2});
-  b.move([10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
-  assert.equal(b.actions.length,2);assert.equal(b.actions[0].pose.rotaryDeg,720);
-  const s5=loadMachine();assert.throws(()=>exportProgram(b.toPath(),defaults(s5),s5),/cannot represent/);
+  const plan=small(),initial=createPlanningState({start:[10,0,1],machine,process:plan.process,generatorVersion:'test',motion:plan.setup.denso});
+  const rotated=planMove(initial,[10,0,1],10,0,{pose:{...uprightPose(),rotaryDeg:720},durationSeconds:2});
+  const raised=planMove(rotated.state,[10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
+  const path=planningPath(raised.state,[rotated.actions,raised.actions]);
+  assert.equal(path.actions.length,2);assert.equal(path.actions[0].pose.rotaryDeg,720);
+  const s5=loadMachine();assert.throws(()=>exportProgram(path,defaults(s5),s5),/cannot represent/);
 });
 
 test('actual T/EX commands reconstruct fixed-room rotary deposition across multiple turns',()=>{

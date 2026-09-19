@@ -82,6 +82,7 @@ class LNode:
         # (decisions.md, 2026-08-02). Legitimate only where the flows genuinely meet inside
         # the node; non-touching paths through one node mean it should have been two.
         self.co = tuple(co)
+        self.reference_rows = []        # [(text, destination)] segments, attached port evidence
         self.anchor_ref = None
         self.x = self.y = 0.0
         self.column = 0
@@ -117,14 +118,16 @@ class LNode:
         foot, _c = self.foot
         if foot:
             w = max(w, tw(foot, FS_FOOT))
+        for row in self.reference_rows:
+            w = max(w, sum(tw(text, FS_FOOT) for text, _go in row))
         self.w = max(w + 2 * PADX, MIN_W)
         self.h = (len(self.lines) * LH_TITLE + len(self.note_lines) * LH_NOTE
-                  + (LH_NOTE + 3 if foot else 0) + 2 * PADY)
+                  + LH_NOTE * len(self.reference_rows) + (LH_NOTE + 3 if foot else 0) + 2 * PADY)
 
         self.box_h = self.h
         self.shared_lines = [" · ".join(self.co[i:i + 3]) for i in range(0, len(self.co), 3)]
         if self.co:
-            self.h += max(CO_LEN + 5, len(self.shared_lines) * 11 + 6)
+            self.h += max(CO_LEN + 5, len(self.shared_lines) * 11 + 18)
             self.w = max(self.w, max(tw(line, FS_FOOT) for line in self.shared_lines) + 30)
 
     @property
@@ -446,9 +449,9 @@ class Page:
         self.routes = [self._route(e, back) for e in self.edges]
         self.W = max((n.x + n.w for n in self.nodes), default=MARGIN_L) + MARGIN_R
         self.H = max((n.y + n.h for n in self.nodes), default=MARGIN_T) + MARGIN_B
-        for _pts, lab in self.routes:
+        for e, (_pts, lab) in zip(self.edges, self.routes):
             if lab:
-                self.H = max(self.H, lab[1] + 20)
+                self.H = max(self.H, lab[1] + 20 + 12 * (len(e["label"].split("\n")) - 1))
         self.zone_rects = self._zones()
         return self
 
@@ -630,16 +633,18 @@ class Page:
                 continue
             shape = self.shape_of(e["src"], e["dst"], e["label"]) if self.shape_of else None
             st = EDGE[e["kind"]]
-            w = max(tw(e["label"], FS_EDGE), tw(shape, FS_FOOT) if shape else 0) + 10
-            h = 13 + (10 if shape else 0)
+            lines = e["label"].split("\n")
+            w = max(max(tw(line, FS_EDGE) for line in lines), tw(shape, FS_FOOT) if shape else 0) + 10
+            h = 13 + 12 * (len(lines) - 1) + (10 if shape else 0)
             o.append(f'<g class="fm-elab"{_ends(e)}>')
             o.append(f'<rect x="{lab[0] - w / 2:.1f}" y="{lab[1] - 10:.1f}" '
                      f'width="{w:.1f}" height="{h}" rx="3" fill="#ffffff" opacity="0.93"/>')
-            o.append(f'<text x="{lab[0]:.1f}" y="{lab[1]:.1f}" font-size="{FS_EDGE}" '
-                     f'fill="{st["stroke"]}" text-anchor="middle">'
-                     f'{escape(e["label"])}</text>')
+            for line_index, line in enumerate(lines):
+                o.append(f'<text x="{lab[0]:.1f}" y="{lab[1] + 12 * line_index:.1f}" font-size="{FS_EDGE}" '
+                         f'fill="{st["stroke"]}" text-anchor="middle">'
+                         f'{escape(line)}</text>')
             if shape:
-                o.append(f'<text x="{lab[0]:.1f}" y="{lab[1] + 9.5:.1f}" '
+                o.append(f'<text x="{lab[0]:.1f}" y="{lab[1] + 12 * (len(lines) - 1) + 9.5:.1f}" '
                          f'font-size="{FS_FOOT}" fill="{ANCHOR_TC}" text-anchor="middle">'
                          f'{escape(shape)}</text>')
             o.append("</g>")
@@ -654,12 +659,26 @@ class Page:
         o.append(f'<g class="fm-node"{_attrs(n)}>')
         if n.co:
             x, y = n.x + 10, n.y + n.box_h
-            o.append(f'<path d="M{x:.1f},{y:.1f} L{x:.1f},{y + CO_LEN:.1f}" '
+            callers = getattr(n, "co_role", "") == "calledFrom"
+            o.append(f'<path class="fm-caller-arrow" d="M{x:.1f},{y:.1f} L{x:.1f},{y + CO_LEN:.1f}" '
                      f'fill="none" stroke="{CO_TC}" stroke-width="1.5" '
                      f'marker-end="url(#l-co)"/>')
-            for i, label in enumerate(n.shared_lines):
-                o.append(f'<text x="{x + 9:.1f}" y="{y + 13 + i * 11:.1f}" '
-                         f'font-size="{FS_FOOT}" fill="{CO_TC}">{escape(label)}</text>')
+            if callers:
+                o.append(f'<text x="{x + 9:.1f}" y="{y + 10:.1f}" font-size="{FS_FOOT}" fill="{CO_TC}">called from</text>')
+            for i in range(0, len(n.co), 3):
+                tx, ty = x + 9, y + (22 if callers else 13) + (i // 3) * 11
+                for j, label in enumerate(n.co[i:i + 3]):
+                    if j:
+                        tx += tw(" · ", FS_FOOT)
+                    target = getattr(n, "co_targets", {}).get(label)
+                    if target:
+                        o.append(f'<g class="fm-go fm-caller-reference" data-go="{escape(target, {chr(34): "&quot;"})}">')
+                        o.append(f'<rect x="{tx - 2:.1f}" y="{ty - 9:.1f}" width="{tw(label, FS_FOOT) + 4:.1f}" height="12" fill="{CO_TC}" fill-opacity="0.004"/>')
+                    else:
+                        o.append('<g class="fm-caller-unresolved">')
+                    o.append(f'<text x="{tx:.1f}" y="{ty:.1f}" font-size="{FS_FOOT}" fill="{CO_TC}">{escape(label)}</text>')
+                    o.append('</g>')
+                    tx += tw(label, FS_FOOT)
         o.append(f'<rect x="{n.x:.1f}" y="{n.y:.1f}" width="{n.w:.1f}" height="{n.box_h:.1f}" '
                  f'rx="{s["rx"]}" fill="{s["fill"]}" stroke="{s["stroke"]}" '
                  f'stroke-width="{s["sw"]}"{dash}/>')
@@ -676,6 +695,19 @@ class Page:
         for line in n.note_lines:
             o.append(f'<text x="{n.x + PADX:.1f}" y="{ty:.1f}" font-size="{FS_NOTE}" '
                      f'fill="#64748b">{escape(line)}</text>')
+            ty += LH_NOTE
+        for row in n.reference_rows:
+            tx = n.x + PADX
+            for text, target in row:
+                if target:
+                    o.append(f'<g class="fm-go fm-port-reference" data-go="{escape(target, {chr(34): "&quot;"})}">'
+                             f'<rect x="{tx - 2:.1f}" y="{ty - 9:.1f}" width="{tw(text, FS_FOOT) + 4:.1f}" '
+                             f'height="12" fill="#0369a1" fill-opacity="0.004"/>')
+                o.append(f'<text x="{tx:.1f}" y="{ty:.1f}" font-size="{FS_FOOT}" '
+                         f'fill="{"#0369a1" if target else "#475569"}">{escape(text)}</text>')
+                if target:
+                    o.append('</g>')
+                tx += tw(text, FS_FOOT)
             ty += LH_NOTE
         foot, col = n.foot
         if foot:

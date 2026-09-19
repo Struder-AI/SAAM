@@ -26,7 +26,7 @@ test('a restarted server changes its public instance identity and rejects the ol
 
 test('the actual browser poll reloads a restarted session before sending acknowledgements',async()=>{
   const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
-  const poll=app.slice(app.indexOf('async function poll(){'),app.indexOf('\ntourUI=createTourUI('));
+  const poll=app.slice(app.indexOf('async function poll(){'),app.indexOf('\nfunction seekTourLayer('));
   let reloads=0,refreshes=0;
   const context=vm.createContext({URLSearchParams,polling:false,busy:false,reconnecting:false,movieController:null,
     state:{instanceId:'old',fingerprint:'before'},fetch:async()=>({ok:true,json:async()=>({instanceId:'new',fingerprint:'after'})}),
@@ -39,7 +39,7 @@ test('the actual browser poll reloads a restarted session before sending acknowl
 
 test('tour metadata updates preserve playback and source; a newly published edit target can start generation',async()=>{
   const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
-  const poll=app.slice(app.indexOf('async function poll(){'),app.indexOf('\ntourUI=createTourUI('));
+  const poll=app.slice(app.indexOf('async function poll(){'),app.indexOf('\nfunction seekTourLayer('));
   let loads=0,renders=0,needsGeneration=false;
   const next={instanceId:'same',fingerprint:'same',tour:{step:4,canNext:true,startAt:{layer:8}}};
   const context=vm.createContext({URLSearchParams,polling:false,busy:false,reconnecting:false,movieController:null,playing:true,

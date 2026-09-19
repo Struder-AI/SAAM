@@ -113,20 +113,21 @@ conveniently to source using ordinary repository tools.
 
 ## Maps and local documentation
 
-The dev map is generated from the code. Nothing on a page is authored: regions,
-files, entry points, boxes, wires, labels, gates and lists all come from the
-parsed source. The only authored inputs are the scan scope in
-`scripts/dev-map/scope.mjs` and the external-fact rows in `maps/facts.tsv`.
-There is no map to write and no contract text to maintain beside it.
+The dev map generates code entities and relationships from source. Authored
+flow grouping in `maps/flows.json` chooses which generated entities are shown
+together and names the groups; it cannot invent implementation nodes or wires.
+The scan scope lives in `scripts/dev-map/scope.mjs`, and external facts in
+`maps/facts.tsv`. The same generated pages serve the CLI and human viewer.
 
-**Developer and builder agents orient by walking the map from `0`.** Page `0` is
-the regions; `N` is a region and its files; `N.F` is a file and its entry points;
-`N.F.E` is one declaration, what it calls, what reaches it and what it is coupled
+**Developers orient by walking the map from `0`; builders may walk the region
+they are changing alongside its prose manual.** Page `0` is the regions; `N` is
+a region and its files; `N.F` is a file and its declarations;
+`N.F.D` is one declaration, what it calls, what reaches it and what it is coupled
 to. Read a page with `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`
 and its source with `--code`. **Text search across the repository is discouraged
-for orientation**: it finds names, while the walk tells you who calls and
-consumes the thing you are about to change. Every page states its `unresolved`
-count, so what the scan could not link is visible rather than assumed away.
+for orientation**: it finds names, while the walk exposes relationships around
+the thing you are about to change. Inspect unresolved calls and flow uncertainty;
+an empty caller list is not proof that unscanned or dynamic callers do not exist.
 Makers need no maps. The [map guide](maps/README.md) owns the commands, the
 fields each kind of page carries, and the fact rows.
 

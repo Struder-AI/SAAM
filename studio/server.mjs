@@ -1,7 +1,7 @@
 import {createTour,referenceAdapter,tourExample,useExample} from './tour.mjs';
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
-import {hasUnpreparedEdit} from './work-state.mjs';
+import {composeStudioState} from './state-response.mjs';
 import {printName,downloadName,requestedDownloadName} from './print-name.mjs';
 import {importStudioSTL,loadStudioImportRepair} from './import-stl.mjs';
 import http from 'node:http';
@@ -272,7 +272,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -317,19 +317,16 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
         const {state,fingerprint,presentationFingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
         if(readDir!==dir)throw new Error('The print is being updated.');
-        state.tour=guide;state.localPrintDirectory=readDir;state.instanceId=instanceId;
-        state.importRepair=await loadStudioImportRepair(readDir);
-        state.work={printId:workId??readId,snapshot:{...workSnapshot(state),studioInstanceId:instanceId},requests:workId?records.filter(r=>r.printId===workId):[]};
-        if(generationFailure?.directory===readDir&&generationFailure.planHash===state.planHash&&!state.program)
-          state.generationError=generationFailure.message;
-        state.generationCancelled=generationCancelled?.directory===readDir&&generationCancelled.planHash===state.planHash;
-        state.presentationFingerprint=viewFingerprint(readId,presentationFingerprint,guide);
-        delete state.code;delete state.dir;state.printName=await printName(readDir,state.plan);state.downloadName=downloadName(state.printName,state.exportName);state.printId=readId;state.fingerprint=viewFingerprint(readId,fingerprint,guide);send(state);
+        const importRepair=await loadStudioImportRepair(readDir),failure=generationFailure,cancelled=generationCancelled;
+        const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
+        const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
+          printName:name,fingerprint:viewFingerprint(readId,fingerprint,guide),presentationFingerprint:presentation,
+          generationFailure:failure,generationCancelled:cancelled,now:Date.now()});
+        send(assembled.response);
         // Speculate only on the tour's explicitly selected, confirmed part.
         // Ordinary edits use explicit generation; starting a second worker here
         // competes with the agent and may slice inputs it is still changing.
-        if(!state.generationCancelled&&guide.active&&guide.directory===readDir&&guide.step===L.import
-          &&!hasUnpreparedEdit(state.work.requests,state.work.snapshot))prepare(state,readDir);
+        if(assembled.preparation)prepare(assembled.preparation.state,assembled.preparation.directory);
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){

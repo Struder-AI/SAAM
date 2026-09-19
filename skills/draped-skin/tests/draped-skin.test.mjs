@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import rhino3dm from 'rhino3dm';
 import { defaults, validatePlan } from '../../../core/print/plan.mjs';
 import { buildShell, translateShell, generatePath } from '../../../core/print/generate.mjs';
-import { PathBuilder } from '../../../core/path/builder.mjs';
-import { generateDrapedSkin, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../scripts/drape.mjs';
+import {createPlanningState,planningPath} from '../../../core/path/planning.mjs';
+import {planComposition} from '../../../core/path/compose.mjs';
+import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../scripts/drape.mjs';
 import { topAt } from '../../../core/geom/field.mjs';
 import { sampleTopSurface } from '../../../core/geom/query.mjs';
 
@@ -28,12 +29,13 @@ function run(plan) {
   const shell = translateShell(buildShell(rhino, plan.geometry), plan.placement.xMm, plan.placement.yMm);
   const settings = { ...DRAPED_SKIN_DEFAULTS, ...plan.skills['draped-skin'] };
   const survey = surveySurface(shell, settings, machineMaxAngle(machine));
-  const builder = new PathBuilder({
+  const initial = createPlanningState({
     start: [...machine.tools[plan.setup.tool].startupXY, machine.startup.zAfterStartupMm],
     process: plan.process, machine, generatorVersion: 'test'
   });
-  const report = generateDrapedSkin(builder, { shell, plan, machine, survey });
-  return { shell, survey, builder, report, path: builder.toPath({}), settings };
+  const result = drapedSkinResult({ shell, plan, machine, survey });
+  const composed=planComposition(initial,[result]);
+  return { shell, survey, state:composed.state, report:result.report, path:planningPath(composed.state,[composed.actions]), settings };
 }
 
 test('reserve survey reports the complete roof slope without a separate surface pass',()=>{
@@ -116,7 +118,7 @@ test('the machine must declare its non-planar limit', () => {
 
 test('travel over a curved surface clears that surface, not the whole part', () => {
   const plan = planFor(gentle);
-  const { shell, path, builder } = run(plan);
+  const { shell, path, state } = run(plan);
   const partMax = shell.bounds.max[2];
   let belowPartMax = 0, travels = 0;
   for (const action of path.actions) {
@@ -130,7 +132,7 @@ test('travel over a curved surface clears that surface, not the whole part', () 
   assert.ok(travels > 0);
   // Verified adjacent moves retain the local surface policy.
   assert.ok(belowPartMax > 0, 'some travel stays below the full part clearance height');
-  assert.ok(builder.stats.connected > 0, 'neighbouring skin strokes continue as deposition');
+  assert.ok(state.stats.connected > 0, 'neighbouring skin strokes continue as deposition');
 });
 
 test('a plan whose reserved skin exceeds the part is rejected', () => {

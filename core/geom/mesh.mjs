@@ -45,24 +45,44 @@ function meshIdentity(vertices,triangles){
   put(vertices.length);put(triangles.length);for(const p of vertices)for(const v of p)put(v);for(const t of triangles)for(const v of t)put(v);hash.update(buffer.subarray(0,offset));return hash.digest('hex');
 }
 export function makeMesh(vertices,triangles,{name='mesh'}={}){
+  const input=validateMeshInput(vertices,triangles);
+  const identity=meshIdentity(input.vertices,input.triangles);
+  if(validatedMeshes.has(identity))return meshResult(vertices,triangles,name,validatedMeshes.get(identity));
+  const faceGeometry=meshFaceGeometry(input);
+  const derived=validateMeshGeometry(input,faceGeometry);
+  const retained=retainValidatedMesh(identity,derived);
+  return meshResult(vertices,triangles,name,retained);
+}
+
+function validateMeshInput(vertices,triangles){
   requireMeshInput(Array.isArray(vertices)&&vertices.length>=4,'Mesh needs at least 4 vertices.');
   requireMeshInput(vertices.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'Mesh vertices must be finite XYZ millimeters.');
   requireMeshInput(Array.isArray(triangles)&&triangles.length>=4,'Mesh needs at least 4 triangles.');
   checkMeshCapacity(vertices.length,triangles.length);
   for(const t of triangles)requireMeshInput(Array.isArray(t)&&t.length===3&&t.every(v=>Number.isInteger(v)&&v>=0&&v<vertices.length)&&t[0]!==t[1]&&t[1]!==t[2]&&t[0]!==t[2],'Invalid mesh triangle indices.');
-  const identity=meshIdentity(vertices,triangles);
-  if(validatedMeshes.has(identity))return meshResult(vertices,triangles,name,validatedMeshes.get(identity));
+  return {vertices,triangles};
+}
+
+function meshFaceGeometry({vertices,triangles}){
   const counts=[vertices.length,triangles.length];
   const normals=meshAllocation('Mesh face normals',...counts,()=>new Float64Array(triangles.length*3)),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const p of vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
   for(let i=0;i<triangles.length;i++){const t=triangles[i],n=cross(sub(vertices[t[1]],vertices[t[0]]),sub(vertices[t[2]],vertices[t[0]])),length=Math.hypot(...n);requireMeshInput(length>1e-10,'Degenerate mesh triangle.');for(let k=0;k<3;k++)normals[i*3+k]=n[k]/length;}
+  return {normals,bounds};
+}
+
+function validateMeshGeometry({vertices,triangles},{normals,bounds}){
+  const counts=[vertices.length,triangles.length];
   const edgeData=meshAllocation('Mesh edge topology',...counts,()=>meshTopology(vertices,triangles,requireMeshInput));
   meshAllocation('Mesh intersection index',...counts,()=>rejectIntersections(vertices,triangles,normals));
-  const derived={normals,edgeData,bounds};
+  return {normals,edgeData,bounds};
+}
+
+function retainValidatedMesh(identity,derived){
   // Keep at most 32 MiB of compact derived data, never a full JSON mesh key.
-  const bytes=normals.byteLength+edgeData.byteLength;
+  const bytes=derived.normals.byteLength+derived.edgeData.byteLength;
   if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength+v.edgeData.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
-  return meshResult(vertices,triangles,name,derived);
+  return derived;
 }
 function rejectIntersections(vertices,triangles,normals){
   const tree=triangleBVH(vertices,triangles);

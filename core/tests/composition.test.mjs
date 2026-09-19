@@ -1,3 +1,4 @@
+import {createPlanningState,planningPath} from '../path/planning.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
@@ -6,8 +7,7 @@ import { join } from 'node:path';
 import rhino3dm from 'rhino3dm';
 import { defaults } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
-import { PathBuilder } from '../path/builder.mjs';
-import { composeResults, scheduleOperations } from '../path/compose.mjs';
+import { planComposition, scheduleOperations } from '../path/compose.mjs';
 import { initBundle, generateBundle, loadBundle, approve, deliver } from '../print/bundle.mjs';
 
 const rhino=await rhino3dm();
@@ -29,23 +29,23 @@ test('unrelated skills weave by layer, in batches, and within a layer',()=>{
 
 test('composition connects moves with one retraction state and completes shared layers once',()=>{
   const plan=defaults();plan.process.minimumLayerSeconds=60;
-  const builder=new PathBuilder({start:[0,0,20],process:plan.process,machine,generatorVersion:'test'});
-  const done=[],finish=builder.finishLayer.bind(builder);
-  builder.finishLayer=z=>{done.push(z);finish(z);};
-  composeResults(builder,[{operations:[operation('a',1)]},{operations:[operation('b',1)]}]);
-  assert.equal(done.length,1);
-  assert.equal(builder.actions.filter(a=>a.kind==='dwell').length,1);
-  assert.deepEqual(builder.actions.filter(a=>a.volumeMm3>0).map(a=>a.operation),['a','b']);
+  const initial=createPlanningState({start:[0,0,20],process:plan.process,machine,generatorVersion:'test'});
+  const composed=planComposition(initial,[{operations:[operation('a',1)]},{operations:[operation('b',1)]}]);
+  const {actions}=planningPath(composed.state,[composed.actions]);
+  assert.equal(actions.filter(a=>a.kind==='dwell').length,1);
+  assert.equal(composed.state.layerSeconds,0,'shared layer timing resets after its single cooling step');
+  assert.deepEqual(actions.filter(a=>a.volumeMm3>0).map(a=>a.operation),['a','b']);
 });
 
 test('clearance uses geometry even when scheduling rank is unrelated to Z',()=>{
   const plan=defaults();plan.process.minimumLayerSeconds=0;
-  const builder=new PathBuilder({start:[0,0,20],process:plan.process,machine,generatorVersion:'test'});
+  const initial=createPlanningState({start:[0,0,20],process:plan.process,machine,generatorVersion:'test'});
   const high=operation('earlier-high',5);high.rank=1;
   const low=operation('later-low',1,['earlier-high']);low.rank=2;
   low.travelPolicy.canTravelDirect=()=>true;
-  composeResults(builder,[{operations:[high]},{operations:[low]}]);
-  assert.ok(builder.actions.some(a=>a.operation==='later-low'&&!a.volumeMm3&&a.to[2]>=5+plan.process.liftMm));
+  const composed=planComposition(initial,[{operations:[high]},{operations:[low]}]);
+  const {actions}=planningPath(composed.state,[composed.actions]);
+  assert.ok(actions.some(a=>a.operation==='later-low'&&!a.volumeMm3&&a.to[2]>=5+plan.process.liftMm));
 });
 
 test('ready skills weave by actual deposition height while prerequisites take precedence',()=>{

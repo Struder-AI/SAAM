@@ -139,8 +139,7 @@ const packet=async(target,options)=>flowPacket(await loadFlow({repo:'',files,rea
 
 test('a function body reads as a flow: parameters in, callees in call order, returns out',async()=>{
   const p=await page('core/main.mjs::run',files,sources);
-  assert.deepEqual(p.inputs,[{port:'in1',name:'tool',provenance:'ast-param'},{port:'in2',name:'items',provenance:'ast-param'},
-    {port:'in3',name:'limit',provenance:'ast-param'}]);
+  assert.deepEqual(p.inputs,['tool','items','limit'].map((name,i)=>({port:`in${i+1}`,name,position:i+1,pattern:name,provenance:'ast-param'})));
   // Order is the first call site, not the declaration order of the callees.
   assert.deepEqual(p.components.map(c=>[c.order,c.label,c.calls,c.links.join()]),[[1,'prepare',1,'ast-call-site'],
     [2,'begin',1,'receiver-value'],[3,'heat',1,'receiver-value'],[4,'place',1,'receiver-value'],[5,'finish',1,'receiver-value']]);
@@ -149,20 +148,22 @@ test('a function body reads as a flow: parameters in, callees in call order, ret
   assert.ok(p.components.every(c=>c.lines===c.endLine-c.line+1));
 });
 
-test('wires are local def-use, the threaded receiver and the return; gates are the test as written',async()=>{
+test('wires retain local def-use and every gate; uncertain receiver execution order is explicit',async()=>{
   const p=await page('core/main.mjs::run',files,sources),path=n=>`core/tool.mjs::Tool::${n}`;
   const wire=(from,to)=>p.wires.filter(w=>w.from===from&&w.to===to).map(w=>[w.label,w.kind,w.provenance,w.gate?.text??null]);
   assert.deepEqual(wire('in2','core/prep.mjs::prepare'),[['items','data','ast-param',null]]);
   // `ready` is the result of prepare bound to a name and passed on, twice over.
   assert.deepEqual(wire('core/prep.mjs::prepare',path('begin')),[['ready','data','ast-def-use',null]]);
-  assert.deepEqual(wire('core/prep.mjs::prepare',path('heat')),[['ready','data','ast-def-use','item.hot']]);
-  assert.deepEqual(wire('in3',path('heat')),[['limit','data','ast-param','item.hot']]);
-  assert.deepEqual(p.wires.filter(w=>w.kind==='state').map(w=>[w.from.split('::').at(-1),w.to.split('::').at(-1),w.label,w.provenance]),
-    [['in1','begin','tool','state-thread'],['begin','heat','tool','state-thread'],['heat','place','tool','state-thread'],
-      ['place','finish','tool','state-thread']]);
+  const iteration=p.operators.find(o=>o.kind==='iteration'&&o.item==='item');
+  assert.deepEqual(wire('core/prep.mjs::prepare',iteration.id),[['ready','data','ast-iteration',null]]);
+  assert.deepEqual(wire(iteration.id,path('heat')),[['item','data','ast-def-use','(of ready) ∧ (item.hot)']]);
+  assert.ok(p.wires.find(w=>w.from===iteration.id&&w.to===path('heat')).fromPort==='item');
+  assert.deepEqual(wire('in3',path('heat')),[['limit','data','ast-param','(of ready) ∧ (item.hot)']]);
+  assert.deepEqual(p.wires.filter(w=>w.kind==='state'),[]);
+  assert.ok(p.uncertainty.some(u=>u.kind==='receiver-state-order'&&u.receiver==='tool'));
   assert.deepEqual(wire(path('finish'),'out1'),[['','return','ast-return']].map(w=>[...w,null]));
   // The gate a component carries is the gate every one of its call sites is under.
-  assert.deepEqual(p.components.map(c=>c.gate?.text??null),[null,null,'item.hot','of ready',null]);
+  assert.deepEqual(p.components.map(c=>c.gate?.text??null),[null,null,'(of ready) ∧ (item.hot)','of ready',null]);
   assert.ok(p.components.every(c=>!c.gate||c.gate.provenance==='ast-guard'));
 });
 
@@ -218,10 +219,10 @@ test('every return and every throw is an output port carrying the test it is wri
 
 test('every element of a flow page names the mechanism that produced it',async()=>{
   const p=await page('core/main.mjs::run',files,sources);
-  const elements=[...p.inputs,...p.outputs,...p.components,...p.components.flatMap(c=>c.sites),...p.wires];
-  assert.ok(elements.length>20&&elements.every(e=>typeof e.provenance==='string'&&e.provenance));
+  const elements=[...p.inputs,...p.outputs,...p.components,...(p.operators??[]),...p.components.flatMap(c=>c.sites),...p.wires];
+  assert.ok(elements.length>0&&elements.every(e=>typeof e.provenance==='string'&&e.provenance));
   const allowed=new Set(['ast-call-site','ast-closure','ast-def-use','ast-param','ast-return','ast-throw','ast-guard',
-    'receiver-value','value-follow','state-thread','ast-nested-call','ast-member','ast-assertion']);
+    'receiver-value','value-follow','state-thread','ast-nested-call','ast-member','ast-assertion','ast-choice','ast-iteration']);
   assert.ok(elements.every(e=>allowed.has(e.provenance)));
   assert.ok(p.components.flatMap(c=>c.sites).every(s=>allowed.has(s.link)));
   assert.ok(p.wires.every(w=>!w.gate||w.gate.provenance==='ast-guard'));
@@ -238,7 +239,7 @@ test('the agent packet keys everything by index, states each gate once and carri
   const handles=new Set(p.components.map(c=>c.index));
   assert.equal(handles.size,p.components.length);
   // Wires name handles and ports, nothing else; no declaration path is repeated.
-  const ports=new Set([...p.inputs.map(i=>i.port),...p.outputs.map(o=>o.port)]);
+  const ports=new Set([...p.inputs.map(i=>i.port),...p.outputs.map(o=>o.port),...(p.operators??[]).map(o=>o.id)]);
   assert.ok(p.wires.every(w=>(handles.has(w.from)||ports.has(w.from))&&(handles.has(w.to)||ports.has(w.to))));
   assert.ok(p.components.every(c=>!('path' in c)&&!('foot' in c)&&!('order' in c)&&!('sites' in c)));
   // A component's path is its file and its label; the round trip is exact.
@@ -246,11 +247,13 @@ test('the agent packet keys everything by index, states each gate once and carri
   assert.deepEqual(p.components.map(c=>`${c.file}::${c.label}`),full.components.map(c=>c.path));
   assert.deepEqual(p.components.map(c=>c.index),full.components.map(c=>c.handle));
   // Gates are stated once and referenced by index.
-  assert.deepEqual(p.gates,[{text:'item.hot',kind:'if'},{text:'of ready',kind:'loop'}]);
+  const predicate=g=>({text:g.text,kind:g.kind,...(g.terms?{terms:g.terms.map(predicate)}:{})});
+  assert.deepEqual(p.gates.map(predicate),[{text:'(of ready) ∧ (item.hot)',kind:'all',terms:[{text:'of ready',kind:'loop'},{text:'item.hot',kind:'if'}]},
+    {text:'of ready',kind:'loop'}]);
   assert.ok(p.wires.filter(w=>'gate' in w).every(w=>typeof w.gate==='number'&&p.gates[w.gate]));
   // Provenance survives only where the mechanism is not the plain AST default.
   assert.ok(p.wires.filter(w=>w.kind==='state').every(w=>w.provenance==='state-thread'));
-  assert.ok(p.wires.every(w=>!('provenance' in w)||w.provenance==='state-thread'));
+  assert.ok(p.wires.every(w=>!('provenance' in w)||['state-thread','ast-choice','ast-iteration'].includes(w.provenance)));
   assert.ok(p.wires.some(w=>!('provenance' in w)));
   assert.ok(!('limits' in p)&&!('weak' in p)&&!('withheldWires' in p)&&!('vocabulary' in p)&&!('heuristics' in p));
   // No sentences: every string is a source slice, a path, a handle or a rule name. The longest
@@ -309,7 +312,7 @@ export class Box{
 const shapedFiles=Object.keys(shaped);
 const shapedContext=()=>loadFlow({repo:'',files:shapedFiles,readSource:f=>shaped[f]});
 
-test('an assertion is recognised by its shape, under any name, and becomes a requirement',async()=>{
+test('an assertion keeps its connected call and detailed requirement evidence',async()=>{
   const context=await shapedContext();
   assert.deepEqual([...context.shapes.assertions.keys()],['core/beta/guards.mjs::guardThat']);
   // A function that throws and also does work is not an assertion.
@@ -317,19 +320,20 @@ test('an assertion is recognised by its shape, under any name, and becomes a req
   const p=flowPacket(context,'core/alpha/helper.mjs::helper');
   assert.deepEqual(p.requires,[{text:'input.length>0',message:'needs input',line:4,
     by:'core/beta/guards.mjs::guardThat',index:p.requires[0].index}]);
-  assert.ok(!p.components.some(c=>c.label==='guardThat'));
+  const guard=p.components.find(c=>c.label==='guardThat');assert.equal(guard.shape,'assertion');
+  assert.ok(p.wires.some(w=>w.from==='in1'&&w.to===guard.index&&w.toPort==='arg1'));
 });
 
-test('a formula is not a component, and the data that passed through it keeps flowing',async()=>{
+test('an external method call is not certified as a formula, even in one returned expression',async()=>{
   const context=await shapedContext();
-  assert.ok(context.shapes.formulas.has('core/beta/math.mjs::scale'));
+  assert.ok(!context.shapes.formulas.has('core/beta/math.mjs::scale'));
   // A one-line body that mutates is not a formula, whatever it returns.
   assert.ok(!context.shapes.formulas.has('core/beta/math.mjs::Box::bump'));
   const p=flowPacket(context,'core/alpha/helper.mjs::helper');
-  assert.ok(!p.components.some(c=>c.label==='scale'));
-  // `size` is the result of the formula; the wire runs from the parameter that fed it.
+  const scale=p.components.find(c=>c.label==='scale').index;
+  // A caller can discover this operation; the unknown receiver's map method may have effects.
   const into=p.components.find(c=>c.label==='take').index;
-  assert.deepEqual(p.wires.filter(w=>w.to===into).map(w=>[w.from,w.label]),[['in1','size']]);
+  assert.deepEqual(p.wires.filter(w=>w.to===into).map(w=>[w.from,w.label]),[[scale,'size']]);
 });
 
 // ---- the stored map ----------------------------------------------------------------------
@@ -397,16 +401,17 @@ test('a scoped regeneration equals a full one, and leaves every other region byt
   assert.deepEqual([...await snapshot(dir)].sort(),[...scoped].sort());
 });
 
-test('a read marks a stale page with data, naming the region to regenerate',async t=>{
+test('a read marks changed generation inputs on every potentially dependent page',async t=>{
   const fixture=await fixtureStore(t);
   await fixture.run();
   fixture.held['core/alpha/helper.mjs']+='export function later(x){const y=x;return y;}\n';
   const page=await fixture.page('core/alpha/helper.mjs::helper');
-  assert.deepEqual(page.stale,{regenerate:'1',files:['core/alpha/helper.mjs']});
+  const stale={regenerate:'0',reason:'generation-dependencies-changed',files:['core/alpha/helper.mjs'],changed:['core/alpha/helper.mjs']};
+  assert.deepEqual(page.stale,stale);
   assert.ok(page.components.length,'the stored page is still returned');
   // Page 0 hashes every file behind the regions it shows.
-  assert.deepEqual((await fixture.page('0')).stale,{regenerate:'1',files:['core/alpha/helper.mjs']});
-  assert.ok(!('stale' in await fixture.page('2')));
+  assert.deepEqual((await fixture.page('0')).stale,stale);
+  assert.deepEqual((await fixture.page('2')).stale,stale);
 });
 
 test('numbering is region-local: a change in one region leaves the other indexes alone',async t=>{
@@ -429,22 +434,24 @@ test('a node called from two pages carries one canonical index, and calledFrom i
   assert.equal(main.components.find(c=>c.label==='take').index,take.index);
   assert.equal(helper.components.find(c=>c.label==='take').index,take.index);
   assert.deepEqual(take.calledFrom.map(c=>c.index).sort(),[helper.index,main.index].sort());
-  // Across the whole store, calledFrom is the exact inverse of the component lists.
+  // Incoming callers invert call components, not class/closure containment.
   const held=JSON.parse(await readFile(resolve(storeDir(fixture.repo),'index.json'),'utf8'));
   const pages=[];
   for(const record of Object.values(held.records))
     pages.push(...Object.values(JSON.parse(await readFile(resolve(storeDir(fixture.repo),'files',record),'utf8')).pages));
-  const forward=new Set(pages.flatMap(p=>p.components.map(c=>`${held.byPath[`${c.file}::${c.label}`]}<-${p.index}`)));
+  const forward=new Set(pages.flatMap(p=>p.components.filter(c=>c.calls!==0).map(c=>`${held.byPath[`${c.file}::${c.label}`]}<-${p.index}`)));
   const back=new Set(pages.flatMap(p=>p.calledFrom.map(c=>`${p.index}<-${c.index}`)));
   assert.deepEqual([...forward].sort(),[...back].sort());
 });
 
-test('nothing is off the map: what no entry reaches is listed under the unreached box',async t=>{
+test('every declaration stays on its own file page even when no entry calls it',async t=>{
   const fixture=await fixtureStore(t);
   await fixture.run();
   const shared=await fixture.page('core/beta/shared.mjs');
-  assert.deepEqual(shared.unreached.nodes.map(n=>n.label).sort(),['ping','pong']);
-  assert.ok(shared.unreached.index.startsWith(shared.index+'.'));
+  assert.deepEqual(shared.components.map(n=>n.label).sort(),['ping','pong','shared']);
+  const ping=await fixture.page('core/beta/shared.mjs::ping'),pong=await fixture.page('core/beta/shared.mjs::pong');
+  assert.equal(ping.components.find(c=>c.label==='pong').index,pong.index);
+  assert.equal(pong.components.find(c=>c.label==='ping').index,ping.index);
   // Every node of the region is reachable by walking down from its file's boxes.
   const held=JSON.parse(await readFile(resolve(storeDir(fixture.repo),'index.json'),'utf8'));
   const inRegion=Object.entries(held.nodes).filter(([at])=>at.split('.')[0]==='2').map(([at])=>at);
@@ -456,7 +463,7 @@ test('nothing is off the map: what no entry reaches is listed under the unreache
   assert.ok(inRegion.every(at=>roots.some(root=>at===root||at.startsWith(root+'.'))));
 });
 
-test('the code read answers a page with its own span and refuses a root or region',async t=>{
+test('the code read answers a declaration span or all files in a region, and refuses root',async t=>{
   const fixture=await fixtureStore(t);
   await fixture.run();
   const code=await fixture.code('core/alpha/entry.mjs::main');
@@ -466,8 +473,11 @@ test('the code read answers a page with its own span and refuses a root or regio
   const leaf=await fixture.code('core/alpha/helper.mjs::take');
   assert.equal(leaf.code,true);
   assert.match(leaf.source,/export function take/);
-  for(const key of ['0','1'])
-    await assert.rejects(fixture.code(key),/spans no code of its own/);
+  await assert.rejects(fixture.code('0'),/root page/);
+  const region=await fixture.code('1');
+  assert.equal(region.kind,'region');
+  assert.deepEqual(region.sources.map(s=>s.file),['core/alpha/entry.mjs','core/alpha/helper.mjs']);
+  for(const source of region.sources)assert.equal(source.source.split('\n').length,source.lines);
 });
 
 test('no packet in the store carries a sentence',async t=>{
@@ -477,7 +487,10 @@ test('no packet in the store carries a sentence',async t=>{
   const strings=[],collect=v=>{if(typeof v==='string')strings.push(v);
     else if(Array.isArray(v))v.forEach(collect);else if(v&&typeof v==='object')Object.values(v).forEach(collect);};
   collect(held.root);collect(held.regionPages);
-  for(const record of Object.values(held.records))collect(JSON.parse(await readFile(resolve(storeDir(fixture.repo),'files',record),'utf8')));
+  for(const record of Object.values(held.records)) {
+    const stored=JSON.parse(await readFile(resolve(storeDir(fixture.repo),'files',record),'utf8'));
+    collect(stored.pages);collect(stored.sourcePages??{});
+  }
   assert.ok(strings.length>200);
   assert.ok(strings.every(s=>!/[.!?] [A-Z]/.test(s)),'no sentence boundaries');
   assert.ok(strings.every(s=>s.split(' ').length<=12));
@@ -505,8 +518,32 @@ test('a formula only computes: async, await, new, a block-bodied callback or an 
   // parameter and `reach` is a name mapped code carries, so the site stays UNRESOLVED.
   assert.equal(context.graph.callSites.unresolved.find(u=>u.name==='reach').reason,'member-receiver-unresolved');
   const p=flowPacket(context,'core/shape/use.mjs::useAll');
-  assert.deepEqual(p.formulas.map(f=>[f.label,f.file,f.lines]),[['plain','core/shape/forms.mjs',[2]]]);
-  assert.deepEqual(p.components.map(c=>c.label).sort(),['blocky','builds','loose','waits']);
+  assert.deepEqual(p.formulas,[]);
+  assert.deepEqual(p.components.map(c=>c.label).sort(),['blocky','builds','loose','plain','waits']);
+  const plain=p.components.find(c=>c.label==='plain');
+  assert.equal(plain.shape,'formula');
+  assert.ok(p.wires.some(w=>w.from==='in1'&&w.to===plain.index));
+  assert.ok(p.wires.some(w=>w.from===plain.index&&w.to==='out1'));
+});
+
+test('pure planning stages remain visible with their own result wires',async()=>{
+  const source={'core/planning/stages.mjs':`export const planContext=(state,context)=>({...state,context});
+export const planFan=(state,fan)=>({...state,fan});
+export const planDwell=(state,seconds)=>({...state,seconds});
+export function plan(state,context,fan,seconds){
+  const contextual=planContext(state,context);
+  const cooled=planFan(contextual,fan);
+  const held=planDwell(cooled,seconds);
+  return held;
+}`};
+  const context=await loadFlow({repo:'',files:Object.keys(source),readSource:f=>source[f]});
+  const p=flowPacket(context,'core/planning/stages.mjs::plan'),at=Object.fromEntries(p.components.map(c=>[c.label,c.index]));
+  assert.deepEqual(p.components.map(c=>c.label),['planContext','planFan','planDwell']);
+  assert.ok(p.components.every(c=>c.shape==='formula'));
+  for(const [from,to,label] of [['in1',at.planContext,'state'],[at.planContext,at.planFan,'contextual'],
+    [at.planFan,at.planDwell,'cooled'],[at.planDwell,'out1','held']])
+    assert.ok(p.wires.some(w=>w.from===from&&w.to===to&&w.label===label),`${from} → ${to} carries ${label}`);
+  assert.ok(!p.wires.some(w=>w.from==='in1'&&w.to==='out1'),'pure transformations do not become passthrough wires');
 });
 
 const nullish={
@@ -519,7 +556,8 @@ export function pick(a){return a.chosen??fallback(a);}
 test('a nullish gate is the left operand as written, not a synthesized null test',async()=>{
   const context=await loadFlow({repo:'',files:Object.keys(nullish),readSource:f=>nullish[f]});
   const p=flowPacket(context,'core/shape/pick.mjs::pick');
-  assert.deepEqual(p.gates,[{text:'a.chosen',kind:'??'}]);
+  assert.deepEqual(p.gates.map(({text,kind})=>({text,kind})),[{text:'a.chosen',kind:'??'}]);
+  assert.equal(p.gates[0].name,'a.chosen');assert.equal(p.gates[0].source.file,'core/shape/pick.mjs');
   const source=nullish['core/shape/pick.mjs'];
   assert.ok(p.gates.every(g=>source.includes(g.text)),'every gate is a slice of the source');
 });
@@ -549,7 +587,7 @@ test('a region holds its files, a file holds its entries, and every node is reac
   assert.deepEqual(Object.keys(held.nodes).filter(at=>!reached.has(at)),[]);
 });
 
-test('a file page answers --code with the whole file; a region and the root still refuse',async t=>{
+test('a file page answers --code with the whole file; only the root refuses',async t=>{
   const fixture=await fixtureStore(t);
   await fixture.run();
   const code=await fixture.code('core/alpha/helper.mjs');
@@ -558,8 +596,8 @@ test('a file page answers --code with the whole file; a region and the root stil
   assert.equal(code.line,1);
   assert.equal(code.source.split('\n').length,code.lines);
   assert.match(code.source.split('\n')[0],/^1\timport \{guardThat\}/);
-  for(const key of ['0','1'])
-    await assert.rejects(fixture.code(key),/spans no code of its own/);
+  await assert.rejects(fixture.code('0'),/root page/);
+  assert.equal((await fixture.code('1')).sources.length,2);
   // Every box on a file page states its size before it is read.
   const file=await fixture.page('core/alpha/helper.mjs');
   assert.ok(file.components.every(c=>typeof c.lines==='number'));

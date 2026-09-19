@@ -38,9 +38,8 @@ For an assembly, set `part` to the roof component's ID; the template's `null`
 selection is only for a single part, and the skin stack must fit the selected roof.
 
 `drapedSkinResult({shell, plan, machine, survey, id, after})` returns operations
-for the shared composer. `generateDrapedSkin(builder, options)` uses the same
-implementation for a single instance. Use all results together when composing a
-plan, so whole-plan travel accounts for every component and operation.
+for the shared composer. Pass all skill results to `planComposition(state, results)`
+together, so whole-plan travel accounts for every component and operation.
 
 Shared `composition.regions` assigns skins to the actual roof of a selected
 component alongside or after its body regions. Its emitted stack must fit the

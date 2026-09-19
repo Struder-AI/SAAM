@@ -10,7 +10,7 @@ import {parse} from 'acorn';
 import {extractGraph,sourceFiles} from './graph.mjs';
 import {projectGraph,select} from './projection.mjs';
 import {classify,functionAt} from './shapes.mjs';
-import {importAliases,scanRoots} from './scope.mjs';
+import {importAliases,scanRoots,isMapped} from './scope.mjs';
 
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
@@ -27,10 +27,15 @@ function callTargets(graph) {
   const found=targetIndex.get(graph);if(found)return found;
   const map=new Map(),byId=new Set(graph.declarations.map(d=>d.id));
   for(const r of graph.relations)if(['call','construct'].includes(r.kind)&&byId.has(r.to)) {
-    const at=`${r.evidence[0].file}:${r.evidence[0].start}`;
+    const at=`${r.evidence[0].file}:${r.evidence[0].start}:${r.evidence[0].end}`;
     (map.get(at)??map.set(at,[]).get(at)).push(r);
   }
   targetIndex.set(graph,map);return map;
+}
+const declarationIndex=new WeakMap();
+function declarationsById(graph) {
+  if(!declarationIndex.has(graph))declarationIndex.set(graph,new Map(graph.declarations.map(d=>[d.id,d])));
+  return declarationIndex.get(graph);
 }
 const anchorIndex=new WeakMap();
 function byAnchor(graph) {
@@ -114,7 +119,17 @@ function scopeTree(fn) {
 }
 
 // Which test stands between the enclosing code and this child, in the test's own words.
+function optionalCallGate(n,text) {
+  if(n.type!=='CallExpression')return null;
+  const receiver=n.callee.type==='MemberExpression'&&n.callee.optional?n.callee.object:null;
+  const conditions=[...(receiver?[receiver]:[]),...(n.optional?[n.callee]:[])];
+  if(!conditions.length)return null;
+  return {text:conditions.map(c=>`${src(text,c)} !== null && ${src(text,c)} !== undefined`).join(' && '),
+    kind:n.optional?'optional-call':'optional-member'};
+}
 function gateFor(parent,child,text) {
+  if(parent.type==='CallExpression'&&parent.arguments.includes(child)&&optionalCallGate(parent,text))
+    return optionalCallGate(parent,text);
   if(parent.type==='IfStatement'&&parent.consequent===child)return {text:src(text,parent.test),kind:'if'};
   if(parent.type==='IfStatement'&&parent.alternate===child)return {text:`!(${src(text,parent.test)})`,kind:'else'};
   if(parent.type==='ConditionalExpression'&&parent.consequent===child)return {text:src(text,parent.test),kind:'ternary'};
@@ -124,11 +139,14 @@ function gateFor(parent,child,text) {
   if(['ForStatement','WhileStatement'].includes(parent.type)&&parent.body===child&&parent.test)return {text:src(text,parent.test),kind:'loop'};
   if(['ForOfStatement','ForInStatement'].includes(parent.type)&&parent.body===child)
     return {text:`${parent.type==='ForOfStatement'?'of':'in'} ${src(text,parent.right)}`,kind:'loop'};
-  if(parent.type==='SwitchCase'&&parent.test&&parent.consequent.includes(child))return {text:`case ${src(text,parent.test)}`,kind:'case'};
+  // A case body can also run through fallthrough; its own case is not a proven guard.
   if(parent.type==='CatchClause'&&parent.body===child)return {text:'caught',kind:'catch'};
   return null;
 }
-const shown=gates=>[...gates].reverse().find(g=>g.kind!=='loop')??gates.at(-1)??null;
+// Keep every enclosing condition. `terms` preserves operator meaning (notably loop and
+// nullish gates); the compound text is a compact display, not a rewritten JS predicate.
+const shown=gates=>gates.length>1?{text:gates.map(g=>`(${g.text})`).join(' ∧ '),kind:'all',terms:gates.map(({text,kind,name,source})=>({text,kind,...(name?{name}:{}),...(source?{source}:{})}))}:gates[0]??null;
+const guarded=g=>g?{...g,provenance:'ast-guard'}:null;
 // A throw port is named by what the source throws: the constructor, with its first literal
 // argument as written when it has one.
 function thrown(n,text) {
@@ -194,6 +212,8 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   if(!node||node.kind==='module')throw Error(`A flow page needs a function, method or class node; ${target} is not one.`);
   const declaration=byAnchor(graph).get(node.path)??(()=>{throw Error(`No declaration for ${node.path}.`);})();
   const text=sources.get(node.file)??(()=>{throw Error(`No source for ${node.file}.`);})();
+  const expression=n=>text.slice(n.start,n.end).trim();
+  const sourceSite=n=>({file:node.file,line:n.loc.start.line,column:n.loc.start.column+1,start:n.start,end:n.end});
   const ast=asts?.get(node.file)??parse(text,{ecmaVersion:'latest',sourceType:'module',locations:true});
   const head=n=>({handle:n.handle,path:n.path,label:n.label,foot:foot(n),file:n.file,line:n.line,endLine:n.endLine,
     lines:n.endLine-n.line+1,kind:n.kind});
@@ -209,33 +229,65 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
 
   // Call sites this node owns. A child node's body is its own page, so the walk stops there.
   const stop=new Set(node.children.map(c=>c.start));
-  const sites=[],exits=[];
-  (function walk(n,gates,inner){
+  const sites=[],exits=[],uncertainty=[],uncertaintySeen=new Set(),parents=new WeakMap(),gatesAt=new WeakMap(),gateInputsAt=new WeakMap();
+  const uncertain=(kind,n,details={})=>{
+    const item={kind,line:n.loc.start.line,...details},key=JSON.stringify(item);
+    if(!uncertaintySeen.has(key)){uncertaintySeen.add(key);uncertainty.push(item);}
+  };
+  const controls=new Set(['IfStatement','ConditionalExpression','LogicalExpression','ForStatement','ForOfStatement','ForInStatement',
+    'WhileStatement','DoWhileStatement','SwitchStatement','TryStatement','CatchClause']);
+  (function walk(n,gates,inner,controlled=false,gateInputs=[]){
+    gatesAt.set(n,gates);
+    gateInputsAt.set(n,gateInputs);
     if(n!==fn&&stop.has(n.start))return;
-    if(n.type==='CallExpression'||n.type==='NewExpression')sites.push({node:n,gates:[...gates]});
+    if(n.type==='CallExpression'||n.type==='NewExpression') {
+      const optionalGuard=optionalCallGate(n,text),optionalSubject=n.callee.type==='MemberExpression'&&n.callee.optional&&!n.optional?n.callee.object:n.callee;
+      const optional=optionalGuard?{...optionalGuard,name:src(text,optionalSubject),source:{...sourceSite(optionalSubject),endLine:optionalSubject.loc.end.line}}:null;
+      sites.push({node:n,gates:optional?[...gates,optional]:[...gates],inner,controlled:controlled||Boolean(optional)});
+    }
     // A return or throw inside a nested callback leaves that callback, not this body.
     if(!inner&&n.type==='ReturnStatement')exits.push({kind:'return',node:n,value:n.argument,name:n.argument?src(text,n.argument):src(text,n),gate:shown(gates)});
     if(!inner&&n.type==='ThrowStatement')exits.push({kind:'throw',node:n,value:n.argument,name:thrown(n.argument,text),gate:shown(gates)});
-    for(const c of kids(n)){const g=gateFor(n,c,text);walk(c,g?[...gates,g]:gates,inner||(n!==fn&&functions.has(n.type)));}
+    for(const c of kids(n)){
+      parents.set(c,n);let g=gateFor(n,c,text);
+      const condition=g?(n.test??(n.type==='LogicalExpression'?n.left:['ForOfStatement','ForInStatement'].includes(n.type)?n.right:n.type==='CallExpression'?n.callee:null)):null;
+      if(g&&condition){
+        const subject=['BinaryExpression','LogicalExpression'].includes(condition.type)?condition.left:condition;
+        const named=['Identifier','MemberExpression'].includes(subject.type)?src(text,subject):subject.type==='CallExpression'?src(text,subject.callee):'condition';
+        g={...g,name:named,source:{...sourceSite(condition),endLine:condition.loc.end.line}};
+      }
+      walk(c,g?[...gates,g]:gates,inner||(n!==fn&&functions.has(n.type)),controlled||controls.has(n.type),condition?[...gateInputs,condition]:gateInputs);
+    }
   })(fn,[],false);
   sites.sort((a,b)=>a.node.start-b.node.start);
+  const siteAt=new Map(sites.map(site=>[`${site.node.start}:${site.node.end}`,site]));
   if(fn.body.type!=='BlockStatement')exits.push({kind:'return',node:fn.body,value:fn.body,name:src(text,fn.body),gate:null});
 
-  const targets=callTargets(graph);
+  const targets=callTargets(graph),declarations=declarationsById(graph);
 
   // Components, in order of first appearance: a local closure where it is declared, any
-  // other callee at its first call site. An assertion becomes a requirement, a formula stays
-  // in the wires it passes data through, and neither is drawn as a step.
-  const components=new Map(),unlinked=[],requires=[],used=new Map(),childAt=new Map(node.children.map(c=>[c.start,c]));
+  // other callee at its first call site. Assertions remain requirements. Computing a value
+  // does not make a called function disappear: formula shape is metadata, not visibility.
+  const components=new Map(),unlinked=[],requires=[],childAt=new Map(node.children.map(c=>[c.start,c]));
   const rules=graph.callSites?.unlinked??{},externalRule=new Set(Object.keys(graph.callSites?.external??{}));
-  const held=n=>shapes.formulas.has(n.path)||shapes.assertions.has(n.path);
-  for(const child of node.children)if(!held(child))components.set(child.path,{node:child,order:child.start,sites:[],links:new Set(['ast-closure'])});
+  for(const child of node.children)components.set(child.path,{node:child,order:child.start,sites:[],links:new Set(['ast-closure'])});
+  const assertionAt=(site,path)=>{
+    const shape=shapes.assertions.get(path);if(!shape)return null;
+    const condition=site.node.arguments[shape.condition],positionUnknown=site.node.arguments.slice(0,shape.condition+1).some(arg=>arg.type==='SpreadElement');
+    let subject=condition;
+    while(subject&&['BinaryExpression','LogicalExpression','UnaryExpression'].includes(subject.type))subject=subject.left??subject.argument;
+    const name=subject&&['Identifier','MemberExpression'].includes(subject.type)?src(text,subject)
+      :subject?.type==='CallExpression'?src(text,subject.callee):'condition';
+    return {condition:{position:shape.condition+1,name:positionUnknown?'condition':name,
+      ...(positionUnknown?{positionUnknown:true}:condition?{source:{...sourceSite(condition),endLine:condition.loc.end.line,endColumn:condition.loc.end.column+1}}:{omitted:true})},
+      ...(shape.message>=0?{messagePosition:shape.message+1}:{})};
+  };
   for(const site of sites) {
-    const found=targets.get(`${node.file}:${site.node.start}`)??[];
+    const found=targets.get(`${node.file}:${site.node.start}:${site.node.end}`)??[];
     const receiver=site.node.callee.type==='MemberExpression'
       ?site.node.callee.object.type==='Identifier'?site.node.callee.object:site.node.callee.object.type==='ThisExpression'?site.node.callee.object:null:null;
     if(!found.length) {
-      const rule=rules[`${node.file}:${site.node.start}`]??'unaccounted';
+      const rule=rules[`${node.file}:${site.node.start}:${site.node.end}`]??'unaccounted';
       unlinked.push({call:src(text,site.node.callee),line:site.node.loc.start.line,column:site.node.loc.start.column+1,
         state:externalRule.has(rule)?'external':'unresolved',rule});
       continue;
@@ -251,13 +303,6 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
           :said?.type==='TemplateLiteral'&&!said.expressions.length?said.quasis[0].value.cooked:null;
         requires.push({text:held?src(text,held):src(text,site.node),...(message?{message}:{}),
           line:site.node.loc.start.line,by:to.path,handle:to.handle,provenance:'ast-assertion'});
-        continue;
-      }
-      // A formula draws no box, but it is a node of the map and this body is where it is used.
-      if(shapes.formulas.has(to.path)) {
-        const f=used.get(to.path)??used.set(to.path,{node:to,order:site.node.start,lines:new Set()}).get(to.path);
-        f.order=Math.min(f.order,site.node.start);f.lines.add(site.node.loc.start.line);
-        continue;
       }
       let c=components.get(to.path);
       if(!c)components.set(to.path,c={node:to,order:site.node.start,sites:[],links:new Set()});
@@ -271,74 +316,600 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
 
   // Wires. A parameter reaching a call is an input wire; a call result bound to a name and
   // later passed on is a data wire; a receiver called more than once is a state thread.
-  const params=fn.params.map((p,i)=>({port:`in${i+1}`,name:name(p)??src(text,p),provenance:'ast-param'}));
+  const params=fn.params.map((p,i)=>({port:`in${i+1}`,name:name(p)??src(text,p),position:i+1,
+    pattern:expression(p.type==='AssignmentPattern'?p.left:p),
+    ...(p.type==='AssignmentPattern'?{default:expression(p.right)}:{}),...(p.type==='RestElement'?{rest:true}:{}),provenance:'ast-param'}));
   const ports=new Map();
   fn.params.forEach((p,i)=>{for(const v of patternNames(p)){const b=parameter(v);if(b)ports.set(b.id,{port:`in${i+1}`,label:v});}});
-  const produced=new Map();
-  const producers=n=>{
-    if(!n)return [];
-    if(['AwaitExpression','ChainExpression'].includes(n.type))return producers(n.argument??n.expression);
-    if(n.type==='ConditionalExpression')return [...producers(n.consequent),...producers(n.alternate)];
-    if(n.type==='LogicalExpression')return [...producers(n.left),...producers(n.right)];
-    if(n.type==='CallExpression'||n.type==='NewExpression') {
-      const to=(targets.get(`${node.file}:${n.start}`)??[]).map(r=>projection.owner.get(r.to)).filter(t=>t&&t!==node&&t.kind!=='module');
-      const drawn=to.filter(t=>!held(t));
-      if(drawn.length)return drawn.map(t=>({end:t.path}));
-      // A formula or assertion draws no box; what was handed to it keeps flowing.
-      return to.length?(n.arguments??[]).flatMap(a=>producers(a)):[];
+  // Interpret local binding definitions in evaluation order. Each expression keeps the
+  // values reaching THAT use; a later assignment must never rewrite an earlier use.
+  // Structured alternatives and iterations get explicit value-selection operators. The
+  // graph never turns alternatives into execution order, and unsupported transfers stay unknown.
+  const values=new WeakMap(),producers=n=>values.get(n)??[];
+  const objectRecords=new Map();let nextObjectRecord=0;
+  const invalidCollections=new Set();
+  const collectionOf=list=>list?.length&&list.every(p=>p.collection&&!p.objectRecord&&!p.unknown
+    &&p.collection.id===list[0].collection.id&&!invalidCollections.has(p.collection.id))?list[0].collection:null;
+  const invalidateCollections=(list,env,n,kind)=>{
+    for(const p of list)if(p.collection) {
+      const id=p.collection.id;invalidCollections.add(id);
+      for(const [b,value] of env)if(value.some(v=>v.collection?.id===id))env.set(b,[{unknown:src(text,n)}]);
+      uncertain(kind,n,{binding:bindingName.get(p.collection.owner)??p.label??'',collection:p.collection.kind});
     }
-    for(const root of roots(n)) {
-      const b=key(root),carried=produced.get(b)??(ports.has(b)?[{end:ports.get(b).port,label:root.name}]:null);
-      if(carried)return carried;
-    }
-    return [];
   };
-  (function bind(n){
-    if(n!==fn&&stop.has(n.start)) {
-      // A local closure is itself a component; the name or object it is stored in carries it.
-      const child=childAt.get(n.start),at=n.type==='ExpressionStatement'?n.expression:n;
-      const held=at.type==='VariableDeclarator'?at.id:at.type==='AssignmentExpression'?at.left:null;
-      for(const root of held?roots(held):[])
-        if(child&&key(root))produced.set(key(root),[...produced.get(key(root))??[],{end:child.path,label:root.name}]);
+  const originGaps=(n,field='')=>{
+    if(!n||functions.has(n.type))return [];
+    if(n.type==='ObjectExpression')return n.properties.flatMap(p=>[
+      ...(p.computed?originGaps(p.key,field?`${field}.[key]`:'[key]'):[]),
+      ...originGaps(p.value??p.argument,[field,p.type==='SpreadElement'?'...':p.computed?`[${src(text,p.key)}]`:p.key.name??p.key.value].filter(x=>x!=='').join('.'))]);
+    if(n.type==='ArrayExpression')return n.elements.flatMap((e,i)=>originGaps(e,`${field}[${i}]`));
+    const value=producers(n);
+    return [...(!value.length||value.some(p=>p.unknown)?[{node:n,field,expression:src(text,n)}]:[]),
+      ...(n.type==='MemberExpression'&&n.computed?originGaps(n.property,field?`${field}.[key]`:'[key]'):[])];
+  };
+  const containsWrite=n=>['UpdateExpression','AssignmentExpression'].includes(n.type)||kids(n).some(containsWrite);
+  const valueDescription=expression=>{
+    const value=producers(expression),unknown=originGaps(expression).length>0;
+    return {expression:src(text,expression),
+      ...(!unknown&&!containsWrite(expression)&&value.length&&value.every(p=>p.constant!==undefined)?{constant:true}:{}),
+      ...(unknown?{unknown:true}:{})};
+  };
+  const diagnoseOrigin=(kind,expression,details)=>{
+    for(const gap of originGaps(expression))uncertain(kind,gap.node,{...details,...(gap.field?{field:gap.field}:{}),expression:gap.expression});
+  };
+  const operators=[],operatorWires=[];
+  const operator=(kind,n,suffix,details)=>{
+    const found=operators.find(o=>o.key===`${n.start}:${n.end}:${suffix}`);if(found)return found;
+    const gate=['collection','update'].includes(kind)?guarded(shown(gatesAt.get(n)??[])):null;
+    const op={id:`op${operators.length+1}`,key:`${n.start}:${n.end}:${suffix}`,kind,...sourceSite(n),
+      endLine:n.loc.end.line,provenance:`ast-${kind}`,...(gate?{gate}:{}),...details};
+    operators.push(op);return op;
+  };
+  const operatorInput=(op,port,list,extra={})=>{
+    for(const p of list)if(p.end)operatorWires.push({from:p.end,to:op.id,label:p.label??'',kind:'data',
+      ...(p.port?{fromPort:p.port}:{}),...(p.site?{sourceSite:p.site}:{}),toPort:port,provenance:`ast-${op.kind}`,...(op.gate?{gate:op.gate}:{}),...extra});
+  };
+  const choice=(n,branches,details={})=>{
+    if(branches.some(b=>!b.values.length||b.values.some(p=>p.unknown)))return null;
+    const controlNode=n.test??n.left??(n.callee?.type==='MemberExpression'&&n.callee.optional&&!n.optional?n.callee.object:n.callee);
+    const test=optionalCallGate(n,text)?.text??src(text,controlNode),op=operator('choice',n,details.binding??'result',{test,...details,
+      alternatives:branches.map(b=>({port:b.port,expression:b.expression,
+        ...(b.values.every(p=>p.constant!==undefined)?{constant:true}:{} )}))});
+    const control=producers(controlNode);
+    operatorInput(op,'control',control);
+    if(!control.length||control.some(p=>p.unknown)) {
+      op.controlUnknown=true;uncertain('choice-control',n,{operator:op.id,test});
+    } else if(control.every(p=>p.constant!==undefined))op.controlConstant=src(text,controlNode);
+    for(const b of branches)operatorInput(op,b.port,b.values,{expression:b.expression});
+    return [{end:op.id,port:'selected',label:details.binding??src(text,n)}];
+  };
+  // Knowing that a parameter is invoked does not identify its concrete target.
+  // Preserve that source-addressed call, its payload and optional control while
+  // retaining the original parameter-target unresolved site. No alias inference.
+  const parameterInvocation=n=>{
+    const site=siteAt.get(`${n.start}:${n.end}`),parameterPort=ports.get(key(n.callee));
+    if(n.type!=='CallExpression'||n.callee.type!=='Identifier'||!parameterPort||site?.inner
+      ||rules[`${node.file}:${n.start}:${n.end}`]!=='parameter-target')return null;
+    const callable=producers(n.callee);
+    if(callable.length!==1||callable[0].end!==parameterPort.port)return null;
+    const callee=src(text,n.callee),gates=[...(site?.gates??[])];
+    const gate=guarded(shown(gates));
+    const args=n.arguments.map((arg,i)=>({port:`arg${i+1}`,...valueDescription(arg),
+      ...(arg.type==='ObjectExpression'?{fields:arg.properties.map(property=>({
+        name:property.type==='SpreadElement'?'...':property.computed?src(text,property.key):String(property.key.name??property.key.value),
+        ...valueDescription(property.value??property.argument)}))}:{})}));
+    const op=operator('invocation',n,'parameter-call',{callee,optional:!!n.optional,targetUnknown:true,
+      column:n.loc.start.column+1,start:n.start,end:n.end,arguments:args,
+      ports:{inputs:['callable',...args.map(a=>a.port)],outputs:['result']},...(gate?{gate}:{})});
+    operatorInput(op,'callable',callable,gate?{gate}:{});
+    for(let i=0;i<n.arguments.length;i++) {
+      operatorInput(op,`arg${i+1}`,producers(n.arguments[i]),{expression:args[i].expression,...(gate?{gate}:{})});
+      diagnoseOrigin('argument-origin',n.arguments[i],{call:callee,argument:i+1});
+    }
+    return [{end:op.id,port:'result',label:src(text,n)}];
+  };
+  // A scanned declaration outside mapped roots is a known implementation, not
+  // an unresolved callback. Keep its invocation local to this page; the target
+  // has a source anchor but no invented canonical map address.
+  const outsideInvocation=n=>{
+    const relations=targets.get(`${node.file}:${n.start}:${n.end}`)??[];
+    const outside=relations.map(relation=>({relation,declaration:declarations.get(relation.to)}))
+      .filter(({declaration})=>declaration&&!isMapped(declaration.file));
+    if(!outside.length)return null;
+    const site=siteAt.get(`${n.start}:${n.end}`),callee=expression(n.callee),gate=guarded(shown(site?.gates??[]));
+    const args=n.arguments.map((arg,i)=>({port:`arg${i+1}`,position:i+1,...valueDescription(arg),expression:expression(arg),
+      ...(arg.type==='SpreadElement'?{spread:true}:{}),
+      ...(n.arguments.slice(0,i+1).some(a=>a.type==='SpreadElement')?{positionUnknown:true}:{}),
+      ...(arg.type==='ObjectExpression'?{fields:arg.properties.map(property=>({
+        name:property.type==='SpreadElement'?'...':property.computed?expression(property.key):String(property.key.name??property.key.value),
+        ...valueDescription(property.value??property.argument),expression:expression(property.value??property.argument)}))}:{})}));
+    const possible=relations.length>1||outside.some(({relation})=>relation.possible);
+    const op=operator('invocation',n,'outside-call',{callee,scope:'outside',callKind:n.type==='NewExpression'?'construct':'call',
+      optional:!!n.optional,...(possible?{possibleTarget:true}:{}),...(site?.inner?{executionUnknown:true}:{}),
+      targets:outside.map(({relation,declaration:d})=>({...(d.anchor&&!d.ambiguousAnchor?{path:d.anchor}:{}),label:d.name,
+        file:d.file,line:d.line,endLine:d.endLine,...(relation.possible?{possible:true}:{})})),
+      arguments:args,ports:{inputs:args.map(a=>a.port),outputs:['result']},...(gate?{gate}:{})});
+    for(let i=0;i<n.arguments.length;i++) {
+      operatorInput(op,`arg${i+1}`,producers(n.arguments[i]),{expression:args[i].expression,
+        ...(args[i].spread?{spread:true}:{}),...(args[i].positionUnknown?{positionUnknown:true}:{}),...(gate?{gate}:{})});
+      diagnoseOrigin('argument-origin',n.arguments[i],{call:callee,argument:i+1});
+    }
+    return [{end:op.id,port:'result',label:expression(n),site:sourceSite(n)}];
+  };
+  // Parameter identity can prove the receiver without proving its method target.
+  // Only direct receivers and lexical const identifier aliases qualify.
+  const parameterAliases=new Map();
+  (function aliases(n){
+    if(n!==fn&&(functions.has(n.type)||stop.has(n.start)))return;
+    if(n.type==='VariableDeclarator'&&n.id.type==='Identifier'&&n.init?.type==='Identifier'
+      &&parents.get(n)?.kind==='const')parameterAliases.set(key(n.id),key(n.init));
+    for(const c of kids(n))aliases(c);
+  })(fn);
+  const receiverParameter=b=>{
+    const seen=new Set();
+    while(b&&!seen.has(b)) {
+      if(capturedBindings.has(b))return null;
+      if(ports.has(b))return ports.get(b);
+      seen.add(b);b=parameterAliases.get(b);
+    }
+    return null;
+  };
+  const parameterMemberInvocation=n=>{
+    if(n.type!=='CallExpression'||n.callee.type!=='MemberExpression'||n.callee.object.type!=='Identifier')return null;
+    const member=namedMember(n.callee),site=siteAt.get(`${n.start}:${n.end}`),receiver=n.callee.object;
+    if(member===null||site?.inner||rules[`${node.file}:${n.start}:${n.end}`]!=='member-receiver-unresolved'
+      ||targets.get(`${node.file}:${n.start}:${n.end}`)?.length)return null;
+    const parameterPort=receiverParameter(key(receiver)),value=producers(receiver);
+    if(!parameterPort||value.length!==1||value[0].end!==parameterPort.port||value[0].unknown||value[0].objectRecord||value[0].collection)return null;
+    const callee=expression(n.callee),gate=guarded(shown(site?.gates??[]));
+    const args=n.arguments.map((arg,i)=>({port:`arg${i+1}`,position:i+1,...valueDescription(arg),expression:expression(arg),
+      ...(arg.type==='SpreadElement'?{spread:true}:{}),
+      ...(n.arguments.slice(0,i+1).some(a=>a.type==='SpreadElement')?{positionUnknown:true}:{}),
+      ...(arg.type==='ObjectExpression'?{fields:arg.properties.map(property=>({
+        name:property.type==='SpreadElement'?'...':property.computed?expression(property.key):String(property.key.name??property.key.value),
+        ...valueDescription(property.value??property.argument),expression:expression(property.value??property.argument)}))}:{})}));
+    const op=operator('invocation',n,'parameter-member',{scope:'parameter-member',callee,receiver:receiver.name,member,targetUnknown:true,
+      optional:!!optionalCallGate(n,text),...(n.callee.optional?{optionalReceiver:true}:{}),...(n.optional?{optionalCall:true}:{}),
+      arguments:args,ports:{inputs:['receiver',...args.map(a=>a.port)],outputs:['result']},...(gate?{gate}:{})});
+    operatorInput(op,'receiver',value);
+    for(let i=0;i<n.arguments.length;i++) {
+      operatorInput(op,`arg${i+1}`,producers(n.arguments[i]),{expression:args[i].expression,
+        ...(args[i].spread?{spread:true}:{}),...(args[i].positionUnknown?{positionUnknown:true}:{})});
+      diagnoseOrigin('argument-origin',n.arguments[i],{call:callee,argument:i+1});
+    }
+    return [{end:op.id,port:'result',label:expression(n),site:sourceSite(n)}];
+  };
+  const unique=list=>[...new Map(list.map(p=>[JSON.stringify(p),p])).values()];
+  const initial=new Map([...ports].map(([b,p])=>[b,[{end:p.port,label:p.label}]]));
+  const same=(a,b)=>JSON.stringify(a??[])===JSON.stringify(b??[]);
+  const put=(pattern,value,env,preserveLabel=false)=>{
+    const records=new Set(value.map(p=>p.objectRecord).filter(Boolean));
+    if(pattern?.type==='ObjectPattern'&&records.size) {
+      const record=records.size===1&&value.every(p=>p.objectRecord)?objectRecords.get([...records][0]):null;
+      if(record?.escaped)uncertain('record-escape',pattern,{expression:src(text,pattern),escapedAt:record.escaped.line});
+      for(const property of pattern.properties) {
+        const field=property.type==='Property'?(property.computed?property.key.type==='Literal'?String(property.key.value):null:String(property.key.name??property.key.value)):null;
+        const selected=record&&!record.uncertain&&field!==null&&record.fields.has(field)?record.fields.get(field):[{unknown:src(text,property)}];
+        put(property.value??property.argument,selected,env,preserveLabel);
+      }
       return;
     }
-    if(n.type==='VariableDeclarator'&&n.init) {
-      const from=producers(n.init);
-      if(from.length)for(const id of patternIds(n.id))if(key(id))produced.set(key(id),from.map(f=>({...f,label:id.name})));
+    for(const id of patternIds(pattern))if(key(id)) {
+      if(capturedBindings.has(key(id))&&value.some(p=>p.collection)) {
+        invalidateCollections(value,env,id,'collection-capture');env.set(key(id),[{unknown:src(text,id)}]);continue;
+      }
+      const aliased=value.filter(p=>p.collection&&(p.objectRecord||p.collection.owner&&p.collection.owner!==key(id)));
+      if(aliased.length){invalidateCollections(aliased,env,pattern,'collection-alias');env.set(key(id),[{unknown:src(text,pattern)}]);continue;}
+      env.set(key(id),value.map(p=>({...p,label:preserveLabel?p.label??id.name:id.name,
+        ...(p.collection?{collection:{...p.collection,owner:key(id)}}:{})})));
     }
-    if(['ForOfStatement','ForInStatement'].includes(n.type)) {
-      const from=producers(n.right),id=n.left.declarations?.[0]?.id??n.left;
-      if(from.length&&id.type==='Identifier'&&key(id))produced.set(key(id),from.map(f=>({...f,label:f.label??src(text,n.right)})));
+  };
+  const invalidateMember=(member,env,n)=>{
+    const value=producers(member.object);
+    invalidateCollections(value,env,n,'collection-member-write');
+    for(const root of roots(member.object))if(key(root))env.set(key(root),[]);
+    // Known aliases of the same object cannot keep claiming its pre-write value either.
+    if(value.length)for(const [b,other] of env)if(other.some(p=>value.some(v=>v.end===p.end)))env.set(b,[]);
+    uncertain('member-mutation',n,{binding:src(text,member)});
+  };
+  const merge=(env,branches,n,kind='branch-data-join',alternatives=null)=>{
+    if(!branches.length)return;
+    for(const b of new Set(branches.flatMap(e=>[...e.keys()]))) {
+      const value=branches[0].get(b)??[];
+      if(branches.every(e=>same(value,e.get(b))))env.set(b,value);
+      else {
+        const label=bindingName.get(b)??b;
+        const joined=alternatives&&choice(n,branches.map((e,i)=>({port:alternatives[i],expression:label,values:e.get(b)??[]})),{binding:label});
+        if(joined) {
+          const collections=branches.map(e=>collectionOf(e.get(b))),collection=collections[0];
+          env.set(b,collection&&collections.every(c=>c?.id===collection.id)?joined.map(p=>({...p,collection})):joined);
+        } else {env.set(b,[]);uncertain(kind,n,{binding:label});}
+      }
     }
-    for(const c of kids(n))bind(c);
+  };
+  const bindingName=new Map([...ports].map(([b,p])=>[b,p.label]));
+  (function names(n){if(n.type==='Identifier'&&key(n))bindingName.set(key(n),n.name);for(const c of kids(n))names(c);})(fn);
+  const outerBindings=new Set(),closureBindings=new Set();
+  (function captures(n,inner=false){
+    const nested=inner||n!==fn&&functions.has(n.type);
+    if(n.type==='Identifier'&&key(n))(nested?closureBindings:outerBindings).add(key(n));
+    for(const c of kids(n))captures(c,nested);
   })(fn);
+  const capturedBindings=new Set([...closureBindings].filter(b=>outerBindings.has(b)));
+  const written=n=>{
+    const found=new Set();
+    (function walk(s){
+      if(s!==n&&(functions.has(s.type)||stop.has(s.start)))return;
+      const lhs=s.type==='AssignmentExpression'?s.left:s.type==='UpdateExpression'?s.argument:null;
+      for(const id of lhs?patternIds(lhs):[])if(key(id))found.add(key(id));
+      for(const c of kids(s))walk(c);
+    })(n);
+    return found;
+  };
+  const namedMember=n=>n?.type==='MemberExpression'?(n.computed?n.property.type==='Literal'?String(n.property.value):null:n.property.name):null;
+  const addOperatorValue=(op,port,value,n)=>{
+    operatorInput(op,port,value);
+    (op.arguments??=[]).push({port,expression:expression(n)});
+    const constants=value.filter(p=>p.constant!==undefined).map(p=>p.constant);
+    if(constants.length===value.length&&constants.length)(op.constants??={})[port]=constants;
+    if(!value.length||value.some(p=>p.unknown)) {
+      (op.unknownInputs??=[]).push(port);uncertain(`${op.kind}-input`,n,{operator:op.id,input:port});
+    }
+  };
+  const projectionCallback=n=>{
+    if(n?.type!=='ArrowFunctionExpression'||n.async||n.params.length!==1||n.params[0].type!=='Identifier')return false;
+    let selected=n.body;
+    while(selected.type==='MemberExpression'&&!selected.optional&&(!selected.computed||selected.property.type==='Literal'))selected=selected.object;
+    return selected.type==='Identifier'&&key(selected)===key(n.params[0]);
+  };
+  const collectionCallSpec=(n,env)=>{
+    if(n.type!=='CallExpression'||n.callee.type!=='MemberExpression'||n.callee.object.type!=='Identifier')return null;
+    const collection=collectionOf(env.get(key(n.callee.object))),operation=namedMember(n.callee);
+    if(!collection||n.arguments.some(a=>a.type==='SpreadElement'))return null;
+    if(collection.kind==='map'&&((operation==='get'&&n.arguments.length===1)||(operation==='set'&&n.arguments.length===2))
+      ||collection.kind==='array'&&(operation==='push'||operation==='map'&&n.arguments.length===1&&projectionCallback(n.arguments[0])))
+      return {collection,operation,receiver:n.callee.object};
+    return null;
+  };
+  const createCollection=(n,kind,items=[])=>{
+    const op=operator('collection',n,'create',{collection:kind,operation:'create',initial:expression(n),
+      ports:{inputs:items.length?['items']:[],outputs:['state']}});
+    if(items.length)addOperatorValue(op,'items',items,n);
+    return [{end:op.id,port:'state',collection:{kind,id:`${node.file}:${n.start}`,owner:null}}];
+  };
+  const applyCollectionCall=(n,spec,env)=>{
+    const {collection,operation,receiver}=spec,state=env.get(key(receiver))??[],args=n.arguments.map(producers);
+    if(collectionOf(state)?.id!==collection.id) {
+      uncertain('collection-receiver-update',n,{binding:receiver.name});return [{unknown:src(text,n)}];
+    }
+    const argPorts=operation==='get'?['key']:operation==='set'?['key','value']:operation==='push'?args.map((_,i)=>`item${i+1}`):[];
+    const mutation=operation==='set'||operation==='push';
+    const op=operator('collection',n,operation,{collection:collection.kind,operation,binding:receiver.name,
+      ...(operation==='map'?{projection:expression(n.arguments[0])}:{}),
+      ports:{inputs:['state',...argPorts],outputs:mutation?['state','result']:['result']}});
+    addOperatorValue(op,'state',state,receiver);
+    for(let i=0;i<argPorts.length;i++)addOperatorValue(op,argPorts[i],args[i],n.arguments[i]);
+    if(mutation)env.set(key(receiver),[{end:op.id,port:'state',label:receiver.name,collection}]);
+    for(let i=0;i<argPorts.length;i++)invalidateCollections(args[i],env,n,'collection-escape');
+    return [{end:op.id,port:'result',...(operation==='set'?{collection}:operation==='map'?{collection:{kind:'array',id:`${node.file}:${n.start}`,owner:null}}:{})}];
+  };
+  const updateValue=(n,prior,value,binding,prefix=true)=>{
+    const op=operator('update',n,'value',{operation:n.operator,binding,prefix,
+      ports:{inputs:['prior','value'],outputs:['next','result']}});
+    addOperatorValue(op,'prior',prior,n);addOperatorValue(op,'value',value,n);
+    op.arguments=[{port:'prior',expression:binding},{port:'value',expression:n.type==='UpdateExpression'?'1':expression(n.right)}];
+    return {next:[{end:op.id,port:'next',label:binding}],result:[{end:op.id,port:'result',label:src(text,n)}]};
+  };
+  const evaluate=(n,env)=>{
+    if(!n)return [];
+    if(n!==fn&&stop.has(n.start)) {
+      const child=childAt.get(n.start),at=n.type==='ExpressionStatement'?n.expression:n;
+      const value=child?[{end:child.path,port:'callable'}]:[];
+      const lhs=at.type==='VariableDeclarator'?at.id:at.type==='AssignmentExpression'?at.left:null;
+      if(lhs)put(lhs,value,env);
+      values.set(n,value);return value;
+    }
+    let result=[];
+    if(functions.has(n.type)) {
+      // A callback may run later or repeatedly. Captured mutable bindings have no known
+      // reaching definition at its execution time; its own locals can still be followed.
+      uncertain('callback-execution',n);
+      (function captures(s){if(s.type==='Identifier')invalidateCollections(env.get(key(s))??[],env,n,'collection-capture');for(const c of kids(s))captures(c);})(n.body);
+      const inner=new Map([...env.keys()].map(b=>[b,[]]));
+      statement(n.body,inner);values.set(n,[]);return [];
+    }
+    if(n.type==='Literal')result=[{constant:src(text,n)}];
+    else if(n.type==='Identifier')result=env.get(key(n))??(!key(n)&&['undefined','Infinity'].includes(n.name)?[{constant:n.name}]:[{unknown:src(text,n)}]);
+    else if(n.type==='VariableDeclarator') {result=evaluate(n.init,env);put(n.id,result,env);}
+    else if(n.type==='AssignmentExpression') {
+      const before=evaluate(n.left,env),rhs=evaluate(n.right,env);
+      result=n.operator==='='?rhs:n.left.type==='Identifier'&&!['&&=','||=','??='].includes(n.operator)?updateValue(n,before,rhs,n.left.name).next:[{unknown:src(text,n)}];
+      if(n.left.type==='MemberExpression')invalidateMember(n.left,env,n);
+      else put(n.left,result,env);
+    } else if(n.type==='UpdateExpression') {
+      const before=evaluate(n.argument,env);result=before;
+      if(n.argument.type==='MemberExpression')invalidateMember(n.argument,env,n);
+      else {const updated=updateValue(n,before,[{constant:'1'}],n.argument.name,n.prefix);put(n.argument,updated.next,env);result=updated.result;}
+    } else if(n.type==='ConditionalExpression'||n.type==='LogicalExpression') {
+      const test=n.test??n.left,left=n.consequent??n.right,right=n.alternate;
+      const tested=evaluate(test,env),a=new Map(env),b=new Map(env);
+      const av=evaluate(left,a),bv=right?evaluate(right,b):tested;
+      const arms=n.type==='ConditionalExpression'?['true','false']:n.operator==='&&'?['truthy','falsy']
+        :n.operator==='||'?['falsy','truthy']:['nullish','present'];
+      merge(env,[a,b],n,'branch-data-join',arms);
+      if(same(av,bv))result=av;
+      else {
+        const joined=choice(n,[{port:arms[0],expression:src(text,left),values:av},
+          {port:arms[1],expression:src(text,right??test),values:bv}]);
+        if(joined)result=joined;else uncertain('branch-result',n);
+      }
+    } else if(n.type==='CallExpression'||n.type==='NewExpression') {
+      const spec=collectionCallSpec(n,env),local=parents.get(n);
+      if(n.type==='NewExpression'&&n.callee.type==='Identifier'&&n.callee.name==='Map'&&!n.arguments.length
+        &&rules[`${node.file}:${n.start}:${n.end}`]==='unbound-callee'&&local?.type==='VariableDeclarator'&&local.id.type==='Identifier') {
+        result=createCollection(n,'map');values.set(n,result);return result;
+      }
+      evaluate(n.callee,env);
+      const optional=!!optionalCallGate(n,text),argEnv=optional?new Map(env):env;
+      const args=(n.arguments??[]).flatMap(a=>spec?.operation==='map'?[]:evaluate(a,argEnv));
+      if(spec)result=applyCollectionCall(n,spec,argEnv);
+      // An arbitrary call can retain or mutate an object passed to it, including
+      // through its receiver. Earlier read snapshots remain valid; subsequent
+      // field reads must no longer use the literal's original property values.
+      const escaped=[...args,...(n.callee.type==='MemberExpression'?producers(n.callee.object):[])];
+      for(const p of spec?[]:escaped)if(p.objectRecord) {
+        const record=objectRecords.get(p.objectRecord);record.uncertain=true;record.escaped=sourceSite(n);
+      }
+      if(!spec)invalidateCollections(escaped,argEnv,n,'collection-escape');
+      const to=(targets.get(`${node.file}:${n.start}:${n.end}`)??[]).map(r=>projection.owner.get(r.to)).filter(t=>t&&t!==node&&t.kind!=='module');
+      const drawn=to;
+      if(!spec){
+        const outside=outsideInvocation(n);
+        result=drawn.length?[...drawn.map(t=>({end:t.path,site:sourceSite(n)})),...(outside??[])]:outside??(to.length?args:parameterInvocation(n)??parameterMemberInvocation(n)??[{unknown:src(text,n)}]);
+      }
+      if(optional)merge(env,[argEnv,new Map(env)],n,'optional-argument-state',['present','nullish']);
+    } else if(n.type==='MemberExpression') {
+      const object=evaluate(n.object,env),records=new Set(object.map(p=>p.objectRecord).filter(Boolean));
+      const property=n.computed?n.property.type==='Literal'?String(n.property.value):null:n.property.name;
+      const collection=collectionOf(object);
+      if(collection&&(collection.kind==='map'&&property==='size'||collection.kind==='array'&&property==='length')) {
+        const op=operator('collection',n,property,{collection:collection.kind,operation:property,binding:src(text,n.object),
+          ports:{inputs:['state'],outputs:['result']}});
+        addOperatorValue(op,'state',object,n.object);result=[{end:op.id,port:'result'}];
+      } else if(records.size) {
+        const record=records.size===1&&object.every(p=>p.objectRecord)?objectRecords.get([...records][0]):null;
+        if(record?.escaped)uncertain('record-escape',n,{expression:src(text,n),escapedAt:record.escaped.line});
+        result=record&&!record.uncertain&&property!==null&&record.fields.has(property)?record.fields.get(property):[{unknown:src(text,n)}];
+      } else result=object;
+      result=result.map(p=>({...p,label:src(text,n)}));if(n.computed)result.push(...evaluate(n.property,env));
+    } else if(n.type==='SequenceExpression')for(const e of n.expressions)result=evaluate(e,env);
+    else if(n.type==='ArrayExpression') {
+      const items=n.elements.flatMap(e=>evaluate(e,env)),local=parents.get(n);
+      result=local?.type==='VariableDeclarator'&&local.id.type==='Identifier'?createCollection(n,'array',items):items;
+    }
+    else if(n.type==='ObjectExpression') {
+      const record={fields:new Map(),uncertain:false};
+      for(const p of n.properties) {
+        if(p.computed)result.push(...evaluate(p.key,env));
+        const value=evaluate(p.value??p.argument,env);result.push(...value);
+        const field=p.type==='Property'?(p.computed?p.key.type==='Literal'?String(p.key.value):null:String(p.key.name??p.key.value)):null;
+        if(field===null||field==='__proto__'||p.kind!=='init')record.uncertain=true;
+        else record.fields.set(field,value);
+      }
+      const objectRecord=++nextObjectRecord;objectRecords.set(objectRecord,record);
+      result=(result.length?result:[{constant:'{}'}]).map(p=>({...p,objectRecord}));
+    }
+    else for(const c of kids(n))result.push(...evaluate(c,env));
+    result=unique(result);values.set(n,result);return result;
+  };
+  const statement=(n,env)=>{
+    if(!n)return true;
+    if(n!==fn&&stop.has(n.start)){evaluate(n,env);return true;}
+    if(n.type==='BlockStatement') {
+      for(const s of n.body)if(!statement(s,env))return false;
+    } else if(n.type==='IfStatement') {
+      evaluate(n.test,env);
+      const a=new Map(env),b=new Map(env),aliveA=statement(n.consequent,a),aliveB=statement(n.alternate,b);
+      merge(env,[...(aliveA?[a]:[]),...(aliveB?[b]:[])],n,'branch-data-join',aliveA&&aliveB?['true','false']:null);
+      if(aliveA!==aliveB)uncertain('early-exit-control',n);
+      return aliveA||aliveB;
+    } else if(['ForStatement','ForOfStatement','ForInStatement','WhileStatement','DoWhileStatement'].includes(n.type)) {
+      if(n.init)evaluate(n.init,env);
+      const changed=written(n),loop=new Map(env),unsafeCollections=new Set();
+      (function collectionEffects(s){
+        if(s!==n&&stop.has(s.start))return;
+        if(s.type==='CallExpression') {
+          const receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
+          const collection=receiver&&collectionOf(env.get(key(receiver))),operation=namedMember(s.callee);
+          if(collection&&(collection.kind==='map'&&operation==='set'||collection.kind==='array'&&operation==='push'))changed.add(key(receiver));
+          for(const arg of s.arguments)for(const root of roots(arg))if(collectionOf(env.get(key(root))))unsafeCollections.add(key(root));
+          if(collection&&!collectionCallSpec(s,env))unsafeCollections.add(key(receiver));
+        }
+        if(functions.has(s.type)) {
+          (function captures(t){if(t.type==='Identifier'&&collectionOf(env.get(key(t))))unsafeCollections.add(key(t));for(const c of kids(t))captures(c);})(s);
+          return;
+        }
+        for(const c of kids(s))collectionEffects(c);
+      })(n);
+      let structured=!n.await,hasReturn=false;
+      (function inspect(s){
+        if(s!==n&&(functions.has(s.type)||stop.has(s.start)))return;
+        if(s.type==='ReturnStatement'){hasReturn=true;if(n.type!=='ForStatement')structured=false;}
+        if(['BreakStatement','ContinueStatement','ThrowStatement','SwitchStatement','TryStatement',
+          'AwaitExpression','YieldExpression'].includes(s.type)
+          ||s!==n&&['ForStatement','ForOfStatement','ForInStatement','WhileStatement','DoWhileStatement'].includes(s.type)
+          ||s.type==='AssignmentExpression'&&s.left.type==='MemberExpression')structured=false;
+        for(const child of kids(s))inspect(child);
+      })(n);
+      // A return exits this function; only the surviving normal path reaches the
+      // for-update and its backedge. No exception/termination proof is implied.
+      const normalPaths=s=>{
+        if(!s)return [[]];
+        if(s.type==='ReturnStatement')return [];
+        if(s.type==='BlockStatement') {
+          let paths=[[]];
+          for(const child of s.body) {
+            paths=paths.flatMap(path=>normalPaths(child).map(rest=>[...path,...rest]));
+            if(paths.length>1)return paths.slice(0,2);
+          }
+          return paths;
+        }
+        if(s.type==='IfStatement')return [
+          ...normalPaths(s.consequent).map(path=>[{node:s.test,inverse:false},...path]),
+          ...normalPaths(s.alternate).map(path=>[{node:s.test,inverse:true},...path])];
+        return [[]];
+      };
+      const paths=structured&&hasReturn?normalPaths(n.body):null;
+      if(paths&&paths.length!==1)structured=false;
+      const backedge=structured&&hasReturn?paths[0]:[],backedgeGates=backedge.map(({node:test,inverse})=>({
+        text:inverse?`!(${src(text,test)})`:src(text,test),kind:inverse?'else':'if',name:src(text,test),
+        source:{...sourceSite(test),endLine:test.loc.end.line}}));
+      const nextGate=backedgeGates.length?guarded(shown([...(gatesAt.get(n)??[]),...backedgeGates])):null;
+      if(structured&&hasReturn)uncertain('loop-exception-path',n,{backedge:'normal-completion'});
+      if(nextGate&&n.update)(function guardUpdate(s){
+        gatesAt.set(s,[...(gatesAt.get(s)??[]),...backedgeGates]);
+        const site=siteAt.get(`${s.start}:${s.end}`);if(site)site.gates.push(...backedgeGates);
+        for(const child of kids(s))guardUpdate(child);
+      })(n.update);
+      const beforeOperators=operators.length,beforeWires=operatorWires.length,candidates=new Map();
+      for(const b of changed) {
+        const incoming=env.get(b)??[],binding=bindingName.get(b)??b;
+        if(structured&&!unsafeCollections.has(b)&&incoming.length&&incoming.some(p=>p.end||p.constant!==undefined)&&!incoming.some(p=>p.unknown)) {
+          const test=n.right?`${n.type==='ForInStatement'?'in':'of'} ${src(text,n.right)}`:n.test?src(text,n.test):'true';
+          const noNormalExit=n.type==='ForStatement'&&!n.test;
+          const op=operator('iteration',n,b,{binding,test,minIterations:n.type==='DoWhileStatement'||noNormalExit?1:0,
+            ...(hasReturn?{backedge:'normal-completion',exceptionalControlUnknown:true}:{}),
+            ports:{inputs:['initial','next','control'],outputs:noNormalExit?['current']:['current','final']}});
+          candidates.set(b,op);operatorInput(op,'initial',incoming);
+          const constants=incoming.filter(p=>p.constant!==undefined).map(p=>p.constant);if(constants.length)op.initialConstants=constants;
+          const collection=collectionOf(incoming);
+          loop.set(b,[{end:op.id,port:'current',label:binding,...(collection?{collection}:{})}]);
+        } else {loop.set(b,[]);uncertain('loop-data-flow',n,{binding});}
+      }
+      if(n.right){
+        const value=evaluate(n.right,loop),pattern=n.left.declarations?.[0]?.id??n.left;
+        if(n.type==='ForOfStatement'&&value.some(p=>p.end)&&!value.some(p=>p.unknown)) {
+          const item=name(pattern)??src(text,pattern),op=candidates.values().next().value
+            ??operator('iteration',n,'items',{mode:'elements',item,test:`of ${src(text,n.right)}`,minIterations:0,
+              ports:{inputs:['iterable'],outputs:['item']}});
+          op.item=item;
+          if(!op.ports.outputs.includes('item'))op.ports.outputs.push('item');
+          if(!op.ports.inputs.includes('iterable'))op.ports.inputs.push('iterable');
+          operatorInput(op,'iterable',value);put(pattern,[{end:op.id,port:'item',label:item}],loop);
+        } else {
+          put(pattern,[{unknown:src(text,n.right),label:name(pattern)??src(text,pattern)}],loop);
+          for(const op of candidates.values())op.iterationSourceUnknown=true;
+          uncertain('iteration-source',n,{iterable:src(text,n.right)});
+        }
+      }
+      if(n.test&&n.type!=='DoWhileStatement')evaluate(n.test,loop);
+      const bodyAlive=statement(n.body,loop);if(bodyAlive&&n.update)evaluate(n.update,loop);
+      if(n.type==='DoWhileStatement')evaluate(n.test,loop);
+      if([...candidates].some(([b])=>!(loop.get(b)?.length)||loop.get(b).some(p=>p.unknown))) {
+        // A dynamically unknown next value cannot certify feedback. Drop the attempted
+        // iteration projection and reevaluate its local reads with unknown carried bindings.
+        operators.splice(beforeOperators);operatorWires.splice(beforeWires);candidates.clear();
+        for(const b of changed){loop.set(b,[]);uncertain('loop-data-flow',n,{binding:bindingName.get(b)??b});}
+        const alive=statement(n.body,loop);if(alive&&n.update)evaluate(n.update,loop);
+        if(n.type==='DoWhileStatement')evaluate(n.test,loop);
+      }
+      for(const b of changed) {
+        const op=candidates.get(b);
+        if(!op){env.set(b,[]);continue;}
+        operatorInput(op,'next',loop.get(b),{...(nextGate?{gate:nextGate}:{}),...(hasReturn?{provenance:'ast-normal-backedge'}:{})});
+        for(const {node:test} of backedge) {
+          const control=producers(test);operatorInput(op,'control',control,{...(nextGate?{gate:nextGate}:{})});
+          if(!control.length||control.some(p=>p.unknown)) {
+            op.backedgeControlUnknown=true;uncertain('iteration-backedge-control',test,{operator:op.id,test:src(text,test)});
+          }
+        }
+        if(!n.right) {
+          const control=n.test?producers(n.test):[{constant:'true'}];
+          operatorInput(op,'control',control);
+          if(!control.length||control.some(p=>p.unknown)){op.controlUnknown=true;uncertain('iteration-control',n,{operator:op.id});}
+        }
+        const constants=loop.get(b).filter(p=>!p.end).map(p=>p.constant);
+        if(constants.length)op.nextConstants=constants;
+        const collection=collectionOf(loop.get(b));
+        env.set(b,op.ports.outputs.includes('final')?[{end:op.id,port:'final',label:op.binding,...(collection?{collection}:{})}]:[]);
+      }
+      if(structured&&n.type==='ForStatement'&&!n.test)return false;
+    } else if(n.type==='BreakStatement'||n.type==='ContinueStatement') {
+      uncertain('loop-control-transfer',n);return false;
+    } else if(n.type==='ReturnStatement'||n.type==='ThrowStatement') {
+      evaluate(n.argument,env);return false;
+    } else if(n.type==='SwitchStatement'||n.type==='TryStatement') {
+      // Fallthrough and exceptional transfer need a full CFG. Preserve local calls,
+      // but do not certify a reaching value across those control boundaries.
+      uncertain(n.type==='SwitchStatement'?'switch-control-flow':'exceptional-control-flow',n);
+      const changed=written(n),inner=new Map(env);
+      for(const b of changed)inner.set(b,[]);
+      if(n.type==='SwitchStatement') {
+        evaluate(n.discriminant,env);
+        for(const branch of n.cases)statement(branch,new Map(inner));
+      } else {
+        statement(n.block,new Map(inner));statement(n.handler,new Map(inner));statement(n.finalizer,new Map(inner));
+      }
+      for(const b of changed)env.set(b,[]);
+    } else if(n.type==='SwitchCase') {
+      evaluate(n.test,env);for(const s of n.consequent)if(!statement(s,env))break;
+    } else if(n.type==='CatchClause')statement(n.body,env);
+    else evaluate(n,env);
+    return true;
+  };
+  statement(fn.body,initial);
 
   const wires=[],seen=new Set();
-  const wire=w=>{const k=`${w.from}\n${w.to}\n${w.label}\n${w.kind}`;if(seen.has(k))return;seen.add(k);wires.push(w);};
-  const gateOf=site=>{const g=shown(site.gates);return g?{text:g.text,kind:g.kind,provenance:'ast-guard'}:null;};
+  const wire=w=>{if(!w.from||!w.to)return;
+    const k=`${w.from}\n${w.to}\n${w.label}\n${w.kind}\n${w.fromPort??''}\n${w.toPort??''}\n${JSON.stringify(w.gate??null)}\n${w.sourceSite?.start??''}:${w.sourceSite?.end??''}\n${w.targetSite?.start??''}:${w.targetSite?.end??''}`;if(seen.has(k))return;seen.add(k);
+    wires.push({...w,...(w.provenance==='state-thread'?{order:'source'}:{})});};
+  operatorWires.forEach(wire);
+  const gateOf=site=>guarded(shown(site.gates));
+  // A resolved implementation and the value used to invoke it are separate facts.
+  // Only local identifier snapshots can establish this edge here: a member receiver
+  // is not necessarily the callable, and captured values may have no reaching origin.
+  const callableValues=site=>{
+    const callee=site.node.callee;
+    if(callee.type!=='Identifier'||!key(callee))return null;
+    const value=producers(callee);
+    if(value.length&&value.every(p=>p.port==='callable'&&!p.site))return null;
+    return value;
+  };
   for(const c of order) {
     const to=c.node.path;
     for(const site of c.sites) {
       const gate=gateOf(site),carried=new Set();
-      // A call written inside another call's arguments hands its result straight over.
-      for(const arg of site.args) {
-        const inner=['AwaitExpression','ChainExpression'].includes(arg.type)?arg.argument??arg.expression:arg;
-        if(inner.type!=='CallExpression'&&inner.type!=='NewExpression')continue;
-        for(const p of producers(inner))if(p.end!==to) {
-          carried.add(p.end);wire({from:p.end,to,label:'',kind:'data',provenance:'ast-nested-call',...(gate?{gate}:{})});
+      const callable=callableValues(site);
+      if(callable) {
+        diagnoseOrigin('callable-origin',site.node.callee,{call:src(text,site.node.callee)});
+        for(const p of callable)if(p.end) {
+          carried.add(p.end);wire({from:p.end,to,label:expression(site.node.callee),kind:'data',toPort:'callable',
+            ...(p.site?{sourceSite:p.site}:{}),targetSite:sourceSite(site.node),provenance:'ast-def-use',
+            ...(p.port?{fromPort:p.port}:{}),...(gate?{gate}:{})});
         }
       }
-      for(const arg of site.args)for(const root of roots(arg)) {
-        const b=key(root);if(!b||carried.has(b))continue;carried.add(b);
-        if(ports.has(b))wire({from:ports.get(b).port,to,label:root.name,kind:'data',provenance:'ast-param',...(gate?{gate}:{})});
-        for(const p of produced.get(b)??[])if(p.end!==to)
-          wire({from:p.end,to,label:p.label??root.name,kind:'data',provenance:'ast-def-use',...(gate?{gate}:{})});
+      // Read the snapshots made while evaluating the arguments, never a final binding map.
+      for(const [argumentIndex,arg] of site.args.entries()) {
+        // argN is a source argument slot. A spread makes its expanded destination
+        // and every later slot's callee parameter position unknown.
+        const positionUnknown=site.args.slice(0,argumentIndex+1).some(a=>a.type==='SpreadElement');
+        diagnoseOrigin('argument-origin',arg,{call:src(text,site.node.callee),argument:argumentIndex+1});
+        const inner=['AwaitExpression','ChainExpression'].includes(arg.type)?arg.argument??arg.expression:arg;
+        const nested=inner.type==='CallExpression'||inner.type==='NewExpression';
+        for(const p of producers(arg))if(p.end&&(p.end!==to||p.site?.start!==site.node.start)) {
+          carried.add(p.end);wire({from:p.end,to,label:p.label??'',kind:'data',toPort:`arg${argumentIndex+1}`,
+            ...(positionUnknown?{positionUnknown:true}:{}),...(arg.type==='SpreadElement'?{spread:true}:{}),
+            ...(p.site?{sourceSite:p.site}:{}),targetSite:sourceSite(site.node),
+            provenance:p.end.startsWith('in')?'ast-param':nested?'ast-nested-call':'ast-def-use',
+            ...(p.port?{fromPort:p.port}:{}),
+            ...(inner.type==='BinaryExpression'||inner.type==='UnaryExpression'?{expression:src(text,inner)}:{}),...(gate?{gate}:{})});
+        }
       }
       // A call reached only under a test, carrying no named argument, is a gate wire from
       // whatever the call is made on. With no source for it the gate stays on the component.
       const rb=site.receiver&&key(site.receiver);
-      if(!carried.size&&gate&&rb&&ports.has(rb))
-        wire({from:ports.get(rb).port,to,label:'',kind:'gate',provenance:'ast-guard',gate});
+      if(!carried.size&&gate&&rb&&ports.has(rb)&&producers(site.receiver).some(p=>p.end===ports.get(rb).port))
+        wire({from:ports.get(rb).port,to,label:'',kind:'gate',provenance:'ast-guard',gate,targetSite:sourceSite(site.node)});
     }
   }
   // A receiver called more than once carries the object between those calls, in call order.
@@ -346,22 +917,43 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   for(const c of order)for(const site of c.sites)if(site.receiver) {
     const rk=site.receiver.type==='ThisExpression'?'this':key(site.receiver);
     if(!rk)continue;
-    (threads.get(rk)??threads.set(rk,[]).get(rk)).push({start:site.node.start,to:c.node.path,
+    (threads.get(rk)??threads.set(rk,[]).get(rk)).push({start:site.node.start,to:c.node.path,site,rk,
       receiver:site.receiver.type==='ThisExpression'?'this':site.receiver.name});
   }
   const threaded=[];
   for(const [rk,list] of threads) {
-    const steps=list.sort((a,b)=>a.start-b.start).filter((s,i,all)=>i===0||all[i-1].to!==s.to);
+    const steps=list.sort((a,b)=>a.start-b.start);
     if(steps.length<2)continue;
+    // A lexical list is not an execution trace. Only the unguarded, non-callback
+    // sequence can retain a state-thread, and even that is explicitly source order.
+    if(list.some(s=>s.site.gates.length||s.site.inner||s.site.controlled)||written(fn.body).has(rk)) {
+      uncertain('receiver-state-order',list[0].site.node,{receiver:steps[0].receiver});continue;
+    }
     threaded.push(...steps);
     const label=steps[0].receiver;
-    if(ports.has(rk))wire({from:ports.get(rk).port,to:steps[0].to,label,kind:'state',provenance:'state-thread'});
-    for(let i=1;i<steps.length;i++)wire({from:steps[i-1].to,to:steps[i].to,label,kind:'state',provenance:'state-thread'});
+    if(ports.has(rk))wire({from:ports.get(rk).port,to:steps[0].to,label,kind:'state',provenance:'state-thread',targetSite:sourceSite(steps[0].site.node)});
+    for(let i=1;i<steps.length;i++)wire({from:steps[i-1].to,to:steps[i].to,label,kind:'state',provenance:'state-thread',
+      sourceSite:sourceSite(steps[i-1].site.node),targetSite:sourceSite(steps[i].site.node)});
   }
   // What leaves the body: every return and every throw reachable in it, each with the test it
   // is written under. Exits that leave the same thing are one port.
   // Exits that leave the same thing under the same test are one port; a second test is a
   // second way out and keeps its own port, so no guard is dropped.
+  const returnValues=(value,prefix='')=>{
+    if(value?.type!=='ObjectExpression')return producers(value).map(p=>({...p,...(prefix?{label:prefix,expression:expression(value)}:{})}));
+    const fields=new Map(),unknown=[];
+    for(const property of value.properties){
+      const staticKey=property.type==='Property'&&!property.computed&&property.kind==='init';
+      if(!staticKey){
+        uncertain('return-field-origin',property,{expression:expression(property)});
+        for(const [field,previous] of fields)uncertain('return-field-override',previous,{field,expression:expression(property)});
+        fields.clear();
+        unknown.push(...producers(property.value??property.argument).map(p=>({...p,label:prefix||'record',expression:expression(property)})));
+        if(property.computed)unknown.push(...producers(property.key).map(p=>({...p,label:prefix||'key',expression:expression(property.key)})));
+      } else fields.set(String(property.key.name??property.key.value),property.value);
+    }
+    return [...unknown,...[...fields].flatMap(([field,fieldValue])=>returnValues(fieldValue,prefix?`${prefix}.${field}`:field))];
+  };
   const merged=new Map();
   for(const e of exits) {
     const k=`${e.kind}\n${e.name}\n${e.gate?.text??''}`;
@@ -369,42 +961,123 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   }
   const outputs=[...merged.values()].map((list,i)=>
     ({port:`out${i+1}`,name:list[0].name,kind:list[0].kind,lines:list.map(e=>e.node.loc.start.line),
-      ...(list[0].gate?{gate:{text:list[0].gate.text,kind:list[0].gate.kind,provenance:'ast-guard'}}:{}),
+      ...(list[0].value?.type==='ObjectExpression'?{
+        fields:list[0].value.properties.filter(p=>p.type==='Property'&&!p.computed).map(p=>String(p.key.name??p.key.value)),
+        ...(list[0].value.properties.some(p=>p.type==='SpreadElement')?{spread:true}:{}),
+        ...(list[0].value.properties.some(p=>p.computed)?{computedKeys:true}:{}),
+        source:{file:node.file,line:list[0].value.loc.start.line,endLine:list[0].value.loc.end.line}
+      }:{}),
+      ...(list[0].gate?{gate:guarded(list[0].gate)}:{}),
       provenance:list[0].kind==='throw'?'ast-throw':'ast-return'}));
-  // A thread's last step before an exit reaches that exit: the return value may be a bare
-  // tag, but the object the body was writing to leaves through it.
+  // Source-order state only reaches an exit that actually names that same receiver.
   threaded.sort((a,b)=>a.start-b.start);
   [...merged.values()].forEach((list,i)=>{for(const e of list) {
+    diagnoseOrigin('return-origin',e.value,{port:`out${i+1}`});
     const provenance=e.kind==='throw'?'ast-throw':'ast-return';
-    for(const p of producers(e.value))wire({from:p.end,to:`out${i+1}`,label:p.label??'',kind:'return',provenance});
-    for(const root of roots(e.value))for(const p of produced.get(key(root))??[])
-      wire({from:p.end,to:`out${i+1}`,label:p.label??root.name,kind:'return',provenance});
-    const last=threaded.filter(s=>s.start<e.node.start).at(-1);
-    if(last)wire({from:last.to,to:`out${i+1}`,label:last.receiver,kind:'return',provenance:'state-thread'});
+    // An exit's control dependency is distinct from the value it returns/throws.
+    // Even a constant or externally constructed error is selected by its guard.
+    for(const condition of gateInputsAt.get(e.node)??[])for(const p of producers(condition))if(p.end)
+      wire({from:p.end,to:`out${i+1}`,label:p.label??'',kind:'gate',toPort:'condition',
+        ...(p.port?{fromPort:p.port}:{}),...(p.site?{sourceSite:p.site}:{}),
+        ...(e.gate?{gate:guarded(e.gate)}:{}),provenance:'ast-guard'});
+    for(const p of returnValues(e.value))wire({from:p.end,to:`out${i+1}`,label:p.label??'',kind:'return',provenance,...(p.expression?{expression:p.expression}:{}),
+      ...(p.site?{sourceSite:p.site}:{}),
+      ...(p.port?{fromPort:p.port}:{})});
+    const returned=new Set(roots(e.value).map(root=>key(root)));
+    for(const rk of returned) {
+      const last=threaded.filter(s=>s.rk===rk&&s.start<e.node.start).at(-1);
+      if(last)wire({from:last.to,to:`out${i+1}`,label:last.receiver,kind:'return',provenance:'state-thread',sourceSite:sourceSite(last.site.node)});
+    }
   }});
 
   const present=c=>({handle:c.node.handle,path:c.node.path,label:c.node.label,foot:foot(c.node),
     file:c.node.file,line:c.node.line,endLine:c.node.endLine,lines:c.node.endLine-c.node.line+1,
     order:c.index,calls:c.sites.length,links:[...c.links].sort(),provenance:'ast-call-site',
+    ...(shapes.assertions.has(c.node.path)?{shape:'assertion',...(c.sites.length===1?{assertion:assertionAt(c.sites[0],c.node.path)}:{})}
+      :shapes.formulas.has(c.node.path)?{shape:'formula'}:{}),
     sites:c.sites.map(s=>({line:s.node.loc.start.line,column:s.node.loc.start.column+1,
       ...(s.receiver?{receiver:s.receiver.type==='ThisExpression'?'this':s.receiver.name}:{}),link:linkOf(s.relation),provenance:'ast-call-site'})),
     ...(c.sites.every(s=>gateOf(s))&&new Set(c.sites.map(s=>gateOf(s).text)).size===1?{gate:{...gateOf(c.sites[0])}}:{})});
 
   const drawn=order.map(present);
-  const kept=new Set([...drawn.map(c=>c.path),...params.map(p=>p.port),...outputs.map(o=>o.port)]);
+  // Local bookkeeping that reaches no visible call or exit is not an explanatory stage.
+  // Keep synthetic operators only along actual dependency paths to those graph boundaries.
+  const operatorIds=new Set(operators.map(o=>o.id)),needed=new Set([...drawn.map(c=>c.path),...outputs.map(o=>o.port),
+    ...operators.filter(o=>o.kind==='invocation').map(o=>o.id)]);
+  for(let changed=true;changed;) {
+    changed=false;
+    for(const w of wires)if(needed.has(w.to)&&operatorIds.has(w.from)&&!needed.has(w.from)) {
+      needed.add(w.from);changed=true;
+    }
+  }
+  const liveOperators=operators.filter(o=>needed.has(o.id));
+  const kept=new Set([...drawn.map(c=>c.path),...liveOperators.map(o=>o.id),...params.map(p=>p.port),...outputs.map(o=>o.port)]);
   const live=w=>kept.has(w.from)&&kept.has(w.to);
+  // A call boundary is a source observation, independent of the merged component box.
+  // Preserve each invocation and its reaching argument definitions so a caller's local
+  // names can be related to callee ports without guessing a unique upstream origin.
+  const resultAt=call=>{
+    let value=call,parent=parents.get(value);
+    while(parent&&['AwaitExpression','ChainExpression'].includes(parent.type)){value=parent;parent=parents.get(value);}
+    if(parent?.type==='VariableDeclarator'&&parent.init===value)
+      return {kind:'binding',expression:expression(parent.id),site:sourceSite(parent)};
+    if(parent?.type==='AssignmentExpression'&&parent.right===value&&parent.operator==='=')
+      return {kind:'binding',expression:expression(parent.left),site:sourceSite(parent)};
+    if(parent?.type==='ReturnStatement'||parent?.type==='ThrowStatement')return {kind:parent.type==='ThrowStatement'?'throw':'return',site:sourceSite(parent)};
+    if(parent?.type==='ExpressionStatement')return {kind:'unused',site:sourceSite(parent)};
+    if(fn.body===value&&fn.body.type!=='BlockStatement')return {kind:'return',site:sourceSite(value)};
+    return {kind:'expression'};
+  };
+  const callBindings=order.flatMap(c=>c.sites.map(site=>({callee:c.node.path,...sourceSite(site.node),
+    kind:site.node.type==='NewExpression'?'construct':'call',
+    ...(assertionAt(site,c.node.path)?{assertion:assertionAt(site,c.node.path)}:{}),
+    ...(gateOf(site)?{gate:gateOf(site)}:{}),
+    ...(site.node.optional?{optional:true}:{}),...(site.inner?{executionUnknown:true}:{}),
+    ...(site.relation.possible?{possibleTarget:true}:{}),
+    ...(callableValues(site)?{callable:{...valueDescription(site.node.callee),expression:expression(site.node.callee),
+      producers:callableValues(site).filter(p=>p.end).map(p=>({endpoint:p.end,...(p.port?{port:p.port}:{}),
+        ...(p.label?{label:p.label}:{}),...(p.site?{site:p.site}:{})}))}}:{}),
+    arguments:site.args.map((arg,i)=>({position:i+1,...valueDescription(arg),expression:expression(arg),
+      ...(arg.type==='SpreadElement'?{spread:true}:{}),
+      ...(site.args.slice(0,i+1).some(a=>a.type==='SpreadElement')?{positionUnknown:true}:{}),
+      producers:producers(arg).filter(p=>p.end).map(p=>({endpoint:p.end,...(p.port?{port:p.port}:{}),
+        ...(p.label?{label:p.label}:{}),...(p.site?{site:p.site}:{})}))})),
+    result:resultAt(site.node),resultUses:[]}))).sort((a,b)=>a.start-b.start||a.callee.localeCompare(b.callee));
+  const callBySite=new Map(callBindings.map(call=>[`${call.file}:${call.start}:${call.end}:${call.callee}`,call]));
+  const producingCall=p=>p.site&&callBySite.get(`${p.site.file}:${p.site.start}:${p.site.end}:${p.endpoint}`);
+  for(const use of callBindings)for(const p of use.callable?.producers??[]) {
+    const call=producingCall(p);if(!call)continue;
+    call.resultUses.push({kind:'callable',callee:use.callee,label:use.callable.expression,
+      site:{file:use.file,line:use.line,column:use.column,start:use.start,end:use.end}});
+  }
+  for(const use of callBindings)for(const arg of use.arguments)for(const p of arg.producers) {
+    const call=producingCall(p);if(!call)continue;
+    call.resultUses.push({kind:'argument',callee:use.callee,site:{file:use.file,line:use.line,column:use.column,start:use.start,end:use.end},
+      position:arg.position,...(arg.positionUnknown?{positionUnknown:true}:{}),...(p.label?{label:p.label}:{})});
+  }
+  const operatorById=new Map(liveOperators.map(op=>[op.id,op]));
+  for(const w of operatorWires) {
+    const call=producingCall({endpoint:w.from,site:w.sourceSite}),op=operatorById.get(w.to);if(!call||!op)continue;
+    call.resultUses.push({kind:'operator',operator:op.id,port:w.toPort,...(w.label?{label:w.label}:{}),
+      site:{file:op.file,line:op.line,...(op.column?{column:op.column}:{}),...(op.start!==undefined?{start:op.start}:{}),...(op.end!==undefined?{end:op.end}:{})}});
+  }
+  [...merged.values()].forEach((list,i)=>{for(const exit of list)for(const p of returnValues(exit.value)) {
+    const call=producingCall({endpoint:p.end,site:p.site});if(!call)continue;
+    call.resultUses.push({kind:exit.kind,port:`out${i+1}`,line:exit.node.loc.start.line});
+  }});
   const seenRequire=new Set();
   return {flow:true,generated:true,authored:[],
     node:{handle:node.handle,path:node.path,label:node.label,foot:foot(node),file:node.file,line:node.line,endLine:node.endLine,
       lines:node.endLine-node.line+1,kind:node.kind},
     inputs:params,outputs,
     requires:requires.filter(r=>{const k=`${r.text}\n${r.message??''}\n${r.line}`;if(seenRequire.has(k))return false;seenRequire.add(k);return true;}),
-    formulas:[...used.values()].sort((a,b)=>a.order-b.order)
-      .map(f=>({handle:f.node.handle,path:f.node.path,file:f.node.file,lines:[...f.lines].sort((a,b)=>a-b)})),
+    formulas:[],
     components:drawn,
+    callBindings,
+    operators:liveOperators.map(({key,...op})=>op),
     wires:wires.filter(live),
     external:unlinked.filter(u=>u.state==='external'),
-    unresolved:unlinked.filter(u=>u.state==='unresolved')};
+    unresolved:unlinked.filter(u=>u.state==='unresolved'),uncertainty};
 }
 
 // The agent read: components once, everything else by handle or port; gates once; locations in
@@ -414,21 +1087,30 @@ export function flowPacket(context,target,{evidence=false}={}) {
   const handle=new Map(page.components.map(c=>[c.path,c.handle]));
   const gates=[],gateIndex=g=>{
     if(!g)return undefined;
-    const at=gates.findIndex(x=>x.text===g.text&&x.kind===g.kind);
-    return at>=0?at:gates.push({text:g.text,kind:g.kind})-1;
+    const at=gates.findIndex(x=>x.text===g.text&&x.kind===g.kind&&
+      JSON.stringify(x.source??x.terms??null)===JSON.stringify(g.source??g.terms??null));
+    if(at>=0)return at;
+    return gates.push({text:g.text,kind:g.kind,...(g.name?{name:g.name}:{}),...(g.source?{source:g.source}:{}),...(g.terms?{terms:g.terms}:{})})-1;
   };
   const end=x=>handle.get(x)??x;
+  const repeated=new Set(page.components.filter(c=>c.calls>1).map(c=>c.path));
   // `label` is the declaration path below its file, so `path` is `file::label` and is dropped.
   const component=c=>({index:c.handle,label:c.path.slice(c.file.length+2),file:c.file,line:c.line,endLine:c.endLine,lines:c.lines,
+    ...(c.shape?{shape:c.shape}:{}),...(c.assertion?{assertion:c.assertion}:{}),
     ...(c.calls===1?{}:{calls:c.calls}),...(c.gate?{gate:gateIndex(c.gate)}:{}),
     ...(c.links.join()==='ast-call-site'?{}:{links:c.links}),
     ...(evidence?{sites:c.sites.map(({provenance,...s})=>s)}:{})});
   const site=u=>({call:u.call,line:u.line,...(evidence?{column:u.column}:{}),rule:u.rule});
   const wire=w=>({from:end(w.from),to:end(w.to),...(w.label?{label:w.label}:{}),kind:w.kind,
-    ...(w.gate?{gate:gateIndex(w.gate)}:{}),...(w.provenance==='state-thread'?{provenance:'state-thread'}:{})});
+    ...(repeated.has(w.from)&&w.sourceSite?{sourceSite:w.sourceSite}:{}),
+    ...(repeated.has(w.to)&&w.targetSite?{targetSite:w.targetSite}:{}),
+    ...(w.fromPort?{fromPort:w.fromPort}:{}),...(w.toPort?{toPort:w.toPort}:{}),...(w.expression?{expression:w.expression}:{}),
+    ...(w.positionUnknown?{positionUnknown:true}:{}),...(w.spread?{spread:true}:{}),
+    ...(['ast-choice','ast-iteration','ast-normal-backedge','ast-invocation','ast-collection','ast-update'].includes(w.provenance)?{provenance:w.provenance}:{}),
+    ...(w.gate?{gate:gateIndex(w.gate)}:{}),...(w.provenance==='state-thread'?{provenance:'state-thread',order:'source'}:{})});
   const packet={flow:true,generated:true,index:page.node.handle,path:page.node.path,
     file:page.node.file,line:page.node.line,endLine:page.node.endLine,lines:page.node.lines,kind:page.node.kind,
-    ...(page.components.length?{}:{leaf:true}),
+    ...(page.components.length||page.operators?.length?{}:{leaf:true}),
     inputs:page.inputs.map(({provenance,...p})=>p),
     outputs:page.outputs.map(({provenance,kind,gate,...o})=>({...o,...(kind==='return'?{}:{kind}),...(gate?{gate:gateIndex(gate)}:{})})),
     // `by` and `file`+`label` name the callee the way a component does, so a renumbered region is
@@ -436,11 +1118,14 @@ export function flowPacket(context,target,{evidence=false}={}) {
     requires:page.requires.map(({provenance,by,handle,...r})=>({...r,by,index:handle})),
     formulas:page.formulas.map(f=>({index:f.handle,label:f.path.slice(f.file.length+2),file:f.file,lines:f.lines})),
     components:page.components.map(component),
+    ...(page.callBindings?.length?{invocationSites:true,callBindings:page.callBindings.map(({gate,...call})=>({...call,...(gate?{gate:gateIndex(gate)}:{})}))}:{}),
+    ...(page.operators?.length?{operators:page.operators.map(({gate,...op})=>({...op,...(gate?{gate:gateIndex(gate)}:{})}))}:{}),
     ...(page.ports?{ports:page.ports}:{}),
     wires:page.wires.map(wire),
     gates,
     calledFrom:[],couplings:[],
     unresolved:page.unresolved.map(site),external:page.external.length,
+    ...(page.uncertainty?.length?{uncertainty:page.uncertainty}:{}),
     ...(evidence?{externalSites:page.external.map(site)}:{})};
   // `gates` is filled while the rows above are built; it is placed after them for reading order.
   return packet;

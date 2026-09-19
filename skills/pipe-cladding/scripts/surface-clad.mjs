@@ -1,6 +1,6 @@
 // Surface coverage producer. Geometry and normal offsets live in shared core;
 // this skill only chooses courses, local cell widths, poses and dependencies.
-import {CONNECT_MOVE_MM} from '../../../core/path/builder.mjs';
+import {CONNECT_MOVE_MM} from '../../../core/path/planning.mjs';
 import {surfaceRegion} from '../../../core/geom/surface-region.mjs';
 import {prepareSurfaceOffsets} from '../../../core/geom/surface-offset.mjs';
 import {sampleSurfaceCurve} from '../../../core/region/normal-surface.mjs';

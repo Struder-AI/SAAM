@@ -5300,3 +5300,349 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   dev-map-view tests pass 56 of 56; `mcp.test.mjs` 16 of 17 with the known
   transport-close failure; no tracked file mentions `maps/reference`,
   `saam-map-reference`, `Implementation responsibilities` or `map-owned`.
+
+## 2026-09-19 — Generated-map integrity and explicit path-planning pilot
+
+- Source: current user in task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`
+  requested completion of useful graph-native developer maps, approved authored
+  flow grouping, and selected path planning for an explicit-state coding pilot.
+  [D-035](DECISIONS.md#d-035--authored-flow-composition-over-generated-code-relationships)
+  and [D-036](DECISIONS.md#d-036--explicit-planning-stages-and-state-in-the-path-planning-pilot)
+  record the direction. Maker and builder manuals remain their prose context.
+- Map repair: canonical declarations belong to their own files; scoped
+  regeneration updates affected references and preserves unrefreshed source
+  fingerprints. Inventory, outside callers, generator dependencies, grouping
+  and facts participate in freshness. Invalid partial refreshes widen explicitly;
+  full regeneration removes obsolete pages. Region/group source reads work,
+  while root source reads remain refused. Terminal addresses open source in
+  both CLI and viewer; the left page index omits code-only destinations.
+- Flow repair: nested gates and per-use assignment origins are retained;
+  unsupported joins, loops and mutation are reported rather than supplying
+  guessed values or execution order. Called pure functions remain visible.
+  Authored membership contracts only generated relationships; group diagnostics
+  belong to their members or link the owner's analysis context. Seven external
+  facts were restored with provenance. The first utility grouping did not
+  provide a coherent high-level flow; the user retained it for comparison.
+- Path pilot: production generation enters `toolpath.mjs::planToolpath`, passing
+  explicit state through startup, priming, composition and finishing. Travel,
+  connection, deposition and layer cooling return new state and action deltas.
+  `PathBuilder` and `composeResults` are adapters to shared planning code, not
+  separate planning algorithms. Earlier action objects survive collinear
+  merging unchanged; the accumulated path is assembled at the boundary.
+- Initial behavior evidence: 7 new immutable-state tests and 49 affected
+  existing tests passed. Eight scenarios exactly matched isolated original
+  implementations, including complete S5, Bambu and oriented DENSO output and
+  summaries. Their combined serialized-output SHA-256 was
+  `9be0e5ededd2903f8cd1bd081198a0bf00c2779c89ae7e908abeb064ee0a373a`.
+  Removing duplicate composer logic retained those exact comparisons and all
+  eight composition tests. Baseline artifacts are ignored under
+  `dev-map/audit/pilot-baseline`.
+- Initial integration evidence: 83 map/toolkit/context checks passed after
+  updating the root-code-refusal assertion to its revised message (82 in the
+  combined run, the corrected onboarding test separately). Map check reported
+  fresh source and no orphan or malformed facts. Repository checks still report
+  the pre-existing BR-049 missing `Remaining` field.
+- Follow-up authorized during review: generated choice/iteration connections
+  are needed because explicit state still disappeared at branch and loop
+  boundaries. A single 50,000-collinear-segment measurement returned the same
+  one action in both planners; observed temporary heap growth was about 2 MiB
+  before and 15 MiB after, with 80/94 ms elapsed respectively. This is a synthetic
+  observation, not a general performance result. The user approved stage-local
+  compaction of superseded move deltas while preserving input/result immutability.
+- Compaction evidence: a stage-local accumulator retains surviving appends and
+  at most one replacement of the incoming tail. Twelve immutable-state tests
+  passed, including cross-stage replacements, process-action barriers, detached
+  accumulator reuse and 10,000 collinear segments producing one retained action.
+  All eight baseline outputs still match the same hash. A fresh single synthetic
+  run observed about 3 MiB temporary heap growth and 70 ms for the compacted
+  planner, versus 3 MiB and 71 ms for the original implementation; timings are
+  indicative only.
+- Subsequent review accepted the density and comprehensibility of the operation
+  composition page, while identifying sparse scheduler helpers, disconnected
+  progress input, duplicate caller references and navigation friction. Source
+  destinations now use a distinct color; the viewer has actual-route Back and
+  Escape-to-close. Callers already represented on a page use connecting call
+  arrows; only other callers retain red address references. Class membership
+  was removed from incoming-call accounting.
+- Source snapshots now accompany generated file records. CLI and viewer use
+  the same matching source while stale; scoped regeneration retains unrefreshed
+  snapshots. Legacy source is accepted only after a hash match. Shifted/deleted
+  source, partial regeneration and emitted-source parity were checked.
+- The user selected scheduling as the next bounded code-and-map section.
+  Validation, priority preparation, prerequisite preparation and topological
+  ordering now return explicit records, with heap mutation confined to ordering.
+  Eight composition tests and all eight baseline comparisons passed unchanged;
+  fourteen planning-state tests include frozen scheduler inputs, stable priority
+  ties, repeatability and cycle rejection without consuming prerequisites.
+- Known direct parameter-callback invocations now have callable and payload
+  connections, source locations and nullish optional gates. Concrete targets
+  remain unresolved. Independent negative cases caught and fixed false constant
+  claims for partly unknown values and computed payload keys. The eleven
+  external sites in planComposition were verified as Map/Array operations;
+  generic external counts no longer claim application-boundary semantics.
+- Integration evidence: 93 map tests passed, followed by 10 invocation and
+  independent callback checks. Regeneration produced 651 graph pages and 813
+  code destinations, with zero stale pages and no orphan or malformed facts.
+  Browser checks verified the scheduler's four connected stages, source color,
+  Escape, caller navigation and Back. Accumulator contents, scheduling-ledger
+  inputs and summary-field origins still have bounded analysis gaps; those
+  omissions are explicit uncertainty, not certified connections.
+- Subsequent boundary review: generated call-site evidence now traces input
+  arguments and returned-value bindings/known uses into port references. Each
+  caller and invocation keeps its source context; defaults, spreads, unknown
+  origins and untraced consumers stay explicit. Independent tests cover record
+  field isolation, escape invalidation and preserved source sites during scoped
+  renumbering. Forty-six boundary/store/view checks passed. Regeneration and
+  browser inspection verified scheduler port references, compatible wire bundles
+  and outward arrows attached to nodes or the expanded function frame. Local
+  collection/counter analysis remains the next active scanner increment.
+
+## 2026-09-19 — Cloudflare relay milestone specification
+
+- Source: “Plan Cloudflare MCP relay” (`01a0baba-5902-7c41-8e9e-19d95fe2c81c`).
+  The user selected active Studio-driven interaction through pending MCP calls
+  and requested a specification/roadmap rather than a capability experiment.
+- Added the [milestone plan](adapters/mcp/RELAY-PLAN.md) and recorded the selected
+  direction in [D-037](DECISIONS.md#d-037--cloudflare-relay-and-studio-driven-chat-sessions),
+  with a follow-up link from D-023. Windows/macOS packaging carries forward
+  D-023's recorded scope; a shared relay object and local review are explicit
+  planning defaults rather than newly attributed human decisions.
+- Specified session ownership, bounded event waits and renewal, durable event
+  replay/acknowledgment, independent local jobs, pairing/access boundaries,
+  installer/update behavior, failure recovery and six implementation stages.
+  Integration acceptance requires actual model responses to Studio requests
+  without routine chat intervention; it is not satisfied by an open socket.
+- Platform documentation consulted on 2026-09-19 describes a 240-second Claude
+  tool-call deadline and Cloudflare's shared allowances and duration metering.
+  The plan links those sources and budgets listener renewals separately from
+  the 900,000 ordinary monthly calls. One continuously active standard object
+  over 30 days calculates to 331,776 GB-seconds; this is a planning calculation,
+  not measured SAAM usage or a guaranteed total bill.
+- This task changed planning documentation only. No connector capability test,
+  relay deployment, installer build or manufacturing execution was performed.
+  Implementation remains future work; no implementation backlog entry was
+  created from engineering recommendations alone.
+- Documentation check: `node scripts/check-repo.mjs` reported no new plan-link
+  or decision-metadata errors. The repository-wide check remains failing on the
+  pre-existing BR-049 `Remaining` field format in build_request.md; that unrelated
+  queue entry was left unchanged.
+
+## 2026-09-19 — Refine relay sessions, account access and wait targets
+
+- Revised the relay plan in response to review: one active paired installation,
+  no routine device picker, explicit replacement, and new chats that reopen
+  saved print bundles without transferring chat sessions. Part creation is
+  agent-led, with loading an STL as the alternative starting point.
+- Replaced the ambiguous cloud-state wording with explicit local revision
+  checks. Reduced interruption recovery to retained requests/outcomes, safe
+  retries and visible unavailable state; stopping the assistant does not cause
+  automatic restart. Normal listener renewal is not an interruption.
+- The user replaced the ten-minute quiet-wait request with 7:30 and explicitly
+  requested that timeout for ChatGPT too. The plan targets a 450-second ChatGPT
+  call and two 225-second Claude calls, with one renewal. Claude documents a
+  240-second per-call limit; the cited ChatGPT documentation supplies no matching
+  deadline. Its 450-second value is a requested implementation target, not a
+  verified client capability. No live capability test was performed.
+- Added sourced account/workspace and tool-consent requirements, distinguished
+  web connectors from other client surfaces, and expanded the transport/cost
+  model. A 450-second interval on one standard active object calculates to
+  57.6 GB-seconds; one such interval per print adds 30,000-60,000 monthly wait
+  calls depending on client mix. These are scenarios, not usage measurements.
+- Re-ran `node scripts/check-repo.mjs`: the same pre-existing BR-049 `Remaining`
+  format error is the only reported content failure. Left it and concurrent
+  implementation work unchanged. This revision changes planning documents only.
+
+## 2026-09-19 — Alpha permissions and beta distribution context
+
+- Added the intended first-use permission flow and distinguished device pairing,
+  OAuth access, provider tool consent and local output approval. Fetched official
+  OpenAI submission/OAuth/permission documentation and Anthropic connector policy
+  documentation; the plan links the sources and labels unimplemented screens.
+- Clarified that RELAY-PLAN owns the alpha milestone. Developer mode is acceptable
+  there; reviewed ChatGPT publication remains beta context and is excluded from
+  the alpha roadmap and acceptance gates. No external submission was made.
+- The user requested consolidation proposals for review. No proposed structural
+  consolidation or content deletion was applied; only the explicit alpha scope
+  correction was made after that request.
+
+## 2026-09-19 — Apply reviewed relay-plan consolidation
+
+- Applied the user's item-by-item review: preserved Goalpost, Selected scope and
+  planning defaults, and Person's workflow; retained a shorter permission-screen
+  section; limited eligibility to target web clients; consolidated architecture
+  boundaries and session/recovery rules. Moved the shortened cost discussion
+  directly after architecture, linked roadmap stages to one acceptance checklist,
+  and reduced beta publication to context. The plan shrank from 5,862 to roughly
+  3,600 whitespace-delimited words without changing the wait targets.
+- Replaced the wide Mermaid diagram with a portrait SVG using explicit dark
+  backing, larger labels and thick high-contrast arrows. Rendered it through
+  Sharp and visually inspected the result. The approved preserved sections were
+  checked against their exact pre-edit text; no incoming links to removed
+  section anchors were found. No implementation code was changed.
+- `node scripts/check-repo.mjs` still reports only the pre-existing BR-049
+  `Remaining` field format failure; the plan's links introduced no new errors.
+
+## 2026-09-19 — Recheck alpha and future beta account setup
+
+- Re-fetched official OpenAI developer-mode, plugin-installation, workspace and
+  submission documentation, plus Anthropic custom-connector, directory and
+  plugin documentation. Added the requested future-beta column, made ChatGPT
+  Free/Go eligibility explicitly unconfirmed for the published route, and split
+  Claude Free from Pro/Max to distinguish its one custom connector from paid-plan
+  bundled plugins. Retained per-user authorization and organization policies.
+- Moved beta context into one explicitly deferred paragraph in Goalpost and
+  removed its standalone section. Beta publication remains outside alpha scope;
+  no new distribution or implementation work was performed.
+
+## 2026-09-19 — Compact developer map reads
+
+- Made agent map reads a compact presentation of the existing stored graph:
+  inclusive line ranges, inherited file locations, empty-list omission and
+  deduplicated inventory/caller metadata. Calls retain argument expressions and
+  producer sites; repeated invocations retain result uses. `--details` returns
+  the unchanged rich packet without scanning.
+- Source reads omit the graph body while preserving provenance, freshness and
+  edit-safety metadata. Automatic terminal reads also retain input/output
+  boundary references. The human viewer and stored graph representation are
+  unchanged by this CLI presentation change.
+- Measured the full scheduler CLI response, including its current stale notice
+  and trailing newline: 5,198 characters against 5,483 source characters for the
+  scheduler and its four stages. The equivalent detailed response is 9,545
+  characters; the compact response without a stale notice is 4,764. Source-only
+  scheduler output is 1,480 characters excluding its trailing newline.
+- Five focused compact-packet tests and the targeted toolkit onboarding/map
+  integration test pass. Independent review caught and verified fixes for
+  repeated-call producer identity and automatic terminal boundary provenance.
+  Shared regeneration is held while the user considers the separate renderer
+  fix for missing collection/update expressions, constants and optional gates.
+
+## 2026-09-19 — Integrate local state analysis and rendering
+
+- Following user approval to proceed, completed the renderer's local-state
+  display: collection argument expressions, certified constant operands,
+  iteration initial constants and optional collection/update gates. A real
+  scanner-to-SVG fixture verifies these details without claiming dynamic values
+  are constants.
+- Regenerated all nine regions and 136 files. The viewer now has 688 graph pages
+  and 776 code destinations, with no stale pages or orphan facts. Inspected the
+  actual composition page in the browser: six components, 22 flow operators and
+  56 wires. Escaped deposited state, custom accumulator effects and unsupported
+  returned-array/callback provenance remain explicit limitations.
+- Seventeen viewer tests, twenty store integration tests and five compact-read
+  tests pass. Updated the old disconnected-helper fixture because its array
+  operations now generate real state flow; kept a separate genuinely disconnected
+  helper case and asserted both source and graph destinations independently.
+- The regenerated scheduler's compact CLI response is 4,886 characters including
+  its newline against 5,483 source characters; all four stages still open code.
+  No additional core behavior changes were made in this integration.
+
+## 2026-09-19 — Reduce map detail and separate source from navigation
+
+- Recorded the reviewed composition page as a rough upper density reference,
+  not a target to fill. Private state bookkeeping remains a candidate for
+  operator-aware grouping; that structural change has been proposed to the
+  user and has not been implemented.
+- Human and agent default views now share a presentation layer: boundary ports
+  show a short caller-site reference with uncertainty flags, rather than copied
+  argument/result and producer/consumer context. Detailed evidence remains in
+  the store and `read-map --details`. Callback object payloads show field names;
+  redundant operator port lists, AST tags and initializer boilerplate are omitted.
+  Conditions, transformations, constants and graph connections remain visible.
+- Back tracks map pages only. Source open/close creates no map-history entry;
+  Back leaves an open pane untouched. Clicking the body of a source-addressed
+  operator opens its matching source span. Verified in the browser that both
+  Back with source open and Back after Escape behave this way.
+- Seventeen viewer tests and eight compact-presentation tests pass. Independent
+  review caught an overly broad return-label abbreviation; it now requires
+  direct-return AST evidence and preserves arithmetic, member and conditional
+  return expressions. No core planning behavior changed.
+
+## 2026-09-19 — Keep operator implementation behind source access
+
+- The user clarified that operator implementation is unnecessary for developer
+  orientation too. Removed expressions, alternative values, payloads, constants,
+  prefix/postfix mechanics and loop bookkeeping from default operator boxes and
+  the shared default agent presentation. Boxes retain identity, operation, source
+  location and a concise unresolved marker. Wires, gates and page uncertainty
+  remain; matching source and `--details` retain the implementation evidence.
+- Seventeen viewer tests and eight compact-presentation tests pass. The view
+  tests check all five operator types for absent implementation bodies while
+  preserving edge endpoints and source click behavior.
+
+## 2026-09-19 — Derive the alpha relay hosting budget and user cap
+
+- Rechecked Cloudflare Workers/DO pricing and replaced the relay plan's loose
+  capacity discussion with per-user request and monthly hosting tables. Set
+  the planning target to $5/month for the relay and derived 150 active users
+  from 6,000 metered DO requests/user/month with 10% included-request headroom.
+  Kept the user's five prints/day and 30 ordinary calls/print; additional event,
+  listening, transport, CPU, SQLite and log quantities are explicitly unmeasured
+  engineering budgets. Updated scope and alpha acceptance to the derived cap.
+- Calculated all request components and thresholds: 166 users fit without
+  reserve, the first rounded overage begins at 167, and the original 200-user
+  scenario projects to $5.15/month. The request-only marginal rate is $0.0009
+  per additional scenario user/month, distinct from the $0.15 invoice steps.
+  The one-object projection and all other allowance assumptions are retained;
+  this is a cost model, not measured capacity or a provider-enforced spending cap.
+
+## 2026-09-19 — Whole-scope map rollout and smaller review checkpoints
+
+- User direction: preserve the Grasshopper-style code-and-map objective, remove
+  superseded implementations after rewiring every consumer, and review smaller
+  sections before repeating an approach. Each proposed review now includes an
+  inspected default CLI response opened beside the drawing.
+- Shared generation at 22:42 UTC covered 9 regions and 138 mapped files, with
+  1,415 declarations, 267 authored containment groups, and 1,830 destinations.
+  It reported no orphan facts or malformed facts and was current at publication.
+  Coverage is not completion: region/file capability inventories and remaining
+  weak orchestration pages are tracked separately in the ignored rollout audit.
+- Distinct invocations retain separate stage identities. Function grouping now
+  rejects contractions that hide an outside stage between two group members and
+  would therefore draw false feedback. Invalid Studio draw/service contractions
+  were removed; structural navigation groups remain.
+- Full gate predicates moved behind source/details; exit control wires connect
+  unsupported-format exceptions to their deciding inputs. The user visually
+  accepted studio/source-player.mjs::decodeSource (then 9.23.1). Accuracy remains
+  the developer's responsibility. Full conditions and matching stale source are
+  retained for inspection.
+- Default CLI calls no longer duplicate argument expressions, producer traces or
+  result-use lists. Generated argument-slot wires preserve order and repeated
+  arguments; spread-affected positions remain explicitly uncertain. Compatible
+  argument values share a drawn link without losing individual slot labels.
+- Removed PathBuilder, composeResults, primeBeforePart, planOperationControls,
+  generateFullFill and generateDrapedSkin after rewiring their live consumers.
+  Functional trimming and finished-boundary publication preserve incoming
+  values. Regional cladding now receives the same shell identity used by its
+  producer. Thirteen captured paths remained exact; 25 focused checks passed.
+- At this checkpoint all 181 map tests passed. Subsequent review work continues
+  on compound-gate identities, returned record labels, possible-target markers,
+  live browser freshness, external call boundaries, and named worker/tessellation
+  stages. These outstanding items are not claimed complete by the coverage count.
+
+### 2026-09-19 — Interpreter and service-stage review checkpoint
+
+- At 23:11 UTC the shared snapshot covered 138 core/Studio files and 1,441
+  declarations across nine regions: 1,123 graph destinations, 729 source
+  destinations and 263 containment groups. It was current at publication;
+  subsequent edits are reported by the live freshness watcher without replacing
+  the matching source snapshot. All 212 map checks passed at this checkpoint.
+- Griffin interpretation now exposes initialization, stream processing,
+  completion validation and program construction. Twenty captured success/error
+  outcomes remained exact; 16 focused checks included a 200,000-move replay.
+  The drawing and exact default CLI response for interpretGcode (then 3.9.10)
+  were inspected and offered for review. Lower stream feedback and switch
+  analysis remain incomplete; a clean top page does not resolve those limits.
+- Machine presentation separates mechanism assembly, controls, descriptor and
+  sampling. Seven profile descriptors and 38 captured poses matched; 20 checks
+  passed. Bundle workflow separates candidate reuse, generation, verification,
+  checks and persistence, with 12 focused/integration checks passing. Returned
+  callback captures and dynamic adapter targets remain explicit analysis gaps.
+- Parameter-owned method invocations now show receiver, argument and result
+  connections while keeping their targets unresolved. Full source spans prevent
+  nested logical expressions from colliding into false feedback. Condition
+  captions open their caller predicate source; whole awaited-call result labels
+  and returned-record labels no longer repeat implementation expressions.
+- Whole-scope execution-flow completion remains open. Active follow-ups cover
+  adaptive-loop state, toolkit preview ownership, and mesh-repair worker dispatch
+  and lifetime. Inventory coverage is not used as evidence that these flows are
+  complete.

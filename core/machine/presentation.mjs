@@ -9,11 +9,8 @@ import {rigid,add,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,
 const ARMS=new Set(['dobot-mg400','denso-vp6242-rc8']);
 const isGantry=machine=>machine.kinematics==='cartesian-fixed-vertical-nozzle';
 const durationOf=p=>p.seconds??p.summary?.motionSeconds??0;
-// A closed registry of trusted models. Profiles contain data, never loaded code.
-export async function createMachinePresentation({program,machine,setup={},sourceIdentity,signal}){
-  signal?.throwIfAborted();if(!isGantry(machine)&&!ARMS.has(machine.id))return null;
-  const config={...machine.kinematicModel,...setup.kinematicModel},components=[],frames=new Set(['world','part','tcp']);
-  const binding={...sourceIdentity,modelKey:JSON.stringify([1,machine.id,machine.revision,config,setup.tool])};
+function buildMachineMechanism({program,machine,setup,config}){
+  const components=[],frames=new Set(['world','part','tcp']);
   const component=(id,role,shape,frameId=id,local=rigid())=>{frames.add(frameId);components.push({id,label:id.replaceAll('-',' '),role,shape,frameId,local});};
   const line=(id,role,a,b,frameId='world')=>component(id,role,{kind:'line',fromMm:a,toMm:b},frameId);
   const link=(id,length)=>component(id,'link',{kind:'line',fromMm:[0,0,0],toMm:[0,0,length]});
@@ -82,47 +79,72 @@ export async function createMachinePresentation({program,machine,setup={},source
       solve=at=>({worldFromFrame:sourceFrames(at),diagnostics:[{code:'arm-unavailable',severity:'info',message:limits.at(-1)}]});
     }
   }
+  return {components,frameIds:[...frames],limits,machineBoundsWorldMm,coordinateBounds,angularLever,manualEnabled,solve,sourcePose,probeMargins,extraStatic};
+}
+
+function machineControlLayout(machine,{manualEnabled,coordinateBounds}){
   const cartesian=isGantry(machine),dobot=machine.id==='dobot-mg400';
   const angleAxes=cartesian?[]:dobot?[2]:[0,1,2];
   const controls=manualEnabled?[...['X','Y','Z'].map((label,i)=>({label,unit:'mm',min:Math.floor(coordinateBounds.min[i]*10)/10,max:Math.ceil(coordinateBounds.max[i]*10)/10,step:.1})),
     ...angleAxes.map(i=>({label:['Rotate X','Rotate Y','Rotate Z'][i],unit:'°',min:-180,max:180,step:.1}))]:[];
-  function controlPose(at,manual){
-    if(!controls.length)return {at,controlValues:[]};
-    const R=at.rotation??axisFrame(scale(at.toolAxis??[0,0,-1],-1),at.toolUp??[0,1,0]);
-    const b=Math.asin(Math.max(-1,Math.min(1,-R[2][0]))),singular=Math.abs(Math.cos(b))<1e-7;
-    const a=[singular?0:Math.atan2(R[2][1],R[2][2]),b,singular?Math.atan2(-R[0][1],R[1][1]):Math.atan2(R[1][0],R[0][0])];
-    if(!manual)return {at,controlValues:[...at.point,...angleAxes.map(i=>a[i]*180/Math.PI)]};
-    angleAxes.forEach((axis,i)=>a[axis]=manual[i+3]*Math.PI/180);
-    const r=mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
-    return {at:{...at,point:manual.slice(0,3),rotation:r,toolAxis:mv(r,[0,0,-1]),toolUp:mv(r,[0,1,0])},controlValues:[...manual]};
+  return {controls,angleAxes};
+}
+
+function controlPose({controls,angleAxes},at,manual){
+  if(!controls.length)return {at,controlValues:[]};
+  const R=at.rotation??axisFrame(scale(at.toolAxis??[0,0,-1],-1),at.toolUp??[0,1,0]);
+  const b=Math.asin(Math.max(-1,Math.min(1,-R[2][0]))),singular=Math.abs(Math.cos(b))<1e-7;
+  const a=[singular?0:Math.atan2(R[2][1],R[2][2]),b,singular?Math.atan2(-R[0][1],R[1][1]):Math.atan2(R[1][0],R[0][0])];
+  if(!manual)return {at,controlValues:[...at.point,...angleAxes.map(i=>a[i]*180/Math.PI)]};
+  angleAxes.forEach((axis,i)=>a[axis]=manual[i+3]*Math.PI/180);
+  const r=mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
+  return {at:{...at,point:manual.slice(0,3),rotation:r,toolAxis:mv(r,[0,0,-1]),toolUp:mv(r,[0,1,0])},controlValues:[...manual]};
+}
+
+function buildMachineDescriptor(machine,config,binding,{frameIds,components,machineBoundsWorldMm,limits},{controls}){
+  return {schema:'saam-machine-presentation/1',binding,label:machine.name,basis:config.basis??'Nominal design geometry; source-command motion',frameIds,components,machineBoundsWorldMm,limitations:limits,controls};
+}
+
+function sampleMachinePresentation(program,descriptor,mechanism,layout,request){
+  const {binding,components,controls}=descriptor;
+  const {solve,sourcePose,probeMargins,extraStatic,angularLever}=mechanism;
+  if(!Number.isFinite(request.seconds)||request.seconds<0||request.seconds>durationOf(program))throw Error('Machine sample time outside source duration');
+  if(request.manual!==undefined&&(!controls.length||!Array.isArray(request.manual)||request.manual.length!==controls.length||!request.manual.every(Number.isFinite)))throw Error('Invalid manual machine coordinates');
+  const sourceAt=frameAtTime(program.moves,request.seconds);let {at,controlValues}=sourceAt.point?controlPose(layout,sourceAt,request.manual):{at:sourceAt,controlValues:[]};
+  let result={worldFromFrame:{},diagnostics:[]};
+  try{if(at.point){
+    if(request.jog){
+      const evaluate=(values,probe=false)=>{const posed=controlPose(layout,sourceAt,values),s=probe&&probeMargins?{margins:probeMargins(posed.at)}:solve(posed.at),f={world:rigid(),...extraStatic,...s.worldFromFrame};
+        const margins=[...(s.margins??[]),...values.flatMap((v,i)=>[v-controls[i].min,controls[i].max-v])];
+        return {...s,margins,valid:margins.every(v=>Number.isFinite(v)&&v>=-1e-7)&&components.every(c=>f[c.frameId])&&!s.diagnostics?.some(d=>d.severity==='warning'),controlValues:values};};
+      const jog=constrainedJog({from:request.jog.from,target:request.manual,axis:request.jog.axis,scales:controls.map(c=>c.unit==='mm'?1:angularLever*Math.PI/180),evaluate});
+      result=jog.result;controlValues=jog.values;
+      if(jog.limited||jog.adjusted)result={...result,diagnostics:[{code:'jog-boundary',severity:'info',message:jog.limited?'Reached the modeled boundary; holding a reachable pose.':'Other coordinates adjusted to stay within the machine boundaries.'}]};
+    }else result=solve(at);
+  }else result.diagnostics=[{code:'no-motion',severity:'info',message:'No source pose available'}];}
+  catch(error){
+    // A failed solve still knows where the source put the part. Missing frames
+    // are omitted, never drawn at an identity stand-in.
+    let known={};try{if(at.point)known=sourcePose(at);}catch{/* no source pose either: unavailable */}
+    result={worldFromFrame:known,diagnostics:[{code:'model-solve',severity:'warning',message:error.message}]};
   }
-  const descriptor={schema:'saam-machine-presentation/1',binding,label:machine.name,basis:config.basis??'Nominal design geometry; source-command motion',frameIds:[...frames],components,machineBoundsWorldMm,limitations:limits,controls};
+  const worldFromFrame={world:rigid(),...extraStatic,...result.worldFromFrame};
+  const available=components.filter(c=>worldFromFrame[c.frameId]);
+  const status=!worldFromFrame.part||!available.length?'unavailable':available.length===components.length?'ready':'partial';
+  return {schema:'saam-machine-pose/1',binding,...request,status,worldFromFrame,controlValues,diagnostics:result.diagnostics??[]};
+}
+
+// A closed registry of trusted models. Profiles contain data, never loaded code.
+export async function createMachinePresentation({program,machine,setup={},sourceIdentity,signal}){
+  signal?.throwIfAborted();if(!isGantry(machine)&&!ARMS.has(machine.id))return null;
+  const config={...machine.kinematicModel,...setup.kinematicModel};
+  const binding={...sourceIdentity,modelKey:JSON.stringify([1,machine.id,machine.revision,config,setup.tool])};
+  const mechanism=buildMachineMechanism({program,machine,setup,config});
+  const layout=machineControlLayout(machine,mechanism);
+  const descriptor=buildMachineDescriptor(machine,config,binding,mechanism,layout);
   let disposed=false;
   return {descriptor,async sample(request,{signal}={}){
     signal?.throwIfAborted();if(disposed)throw Error('Machine presentation disposed');
-    if(!Number.isFinite(request.seconds)||request.seconds<0||request.seconds>durationOf(program))throw Error('Machine sample time outside source duration');
-    if(request.manual!==undefined&&(!controls.length||!Array.isArray(request.manual)||request.manual.length!==controls.length||!request.manual.every(Number.isFinite)))throw Error('Invalid manual machine coordinates');
-    const sourceAt=frameAtTime(program.moves,request.seconds);let {at,controlValues}=sourceAt.point?controlPose(sourceAt,request.manual):{at:sourceAt,controlValues:[]};
-    let result={worldFromFrame:{},diagnostics:[]};
-    try{if(at.point){
-      if(request.jog){
-        const evaluate=(values,probe=false)=>{const posed=controlPose(sourceAt,values),s=probe&&probeMargins?{margins:probeMargins(posed.at)}:solve(posed.at),f={world:rigid(),...extraStatic,...s.worldFromFrame};
-          const margins=[...(s.margins??[]),...values.flatMap((v,i)=>[v-controls[i].min,controls[i].max-v])];
-          return {...s,margins,valid:margins.every(v=>Number.isFinite(v)&&v>=-1e-7)&&components.every(c=>f[c.frameId])&&!s.diagnostics?.some(d=>d.severity==='warning'),controlValues:values};};
-        const jog=constrainedJog({from:request.jog.from,target:request.manual,axis:request.jog.axis,scales:controls.map(c=>c.unit==='mm'?1:angularLever*Math.PI/180),evaluate});
-        result=jog.result;controlValues=jog.values;
-        if(jog.limited||jog.adjusted)result={...result,diagnostics:[{code:'jog-boundary',severity:'info',message:jog.limited?'Reached the modeled boundary; holding a reachable pose.':'Other coordinates adjusted to stay within the machine boundaries.'}]};
-      }else result=solve(at);
-    }else result.diagnostics=[{code:'no-motion',severity:'info',message:'No source pose available'}];}
-    catch(error){
-      // A failed solve still knows where the source put the part. Missing frames
-      // are omitted, never drawn at an identity stand-in.
-      let known={};try{if(at.point)known=sourcePose(at);}catch{/* no source pose either: unavailable */}
-      result={worldFromFrame:known,diagnostics:[{code:'model-solve',severity:'warning',message:error.message}]};
-    }
-    const worldFromFrame={world:rigid(),...extraStatic,...result.worldFromFrame};
-    const available=components.filter(c=>worldFromFrame[c.frameId]);
-    const status=!worldFromFrame.part||!available.length?'unavailable':available.length===components.length?'ready':'partial';
-    return {schema:'saam-machine-pose/1',binding,...request,status,worldFromFrame,controlValues,diagnostics:result.diagnostics??[]};
+    return sampleMachinePresentation(program,descriptor,mechanism,layout,request);
   },dispose(){disposed=true;}};
 }

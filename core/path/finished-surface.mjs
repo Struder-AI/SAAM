@@ -17,8 +17,8 @@ export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2
     if(!loops){loops=sectionAt(z).loops.filter(loop=>loopArea(loop)>0);if(sections.size>=256)sections.clear();sections.set(z,loops);}
     return loops.some(loop=>loop.some((p,i)=>pointSegmentDistance(e.point,p,loop[(i+1)%loop.length])<=toleranceMm));
   });
-  result.finishedSurfaces=sourceOperationIds.length?[{shell,startMm,endMm,coverage,contains:onBoundary,sourceOperationIds}]:[];
-  return result;
+  const finishedSurfaces=sourceOperationIds.length?[{shell,startMm,endMm,coverage,contains:onBoundary,sourceOperationIds}]:[];
+  return {...result,finishedSurfaces};
 }
 
 export function consumeFinishedSurface({shell,selection,results}){

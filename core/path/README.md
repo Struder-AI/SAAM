@@ -10,6 +10,23 @@ an unimplemented design for evaluation.
 
 ## Skill-result composition
 
+`toolpath.mjs::planToolpath` is the complete planning boundary: prepared skill
+results and locked machine/process settings enter; a SAAMpath leaves. It passes
+explicit planning state through startup, optional priming, operation composition
+and finishing, then assembles the action batches once. `planning.mjs` stages
+return the next state, emitted actions, timing/accounting and relevant decisions;
+they do not mutate their input state. A merged move returns a replacement for
+the preceding action rather than modifying an earlier stage's action object.
+Local loops may use mutable working collections. State carries the recent motion
+context, not a growing copy of the action history.
+
+All callers use these functional stages. `planComposition(state, results, rules,
+onProgress)` returns state, action deltas and a composition summary;
+`planPriming(state, geometryBounds, results)` returns a priming plan.
+`planningPath(state, actionChunks, summary)` materializes the complete path. The
+generated map of `core/path/toolpath.mjs::planToolpath` is the entry for reviewing
+the planning flow and its stages.
+
 Skills return an in-memory result `{id, operations, report}`. An operation has
 a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
 `rank` for ordering within a height batch, and `after` dependencies. Rank is a scheduling
@@ -45,8 +62,14 @@ and dependencies can interleave operations within a layer. They cannot remove a
 skill's prerequisites. The agent proposes these choices before toolpath generation;
 generation executes the locked rules without a new planning or approval stage.
 
-One PathBuilder owns the resulting travel/retraction state, and the composer
-finishes cooling once after all operations assigned to a shared layer. Hops
+`scheduleOperations` exposes validation, priority preparation, dependency
+preparation and topological ordering as separate stages. Their returned records
+carry the operation batch, priority lookup and prerequisite sets. The ordering
+stage builds its own mutable heap and dependency counters; it does not consume
+or change those inputs.
+
+The composer carries travel/retraction state between operations and finishes
+cooling once after all operations assigned to a shared layer. Hops
 clear all material deposited so far, including travel from a taller batched
 column toward a lower one. This is not a full
 collision or swept-head model. Results must describe compatible regions and
@@ -137,8 +160,9 @@ sequence needs a different region assignment or injection height.
 material producers without a skill-name allowlist in the consumer. A result's
 `finishedSurfaces` entries carry its native shell identity, material height
 extent, coverage description, a boundary-membership query and source operation
-IDs. `publishFinishedBoundary` provides shell, side and top boundary adapters,
-or accepts a producer's own membership query. These are nominal design
+IDs. `publishFinishedBoundary` returns a new result with shell, side and top
+boundary adapters, or accepts a producer's own membership query. Callers use
+that returned result; the incoming result and its operations are preserved. These are nominal design
 boundaries, not reconstructed bead textures or measured physical surfaces.
 
 The shared whole-component and regional adapters publish ordinary fill/infill,
@@ -208,8 +232,8 @@ automatic print rejection or another maker approval. Shared travel handling
 still routes the transitions that remain. Nearest-entry guidance does not
 claim a globally optimal route or implement lookahead by itself.
 
-`PathBuilder.travelTo` is the shared travel method for full-fill, planar-infill,
-draped-skin and vase-wall. The builder updates the highest
+`planning.mjs::planTravel` is the shared travel stage for full-fill, planar-infill,
+draped-skin and vase-wall. `planMove` returns updated planning state with the highest
 deposited Z from both endpoints of every emitted positive-volume segment,
 including prime lines, sloping strokes and previous components. Travel without
 deposition never raises this material height. The initial material height is
@@ -222,7 +246,7 @@ floor avoids descending before traversing from a higher startup/park position or
 toward a higher destination. Cooling and final SAAMpath parking use the same
 height calculation. Required clearance above the selected tool's Z bounds is
 rejected. Existing recipes retain their explicit locked clearance value.
-Compose all results together so one builder carries chronology across skills.
+Compose all results together so planning state carries chronology across skills.
 Machine firmware service routines (including H2D shutdown) retain their separate
 export contracts; they are not ordinary SAAMpath travel.
 
@@ -235,7 +259,7 @@ use the same scanline implementation. Ordering changes neither row endpoints
 nor deposition coverage; connections still use the shared travel checks.
 
 A stroke of a `connectNearby` operation that starts within 2 mm of the end of
-the preceding deposition continues as deposition: `PathBuilder.connectTo` writes
+the preceding deposition continues as deposition: `planConnection` returns
 one straight connector carrying the next stroke's bead (its uniform area, or its
 first segment's volume per length and metadata). This joins fill rows into a
 zigzag, steps between wall loops and concentric rings, and enters fill from the
@@ -259,8 +283,10 @@ retraction when the nozzle is already at the top of everything deposited and
 the step lies inside the new layer's region. Vase-wall's continuous stroke has
 no internal stroke-start travels; a level rim ends where its vanishing taper
 holds less than 0.001 mm3, which a machine program could only write as travel.
+`trimVanishingEnd` returns the shortened stroke with aligned point, volume and
+segment-metadata arrays; callers use it for both deposition and rim reporting.
 
-The shared PathBuilder merges consecutive forward collinear moves with the same
+`planMove` merges consecutive forward collinear moves with the same
 speed, volume per length and semantic metadata. A fixed line anchors each run
 within the numerical plane tolerance (0.0000001 mm), so successive small turns
 cannot accumulate into curve flattening. It sums deposited volume and retains
@@ -344,9 +370,9 @@ way to report additional travel cases.
 
 ### Travel planning
 
-`core/path/builder.mjs` classifies each stroke start as joined, connected, combed
+`core/path/planning.mjs` classifies each stroke start as joined, connected, combed
 or hopped, and reports the counts in `summary.travel`.
-The shared PathBuilder tracks deposited height; local callbacks decide direct/combed
+The returned planning state tracks deposited height; local callbacks decide direct/combed
 eligibility. See [travel requirements](#whole-plan-travel-requirement). Fill
 strokes alternate their direction to keep neighbouring endpoints close. Longer
 moves lift above material deposited so far, using the shared export and checks.

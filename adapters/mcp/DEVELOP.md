@@ -4,6 +4,10 @@ Adapter boundaries and integration tests. [The adapter manual](README.md)
 owns client configuration and tool usage; [the print lifecycle](../../core/print/README.md)
 owns manufacturing state.
 
+The [Cloudflare relay milestone plan](RELAY-PLAN.md) specifies future packaged
+deployment and active Studio-driven web-chat sessions. It is planning context,
+not an account of the current adapter's capabilities.
+
 ## Local MCP access
 
 The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.

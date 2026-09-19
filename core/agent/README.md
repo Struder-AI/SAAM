@@ -31,7 +31,7 @@ node scripts/agent-toolkit.mjs read-skill planar-infill
 node scripts/agent-toolkit.mjs read-skill planar-infill --maker --builder
 node scripts/agent-toolkit.mjs read-skill planar-infill --builder
 node scripts/agent-toolkit.mjs read-map 0
-node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::composeResults --code
+node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition --code
 node scripts/agent-toolkit.mjs regenerate 6
 node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
 ```
@@ -59,7 +59,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | `builder-onboarding [--area AREA]` | Read BUILDERS, maker context, skill authoring and the complete skill digest; add the named area's component manual and, for a region of the map, that region page; inspect entry-point availability. | The same context format, with builder sources and an instruction to read the component manual for what is changed and walk the region for its structure. |
 | `developer-onboarding [--area AREA]` | Read the developer orientation and map page `0`; add the named region’s page, or an outside area’s own references; inspect entry-point availability. Component manuals are maker and builder documentation and are never returned. | The same context format, with the orientation, the map pages and an instruction to walk the map. |
 | `read-skill ID [--maker] [--builder] [--developer]` | Read the selected role manuals for one cataloged skill; default to maker. | Text, source paths, hashes and links, selected `roles`, and `unavailableRoles` for absent optional manuals. |
-| `read-map INDEX|DECLARATION [--code]` | Read one stored page: `0` for the regions, `N` for a region, `N.F` for a file, `N.F.E…` or a declaration path for a function page. | `maps`: that page. `--code` adds the page’s own source span with line numbers, and is refused on `0` and on a region page. Reads the store; it never scans. |
+| `read-map INDEX|DECLARATION [--code] [--details]` | Read one compact stored page: `0` for the regions, `N` for a region, `N.F` for a file, `N.F.E…` or a declaration path for a function page. | `maps`: that graph or terminal source. `range` is `[first,last]` inclusive; nested locations inherit `file`; empty arrays are omitted. `--code` returns source and edit-safety metadata; only `0` is refused. `--details` returns the full stored packet and scanner evidence. Reads never scan. |
 | `regenerate [INDEX]` | Scan the source and write the stored map. | No index, or `0`, generates everything; a region or page index regenerates that region. The only command that scans. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start an exclusively owned Studio; emit its URL/instance ID; request browser opening; read participation guidance and tour state. | A live bidirectional Studio session, initial recipe summary, MAKERS and tour-participation context, plus event-stream and recovery-listener details. |

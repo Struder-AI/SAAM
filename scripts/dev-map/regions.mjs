@@ -1,7 +1,6 @@
 // Regions are the directories under core/ and studio/ that directly hold source files, numbered
-// in sorted path order. Inside a region numbering follows the flow: entry points in source order,
-// then each entry's in-region callees breadth-first, each node numbered once at its first reach.
-// Nothing here is authored; every box, port and wire names the mechanism that produced it.
+// in sorted path order. Declarations have canonical addresses under their own source file.
+// Composition can place contextual appearances elsewhere without changing this source identity.
 import {mappedRoots as ROOTS} from './scope.mjs';
 const dirname=f=>f.slice(0,f.lastIndexOf('/'));
 const order=(a,b)=>a<b?-1:a>b?1:0;
@@ -78,7 +77,15 @@ export function model(graph,projection) {
     if(found)found.start=Math.min(found.start,c.start);else list.push({to:c.to,start:c.start});
   }
   for(const list of callees.values())list.sort((a,b)=>a.start-b.start);
-  return {regions,regionOf,nodes,inRegion,calls,couplings,reached,hasCaller,callees,
+  const moduleCallSites=new Map();
+  for(const [state,sites] of [['external',graph.callSites?.externalSites??[]],['unresolved',graph.callSites?.unresolved??[]]])for(const record of sites){
+    if(!record.from?.endsWith(':<module>'))continue;
+    const {site}=record,file=site.file;
+    const rows=moduleCallSites.get(file)??moduleCallSites.set(file,[]).get(file);
+    rows.push({state,call:site.text,line:site.line,column:site.column,start:site.start,end:site.end,rule:record.rule??record.reason});
+  }
+  return {regions,regionOf,nodes,inRegion,calls,couplings,reached,hasCaller,callees,moduleCallSites,
+    fileLines:new Map(graph.files.map(f=>[f.file,f.lines])),
     entries:index=>inRegion.get(index).filter(n=>reached.has(n.path)||!hasCaller.has(n.path))};
 }
 
@@ -88,31 +95,14 @@ function names(r,byId) {
   return r.label?[r.label]:[];
 }
 
-// Region-local numbering, one level per containment the code already has. A region holds files in
-// sorted path order; a file holds the entry points declared in it, in source order; each entry
-// holds its in-region callees breadth-first, each node numbered once at its first reach. Whatever
-// the walk never reaches is listed under the derived `unreached` box of the file that declares it.
+// Canonical identity follows source containment, never whichever caller reaches a node first.
+// Contextual flow appearances point back to these region.file.declaration addresses.
 export function numberRegion(m,region) {
-  const entries=m.entries(region.index),index=new Map(),queue=[];
-  const entriesOf=new Map(region.files.map(f=>[f,[]]));
-  for(const n of entries)entriesOf.get(n.file)?.push(n);
+  const index=new Map();
   const files=region.files.map((file,i)=>({file,index:`${region.index}.${i+1}`,entries:[],unreached:null}));
-  const place=(n,handle,into)=>{index.set(n.path,handle);const box={index:handle,node:n,children:[]};into.push(box);queue.push(box);return box;};
-  for(const f of files)entriesOf.get(f.file).forEach((n,i)=>place(n,`${f.index}.${i+1}`,f.entries));
-  const walk=()=>{
-    while(queue.length) {
-      const box=queue.shift();
-      for(const {to} of m.callees.get(box.node.path)??[])
-        if(!index.has(to.path))place(to,`${box.index}.${box.children.length+1}`,box.children);
-    }
-  };
-  walk();
-  const left=m.inRegion.get(region.index).filter(n=>!index.has(n.path));
-  for(const f of files) {
-    const mine=left.filter(n=>n.file===f.file);if(!mine.length)continue;
-    f.unreached={index:`${f.index}.${f.entries.length+1}`,kind:'unreached',children:[]};
-    mine.forEach((n,i)=>place(n,`${f.unreached.index}.${i+1}`,f.unreached.children));
+  for(const f of files)for(const n of m.inRegion.get(region.index).filter(n=>n.file===f.file)) {
+    const handle=`${f.index}.${f.entries.length+1}`;
+    index.set(n.path,handle);f.entries.push({index:handle,node:n,children:[]});
   }
-  walk();
-  return {entries,index,files};
+  return {entries:m.entries(region.index),index,files};
 }

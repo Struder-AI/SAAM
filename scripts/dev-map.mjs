@@ -6,9 +6,25 @@ import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {repoRoot as root} from './dev-map/store.mjs';
 
-const usage='Use: node scripts/dev-map.mjs build | regenerate [INDEX] | flow-evidence INDEX|DECLARATION | check [--json]';
+const usage='Use: node scripts/dev-map.mjs build | regenerate [INDEX] | flow-evidence INDEX|DECLARATION | check [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=process.argv.slice(2);
-if(!['build','check','regenerate','flow-evidence'].includes(command))throw Error(usage);
+if(!['build','check','regenerate','flow-evidence','watch-freshness'].includes(command))throw Error(usage);
+
+if(command==='watch-freshness') {
+  const {values}=parseArgs({args,options:{once:{type:'boolean'},'interval-ms':{type:'string',default:'2000'}}});
+  const {writeFreshness,watchFreshness}=await import('./dev-map/freshness.mjs');
+  if(values.once)console.log(JSON.stringify(await writeFreshness({repo:root})));
+  else {
+    const controller=new AbortController(),stop=()=>controller.abort();
+    process.once('SIGINT',stop);process.once('SIGTERM',stop);
+    let previous;
+    try{await watchFreshness({repo:root,intervalMs:Number(values['interval-ms']),signal:controller.signal,onStatus:status=>{
+      const key=JSON.stringify([status.state,status.snapshotId,status.stale,status.error]);
+      if(key!==previous){console.log(JSON.stringify(status));previous=key;}
+    }});}finally{process.removeListener('SIGINT',stop);process.removeListener('SIGTERM',stop);}
+  }
+  process.exit(0);
+}
 
 if(command==='flow-evidence') {
   const {loadFlow,flowPacket}=await import('./dev-map/flow.mjs');

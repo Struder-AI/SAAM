@@ -1,9 +1,10 @@
+import {createPlanningState,planningPath,planTravel,canPlanComb} from '../path/planning.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {materialRegion} from '../path/material.mjs';
-import {PathBuilder,planarPolicy,surfacePolicy} from '../path/builder.mjs';
+import {planarPolicy,surfacePolicy} from '../path/builder.mjs';
 import {combRoute,combSegment} from '../path/comb.mjs';
-import {composeResults} from '../path/compose.mjs';
+import {planComposition} from '../path/compose.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 
@@ -50,24 +51,24 @@ test('surface chord sag does not excuse crossing another deposit',()=>{
   policy.isTravelClear=(a,b)=>!obstacle.blocksSegment(a,b);
   assert.equal(combRoute([2,6,1],[10,6,1],policy),null,'even a low prior ridge requires clearance');
   const machine=loadMachine(),process=defaults(machine).process;process.minimumLayerSeconds=0;
-  const builder=new PathBuilder({start:[4,6,1.005],machine,process,generatorVersion:'test'});
+  const initial=createPlanningState({start:[4,6,1.005],machine,process,generatorVersion:'test'});
   const stroke=points=>({points,beadAreaMm2:0.08,speedMmS:10});
-  composeResults(builder,[{operations:[
+  const composed=planComposition(initial,[{operations:[
     {id:'ridge',layerId:'ridge',phase:'test',layer:0,rank:0,
       travelPolicy:flat([box(4,0,8,12)],1.005),strokes:[stroke([[4,6,1.005],[8,6,1.005]])]},
     {id:'surface',after:['ridge'],layerId:'surface',phase:'test',layer:0,rank:1,
       travelPolicy:curved([box(0,0,12,12)],()=>1),strokes:[stroke([[2,6,1],[3,6,1]]),stroke([[9,6,1],[10,6,1]])]}
   ]}]);
-  assert.ok(!builder.actions.some(a=>a.operation==='surface'&&a.travel==='combed'),'composition cannot transfer destination sag to a prior obstacle');
+  assert.ok(!planningPath(composed.state,[composed.actions]).actions.some(a=>a.operation==='surface'&&a.travel==='combed'),'composition cannot transfer destination sag to a prior obstacle');
 });
 
 test('direct surface turnarounds retain local edge allowance without crossing holes',()=>{
   const machine=loadMachine(),process=defaults(machine).process;
-  const builder=new PathBuilder({start:[0.1,2,1],machine,process,generatorVersion:'test'});
-  assert.equal(builder.canComb([0.1,2.4,1],curved([box(0,0,12,12)],()=>1),1),true);
-  assert.equal(builder.canComb([0.1,2.4,1],flat([box(0,0,12,12)],1),1),false,'planar standoff stays unchanged');
+  const initial=createPlanningState({start:[0.1,2,1],machine,process,generatorVersion:'test'});
+  assert.equal(canPlanComb(initial,[0.1,2.4,1],curved([box(0,0,12,12)],()=>1),1),true);
+  assert.equal(canPlanComb(initial,[0.1,2.4,1],flat([box(0,0,12,12)],1),1),false,'planar standoff stays unchanged');
   const hole=curved([box(0,0,12,12),box(0.05,2.15,0.15,2.16).reverse()],()=>1);
-  assert.equal(builder.canComb([0.1,2.4,1],hole,1),false,'exact boundary check catches a hole between surface samples');
+  assert.equal(canPlanComb(initial,[0.1,2.4,1],hole,1),false,'exact boundary check catches a hole between surface samples');
 });
 
 test('curved combing goes around holes using sampled surface heights and a 3D distance budget',()=>{
@@ -101,10 +102,10 @@ test('each detour edge checks earlier deposits and invalid surfaces, with hop fa
   assert.equal(combRoute(from,to,{...policy,isTravelClear:(a,b)=>!wall.blocksSegment(a,b)}),null);
   assert.equal(combRoute(from,to,curved(frame,(x)=>x>4&&x<8?null:1)),null);
   const machine=loadMachine(),process=defaults(machine).process;
-  const builder=new PathBuilder({start:from,machine,process,generatorVersion:'test'});
-  builder.depositedMaxZ=3;
-  assert.equal(builder.travelTo(to,{...policy,isTravelClear:(a,b)=>!wall.blocksSegment(a,b)}),'hopped');
-  assert.ok(builder.actions.some(a=>a.kind==='move'&&a.to[2]===4));
+  const initial=createPlanningState({start:from,machine,process,generatorVersion:'test'});
+  const traveled=planTravel({...initial,depositedMaxZ:3},to,{...policy,isTravelClear:(a,b)=>!wall.blocksSegment(a,b)});
+  assert.equal(traveled.travelKind,'hopped');
+  assert.ok(planningPath(traveled.state,[traveled.actions]).actions.some(a=>a.kind==='move'&&a.to[2]===4));
 });
 
 test('composition permits local curved connections after a remote high planar region, retaining legacy blockers',()=>{
@@ -114,8 +115,8 @@ test('composition permits local curved connections after a remote high planar re
   const high=make('high',flat([box(20,20,24,24)],8),[[[21,21,8],[22,21,8]]]);
   const low=make('surface',curved([box(0,0,12,12)]),[[[2,2,1.24],[3,2,1.34]],[[3,2.5,1.35],[2,2.5,1.25]]],['high']);
   const run=prior=>{
-    const builder=new PathBuilder({start:[21,21,8],machine,process,generatorVersion:'test'});
-    composeResults(builder,[{operations:[prior,low]}]);return builder;
+    const initial=createPlanningState({start:[21,21,8],machine,process,generatorVersion:'test'});
+    const composed=planComposition(initial,[{operations:[prior,low]}]);return planningPath(composed.state,[composed.actions]);
   };
   assert.ok(run(high).actions.some(a=>a.operation==='surface'&&a.travel==='combed'&&a.to[1]===2.5));
   assert.ok(!run({...high,travelPolicy:{clearanceFor:()=>9,maxCombMm:0}}).actions.some(a=>a.operation==='surface'&&a.travel==='combed'));

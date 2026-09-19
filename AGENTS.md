@@ -88,25 +88,27 @@ branch per account and reuse it across tasks. Publishing itself follows
 
 ## Dev maps
 
-The dev map is generated from the code and is the account of core and Studio
+The dev map derives code entities and relationships from source; authored flow
+grouping arranges them into explanatory pages. It is the account of core and Studio
 *structure*. A developer orients by walking it from page `0` and reads no prose
 manual for orientation; a builder may walk the region it is touching alongside
 [BUILDERS.md](BUILDERS.md) and that component's manual. Makers operating
 existing tools need none of it. `0` is the regions, `N` a region and its files,
-`N.F` a file and its entry points, `N.F.E` a declaration with what it calls,
+`N.F` a file and its declarations, `N.F.D` a declaration with what it calls,
 what calls it and what it is coupled to.
 
 ```sh
 node scripts/agent-toolkit.mjs read-map 0
-node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::composeResults
+node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition
 node scripts/agent-toolkit.mjs read-map 6.3.1 --code
 node scripts/agent-toolkit.mjs regenerate 6
 ```
 
 **Text search for orientation is discouraged.** Searching finds names; the walk
-tells you who calls and consumes what you are about to change. Nothing on a page
-is authored, so there is no map to keep current — after an edit, `regenerate`
-and read again. Indexes are regenerated and may change: say the index and the
+tells you who calls and consumes what you are about to change. Group membership
+and labels may be authored; implementation nodes and wires are generated and must
+not be authored. After an edit, `regenerate` and read again; repair any reported
+group reference that the edit invalidated. Indexes are regenerated and may change: say the index and the
 name when talking about a page, and write the declaration path when something
 must keep pointing at it. The [map guide](maps/README.md) owns the commands and
 the page fields; the [map contract](BUILDERS.md#maps-and-local-documentation)

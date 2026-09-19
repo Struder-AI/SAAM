@@ -1,9 +1,10 @@
+import {createPlanningState,planningPath,planMove,planTravel,planPark} from '../path/planning.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PathBuilder,planarPolicy} from '../path/builder.mjs';
+import {planarPolicy} from '../path/builder.mjs';
 import {combSegment,combRoute} from '../path/comb.mjs';
 import {pointInRegion,SegmentIndex} from '../region/region2d.mjs';
-import {composeResults} from '../path/compose.mjs';
+import {planComposition} from '../path/compose.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
@@ -49,29 +50,30 @@ test('a detailed outline routes on its own geometry instead of degrading into a 
 
 test('deposition height follows both ends of sloping segments; travel and repeated parks do not raise it',()=>{
   const machine=loadMachine(),plan=defaults(machine);
-  const b=new PathBuilder({start:[10,10,6],machine,process:plan.process,generatorVersion:'test'});
-  b.move([12,10,2],10,1);
-  b.move([12,10,25],10);b.move([12,10,2],10);
-  assert.equal(b.depositedMaxZ,6);
-  const start=b.actions.length;
-  b.travelTo([20,10,2],{maxCombMm:0,clearanceFor:()=>100});
-  assert.deepEqual(b.actions.slice(start).filter(a=>a.kind==='move').map(a=>a.to),[[12,10,7],[20,10,7],[20,10,2]]);
-  b.park();b.park();assert.equal(b.position[2],7);
-  b.travelTo([22,10,10],{maxCombMm:0});
-  assert.equal(b.position[2],10,'a higher destination remains reachable');
-  assert.equal(b.depositedMaxZ,6,'moving higher without deposition does not add material');
+  const initial=createPlanningState({start:[10,10,6],machine,process:plan.process,generatorVersion:'test'});
+  const deposited=planMove(initial,[12,10,2],10,1);
+  const lifted=planMove(deposited.state,[12,10,25],10),lowered=planMove(lifted.state,[12,10,2],10);
+  assert.equal(lowered.state.depositedMaxZ,6);
+  const chunks=[deposited.actions,lifted.actions,lowered.actions];
+  const start=planningPath(lowered.state,chunks).actions.length;
+  const traveled=planTravel(lowered.state,[20,10,2],{maxCombMm:0,clearanceFor:()=>100});
+  assert.deepEqual(planningPath(traveled.state,[...chunks,traveled.actions]).actions.slice(start).filter(a=>a.kind==='move').map(a=>a.to),[[12,10,7],[20,10,7],[20,10,2]]);
+  const parked=planPark(traveled.state),parkedAgain=planPark(parked.state);assert.equal(parkedAgain.state.position[2],7);
+  const higher=planTravel(parkedAgain.state,[22,10,10],{maxCombMm:0});
+  assert.equal(higher.state.position[2],10,'a higher destination remains reachable');
+  assert.equal(higher.state.depositedMaxZ,6,'moving higher without deposition does not add material');
 });
 
 test('multiple strokes in one operation clear only the material already emitted',()=>{
   const machine=loadMachine(),plan=defaults(machine);plan.process.minimumLayerSeconds=0;
-  const b=new PathBuilder({start:[10,10,1],machine,process:plan.process,generatorVersion:'test'});
+  const initial=createPlanningState({start:[10,10,1],machine,process:plan.process,generatorVersion:'test'});
   const stroke=points=>({points,beadAreaMm2:.08,speedMmS:10});
-  composeResults(b,[{operations:[{id:'slopes',rank:100,layerId:'one',layer:0,phase:'test',
+  const composed=planComposition(initial,[{operations:[{id:'slopes',rank:100,layerId:'one',layer:0,phase:'test',
     travelPolicy:{maxCombMm:0,clearanceFor:()=>101},
     strokes:[stroke([[10,10,1],[11,10,9],[12,10,2]]),stroke([[20,10,2],[21,10,2]]),stroke([[30,10,2],[31,10,20]])]}]}]);
-  const traverse=b.actions.find(a=>a.kind==='move'&&a.to[0]===20);
+  const traverse=planningPath(composed.state,[composed.actions]).actions.find(a=>a.kind==='move'&&a.to[0]===20);
   assert.equal(traverse.to[2],10,'the later 20 mm stroke does not affect this traverse');
-  assert.equal(b.depositedMaxZ,20);
+  assert.equal(composed.state.depositedMaxZ,20);
 });
 
 test('one millimeter is the default and zero clearance generates and round trips for a shell',async()=>{

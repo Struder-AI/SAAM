@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {needsTourToolpath} from '../../studio/tour-ui.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
+import {planProgramPresentation,planRefreshNavigation} from '../../studio/refresh-plan.mjs';
 
 const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
 const refresh=app.slice(app.indexOf('async function refresh('),app.indexOf('\nasync function acknowledgeDisplayedView'));
@@ -17,7 +18,7 @@ function harness(){
   const noop=()=>{},element=id=>{if(!nodes.has(id))nodes.set(id,{replaceChildren(){}});return nodes.get(id);};
   let next,context;
   context=vm.createContext({state:undefined,playbackCache:null,stalePresentation:null,pathView:null,materialScene:null,materialRenderer:null,
-    machineSession:null,geometryScene:null,geometryRenderer:null,selected:null,tab:'geometry',seconds:0,L,needsTourToolpath,
+    machineSession:null,geometryScene:null,geometryRenderer:null,selected:null,tab:'geometry',seconds:0,L,needsTourToolpath,planProgramPresentation,planRefreshNavigation,
     document:{},$:element,fetch:async()=>({ok:true,json:async()=>structuredClone(next)}),
     agentUI:{received:noop},view:()=>({skinLabel:'Test'}),cameras:{mode:'ghost',reset:noop},layerFade:{reset:noop},
     stop:noop,clearManual:noop,restoreView:noop,render:noop,acknowledgeDisplayedView:async()=>{},
@@ -78,4 +79,22 @@ test('a plan edit preserves stale playback until its replacement is ready',async
   release();await replacing;
   assert.equal(context.stalePresentation,null);
   assert.equal(counts.decode,2);assert.equal(counts.material,2);assert.equal(counts.bind,0);
+});
+
+test('real refresh applies planned navigation after presentation and keeps restored view authoritative',async()=>{
+  const {load,context}=harness(),messages=[];
+  context.message=text=>messages.push(text);context.duration=()=>20;
+  await load(snapshot({tour:undefined,tourExample:undefined}));
+  context.seconds=7;context.tab='geometry';context.selected='face';
+  await load(snapshot({tour:undefined,tourExample:undefined,geometry:{geometryVersion:'geometry',labels:['face']}}));
+  assert.equal(context.seconds,7);assert.equal(context.tab,'geometry');
+  await load(snapshot({planHash:'process-edit',geometryHash:'same',tour:undefined,tourExample:undefined}),{follow:true});
+  assert.equal(context.tab,'geometry','changed geometry selects geometry review');
+  await load(snapshot({planHash:'second-process-edit',geometryHash:'same',tour:undefined,tourExample:undefined}),{follow:true});
+  assert.equal(context.tab,'toolpath');assert.equal(messages.at(-1),'Updated from chat.');
+  await load(snapshot({exportHash:'changed-export',tour:undefined,tourExample:undefined}));
+  assert.equal(context.seconds,20);
+  context.restoreView=()=>{context.tab='geometry';context.seconds=3;};
+  await load(snapshot({tour:undefined,tourExample:undefined}),{reopen:true});
+  assert.equal(context.tab,'geometry');assert.equal(context.seconds,3,'saved view applies after planned default navigation');
 });

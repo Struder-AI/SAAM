@@ -1,11 +1,12 @@
+import {createPlanningState,planningPath,planTravel,travelClearance} from '../path/planning.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {loadMachine,checkMachinePath} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
-import {PathBuilder,planarPolicy} from '../path/builder.mjs';
-import {composeResults} from '../path/compose.mjs';
+import {planarPolicy} from '../path/builder.mjs';
+import {planComposition} from '../path/compose.mjs';
 import {combSegment} from '../path/comb.mjs';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -36,27 +37,31 @@ test('machine validation respects selected tool, filament, material and skill ca
 });
 test('hops and cooling use deposited height without anticipating later tall operations',()=>{
   const machine=loadMachine(),plan=defaults();plan.process.minimumLayerSeconds=60;
-  const builder=new PathBuilder({start:[10,10,25],machine,process:plan.process,generatorVersion:'test'});
+  const initial=createPlanningState({start:[10,10,25],machine,process:plan.process,generatorVersion:'test'});
   const op=(id,z)=>({id,rank:z,layerId:id,layer:0,phase:'test',after:[],travelPolicy:{clearanceFor:()=>z+2,maxCombMm:0},strokes:[{points:[[20,20,z],[22,20,z]],speedMmS:10,beadAreaMm2:0.08,role:'fill'}]});
-  const result=composeResults(builder,[{operations:[op('low',1),op('later-high',18)]}]);
-  assert.equal(builder.clearanceZ(),19);
-  const firstTraverse=builder.actions.find(a=>a.kind==='move'&&a.to[0]===20&&a.to[1]===20);
+  const result=planComposition(initial,[{operations:[op('low',1),op('later-high',18)]}]);
+  const {actions}=planningPath(result.state,[result.actions]);
+  assert.equal(travelClearance(result.state),19);
+  const firstTraverse=actions.find(a=>a.kind==='move'&&a.to[0]===20&&a.to[1]===20);
   assert.equal(firstTraverse.to[2],25);
-  const firstDwell=builder.actions.findIndex(a=>a.kind==='dwell');assert.equal(builder.actions[firstDwell-1].to[2],2);
-  const tooHigh=new PathBuilder({start:[10,10,20],machine,process:plan.process,generatorVersion:'test'});
-  assert.throws(()=>composeResults(tooHigh,[{operations:[op('high',300)]}]),/clearance exceeds/);
+  const firstDwell=actions.findIndex(a=>a.kind==='dwell');assert.equal(actions[firstDwell-1].to[2],2);
+  const tooHigh=createPlanningState({start:[10,10,20],machine,process:plan.process,generatorVersion:'test'});
+  assert.throws(()=>planComposition(tooHigh,[{operations:[op('high',300)]}]),/clearance exceeds/);
 });
 test('combing routes around a hole and falls back when the route exceeds the locked limit',()=>{
   const machine=loadMachine(),plan=defaults();plan.process.minimumLayerSeconds=0;
   const region=[[[0,0],[20,0],[20,20],[0,20]],[[8,8],[8,12],[12,12],[12,8]]];
   const policy=planarPolicy(region,{layerZ:1,liftMm:2,maxCombMm:30,lineWidthMm:0.4});
-  const builder=new PathBuilder({start:[5,10,1],machine,process:plan.process,generatorVersion:'test'});
-  assert.equal(builder.travelTo([15,10,1],policy),'combed');
+  const initial=createPlanningState({start:[5,10,1],machine,process:plan.process,generatorVersion:'test'});
+  const traveled=planTravel(initial,[15,10,1],policy);
+  const {actions}=planningPath(traveled.state,[traveled.actions]);
+  assert.equal(traveled.travelKind,'combed');
   let from=[5,10,1];
-  for(const move of builder.actions){assert.equal(move.to[2],1);assert.ok(combSegment(from,move.to,policy));from=move.to;}
-  assert.ok(builder.actions.length>=3);assert.equal(builder.stats.retractions,0);
-  policy.maxCombMm=10;const short=new PathBuilder({start:[5,10,1],machine,process:plan.process,generatorVersion:'test'});
-  short.depositedMaxZ=19;assert.equal(short.travelTo([15,10,1],policy),'hopped');assert.ok(short.actions.some(a=>a.to?.[2]===20));
+  for(const move of actions){assert.equal(move.to[2],1);assert.ok(combSegment(from,move.to,policy));from=move.to;}
+  assert.ok(actions.length>=3);assert.equal(traveled.state.stats.retractions,0);
+  policy.maxCombMm=10;const short=createPlanningState({start:[5,10,1],machine,process:plan.process,generatorVersion:'test'});
+  const hopped=planTravel({...short,depositedMaxZ:19},[15,10,1],policy);
+  assert.equal(hopped.travelKind,'hopped');assert.ok(planningPath(hopped.state,[hopped.actions]).actions.some(a=>a.to?.[2]===20));
 });
 test('H2D setup and development output use the shared bundle without creating approvals',async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-h2d-'));t.after(()=>rm(root,{recursive:true,force:true,maxRetries:3,retryDelay:100}));

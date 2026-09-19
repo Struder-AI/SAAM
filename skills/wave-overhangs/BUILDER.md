@@ -39,8 +39,8 @@ The residual geometry, band and actual sampled diameter remain explicit.
 The skill returns one standard atomic operation/stroke per accepted slice.
 There is no inter-front travel or cooling pause; the slice is the cooling unit.
 Named predecessor/successor components bind existing operations. It does not
-infer material support or replace other skills' regions. Common PathBuilder
-travel, cooling, flow limits and exporters own machine output. Exact runtime
+infer material support or replace other skills' regions. Shared functional planning stages own travel, cooling and flow limits; exporters
+own machine output. Exact runtime
 identity includes the producer, shared numerical functions and dependencies.
 
 ## Research and license findings

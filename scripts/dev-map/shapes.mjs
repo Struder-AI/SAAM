@@ -1,8 +1,8 @@
 // Two shapes read off the AST, not off names. An ASSERTION is a function whose whole body is a
 // guarded throw built from its parameters; a call to one is a requirement on the calling page,
 // not a component. A FORMULA is a function whose whole body is one returned expression that
-// assigns to nothing, and whose linked calls are all formulas; it is not a component either, and
-// the data that passes through it keeps flowing.
+// assigns to nothing, and whose linked calls are all formulas. This is component metadata;
+// formula classification never removes a called function or substitutes a passthrough wire.
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
 const writes=new Set(['AssignmentExpression','UpdateExpression']);
@@ -64,10 +64,10 @@ export function assertionOf(fn) {
 
 // One returned expression that only computes. It assigns and deletes nothing, suspends nothing
 // (no async, generator, await or yield), constructs nothing, encloses no block-bodied function,
-// and every call it makes is accounted for — a call whose target is unresolved could do anything,
-// so the body cannot be read as an expression the data merely passes through.
-// `unresolvedAt(start)` answers for a call site in this function's own file.
-export function formulaShape(fn,unresolvedAt=null) {
+// and every call it makes reaches code classified below. External is a location/accounting
+// category, never a purity guarantee: e.g. a one-expression fs.writeFile wrapper has effects.
+// `unsafeAt(start)` answers for a call site in this function's own file.
+export function formulaShape(fn,unsafeAt=()=>true) {
   if(!fn||fn.async||fn.generator)return false;
   let body=null;
   if(fn.body.type!=='BlockStatement')body=fn.body;
@@ -82,7 +82,7 @@ export function formulaShape(fn,unresolvedAt=null) {
     if(writes.has(n.type)||n.type==='UnaryExpression'&&n.operator==='delete')return void(clean=false);
     if(['AwaitExpression','YieldExpression','NewExpression'].includes(n.type))return void(clean=false);
     if(functions.has(n.type)&&n.body.type==='BlockStatement')return void(clean=false);
-    if(n.type==='CallExpression'&&unresolvedAt?.(n.start))return void(clean=false);
+    if(n.type==='CallExpression'&&unsafeAt(n.start))return void(clean=false);
     for(const c of kids(n))walk(c);
   })(body);
   return clean;
@@ -94,10 +94,10 @@ export function classify({graph,projection,asts}) {
   const assertions=new Map(),formula=new Set(),fns=new Map();
   const spanOf=new Map();
   for(const d of graph.declarations)if(d.anchor&&!d.ambiguousAnchor&&!spanOf.has(d.anchor))spanOf.set(d.anchor,d);
-  // A call site the accounting left unlinked is UNRESOLVED unless the rule that decided it is one
-  // of the EXTERNAL rules — the same reading the pages give it.
-  const externalRule=new Set(Object.keys(graph.callSites?.external??{})),unlinked=graph.callSites?.unlinked??{};
-  const unresolvedIn=file=>start=>{const rule=unlinked[`${file}:${start}`];return rule!==undefined&&!externalRule.has(rule);};
+  const accounted=new Set();
+  for(const r of graph.relations)if(r.kind==='call'&&projection.owner.get(r.to)?.kind!=='module'&&projection.owner.has(r.to))
+    for(const e of r.evidence??[])accounted.add(`${e.file}:${e.start}`);
+  const unsafeIn=file=>start=>!accounted.has(`${file}:${start}`);
   for(const n of projection.nodes.values()) {
     if(n.kind==='module')continue;
     const ast=asts.get(n.file),d=spanOf.get(n.path);if(!ast||!d)continue;
@@ -105,7 +105,7 @@ export function classify({graph,projection,asts}) {
     fns.set(n.path,fn);
     const assertion=assertionOf(fn);
     if(assertion)assertions.set(n.path,assertion);
-    else if(formulaShape(fn,unresolvedIn(n.file)))formula.add(n.path);
+    else if(formulaShape(fn,unsafeIn(n.file)))formula.add(n.path);
   }
   const out=new Map();
   for(const r of graph.relations)if(['call','construct'].includes(r.kind)) {

@@ -1,3 +1,4 @@
+import {createPlanningState,planningPath} from '../path/planning.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {scanlineFill} from '../region/region2d.mjs';
@@ -6,8 +7,8 @@ import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
-import {orderScanlineCells,PathBuilder} from '../path/builder.mjs';
-import {composeResults,scheduleOperations} from '../path/compose.mjs';
+import {orderScanlineCells} from '../path/builder.mjs';
+import {planComposition,scheduleOperations} from '../path/compose.mjs';
 
 const rect=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const sides=rows=>rows.filter(r=>r.scanY>5&&r.scanY<25).map(r=>r.from[0]<10?'left':'right');
@@ -29,10 +30,10 @@ test('closest cell entry starts at the current nozzle, reverses intact groups an
   assert.deepEqual(strokes,original,'ordering must not mutate producer results');
   assert.deepEqual(orderScanlineCells(strokes,start),ordered,'deterministic');
   const machine=loadMachine('ultimaker-s5'),plan=defaults(machine);plan.process.minimumLayerSeconds=0;
-  const builder=new PathBuilder({start,process:plan.process,machine,generatorVersion:'test'});
+  const initial=createPlanningState({start,process:plan.process,machine,generatorVersion:'test'});
   const op={id:'cells',layerId:'one',phase:'planar',layer:0,rank:1,strokes,order:'nearest-cells',travelPolicy:{clearanceFor:()=>2,maxCombMm:0}};
-  composeResults(builder,[{operations:[op]}]);
-  const moves=builder.actions.filter(a=>a.volumeMm3>0);
+  const composed=planComposition(initial,[{operations:[op]}]);
+  const moves=planningPath(composed.state,[composed.actions]).actions.filter(a=>a.volumeMm3>0);
   assert.deepEqual(moves.slice(0,3).map(m=>[m.to,m.volumeMm3,m.gapMm]),[
     [[3,1,1],0.3,3],[[2,0,1],0.2,2],[[1,0,1],0.1,1]
   ]);

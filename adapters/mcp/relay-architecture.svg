@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="940" viewBox="0 0 620 940" role="img" aria-labelledby="title description">
+  <title id="title">SAAM cloud relay and local runtime</title>
+  <desc id="description">ChatGPT or Claude connects over MCP HTTPS to a Worker, then a shared Durable Object. The local SAAM runtime opens an outbound authenticated WebSocket to the relay. Studio and print bundles connect to the runtime on the user's computer. All links carry traffic in both directions.</desc>
+  <defs>
+    <marker id="arrow-end" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" viewBox="0 0 12 12" refX="10" refY="6" orient="auto">
+      <path d="M 1 1 L 11 6 L 1 11 Z" fill="#7de8fa"/>
+    </marker>
+    <marker id="arrow-start" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" viewBox="0 0 12 12" refX="2" refY="6" orient="auto">
+      <path d="M 11 1 L 1 6 L 11 11 Z" fill="#7de8fa"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #f3f7ff; text-anchor: middle; }
+      .node { fill: #1d3049; stroke: #9cb8d6; stroke-width: 2; }
+      .local { fill: #163a38; stroke: #85d9c2; stroke-width: 2; }
+      .title { font-size: 24px; font-weight: 700; }
+      .detail { font-size: 18px; fill: #d3e2f2; }
+      .label { font-size: 18px; fill: #d3e2f2; text-anchor: start; }
+      .link { fill: none; stroke: #7de8fa; stroke-width: 4.5; stroke-linejoin: round; marker-start: url(#arrow-start); marker-end: url(#arrow-end); }
+    </style>
+  </defs>
+  <!-- Opaque background and explicit colors preserve contrast in both viewer themes. -->
+  <rect width="620" height="940" rx="18" fill="#101b2b"/>
+  <rect x="18" y="552" width="584" height="370" rx="16" fill="#112824" stroke="#37675c" stroke-width="2"/>
+  <text x="42" y="579" class="label">USER'S COMPUTER</text>
+
+  <rect x="100" y="32" width="420" height="90" rx="14" class="node"/>
+  <text x="310" y="70" class="title">ChatGPT / Claude web</text>
+  <text x="310" y="99" class="detail">Model and active conversation</text>
+
+  <path d="M 310 137 V 195" class="link"/>
+  <text x="338" y="171" class="label">MCP over HTTPS</text>
+
+  <rect x="100" y="210" width="420" height="90" rx="14" class="node"/>
+  <text x="310" y="248" class="title">Cloudflare Worker</text>
+  <text x="310" y="277" class="detail">MCP endpoint and authorization</text>
+
+  <path d="M 310 315 V 370" class="link"/>
+  <text x="338" y="347" class="label">Routing and events</text>
+
+  <rect x="100" y="385" width="420" height="100" rx="14" class="node"/>
+  <text x="310" y="423" class="title">Shared Durable Object</text>
+  <text x="310" y="453" class="detail">Sessions, records and pending waits</text>
+
+  <path d="M 310 500 V 595" class="link"/>
+  <text x="338" y="514" class="label">Outbound authenticated</text>
+  <text x="338" y="539" class="label">WebSocket from SAAM</text>
+
+  <rect x="100" y="610" width="420" height="100" rx="14" class="local"/>
+  <text x="310" y="649" class="title">Local SAAM runtime</text>
+  <text x="310" y="680" class="detail">Geometry, generation and job execution</text>
+
+  <path d="M 230 725 V 765 H 165 V 807" class="link"/>
+  <path d="M 390 725 V 765 H 455 V 807" class="link"/>
+
+  <rect x="35" y="823" width="260" height="80" rx="12" class="local"/>
+  <text x="165" y="855" class="title">Browser Studio</text>
+  <text x="165" y="882" class="detail">Requests and review</text>
+
+  <rect x="325" y="823" width="260" height="80" rx="12" class="local"/>
+  <text x="455" y="855" class="title">Local print bundles</text>
+  <text x="455" y="882" class="detail">Files and job state</text>
+</svg>
