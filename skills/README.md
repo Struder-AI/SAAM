@@ -44,7 +44,7 @@ Describe a container by one boundary (inner or outer) and a wall thickness inste
 | [mesh-tools](mesh-tools/SKILL.md) | Diagnose mesh import failures, clean duplicate or collapsed facets, and repair self-intersections with CGAL local patches. Supports explicitly bounded hole filling, preserves source files and reports shape changes for geometry review. |
 | [text](text/SKILL.md) | Add raised or recessed lettering to a part, or create standalone text, using a supplied outline font. Lay out lettering flat, optionally along a spline baseline, then bend its solid onto a part surface or an independent spline guide. The resulting mesh goes through the shared printing and Studio review workflow. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
-| [heat-set-inserts](heat-set-inserts/SKILL.md) | Add catalog-sized heat-set insert bores with six local wall loops and radial fins connecting their sleeves to the insertion face. Uses shared planar fill, infill, assemblies, and material regions. Includes SPIROL Series 19/29 metric and imperial inserts; insertion faces must be flat and face up in the build orientation. |
+| [heat-set-inserts](heat-set-inserts/SKILL.md) | Add catalog-sized heat-set insert bores with four local wall loops and ribs that tie those loops to the surrounding infill, an optional lead-in chamfer, and blind or through-hole depth from either flat exterior face. Uses shared planar fill, infill, assemblies, and material regions. Includes SPIROL Series 19/29, CNC Kitchen, and one McMaster-Carr selection, covering metric M2–M10 and imperial 2-56–1/2"-13; insertion faces must be flat and normal to Z. |
 
 <!-- END GENERATED SKILL DIGEST -->
 

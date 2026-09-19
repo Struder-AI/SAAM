@@ -131,7 +131,9 @@ and region edits, legacy records and whole-solid side lettering. The main
 reference retention and source hashes.
 
 [Heat-set tests](../../skills/heat-set-inserts/tests/heat-set.test.mjs) cover
-catalog-sized blind bores, six local loops independent of global settings,
+catalog-sized blind bores, four local loops independent of global settings,
+perimeter-scaled out-and-back ribs in the last loop, clipped at walls,
+infill crossing them, solid floors under blind holes,
 reserved interior material, sparse/solid composition, translated assembly and
 regional generation, and insert edits beneath text. The accompanying
 [MCP test](../../skills/heat-set-inserts/tests/mcp.test.mjs) covers discovery,

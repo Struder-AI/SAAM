@@ -114,7 +114,7 @@ test('selected text bases preserve heat-set reinforcement while standalone refer
   plan.composition.regions=[region('body','base',{'full-fill':{}}),region('name','text/label',{'draped-skin':{layers:4,normalMm:0.2,surveyStepMm:0.1}},'body')];
   const path=generatePath(plan,machine,r);
   assert.ok(path.actions.some(a=>a.region==='body'&&a.role==='heat-set-loop'));
-  assert.ok(path.actions.some(a=>a.region==='body'&&a.role==='heat-set-fin'));
+  assert.ok(!path.actions.some(a=>a.role==='heat-set-fin'),'ribs are part of the last loop now');
   assert.ok(!path.actions.some(a=>a.region==='name'&&a.role?.startsWith('heat-set')));
   const missing=structuredClone(plan);missing.composition.regions.shift();missing.composition.regions[0].lowerSurfaceFrom=null;
   assert.throws(()=>generatePath(missing,machine,r),/covering its entire bore depth/);

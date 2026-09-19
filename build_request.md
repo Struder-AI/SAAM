@@ -36,6 +36,18 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-052 — Reconcile TK-DEV's wall-tracer fixes with main's mesh-sleeve refactor
+
+- Status: open
+- Contributor: tkeller@inventopia.org (Timothy Keller); account attribution from session identity.
+- Authorization: human requested — asked to pull `main` into `TK-DEV`; when the merge produced a real semantic conflict in `skills/vase-wall/scripts/{vase.mjs,paths.mjs,loop-demo.mjs}` and `SKILL.md`, explicitly chose "take main's version, drop your recent fixes for now" over reconciling them immediately.
+- Session: Current Claude Code session, 2026-09-17; stable ID unavailable in supplied context.
+- Source: 2026-09-17 merge of `origin/main` (94c0bca) into `TK-DEV`, resulting commit `14dabbc`. See [DEVLOG](DEVLOG.md#2026-09-17--merge-originmain-into-tk-dev-and-heat-set-insert-extensions).
+- Context: `main` gained a large mesh-sleeve/motif refactor to vase-wall (new `reference.mjs`, `centerlineOffset`, tiled motifs, a `motifContour` pre-simplification step) while `TK-DEV` independently carried its own tested fixes to the same functions: removing that same pre-simplification as destabilizing on a real host (commit `435f4a3`), a tight-loop tangent/self-approach hardening pass (`9ef364d`), and accepting in-plane pinch-point jumps instead of failing (`c9df55d`). The merge took `main`'s version wholesale for the conflicted files, so these three fixes are currently absent from `TK-DEV`.
+- Remaining: Re-apply the pinch-point-jump tolerance, the tight-loop tangent hardening, and the `motifContour` removal (replaced by the dominant-piece fallback) on top of `main`'s current mesh-sleeve/motif/tiled-pattern structure in `vase.mjs`/`paths.mjs`/`loop-demo.mjs`, then rerun the full vase-wall test suite and, ideally, regenerate the real host STL this session's predecessor validated against (`Prints/spiral-vase-v2`) to confirm the fixes still hold under the new code paths.
+- Completion: The wall tracer accepts the same pinch-point/tight-loop cases it did before the merge, `motifContour` pre-simplification is not reintroduced, `node --test skills/vase-wall/tests/*.test.mjs` passes, and a real-host regeneration is spot-checked in Studio.
+
+
 ### BR-051 — Complete output for the three new printer profiles
 
 - Status: open

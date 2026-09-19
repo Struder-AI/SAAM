@@ -47,7 +47,7 @@ export function layerHeights(process, fromMm, toMm) {
   return heights;
 }
 
-export function fullFillResult({ shell, plan, machine, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, interiorStrokes=null, sectionAt=null, regionAt=null, fillRegionAt=null, zStartMm=null, zEndMm=null, lowerSurface=null, detailsMode='deposit', onProgress }) {
+export function fullFillResult({ shell, plan, machine, reserve = null, id = 'full-fill', settings: overrides={}, spacingMm=null, interiorRegion=null, interiorStrokes=null, sectionAt=null, regionAt=null, fillRegionAt=null, zStartMm=null, zEndMm=null, lowerSurface=null, detailsMode='deposit', solidAt=null, detailWalls=null, onProgress }) {
   const operations=[];
   let previous=[];
   const process = plan.process, settings = { ...FULL_FILL_DEFAULTS, ...plan.skills['full-fill'],...overrides };
@@ -86,7 +86,9 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
     if (!region.length || regionArea(region) < width * width) { report.skippedLayers++; continue; }
 
 
-    const detail=shell.planarDetails?.at(region,z,{widthMm:width,perimeters:settings.perimeters,pitchMm:pitch});
+    // Local details see the exterior walls the sparse producer owns and the layer's
+    // solid mask, even when this pass prints no walls of its own.
+    const detail=shell.planarDetails?.at(region,z,{widthMm:width,perimeters:detailWalls?.perimeters??settings.perimeters,pitchMm:detailWalls?.pitchMm??pitch,solid:solidAt?.(index)??[]});
     const key=JSON.stringify([region,detail?.reservation]);
     let prepared=contours.get(key);
     if(!prepared){

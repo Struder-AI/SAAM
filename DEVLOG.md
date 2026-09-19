@@ -2697,7 +2697,6 @@ passes, and non-XYZ source words are identical. Results and search bounds are in
 bounded search, not proof of a global maximum. Previous unmodeled-body and physical
 validation limitations remain.
 
-
 ## 2026-09-12 — Reject interleaved Splitty plate attachments
 
 The user identified that the optimized plate had collapsed toward a triangle. Its perimeter order was C1,B2,A1,C2,B1,A2, violating the intended three paired edges. Added a design-family constraint requiring each pair to stay in its tower sector and a convex A1,A2,B1,B2,C1,C2 perimeter. The optimizer rejects this layout; the viewer flags it instead of falsely saying all pairs occupy their own edges. Three focused analytical/layout tests pass. The recorded full-rod and half-rod comparisons retain this rejected plate arrangement; no replacement physical search has been performed after this correction.
@@ -2709,7 +2708,6 @@ The user identified that the optimized plate had collapsed toward a triangle. It
 - Reused the fixed source with XYZ scaling only. Rod/part travel checks use progressively deposited height; startup is not compared against a finished part. Plate/part checks remain at cladding endpoints. The earlier skinny candidate is superseded because it omitted rod/rail collision checks.
 - Selected the candidate in `Prints/development/splitty-assembly-search/search.json`: scale 5.23524, deposited centerline diameter 127.739 mm, top Z157.057 mm, rods544.502 mm, tool107.118 mm, frame height958.720 mm, average physical envelope diameter285.904 mm. Operating carriage interval589.471–851.661 mm, travel262.189 mm. Updated the standalone and machine profile revision4; no Studio integration or hardware program was built.
 - Evidence: 81,453 operating interpolation samples pass modeled assembly and progressive rod/part checks; minimum assembly surface gap1.777 mm. All45,225 cladding endpoints pass rod/plate checks. Angular checks cover70 operating poses and1,820 raw limit probes. Source non-XYZ words are identical. Nineteen focused kinematics/interpreter tests and two analytical assembly-clearance tests pass. These are sampled geometry results, not full mechanical certification or a global optimum.
-
 
 ## 2026-09-12 — Splitty standalone kinematics and profile clearance
 
@@ -2730,7 +2728,6 @@ to share a commit while coordinating changes to shared lines and Git operations.
 The normal pull-request `test` job checks fresh-runner setup using read-only source
 permissions; no commit-status write permission is added. Local setup passed in
 0.27 seconds; the combined source passed all 434 regression tests.
-
 
 Completed work, development checkpoints, measurements and scoped observations.
 [Build requests](build_request.md#outstanding-work) contains only outstanding or
@@ -4039,3 +4036,142 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   is a development preview only; the user reviews and approves it themselves
   in Studio before any real delivery, and intends to attempt an actual print
   of this first-10mm test.
+
+## 2026-09-17 — Merge origin/main into TK-DEV, and heat-set insert extensions
+
+- Source: the user asked to pull the latest `main` into `TK-DEV` and then
+  start on a heat-set-inserts skill improvement, asking specifically for
+  chamfer/taper sizing guidance, hole sizing informed by real design
+  guidance, through-hole insertion-side awareness, a broader catalog (at
+  least McMaster-Carr and CNC Kitchen, metric to M12, fractional to 1/2"),
+  and a treatment preventing an insert from shearing its perimeters loose
+  and spinning in low-perimeter/low-infill hosts.
+- Merge: fast-forwarded local `main` to `origin/main` (94c0bca, 21 commits
+  ahead), then merged it into `TK-DEV`. Real conflicts appeared only in
+  `skills/vase-wall/scripts/{vase.mjs,paths.mjs,loop-demo.mjs}` and its
+  `SKILL.md`/`skills/README.md` digest, where `main`'s new mesh-sleeve/motif
+  refactor and `TK-DEV`'s own wall-tracer fixes touched the same functions
+  differently. Asked the user how to resolve it; they chose to take `main`'s
+  version and defer reconciling `TK-DEV`'s fixes — recorded as
+  [BR-052](build_request.md#br-052--reconcile-tk-devs-wall-tracer-fixes-with-mains-mesh-sleeve-refactor).
+  Regenerated the skill digest and confirmed with a clean-checkout diff that
+  the merge introduces zero new test failures against `origin/main`'s own
+  baseline (77 pre-existing failures on this machine, mostly Studio/MCP
+  server-timing tests and one `python` vs `python3` PATH gap in the new
+  dev-map tooling, unrelated to this work).
+- Heat-set inserts already had a working catalog (SPIROL Series 19/29), six
+  local wall loops, and radial gussets tapering from the sleeve to the
+  insertion face — this already is the anti-spin/anti-shear treatment the
+  user was asking for, sized independent of the part's own perimeter count
+  or infill density. That existing design needed no change; the actual gaps
+  were an insertion-mouth chamfer, through-hole support, insertion-side
+  choice, and catalog breadth.
+- Catalog: added CNC Kitchen's own "Dimensions & Design Guidelines" poster
+  (25 selections, M2–M10 metric and 2-56–3/8-16 imperial, retrieved directly
+  from their CDN and read as a primary source) and one verified McMaster-Carr
+  selection, 94459A743 (1/2"-13, the largest fractional size either source
+  publishes). Researched but did not fabricate an M12 entry: neither CNC
+  Kitchen's poster nor McMaster's live thread-size filters (checked directly
+  in-browser) publish an M12 heat-set-for-plastic insert, so metric tops out
+  at M10 across the whole catalog. Added `minWallThicknessMm` where a source
+  publishes one, and a new check that the six-loop sleeve's actual reach
+  meets it — this matters for the newly added larger inserts, where 6 line
+  widths can fall short of the manufacturer's own minimum.
+- Chamfer: added optional `chamferDepthMm`/`chamferAngleDeg` (default 0, no
+  chamfer) building a frustum at the mouth via `Manifold.cylinder`'s existing
+  radiusLow/radiusHigh frustum support, unioned with the straight bore before
+  one subtract. Sources disagree on whether FDM heat-set holes should be
+  chamfered at all (several general guides recommend ~0.5 mm × 45°; CNC
+  Kitchen's own guidance is straight holes with no chamfer) — documented both
+  in SKILL.md and left the default off, matching CNC Kitchen and every
+  existing example's actual geometry.
+- Through-hole and insertion side: added `throughHole` (needs only the
+  insert length, must reach the opposite exterior face, instead of requiring
+  blind floor material) and `insertionSide: 'top'|'bottom'` (bores up from
+  the host's flat lowest exterior face instead of down from the top).
+  Generalized `geometry.mjs`'s mouth/floor checks, `reinforcement.mjs`'s fin
+  taper progress, and `validateHeatSetAssignments`'s material-region span
+  check to a shared sign convention instead of hardcoding the top-down case.
+  Bottom insertion is scoped to the host's actual lowest flat exterior plane
+  (mirroring the existing top-face-only limitation) rather than a general
+  arbitrary-surface query, which core does not currently expose.
+- Verification: `node --test skills/heat-set-inserts/tests/*.test.mjs`
+  12/12 and the MCP integration test pass, including new tests for chamfer
+  radius growth, through-hole vs. blind depth, bottom insertion with fin
+  taper direction, the expanded catalog, and the minimum-wall-thickness
+  rejection. Ran the demo script end to end. Full repo suite matches the
+  clean `main` baseline with zero new failures. No physical print of any of
+  this has been attempted.
+
+## 2026-09-19 — Heat-set reinforcement: four loops and perimeter-scaled ribs
+
+- Source: the user inspected a 20 × 20 × 12.7 mm sample with a SPIROL 29 1/4-20
+  long through-hole (10% infill, 2 exterior perimeters) and found the tapered
+  gusset fins did not connect the hole to the sparse infill. With the old
+  defaults 4 mm and 3 mm fins failed to fit the 6 mm wall at all, and the taper
+  (zero reach at the far end, full at the mouth) had no physical basis for a
+  through-hole. The user then specified: 4 perimeters; one rib per 2 mm of
+  bore perimeter; ribs 10 mm long unless they meet a wall; ribs start at the
+  last solid layer of the surface and continue for the hole's length; a blind
+  hole's solid floor layers at least as wide as the ribs.
+- Implemented that in `skills/heat-set-inserts`: `SLEEVE_LOOPS = 4`; `finCount`
+  defaults to `null` (`ceil(π·bore diameter / 2 mm)`, 13 for the 8 mm bore; an
+  integer 2–64 still overrides); `finLengthMm` defaults to 10 and is clipped to
+  the exterior-perimeter interior, other holes and earlier reinforcement rather
+  than rejected, keeping only the piece still attached to the sleeve. Rib
+  length no longer varies with depth. Interpretation, not stated by the user:
+  the 2 mm rib spacing is measured on the bore perimeter, and the 10 mm is
+  measured beyond the four loops.
+- Ribs are subtracted by each layer's solid mask, which `fullFillResult` now
+  receives from `planarInfillResults` (`solidAt`) in both the sparse and solid
+  passes, together with the sparse pass's exterior wall count and pitch
+  (`detailWalls`) so both passes reserve identical ribs. With solid surfaces,
+  ribs therefore start below the insertion skin and stop in any solid layer.
+  Blind holes publish `solidRegionAt`, a disc under the closed end the width of
+  the ribs for the surface layer count; `planarInfillResults` unions it into its
+  solid mask (and turns the solid pass on, like plastic-weld envelopes).
+- Also corrected my own 2026-09-17 minimum-wall check, which compared the
+  manufacturer's wall figure against the sleeve loops alone and would have
+  rejected CNC Kitchen inserts from M5 up at 0.4 mm. It now requires the host
+  material within `minWallThicknessMm` of the bore, so a 20 mm square passes an
+  M6 (3.3 mm) and a 40 mm host still rejects McMaster's 1/2"-13 (16.64 mm).
+- Verification: `node --test skills/heat-set-inserts/tests/*.test.mjs` 15/15;
+  full suite shows no failures beyond the clean `origin/main` baseline. The
+  sample regenerated at 44,800 moves, about 20 minutes and 3.0 g, reviewed in
+  Studio at layer 33 (four loops, 13 ribs reaching the perimeter). Development
+  preview only; no physical print, and pull-out strength is unmeasured.
+
+## 2026-09-19 — Heat-set ribs become tendrils of the last loop; infill crosses them
+
+- Source: after the four-loop and perimeter-scaled rib change above, the user
+  questioned the tapered ribs shown in Studio. The toolpath built each rib as a
+  ladder of short cross strokes (325 per layer for 13 ribs on the 60 mm sample,
+  0.4–1.2 mm each): the taper was inherited from the earlier gusset design and
+  had no basis in the new specification. The user asked for two beads, printed
+  out and back, joined into the fourth loop so the ribs are long tendrils of one
+  continuous last perimeter that reach into the infill, and for the infill to run
+  straight over them so the two lock together instead of stopping at them.
+- Implemented in `skills/heat-set-inserts/scripts/reinforcement.mjs`: the fourth
+  loop is now one closed path that, at each rib, leaves the ring along a line
+  0.2 mm to one side of the rib axis, steps across 0.4 mm at the tip and returns
+  along the other side (two touching beads, constant width), then continues
+  around. Loops one to three are plain rings; there are no separate fin strokes.
+  Rib length is found by testing the two-bead footprint against the room left by
+  the exterior perimeters, other holes, earlier reinforcement and solid layers,
+  then shortening by bisection (about 0.01 mm); ribs under 1.2 mm are dropped.
+  `finWidthMm` was removed (width is fixed at two beads), so saved recipes that
+  set it will be rejected as an unknown setting.
+- Infill reservation is now the bore and loops only. Ribs stay in the wall
+  operation's material region but are no longer excluded from sparse infill, so
+  infill strokes cross them without starting or stopping. Where a stroke crosses
+  a rib both beads occupy the same layer, so a little extra material deposits at
+  each crossing; that overlap is the requested lock and is not metered
+  separately.
+- 60 × 60 × 12.7 mm sample (1/4-20 long through-hole, 10% infill, 2 exterior
+  perimeters): 31,894 moves (from 70,546 with cross-stroke ribs), about 70 min,
+  14.2 g, reviewed in Studio at layer 32 (13 tendrils, infill crossing them).
+  `node --test skills/heat-set-inserts/tests/*.test.mjs` 17/17; the text skill's
+  heat-set interoperability test now checks that no separate fin role exists;
+  full suite shows no failures beyond the clean `origin/main` baseline.
+  Development preview only; no physical print, and nothing here measures whether
+  the crossings or the hairpin turnarounds print cleanly.
