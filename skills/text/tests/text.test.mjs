@@ -88,6 +88,13 @@ test('inward reference normals preserve positive volume and reverse physical rel
   const recessed=await compile(base,[feature({mode:'recessed',reference:{...plane,origin:[0,0,0],normalSide:-1}})]);
   assert.ok(regionArea(sectionMesh(makeMesh(recessed.vertices,recessed.triangles),0.3).loops)<240);
 });
+test('lettering finer than the retired triangle ceiling compiles and stays valid',async()=>{
+  // Over 100,000 triangles: the former fixed ceiling refused this before any
+  // refinement ran. Only a request the 32-bit kernel cannot address is refused.
+  const record=await compile(null,[feature({overlapMm:0})],{maxEdgeMm:0.035});
+  assert.ok(record.triangles.length>100000,`triangles: ${record.triangles.length}`);
+  assert.ok(await volume(makeMesh(record.vertices,record.triangles))>0);
+});
 test('bad reference and stale editable recipe fail with actionable errors',async()=>{
   assert.throws(()=>referenceSurface({...cylinder,sizeMm:[0,1]}),/sizeMm/);
   await assert.rejects(compile(null,[feature({reference:cylinder,positionMm:[100,2]})]),/outside.*reference/);
@@ -102,7 +109,7 @@ test('public text editing survives reopening, invalidates reviews and generates 
   let state=await loadBundle(dir,{program:false});
   state=await loadBundle(dir,{program:false});
   state=await applyText(dir,{feature:{...feature(),mode:'recessed'}},{expectedRevision:state.revision});
-  assert.equal(state.geometryApproved,false);assert.equal(state.geometry.nativeFile,'model.mesh.json');
+  assert.equal(state.toolpathApproved,false);assert.equal(state.geometry.nativeFile,'model.mesh.json');
   const originalHash=state.geometryHash;
   await assert.rejects(applyText(dir,{feature:{id:'text',text:'\u{10ffff}'}}),/missing.*glyph/);
   assert.equal((await loadBundle(dir,{program:false})).geometryHash,originalHash);
@@ -176,7 +183,7 @@ test('public circular text follows the original wavy top and deposits every lett
     outlineOffsetMm:0.18,depthMm:0.8,reference:{kind:'top'},baseline:{kind:'circle',radiusMm:10}});
   await applyText(dir,{feature:spec},{expectedRevision:(await loadBundle(dir,{program:false})).revision});
   const state=await loadBundle(dir,{program:false});
-  assert.equal(state.geometryApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.deepEqual(state.plan.geometry.base,roof);
   assert.deepEqual(state.plan.geometry.features[0].reference,{kind:'top'});
   assert.deepEqual(state.plan.geometry.features[0].baseline,{kind:'circle',radiusMm:10});

@@ -9,7 +9,7 @@ import {lineSpacing} from '../../../core/path/spacing.mjs';
 export const INFILL_PATTERNS=['rectilinear','grid','triangles','concentric','gyroid'];
 
 export function infillStrokes(region,{pattern='rectilinear',widthMm,density,angleDeg=45,zMm=0,
-  sampleStepMm=0.2,maxPatternCells=1000000,spacingFactor=1}) {
+  sampleStepMm=0.2,spacingFactor=1}) {
   requireThat(INFILL_PATTERNS.includes(pattern),'Unknown infill pattern.');
   requireThat(Number.isFinite(widthMm)&&widthMm>0&&Number.isFinite(density)&&density>=0&&density<=1,'Invalid infill width/density.');
   if(!region.length||density===0)return [];
@@ -23,7 +23,7 @@ export function infillStrokes(region,{pattern='rectilinear',widthMm,density,angl
     }
     return strokes;
   }
-  if(pattern==='gyroid')return gyroid(region,{periodMm:2.4*spacing,zMm,sampleStepMm,maxPatternCells});
+  if(pattern==='gyroid')return gyroid(region,{periodMm:2.4*spacing,zMm,sampleStepMm});
   const angles=pattern==='grid'?[angleDeg,angleDeg+90]:pattern==='triangles'?[angleDeg,angleDeg+60,angleDeg+120]:[angleDeg];
   // Split the requested line-length budget over all directions on EACH layer.
   return angles.flatMap((angle,direction)=>scanlineFill(region,spacing*angles.length,angle)
@@ -34,20 +34,21 @@ export function infillStrokes(region,{pattern='rectilinear',widthMm,density,angl
 // Reuse the existing sampled level-set constructor. Its artificial domain
 // border closes positive regions, so remove only those border edges before
 // asking Clipper2 to clip the actual open contours to the interior mask.
-function gyroid(region,{periodMm,zMm,sampleStepMm,maxPatternCells}) {
+// The sampling step and the section's own size decide the grid; a layer is
+// never refused because its cell count is large. Column values are typed rows,
+// and the per-row sines are shared across columns.
+function gyroid(region,{periodMm,zMm,sampleStepMm}) {
   requireThat(Number.isFinite(sampleStepMm)&&sampleStepMm>0,'Gyroid sampleStepMm must be positive.');
-  requireThat(Number.isSafeInteger(maxPatternCells)&&maxPatternCells>0,'Invalid gyroid maxPatternCells.');
   const min=[Infinity,Infinity],max=[-Infinity,-Infinity];
   for(const loop of region)for(const p of loop)for(let i=0;i<2;i++){min[i]=Math.min(min[i],p[i]-sampleStepMm);max[i]=Math.max(max[i],p[i]+sampleStepMm);}
   const step=Math.min(sampleStepMm,periodMm/32),nx=Math.ceil((max[0]-min[0])/step),ny=Math.ceil((max[1]-min[1])/step);
-  requireThat(nx*ny<=maxPatternCells,`Gyroid needs ${nx*ny} cells; increase planar-infill.maxPatternCells (currently ${maxPatternCells}).`);
   const xs=Array.from({length:nx+1},(_,i)=>min[0]+(max[0]-min[0])*i/nx),
     ys=Array.from({length:ny+1},(_,i)=>min[1]+(max[1]-min[1])*i/ny),k=2*Math.PI/periodMm;
   const sz=Math.sin(k*zMm),cz=Math.cos(k*zMm);
   const sinY=ys.map(y=>Math.sin(k*y)),cosY=ys.map(y=>Math.cos(k*y));
   const values=xs.map(x=>{
     const sinX=Math.sin(k*x),cosX=Math.cos(k*x);
-    return ys.map((_,j)=>sinX*cosY[j]+sinY[j]*cz+sz*cosX);
+    return Float64Array.from(ys,(_,j)=>sinX*cosY[j]+sinY[j]*cz+sz*cosX);
   });
   const loops=levelSetRegion({xs,ys,values},0),paths=[];
   const border=(a,b)=>[0,1].some(i=>[min[i],max[i]].some(v=>Math.abs(a[i]-v)<1e-8&&Math.abs(b[i]-v)<1e-8));

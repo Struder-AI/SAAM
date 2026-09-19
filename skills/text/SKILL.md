@@ -15,8 +15,9 @@ Studio through the usual workflow.
 
 ## Tools and edits
 
-Start from an existing shared shell/mesh print, including imported STL. Select
-one `part` by id for an assembly.
+Start from an existing shared shell/mesh print, including imported STL. For an
+assembly, select one component with a request-level `"part": "id"` beside
+`feature`, `remove` or `standalone`; a single-part print omits it.
 
 ```sh
 node core/print/cli.mjs text Prints/my-part text-request.json --revision REVISION
@@ -59,6 +60,16 @@ Example request for a 3 mm high part whose top is horizontal:
   }
 }
 ```
+
+On an assembly, the same request names its component alongside the feature:
+
+```json
+{"part": "fin", "feature": {"id": "label", "text": "SAAM", "fontPath": "C:/fonts/MyFont.ttf"}}
+```
+
+`part` applies equally to `{"remove": ...}` and `standalone`, and its coordinates
+and surface references stay in that component's local millimetres. An unknown id,
+or omitting `part` on an assembly, is rejected.
 
 Reusing an id edits that feature, retaining omitted settings and its saved
 font. For example `{"feature":{"id":"label","text":"NEW","mode":"recessed"}}`.
@@ -285,9 +296,14 @@ Request-level `toleranceMm` defaults to 0.02 mm for outline flattening and sampl
 surface chord refinement; `maxEdgeMm` defaults to 1 mm before warping. These are
 construction controls, not a certified global surface error bound. Tight folds,
 offset self-intersections, singular surfaces, mismatched target seams, and meshes
-outside shared validation limits can fail. The current mesh ceiling is 100000
-triangles. Errors leave the saved print unchanged; revise the geometry or quality
-settings rather than treating a failed mesh as printable.
+outside shared validation limits can fail. There is no chosen triangle ceiling:
+the mesh is as large as `maxEdgeMm`, `toleranceMm` and the reference curvature
+require. Only a subdivision too large for the 32-bit solid kernel to address is
+refused in advance, and an actual kernel failure names the setting that caused
+it. Refinement stops when a pass no longer reduces the sampled deviation, which
+is reported as a reference that cannot be resolved. Errors leave the saved print
+unchanged; revise the geometry or quality settings rather than treating a failed
+mesh as printable.
 
 The [geometry reference](../../core/geom/README.md#text-and-solid-modifiers)
 owns algorithms and precision limits. Tests establish software behavior, not

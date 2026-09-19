@@ -74,7 +74,7 @@ test('MCP correlates ordinary maker work and receives Studio requests without ap
   assert.equal(claimed.requests[0].id,bundled.id);
   assert.equal(claimed.requests[0].status,'working');
   assert.equal((await queue.list()).find(item=>item.id===bundled.id).status,'working');
-  assert.equal((await call('get_print',{printId:'ordinary'})).approvals.geometry,false);
+  assert.equal((await call('get_print',{printId:'ordinary'})).toolpathApproved,false);
 });
 
 test('MCP follows tour chat gates while production generation remains available for review',async t=>{
@@ -91,7 +91,7 @@ test('MCP follows tour chat gates while production generation remains available 
   await tour.action('exit');
   const current=await call('get_print',{printId:'tour/handle'});
   const changed=await call('change_machine',{printId:'tour/handle',machineId:'bambu-h2d',expectedRevision:current.revision});
-  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.approvals.geometry,false);
+  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.toolpathApproved,false);
 });
 
 
@@ -101,7 +101,7 @@ test('MCP text task edits actual geometry with a local font and stale-revision p
   let state=await call('create_print',{printId:'text-sample',kind:'shell',machineId:'ultimaker-s5',plan});
   const manual=await call('read_skill',{skillId:'text'});assert.match(manual.manual,/apply_text/);
   state=await call('apply_text',{printId:'text-sample',expectedRevision:state.revision,request:{feature:{id:'label',text:'BO',fontPath:resolve(root,'skills/text/tests/fixtures/Abel-Regular.ttf'),mode:'recessed',sizeMm:5,depthMm:0.4,positionMm:[2,2],reference:{kind:'plane',origin:[0,0,1],xAxis:[1,0,0],yAxis:[0,1,0]}}}});
-  assert.equal(state.approvals.geometry,false);
+  assert.equal(state.toolpathApproved,false);
   const saved=await call('get_print',{printId:'text-sample',includeGeometry:true});
   assert.equal(saved.plan.geometry.shape,'text');assert.ok(saved.plan.geometry.triangles.length>12);
   await call('apply_text',{printId:'text-sample',expectedRevision:'stale',request:{remove:'label'}},/stale/);
@@ -137,7 +137,8 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok(machines.every(machine => machine.outputs.every(output => !Object.hasOwn(output, 'program'))));
   assert.ok(machines.some(machine => machine.id === 'ultimaker-s5'));
   assert.ok(machines.some(machine => machine.id === 'bambu-h2d'));
-  for(const id of ['bambu-x1-carbon','ultimaker-2-extended','ultimaker-3']) {
+  assert.ok(machines.find(machine => machine.id === 'bambu-x1-carbon').outputs.every(output => output.implemented));
+  for(const id of ['ultimaker-2-extended','ultimaker-3']) {
     const machine=machines.find(machine=>machine.id===id);
     assert.ok(machine,id);
     assert.ok(machine.outputs.every(output=>output.implemented===false&&output.reason));
@@ -152,7 +153,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   const plan = await smallPlan(call);
   await call('create_print', { printId: 'forged', kind: 'shell', machineId: 'ultimaker-s5', plan: { ...plan, approvals: {} } }, /not an agent-editable/);
   let state = await call('create_print', { printId: 'first', kind: 'shell', machineId: 'ultimaker-s5', plan });
-  assert.deepEqual(state.approvals, { geometry: false, plan: false, toolpath: false });
+  assert.equal(state.toolpathApproved, false);
   const compact = await call('get_print', { printId: 'first' });
   assert.equal(compact.planComplete, false);
   assert.equal(compact.geometry.omitted, true);
@@ -191,7 +192,10 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
   await call('begin_studio_work',{printId:'owned',instruction:'Ambiguous instance'},/Specify studioInstanceId/);
   await call('close_studio_session',{studioInstanceId:duplicate.studioInstanceId});
   await call('create_print',{printId:'owned-second',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(call)});
-  const secondStudio=await call('request_review',{printId:'owned-second'});
+  const switched=await call('request_review',{printId:'owned-second'});
+  assert.equal(switched.studioInstanceId,a.studioInstanceId,'switching prints reuses the sole live Studio');
+  assert.equal(switched.url,a.url);
+  const secondStudio=await call('request_review',{printId:'owned-second',newInstance:true});
   assert.equal((await call('get_studio_sessions')).sessions.length,2,'one agent can own multiple Studio instances');
   assert.notEqual(secondStudio.studioInstanceId,a.studioInstanceId);
   await call('close_studio_session',{studioInstanceId:secondStudio.studioInstanceId});
@@ -235,7 +239,7 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     assert.match(page, /SAAM Studio/);
     assert.equal((await fetch(opened.url + '/api/state').then(response => response.json())).plan.schema, 'saam-shell-plan/1');
     assert.equal((await call('request_review', { printId })).url, opened.url);
-    assert.equal((await call('get_approval_status', { printId })).approvals.geometry, false);
+    assert.equal((await call('get_approval_status', { printId })).toolpathApproved, false);
     const generated = await call('generate_print', { printId });
     assert.equal(generated.checks.result, 'pass');
     assert.equal(generated.checks.mode, 'production');
@@ -243,25 +247,25 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     await call('deliver_print', { printId }, /approval/);
     await syntheticApproval(dir, 'toolpath');
     const status = await call('get_approval_status', { printId });
-    assert.equal(status.approvals.toolpath, true);
+    assert.equal(status.toolpathApproved, true);
     const delivered = await call('deliver_print', { printId });
     const bundle = await bundleFor(dir), state = await bundle.loadBundle(dir);
     const exportFile = resolve(dir, 'exports', state.plan.output, state.exportName);
     assert.deepEqual(await readFile(delivered.file), await readFile(exportFile));
     assert.equal((await call('deliver_print', { printId })).exportHash, delivered.exportHash);
     const changed = await call('adjust_print', { printId, expectedRevision: status.revision, patch: { process: { planarSpeedMmS: 22 } } });
-    assert.deepEqual(changed.approvals, { geometry: false, plan: false, toolpath: false });
+    assert.equal(changed.toolpathApproved, false);
     await call('deliver_print', { printId }, /approval/);
     await call('generate_print', { printId });
     await syntheticApproval(dir, 'toolpath');
     const bytes = await readFile(exportFile);
     await writeFile(exportFile, Buffer.concat([bytes, Buffer.from('\n; tampered') ]));
-    assert.equal((await call('get_approval_status', { printId })).approvals.toolpath, false);
+    assert.equal((await call('get_approval_status', { printId })).toolpathApproved, false);
     await call('check_print', { printId }, /changed|stale/);
     await call('deliver_print', { printId }, /approval/);
     const staleProgram = await call('get_approval_status', { printId });
     const reshaped = await call('adjust_print', { printId, expectedRevision: staleProgram.revision, patch: { geometry: { heightMm: 1.2 } } });
-    assert.deepEqual(reshaped.approvals, { geometry: false, plan: false, toolpath: false });
+    assert.equal(reshaped.toolpathApproved, false);
   });
 }
 
@@ -306,7 +310,7 @@ test('MCP STL import preserves source/units and remembered setup across native b
   const created = await call('import_stl_print', { printId: 'Projects/Inch Part', sourcePath, units: 'inch', machineId: 'ultimaker-s5' });
   assert.doesNotMatch(JSON.stringify(created), /mesh-tools/);
   const dir = resolve(printsRoot, 'Projects/Inch Part');
-  assert.deepEqual(created.approvals, { geometry: false, plan: false, toolpath: false });
+  assert.equal(created.toolpathApproved, false);
   assert.deepEqual(await readFile(resolve(dir, 'geometry/source.stl')), source);
   const state = await call('get_print', { printId: 'Projects/Inch Part', includeGeometry: true });
   assert.equal(state.plan.setup.bedC, 65);
@@ -362,7 +366,7 @@ test('MCP preserves the shared regional recipe and configurable composition with
   const { call, printsRoot } = await fixture(t), printId = 'Regional Plan';
   const plan = await smallPlan(call);
   plan.composition.regions = [{ id: 'body', part: null, zStartMm: 0, zEndMm: null,
-    skills: { 'planar-infill': { density: 0.3 } }, supportPolicy: 'supported', lowerSurfaceFrom: null }];
+    skills: { 'planar-infill': { density: 0.3 } }, lowerSurfaceFrom: null }];
   const created = await call('create_print', { printId, kind: 'shell', machineId: 'ultimaker-s5', plan });
   assert.deepEqual(created.skills, ['planar-infill']);
   const checked = await call('check_path', { printId });
@@ -421,4 +425,30 @@ test('a queued Studio request is pushed to the MCP client and included in the ne
   const timeout=setTimeout(()=>resolveNotice({timeout:true}),1500);const pushed=await notice;clearTimeout(timeout);
   assert.equal(pushed.request?.id,record.id);assert.ok(Date.now()-record.createdAt<1000);
   const response=await call('get_print',{printId:'tour/handle'});assert.equal(response.studioRequests[0].id,record.id);
+});
+
+test('MCP reads the Studio event queue, and delivered events reach tool results, waits and notifications',async t=>{
+  const {LoggingMessageNotificationSchema}=await import('@modelcontextprotocol/sdk/types.js');
+  const {call,client,printsRoot}=await fixture(t);
+  await call('create_print',{printId:'events',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(call)});
+  const notices=[];client.setNotificationHandler(LoggingMessageNotificationSchema,message=>{if(message.params.logger==='saam.studio'&&message.params.data.type==='studio-events')notices.push(message.params.data.events.map(e=>e.kind));});
+  const {url}=await call('request_review',{printId:'events'});
+  const html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
+  let state=await(await fetch(url+'/api/state')).json();
+  assert.equal((await post('view-ready',{stage:'geometry',revision:state.revision})).status,200);
+  const first=await call('get_studio_events');
+  assert.deepEqual(first.events.map(e=>e.kind),['view-presented']);assert.deepEqual(first.generation,[]);assert.equal(first.studioEvents,undefined);
+  assert.deepEqual((await call('get_studio_events')).events,[],'reads drain the queue');
+  const waiting=call('wait_for_studio_request',{waitMs:5000});await new Promise(done=>setTimeout(done,30));
+  assert.equal((await post('open',{path:resolve(printsRoot,'events')})).status,200);
+  const woke=await waiting;assert.deepEqual(woke.events.map(e=>e.kind),['print-opened']);assert.deepEqual(woke.requests,[]);
+  for(let n=0;n<100&&!notices.length;n++)await new Promise(done=>setTimeout(done,20));
+  assert.deepEqual(notices,[['print-opened']],'a delivered event is pushed as a notification');
+  state=await(await fetch(url+'/api/state')).json();
+  const updated=await post('plan',{plan:state.plan,revision:state.revision});assert.equal(updated.status,200,await updated.text());
+  const summary=await call('get_print',{printId:'events'});
+  assert.deepEqual(summary.studioEvents.map(e=>e.kind),['plan-updated'],'held events ride on the next tool result');
+  assert.equal((await call('get_print',{printId:'events'})).studioEvents,undefined);
+  assert.deepEqual((await call('get_studio_events',{history:true})).recent.map(e=>e.kind),['view-presented','print-opened','plan-updated']);
 });

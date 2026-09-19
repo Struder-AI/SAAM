@@ -9,6 +9,7 @@ import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
+import {LuaRuntime} from '../export/dobot-lua-subset.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
 const release={generatorVersion:'SYNTHETIC TEST',buildDate:'2026-09-09'};
@@ -54,13 +55,24 @@ test('Dobot Lua interpreter rejects missing helpers, unsupported commands, alter
   assert.throws(()=>interpretProgram(change('global.lua','tool=1','tool=3'),plan,machine),/tool\/user frame/);
   assert.throws(()=>interpretProgram(change('src1.lua','CP=0','CP=1'),plan,machine),/CP=0/);
   assert.throws(()=>interpretProgram(change('src1.lua','DO("DO_1",1)','DO("DO_1",0)'),plan,machine),/relay state/);
-  assert.throws(()=>interpretProgram(change('src0.lua','RunPlan()','while true do end'),plan,machine),/exceeded.*steps/);
+  assert.throws(()=>interpretProgram(change('src0.lua','RunPlan()','while true do end'),plan,machine),/looping without making progress/);
   assert.throws(()=>interpretProgram(change('src1.lua','  MovL(','  DO("DO_2",1)\n  MovL('),plan,machine),/Unexpected relay/);
   // Change P's arithmetic: playback must execute it, not recover geometry from intent.
   const changed=interpretProgram(change('global.lua','x*1.02+-100','x*1.02+-99'),plan,machine);
   const original=interpretProgram(bytes,plan,machine);
   assert.ok(Math.abs(changed.moves[0].to[0]-original.moves[0].to[0]-1/1.02)<1e-6);
 });
+test('the Lua reader stops a program that commands nothing, not one that keeps commanding',()=>{
+  const commanded=[];
+  const runtime=new LuaRuntime({host:{DO:args=>{commanded.push(args[1]);}}});
+  // Far more steps than the program itself contains, but every pass commands
+  // the machine, so there is no step count at which it is refused.
+  runtime.load('local i=0\nwhile i<2000 do\n  DO("DO_1",i)\n  i=i+1\nend\n','loop.lua');
+  assert.equal(commanded.length,2000);
+  assert.equal(commanded[1999],1999);
+  assert.throws(()=>new LuaRuntime({host:{}}).load('while true do end','spin.lua'),/looping without making progress/);
+});
+
 test('Dobot rejects invalid instance/unsupported process and checks calibrated workspace and feed',async()=>{
   const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
   for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/],['workspaceMaxMm',[0,0,1],/workspace/],['maxLinearSpeedMmS',1,/linear speed/],['initialPositionMm',[1,1,1],/initial position/]]){
@@ -84,6 +96,23 @@ test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwe
   entries.set('src1.lua',Buffer.from(body.replace('DO("DO_1",1)','DO("DO_1",1)\n  Wait(4000)')));
   assert.throws(()=>interpretProgram(packZip(entries),plan,machine),/Dwell requires relay off/);
 });
+test('a pause longer than one Wait command is split, not refused',()=>{
+  const {machine,plan}=fixture(),action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
+  const program=seconds=>{
+    const path={schema:'saampath/1',initialPosition:[200,180,20],actions:[
+      action([190,180,20],0),{kind:'dwell',seconds,phase:'test',layer:0},action([180,180,20],0.8)]};
+    const bytes=exportProgram(path,plan,machine,release);
+    return {body:unpackZip(bytes).get('src1.lua').toString(),read:interpretProgram(bytes,plan,machine)};
+  };
+  const short=program(12);
+  assert.ok(short.body.includes('Wait(12000)')&&!short.body.includes('Wait(60000)'),'a pause that fits one command is unchanged');
+  const long=program(150);
+  assert.deepEqual(long.body.match(/Wait\(\d+\)/g),['Wait(60000)','Wait(60000)','Wait(30000)']);
+  const dwells=long.read.events.filter(e=>e.kind==='dwell');
+  assert.equal(dwells.length,3);
+  assert.equal(dwells.reduce((sum,e)=>sum+e.seconds,0),150);
+});
+
 test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects helper changes and delivers unchanged',async()=>{
   const {machine,plan}=fixture(),dir=await mkdtemp(join(tmpdir(),'saam-dobot-bundle-'));
   try{
@@ -93,7 +122,7 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
     assert.ok(!checks.checks.includes('temperature-state'));assert.ok(!checks.checks.includes('extrusion-flow'));
     assert.equal(checks.materialModel,'relay-estimate');
     state=await loadBundle(dir);assert.equal(state.programError,undefined);
-    state=await approve(dir,{stage:'toolpath',actor,revision:state.revision});
+    state=await approve(dir,{actor,revision:state.revision});
     const output=join(dir,'exports/dobot-lua/part.zip'),original=await readFile(output);
     const delivery=await deliver(dir);assert.deepEqual(await readFile(delivery),original);
     const entries=unpackZip(original);entries.set('global.lua',Buffer.from(entries.get('global.lua').toString().replace('tool=1','tool=3')));await writeFile(output,packZip(entries));
@@ -101,6 +130,6 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
     await assert.rejects(()=>deliver(dir),/exact current export/);
     await writeFile(output,original);state=await loadBundle(dir);
     await assert.rejects(()=>adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:'stale'}),/stale/);
-    const revised=await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});assert.equal(revised.toolpathApproved,false);assert.equal(revised.geometryApproved,false);
+    const revised=await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});assert.equal(revised.toolpathApproved,false);
   }finally{await rm(dir,{recursive:true,force:true});}
 });

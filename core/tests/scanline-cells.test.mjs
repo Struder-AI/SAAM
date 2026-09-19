@@ -30,7 +30,7 @@ test('closest cell entry starts at the current nozzle, reverses intact groups an
   assert.deepEqual(orderScanlineCells(strokes,start),ordered,'deterministic');
   const machine=loadMachine('ultimaker-s5'),plan=defaults(machine);plan.process.minimumLayerSeconds=0;
   const builder=new PathBuilder({start,process:plan.process,machine,generatorVersion:'test'});
-  const op={id:'cells',layerId:'one',phase:'planar',layer:0,rank:1,strokes,order:'nearest-cells',travelPolicy:{clearanceFor:()=>2,maxCombMm:0},clearanceZ:2};
+  const op={id:'cells',layerId:'one',phase:'planar',layer:0,rank:1,strokes,order:'nearest-cells',travelPolicy:{clearanceFor:()=>2,maxCombMm:0}};
   composeResults(builder,[{operations:[op]}]);
   const moves=builder.actions.filter(a=>a.volumeMm3>0);
   assert.deepEqual(moves.slice(0,3).map(m=>[m.to,m.volumeMm3,m.gapMm]),[

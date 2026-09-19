@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 7,
+  "revision": 8,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
@@ -149,12 +149,13 @@
   },
   "nonplanar": {
     "maxAngleDeg": 15,
-    "basis": "Bounded working limit for surface-following layers with this fixed vertical nozzle. Set from the inclination range the wedge demo was built around; it is not a measured clearance rating and no head collision model is implemented.",
+    "basis": "Bounded working limit for surface-following layers with this fixed vertical nozzle. Set from an early inclination working range; it is not a measured clearance rating and no head collision model is implemented.",
     "validation": "software limit only; no physical print has established it"
   },
   "startup": {
     "protocol": "griffin-managed-no-routine-leveling",
     "zAfterStartupMm": 20,
+    "handsOverRetracted": true,
     "primingStrokes": { "lineLengthMm": 100, "clearanceMm": 4 },
     "validation": "standard S5 Griffin startup without a per-job leveling routine is assumed; installed firmware and verification are optional metadata"
   },

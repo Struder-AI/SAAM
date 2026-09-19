@@ -89,7 +89,7 @@ refresh > ack | render scheduled | data
 draw > ack | frame displayed | data
 draw > person | displayed result | io
 person > approve | explicit confirmation | io
-approve > action | stage and revision | data
+approve > action | actor and revision | data
 ```
 
 ```saam-page 7b_source
@@ -160,14 +160,21 @@ box index | 7.4.2 | reconcile recovery journal | @studio/request-index.mjs::crea
 box save | 7.4.3 | replace request file | $save
 box ui | 7.4.4 | merge UI snapshots | @studio/agent-ui.mjs::createAgentUI
 box receipt | 7.4.5 | classify receipt state | $receiptState
+box events | 7.4.6 | queue Studio events | @studio/studio-events.mjs::createStudioEvents
+box fade | 7.4.7 | scope pane fade | @studio/work-state.mjs::activeEditStage
 port out | pending / presented
 in > records | begin / claim / respond | data
+in > events | person and worker observations | data
+events > records | delivered event wakes wait | gate | norank
+events > out | held and delivered events | data
 records > index | recovery query and change hint | data
 index > records | externally changed records | data | norank
 records > save | updated JSON | data
 records > receipt | persisted request / view receipt | data
 ui > receipt | merged requests / rendered state | data
 receipt > ui | activity / receipt / confirmation | data | norank
+ui > fade | active edits / loading stage | data
+fade > ui | dimmed pane scope | data | norank
 ui > out | current presentation | data
 ```
 
@@ -216,7 +223,7 @@ launch > server | directory and options | data
 bundle > state | selected adapter | data
 browser > server | token / origin checked | io
 server > state | state / revision request | gate
-state > snapshot | consistent content identity | data
+state > snapshot | state; source and presentation fingerprints | data
 server > generate | generate request | gate
 generate > server | checks / diagnostic | data | norank
 server > import | uploaded STL | gate
@@ -262,19 +269,18 @@ in uploaded STL
 out selected print
 port in | uploaded STL
 box import | 7.1.4.1 | reserve print directory | @studio/import-stl.mjs::importStudioSTL
-box worker | 7.1.4.2 | start import worker | @studio/import-stl.mjs::importInWorker
-box choose | 7.1.4.3 | import or repair | @studio/import-worker.mjs::importOrRepair
-box core | 7.1.4.4 | import into lifecycle | @core/print/import-stl.mjs::importSTLBundle
-box repair | 7.1.4.5 | preserve and repair | $repairFiles
+box choose | 7.1.4.2 | import or repair in worker | @core/print/import-stl.mjs::importOrRepairSTLBundle
+box core | 7.1.4.3 | import into lifecycle | @core/print/import-stl.mjs::importSTLBundle
+box repair | 7.1.4.4 | preserve and repair | $repairFiles
 port out | selected print
 in > import | bytes; name; units | data
-import > worker | confined directory | data
-worker > choose | worker data | data
+import > choose | confined directory; bytes | data
+choose > import | repaired flag; stage progress | data | norank
 choose > core | original STL | data
 core > choose | imported / diagnostic | data | norank
 choose > repair | recognized defect only | gate
 repair > core | repaired STL in mm | data
-choose > out | bundle and repair summary | data
+import > out | bundle and repair summary | data
 ```
 
 ```saam-page 7i_draw
@@ -297,6 +303,8 @@ box time | 7.2.5.3 | sample source time | $sourceTime
 box detail | 7.2.5.4 | select visible detail | @studio/toolpath-view.mjs::toolpathFrame
 box mesh | 7.2.5.5 | shade geometry | @studio/mesh-view.mjs::createGeometryRenderer::draw
 box beads | 7.2.5.6 | shade deposited material | @studio/material-view.mjs::createMaterialRenderer::draw
+box quality | 7.2.5.7 | choose motion quality | @studio/view-performance.mjs::createMotionQuality
+box timing | 7.2.5.8 | report view performance | @studio/view-performance.mjs::createViewPerformance
 port frame | frame displayed
 port out | displayed result
 geometry > draw | mesh scene | data
@@ -313,11 +321,17 @@ draw > mesh | geometry tab; WebGL available | gate
 mesh > draw | shaded canvas | data | norank
 draw > beads | supported material scene | gate
 beads > draw | shaded canvas | data | norank
+draw > quality | moving-frame cost | data
+quality > draw | material quality level | data | norank
+draw > timing | frame timings; renderer | data
 draw > frame | rendered frame | data
 draw > out | scene / fallback lines | io
 ```
 
-Display reduction and line fallback affect only the preview. Unsupported surface
+Display reduction, motion quality and line fallback affect only the preview.
+Moving frames may lower material resolution by measured cost; the still frame,
+exports and movies use full detail. View bursts are posted to the server for
+agents to read (`/api/view-performance`). Unsupported surface
 frames keep their source lines; stationary injections use source-event markers,
 not an invented bead direction. `draw` also serves movie export with explicit
 time/canvas and without mutating live playback. Source identity remains the
@@ -450,12 +464,12 @@ browser > connect | load / restored page | data
 ```saam-responsibilities
 studio-server | studio/server.mjs, studio/changes.mjs | studio-protocols#changing-studio-http-and-change-notifications | core/tests/studio-agent.test.mjs, core/tests/studio-work.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-generation-control.test.mjs
 studio-lifetime | studio/browser.mjs, studio/lifetime.mjs, studio/viewer-session.mjs | studio#changing-browser-and-viewer-lifetime | core/tests/studio-open.test.mjs, core/tests/studio-lifetime.test.mjs, core/tests/studio-tour-lifetime.test.mjs, core/tests/studio-visibility.test.mjs
-studio-requests | studio/agent-requests.mjs, studio/request-index.mjs, studio/agent-ui.mjs, studio/work-state.mjs | studio-protocols#changing-agent-request-state-and-presentation | core/tests/request-index.test.mjs, core/tests/studio-agent.test.mjs, core/tests/studio-agent-ui.test.mjs, core/tests/studio-work.test.mjs
+studio-requests | studio/agent-requests.mjs, studio/request-index.mjs, studio/studio-events.mjs, studio/agent-ui.mjs, studio/work-state.mjs | studio-protocols#changing-agent-request-state-and-presentation | core/tests/request-index.test.mjs, core/tests/studio-events.test.mjs, core/tests/studio-agent.test.mjs, core/tests/studio-agent-ui.test.mjs, core/tests/studio-work.test.mjs
 studio-generation | studio/prepared-generation-job.mjs, studio/generation-worker.mjs | studio-protocols#changing-generation-workers | core/tests/studio-generation-control.test.mjs
-studio-import | studio/import-stl.mjs, studio/import-worker.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
+studio-import | studio/import-stl.mjs | studio#changing-studio-import-transactions | core/tests/studio-import.test.mjs, core/tests/mesh-repair.test.mjs
 studio-source | studio/source-player.mjs, studio/source-worker.mjs, studio/machine-session.mjs | studio-protocols#changing-source-workers-and-machine-sessions | core/tests/source-player.test.mjs, core/tests/studio-kinematics.test.mjs, core/tests/studio-generation-control.test.mjs
 studio-app | studio/app.mjs | studio#changing-studio-application-coordination | core/tests/studio-view-readiness.test.mjs, core/tests/studio-reconnect.test.mjs, core/tests/studio-spinner.test.mjs, core/tests/studio-work.test.mjs
-studio-rendering | studio/camera.mjs, studio/material-view.mjs, studio/mesh-view.mjs, studio/toolpath-view.mjs, studio/machine-view.mjs | rendering#changing-camera-and-displayed-geometry | core/tests/studio-camera.test.mjs, core/tests/studio-material.test.mjs, core/tests/studio-detail.test.mjs, core/tests/studio-geometry.test.mjs, core/tests/studio-kinematics.test.mjs
+studio-rendering | studio/camera.mjs, studio/material-view.mjs, studio/mesh-view.mjs, studio/toolpath-view.mjs, studio/machine-view.mjs, studio/view-performance.mjs | rendering#changing-camera-and-displayed-geometry | core/tests/studio-camera.test.mjs, core/tests/studio-material.test.mjs, core/tests/studio-detail.test.mjs, core/tests/studio-geometry.test.mjs, core/tests/studio-kinematics.test.mjs
 studio-playback | studio/move-store.mjs, studio/playback.mjs | studio-protocols#changing-compact-moves-and-playback-caches | core/tests/studio-movie.test.mjs, core/tests/studio-playback-cache.test.mjs, core/tests/source-player.test.mjs
 studio-controls | studio/settings.mjs, studio/print-name.mjs | studio#changing-recipe-review-and-display-names | core/tests/studio-settings.test.mjs, core/tests/studio-print-name.test.mjs
 studio-tours | studio/tour-catalog.mjs, studio/tour-ui.mjs, studio/tour.mjs | studio#changing-guided-tours | core/tests/studio-tour.test.mjs, core/tests/studio-tour-ui.test.mjs, core/tests/studio-tour-lifetime.test.mjs

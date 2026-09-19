@@ -26,7 +26,7 @@ test('imported STL becomes an editable mesh-sleeve recipe through normal prepara
   const dir=await imported(t),before=await loadBundle(dir,{program:false});
   const source=await readFile(join(dir,'geometry/source.stl')),native=await readFile(join(dir,'geometry/model.mesh.json'));
   const result=await prepareMeshVase(dir,options(),{expectedRevision:before.revision});
-  assert.equal(result.geometryHash,before.geometryHash);assert.equal(result.geometryApproved,false);assert.equal(result.planApproved,false);
+  assert.equal(result.geometryHash,before.geometryHash);assert.equal(result.toolpathApproved,false);
   assert.equal(result.settings.endTransition,'level');assert.equal(result.settings.meshSleeve.fidelity,0);
   assert.equal(result.report.automaticCourseCount,true);assert.equal(result.report.bodyCourses,6);assert.equal(result.report.boundaryCourses,2);
   assert.deepEqual(await readFile(join(dir,'geometry/source.stl')),source);
@@ -42,7 +42,7 @@ test('imported STL becomes an editable mesh-sleeve recipe through normal prepara
   // manufacturing approvals; use the smooth endpoint for this authoring test.
   await adjustBundle(dir,{skills:{'vase-wall':{meshSleeve:{fidelity:0}}}},{expectedRevision:state.revision});
   const checked=await generateBundle(dir,{development:true});assert.ok(checked.moves>0);
-  state=await loadBundle(dir);assert.equal(state.geometryApproved,false);assert.equal(state.toolpathApproved,false);
+  state=await loadBundle(dir);assert.equal(state.toolpathApproved,false);
 });
 
 test('preparation preserves requested courses, rejects stale edits and never silently truncates an oversized recipe',async t=>{

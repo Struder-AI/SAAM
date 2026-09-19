@@ -31,13 +31,19 @@ dimensions, defaults and assumptions beside that preview so the person can
 revise them in chat. Ask a focused question first when an essential feature
 has no reasonable supported default.
 
-Reuse the existing Studio server and browser tab by default, including when switching prints; create another instance or tab only when the person asks.
+Reuse the existing Studio server and browser tab by default, including when
+switching prints: CLI agents pass `--studio URL --agent-owner ID` from
+`studio-ready` to later `open-print`/`create-preview` calls, and MCP
+`request_review` rebinds your live instance. Create another instance or tab only
+when the person asks, or for a compelling reason that you state to the person
+when you do it.
 
 ## Existing Studio work
 
-For an edit to an existing Studio print, call `begin_studio_work` immediately after receiving the
-request, BEFORE an acknowledgement, status lookup or another
-tool. Omit MCP printId to use the active tour or sole open Studio. CLI agents use
+For an edit to an existing Studio print, call `begin_studio_work` as early as
+practical. You can acknowledge the person first; the claim it records is what
+later edits and result reports depend on, so make it before you mutate geometry
+or recipe or report a result. Omit MCP printId to use the active tour or sole open Studio. CLI agents use
 `node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "Requested change"`;
 omit the directory for the active tour, or use `--request ID` to claim
 Studio-originated work. Add `--include-geometry` when the edit needs the complete
@@ -61,7 +67,19 @@ Use one request through its work, result and response:
 
 Send the acknowledgement or guidance before a listener wait. Keep tour listeners
 active between lessons; an ordinary preview can be left for the person's next
-chat request. Optional intermediate previews create no obligation to finish
+chat request.
+
+Studio also tells you what the person does in your Studio instances through the
+[Studio event queue](studio/README.md#studio-event-queue): lesson changes, opened
+prints, imports, exports, displayed results and failed or cancelled calculations
+arrive on their own (as `studioEvents` on MCP tool results and listener waits, as
+notifications, or as `studio-events` lines from a live toolkit session), carrying
+quieter events such as approvals, displayed views and calculation start/finish
+with them. Nothing to subscribe to; every owned Studio reports automatically.
+Read the queue yourself with `get_studio_events` (MCP) or `read-studio-events`
+(toolkit) whenever you want to know what happened or the person asks; a read
+during a toolpath calculation reports its progress. Events arrived one after
+another, not at once: act on the latest state, not on each in turn. Optional intermediate previews create no obligation to finish
 superseded results. The [Studio coordination contract](studio/README.md#agent-request-coordination)
 owns the CLI equivalents, result identity and waiting behavior.
 
@@ -147,8 +165,10 @@ person's choice. Do not suggest geometry or repeat a settled choice; oblige a
 geometry change when the person asks for one independently. This requires an active connected
 agent; Studio does not wake an ended or disconnected chat by itself.
 
-For CLI listeners, `node studio/agent-requests.mjs wait Prints --claim` runs for up to
-25 seconds. If the command tool returns a running session ID, keep reading that
+For CLI listeners, `node scripts/agent-toolkit.mjs wait-for-studio-request --studio URL --agent-owner ID --claim`
+(both values from `studio-ready`) runs for up to
+25 seconds and also returns delivered Studio events; a listener without the
+owner ID hears nothing from an owned Studio. If the command tool returns a running session ID, keep reading that
 same session (in Codex, `write_stdin`) until it returns the JSON result. Do not
 start a background listener and end the turn, abandon its session, or treat a
 session ID as an empty result. The flag claims returned requests in the same
@@ -253,7 +273,9 @@ current settings and exact toolpath together in Studio immediately before export
    of the checked machine commands. The person may request infill, material,
    printer or other changes here. Apply them, regenerate the affected toolpath
    and show the result in the same view. While a replacement is prepared, Studio
-   keeps the previous toolpath visible at reduced opacity for continuity.
+   keeps the previous toolpath visible at reduced opacity for continuity; with no
+   previous toolpath it shows the part being sliced at that same reduced opacity,
+   so the toolpath view is never empty.
 4. **Confirm and export.** The final confirmation covers both the current settings
    and the exact toolpath. Deliver those bytes unchanged. Explain the relevant
    transfer method: for the Ultimaker example, download the machine file, copy it

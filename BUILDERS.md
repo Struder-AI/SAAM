@@ -88,8 +88,8 @@ tradeoff. The [geometry reference](core/geom/README.md) defines these contracts.
 
 Measure performance from a user action to the useful result, with stage timings
 that identify the responsible work. Examine whether a computation is necessary,
-already available or better scheduled elsewhere. Reuse requires valid input and
-runtime identity; background work must preserve responsiveness. A production
+already available or better scheduled elsewhere. Reuse requires valid input
+identity; background work must preserve responsiveness. A production
 check likewise needs a concrete failure to detect and evidence that its cost
 and placement are justified. Apply that standard to agent workflows and CI under
 [Avoid check spirals](#avoid-check-spirals); task boundaries and commits do not
@@ -342,7 +342,9 @@ geometry, toolpathing or extrusion gate has ambiguous value or placement, discus
 its failure case, evidence, cost and alternatives within existing authorization.
 A maker's judgment about a print does not itself change general product policy.
 Resource-budget failures should state the limit and how to raise it, leaving
-geometry and quality choices explicit.
+geometry and quality choices explicit. Before adding any count, size or elapsed-time
+limit, read [limits that adapt, and limits that are kept](maps/reference/system.md#limits-that-adapt-and-limits-that-are-kept),
+which owns the rule and the register of limits deliberately retained.
 
 ## Reproducible examples
 

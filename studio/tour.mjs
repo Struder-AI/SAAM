@@ -18,10 +18,14 @@ function demo(id){if(!TOUR_DEMOS.some(d=>d.id===id))throw Error('Unknown tour ex
 const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includes(':')&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..');
 export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&TOUR_DEMOS.some(d=>d.id===marker.id)?{id:marker.id,version:marker.version}:null;}
 export function referenceAdapter(live){
-  return {...live,async loadBundle(directory,options={}){
+  const bundleFingerprints=async(directory,options)=>{
+    const [{source,presentation},example]=await Promise.all([live.bundleFingerprints(directory,options),tourExample(directory)]);
+    return {source:source+Boolean(example),presentation};
+  };
+  return {...live,bundleFingerprints,async loadBundle(directory,options={}){
     const example=await tourExample(directory),state=await live.loadBundle(directory,options);
     return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
-  },async bundleFingerprint(directory,options){return await live.bundleFingerprint(directory,options)+(options?.presentation?'':Boolean(await tourExample(directory)));},
+  },async bundleFingerprint(directory,options){return (await bundleFingerprints(directory,options)).source;},
   ...Object.fromEntries(['approve','generateBundle','deliver'].map(method=>[method,async(directory,...args)=>{
     if(await tourExample(directory)&&method!=='generateBundle')throw Error('Exit the tour before confirming a real print.');
     return live[method](directory,...args);
@@ -62,7 +66,10 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
   async function editLessonBaseline(data){
     const printId=requests.printId(await confined(data.selected));
     if(data.editLesson?.printId===printId)return false;
-    const records=await requests.list({printId});
+    // Read the print's whole request history, not this owner's share of it: a
+    // Studio relaunch may carry a different agent owner, and a record made
+    // before the lesson must still count as prior work.
+    const records=await requests.list({printId,anyOwner:true});
     data.editLesson={printId,inputKey:await signature({...data,step:L.settings}),
       priorRequestIds:records.filter(r=>r.printId===printId).map(r=>r.id)};
     data.baseline=data.editLesson.inputKey;
@@ -121,14 +128,19 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
       const id=Object.entries(data.copies).find(([,copy])=>copy===name)?.[0];
       if(id)await save(resolve(await confined(name),'.tour-reference.json'),{id,version:TOUR_VERSION});
     },
-    async downloaded(exportHash){const data=await read();if(!data.active||data.step!==L.export)throw Error('Continue to the export lesson first.');data.downloadedHash=exportHash;await save(progress,data);},
+    async downloaded(exportHash){const data=await read();if(!data.active)throw Error('Start or resume the tour before exporting.');data.downloadedHash=exportHash;await save(progress,data);},
     async acknowledgeView(directory,seen,state){
       const data=await observed();
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
       if(data.step===L.settings){
         if(seen.stage!=='toolpath'||!state.program||state.programError||!seen.exportHash||seen.exportHash!==state.exportHash)return describe(data);
         const shown={...workSnapshot(state),stage:'toolpath'},baseline=data.editLesson;
-        const requested=(await requests.list({printId:baseline.printId})).some(r=>r.source==='agent'&&r.kind!=='guidance'
+        // The lesson opens on a change the participant asked their agent for,
+        // displayed as the current toolpath. Automatic Studio work and requests
+        // that predate the lesson do not count. The record is read from the
+        // print's whole history, because a Studio restart mints a new agent
+        // owner and would otherwise hide the very edit that was made.
+        const requested=(await requests.list({printId:baseline.printId,anyOwner:true})).some(r=>r.source==='agent'&&r.kind!=='guidance'
           &&!baseline.priorRequestIds.includes(r.id)&&['working','waiting','completed'].includes(r.status)
           &&r.baseline?.inputKey!==shown.inputKey&&requestReceiptState({...r,presented:false},{view:{ready:true,snapshot:shown}}).receipt);
         if(!requested)return describe(data);
@@ -167,7 +179,7 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
     async action(action,step){
       let data=await observed();
       if(action==='exit'||action==='cancel'){data.active=false;data.dismissed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});if(!data.completed)data=initial();}
-      else if(action==='finish'){if(data.step!==TOUR_STEPS.length-1||!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});}
+      else if(action==='finish'){if(!data.downloadedHash)throw Error('Download the print file to complete the tour.');data.active=false;data.completed=true;for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}await requests.begin({directory:await confined(data.selected),source:'studio',kind:'guidance',scope:{runId:data.runId},key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});}
       else if(action==='fresh'){for(const name of Object.values(data.copies)){await useExample(await confined(name));await requests.cancelFor(await confined(name));}if(data.runId)await requests.cancelScope({runId:data.runId});data={...initial(),runId:randomUUID(),studioOwner:studioOwner()};await enter(data,0);await ensure('surface-drape',data);}
       else if(action==='step'){
         if(!data.active)throw Error('Start a new tour first.');

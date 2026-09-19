@@ -65,7 +65,9 @@ Keep requested edits in the current selected copy returned by begin-work or
 `get_tour`. Call `begin_studio_work` before editing, publish its saved result
 target, and resolve its ID after the requested preview is displayed
 with `respond_to_studio_request`. Keep `wait_for_studio_request` active between
-lessons, repeating its bounded waits. Studio queues requests for the
+lessons, repeating its bounded waits; each lesson change, and the change-suggestion
+lesson's instruction, also reaches you as a delivered Studio event on that wait,
+on tool results and on the live toolkit stream. Studio queues requests for the
 change-suggestion lesson, playback start-layer selection, and completion. Claim each
 request and resolve it after doing its work. Prepare the playback start layer
 silently; Studio supplies the playback instructions. Give proactive chat

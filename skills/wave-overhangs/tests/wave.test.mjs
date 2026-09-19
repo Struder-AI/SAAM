@@ -23,7 +23,7 @@ test('a curved canopy rim retains rounding residue without spurious perimeter pa
   const fixture=JSON.parse(readFileSync(new URL('./fixtures/canopy-rim.json',import.meta.url)));
   for(const [x,y] of [[0,0],[140.2,100.2]]){
     const surface={...fixture.surface,controlPoints:fixture.surface.controlPoints.map(row=>row.map(p=>[p[0]+x,p[1]+y,p[2]]))};
-    const patch=referencePatch(surface),s={...settings,lineSpacingMm:.3,propagationStepMm:.3,maxWaves:3};
+    const patch=referencePatch(surface),s={...settings,lineSpacingMm:.3,propagationStepMm:.3};
     const result=surfaceWaves(patch,fixture.domainUv,fixture.seedUv,s);
     assert.deepEqual(result.waves.map(w=>w.paths.length),[1]);
     assert.ok(result.report.residualsUv.length>0,'Numerical strips remain reported.');
@@ -86,15 +86,23 @@ test('doubly curved native spline output has changing Z and preserves the analyt
   assert.ok(r.waves[0].paths[0].points.some(p=>p[2]>1.1));
 });
 
-test('explicit budgets fail with recovery settings and no successful partial result',()=>{
-  const args=[plane(),[rect(0,0,1,1)],[rect(0,0,0.3,1)]];
-  for(const key of ['maxWaves','maxPoints','maxEvaluations'])assert.throws(()=>surfaceWaves(...args,{...settings,[key]:1}),new RegExp(key));
+test('propagation ends on coverage or non-progress, with no work budgets to spend',()=>{
+  for(const key of ['maxWaves','maxPoints','maxEvaluations'])assert.equal(key in WAVE_DEFAULTS,false);
+  const machine=loadMachine(),plan=defaults(machine);
+  plan.skills['wave-overhangs'].maxWaves=1000;
+  assert.throws(()=>validatePlan(plan,machine),/Unexpected or missing fields/);
+  // Spacing five times finer than the other cases needs many more fronts,
+  // points and surface evaluations, and simply runs until the slice is covered.
+  const fine={...settings,lineSpacingMm:0.1,propagationStepMm:0.1};
+  const result=surfaceWaves(plane(),[rect(0,0,1,1)],[rect(0,0,0.3,1)],fine);
+  assert.ok(result.waves.length>30,`fronts: ${result.waves.length}`);
+  assert.ok(result.report.points>result.waves.length&&result.report.evaluations>result.report.points);
 });
 
 test('wave dependencies hold complete seed and successor operations across an ordered slice stack',()=>{
   const machine=loadMachine(),plan=defaults(machine);
   const op=(id,z)=>({id,layerId:id,rank:z,strokes:[{points:[[0,0,z],[1,0,z]],beadAreaMm2:0.08,speedMmS:5}],
-    after:[],clearanceZ:z,travelPolicy:{clearanceFor:()=>z}});
+    after:[],travelPolicy:{clearanceFor:()=>z}});
   // Deliberately lower the successor: a height sort alone would place it first.
   const base=op('base:body',1),upper=op('upper:body',0.2),modelResults=[{id:'body',operations:[base,upper]}];
   const slice={id:'first',reason:'Synthetic assigned anchor and successor',

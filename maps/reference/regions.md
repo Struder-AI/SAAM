@@ -9,7 +9,8 @@ normal-offset curve sampling and section offsets. Keep that operation distinct
 from the intrinsic geodesic boundary offset in `4c_surface`.
 
 Normal sampling queries quarter/midpoints and subdivides to meet its chord and
-step targets, with point/depth budgets. These sampled criteria are not a universal
+step targets; those targets decide how far it refines, and refinement stops only
+when its parameter can no longer be halved. These sampled criteria are not a universal
 continuous-surface certificate. Reservation helpers clip material above consumed
 surfaces and produce variable-height strokes; they do not prove physical support.
 Follow the operation contracts below and [region verification](region-verification.md)
@@ -94,10 +95,13 @@ guarantee is claimed. The experimental [wave-overhangs skill](../../skills/wave-
 uses this function explicitly; other skills retain their existing offset metrics.
 
 Options: `toleranceMm: 0.01` (local integration/chord target, not a certified
-global error bound), `maxStepMm: 0.5`, `precisionUv: 1e-10`,
-`maxEvaluations: 250000`. The report gives actual evaluation/integration and
-subdivision counts, the budget, and experimental status. Budget exhaustion
-identifies the setting to raise and returns no partial result. The caller must
+global error bound), `maxStepMm: 0.5` and `precisionUv: 1e-10`. There is no
+evaluation budget: the requested tolerance and step decide how much integration
+and subdivision the patch needs, and the report gives the actual evaluation,
+integration and subdivision counts with experimental status. Integration halves
+its step until the step would stop advancing, which is reported as an unresolved
+tolerance rather than a spent budget; swept-strip subdivision and disk sectors
+likewise divide until their parameter is one representable step wide. The caller must
 provide valid patch geometry and the stated chart preconditions; there is no
 expensive whole-surface injectivity or clearance validation in each call.
 
@@ -212,6 +216,16 @@ setting overrides; it resolves against the other settings locked in that plan.
 It supersedes global enabled flags. Regions own selection and height bounds;
 overrides cannot independently change those fields.
 
+An assignment may also carry an optional, non-empty `process` record overriding
+`firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS` or
+`firstLayerSpeedMmS` for that region only; omit it to use the plan process.
+A region with process overrides owns its own layer grid from its start height:
+its span must hold its first layer plus a whole number of local layer pitches,
+instead of aligning with the component's global grid. Its planar layers take
+their global indices from the union of regional layer heights, so fill angles
+and preview layers stay ordered across differently pitched regions. Checks:
+[regions.test.mjs](../../core/tests/regions.test.mjs).
+
 Prepared text exposes `base` and `text/<feature-id>` material selections; in an
 assembly prefix these with `<component-id>/`. Whole-component selectors retain
 their existing meaning. [Geometry selections](../../core/geom/selections.mjs) resolves
@@ -230,8 +244,8 @@ Assignments retain their component layer grid and dependencies. Conflicting
 ownership, unassigned height boundaries, unknown references and cycles are rejected.
 Bridging over hollow or sparse material is a process choice assessed in the
 recipe and Studio, without a permission flag or automated span-support gate.
-The retired `supportPolicy` field is accepted but ignored in older recipes;
-new recipes omit it. Where a drape crosses a void, its initial volume uses the
+The retired `supportPolicy` field is rejected as an unknown region field.
+Where a drape crosses a void, its initial volume uses the
 assigned supporting components' layer grid, as in whole-component composition;
 this is a bead-volume approximation, not a claim of deposited material in the void.
 
@@ -256,8 +270,10 @@ layers. Missing support and deposition into already finished material fail.
 `core/region/reservation.mjs` clips only material inside a roof's actual footprint,
 preserving other components. It also clips sections above consumed surfaces and
 subdivides horizontal strokes to integrate their locally changing initial bead
-gap. Sampling is bounded by spatial step, observed interpolation error and point
-budgets; it is not a proof about arbitrary features between samples. The process
+gap. Sampling is bounded by the spatial step and the observed interpolation
+error, not by a segment count; a stroke whose gap still misses its tolerance at a
+coincident-point width sits on a step in the published surface and is reported as
+such. Sampling is not a proof about arbitrary features between samples. The process
 still approximates bead shape and overlap. Surface boundaries must be representable
 as supported single-valued height fields; arbitrary undercuts and swept-head
 clearance are outside this contract.
@@ -302,20 +318,20 @@ Sources: [surface-offset.mjs](../../core/region/surface-offset.mjs).
 
 **Contract.** Intrinsic offset operations use a selected surface chart and its metric to construct region paths on that surface. Chart coordinates are not millimetres; physical spacing and normals come from chart evaluation. Keep this operation distinct from ambient normal displacement and planar section offsets.
 
-**Failures.** Singular charts, invalid domains and failed approximation/budget checks must reject. Sampled spacing and chord checks do not certify global embedding or collision freedom.
+**Failures.** Singular charts, invalid domains and approximations that stop improving must reject. Sampled spacing and chord checks do not certify global embedding or collision freedom.
 
 **Change together.** Review geometry chart derivatives, periodic boundaries, clipping and surface-cladding consumers whenever changing offset integration or sampling.
 
-**Verification.** Check planar reductions, curved charts, non-unit parameter domains, periodic seams and singular/budget failures with physical spacing measurements. Checks: [surface-offset.test.mjs](../../core/tests/surface-offset.test.mjs), [surface-cladding.test.mjs](../../core/tests/surface-cladding.test.mjs).
+**Verification.** Check planar reductions, curved charts, non-unit parameter domains, periodic seams and unresolvable-tolerance failures with physical spacing measurements. Checks: [surface-offset.test.mjs](../../core/tests/surface-offset.test.mjs), [surface-cladding.test.mjs](../../core/tests/surface-cladding.test.mjs).
 
 
 ## Changing ambient normal and section offsets
 
 Sources: [normal-surface.mjs](../../core/region/normal-surface.mjs), [section-offset.mjs](../../core/region/section-offset.mjs).
 
-**Contract.** Normal-surface construction evaluates chart position plus signed normal distance with adaptive quarter/midpoint chord and maximum-step checks. Section offsets solve the declared horizontal or normal constraint, with explicit side, distance and tightness. Output sampling preserves source UV correspondence and obeys point/depth budgets.
+**Contract.** Normal-surface construction evaluates chart position plus signed normal distance with adaptive quarter/midpoint chord and maximum-step checks. Section offsets solve the declared horizontal or normal constraint, with explicit side, distance and tightness. Output sampling preserves source UV correspondence and refines to its own chord, step and root tolerances rather than to a point or depth budget.
 
-**Failures.** Reject invalid side/distance/tightness, singular geometry, unavailable root brackets and exhausted refinement. Horizontal constraints require a suitable reference normal. Finite sampled checks are approximations, not continuous guarantees.
+**Failures.** Reject invalid side/distance/tightness, singular geometry, unavailable root brackets, non-finite chart points and a refinement whose parameter can no longer be halved. Horizontal constraints require a suitable reference normal. Finite sampled checks are approximations, not continuous guarantees.
 
 **Change together.** Coordinate reference charts, cladding/support consumers, normal orientation and precision options. Keep root tolerance, geometric chord error and process spacing separate.
 

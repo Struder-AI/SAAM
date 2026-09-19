@@ -7,7 +7,9 @@ import {fileURLToPath} from 'node:url';
 import {execFile, spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 import {once} from 'node:events';
-import {preview, beginWork, waitForRequests, inspectFailure, respondToRequest} from '../agent/toolkit.mjs';
+import {PassThrough} from 'node:stream';
+import {runCLI} from '../../scripts/agent-toolkit.mjs';
+import {preview, showPrint, beginWork, waitForRequests, inspectFailure, respondToRequest} from '../agent/toolkit.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import * as shell from '../print/bundle.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
@@ -124,17 +126,55 @@ test('create-preview reuses isolated setup and opening preserves approved export
   assert.equal(ready.length, 1);
   assert.equal(made.result.print.plan.setup.bedC, 67);
   assert.equal(made.result.print.generation.current, false);
-  assert.deepEqual(made.result.print.approvals, {geometry: false, settings: false, toolpath: false});
+  assert.equal(made.result.print.toolpathApproved, false);
   let state = await shell.loadBundle(target);
   await shell.generateBundle(target);
   state = await shell.loadBundle(target);
-  await shell.approve(target, {stage: 'toolpath', revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
+  await shell.approve(target, {revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
   const saved = await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name))));
   const reopened = await f.open({command: 'open-print', target: join(target, 'plan.json')});
-  assert.equal(reopened.result.print.approvals.toolpath, true);
+  assert.equal(reopened.result.print.toolpathApproved, true);
   assert.equal(reopened.result.print.generation.current, true);
   assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name)))), saved);
   await assert.rejects(f.open({command: 'create-preview', target, kind: 'shell'}), /already exists/);
+});
+
+test('open-print and create-preview reuse an owned Studio in process and across processes', async t => {
+  const f = await fixture(t), first = join(f.library, 'first'), second = join(f.library, 'second'), third = join(f.library, 'third');
+  const opened = await f.open({command: 'create-preview', target: first, kind: 'shell'}), {studio, reuse} = opened.result;
+  assert.match(reuse.command, new RegExp(`--studio ${studio.url} --agent-owner ${studio.agentOwnerId}`));
+  const made = await showPrint({command: 'create-preview', target: second, library: f.library, studio: studio.url, ownerId: studio.agentOwnerId});
+  assert.equal(made.created, true);
+  assert.deepEqual([made.studio.url, made.studio.instanceId, made.studio.reused], [studio.url, studio.instanceId, true]);
+  assert.equal(opened.server.currentPrint(), second, 'the live Studio now shows the new print');
+  assert.equal(made.print.toolpathApproved, false);
+  const back = await showPrint({command: 'open-print', target: join(first, 'plan.json'), library: f.library, studio: studio.url, ownerId: studio.agentOwnerId});
+  assert.equal(back.studio.directory, first);
+  await assert.rejects(showPrint({command: 'open-print', target: second, library: f.library, studio: studio.url, ownerId: 'someone-else'}), /Invalid agent owner/);
+  await assert.rejects(showPrint({command: 'open-print', target: second, library: f.library, studio: studio.url}), /agent owner ID/);
+  assert.equal(opened.server.currentPrint(), first, 'a refused owner changes nothing');
+  const live = await showPrint({command: 'create-preview', target: third, library: f.library, open: async directory => {await opened.server.openPrint(directory); return studio;}});
+  assert.equal(live.studio.reused, true);
+  assert.equal(opened.server.currentPrint(), third);
+  const {stdout} = await run(process.execPath, [cli, 'open-print', second, '--library', f.library, '--studio', studio.url, '--agent-owner', studio.agentOwnerId]);
+  const result = JSON.parse(stdout.trim().split('\n').at(-1));
+  assert.equal(result.event, 'result');
+  assert.equal(result.studio.reused, true);
+  assert.equal(opened.server.currentPrint(), second, 'the CLI exits after switching the live Studio');
+});
+
+test('a managed Studio session switches prints from its stdin control', async t => {
+  const f = await fixture(t), lines = [], input = new PassThrough();
+  const server = await runCLI(['create-preview', join(f.library, 'first'), '--library', f.library, '--no-open'], {write: line => lines.push(line), input});
+  t.after(() => server.shutdown());
+  input.write(JSON.stringify({id: 'switch', command: 'create-preview', target: join(f.library, 'second')}) + '\n');
+  const deadline = Date.now() + 10000;
+  while (!lines.some(line => line.id === 'switch') && Date.now() < deadline) await new Promise(done => setTimeout(done, 20));
+  const response = lines.find(line => line.id === 'switch');
+  assert.equal(response?.ok, true, JSON.stringify(response));
+  assert.equal(response.result.studio.reused, true);
+  assert.equal(response.result.studio.url, lines[0].studio.url);
+  assert.equal(server.currentPrint(), join(f.library, 'second'));
 });
 
 test('STL preview preserves original bytes and reports inferred units without approval', async t => {
@@ -146,7 +186,7 @@ test('STL preview preserves original bytes and reports inferred units without ap
   assert.equal(result.assumptions.units.units, 'mm');
   assert.equal(result.assumptions.units.unitsInferred, true);
   assert.deepEqual(await readFile(join(target, 'geometry/source.stl')), bytes);
-  assert.deepEqual(result.print.approvals, {geometry: false, settings: false, toolpath: false});
+  assert.equal(result.print.toolpathApproved, false);
   assert.equal(result.print.generation.record, null);
 });
 
@@ -166,7 +206,7 @@ test('fresh tours keep earlier bundles and return lesson-one guidance and a list
   const shown = await response.json();
   assert.equal(response.status, 200);
   assert.equal(shown.tour.step, 0);
-  assert.equal(shown.geometryApproved, false);
+  assert.equal(shown.toolpathApproved, false);
   assert.equal(shown.program, undefined);
   assert.ok(second.result.context.documents.some(doc => doc.path === 'examples/prints/README.md'));
 });
@@ -193,7 +233,7 @@ test('begin-work marks pending before context reads, correlates claims, and fail
   assert.ok(begun.print.plan.geometry);
   assert.equal(begun.print.planComplete, true);
   assert.equal(begun.print.generation.programChecked,false,'beginning an edit defers old-export validation');
-  assert.equal(begun.print.approvals.toolpath,null);
+  assert.equal(begun.print.toolpathApproved,null);
   assert.ok(begun.print.geometryHash,'shape confirmation can use the same context packet');
   const queue = createAgentRequests(f.library);
   const queued = await queue.begin({directory: target, source: 'studio', instruction: 'SYNTHETIC failure: discontinuous roof'});
@@ -235,7 +275,7 @@ test('failure after creation reports retained bundle and closes only its own ser
     assert.equal(error.partial.studio.closed, true);
     return true;
   });
-  assert.equal((await shell.loadBundle(target)).geometryApproved, false);
+  assert.equal((await shell.loadBundle(target)).toolpathApproved, false);
   await assert.rejects(fetch(url));
 });
 
@@ -273,6 +313,52 @@ test('CLI launcher streams ready state and keeps its owned Studio alive', async 
     assert.equal(child.exitCode, null);
     const state = await (await fetch(result.studio.url + '/api/state')).json();
     assert.equal(state.tour.step, 0);
-    assert.equal(state.geometryApproved, false);
+    assert.equal(state.toolpathApproved, false);
   } finally {child.kill(); await exited;}
+});
+
+test('an owned Studio pushes delivered events to its live session and serves the queue over HTTP for the fallback wait',async t=>{
+  const f=await fixture(t),batches=[];
+  const opened=await f.open({command:'start-tour',onEvents:event=>batches.push(event)});
+  const {url,instanceId,agentOwnerId}=opened.result.studio;
+  assert.equal(opened.result.listener.fallback.studio,url);assert.equal(opened.result.listener.fallback.agentOwner,agentOwnerId);
+  assert.equal(opened.result.listener.events,'studio-events');
+  const html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const state=await(await fetch(url+'/api/state')).json();
+  assert.equal((await post('view-ready',{stage:'geometry',revision:state.revision})).status,200);
+  assert.equal(batches.length,0,'a displayed view is held');
+  const waiting=waitForRequests({library:f.library,studio:url,ownerId:agentOwnerId,waitMs:5000,claim:true});
+  await new Promise(done=>setTimeout(done,30));
+  assert.equal((await post('agent-request',{})).status,200);
+  const result=await waiting;
+  assert.deepEqual(result.events.map(e=>e.kind),['view-presented','request-queued']);
+  assert.equal(result.requests[0].status,'working','the fallback wait claims through the owner store');
+  assert.deepEqual(result.after,[result.requests[0].id]);assert.deepEqual(result.generation,[]);
+  assert.equal(batches.length,1);assert.equal(batches[0].studio.instanceId,instanceId);
+  assert.deepEqual(batches[0].events.map(e=>e.kind),['view-presented','request-queued'],'the push carried the held remainder');
+  await assert.rejects(waitForRequests({library:f.library,studio:url,ownerId:'stranger',waitMs:0}),/Invalid agent owner/);
+  await assert.rejects(waitForRequests({library:f.library,studio:url,waitMs:0}),/agent owner/);
+  const {readStudioEvents}=await import('../agent/toolkit.mjs');
+  const drained=await readStudioEvents({studio:url,ownerId:agentOwnerId,history:true});
+  assert.deepEqual(drained.events,[]);assert.equal(drained.recent.length,2);
+  assert.deepEqual(await readStudioEvents({events:opened.agent.events,server:opened.server}),{events:[],generation:[]});
+});
+
+test('a relaunch can resume its agent owner, and always gets a new Studio instance',async t=>{
+  const f=await fixture(t);
+  const first=await f.open({command:'start-tour'});
+  const {agentOwnerId,instanceId}=first.result.studio,directory=first.result.directory;
+  const inFlight=await first.agent.requests.begin({directory,instruction:'SYNTHETIC edit left in flight by a restart'});
+  await first.server.shutdown();
+  const resumed=await f.open({command:'open-print',target:directory,ownerId:agentOwnerId});
+  assert.equal(resumed.result.studio.agentOwnerId,agentOwnerId);
+  assert.notEqual(resumed.result.studio.instanceId,instanceId,'a relaunch never adopts the previous instance');
+  const printId=resumed.agent.requests.printId(directory);
+  assert.ok((await resumed.agent.requests.list({printId})).some(r=>r.id===inFlight.id),
+    'the previous run’s request is visible again to the same owner');
+  const stranger=await f.open({command:'open-print',target:directory});
+  assert.equal((await stranger.agent.requests.list({printId})).some(r=>r.id===inFlight.id),false,
+    'a relaunch without the owner still cannot see another agent’s work');
+  await assert.rejects(f.open({command:'open-print',target:directory,ownerId:'studio:'+instanceId}),/agentOwnerId/);
 });

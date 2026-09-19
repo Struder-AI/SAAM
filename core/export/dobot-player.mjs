@@ -9,6 +9,9 @@ export const DOBOT_LIMITATIONS=[
   'No startup motion or heating commands are emitted. The configured initial pose and external nozzle/bed temperatures must already be established. No priming dwell is inserted.',
   'Only linear MovL at CP=0, explicit fixed frame/orientation, DO, Sync and relay-off Wait are supported. Joint moves, arcs, orientation changes, tool changes, nonzero retraction and fan control are rejected. No physical validation has been performed.'
 ];
+// The longest pause one Wait command can express, not a limit on how long a
+// path may pause; exportDobot splits a longer pause across commands.
+export const WAIT_COMMAND_MS=60000;
 const num=value=>{requireThat(Number.isFinite(value),'Nonfinite Dobot number.');return Number(value.toFixed(10));};
 const transform=(p,c)=>[p[0]*c.scaleX+c.offsetXMm,p[1]*c.scaleY+c.offsetYMm,p[2]+c.bedZMm];
 const inverse=(p,c)=>[(p[0]-c.offsetXMm)/c.scaleX,(p[1]-c.offsetYMm)/c.scaleY,p[2]-c.bedZMm];
@@ -46,7 +49,9 @@ export function interpretDobotFiles(files,plan,machine,{moves=[]}={}) {
     },
     Sync:(args,site)=>{need(args.length===0,'Sync takes no arguments.',site);synchronized=true;},
     Wait:(args,site)=>{
-      need(args.length===1&&Number.isFinite(args[0])&&args[0]>=0&&args[0]<=60000,'Invalid Wait milliseconds.',site);
+      // What one Wait can express, not how long a path may pause: the writer
+      // splits a longer pause into consecutive commands.
+      need(args.length===1&&Number.isFinite(args[0])&&args[0]>=0&&args[0]<=WAIT_COMMAND_MS,'Invalid Wait milliseconds.',site);
       need(relay===false&&synchronized,'Dwell requires relay off and synchronized motion.',site);
       events.push({kind:'dwell',startSeconds:seconds,seconds:args[0]/1000,line:site.line,file:site.file});seconds+=args[0]/1000;
     },
@@ -79,7 +84,7 @@ export function interpretDobotFiles(files,plan,machine,{moves=[]}={}) {
       volume+=label.commandedVolumeMm3;estimate+=moveEstimate;seconds+=timing.durationS;controllerPosition=to;synchronized=false;
     }
   };
-  const runtime=new LuaRuntime({host,stepLimit:5_000_000});
+  const runtime=new LuaRuntime({host});
   for(const name of ['global.lua','src1.lua','src0.lua'])runtime.load(files[name],name);
   requireThat(relay===false&&synchronized&&moves.some(m=>m.extruding),'Dobot program lacks deposition or a synchronized relay-off ending.');
   const reconstructed={schema:'saampath/1',initialPosition:c.initialPositionMm,actions:moves.map(m=>({kind:'move',to:m.to,speedMmS:m.speedMmS,volumeMm3:m.volumeMm3}))};

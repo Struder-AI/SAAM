@@ -65,11 +65,14 @@ test('surface geodesics match independently unrolled cylinder distances and roun
   }
 });
 
-test('surface offset handles a patch-boundary inset, reports budgets and rejects domain escape',()=>{
+test('surface offset handles a patch-boundary inset, reports its actual work and rejects domain escape',()=>{
   const patch=plane();
   const result=offsetSurfaceRegion(patch,[rectangle(0,0,20,20)],-0.4,{maxStepMm:2});
   assert.ok(Math.abs(regionArea(result.loopsUv)-19.2**2)<1e-6);
-  assert.throws(()=>offsetSurfaceRegion(patch,[rectangle(4,4,8,8)],-0.4,{maxEvaluations:4}),/exhausted maxEvaluations=4/);
+  // No evaluation budget: a finer step simply integrates and reports more work.
+  assert.equal('maxEvaluations' in result.report,false);
+  const fine=offsetSurfaceRegion(patch,[rectangle(4,4,8,8)],-0.4,{maxStepMm:0.25});
+  assert.ok(fine.report.evaluations>result.report.evaluations&&fine.report.integrationSteps>result.report.integrationSteps);
   assert.throws(()=>offsetSurfaceRegion(patch,[rectangle(0,0,20,20)],0.4),/patch boundary/);
   assert.throws(()=>offsetSurfaceRegion(patch,[],NaN),/finite/);
   const zero=offsetSurfaceRegion(patch,[rectangle(4,4,8,8)],0);

@@ -572,19 +572,33 @@ class Scope {
   }
 }
 
+// Everything a parsed chunk contains. A program without a loop cannot run more
+// statements than this between two host calls, whatever its size, so it is the
+// program's own measure of how far it may go while commanding nothing.
+function nodeCount(node) {
+  if (Array.isArray(node)) { let total = 0; for (const item of node) total += nodeCount(item); return total; }
+  if (!node || typeof node !== "object") return 0;
+  let total = typeof node.kind === "string" ? 1 : 0;
+  for (const value of Object.values(node)) total += nodeCount(value);
+  return total;
+}
+
 export class LuaRuntime {
   /**
    * @param {object} [options]
    * @param {Record<string, Function>} [options.host] functions the Lua may call.
    *   Each receives (args, context) where context is { file, line, name },
    *   and may return a single value or an array of Lua values.
-   * @param {number} [options.stepLimit] guards against a runaway loop in
-   *   generated Lua — a preview should fail loudly, not hang the UI.
+   * A program is never stopped for being long: it is stopped when it stops
+   * making progress. Calling the host is the only thing a program can do that
+   * the reader can observe, so each host call clears the quiet-step count, and
+   * a program that runs more statements between two host calls than the whole
+   * loaded program contains is looping without commanding anything.
    */
-  constructor({ host = {}, stepLimit = 5_000_000 } = {}) {
+  constructor({ host = {} } = {}) {
     this.globals = new Map();
     this.host = new Map(Object.entries(host));
-    this.stepLimit = stepLimit;
+    this.reach = 0;
     this.steps = 0;
     this.file = "<lua>";
     // Outermost-first. A host binding needs this to report the call site in
@@ -595,6 +609,7 @@ export class LuaRuntime {
   /** Execute a chunk, leaving its globals in place for chunks loaded after it. */
   load(source, file = "<lua>") {
     const chunk = parse(source, file);
+    this.reach += nodeCount(chunk);
     const previousFile = this.file;
     this.file = file;
     try {
@@ -627,9 +642,9 @@ export class LuaRuntime {
 
   tick(line) {
     this.steps += 1;
-    if (this.steps > this.stepLimit) {
+    if (this.steps > this.reach) {
       throw new LuaSubsetError(
-        `execution exceeded ${this.stepLimit} steps; refusing to keep running (runaway loop?)`,
+        `ran ${this.steps} steps without commanding the machine, more than the ${this.reach} the loaded program contains: it is looping without making progress`,
         { file: this.file, line }
       );
     }
@@ -962,7 +977,7 @@ export class LuaRuntime {
       // binding, so a project can wrap a controller primitive in its own Lua.
       if (defined === undefined || defined === null) {
         const hostFn = this.host.get(name);
-        if (hostFn) return this.enter(context, () => normalizeReturn(hostFn(args, this.contextWithStack(context))));
+        if (hostFn) { this.steps = 0; return this.enter(context, () => normalizeReturn(hostFn(args, this.contextWithStack(context)))); }
         throw new LuaSubsetError(
           `call to unknown function "${name}" — the reader will not guess what it does`,
           { file: this.file, line: node.line }

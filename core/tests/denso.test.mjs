@@ -101,7 +101,7 @@ test('actual T/EX commands reconstruct fixed-room rotary deposition across multi
   const missing={...files};delete missing[key];assert.throws(()=>interpretDensoFiles(missing,plan,machine),/Missing/);
 });
 
-test('pipe export retains substrate, tilted axial/hoop shells, radial ownership and point budget',async()=>{
+test('pipe export retains substrate, tilted axial/hoop shells and radial ownership at any sample count',async()=>{
   const plan=small(),path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
   const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0','pipe-cladding:1']);
   const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.phase.startsWith('cladding'));
@@ -109,7 +109,11 @@ test('pipe export retains substrate, tilted axial/hoop shells, radial ownership 
   assert.ok(body.every(m=>Math.hypot(...m.to.slice(0,2))<=boundary+1e-6));
   for(const m of clad){near(Math.acos(-m.toolAxisTo[2])*180/Math.PI,45,.001);assert.ok(m.to[2]>=0&&m.to[2]<=plan.geometry.heightMm+1e-8);}
   assert.ok(path.actions.some(a=>a.travel==='surface-index'&&a.volumeMm3===0));
-  const configured=structuredClone(plan);configured.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>generatePath(configured,machine,{}),/maxPoints/);
+  // The retired maxPoints budget is an unknown field, and a sampling step far
+  // finer than that former 500,000-point budget now completes.
+  const stale=structuredClone(plan);stale.skills['pipe-cladding'].maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/Unexpected or missing fields/);
+  const dense=structuredClone(plan);dense.skills['pipe-cladding'].sampleStepMm=.0005;
+  assert.ok(pipeCladdingResult({plan:dense,after:['body']}).report.points>500000);
 });
 
 test('RC8 uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{
@@ -127,7 +131,7 @@ test('RC8 uses the public bundle, exact browser source and cold reopen without r
   const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.exportHash);`;
   assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.exportHash);
   const actor='SYNTHETIC TEST REVIEWER — no human or hardware approval';
-  await generateBundle(dir);const ready=await loadBundle(dir);await approve(dir,{stage:'toolpath',actor,revision:ready.revision});
+  await generateBundle(dir);const ready=await loadBundle(dir);await approve(dir,{actor,revision:ready.revision});
   const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),bytes);
-  await adjustBundle(dir,{setup:{denso:{workYawDeg:5}}},{setupFile:join(dir,'synthetic-setup.json')});const altered=await loadBundle(dir);assert.equal(altered.geometryApproved,false);assert.equal(altered.planApproved,false);assert.equal(altered.toolpathApproved,false);
+  await adjustBundle(dir,{setup:{denso:{workYawDeg:5}}},{setupFile:join(dir,'synthetic-setup.json')});const altered=await loadBundle(dir);assert.equal(altered.toolpathApproved,false);
 });

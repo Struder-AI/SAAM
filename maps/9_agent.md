@@ -23,9 +23,12 @@ port in | request
 box context | 9.1 | select context | >9a_context
 box preview | 9.2 | prepare and open | @core/agent/toolkit.mjs::preview
 box begin | 9.3 | begin Studio work | @core/agent/toolkit.mjs::beginWork
-box wait | 9.4 | wait for fallback request | @core/agent/toolkit.mjs::waitForRequests
+box wait | 9.4 | wait for requests / events | @core/agent/toolkit.mjs::waitForRequests
 box respond | 9.5 | report result | @core/agent/toolkit.mjs::respondToRequest
 box inspect | 9.6 | inspect generation failure | @core/agent/toolkit.mjs::inspectFailure
+box events | 9.7 | read Studio events | @core/agent/toolkit.mjs::readStudioEvents
+box poll | 9.8 | poll owned Studio | @core/agent/toolkit.mjs::pollStudio
+box show | 9.9 | show print in owned Studio | @core/agent/toolkit.mjs::showPrint
 port print | print commands
 port studio | session / requests
 in > context | onboarding / manual read | gate
@@ -34,10 +37,18 @@ in > begin | edit instruction | gate
 in > wait | recovery listener | gate
 in > respond | result / status | gate
 in > inspect | generation diagnostic | gate
+in > events | event read | gate
+in > show | open / create with Studio URL | gate
 preview > print | create / load | data
 preview > studio | identified live session / event stream | data
 begin > studio | claim and edit context | data
 wait > studio | persisted queued work / claim | data
+wait > poll | Studio URL / owner ID | data
+events > poll | Studio URL / owner ID | data
+events > studio | in-process queue drain | data
+poll > studio | owner-authenticated long-poll | data
+show > print | create / load | data
+show > studio | owner-authenticated print switch | data
 respond > studio | target / response | data
 inspect > studio | failure and guidance | data
 ```
@@ -77,7 +88,12 @@ server and bidirectional newline-delimited agent channel. Studio requests stream
 from the owned instance on stdout and begin/respond/activity commands return on
 the same managed session; a tour emits `studio-ready` before its context so the
 client can open the first lesson immediately. The persisted event-driven wait is
-the recovery path for independent processes.
+the recovery path for independent processes. Delivered Studio events stream as
+`studio-events` lines on the same session; `read-studio-events` and
+`wait-for-studio-request` drain the owning agent's event queue in process, or
+through the owned Studio's owner-authenticated long-poll when given its URL and
+agent owner ID, so an independent process still receives events and
+calculation progress.
 The browser opener and request store implementation are shared with MCP;
 manuals use its compatibility re-export. CLI onboarding does not register new
 MCP tools. [Toolkit tests](../core/tests/agent-toolkit.test.mjs) cover current

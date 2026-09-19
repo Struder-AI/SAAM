@@ -6,19 +6,20 @@ import {clipReservedRegion,clipAboveSurface} from '../../../core/region/reservat
 import {infillStrokes} from './patterns.mjs';
 import {lineSpacing} from '../../../core/path/spacing.mjs';
 
-export const PLANAR_INFILL_DEFAULTS={spacingFactor:1,perimeters:2,density:0.2,pattern:'rectilinear',sampleStepMm:0.2,maxPatternCells:1000000,fillAnglesDeg:[45,135],fillOverlap:0.15,minFeatureMm:0.4};
+export const PLANAR_INFILL_DEFAULTS={spacingFactor:1,perimeters:2,perimeterScope:'all',density:0.2,pattern:'rectilinear',sampleStepMm:0.2,fillAnglesDeg:[45,135],fillOverlap:0.15,minFeatureMm:0.4};
 
 // One owner for walls; full-fill owns only selected solid interiors. Neither
 // pattern makes a second toolpath or chooses process parameters at generation.
-export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-infill',solid=false,zStartMm=null,zEndMm=null,lowerSurface=null,onProgress}) {
+export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-infill',solid=false,zStartMm=null,zEndMm=null,layerOriginMm=null,layerIndexOffset=0,lowerSurface=null,onProgress}) {
   const surfaceSolids=solid;
   const envelopes=(shell.processReservations??[]).filter(r=>r.solidRegionAt);
   const settings=plan.skills['planar-infill'],fill=plan.skills['full-fill'],width=plan.process.lineWidthMm;
   // Local details, such as blind heat-set holes, can also require solid layers.
   const detailSolids=shell.planarDetails?.hasSolidRegions?z=>shell.planarDetails.solidRegionAt(z,{layerMm:plan.process.layerMm,widthMm:width,topLayers:fill.topLayers,bottomLayers:fill.bottomLayers}):null;
   solid=solid||envelopes.length>0||Boolean(detailSolids);
-  const heights=layerHeights(plan.process,shell.bounds.min[2],Math.min(shell.bounds.max[2],zEndMm??Infinity)).filter(z=>z>(zStartMm??-Infinity)+1e-9);
-  const layerOffset=heights.length?Math.round((heights[0]-shell.bounds.min[2]-plan.process.firstLayerMm)/plan.process.layerMm):0;
+  const origin=layerOriginMm??shell.bounds.min[2];
+  const heights=layerHeights(plan.process,origin,Math.min(shell.bounds.max[2],zEndMm??Infinity)).filter(z=>z>(zStartMm??-Infinity)+1e-9);
+  const layerOffset=heights.length?Math.round((heights[0]-origin-plan.process.firstLayerMm)/plan.process.layerMm):0;
   const reserves=Array.isArray(reserve)?reserve:[reserve].filter(Boolean);
   const query=createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm}),sections=new Map();
   const sectionAt=z=>{if(!sections.has(z))sections.set(z,query(z));return sections.get(z);};
@@ -44,7 +45,7 @@ export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-
   });
   const interiors=[];
   const prepared=solid?{regionAt:(_z,i)=>regions[i-layerOffset]}:{};
-  const sparse=fullFillResult({shell,plan,machine,reserve,id,onProgress,settings:{...settings,spacingFactor:settings.spacingFactor??1},spacingMm:settings.density===0?null:lineSpacing(width,settings)/settings.density,zStartMm,zEndMm,lowerSurface,sectionAt,...prepared,solidAt:i=>solids[i-layerOffset]??[],
+  const sparse=fullFillResult({shell,plan,machine,reserve,id,onProgress,settings:{...settings,spacingFactor:settings.spacingFactor??1},spacingMm:settings.density===0?null:lineSpacing(width,settings)/settings.density,zStartMm,zEndMm,layerOriginMm,layerIndexOffset,lowerSurface,sectionAt,...prepared,solidAt:i=>solids[i-layerOffset]??[],
     interiorStrokes:(region,i,z)=>infillStrokes(region,{...settings,widthMm:width,angleDeg:settings.fillAnglesDeg[(settings.pattern==='rectilinear'?i:0)%settings.fillAnglesDeg.length],zMm:z}),
     interiorRegion:solid?(region,i)=>{
       interiors[i-layerOffset]=region;
@@ -54,7 +55,7 @@ export function planarInfillResults({shell,plan,machine,reserve=null,id='planar-
   sparse.report.density=settings.density;
   sparse.report.pattern=settings.pattern??'rectilinear';
   if(!solid)return [sparse];
-  const solidResult=fullFillResult({shell,plan,machine,reserve,id:id+':solid',onProgress,detailsMode:'reserve',settings:{...settings,spacingFactor:fill.spacingFactor??1,perimeters:0},zStartMm,zEndMm,lowerSurface,sectionAt,solidAt:i=>solids[i-layerOffset]??[],
+  const solidResult=fullFillResult({shell,plan,machine,reserve,id:id+':solid',onProgress,detailsMode:'reserve',settings:{...settings,spacingFactor:fill.spacingFactor??1,perimeters:0},zStartMm,zEndMm,layerOriginMm,layerIndexOffset,lowerSurface,sectionAt,solidAt:i=>solids[i-layerOffset]??[],
     detailWalls:{perimeters:settings.perimeters,pitchMm:lineSpacing(width,settings)},
     regionAt:prepared.regionAt,fillRegionAt:(_whole,i)=>{
       // Match the sparse interior's centerline domain, including wall overlap.

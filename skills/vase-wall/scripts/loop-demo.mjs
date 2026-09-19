@@ -33,7 +33,7 @@ export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
   const perimeter=2*Math.PI*(radius-plan.process.lineWidthMm/2),rise=plan.process.layerMm;
   const pattern={motif:loopMotif({widthCells:motifWidthMm*loopsPerTurn/perimeter,depthMm:motifDepthMm,
     samples:samplesPerLoop,beadHeightMm:rise,exterior}),cellsPerTurn:loopsPerTurn,courseRiseMm:rise,repeats:courses,tiltDeg:0};
-  const {points}=tileVaseMotif(pattern,plan.skills['vase-wall'].maxPoints).paths[0];
+  const {points}=tileVaseMotif(pattern).paths[0];
   const top=plan.process.firstLayerMm+Math.max(...points.map(p=>p[1]))+(courses-1)*rise;
   plan.geometry=loopHost({radius,heightMm:top,waveDepthMm});
   plan.placement={xMm:125,yMm:105};

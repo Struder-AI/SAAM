@@ -32,8 +32,7 @@ export function boxShell(rhino, { xMm = 30, yMm = 20, zMm = 10 } = {}) {
   return prismShell(rhino, [[0, 0], [xMm, 0], [xMm, yMm], [0, yMm]], () => zMm, 'box');
 }
 
-// The wedge the existing demo prints, as a general shell: a flat top surface
-// tilted by angleDeg about the Y axis.
+// A wedge shell: a flat top surface tilted by angleDeg about the Y axis.
 export function wedgeShell(rhino, { runMm = 30, widthMm = 20, baseMm = 2, angleDeg = 15 } = {}) {
   const slope = Math.tan(angleDeg * Math.PI / 180);
   return prismShell(rhino, [[0, 0], [runMm, 0], [runMm, widthMm], [0, widthMm]], x => baseMm + x * slope, 'wedge');

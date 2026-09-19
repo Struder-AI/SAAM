@@ -3,13 +3,15 @@
 ## Implementation ownership and change detection
 
 The lifecycle map owns persistence, input identities and human review records.
-`core/print/bundle.mjs` binds the shared workflow to the shell generator and the
-runtime dependency set. `core/print/cli.mjs` is the command entry point; it does
+`core/print/bundle.mjs` binds the shared workflow to the shell generator.
+`core/print/cli.mjs` is the command entry point; it does
 not own another lifecycle. Its module-level dispatch and destructured workflow
 exports need inspection even where there is no standalone callable map anchor.
-`1d_runtime` names the runtime dependency list, selected limitation messages and
-CLI dispatch. Changes to dependencies must preserve generation invalidation;
-declared limitations describe the selected plan/machine and do not relax checks.
+`1d_runtime` names the shared and selected limitation messages and CLI
+dispatch. Identity is content only: plan, machine snapshot and geometry bytes.
+Changing SAAM's own code does not withdraw a recorded confirmation, because the
+confirmation is bound to the exact exported bytes, which code changes cannot
+alter; `generatorVersion` records which release made them. Declared limitations describe the selected plan/machine and do not relax checks.
 
 `core/print/file-snapshot.mjs` is bounded, stat-keyed change detection for refresh.
 It must not substitute for the current-byte reads used by validation, approval or
@@ -44,13 +46,13 @@ current plan revision. Source metadata does not confer a printing approval.
 Implement the single human confirmation in [the maker interaction flow](../../MAKERS.md#maker-interaction-flow):
 settings and the exact toolpath together immediately before export. `core/print/workflow.mjs` owns
 initialization, verification, revision hashes, adjustment, approvals, generation,
-reopening, setup reuse, upgrades and delivery. The shell adapter supplies
+reopening, setup reuse and delivery. The shell adapter supplies
 recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema. There is no standalone settings
-confirmation. `approve(stage: "toolpath")` records the settings hash and export
-hash in one human event; the persisted `approvals.plan`/`planApproved` fields remain
-for record compatibility. Legacy geometry approval records remain readable but
-are no longer created or required. Generation is available for inspection;
+confirmation. `approve({actor, revision})` writes the only approval record,
+`review.approvals.toolpath`, carrying the export hash and the plan hash it was
+given for; `toolpathApproved` is the one derived boolean. Any recorded change
+(plan, machine, upgrade or regeneration) empties `review.approvals`. Generation is available for inspection;
 production delivery still requires the exact current final confirmation.
 
 The [text preparation entry](../../core/print/text.mjs) compiles editable font/surface features
@@ -68,11 +70,11 @@ it. The resulting recipe uses the same generation, review and delivery lifecycle
 Generate the machine-declared export from the complete plan whenever it helps review,
 using transient motion objects. Check its actual commands before Studio plays
 that export for combined settings/toolpath confirmation. Delivery copies those reviewed bytes unchanged.
-Geometry, process, composition, runtime or machine changes invalidate the
+Geometry, process, composition or machine changes invalidate the
 combined settings/toolpath confirmation. Development generation records
 `mode: development`, creates no human approvals and cannot satisfy delivery.
 Production generation can reuse a current checked
-development export: it verifies current input/runtime identity, export bytes and
+development export: it verifies current input identity, export bytes and
 saved check hashes, then records production mode without reslicing or changing
 the reviewed bytes. This transition does not approve settings or toolpath.
 Stale source falls back to generation. A plan changed during generation cannot
@@ -81,12 +83,13 @@ receive the earlier candidate.
 Geometry-only bundle reads and their change fingerprints omit export bytes.
 Fingerprint snapshots reuse content digests while file identity, size, modification
 and change times match; this is change detection, not approval evidence. Review,
-approval and delivery still check current bytes at their owning boundary. Runtime
-provenance retains its full manifest and order, reading duplicate file entries once.
+approval and delivery still check current bytes at their owning boundary.
 Recipe adjustment returns the owning update result instead of loading it again;
 the update still checks a fresh revision before saving.
 
-The `presentation` fingerprint separates scene/source identity from approval,
+`bundleFingerprints` returns the `source` and `presentation` fingerprints from
+one snapshot pass (`bundleFingerprint` is its `source`); every Studio bundle
+adapter provides it. The `presentation` fingerprint separates scene/source identity from approval,
 delivery history and generation mode. Other generation claims and current export
 bytes remain part of source identity. Compact review updates still load validated
 state before updating controls. Generation accepts a `beforeCommit` callback for
@@ -115,7 +118,7 @@ new failure it can detect. If nothing relevant changed, reuse the result or
 remove the call. Do not scatter `validatePlan`, `validateSetup`, `validatePath`
 or equivalent whole-object passes through helper layers merely because they
 are available. Do not add a public skip-validation switch. Reuse must be bound
-to exact relevant content and validator/runtime identity, not a filename,
+to exact relevant content and validator identity, not a filename,
 mutable object identity or a caller's claim that data is trusted. Bound caches
 and prevent caller mutation from changing the recorded validity or shared data.
 
@@ -178,8 +181,8 @@ Prints/<name>/
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
   the move without determining its geometry. New bundles do not serialize this
-  representation. Regeneration removes an obsolete `path.saampath` file.
-- `saam-review/1`: exact-version human approvals, history, generation/export hashes
+  representation.
+- `saam-review/1`: the exact-version final approval record, history, generation/export hashes
   and a small generation summary for display (never playback geometry).
   `saam-checks/1` records software checks and limitations.
 
@@ -191,7 +194,7 @@ A cache miss runs the owning validation. Restarting the runtime clears these
 in-memory results. A filename or caller's claim of validity is insufficient.
 
 The adapter also retains its latest checked interpretation, keyed by the
-plan/machine/geometry/runtime identity and actual export hash. Generation seeds
+plan/machine/geometry identity and actual export hash. Generation seeds
 this cache. Reopening interprets saved commands on a miss and returns copies on
 a hit; it never regenerates the path or export. Delivery reads and hashes the
 reviewed export, then copies those bytes. A changed export cannot inherit its
@@ -220,17 +223,13 @@ the reviewed control nets. Changed geometry repeats that verification;
 unchanged content reuses validity under the [bundle contract](#print-bundle-and-current-formats).
 The descriptor also carries a quad proxy mesh, tessellated per patch, for the viewer.
 
-Old machine snapshots without templates must be explicitly upgraded with the
-owning CLI's `upgrade` command before generation. It installs the current machine
-snapshot and invalidates plan/toolpath approval, retaining unchanged geometry
-approval. Do not rewrite a person's existing export or delivery as a migration.
-
 ## Formats
 
 - `saam-shell-plan/1`: shape and its parameters, placement, setup, shared
   process settings, and each skill's settings under `skills`. Composition rules, component selections and settings are locked with the plan. Unknown or
   misspelled fields are rejected, and the strict field check is made against the
-  selected shape. Generation introduces no further process choices.
+  selected shape. Its rejection names the offending path and lists the unexpected
+  and the missing keys. Generation introduces no further process choices.
 - `saam-shell-geometry/1`: native file hash, shape parameters, geometry version,
   per-patch control-net hash, named face references and the display proxy.
 - The bundle layout is the shared one above. `saampath/1`,
@@ -240,7 +239,7 @@ approval. Do not rewrite a person's existing export or delivery as a migration.
   software limit, not a measured clearance rating, and no collision model exists.
 - SAAMpath and the Griffin export follow the shared contracts,
   including machine-owned header/start/end templates and the header fields the printer's reader requires. The exporter reads
-  `startup.zAfterStartupMm`, falling back to the older `zAfterPrimeMm`.
+  `startup.zAfterStartupMm`, which every current machine profile declares.
 - XYZ moves shorter than `1e-4` mm are omitted only when all coordinates collapse
   to the same rounded endpoint (five decimals for S5/H2D, ten for Dobot).
   Representable short moves are retained. Oriented motion currently retains a
@@ -256,7 +255,7 @@ surface, strict interpretation of the export, determinism, and detection of an
 edited export. `core/tests/workflow.test.mjs` adds the review workflow: the 3DM
 round trip and rejection of a substituted file, development generation creating
 no approvals, two synthetic confirmations with stale views and byte-identical
-delivery, the approvals each kind of edit invalidates, remembered setup, and
+delivery, invalidation by each kind of edit, remembered setup, and
 Studio serving and delivering a shell print. Synthetic approvals are written
 with an actor name that says so. None of that establishes clearance, surface
 quality, or that any part prints.
@@ -266,11 +265,11 @@ quality, or that any part prints.
 
 Sources: [workflow.mjs](../../core/print/workflow.mjs), [bundle.mjs](../../core/print/bundle.mjs), [cli.mjs](../../core/print/cli.mjs).
 
-**Contract.** The workflow factory owns plan/native-geometry/machine/export/review files, content-derived identities, cached validation and approval invalidation. The shell binding supplies geometry, generation, limitations and the runtime dependency list; CLI dispatch invokes that same workflow. Geometry-only, source-only and fully interpreted reads have different costs and guarantees. Plan validation can normalize old fields in memory; neither reading nor a development export creates human approval. Geometry edits invalidate all downstream approvals; process or runtime changes retain only approvals whose owning identities still match. See [validation ownership](#validate-at-the-boundary-that-owns-the-data) and [formats](#print-bundle-and-current-formats).
+**Contract.** The workflow factory owns plan/native-geometry/machine/export/review files, content-derived identities, cached validation and approval invalidation. The shell binding supplies geometry, generation, and limitations; CLI dispatch invokes that same workflow. Geometry-only, source-only and fully interpreted reads have different costs and guarantees. Neither reading nor a development export creates human approval. Remembered setup can select a different supported nozzle; a fresh proposal or machine change retains the current line width when it remains in that tool's envelope and otherwise clamps it to a nozzle-compatible starting width before validation. Any geometry, process or machine change invalidates the single settings/toolpath approval, which is bound to both the plan and export hashes. See [validation ownership](#validate-at-the-boundary-that-owns-the-data) and [formats](#print-bundle-and-current-formats).
 
-**Failures.** Stale revision guards, absent/unverified source, invalid native geometry, unavailable output and missing manufacturing approvals reject at their owning boundary. Cached display state and a previous successful export cannot authorize delivery. Multi-file publication is not a transaction or cross-process lock.
+**Failures.** Stale revision guards, absent/unverified source, invalid native geometry, unavailable output and missing manufacturing approvals reject at their owning boundary. Cached display state and a previous successful export cannot authorize delivery. Multi-file publication is not a transaction or cross-process lock. `plan.json` is the commit point: a new bundle writes it last, an edit writes it before the geometry files derived from it, and a reader that finds older geometry beside a committed plan rebuilds those files once instead of refusing the print. Geometry is built before anything is written, so a shape that cannot be made changes nothing.
 
-**Change together.** Update identity construction, runtime dependency registration, review records, command adapters, Studio receipts and the selected exporter together when changing a persisted field. Preserve the distinction between geometry creation, generation checking, generation commit, human review and delivery.
+**Change together.** Update identity construction, review records, command adapters, Studio receipts and the selected exporter together when changing a persisted field. Preserve the distinction between geometry creation, generation checking, generation commit, human review and delivery.
 
 **Verification.** Exercise stale revisions, geometry versus settings invalidation, cold reopen, unchanged-input reuse, development versus production generation and delivery of the exact approved bytes. Use read-scope cases when changing refresh cost. Checks: [workflow.test.mjs](../../core/tests/workflow.test.mjs), [chat-geometry-confirmation.test.mjs](../../core/tests/chat-geometry-confirmation.test.mjs), [read-scope.test.mjs](../../core/tests/read-scope.test.mjs).
 

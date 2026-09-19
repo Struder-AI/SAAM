@@ -17,7 +17,7 @@ test('CLI creates and edits a shared print from parameters; stale changes fail w
   await writeFile(request,JSON.stringify({kind:'blank'}));
   const cli=resolve(root,'skills/gridfinity/scripts/cli.mjs');
   const run=(...args)=>JSON.parse(execFileSync(process.execPath,[cli,...args],{cwd:tmpdir(),encoding:'utf8',stdio:['ignore','pipe','pipe']}));
-  const state=run('create',dir,request,'--machine','ultimaker-s5');assert.equal(state.geometryApproved,false);
+  const state=run('create',dir,request,'--machine','ultimaker-s5');assert.equal(state.toolpathApproved,false);
   await writeFile(request,JSON.stringify({xUnits:2}));
   const next=run('update',dir,request,'--revision',state.revision);assert.notEqual(next.revision,state.revision);
   assert.throws(()=>run('update',dir,request,'--revision',state.revision),/stale/);
@@ -39,12 +39,12 @@ test('MCP discovers the task and uses the same create, edit, check and revision 
   await call('gridfinity',{printId:'../escape',action:'create',machineId:'ultimaker-s5',parameters:{}},/validation|Invalid|format/i);
   await call('gridfinity',{printId:'forged',action:'create',machineId:'ultimaker-s5',parameters:{approved:true}},/not an agent-editable/);
   let state=await call('gridfinity',{printId:'sample',action:'create',machineId:'ultimaker-s5',parameters:{kind:'bin',heightUnits:2}});
-  assert.deepEqual(state.approvals,{geometry:false,plan:false,toolpath:false});
+  assert.equal(state.toolpathApproved, false);
   await call('gridfinity',{printId:'sample',action:'update',expectedRevision:'stale',parameters:{xUnits:2}},/stale/);
   state=await call('gridfinity',{printId:'sample',action:'update',expectedRevision:state.revision,parameters:{xUnits:2}});
   const saved=await call('get_print',{printId:'sample',includeGeometry:true});assert.equal(saved.plan.geometry.parameters.xUnits,2);
   const checked=await call('check_print',{printId:'sample'});assert.deepEqual(checked.checked,['geometry','plan']);
   const path=await call('check_path',{printId:'sample'});assert.equal(path.physicalValidation,'not performed');
   await call('gridfinity',{printId:'sample',action:'create',machineId:'ultimaker-s5',parameters:{}},/already exists/);
-  assert.deepEqual((await call('get_print',{printId:'sample'})).approvals,{geometry:false,plan:false,toolpath:false});
+  assert.equal((await call('get_print',{printId:'sample'})).toolpathApproved, false);
 });

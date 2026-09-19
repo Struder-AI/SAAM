@@ -60,10 +60,11 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | `read-map PAGE` | Resolve one current page, region navigation and shared uses. | `maps`: compact page context and contract index. `--section ID#heading` returns contract text only; `--node ADDRESS` focuses a component; `--inventory` lists ownership; `--evidence` expands impact evidence. No Python or viewer build. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
 | `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start an exclusively owned Studio; emit its URL/instance ID; request browser opening; read participation guidance and tour state. | A live bidirectional Studio session, initial recipe summary, MAKERS and tour-participation context, plus event-stream and recovery-listener details. |
-| `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
-| `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
+| `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening, or with `--studio URL --agent-owner ID` show the print in that live owned Studio and exit; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
+| `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening, or with `--studio URL --agent-owner ID` show the new print in that live owned Studio and exit; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
 | `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, geometry state and matching tour instruction without checking the old export. | The exact request ID and edit context, with `programChecked: false`. A context-read failure marks that request failed and reports it. |
-| `wait-for-studio-request` | Event-wait on the recovery journal for queued requests for up to 25 seconds; optionally restrict to a Studio instance and claim returned requests in that call. | Requests, their status and an updated `after` list. The original preview session is the primary live path. |
+| `wait-for-studio-request` | Event-wait for up to 25 seconds for queued requests or a delivered Studio event; optionally restrict to a Studio instance and claim returned requests in that call. With `--studio URL --agent-owner ID` from `studio-ready`, read the live Studio's owner-scoped queue across processes; without them, wait on the recovery journal alone. | Requests, their status, the drained Studio `events`, calculation `generation` progress when read live, and an updated `after` list. The original preview session is the primary live path. |
+| `read-studio-events --studio URL --agent-owner ID` | Read and clear the owning agent's Studio event queue from a live Studio; optional bounded `--wait-ms` and `--history`. | `events`, `generation` progress for owned instances still calculating, and `recent` when history is requested. |
 | `respond-to-studio-request ID` | Record a prepared geometry/toolpath target, or update the matching request's response/status through the shared request API. | Updated request. Other outstanding work remains independent. |
 | `inspect-generation-failure DIRECTORY` | Read requests for that print; read current validated recipe/export status, retaining validation errors when loading fails; return generation guidance and links to the recipe's skill manuals. | Diagnostic evidence, settings, machine-configuration gaps, and skill references for individual follow-up reads. No correction, retry or request claim. |
 
@@ -75,7 +76,7 @@ the OS browser when a client opens the returned URL itself or a test is headless
 |---|---|---|
 | Tour | Run the Studio `--toolkit start-tour --no-open` command immediately in a set-up checkout. | Open `studio.url` from `studio-ready`, then use the returned participation context and listener. |
 | New custom part | Run `maker-onboarding` only if maker context is missing. | Choose individual skill reads from the supplied digest, load missing task-specific references, then prepare and open the first reasonable geometry. |
-| Existing Studio print | Run `begin-studio-work` first, with the target or existing request ID. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
+| Existing Studio print | Run `begin-studio-work` early to claim the request, with the target or existing request ID; you can acknowledge the person first. | Use the returned recipe/revision; load only missing maker/skill context, edit, bind the result, present it and resolve the request. |
 | Build (skill, Studio, isolated core) | Run `builder-onboarding` only if builder context is missing; include a known `--area` when useful. | Choose missing skill guidance and API contracts; read region maps when changing core/Studio or investigating their internals. Load contribution guidance when checkpointing/publishing. |
 | Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first from the region maps; use `read-map PAGE` for missing regions and follow their source/contracts. |
 
@@ -153,16 +154,36 @@ file arguments resolve from the command's working directory.
 Studio commands stay alive in their managed command session. They emit a
 `studio-ready` JSON line immediately after listening, then a `result` line with
 the remaining state/context. Subsequent `studio-request` events identify the
-owning Studio instance; newline-delimited begin/respond/activity controls sent to
-stdin receive correlated `agent-response` events on stdout. Use an early yield
+owning Studio instance, and `studio-events` lines push delivered Studio events
+with their held remainder; newline-delimited begin/respond/activity,
+`read-studio-events` and `wait-for-studio-request` controls sent to stdin receive
+correlated `agent-response` events on stdout. The returned `listener` names the
+stream events and the cross-process fallback (`wait-for-studio-request --studio
+URL --agent-owner ID`) for clients that cannot write to stdin. Use an early yield
 where the client supports it, open the URL, retain the process/session handle,
 and leave review visible.
+Reuse is the default. A launch returns `reuse` with the exact follow-up command:
+a later `open-print` or `create-preview` given `--studio URL --agent-owner ID`
+prepares the print, shows it in that live Studio through the owner-authenticated
+[`POST /api/agent-open`](studio.md#studio-event-queue), returns
+`studio.reused: true` and exits; the same browser tab follows the change. The
+managed session accepts the same two commands on stdin. Launch another instance
+only when the person asks, or for a compelling reason stated to them.
+
 Browser dispatch is reported as `browserOpenRequested`; it does not prove that
 the page rendered. Verify the view with the client's browser integration when
 needed. Studio retains its ordinary viewer lifetime and closes after its last
 viewer has been disconnected for 30 minutes. Stop only the recorded owned session
 to close it immediately. The toolkit does not start detached background helpers
 or adopt another agent's server.
+
+A relaunch normally mints a new agent owner, which hides the previous run's
+requests from it. `--agent-owner ID`, given the `agentOwnerId` from an earlier
+`studio-ready` line, resumes that owner instead, so its in-flight requests and
+its share of the request journal stay visible and claimable. It accepts only an
+agent-minted ID, never a `studio:` session fallback, and the relaunch still gets
+its own Studio instance: one owner may own several instances over time, but an
+instance's owner is fixed and no launch attaches to a running server.
 
 Starting a tour does not conduct the interactive lessons or wake an ended chat.
 Keep the returned live session active and follow [tour participation](../../MAKERS.md#tour-participation).
@@ -173,7 +194,8 @@ and slicing are not prerequisites for that first screen.
 
 ```sh
 node scripts/agent-toolkit.mjs begin-studio-work Prints/my-part --instruction "Change infill"
-node scripts/agent-toolkit.mjs wait-for-studio-request --claim --wait-ms 25000
+node scripts/agent-toolkit.mjs wait-for-studio-request --studio STUDIO_URL --agent-owner AGENT_OWNER_ID --claim --wait-ms 25000
+node scripts/agent-toolkit.mjs read-studio-events --studio STUDIO_URL --agent-owner AGENT_OWNER_ID
 node scripts/agent-toolkit.mjs begin-studio-work --request REQUEST_ID --include-geometry
 node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --status working --result-stage toolpath
 node scripts/agent-toolkit.mjs respond-to-studio-request REQUEST_ID --message "Updated and displayed"
@@ -195,7 +217,10 @@ bundle in a separately owned Studio, but it cannot adopt or control this session
 MCP `request_review` can open another owned instance for the same bundle explicitly;
 work on an ambiguously displayed bundle must name its instance.
 JSON request records retain restart and independent-process recovery; they are not
-the primary transport for an owned live session.
+the primary transport for an owned live session. A listener without the agent
+owner ID hears no Studio-bound request: pass `--agent-owner` from `studio-ready`.
+The [Studio event queue](studio.md#studio-event-queue) delivers what the person
+does in an owned instance; reads drain it and report calculation progress.
 
 `respond-to-studio-request` defaults to `completed`; supported statuses are
 `working`, `completed`, `failed`, `waiting`, and `cancelled`. After preparation,
@@ -246,10 +271,10 @@ Sources: [manuals.mjs](../../core/agent/manuals.mjs).
 
 Sources: [toolkit.mjs](../../core/agent/toolkit.mjs), [local-extension.mjs](../../core/local-extension.mjs).
 
-**Contract.** The toolkit composes existing lifecycle and Studio owners. Onboarding selects role context; developer core/Studio reads use maps, skill-only builder reads use authoring guidance and consumed contracts. Skill role flags are independent. Context packets deduplicate guidance IDs; readMaps selects current pages/contracts without requiring a generated viewer. Preview/tour/open commands return readiness and retain their owned server; begin-work records/claims work before returning editable context. Only the selected checkout .local/extension.mjs may supply optional local capability; absent means no extension.
+**Contract.** The toolkit composes existing lifecycle and Studio owners. Onboarding selects role context; developer core/Studio reads use maps, skill-only builder reads use authoring guidance and consumed contracts. Skill role flags are independent. Context packets deduplicate guidance IDs; readMaps selects current pages/contracts without requiring a generated viewer. Preview/tour/open commands return readiness and retain their owned server; given the live Studio URL and agent owner ID, or sent to the managed session's stdin, open-print/create-preview instead prepare the print and show it in that Studio through the same serialized open, launching nothing; begin-work records/claims work before returning editable context. A preview session owns one Studio event queue: delivered events stream as `studio-events` lines, and in-process `read-studio-events`/`wait-for-studio-request` drain it with current calculation progress. From an independent process, `read-studio-events` and `wait-for-studio-request` given the live Studio URL and agent owner ID read the same queue through the owned Studio's `GET /api/agent-events` long-poll; a claiming wait then marks returned requests working through the owner's request store. Only the selected checkout .local/extension.mjs may supply optional local capability; absent means no extension.
 
-**Failures.** Unknown areas/roles/skills and missing required manuals reject. Optional skill-role manuals are reported absent. Workflow errors retain already-created print information and close only the command-owned server. Library path selection cannot escape its root. Onboarding does not expand user authorization or create manufacturing approval.
+**Failures.** Unknown areas/roles/skills and missing required manuals reject. Optional skill-role manuals are reported absent. Workflow errors retain already-created print information and close only the command-owned server. Library path selection cannot escape its root. A Studio event read or print switch without the Studio URL or agent owner ID rejects before any request, and Studio refuses a wrong owner, leaving its open print unchanged; an HTTP wait never claims another owner's request. Onboarding does not expand user authorization or create manufacturing approval.
 
 **Change together.** Update CLI schemas/help, exported toolkit API, role/context maps, map contract routes, readiness event consumers and request state ownership together. Do not preload a second technical hierarchy or make skill builders read implementation maps solely because they consume a shared API.
 
-**Verification.** Check exact role bundles, deduplication, selected area maps, missing optional role guidance, managed server readiness/lifetime and request correlation. Checks: [agent-toolkit.test.mjs](../../core/tests/agent-toolkit.test.mjs), [context-map.test.mjs](../../core/tests/context-map.test.mjs).
+**Verification.** Check exact role bundles, deduplication, selected area maps, missing optional role guidance, managed server readiness/lifetime, request correlation, live event pushes, print switching in a reused Studio over HTTP, stdin and the CLI, the HTTP fallback wait with claim and owner rejection. Checks: [agent-toolkit.test.mjs](../../core/tests/agent-toolkit.test.mjs), [context-map.test.mjs](../../core/tests/context-map.test.mjs).

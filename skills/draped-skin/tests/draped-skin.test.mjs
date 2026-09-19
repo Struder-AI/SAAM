@@ -83,6 +83,16 @@ test('skins stack at the spacing measured along the surface normal', () => {
     `vertical spacing ${above.action.to[2] - sample.to[2]} against ${expectedGap}`);
 });
 
+test('a skin count above the rarely-useful advice is accepted and printed', () => {
+  // More than about eight skins is advice in the manual, not a rejection.
+  const plan = planFor(gentle, { layers: 10 });
+  validatePlan(plan, machine);
+  const { path } = run(plan);
+  assert.equal(Math.max(...path.actions.filter(a => a.volumeMm3 > 0).map(a => a.layer)), 9);
+  const none = planFor(gentle, { layers: 0 });
+  assert.throws(() => validatePlan(none, machine), /draped skin layers must be one or more/);
+});
+
 test('surface steeper than the machine limit is excluded and reported, not printed flat', () => {
   const limit = machineMaxAngle(machine);
   const plan = planFor(steep);

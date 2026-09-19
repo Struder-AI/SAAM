@@ -240,15 +240,3 @@ explicitly supplied with it. Keep user-reported findings distinct from assumed
 profile behavior. The [S5 setup guidance](../export/griffin.md#s5-setup-and-troubleshooting)
 and other [machine contracts](../export/README.md) own installation-specific
 questions and required calibration.
-
-## Upgrade an older bundle
-
-```sh
-node core/print/cli.mjs upgrade Prints/my-part
-```
-
-Use `upgrade_print` through MCP. Upgrade is explicit and remains available when
-old-version validation prevents normal reopening. The shell adapter installs
-the current machine snapshot, retains any compatible legacy geometry record and
-invalidates the final settings/toolpath confirmation. Existing exports and delivery files remain unchanged.
-Reopen Studio and complete the affected reviews before generating new output.

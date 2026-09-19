@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
@@ -40,7 +37,20 @@ test('shared interpretation rejects cold extrusion, unsupported state, and inval
   assert.throws(()=>interpretGriffin(code.replace('G92 E0','G92 X0 E0'),plan,machine),/Unsupported arguments/);
   assert.throws(()=>emit(machine,{...path,initialPosition:[330,219,undefined]}),/initial position/);
   const broken=structuredClone(machine);delete broken.outputs[0].program;
-  assert.throws(()=>emit(broken),/upgrade/);
+  assert.throws(()=>emit(broken),/no program templates/);
+});
+
+test('a pause longer than one G4 command is written as commands that sum to it',()=>{
+  const at=path.actions.findIndex(a=>a.kind==='move')+1,neighbour=path.actions[at];
+  const paused=seconds=>({...path,actions:[...path.actions.slice(0,at),
+    {kind:'dwell',seconds,phase:neighbour.phase,layer:neighbour.layer},...path.actions.slice(at)]});
+  const waits=code=>code.split('\n').map(l=>l.trim()).filter(l=>l.startsWith('G4 '));
+  assert.deepEqual(waits(emit(machine,paused(12))),['G4 P12000'],'a pause within one command is written unchanged');
+  const long=emit(machine,paused(150));
+  assert.deepEqual(waits(long),['G4 P60000','G4 P60000','G4 P30000']);
+  const dwells=interpretGriffin(long,plan,machine).events.filter(e=>e.kind==='dwell');
+  assert.equal(dwells.reduce((s,d)=>s+d.seconds,0),150,'the interpreter reads the same wait back');
+  assert.equal(waits(emit()).length,0,'a path without a pause emits no wait');
 });
 
 test('G-code tokenization retains packed arguments, whitespace, comments and strict malformed rejection',()=>{
@@ -52,33 +62,4 @@ test('G-code tokenization retains packed arguments, whitespace, comments and str
     'M109 T1 SNaN','M109 T1 S215junk','!M109 T1 S215','M109 T1 S215!','M109 T1 S'+'9'.repeat(400)]){
     assert.throws(()=>interpretGriffin(code.replace('M109 T1 S215',command),plan,machine),/Duplicate|Unsupported arguments|Malformed|Nonfinite/);
   }
-});
-
-test('shell upgrade retains geometry approval and existing delivery bytes',async()=>{
-  const adapter=await import('../print/bundle.mjs');
-  const recipe=defaults();
-  recipe.geometry={shape:'box',runMm:6,widthMm:6,heightMm:0.6};
-  recipe.skills['draped-skin'].enabled=false;
-  recipe.process.minimumLayerSeconds=0;
-  const directory=await mkdtemp(join(tmpdir(),'saam-upgrade-test-'));
-  try {
-    await adapter.initBundle(directory,recipe);
-    let state=await adapter.loadBundle(directory);
-    await adapter.generateBundle(directory);
-    state=await adapter.loadBundle(directory);
-    await adapter.approve(directory,{stage:'toolpath',actor:'synthetic upgrade test',revision:state.revision});
-    const delivered=await adapter.deliver(directory),bytes=await readFile(delivered,'utf8');
-    const oldMachine=JSON.parse(await readFile(join(directory,'machine.json'),'utf8'));
-    delete oldMachine.outputs[0].program;
-    await writeFile(join(directory,'machine.json'),JSON.stringify(oldMachine));
-    await adapter.upgradeBundle(directory);
-    state=await adapter.loadBundle(directory);
-    assert.equal(state.geometryApproved,false);
-    assert.equal(state.planApproved,false);
-    assert.equal(state.toolpathApproved,false);
-    assert.ok(state.machine.outputs[0].program);
-    assert.equal(await readFile(delivered,'utf8'),bytes);
-    assert.equal(await readFile(join(directory,adapter.EXPORT_PATH),'utf8'),bytes);
-    await assert.rejects(()=>adapter.deliver(directory),/approval/);
-  } finally {await rm(directory,{recursive:true,force:true,maxRetries:3,retryDelay:100});}
 });

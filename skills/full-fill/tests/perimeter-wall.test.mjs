@@ -55,3 +55,41 @@ test('2 mm closed walls emit five loops and no interior in full and ordinary pla
     }
   }
 });
+
+test('outer perimeter scope omits hole boundaries without changing the modeled hole', () => {
+  const mesh = pipeMesh({ innerRadiusMm: 6, outerRadiusMm: 12, heightMm: 0.2, toleranceMm: 0.01 });
+  const shell = makeMesh(mesh.vertices, mesh.triangles);
+  for (const skill of ['full-fill', 'planar-infill']) {
+    const plan = defaults();
+    plan.process.lineWidthMm = 0.4;
+    plan.skills[skill].perimeters = 2;
+    plan.skills[skill].perimeterScope = 'outer';
+    if (skill === 'planar-infill') plan.skills[skill].density = 0;
+    const results = skill === 'full-fill' ? [fullFillResult({ shell, plan })] : planarInfillResults({ shell, plan });
+    const walls = results.flatMap(result => result.operations).flatMap(operation => operation.strokes)
+      .filter(stroke => stroke.role.startsWith('perimeter'));
+    assert.equal(walls.length, 2, skill);
+    assert.ok(walls.every(stroke => stroke.points.every(([x, y]) => Math.hypot(x, y) > 10)), skill);
+  }
+});
+
+test('outer perimeter scope also omits material islands nested inside a hole', () => {
+  const outer=[[0,0],[20,0],[20,20],[0,20]],hole=[[3,3],[3,17],[17,17],[17,3]],island=[[7,7],[13,7],[13,13],[7,13]];
+  const shell={bounds:{min:[0,0,0],max:[20,20,0.2]}};
+  const plan=defaults();plan.process.lineWidthMm=0.4;plan.skills['full-fill'].perimeters=1;plan.skills['full-fill'].perimeterScope='outer';
+  const result=fullFillResult({shell,plan,sectionAt:()=>({loops:[outer,hole,island]})});
+  const walls=result.operations.flatMap(operation=>operation.strokes).filter(stroke=>stroke.role.startsWith('perimeter'));
+  assert.equal(walls.length,1);
+  assert.ok(walls[0].points.every(([x,y])=>x<2||x>18||y<2||y>18));
+});
+
+test('hole-only width keeps the exterior fat while metering recessed edges finely', () => {
+  const mesh=pipeMesh({innerRadiusMm:6,outerRadiusMm:12,heightMm:.6,toleranceMm:.01}),shell=makeMesh(mesh.vertices,mesh.triangles);
+  const plan=defaults(loadMachine('bambu-h2d'));Object.assign(plan.process,{firstLayerMm:.6,layerMm:.6,lineWidthMm:.8,experimentalDeposition:true});
+  Object.assign(plan.skills['full-fill'],{perimeters:1,holeLineWidthMm:.4});
+  const walls=fullFillResult({shell,plan,machine:loadMachine('bambu-h2d')}).operations.flatMap(op=>op.strokes).filter(stroke=>stroke.role==='perimeter');
+  assert.equal(walls.length,2);
+  const outer=walls.find(stroke=>stroke.points.every(([x,y])=>Math.hypot(x,y)>10)),inner=walls.find(stroke=>stroke!==outer);
+  assert.equal(outer.beadWidthMm,.8);assert.equal(inner.beadWidthMm,.4);
+  assert.ok(Math.abs(Math.hypot(...inner.points[0])-(6+.2))<.03,'fine hole centerline stays half its own bead from the recess');
+});

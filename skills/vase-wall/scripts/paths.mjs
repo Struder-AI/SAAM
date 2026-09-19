@@ -48,11 +48,13 @@ export function validateVasePattern(pattern,mode='continuous') {
   }
 }
 
-export function mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm,mappedPoint,mappingErrorMm=0,budgetSetting,sectionReport,onProgress}) {
-  const tiled=isTiledMotif(settings.pattern),pattern=tiled?tileVaseMotif(settings.pattern,settings.maxPoints,budgetSetting):settings.pattern;
+export function mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm,mappedPoint,mappingErrorMm=0,sectionReport,onProgress}) {
+  const tiled=isTiledMotif(settings.pattern),pattern=tiled?tileVaseMotif(settings.pattern):settings.pattern;
   const continuous=settings.pathMode==='continuous',role=continuous?'vase-wall':'segmented-path';
-  const level=settings.endTransition==='level',paths=[],maxPoints=settings.maxPoints;let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity,maximumBeadHeightMm=0;
-  const budget=()=>{throw new Error(`Vase mapped-pattern point budget exhausted for ${id}; increase ${budgetSetting} from ${maxPoints}. No complete pattern generated.`);};
+  // Every course is authored and finite, and each mapped interval subdivides
+  // until its tolerance is met or its midpoint stops being distinct from its
+  // ends, so the pattern takes the points its tolerances need.
+  const level=settings.endTransition==='level',paths=[];let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity,maximumBeadHeightMm=0;
   const emitPath=(vertices,heights,layer)=>{
     const at=(a,b,t)=>{
       const u=a[0]+(b[0]-a[0])*t,z=start+a[1]+(b[1]-a[1])*t;
@@ -60,15 +62,15 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
       return mappedPoint(u,z,(a[2]??0)+((b[2]??0)-(a[2]??0))*t);
     };
     const points=[at(vertices[0],vertices[0],0)],segmentHeights=[];
-    if(++count>maxPoints)budget();
-    const append=(a,b,ha,hb,pa,pb,depth=0)=>{
+    count++;
+    const append=(a,b,ha,hb,pa,pb)=>{
       const mid=a.map((v,k)=>(v+b[k])/2),pm=at(mid,mid,0);
       const error=Math.max(...[.25,.5,.75].map(t=>distance(t===.5?pm:at(a,b,t),pa.map((v,k)=>v+(pb[k]-v)*t))));
       if(distance(pa,pb)>settings.sampleStepMm||error>settings.toleranceMm/2-2*mappingErrorMm||Math.abs(a[1]-b[1])>settings.minFeatureMm/2) {
-        requireThat(depth<24,`Sleeve mapping cannot meet the requested contour tolerance near motif coordinates ${a.join(', ')} to ${b.join(', ')}.`);
-        append(a,mid,ha,(ha+hb)/2,pa,pm,depth+1);append(mid,b,(ha+hb)/2,hb,pm,pb,depth+1);return;
+        requireThat(mid.some((v,k)=>v!==a[k])&&mid.some((v,k)=>v!==b[k]),`Sleeve mapping cannot meet the requested contour tolerance near motif coordinates ${a.join(', ')} to ${b.join(', ')}: the subdivided midpoint is no longer distinct from its ends.`);
+        append(a,mid,ha,(ha+hb)/2,pa,pm);append(mid,b,(ha+hb)/2,hb,pm,pb);return;
       }
-      if(++count>maxPoints)budget();points.push(pb);
+      count++;points.push(pb);
       // Only the authored motif deposits; the guide supplies no material.
       const h=(ha+hb)/2;
       requireThat(level?h>=0:h>0,'Motif segments must deposit material.');
@@ -79,7 +81,6 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
       const a=vertices[i-1],b=vertices[i],ha=heights[i-1],hb=heights[i];
       // Bound angular progress before adaptive mapping; full turns must not alias.
       const pieces=Math.max(1,Math.ceil(Math.abs(b[0]-a[0])*16));
-      if(pieces>maxPoints-count)budget();
       for(let j=0;j<pieces;j++){
         const t0=j/pieces,t1=(j+1)/pieces,p=a.map((v,k)=>v+(b[k]-v)*t0),q=a.map((v,k)=>v+(b[k]-v)*t1);
         append(p,q,ha+(hb-ha)*t0,ha+(hb-ha)*t1,points.at(-1),at(q,q,0));
@@ -100,9 +101,9 @@ export function mappedPatternResult({settings,process,machine,id,after,base,star
   }
   return {id,...(level?{levelBoundary:{zMm:end,strokes:paths.slice(-pattern.paths.length),widthMm:process.lineWidthMm}}:{}),operations:[{id:id+':wall',layerId:id+':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,after,
     strokes:paths,order:'given',continuous,fanPercent:process.fanPercent,
-    travelPolicy:{maxCombMm:0,constantClearanceZ:maxZ+process.liftMm,clearanceFor:()=>maxZ+process.liftMm},clearanceZ:maxZ+process.liftMm}],
+    travelPolicy:{maxCombMm:0,constantClearanceZ:maxZ+process.liftMm,clearanceFor:()=>maxZ+process.liftMm}}],
     report:{mode:continuous?'continuous-sleeve-pattern':'segmented-sleeve-pattern',startMm:minZ,endMm:maxZ,baseTopMm:base,paths:paths.length,repeats:pattern.repeats,
       ...(tiled?{motifCellsPerTurn:settings.pattern.cellsPerTurn,motifPoints:settings.pattern.motif.points.length,tiltDeg:settings.pattern.tiltDeg}:{}),
-      points:count,maxPoints,...sectionReport(),endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,volumeMm3:paths.reduce((sum,s)=>sum+s.volumesMm3.reduce((a,b)=>a+b,0),0),
+      points:count,...sectionReport(),endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,volumeMm3:paths.reduce((sum,s)=>sum+s.volumesMm3.reduce((a,b)=>a+b,0),0),
       scope:'Repeated motifs mapped to actual inset sleeve sections. Only supplied motif strokes deposit, with nominal bead heights; arbitrary crossing contact and strength are not inferred.'}};
 }

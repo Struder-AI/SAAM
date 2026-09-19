@@ -104,6 +104,11 @@ test('page lifecycle opens independently, closes on pagehide and reconnects on h
   assert.equal(streams.length,1);assert.equal(streams[0].url,'/api/viewer?token=test-token');
   streams[0].events['agent-connection-closed']({data:JSON.stringify({ownerId:'test-owner'})});
   assert.equal(dispatched[0].type,'saam-agent-connection-closed');assert.equal(dispatched[0].detail.ownerId,'test-owner');
+  // The first open needs no revision check; a dropped or reopened stream does.
+  streams[0].events.open();assert.equal(dispatched.length,1);
+  streams[0].events.error();streams[0].events.open();
+  assert.deepEqual(dispatched.slice(1).map(event=>[event.type,event.detail.open]),[['saam-viewer-connection',false],['saam-viewer-connection',true]]);
   events.pagehide();assert.equal(streams[0].closed,true);
   events.pageshow({persisted:true});assert.equal(streams.length,2);
+  streams[1].events.open();assert.equal(dispatched.at(-1).detail.open,true,'a restored page checks what it missed');
 });

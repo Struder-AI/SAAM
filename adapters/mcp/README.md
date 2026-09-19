@@ -56,7 +56,8 @@ saved IDs; there is no single global plan that overwrites another job.
 | `list_prints`, `get_print` | `list_prints` discovers names and machines with `programChecked:false`; it does not validate exports. `get_print` reads checked status/recipe, omitting geometry and marking `planComplete:false` unless `includeGeometry:true` is supplied. Neither returns motion arrays. |
 | `begin_studio_work`, `respond_to_studio_request` | Start work with kind `edit` or `guidance`, supplying `studioInstanceId` when several Studios are open. After saving an edit, bind its result using status `working` and `resultStage` (`geometry`/`toolpath`); use `waiting` when paused for input. Complete after guidance or the displayed result. Overlapping work stays independent. |
 | `set_stl_units` | Correct a plain imported mesh to `mm` or `inch` with current `expectedRevision`; retains mesh edits/source bytes and invalidates final review. |
-| `wait_for_studio_request`, `get_studio_requests` | Receive live Studio requests with bounded event waits, or inspect durable recovery/history state. Optional `studioInstanceId` scopes a wait; `claim:true` marks returned requests working in the same call. Runs outside the print-work queue. This does not wake an ended or disconnected chat. |
+| `wait_for_studio_request`, `get_studio_requests` | Receive live Studio requests with bounded event waits, or inspect durable recovery/history state. Optional `studioInstanceId` scopes a wait; `claim:true` marks returned requests working in the same call. The wait also ends on a delivered Studio event and returns the drained `events`. Runs outside the print-work queue. This does not wake an ended or disconnected chat. |
+| `get_studio_events` | Read and clear the [Studio event queue](../../studio/README.md#studio-event-queue): what the person did in this agent's Studio instances, plus `generation` progress for any instance still calculating. Delivered events also arrive as `studioEvents` on every tool result and as `saam.studio` notifications. Optional `history` includes recently read events. |
 | `get_studio_sessions`, `close_studio_session` | List or close this agent's explicitly owned Studio instances. One agent may own several; no Studio instance is shared between agents. |
 | `get_tour` | Read tour progress and the next maker-agent chat instruction. Optional `after` cursor and `waitMs` wait for a change for up to 25 seconds. |
 | `set_tour_start_at` | Set explicit `{startAt:{layer:12}}` for the playback lesson; choose a layer with sparse infill. |
@@ -68,9 +69,8 @@ saved IDs; there is no single global plan that overwrites another job.
 | `check_print` | Revalidate native geometry, plan and any stored export; no generation. |
 | `check_path` | Check path feasibility through the shared generator without approvals or persisted artifacts; production export/review are still required. |
 | `remember_setup` | Save this print's setup as editable defaults for the next print, shared with the CLI. |
-| `upgrade_print` | Run the owning adapter's explicit migration for an old bundle, preserving delivered files and invalidating affected approvals. |
-| `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Supply `studioInstanceId` to rebind an existing owned instance, or `newInstance:true` to open another instance for the same bundle. |
-| `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk; `plan` remains a compatibility field for that combined confirmation. |
+| `request_review` | Start/reuse an exclusively owned Studio for this print and return its instance ID and loopback URL. Reuse is the default: the instance already showing the print, else the sole live instance, is rebound in the same browser tab. Supply `studioInstanceId` to choose among several owned instances, or `newInstance:true` to open another only when the person asks or for a compelling reason stated to them. |
+| `get_approval_status` | Read the hash-bound final settings/toolpath confirmation from disk as `toolpathApproved`, the only approval state print summaries report. |
 | `generate_print` | Generate and check the machine export from current geometry and complete settings, including during a tour; no development-mode bypass. |
 | `deliver_print` | Copy the exact current approved export into the print's delivery directory. |
 
@@ -109,7 +109,9 @@ use free loopback ports, and close 30 minutes after the last viewer tab
 disconnects (with a grace period for refresh), or when the owning stdio client
 disconnects. There is no deadline to open the first viewer.
 Repeated review requests use the print's preferred still-open server within this
-adapter; an explicit instance ID can rebind any other owned server. After it
+adapter; a print not yet shown rebinds the sole live server, so switching prints
+keeps one Studio and tab. With several live servers an explicit instance ID
+selects the one to rebind, and an unshown print otherwise opens another. After it
 closes, review starts a fresh instance from the saved bundle. Closing a
 viewer leaves the MCP connection and its other viewers running. Separate adapter
 processes never adopt each other's Studio sessions. One adapter may own several
@@ -139,8 +141,8 @@ parallel recipe schema. Use `includeGeometry:true` for a complete recipe and
 read the owning manuals before editing it. `check_path` reports operation order
 and feasibility without becoming a separate preview or approval route. STL
 import reads only the chosen source; it writes the new bundle inside the configured
-Prints root. `upgrade_print` remains available when current-version validation
-prevents normal reopening; it does not silently migrate on read.
+Prints root. A bundle that fails current-version validation is recreated from its
+skills; nothing migrates it, silently or explicitly.
 
 Thingi10K tools additionally read a pinned public mirror over HTTPS and cache its
 metadata/downloads under the configured Prints root's `.thingi10k/` folder. They

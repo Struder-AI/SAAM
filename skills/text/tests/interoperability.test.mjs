@@ -37,10 +37,10 @@ test('material selections preserve geometry identity when the printing plan swit
   state=await loadBundle(dir,{program:false});const geometryHash=state.geometryHash;
   const regions=[region('body','base',{'full-fill':{}}),region('label','text/label',{'full-fill':{}},'body')];
   state=await adjustBundle(dir,{composition:{regions}},{expectedRevision:state.revision});
-  assert.equal(state.geometryHash,geometryHash);assert.equal(state.geometryApproved,false);
+  assert.equal(state.geometryHash,geometryHash);assert.equal(state.toolpathApproved,false);
   regions[1].skills={'draped-skin':{layers:4,normalMm:0.2,surveyStepMm:0.1}};
   state=await adjustBundle(dir,{composition:{regions}},{expectedRevision:state.revision});
-  assert.equal(state.geometryHash,geometryHash);assert.equal(state.geometryApproved,false);
+  assert.equal(state.geometryHash,geometryHash);assert.equal(state.toolpathApproved,false);
   const path=generatePath(state.plan,machine,r);
   assert.ok(path.actions.some(a=>a.region==='label'&&a.phase==='draped-skin'&&a.volumeMm3>0));
   const overlap=structuredClone(state.plan);overlap.composition.regions[0].part=null;
@@ -92,16 +92,15 @@ test('standalone text retains a native top reference through edits without print
   await assert.rejects(applyText(dir,{remove:'label'}),/last standalone text/);
 });
 
-test('older text records remain readable and whole-solid planar consumers retain side-letter geometry',async()=>{
+test('whole-solid planar consumers retain side-letter geometry and a partition-less record is rejected',async()=>{
   const side={kind:'plane',origin:[0,0,0],xAxis:[1,0,0],yAxis:[0,0,1]};
   const guide={...base,heightMm:10},geometry=await compile(guide,[f({text:'O',sizeMm:6,positionMm:[5,2],reference:side})]);
   const plan=defaults();plan.geometry=geometry;plan.skills['draped-skin'].enabled=false;
   plan.process.minimumLayerSeconds=0;
   const path=generatePath(plan,machine,r);
   assert.ok(path.actions.some(a=>a.volumeMm3>0&&a.to[1]<plan.placement.yMm-0.1),'planar wall follows side lettering');
-  const legacy=structuredClone(geometry);delete legacy.materialParts;legacy.compiledHash=textDigest(legacy);
-  plan.geometry=legacy;validatePlan(plan,machine);
-  assert.deepEqual([...geometrySelections(legacy).keys()],[null]);
+  const stripped=structuredClone(geometry);delete stripped.materialParts;stripped.compiledHash=textDigest(stripped);
+  plan.geometry=stripped;assert.throws(()=>validatePlan(plan,machine),/Unexpected or missing fields in plan.geometry/);
 });
 
 test('selected text bases preserve heat-set reinforcement while standalone reference bodies contribute none',async()=>{

@@ -38,14 +38,13 @@ function radius(a,b,t,theta){
   const value=(p[0]*dy-p[1]*dx)/(Math.cos(query)*dy-Math.sin(query)*dx);
   requireThat(Number.isFinite(value)&&value>0,'Prepared contact profile lost a positive radial intersection.');return value;
 }
-export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepMm=.4,side='inside',toleranceMm=.1,samples=16384,maxProfiles=100000,maxSourceDistanceQueries=4000000,distanceToSourceWithin=null,onProgress=null}){
+export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepMm=.4,side='inside',toleranceMm=.1,samples=16384,distanceToSourceWithin=null,onProgress=null}){
   requireThat([startMm,endMm,stepMm,toleranceMm].every(Number.isFinite)&&endMm>startMm&&stepMm>0&&toleranceMm>0&&['inside','outside'].includes(side),
     'Contact preparation needs a positive interval, step, tolerance and inside/outside side.');
-  requireThat([maxProfiles,maxSourceDistanceQueries].every(v=>Number.isSafeInteger(v)&&v>0),'Contact preparation budgets must be positive safe integers.');
   const frameBudget=toleranceMm*.95,slabs=new Map(),frames=new Map();
   const report={contactProfiles:0,contactIntervals:0,contactSamples:0,compressedSamples:0,maxCompressionMm:0,maxDetailCorrespondenceMm:0,
     minimumProfileInterpolationTargetMm:toleranceMm*.05,maxProfileInterpolationTargetMm:0,maxSampledProfileCombinedErrorMm:0,detailToleranceMm:toleranceMm,contactSamplesPerProfile:samples,logRadiusSlopeTarget:256,maxSourceChordLogRadiusSlope:0,maxDepth:0,
-    meshTransitionIntervals:0,sourceDistanceQueries:0,maxSourceDistanceQueries,maxSampledSourceDistanceMm:0,
+    meshTransitionIntervals:0,sourceDistanceQueries:0,maxSampledSourceDistanceMm:0,
     strategy:'continuous-polar-profiles with sampled 3D-validated radial transitions at ledges'};
   function meshTransition(a,b,fa,fb){
     if(!distanceToSourceWithin||b-a>toleranceMm/2)return false;
@@ -56,7 +55,6 @@ export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepM
         return [c[0]+r*Math.cos(theta),c[1]+r*Math.sin(theta),z];
       };
       const validate=(lo,hi,p,q,depth=0)=>{
-        requireThat(report.sourceDistanceQueries<maxSourceDistanceQueries,'Contact mesh-distance query budget exhausted; increase maxSourceDistanceQueries. No complete contact mapping was generated.');
         const mid=(lo+hi)/2,m=at(mid),d=distanceToSourceWithin(m,toleranceMm);report.sourceDistanceQueries++;
         if(report.sourceDistanceQueries%32768===0)onProgress?.({stage:'Checking mesh contact transitions',completed:report.sourceDistanceQueries,zMm:z});
         if(!Number.isFinite(d))return false;
@@ -75,7 +73,6 @@ export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepM
   }
   function frame(z){
     if(frames.has(z))return frames.get(z);
-    requireThat(report.contactProfiles<maxProfiles,'Contact profile budget exhausted; no complete contact mapping was prepared.');
     const c=anchorAt(z);let result;
     try{result=regularizeDirectionalContour(curveAt(z),c,{toleranceMm:frameBudget,samples});}
     catch(error){throw new Error(`Contact profile at Z ${z} mm: ${error.message}`);}
@@ -105,8 +102,11 @@ export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepM
     let node=slabs.get(index);
     if(!node){const a=startMm+index*stepMm;node=interval(a,Math.min(endMm,a+stepMm));if(slabs.size>=4)slabs.delete(slabs.keys().next().value);slabs.set(index,node);}
     while(!node.good){
-      requireThat(node.depth<16,`Contact cannot meet its sampled profile interpolation tolerance in Z ${node.a} to ${node.b}; no complete mapping was generated.`);
       const mid=(node.a+node.b)/2;
+      // Halving the slab brings the two profiles together, so the interval stops
+      // only when Z itself can no longer be halved: the source steps there and
+      // no mesh transition confirms the ledge.
+      requireThat(mid>node.a&&mid<node.b,`Contact cannot meet its sampled profile interpolation tolerance in Z ${node.a} to ${node.b}; the source steps within one representable height there.`);
       if(z<=mid)node=node.left??=interval(node.a,mid,node.fa,frame(mid),node.depth+1);
       else node=node.right??=interval(mid,node.b,frame(mid),node.fb,node.depth+1);
     }

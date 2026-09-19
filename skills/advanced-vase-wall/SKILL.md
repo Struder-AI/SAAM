@@ -86,7 +86,10 @@ trimmed CAD faces and open uncapped mesh surfaces are unsupported.
 | `pathMode` | `continuous` requires connected deposition; `segmented` permits explicit travel between authored gaps. |
 | `sampleStepMm`, `toleranceMm` | Emitted segment and contour subdivision limits. |
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
-| `maxPoints` | Bounded section, mapping and path construction allowance. Exhaustion fails with no partial wall. |
+
+Section, mapping and path construction take the points the authored pattern and
+tolerances require; there is no construction budget to exhaust. Memory scales
+with the emitted program and is bounded only by the Node heap.
 
 `meshSleeve` enables a smooth periodic cubic fit over changing-Z mesh sections:
 `fidelity` is continuous from 0 to 1, `contactSide` is `inside` or `outside`,
@@ -210,9 +213,9 @@ more expensive or reject folds that a looser allowance accepts. Fidelity 0
 isolates smooth mapping cost; a middle fidelity with a coarser explicit detail
 tolerance is a useful preview choice. Final path chord tolerance remains separate.
 
-Use Studio's generation progress and reports before changing quality or budgets.
-Changing a tolerance changes the numerical allowance; a larger `maxPoints`
-only increases construction capacity. Neither permits silently trimming a wall.
+Use Studio's generation progress and reports before changing quality settings.
+Changing a tolerance changes the numerical allowance and the point count that
+follows from it. Nothing permits silently trimming a wall.
 Reuse current checked output through the shared lifecycle instead of generating
 duplicate jobs. [Prepared contact](../../core/geom/README.md#prepared-mesh-contact)
 owns the numerical limits; [the devlog](../../DEVLOG.md) holds measured examples.

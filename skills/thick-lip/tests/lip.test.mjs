@@ -70,13 +70,19 @@ test('a rim finish requires a level-ended vase-wall directly below it, cannot sh
   assert.throws(()=>generatePath(nonRegional,machine,r),/only applies through composition.regions/);
 });
 
-test('thick-lip steps validate their bounds',()=>{
+test('thick-lip steps validate their bounds',async()=>{
   const machine=loadMachine(),plan=wallAndLip();
   const empty=wallAndLip();empty.composition.regions[1].skills['thick-lip']={steps:[]};
   assert.throws(()=>validatePlan(empty,machine),/Lip steps/);
   const tooMany=wallAndLip();tooMany.composition.regions[1].skills['thick-lip']={steps:Array(51).fill(1)};
   assert.throws(()=>validatePlan(tooMany,machine),/Lip steps/);
-  const outOfRange=wallAndLip();outOfRange.composition.regions[1].skills['thick-lip']={steps:[21]};
+  const outOfRange=wallAndLip();outOfRange.composition.regions[1].skills['thick-lip']={steps:[0]};
   assert.throws(()=>validatePlan(outOfRange,machine),/Lip steps/);
   validatePlan(plan,machine); // default [2] is valid
+  // More than about eight perimeters is only advice; a request for more prints.
+  const many=wallAndLip([24]);
+  validatePlan(many,machine);
+  const r=await rhino();
+  const lipMoves=generatePath(many,machine,r).actions.filter(a=>a.volumeMm3>0&&a.role?.startsWith('lip-step-'));
+  assert.ok(lipMoves.length>0);
 });

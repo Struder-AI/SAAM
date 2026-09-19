@@ -34,6 +34,10 @@ Read it with `node scripts/agent-toolkit.mjs read-map 7_studio --section studio`
 
 [Read this section](../maps/reference/studio.md#agent-request-coordination).
 
+## Studio event queue
+
+[Read this section](../maps/reference/studio.md#studio-event-queue).
+
 ## Importing an STL in Studio
 
 [Read this section](../maps/reference/studio.md#importing-an-stl-in-studio).

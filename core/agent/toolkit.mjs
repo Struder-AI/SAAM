@@ -97,8 +97,7 @@ function printSummary(state, {includeGeometry = false, programChecked = true} = 
     plan, planComplete: includeGeometry,
     geometry: {boundsMm: state.geometry?.boundsMm, nativeFile: state.geometry?.nativeFile},
     machine: {id: state.machine.id, name: state.machine.name}, skills: state.skills,
-    approvals: {geometry: state.geometryApproved, settings: state.planApproved,
-      toolpath: programChecked ? state.toolpathApproved : null},
+    toolpathApproved: programChecked ? state.toolpathApproved : null,
     generation: {record: state.review.generation, programChecked,
       current: programChecked ? Boolean(state.program) && !state.programError : null,
       programError: state.programError ?? null, summary: state.program?.summary ?? null},
@@ -118,21 +117,87 @@ export class ToolkitError extends Error {
   }
 }
 
-// The caller owns this live server. No detached process or global session registry.
-export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
-  units = 'auto', startAtLayer = 12, noOpen = false, onReady = () => {},onRequest=()=>{}}) {
-  if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
+// Resolve or create the print a preview command names; shared by a fresh launch
+// and a switch of the print shown in an already-owned Studio.
+async function preparePrint({command, target, libraryRoot, recipe, stl, machine, units, partial}) {
+  if (command === 'create-preview') {
+    partial.directory = resolve(target);
+    relativePrint(libraryRoot, partial.directory);
+    // Custom libraries also isolate remembered machine defaults, as MCP does.
+    const setupFile = libraryRoot === resolve(root, 'Prints') ? undefined
+      : resolve(libraryRoot, '.machine-setups', `${machine ?? 'ultimaker-s5'}.json`);
+    const options = {machineId: machine, setupFile};
+    if (stl) {
+      const {importSTLBundle} = await import('../print/import-stl.mjs');
+      await importSTLBundle(partial.directory, resolve(stl), {...options, units});
+    } else {
+      const adapter = await import('../print/bundle.mjs');
+      await adapter.initBundle(partial.directory, recipe ? await json(resolve(recipe)) : undefined, options);
+    }
+    partial.created = true;
+    partial.assumptions = {recipe: recipe ? resolve(recipe) : null, sourceSTL: stl ? resolve(stl) : null,
+      setup: recipe ? 'Supplied recipe' : 'Compatible remembered setup, otherwise machine defaults'};
+  } else {
+    const {printDirectory} = await import('../../studio/server.mjs');
+    partial.directory = await printDirectory(resolve(target));
+  }
+}
+function validatePreview({command, target, recipe, stl, kind, units}) {
   if (kind !== 'shell') throw Error('Only shell/mesh prints are supported.');
   if (recipe && stl) throw Error('Choose either --recipe or --stl.');
   if (!['auto', 'mm', 'inch'].includes(units)) throw Error('Units must be auto, mm or inch.');
+  if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
+}
+const reuseGuidance = studio => ({default: 'Reuse this Studio and its browser tab to show another print; launch another instance only when the person asks, or for a compelling reason you state to them.',
+  command: `node scripts/agent-toolkit.mjs open-print|create-preview DIRECTORY --studio ${studio.url} --agent-owner ${studio.agentOwnerId}`,
+  live: 'This managed session also accepts {"command":"open-print"|"create-preview","target":DIRECTORY} on stdin.'});
+
+// Show another print in an already-owned Studio: `open` is the live server's
+// serialized openPrint, or absent to reach the Studio URL from another process.
+export async function showPrint({command, target, library, recipe, stl, kind = 'shell', machine, units = 'auto', studio, ownerId, open}) {
+  if (!['open-print', 'create-preview'].includes(command)) throw Error('Only open-print and create-preview reuse a Studio.');
+  validatePreview({command, target, recipe, stl, kind, units});
+  if (!open && !studio) throw Error('Supply the Studio URL from studio-ready.');
+  if (!open && !ownerId) throw Error('Supply the agent owner ID (agentOwnerId from studio-ready) with --agent-owner.');
+  const partial = {command};
+  let stage = 'prepare';
+  try {
+    await preparePrint({command, target, libraryRoot: libraryPath(library), recipe, stl, machine, units, partial});
+    stage = 'open-in-studio';
+    if (open) partial.studio = {...await open(partial.directory), reused: true};
+    else {
+      const response = await fetch(new URL('/api/agent-open', studio), {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({owner: ownerId, path: partial.directory})}), body = await response.json();
+      if (!response.ok) throw Error(body.error ?? 'Studio refused to open the print.');
+      partial.studio = {url: new URL(studio).origin, instanceId: body.instanceId, agentOwnerId: body.ownerId, directory: body.directory, reused: true};
+    }
+    stage = 'context';
+    if (stl) partial.assumptions.units = (await readPrint(partial.directory, {includeGeometry: true, programChecked: false})).plan.geometry.source;
+    partial.print = await readPrint(partial.directory);
+    return partial;
+  } catch (error) {throw new ToolkitError(stage, error, partial);}
+}
+
+// The caller owns this live server. No detached process or global session registry.
+export async function preview({command, target, library, recipe, stl, kind = 'shell', machine,
+  units = 'auto', startAtLayer = 12, noOpen = false, ownerId: resumeOwner, onReady = () => {},onRequest=()=>{},onEvents=()=>{}}) {
+  if (!['start-tour', 'open-print', 'create-preview'].includes(command)) throw Error('Unknown preview command.');
+  validatePreview({command, target, recipe, stl, kind, units});
   if (!Number.isInteger(startAtLayer) || startAtLayer < 1) throw Error('Start layer must be a positive integer.');
   if (command !== 'start-tour' && !target) throw Error('Supply a print directory.');
-  const libraryRoot = libraryPath(library), partial = {command},ownerId=randomUUID();
+  // A relaunch may resume the agent owner it reports in studio-ready, so the
+  // requests and events of the previous run stay visible to the same agent.
+  // It always mints a fresh instance; it never attaches to a running server.
+  if(resumeOwner!==undefined&&!/^[A-Za-z0-9_-]{8,200}$/.test(resumeOwner))
+    throw Error('--agent-owner must be the agentOwnerId reported by an earlier studio-ready line.');
+  const libraryRoot = libraryPath(library), partial = {command},ownerId=resumeOwner??randomUUID();
   const {createAgentRequests}=await import('../../studio/agent-requests.mjs');
-  const agentRequests=createAgentRequests(libraryRoot,{ownerId});
-  let stage = 'prepare', server,stopRequests=()=>{};
+  const {createStudioEvents}=await import('../../studio/studio-events.mjs');
+  const studioEvents=createStudioEvents();
+  const agentRequests=createAgentRequests(libraryRoot,{ownerId,events:studioEvents});
+  let stage = 'prepare', server,stopRequests=()=>{},stopEvents=()=>{};
   try {
-    const {bundleFor, createStudio, printDirectory} = await import('../../studio/server.mjs');
+    const {bundleFor, createStudio} = await import('../../studio/server.mjs');
     const {createTour} = await import('../../studio/tour.mjs');
     const tour = createTour(libraryRoot,{ownerId,agentRequests});
     if (command === 'start-tour') {
@@ -140,36 +205,21 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
       partial.directory = fresh.directory;
       partial.created = true;
       await tour.setStartAt({layer: startAtLayer});
-    } else if (command === 'create-preview') {
-      partial.directory = resolve(target);
-      relativePrint(libraryRoot, partial.directory);
-      // Custom libraries also isolate remembered machine defaults, as MCP does.
-      const setupFile = libraryRoot === resolve(root, 'Prints') ? undefined
-        : resolve(libraryRoot, '.machine-setups', `${machine ?? 'ultimaker-s5'}.json`);
-      const options = {machineId: machine, setupFile};
-      if (stl) {
-        const {importSTLBundle} = await import('../print/import-stl.mjs');
-        await importSTLBundle(partial.directory, resolve(stl), {...options, units});
-      } else {
-        const adapter = await import('../print/bundle.mjs');
-        await adapter.initBundle(partial.directory, recipe ? await json(resolve(recipe)) : undefined, options);
-      }
-      partial.created = true;
-      partial.assumptions = {recipe: recipe ? resolve(recipe) : null, sourceSTL: stl ? resolve(stl) : null,
-        setup: recipe ? 'Supplied recipe' : 'Compatible remembered setup, otherwise machine defaults'};
-    } else partial.directory = await printDirectory(resolve(target));
+    } else await preparePrint({command, target, libraryRoot, recipe, stl, machine, units, partial});
     stage = 'read-print';
     // First-screen startup needs geometry, never slicing or program interpretation.
     const initial = await (await bundleFor(partial.directory)).loadBundle(partial.directory, {program: false});
     partial.print = printSummary(initial, {programChecked: false});
     if (stl) partial.assumptions.units = initial.plan.geometry.source;
     stage = 'launch-studio';
-    server = createStudio(partial.directory, {libraryRoot,agentOwnerId:ownerId,agentRequests,closeAgentRequests:true});
+    server = createStudio(partial.directory, {libraryRoot,agentOwnerId:ownerId,agentRequests,closeAgentRequests:true,studioEvents});
     const session=server.agentSession();
     stopRequests=agentRequests.subscribe(request=>{
       if(request.source==='studio'&&request.studioInstanceId===session.instanceId)onRequest({studio:server.agentSession(),request});
     });
     server.once('close',stopRequests);
+    stopEvents=studioEvents.subscribe(events=>onEvents({studio:server.agentSession(),events}));
+    server.once('close',()=>{stopEvents();studioEvents.close();});
     await new Promise((done, reject) => {
       const failed = error => reject(error);
       server.once('error', failed);
@@ -177,6 +227,7 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
     });
     partial.studio = {url: `http://127.0.0.1:${server.address().port}`, pid: process.pid,
       directory: partial.directory,instanceId:session.instanceId,agentOwnerId:ownerId,browserOpenRequested: false};
+    partial.reuse = reuseGuidance(partial.studio);
     onReady({event: 'studio-ready', command, studio: {...partial.studio},
       nextStep: 'Open studio.url now with the client browser integration. Keep this managed command session alive; consume the result context after the viewer is open.'});
     stage = 'open-browser';
@@ -185,21 +236,22 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
       partial.studio.browserOpenRequested = await openBrowser(partial.studio.url);
     }
     stage = 'context';
+    partial.listener = {mode:'live',event:'studio-request',events:'studio-events',studioInstanceId:session.instanceId,agentOwnerId:ownerId,
+      control:'Send newline-delimited JSON commands to this managed session stdin: read-studio-events returns and clears queued Studio events with calculation progress; wait-for-studio-request waits on requests and delivered events.',
+      command:'wait-for-studio-request',library:libraryRoot,after:[],claim:true,waitMs:25000,
+      fallback:{command:'wait-for-studio-request',studio:partial.studio.url,agentOwner:ownerId,library:libraryRoot,after:[],claim:true,waitMs:25000,
+        read:{command:'read-studio-events',studio:partial.studio.url,agentOwner:ownerId}}};
     if (command === 'start-tour') {
       partial.tour = await tour.info();
-      partial.listener = {mode:'live',event:'studio-request',studioInstanceId:session.instanceId,
-        control:'Send newline-delimited JSON commands to this managed session stdin.',
-        command:'wait-for-studio-request',library:libraryRoot,after:[],claim:true,waitMs:25000,
-        fallback:{command:'wait-for-studio-request',library:libraryRoot,after:[],claim:true,waitMs:25000}};
       partial.context = await contextPacket(['MAKERS.md', 'examples/prints/README.md#maker-agent-participation']);
       partial.nextStep = 'Use the returned participation context directly; no maker-onboarding or repeated manual reads are needed. Keep the returned listener active, let Studio lead lesson one, and choose individual skill reads when an edit needs them.';
     } else {
       partial.print = await readPrint(partial.directory);
     }
-    return {result: partial, server,agent:{requests:agentRequests,ownerId,session:server.agentSession}};
+    return {result: partial, server,agent:{requests:agentRequests,events:studioEvents,ownerId,session:server.agentSession}};
   } catch (error) {
     if (server) await server.shutdown();
-    else agentRequests.close();
+    else {agentRequests.close();studioEvents.close();}
     if (partial.studio) partial.studio.closed = true;
     throw new ToolkitError(stage, error, partial);
   }
@@ -242,10 +294,36 @@ export async function beginWork({target, library, instruction, requestId, includ
   }
 }
 
-export async function waitForRequests({library, after = [], waitMs = 25000, claim = false,requests:providedRequests,studioInstanceId,ownerId}) {
+// A live Studio URL serves the owning agent's event queue across processes; the
+// JSON journal alone carries neither Studio events nor calculation progress.
+async function pollStudio({studio,ownerId,waitMs=0,instance,after=[],history=false}){
+  if(!studio)throw Error('Supply the Studio URL from studio-ready.');
+  if(!ownerId)throw Error('Supply the agent owner ID (agentOwnerId from studio-ready) with --agent-owner.');
+  const params=new URLSearchParams({owner:ownerId,wait:String(Math.min(25000,Math.max(0,waitMs)))});
+  if(instance)params.set('instance',instance);if(after.length)params.set('after',after.join(','));if(history)params.set('history','1');
+  const response=await fetch(new URL('/api/agent-events?'+params,studio)),body=await response.json();
+  if(!response.ok)throw Error(body.error??'Studio refused the event read.');
+  return body;
+}
+export async function waitForRequests({library, after = [], waitMs = 25000, claim = false,requests:providedRequests,studioInstanceId,ownerId,studio,server}) {
   const {createAgentRequests} = await import('../../studio/agent-requests.mjs');
-  const result = await (providedRequests??createAgentRequests(libraryPath(library),{ownerId})).wait({after, waitMs, claim,studioInstanceId});
+  let result;
+  if(studio&&!providedRequests){
+    const polled=await pollStudio({studio,ownerId,waitMs,instance:studioInstanceId,after});
+    const queued=polled.requests.filter(request=>!after.includes(request.id));
+    const store=claim&&queued.length?createAgentRequests(libraryPath(library),{ownerId}):null;
+    result={requests:store?await Promise.all(queued.map(request=>store.update(request.id,{status:'working'}))):queued,events:polled.events,generation:polled.generation};
+  } else {
+    result = await (providedRequests??createAgentRequests(libraryPath(library),{ownerId})).wait({after, waitMs, claim,studioInstanceId});
+    if(server)result.generation=[server.generationStatus()].filter(Boolean);
+  }
   return {...result, after: [...new Set([...after, ...result.requests.map(request => request.id)])]};
+}
+
+export async function readStudioEvents({studio,ownerId,waitMs=0,history=false,events,server}){
+  if(events)return {events:events.drain(),generation:server?[server.generationStatus()].filter(Boolean):[],...(history?{recent:events.history()}:{})};
+  const polled=await pollStudio({studio,ownerId,waitMs,history});
+  return {events:polled.events,generation:polled.generation,...(history?{recent:polled.recent}:{})};
 }
 
 export async function respondToRequest({library, requestId, status = 'completed', message = '', resultStage,requests:providedRequests,studioInstanceId,ownerId}) {

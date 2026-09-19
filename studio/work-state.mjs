@@ -4,15 +4,12 @@ const edits=request=>!['guidance','advisory'].includes(request.kind);
 function matchesReceipt(request,snapshot){
   if(!request?.baseline||!snapshot)return false;
   if(request.studioInstanceId&&snapshot.studioInstanceId&&request.studioInstanceId!==snapshot.studioInstanceId)return false;
-  if(request.target)return request.target.inputKey===snapshot.inputKey
+  // An edit is delivered only by drawing its published target. A settings change
+  // cannot be delivered by drawing unchanged geometry.
+  if(!request.target)return false;
+  return request.target.inputKey===snapshot.inputKey
     &&(request.target.stage==='geometry'||snapshot.stage==='toolpath')
     &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.generationKey!==snapshot.generationKey);
-  if(request.requiresTarget)return false;
-  // Compatibility for old single-request records. A settings change cannot be
-  // delivered by drawing unchanged geometry. New edits always publish a target.
-  return request.baseline.inputKey!==snapshot.inputKey
-    &&(snapshot.stage==='toolpath'||request.baseline.geometryKey&&snapshot.geometryKey
-      &&request.baseline.geometryKey!==snapshot.geometryKey);
 }
 
 export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set(),view,state,stage,requiresToolpath=false}={}){
@@ -48,6 +45,20 @@ export function requestReceiptState(request,{now=Date.now(),closedOwners=new Set
 export function hasUnpreparedEdit(requests=[],snapshot){
   return requests.some(request=>requestReceiptState(request).activity==='working'
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
+}
+
+// Which pane the active work is regenerating, so only that pane dims: 'toolpath'
+// when every active edit and any load target the toolpath, 'all' when something
+// broader (a geometry edit, a full reload) is in flight, or null when idle. A
+// toolpath-only result lets the geometry pane stay crisp while it computes.
+export function activeEditStage(requests=[],{now=Date.now(),closedOwners=new Set(),view}={}){
+  const records=requests.filter(r=>edits(r)&&(!view?.printId||r.printId===view.printId));
+  const context={now,closedOwners,view};
+  const working=records.filter(r=>requestReceiptState(r,context).activity==='working');
+  const loadingScope=view?.loading?(view.loadingStage??'all'):null;
+  const requestScope=working.length?(working.every(r=>r.target?.stage==='toolpath')?'toolpath':'all'):null;
+  if(loadingScope&&requestScope)return loadingScope==='toolpath'&&requestScope==='toolpath'?'toolpath':'all';
+  return loadingScope??requestScope??null;
 }
 
 export function agentIndicator(requests,{now=Date.now(),closedOwners=new Set(),view}={}){

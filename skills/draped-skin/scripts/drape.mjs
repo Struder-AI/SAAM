@@ -120,7 +120,9 @@ export function surveySurface(shell, { layers, normalMm, surveyStepMm }, maxAngl
 function extrapolate(values, sentinel) {
   const filled = values.map(column => Float64Array.from(column));
   const isSentinel = value => Math.abs(value) >= sentinel;
-  for (let pass = 0; pass < 4096; pass++) {
+  // The fill front ends on its own criterion: every sentinel filled, or a pass
+  // that changed nothing because no sentinel touches a known value.
+  for (;;) {
     let remaining = 0, changed = 0;
     const next = filled.map(column => Float64Array.from(column));
     for (let i = 0; i < filled.length; i++)
@@ -211,7 +213,7 @@ export function drapedSkinResult({ shell, plan, machine, survey, id = 'draped-sk
     }
     const operationId=id+':'+(skin-1);
     operations.push({id:operationId,layerId:id+':'+(skin-1),phase:'draped-skin',layer:skin-1,
-      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,order:'nearest-cells',travelPolicy:policy,clearanceZ:shell.bounds.max[2]+process.liftMm});
+      rank:shell.bounds.max[2]+skin,after:previous,strokes:deposition,order:'nearest-cells',travelPolicy:policy});
     previous=[operationId];
   }
   return {id,operations,report};

@@ -11,8 +11,8 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   for (const operation of operations) {
     requireThat(typeof operation.id === 'string' && operation.id && !byId.has(operation.id), 'Duplicate or missing operation id.');
     requireThat(typeof operation.layerId === 'string' && operation.layerId && Number.isFinite(operation.rank), 'Operation needs a layer reference and finite scheduling rank.');
-    requireThat(Array.isArray(operation.strokes) && operation.travelPolicy && typeof operation.travelPolicy.clearanceFor==='function'
-      && Number.isFinite(operation.clearanceZ), 'Operation needs strokes and a travel policy.');
+    requireThat(Array.isArray(operation.strokes) && operation.travelPolicy && typeof operation.travelPolicy.clearanceFor==='function',
+      'Operation needs strokes and a travel policy.');
     requireThat(operation.order!=='nearest'||operation.strokes.every(s=>s.closed&&Number.isFinite(s.beadAreaMm2)&&!s.volumesMm3&&!s.poses),
       'Nearest ordering requires closed strokes with a uniform bead area.');
     requireThat(operation.order!=='nearest-cells'||(!operation.continuous&&operation.strokes.every(s=>s.scanlineCell!==undefined&&!s.closed&&!s.poses)),
@@ -126,5 +126,5 @@ export function composeResults(builder, results, rules = {}, onProgress) {
     onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
   }
   builder.operationId = undefined;
-  return { operationOrder: operations.map(op => op.id), layers: remaining.size,clearanceZ:builder.clearanceZ() };
+  return { operationOrder: operations.map(op => op.id), layers: remaining.size };
 }

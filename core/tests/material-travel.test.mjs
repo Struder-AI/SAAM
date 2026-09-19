@@ -53,9 +53,9 @@ test('surface chord sag does not excuse crossing another deposit',()=>{
   const builder=new PathBuilder({start:[4,6,1.005],machine,process,generatorVersion:'test'});
   const stroke=points=>({points,beadAreaMm2:0.08,speedMmS:10});
   composeResults(builder,[{operations:[
-    {id:'ridge',layerId:'ridge',phase:'test',layer:0,rank:0,clearanceZ:2.005,
+    {id:'ridge',layerId:'ridge',phase:'test',layer:0,rank:0,
       travelPolicy:flat([box(4,0,8,12)],1.005),strokes:[stroke([[4,6,1.005],[8,6,1.005]])]},
-    {id:'surface',after:['ridge'],layerId:'surface',phase:'test',layer:0,rank:1,clearanceZ:2,
+    {id:'surface',after:['ridge'],layerId:'surface',phase:'test',layer:0,rank:1,
       travelPolicy:curved([box(0,0,12,12)],()=>1),strokes:[stroke([[2,6,1],[3,6,1]]),stroke([[9,6,1],[10,6,1]])]}
   ]}]);
   assert.ok(!builder.actions.some(a=>a.operation==='surface'&&a.travel==='combed'),'composition cannot transfer destination sag to a prior obstacle');
@@ -109,7 +109,7 @@ test('each detour edge checks earlier deposits and invalid surfaces, with hop fa
 
 test('composition permits local curved connections after a remote high planar region, retaining legacy blockers',()=>{
   const machine=loadMachine(),process=defaults(machine).process;process.minimumLayerSeconds=0;
-  const make=(id,policy,points,after=[])=>({id,rank:0,phase:'test',layer:0,layerId:id,after,clearanceZ:10,travelPolicy:policy,
+  const make=(id,policy,points,after=[])=>({id,rank:0,phase:'test',layer:0,layerId:id,after,travelPolicy:policy,
     strokes:points.map(points=>({points,speedMmS:10,beadAreaMm2:0.08}))});
   const high=make('high',flat([box(20,20,24,24)],8),[[[21,21,8],[22,21,8]]]);
   const low=make('surface',curved([box(0,0,12,12)]),[[[2,2,1.24],[3,2,1.34]],[[3,2.5,1.35],[2,2.5,1.25]]],['high']);

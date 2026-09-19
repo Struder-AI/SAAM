@@ -33,9 +33,8 @@ coordinate, not universally Z: planar fill uses layer height. Operations also
 provide strokes (3D points, speed, role, and either uniform bead area or per-segment
 volume/metadata) and travel-policy queries. Local `material` queries constrain
 combing against completed operations; policies without them retain their
-conservative `clearanceFor` comparison. Legacy operation `clearanceZ`
-metadata does not set lifted travel or cooling height. An operation is
-atomic; expose smaller operations when within-layer interleaving is permitted.
+conservative `clearanceFor` comparison. An operation is atomic; expose smaller
+operations when within-layer interleaving is permitted.
 These runtime results are not separate machine files or a persisted preview
 format. Travel policies may contain geometry-query callbacks.
 
@@ -95,7 +94,9 @@ Future skills use the same operation/dependency boundary; do not add a new
 composer for each skill pair.
 
 [Vase-wall](../../skills/vase-wall/SKILL.md) is one atomic continuous operation with
-actual changing-Z section queries. It accepts one outer section, including
+actual changing-Z section queries; a standard mesh wall may instead follow a
+fitted NURBS sleeve within its sampled `sleeveToleranceMm`, returning to exact
+sections when the fit or wall thickness does not qualify. It accepts one outer section, including
 concavity, while its inset remains one loop without holes or islands. Arc-length
 traversal uses a fixed projected seam rather than a common interior point; mesh and restricted spline
 backends remain behind the shared queries. Its locked `endTransition` can leave
@@ -103,7 +104,8 @@ a spiral rim or complete a level rim with a final turn whose material thickness
 tapers to zero. A planar successor needs that level boundary. The continuous
 stroke cannot weave turn by turn with infill occupying the same height band;
 different regions of the same part can use the other skills. The manual owns
-standoff, sampling and point-budget limits. Turn-to-turn bead overlap is a
+standoff, sampling and sleeve-tolerance limits; there is no point budget, so a
+wall takes the points its geometry requires. Turn-to-turn bead overlap is a
 geometry/process judgment for the agent and maker, not a generation gate.
 
 The same package also implements [advanced vase mode](../../skills/advanced-vase-wall/SKILL.md#sleeve-patterns).
@@ -170,11 +172,12 @@ multi-patch routing, physical contact verification or a second scheduler.
 ## Line spacing
 
 [spacing.mjs](../../core/path/spacing.mjs) derives nominal centerline pitch from bead width and
-one optional per-skill `spacingFactor`: a finite number at least `1`, defaulting
-to `1`. Producers use that pitch for course placement and the actual bead width
+one optional per-skill `spacingFactor`: a finite number at least `0.5`, defaulting
+to `1`. Values below 1 intentionally overlap adjacent beads; values above 1
+leave space between them. Producers use that pitch for course placement and the actual bead width
 for cross section and segment volume. Agents never need to match independent
-pitch and extrusion settings. Plan validation normalizes older recipes and
-validates regional overrides through the same contract.
+pitch and extrusion settings. Plan validation checks regional overrides through
+the same contract.
 
 Full-fill, planar-infill, draped-skin, supports, both rimming modes and
 pipe-cladding implement it. Existing infill and support density divides the
@@ -191,8 +194,8 @@ tapers use bead width, not widened pitch. Surface spacing remains sampled, with
 the cladding producer's existing metric and fixed-relay flow limitations.
 The setting does not add a material profile or establish physical printability.
 
-Spaced planar interiors publish sparse coverage; spaced walls publish their
-individual bands. A spaced draped skin publishes only its final bead strips,
+Planar interiors with factors above 1 publish sparse coverage; spaced walls
+publish their individual bands. A spaced draped skin publishes only its final bead strips,
 so a successor cannot consume its gaps as a continuous material surface.
 Ordinary factor-1 recipes retain their existing deposition behavior.
 
@@ -285,9 +288,17 @@ the final commands; regression tests compare their coordinates and volume with
 the generator's transient motion objects.
 
 Planar and height-field surface combing check boundary crossings,
-then can route around holes via a bounded visibility graph (256 offset corners
-in the endpoints' connected component, `maxCombMm` XYZ route length); otherwise
-they hop. Disconnected components cannot be joined by combing. Every candidate
+then can route around holes via a visibility graph over the offset corners of the
+endpoints' connected component. The route budget is the only bound: a corner
+joins the graph when going through it stays within the `maxCombMm` XYZ route
+length, so a layer with a detailed outline routes instead of degrading into a hop
+because it has many corners. The search is shortest-first on the route so far plus
+the straight-line distance still to run, which is never longer than any route from
+there, so it settles on the same shortest route while expanding only the corners a
+route of that length can pass. Boundary segments come from the corridor along the
+travel rather than its bounding box, which costs the travel's length instead of its
+area. Where no route fits the budget the move
+hops. Disconnected components cannot be joined by combing. Every candidate
 edge checks both the destination policy and completed material, including edges
 of a detour. Lifted moves retain the global deposited-height clearance above.
 

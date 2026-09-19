@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,mkdir,rm,readFile,writeFile,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {once} from 'node:events';
@@ -8,7 +8,7 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {createTour} from '../../studio/tour.mjs';
-import {createStudio,bundleFor} from '../../studio/server.mjs';
+import {createStudio,bundleFor,sourceSkewNotice,annotateSourceSkew} from '../../studio/server.mjs';
 import {loadBundle,adjustBundle,generateBundle,approve} from '../print/bundle.mjs';
 import {printName,downloadName} from '../../studio/print-name.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
@@ -31,12 +31,11 @@ test('tour geometry recovery preserves the lesson and generates without a geomet
   const url='http://127.0.0.1:'+server.address().port,html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
   const get=async()=>await(await fetch(url+'/api/state')).json();
-  state=await get();assert.equal(state.geometryApproved,false);assert.equal(state.tour.step,5);
+  state=await get();assert.equal(state.toolpathApproved,false);assert.equal(state.tour.step,5);
   assert.equal((await post('tour',{action:'resume'})).status,400,'ended tours cannot be resumed');
-  state=await get();assert.equal(state.geometryApproved,false);assert.equal(state.tour.step,5);assert.equal(state.localPrintDirectory,directory);
-  assert.equal((await post('approve',{stage:'toolpath',actor:'SYNTHETIC',revision:state.revision})).status,400);
-  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC explicit geometry review',revision:state.revision})).status,400);
-  state=await get();assert.equal(state.tour.step,5);assert.equal(state.geometryApproved,false);
+  state=await get();assert.equal(state.toolpathApproved,false);assert.equal(state.tour.step,5);assert.equal(state.localPrintDirectory,directory);
+  assert.equal((await post('approve',{actor:'SYNTHETIC',revision:state.revision})).status,400);
+  state=await get();assert.equal(state.tour.step,5);assert.equal(state.toolpathApproved,false);
   const generated=await post('generate',{planHash:state.planHash});assert.equal(generated.status,200,await generated.text());
   state=await get();assert.ok(state.program);assert.equal(state.tour.step,5);assert.equal(state.toolpathApproved,false);
   const displayed=await post('view-ready',{stage:'toolpath',revision:state.revision,exportHash:state.exportHash});
@@ -64,7 +63,8 @@ test('explicit generation failures alert the agent with the cause and clear afte
   const url='http://127.0.0.1:'+server.address().port,html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const generate=()=>fetch(url+'/api/generate',{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify({development:true})});
   assert.equal((await generate()).status,400);
-  const requests=createAgentRequests(root),pending=(await requests.wait({waitMs:0})).requests;
+  assert.equal((await createAgentRequests(root).wait({waitMs:0})).requests.length,0,'an ownerless listener never hears an owned Studio instance');
+  const requests=createAgentRequests(root,{ownerId:server.agentSession().ownerId}),pending=(await requests.wait({waitMs:0})).requests;
   assert.equal(pending.length,1);assert.equal(pending[0].printId,'tour/handle');
   assert.match(pending[0].instruction,/Synthetic discontinuous roof/);
   assert.match(pending[0].instruction,/appropriate fixes before regenerating/);
@@ -88,9 +88,9 @@ test('active tours block STL import; normal import stays unapproved in geometry 
   const blocked=await upload('Sample model.stl','mm');assert.equal(blocked.status,400);
   assert.match((await blocked.json()).error,/available after you finish or exit the tour/);
   state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.step,3);
-  assert.equal(state.localPrintDirectory,directory);assert.equal(state.geometryApproved,false);
+  assert.equal(state.localPrintDirectory,directory);assert.equal(state.toolpathApproved,false);
   await tour.action('exit');assert.equal((await upload('Normal model.stl','mm')).status,200);
-  state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);assert.equal(state.geometryApproved,false);assert.equal(Boolean(state.program),false);
+  state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);assert.equal(state.toolpathApproved,false);assert.equal(Boolean(state.program),false);
 });
 test('ordinary Studio requests are correlated, survive restart, expire and do not clear overlapping work',async t=>{
   const root=await fixture(t);let now=1;const requests=createAgentRequests(root,{now:()=>now}),directory=join(root,'ordinary-part');
@@ -133,6 +133,7 @@ test('tour queues chat guidance and exports exact reviewed bytes before completi
   assert.equal((await post('tour',{action:'exit'})).status,200);
   assert.equal((await tour.info()).completed,true);assert.equal((await tour.info()).dismissed,true);
   assert.equal(await printName(directory),'Handle');assert.equal(downloadName('Named handle · Nave','part.gcode'),'Named handle · Nave.gcode');
+  assert.equal(downloadName('dice-weld-demo-h2d-right-0.8mm','part.gcode.3mf'),'dice-weld-demo-h2d-right-0.8mm.gcode.3mf');
 });
 
 
@@ -175,7 +176,7 @@ test('STL units are inferred without a dialog and can be corrected without losin
   state=await loadBundle(directory,{program:false});const before=state.plan.geometry.vertices,revision=state.revision;
   await assert.rejects(setSTLUnits(directory,'mm',{expectedRevision:'stale'}));
   state=await setSTLUnits(directory,'mm',{expectedRevision:revision});
-  assert.equal(state.geometryApproved,false);assert.equal(state.plan.geometry.source.unitsInferred,false);assert.equal(state.plan.skills['planar-infill'].pattern,'gyroid');
+  assert.equal(state.toolpathApproved,false);assert.equal(state.plan.geometry.source.unitsInferred,false);assert.equal(state.plan.skills['planar-infill'].pattern,'gyroid');
   state.plan.geometry.vertices.forEach((p,i)=>p.forEach((v,k)=>assert.ok(Math.abs(v-before[i][k]/25.4)<1e-10)));
   assert.deepEqual(await readFile(join(directory,'geometry/source.stl')),bytes);
 });
@@ -189,4 +190,105 @@ test('Studio pushes disk changes from independent CLI writers without waiting fo
   const start=Date.now();await createAgentRequests(root).begin({directory,instruction:'Immediate dots'});
   const timer=setTimeout(()=>resolveChange([]),1500),kinds=await changed;clearTimeout(timer);
   assert.ok(kinds.includes('requests'));assert.ok(Date.now()-start<1000);
+});
+
+test('Studio records person-driven actions as owner-scoped events: held ones wait, delivered ones push with the held remainder',async t=>{
+  const root=await fixture(t),tour=createTour(root),{directory}=await tour.action('fresh');
+  await tour.action('exit');
+  const server=createStudio(directory,{libraryRoot:root});server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>server.shutdown());
+  const url='http://127.0.0.1:'+server.address().port,html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const read=(owner,query={})=>fetch(url+'/api/agent-events?'+new URLSearchParams({owner,...query})).then(async response=>({status:response.status,body:await response.json()}));
+  const {ownerId,instanceId}=server.agentSession(),pushed=[];
+  server.studioEvents.subscribe(batch=>pushed.push(batch.map(e=>e.kind)));
+  const kinds=()=>server.studioEvents.peek().map(e=>e.kind);
+  assert.equal((await read('someone-else')).status,403,'only the owning agent reads its queue');
+  const viewer=await fetch(url+'/api/viewer?token='+token),reader=viewer.body.getReader();await reader.read();
+  assert.ok(server.studioEvents.peek().some(e=>e.kind==='viewer-opened'&&e.viewers===1));
+  let state=await(await fetch(url+'/api/state')).json();
+  const generated=await post('generate',{planHash:state.planHash});assert.equal(generated.status,200,await generated.text());
+  assert.deepEqual(pushed,[],'calculation start and finish are held, not pushed');
+  assert.deepEqual(kinds(),['viewer-opened','generation-started','generation-finished']);
+  const started=server.studioEvents.peek()[1];assert.equal(started.trigger,'generate');assert.equal(started.studioInstanceId,instanceId);assert.equal(started.printId,'tour/handle');
+  assert.ok(server.studioEvents.peek()[2].durationMs>=0);
+  state=await(await fetch(url+'/api/state')).json();
+  assert.equal((await post('view-ready',{stage:'toolpath',revision:state.revision,exportHash:state.exportHash})).status,200);
+  // The displayed toolpath is held; a short-travel advisory it queues is agent work and pushes.
+  assert.ok(kinds().includes('view-presented'));
+  const advisories=pushed.length;assert.ok(advisories<=1);
+  if(advisories)assert.equal(pushed[0].at(-1),'request-queued');
+  const approved=await post('approve',{actor:'SYNTHETIC',revision:state.revision});assert.equal(approved.status,200,await approved.text());
+  assert.equal(kinds().at(-1),'approved','a confirmation is held');assert.equal(pushed.length,advisories);
+  const delivered=await post('deliver',{name:'Workshop handle',downloadLink:true});assert.equal(delivered.status,200,await delivered.text());
+  assert.equal(pushed.length,advisories+1);const batch=pushed.at(-1);assert.equal(batch.at(-1),'export-delivered');
+  assert.ok(batch.includes('approved')&&batch.includes('view-presented')&&batch.includes('generation-finished'),'a delivered event carries the held remainder');
+  const first=await read(ownerId);
+  assert.deepEqual(first.body.events.map(e=>e.kind),batch,'a push does not drain; the read does');
+  assert.match(first.body.events.at(-1).name,/Workshop handle/);assert.equal(first.body.events.at(-1).exportHash,state.exportHash);
+  assert.deepEqual(first.body.generation,[]);assert.equal(first.body.studioInstanceId,instanceId);
+  const queuedBefore=first.body.requests.map(r=>r.id);
+  assert.deepEqual((await read(ownerId)).body.events,[],'drained');
+  const waiting=read(ownerId,{wait:'5000',after:queuedBefore.join(',')});await new Promise(done=>setTimeout(done,30));const woken=Date.now();
+  assert.equal((await post('agent-request',{})).status,200);
+  const woke=(await waiting).body;assert.ok(Date.now()-woken<2000,'a delivered event ends the bounded wait');
+  assert.deepEqual(woke.events.map(e=>e.kind),['request-queued']);assert.equal(woke.events[0].requestKind,'guidance');
+  assert.deepEqual(woke.requests.map(r=>r.id),[woke.events[0].requestId],'the cursor excludes requests already returned');
+  const again=(await read(ownerId,{wait:'300',after:[...queuedBefore,woke.requests[0].id].join(',')})).body;
+  assert.deepEqual(again.requests,[]);assert.deepEqual(again.events,[]);
+  const stranger=createAgentRequests(root);
+  assert.equal((await stranger.wait({waitMs:0})).requests.length,0,'an ownerless listener never hears an owned Studio instance');
+  await assert.rejects(stranger.update(woke.requests[0].id,{status:'working'}),/belongs to another agent/);
+  assert.ok((await stranger.list()).some(r=>r.id===woke.requests[0].id),'explicit history remains a diagnostic read');
+  const owner=createAgentRequests(root,{ownerId});
+  const claimed=(await owner.wait({waitMs:0,claim:true})).requests;assert.ok(claimed.length>=1&&claimed.every(r=>r.status==='working'));
+  await reader.cancel();
+  for(let n=0;n<100&&!server.studioEvents.peek().some(e=>e.kind==='viewer-closed');n++)await new Promise(done=>setTimeout(done,20));
+  assert.ok(server.studioEvents.peek().some(e=>e.kind==='viewer-closed'&&e.viewers===0));
+});
+
+test('tour lesson changes are delivered with the lesson instruction, and calculation progress is readable mid-flight',async t=>{
+  const root=await fixture(t),guide=createTour(root),{directory}=await guide.action('fresh');
+  const server=createStudio(directory,{libraryRoot:root});server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>server.shutdown());
+  const url='http://127.0.0.1:'+server.address().port,html=await(await fetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const post=(route,data)=>fetch(url+'/api/'+route,{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const {ownerId}=server.agentSession(),read=async()=>(await fetch(url+'/api/agent-events?owner='+ownerId)).json();
+  assert.equal((await post('tour',{action:'fresh'})).status,200);
+  const started=(await read()).events.find(e=>e.kind==='tour-started');
+  assert.equal(started.delivery,'delivered');assert.equal(started.step,0);assert.equal(started.lesson.title,'Your words change the shape');assert.ok(started.runId);
+  assert.equal((await post('tour',{action:'exit'})).status,200);
+  const exited=(await read()).events.find(e=>e.kind==='tour-exited');assert.equal(exited.active,false);
+  const generating=post('generate',{development:true});
+  let progress=null,finished=null;
+  for(let n=0;n<600&&!finished;n++){
+    const seen=await read();
+    if(seen.generation.length)progress=seen.generation[0];
+    finished=seen.events.find(e=>e.kind==='generation-finished')??null;
+    await new Promise(done=>setTimeout(done,10));
+  }
+  assert.equal((await generating).status,200);
+  assert.ok(finished,'the finish is held for the next read');
+  assert.ok(progress,'a read during calculation reports its progress');
+  assert.equal(progress.requested,true);assert.ok(['preparing','generating'].includes(progress.status));assert.equal(progress.trigger,'generate');
+  assert.ok(progress.elapsedMs>=0);assert.ok(progress.progress===null||typeof progress.progress.stage==='string');
+});
+
+test('a running Studio names source that changed after it started, and says so on a failure',async t=>{
+  const base=await fixture(t),module=join(base,'core','print','plan.mjs');
+  await mkdir(join(base,'core','print'),{recursive:true});await mkdir(join(base,'core','tests'),{recursive:true});
+  await writeFile(module,'export const VERSION="0.1.0";\n');
+  await writeFile(join(base,'core','tests','churn.test.mjs'),'// suite churn is not running source\n');
+  const started=(await stat(module)).mtimeMs+1;
+  assert.equal(await sourceSkewNotice(started,{base,roots:['core']}),null,'an untouched checkout reports nothing');
+  await writeFile(join(base,'core','tests','churn.test.mjs'),'// touched later\n');
+  assert.equal(await sourceSkewNotice(started,{base,roots:['core']}),null,'test files are not the running source');
+  await writeFile(module,'export const VERSION="0.2.0";\n');
+  const notice=await sourceSkewNotice(started,{base,roots:['core']});
+  assert.match(notice,/older SAAM source than the files on disk: core\/print\/plan\.mjs/);
+  assert.match(notice,/Restart Studio/);
+  // The annotation reaches whatever already failed, and never twice for one error.
+  const error=Object.assign(new Error('Unexpected or missing fields in plan.skills.planar-infill: unexpected maxPatternCells.'),{code:'X'});
+  const annotated=(await annotateSourceSkew(error)).message;
+  await annotateSourceSkew(error);
+  assert.equal(error.message,annotated);assert.equal(error.code,'X');
+  assert.ok(annotated.startsWith('Unexpected or missing fields'),'the original failure is kept');
 });

@@ -83,8 +83,6 @@ test('only motif turns deposit, without a guide ring, lead-in or invented materi
 
 test('invalid motifs fail explicitly while pattern tilt remains a reported recipe choice',async()=>{
   const machine=loadMachine(),r=await rhino();
-  const old=recipe();old.skills['vase-wall'].paths=[{points:[[0,0,.2],[1,1,.2]],beadHeightMm:.2}];
-  assert.throws(()=>validatePlan(old,machine),/Standalone XYZ vase paths are retired/);
   const invalid=recipe();invalid.skills['vase-wall'].pattern.paths[0].points[0]=[0,0,.2];
   assert.throws(()=>validatePlan(invalid,machine),/not XYZ/);
   const tall=recipe();tall.skills['vase-wall'].pattern.repeats=20;
@@ -92,8 +90,9 @@ test('invalid motifs fail explicitly while pattern tilt remains a reported recip
   const steep=recipe();steep.skills['vase-wall'].pattern.paths[0].points=[[0,0],[.0001,1],[1,.2]];
   assert.ok(generatePath(steep,machine,r).summary.vaseWall.maximumAngleDeg>machine.nonplanar.maxAngleDeg);
   const level=recipe();level.skills['vase-wall'].endTransition='level';assert.equal(generatePath(level,machine,r).summary.vaseWall.levelRimMm,2);
-  const budget=recipe();budget.skills['vase-wall'].maxPoints=100;budget.skills['vase-wall'].sampleStepMm=.1;
-  assert.throws(()=>generatePath(budget,machine,r),/budget/);
+  // A finer sampling step takes more points; no construction budget can fail it.
+  const fine=recipe();fine.skills['vase-wall'].sampleStepMm=.1;
+  assert.ok(generatePath(fine,machine,r).summary.vaseWall.points>generatePath(recipe(),machine,r).summary.vaseWall.points);
 });
 
 test('mapped patterns round-trip machine source on S5, H2D and configured Dobot',async()=>{
@@ -190,8 +189,8 @@ test('mapped pattern edits use ordinary reviews and exact-byte delivery',async t
   const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-sleeve-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
   await initBundle(dir,recipe());const actor='SYNTHETIC SLEEVE TEST — not a human approval';
   await generateBundle(dir);let state=await loadBundle(dir);assert.equal(state.programError,undefined);
-  await approve(dir,{stage:'toolpath',actor,revision:state.revision});assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,EXPORT_PATH)));
+  await approve(dir,{actor,revision:state.revision});assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,EXPORT_PATH)));
   const pattern=structuredClone(state.plan.skills['vase-wall'].pattern);pattern.repeats=3;
   await adjustBundle(dir,{skills:{'vase-wall':{pattern}}});state=await loadBundle(dir,{program:false});
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
 });

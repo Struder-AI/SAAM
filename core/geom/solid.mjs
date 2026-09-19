@@ -4,6 +4,13 @@ import {makeMesh} from './mesh.mjs';
 import {requireThat} from './tolerance.mjs';
 let runtime;
 export const solidKernel=()=>runtime??=Module().then(module=>{module.setup();return module;});
+// The kernel addresses 32-bit WebAssembly memory, so the largest mesh it can
+// hold is a capacity of the kernel rather than a chosen budget. Triangle cost
+// covers its indices, vertex properties and halfedge structures.
+export const KERNEL_TRIANGLE_CAPACITY=Math.floor(4*1024**3/64);
+// An aborted instance stays unusable, so discard it after a kernel failure and
+// let the next caller build a fresh one.
+export function discardSolidKernel(){runtime=undefined;}
 
 export function solidFromMesh(kernel,mesh){
   const input=new kernel.Mesh({numProp:3,vertProperties:Float32Array.from(mesh.vertices.flat()),triVerts:Uint32Array.from(mesh.triangles.flat())});

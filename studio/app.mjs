@@ -4,9 +4,10 @@ import { createProjection } from './camera.mjs';
 import { buildToolpathView, toolpathFrame, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
-import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName} from './settings.mjs';
+import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {transform,untransform,machineFitBounds,boundsCorners,drawMachineCanvas,machinePalette} from './machine-view.mjs';
+import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
@@ -19,12 +20,22 @@ const agentUI=createAgentUI({onActivity:active=>tourUI?.activity(active),onReque
   if(!state?.work)return;
   state.work.requests=requests;
   if(needsTourToolpath(state))scheduleChange();
-},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));}});
-let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
+},onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));},getStage:()=>tab});
+let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,generating=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let polygons=[],drag=null,moved=false;
 let pan=[0,0];
 let redrawFrame=0;
+// View bursts go to the server for agents; failures never reach the person.
+let lastWheel=0,lastMaterialStats=null;
+// Material detail drops while the view moves and the measured frame cost is
+// high; one full-detail frame follows when motion stops.
+// ?motion-quality=N pins a level, still frames included, to inspect or time it.
+const pinnedQuality=/^[0-2]$/.test(new URLSearchParams(location.search).get('motion-quality')??'')?Number(new URLSearchParams(location.search).get('motion-quality')):null;
+let motionQuality=null,lastMotion=0,lastMovingFrame=0,redrawRequested=0,settleTimer=0;
+const viewPerformance=createViewPerformance({report:burst=>void fetch('/api/view-performance',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(burst)}).catch(()=>{}),
+  context:()=>({tab,view:cameras.mode,solid:tab==='toolpath'&&!!materialScene&&!!materialRenderer,moves:state?.program?.moves.length??0,
+    canvasCss:[canvas.clientWidth,canvas.clientHeight],devicePixelRatio:+(devicePixelRatio||1).toFixed(3),userAgent:navigator.userAgent,renderer:materialRenderer?.renderer??null,material:tab==='toolpath'?lastMaterialStats:null})});
 let pathView,meshView;
 let geometryScene,geometryRenderer,geometryProject,geometryError='';
 let materialScene,materialRenderer,materialError='';
@@ -116,7 +127,7 @@ function restoreView(){
 }
 window.addEventListener('pagehide',saveView);
 function requestDraw(){
-  if(!redrawFrame)redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});
+  if(!redrawFrame){redrawRequested=performance.now();redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});}
 }
 function clearProgramView(){
   playbackCache=null;stalePresentation=null;
@@ -128,6 +139,14 @@ function clearProgramView(){
 }
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
 const presentedState=()=>state?.program?state:stalePresentation;
+// A toolpath is being (re)generated and a faded preview is on offer, so the
+// geometry action should return to it rather than start a fresh calculation.
+const generationPending=()=>generating||agentUI.generating()||(!state?.program&&Boolean(stalePresentation?.program));
+// The toolpath pane never goes empty. Without a current program it shows a faded
+// placeholder — the previous toolpath when one is retained, otherwise the part
+// being sliced — through first generation, regeneration, reload and failure.
+const toolpathPlaceholder=()=>tab==='toolpath'&&!state?.program;
+const showingGeometry=()=>tab!=='toolpath'||!presentedState()?.program;
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
@@ -136,7 +155,7 @@ const materialFact=program=>program.summary.materialModel==='relay-estimate'
   : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.summary.volumeMm3??program.volumeMm3))+' g'];
 const materialSetup=state=>state.plan.setup.dobot||state.plan.setup.denso
   ? ['Extrusion','External relay control · '+state.plan.setup.material]
-  : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'];
+  : ['Material',state.plan.setup.material+' · '+state.plan.setup.nozzleC+'°C'+(state.plan.setup.filamentColor?' · '+state.plan.setup.filamentColor:'')+(state.plan.setup.ams?' · intended AMS '+state.plan.setup.ams.unit+' slot '+state.plan.setup.ams.slot:'')];
 const vaseSettings=state=>{
   if(state.plan.composition?.regions?.length)return [];
   const vase=state.plan.skills?.['vase-wall'];
@@ -162,54 +181,34 @@ function activity(text='',fraction=null){
   $('#activity-detail').textContent=measured?'Progress for this stage.':'Please wait. Studio is working.';
   $('main').setAttribute('aria-busy',String(!!text));
 }
-async function working(text,task,{preview=true}={}){
-  if(busy)return;busy=true;stop();if(preview)agentUI.loading();activity(text);if(state)render();$('#open-print').disabled=true;
+async function working(text,task,{preview=true,stage=null}={}){
+  if(busy)return;busy=true;stop();if(preview)agentUI.loading(stage);activity(text);if(state)render();$('#open-print').disabled=true;
   // Paint the indicator before local parsing/drawing can occupy the UI thread.
-  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await painted();
   let failure;
   try{return await task();}catch(error){failure=error;throw error;}
   finally{busy=false;if(preview)agentUI.settled(failure||(tab==='toolpath'&&(state?.generationError||state?.programError)));activity();$('#open-print').disabled=false;if(state)render();}
+}
+// Give the compositor two frames to show what was just rendered, then continue
+// regardless: a hidden or unpainted tab runs no frame callback at all, and
+// opening, loading and acknowledging a drawn view must not wait on one.
+function painted(){
+  return new Promise(resolve=>{
+    const timer=setTimeout(resolve,150),done=()=>{clearTimeout(timer);resolve();};
+    requestAnimationFrame(()=>requestAnimationFrame(done));
+  });
 }
 
 // Studio reviews more than one kind of print. Everything that depends on which
 // package produced the bundle lives here; the viewer, approvals and playback
 // below are shared. A print names its kind in its own state.
 const views={
-  wedge:{
-    eyebrow:'WEDGE DEMO',skinPhase:'inclined',skinLabel:'Sloped layers',exportName:'wedge.gcode',
-    names:{'sloping-face':'Roof',base:'Bottom','front-side':'Front','back-side':'Back','right-side':'Right','left-side':'Left','high-end':'Tall end','low-end':'Low end'},
-    facts(state,tab) {
-      const {geometry:g,setup:s,process:p}=state.plan,roof=state.geometry.roof;
-      const high=roof?.maxHeightMm??g.baseMm+g.runMm*Math.tan(g.angleDeg*Math.PI/180);
-      if(tab==='geometry') {
-        if(!roof)return [['Size',g.runMm+' × '+g.widthMm+' mm'],['Height',g.baseMm+'–'+high.toFixed(2)+' mm'],['Slope',g.angleDeg+'°']];
-        const bounds=state.geometry.boundsMm,directions=[];
-        if(Math.abs(roof.a)>1e-10)directions.push(roof.a>0?'right':'left');
-        if(Math.abs(roof.b)>1e-10)directions.push(roof.b>0?'back':'front');
-        return [['Size',round2(bounds.max[0])+' × '+round2(bounds.max[1])+' mm'],['Height',round2(roof.minHeightMm)+'–'+round2(high)+' mm'],
-          ['Roof slope',round2(roof.angleDeg)+'°'],['Rises toward',directions.join(' + ')||'Level']];
-      }
-      if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Sloped layers',p.skinLayers+' × '+p.skinNormalMm+' mm'],['Travel height',high.toFixed(2)+' + '+p.liftMm+' mm']];
-      return state.program?[['Layers',state.pathSummary.planarLayers+' flat + '+p.skinLayers+' sloped'],
-        [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)]:[];
-    },
-    settings(state) {
-      const {setup:s,process:p}=state.plan;
-      return [['Bed temperature',s.bedC+'°C'],['Build volume temperature',s.buildVolumeC+'°C'],['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
-        ['Flat / sloped speed',p.planarSpeedMmS+' / '+p.skinSpeedMmS+' mm/s'],['First-layer speed',p.firstLayerSpeedMmS+' mm/s'],
-        ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
-        ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],['Material flow limit',p.maxFlowMm3S+' mm³/s'],
-        ['Filament diameter',s.filamentMm+' mm'],['Placement','X '+state.plan.placement.xMm+' / Y '+state.plan.placement.yMm+' mm'],
-        ['Fill','Solid; direction reverses each layer'],['Sloped passes','Back and forth'],['Startup',state.setupBasis]];
-    }
-  },
   shell:{
     eyebrow:'DEVELOPMENT PREVIEW',skinPhase:'draped-skin',skinLabel:'Draped skin',exportName:'part.gcode',
     // Faces are named by the shape that built them, so the label is the name.
     names:{},
     facts(state,tab) {
-      const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'];
+      const {geometry:g,setup:s,process:p}=state.plan,fill=state.plan.skills['full-fill'],skin=state.plan.skills['draped-skin'],normal=state.plan.skills['planar-infill'],network=state.plan.skills['line-network'];
       const shape={assembly:'Assembly',box:'Box',wedge:'Wedge','spline-tube':'Bumpy spline tube',"spline-top":'Spline top surface',"spline-shell":'Tapered spline shell',"vertical-spline-shell":'Vertical spline shell'}[g.shape]??g.shape;
       if(tab==='geometry') {
         const bounds=state.geometry.boundsMm;
@@ -238,7 +237,7 @@ const views={
           ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes',surface?'Local surface spacing with partial passes':'Full height']]),['Between passes','Extrusion off'],...robotRows(state.plan)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
-        ['Body',normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
+        ['Body',network?.enabled?network.networks.length+' independent line networks · '+network.layers+' courses':normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),
         ...(normal?.enabled&&fill.enabled?[['Solid surfaces',fill.bottomLayers+' bottom / '+fill.topLayers+' top layers']]:[]),
         ...(skin.enabled?[['Draped skin',skin.layers+' × '+skin.normalMm+' mm along the surface'],['Roof component',skin.part??'Part roof']]:[]),
         ...(hasSkill(state.plan,'wave-overhangs')?[['Wave overhangs',state.plan.skills['wave-overhangs'].slices.length+' spline slices · '+state.plan.skills['wave-overhangs'].lineSpacingMm+' mm surface spacing']]:[]),
@@ -247,7 +246,7 @@ const views={
       const limit=state.pathSummary?.nonplanarLimit;
       const pathCount=state.pathSummary?.vaseWall?.paths;
       const waveLayers=state.pathSummary?.waveOverhangs?.length??0;
-      const rows=[pathCount&&!state.pathSummary?.fullFill&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'+(waveLayers?' + '+waveLayers+' wave slice(s)':'')],
+      const rows=[state.pathSummary?.lineNetwork?['Network courses',state.pathSummary.lineNetwork.layers+' × '+state.pathSummary.lineNetwork.networks+' faces']:pathCount&&!state.pathSummary?.fullFill&&!state.pathSummary?.drapedSkin?['Deposition paths',String(pathCount)]:['Layers',(state.pathSummary?.fullFill?.layers??0)+' flat + '+(state.pathSummary?.drapedSkin?.skinLayers??0)+' draped'+(waveLayers?' + '+waveLayers+' wave slice(s)':'')],
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round(duration()/60)+' min'],materialFact(state.program)];
       if(state.program.summary?.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasSkill(state.plan,'vase-wall')){
@@ -282,7 +281,7 @@ const views={
     }
   }
 };
-const view=()=>views[state?.kind==='shell'?'shell':'wedge'];
+const view=()=>views.shell;
 const label=id=>{const edge=geometryScene?.edgeFeatures.get(id);return edge?edge.names.map(label).join(' / ')+' · edge '+edge.number:view().names[id]??id.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());};
 
 // Part bounds come from the display proxy both packages write, so the camera
@@ -354,11 +353,17 @@ async function refresh(follow=false,reopen=false) {
   $('#skin-label').textContent=view().skinLabel;
   document.title='SAAM Studio · '+state.printName;
   $('#open-print').title='Open print: '+state.printName;
+  // Geometry keys off the previously loaded state's version (null on a print
+  // switch), not a value stored on geometryScene, so a different print always
+  // rebuilds even when the two share a geometryVersion counter.
   if(!geometryScene||loaded?.geometry.geometryVersion!==state.geometry.geometryVersion){
     geometryScene=buildGeometryView(state.geometry,35,state.tourExample?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
     try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
   }
+  // Toolpath and material views both cache the program's move buffer; each
+  // rebuilds only when that buffer is replaced.
+  const staleForMoves=view=>view?.moves!==state.program?.moves;
   // Geometry-only tour responses deliberately omit source. Retain at most the
   // current print's decoded view so Back/Continue can reuse unchanged bytes.
   if(!state.program){
@@ -367,10 +372,10 @@ async function refresh(follow=false,reopen=false) {
     else if(!(state.tour?.active&&state.tour.step<L.playback&&playbackCache?.printId===state.printId&&playbackCache.planHash===state.planHash))clearProgramView();
   }else{
     stalePresentation=null;
-    if(pathView?.moves!==state.program.moves)pathView=buildToolpathView(state.program.moves);
+    if(staleForMoves(pathView))pathView=buildToolpathView(state.program.moves);
     playbackCache={printId:state.printId,planHash:state.planHash,exportHash:state.exportHash,program:state.program};
   }
-  if(state.program&&materialScene?.moves!==state.program.moves){
+  if(state.program&&staleForMoves(materialScene)){
     materialError='';
     try{
       materialRenderer??=createMaterialRenderer();
@@ -390,7 +395,7 @@ async function refresh(follow=false,reopen=false) {
     if(!state.tourExample)restoreView();
   }
   else if(follow&&previous.planHash!==state.planHash){tab=previous.geometryHash!==state.geometryHash?'geometry':'toolpath';message('Updated from chat.');}
-  else if(follow&&state.planApproved&&!previous.program&&state.program)tab='toolpath';
+  else if(follow&&state.toolpathApproved&&!previous.program&&state.program)tab='toolpath';
   if(!selected||!state.geometry.labels.includes(selected)&&(!geometryScene.edgeFeatures.has(selected)||previous?.geometry.geometryVersion!==state.geometry.geometryVersion))selectFeature(null);
   machineColors=machineTheme();
   if(machineSession?.scene){
@@ -410,7 +415,7 @@ async function acknowledgeDisplayedView(){
   if(acknowledging)return;
   acknowledging=true;
   try{
-  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  await painted();
   if(agentUI.presentState(state,tab,{requiresToolpath:needsTourToolpath(state)})){
     const presented=await tourUI?.acknowledgeView(state,tab);
     if(presented)agentUI.updated(presented);
@@ -421,7 +426,7 @@ async function decodeInWorker(snapshot){
   activity('Loading your toolpath…');
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
-  return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,sourceTransport:snapshot.sourceTransport,
+  return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
     plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
 }
 function table(entries) {
@@ -447,7 +452,7 @@ function render() {
   if(document.activeElement!==exportNameInput)exportNameInput.value=exportNameState.value;
   exportNameInput.disabled=busy;$('#export-name-row').hidden=tab!=='toolpath'||!state.program||Boolean(state.inspection);
   $('#settings-detail').replaceChildren(table([...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
-  $('#planar-label').textContent=hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
+  $('#planar-label').textContent=hasSkill(state.plan,'line-network')?'Line networks':hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
   $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
   const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasSkill(state.plan,'pipe-cladding')||!pathView;
   const sampledPhases=new Set();
@@ -470,20 +475,29 @@ function render() {
     samples.append(button);
   }
   $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
-  $('#confirm').disabled=busy;
-  $('#confirm').textContent=tab==='geometry'?(state.program&&!state.programError&&state.review.generation?.mode==='production'?'View toolpath':'Generate toolpath'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
+  // The toolpath pane is worth showing whenever it can render something — the
+  // current program, or the faded previous one while its replacement computes.
+  const toolpathViewable=Boolean(state.program||stalePresentation?.program)||generationPending();
+  // Advancing to the toolpath no longer confirms geometry (that gate is gone), so
+  // the geometry action is a plain Next; the tour keeps its own lesson wording.
+  $('#confirm').disabled=busy&&!(generating&&toolpathViewable);
+  $('#confirm').textContent=tab==='geometry'?(tourUI?.active()?(state.program&&!state.programError&&state.review.generation?.mode==='production'?'View toolpath':'Generate toolpath'):'Next'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
   if($('#reviewed-download'))$('#reviewed-download').hidden=$('#reviewed-download').dataset.exportKey!==exportKey();
   $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
   $('#playback').hidden=tab!=='toolpath'||!state.program;
   $('#play').disabled=busy||!state.program||Boolean(state.programError);
   $('#selection').hidden=tab==='toolpath';
-  canvas.setAttribute('aria-label',tab==='toolpath'?(state.program?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.':'Previous toolpath shown while its replacement is prepared.'):'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
-  canvas.classList.toggle('stale-toolpath',tab==='toolpath'&&!state.program&&Boolean(stalePresentation?.program));
+  canvas.setAttribute('aria-label',tab==='toolpath'?(state.program?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.'
+    :stalePresentation?.program?'Previous toolpath shown while its replacement is prepared.':'Part geometry shown while its toolpath is prepared.'):'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
+  canvas.classList.toggle('stale-toolpath',toolpathPlaceholder());
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
   $('#fit-program').hidden=cameras.mode==='machine';
   updateMachineStatus();
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',b.dataset.tab==='toolpath'&&state.toolpathApproved);b.disabled=busy||b.dataset.tab==='toolpath'&&!state.program;});
+  // Keep the tabs live during a toolpath generation: the geometry pane stays
+  // reachable (and crisp), and the toolpath pane stays reachable whenever its
+  // faded preview is available, so navigating between them never cancels work.
+  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',b.dataset.tab==='toolpath'&&state.toolpathApproved);b.disabled=(busy&&!generating)||b.dataset.tab==='toolpath'&&!toolpathViewable;});
   // Explicit local scratch adapters can describe historical paths without
   // assigning them a current skill or presenting manufacturing approval controls.
   $('#confirm').hidden=Boolean(state.inspection);
@@ -499,6 +513,9 @@ function render() {
     $('#settings-detail').replaceChildren(table(inspection.settings));
     $('#review-note').textContent=inspection.note;
   }
+  // The active-work fade is pane-specific, so re-evaluate it on every render in
+  // case the tab changed without new agent activity arriving.
+  agentUI.reflectFade();
   requestDraw();
 }
 function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
@@ -507,7 +524,7 @@ function setTab(next){if(!state)return;clearManual();if(next!=='toolpath'&&camer
 function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight,ratio=devicePixelRatio||1,
   position=seconds,now=performance.now(),fadeState=layerFade,updateUI=true,
   playbackSpeed=playing?Number($('#playback-speed').value):0,machineState=machineDisplay(position)}={}) {
-  const ctx=target.getContext('2d'),seconds=position;
+  const ctx=target.getContext('2d'),seconds=position,drawStart=performance.now(),moving=playing||drawStart-lastMotion<250;let materialMs=0,materialStats=null,quality=0;
   function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
   if(updateUI&&redrawFrame){cancelAnimationFrame(redrawFrame);redrawFrame=0;}
   if(!state)return;
@@ -532,7 +549,7 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
   ctx.globalAlpha=1;
   if(updateUI)polygons=[];
-  if(tab!=='toolpath') {
+  if(showingGeometry()) {
     geometryProject=project;
     if(geometryRenderer){
       try{
@@ -568,6 +585,8 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
       segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);
     }
     const solidView=!!materialScene&&!!materialRenderer;
+    if(solidView)motionQuality??=createMotionQuality();
+    quality=updateUI&&solidView?pinnedQuality??(moving?motionQuality.level:0):0;
     const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
     if(machine&&!solidView)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameras.mode,palette:machineColors,filter:c=>c.role!=='tool'});
     const detail=!solidView||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
@@ -580,8 +599,9 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
     const fade=fadeState.frame(currentLayer,now,remainingLayerMs(pathView,at.active,seconds,playbackSpeed)),styles=new Map();
     if(solidView){
       try{
-        materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity,machine,machineMode:cameras.mode,machinePalette:machineColors});
-        ctx.drawImage(materialRenderer.canvas,0,0,width,height);
+        const materialStart=performance.now();
+        materialStats=materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity,machine,machineMode:cameras.mode,machinePalette:machineColors,quality});
+        ctx.drawImage(materialRenderer.canvas,0,0,width,height);materialMs=performance.now()-materialStart;
       }catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;requestDraw();}
     }
     // Draw the active layer last so older geometry cannot obscure it.
@@ -620,15 +640,27 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   }
   ctx.globalAlpha=1;
   ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
+  if(updateUI){
+    const end=performance.now();if(materialStats)lastMaterialStats=materialStats;
+    viewPerformance.frame(drag?(drag.pan?'pan':'orbit'):playing?'playback':end-lastWheel<200?'zoom':null,{start:drawStart,drawMs:end-drawStart,materialMs,quality});
+    if(moving&&motionQuality&&tab==='toolpath'){
+      // Playback is paced by its own frame loop; input-driven redraws are
+      // measured from the request so a slow hand is not read as a slow frame.
+      const cost=playing?(drawStart-lastMovingFrame<1000?drawStart-lastMovingFrame:end-drawStart):end-(redrawRequested||drawStart);
+      motionQuality.sample(cost);lastMovingFrame=drawStart;
+      if(quality>0&&pinnedQuality===null){clearTimeout(settleTimer);settleTimer=setTimeout(requestDraw,260);}
+    }
+    redrawRequested=0;
+  }
 }
 
 canvas.onpointerdown=e=>{if(e.button>2)return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pan:e.shiftKey||e.button===1||e.button===2};moved=false;};
-canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>2)moved=true;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;requestDraw();};
-canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}};
+canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>2)moved=true;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;lastMotion=performance.now();requestDraw();};
+canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;viewPerformance.flush();if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}};
 canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
 canvas.oncontextmenu=e=>e.preventDefault();
-canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
-canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();requestDraw();};
+canvas.addEventListener('wheel',e=>{e.preventDefault();lastWheel=lastMotion=performance.now();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
+canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();lastMotion=performance.now();requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
 $$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
 function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?untransform(pose.part,p):p;return [q[0]-plan.placement.xMm,q[1]-plan.placement.yMm,q[2]];}
@@ -661,8 +693,8 @@ $('#fit-program').onclick=()=>{
   zoom=1;pan=[0,0];requestDraw();
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
-async function approval(stage){
-  const response=await api('approve',{stage,actor:'Local user',revision:state.revision});
+async function approval(){
+  const response=await api('approve',{actor:'Local user',revision:state.revision});
   const result=await response.json();
   Object.assign(state,result.approval);
   if(!result.approval.programAvailable){delete state.program;clearProgramView();}
@@ -679,25 +711,34 @@ async function download(route='deliver',data={}){
   // This requests a native browser download. Browser/host save completion is
   // not observable here; leave a real link for a direct user-initiated retry.
   a.click();exportedThisSession.add(key);
+  const nextName=nextExportName(name);
+  if(nextName!==name){
+    $('#export-name').value=nextName;
+    Object.assign(exportNameState,{value:nextName,dirty:true});
+  }
 }
 $('#export-name').oninput=event=>{if(!exportNameState)return;exportNameState.value=event.target.value;exportNameState.dirty=event.target.value!==exportNameState.suggested;};
 $('#confirm').onclick=async()=>{
-  if(busy||!state)return;message('');
+  if((busy&&!generating)||!state)return;message('');
   if(tourUI?.active()&&tab!=='geometry'){
-    if(state.tour?.step!==L.export)return;
+    if(!state.program||state.programError||state.review.generation?.mode!=='production')return;
     try{await working('Downloading your reviewed file…',async()=>{await download('tour-export',{revision:state.revision,exportHash:state.exportHash});await api('tour',{action:'finish'});await tourUI.load();render();},{preview:false});}
     catch(e){message(e.message,true);await refresh(false);}return;
   }
+  const validProgram=state.program&&!state.programError&&state.review.generation?.mode==='production';
+  // While a toolpath is still computing, Next just returns to its faded pane; it
+  // must not launch a second calculation or cancel the pending one.
+  if(!validProgram&&generationPending()){if(tab==='geometry')setTab('toolpath');return;}
   try{
     await working(tab==='toolpath'?'Checking your toolpath…':'Preparing your toolpath…',async()=>{
     if(tab==='geometry'){
-      if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
-      else{setTab('toolpath');await acknowledgeDisplayedView();}
+      if(validProgram){setTab('toolpath');await acknowledgeDisplayedView();}
+      else{activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
     }
-    else if(!state.program||state.programError||state.review.generation?.mode!=='production'){activity('Calculating toolpath');await api('generate',{development:false});tab='toolpath';await refresh();}
-    else {if(!state.toolpathApproved)await approval('toolpath');await download();}
+    else if(!validProgram){activity('Calculating toolpath');generating=true;try{await api('generate',{development:false});tab='toolpath';await refresh();}finally{generating=false;}}
+    else {if(!state.toolpathApproved)await approval();await download();}
     message('');
-    },{preview:tab==='geometry'||!state.program||Boolean(state.programError)||state.review.generation?.mode!=='production'});
+    },{preview:tab==='geometry'||!validProgram,stage:'toolpath'});
   }catch(e){message(e.message,true);}
 };
 async function openPrint(path){
@@ -823,7 +864,15 @@ tourUI=createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>s
 working('Opening Studio…',async()=>{await tourUI.load();await refresh();}).catch(e=>message(e.message,true));
 let changeTimer;
 function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
-window.addEventListener('saam-studio-change',event=>{if(event.detail.kinds.some(kind=>kind==='print'||kind==='tour'))scheduleChange();});
-setInterval(poll,1000);
+// Pushed changes drive revision checks. Request activity only changes the
+// revision response through tour gating. A dropped or reopened viewer stream,
+// a page becoming visible and a slow heartbeat cover what pushes cannot.
+window.addEventListener('saam-studio-change',event=>{
+  const {kinds}=event.detail;
+  if(kinds.includes('print')||kinds.includes('tour')||kinds.includes('requests')&&state?.tour?.active)scheduleChange();
+});
+window.addEventListener('saam-viewer-connection',scheduleChange);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')scheduleChange();});
+setInterval(poll,15_000);
 window.addEventListener('pagehide',()=>machineSession?.dispose());
 window.addEventListener('pageshow',event=>{if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));});

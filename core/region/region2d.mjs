@@ -47,12 +47,14 @@ export class SegmentIndex {
       const row = this.rows.get(y);
       if (row) row.push(index); else this.rows.set(y, [index]);
     }
-    for (let x = x0; x <= x1; x++)
+    for (let x = x0; x <= x1; x++) {
+      let column = this.buckets.get(x);
+      if (!column) this.buckets.set(x, column = new Map());
       for (let y = y0; y <= y1; y++) {
-        const key = x + '|' + y;
-        const bucket = this.buckets.get(key);
-        if (bucket) bucket.push(index); else this.buckets.set(key, [index]);
+        const bucket = column.get(y);
+        if (bucket) bucket.push(index); else column.set(y, [index]);
       }
+    }
   }
   near(point, radius) {
     return this.inBox([point[0]-radius,point[1]-radius],[point[0]+radius,point[1]+radius]);
@@ -61,9 +63,33 @@ export class SegmentIndex {
     const x0 = Math.floor(min[0] / this.cell), x1 = Math.floor(max[0] / this.cell);
     const y0 = Math.floor(min[1] / this.cell), y1 = Math.floor(max[1] / this.cell);
     const seen = new Set();
-    for (let x = x0; x <= x1; x++)
+    for (let x = x0; x <= x1; x++) {
+      const column = this.buckets.get(x);
+      if (column) for (let y = y0; y <= y1; y++)
+        for (const index of column.get(y) ?? []) seen.add(index);
+    }
+    return [...seen].map(index => this.segments[index]);
+  }
+  // Segments near one chord. A bounding-box query costs the chord's area; this
+  // costs its length, which is what routing many candidate travels needs.
+  inCorridor(a, b, margin = 0) {
+    const cell = this.cell, dx = b[0] - a[0], dy = b[1] - a[1];
+    const x0 = Math.floor((Math.min(a[0], b[0]) - margin) / cell), x1 = Math.floor((Math.max(a[0], b[0]) + margin) / cell);
+    const seen = new Set();
+    for (let x = x0; x <= x1; x++) {
+      const column = this.buckets.get(x);
+      if (!column) continue;
+      let low = Math.min(a[1], b[1]), high = Math.max(a[1], b[1]);
+      if (dx) {
+        const t0 = (x * cell - margin - a[0]) / dx, t1 = ((x + 1) * cell + margin - a[0]) / dx;
+        const u0 = Math.max(0, Math.min(t0, t1)), u1 = Math.min(1, Math.max(t0, t1));
+        if (u0 > u1) continue;
+        low = Math.min(a[1] + dy * u0, a[1] + dy * u1); high = Math.max(a[1] + dy * u0, a[1] + dy * u1);
+      }
+      const y0 = Math.floor((low - margin) / cell) - 1, y1 = Math.floor((high + margin) / cell) + 1;
       for (let y = y0; y <= y1; y++)
-        for (const index of this.buckets.get(x + '|' + y) ?? []) seen.add(index);
+        for (const index of column.get(y) ?? []) seen.add(index);
+    }
     return [...seen].map(index => this.segments[index]);
   }
   contains(point) {

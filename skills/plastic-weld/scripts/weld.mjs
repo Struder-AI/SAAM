@@ -126,7 +126,7 @@ export function plasticWeldResult({plan,sites,modelResults}){
     operations.push({id,phase:'plastic-weld',layer,layerId:'planar:'+layerZ,rank:top,after,order:'given',
       strokes:[{points:[[x,y,top-s.seatDepthMm]],role:'plastic-rivet',stationaryExtrusion:{volumeMm3,flowMm3S:s.flowMm3S,holdSeconds:s.holdSeconds}}],
       ...(s.nozzleC!==null?{nozzleC:s.nozzleC,restoreNozzleC:plan.setup.nozzleC}:{}),
-      travelPolicy:{clearanceFor:()=>top,constantClearanceZ:top,canTravelDirect:()=>false,maxCombMm:0},clearanceZ:top+plan.process.liftMm});
+      travelPolicy:{clearanceFor:()=>top,constantClearanceZ:top,canTravelDirect:()=>false,maxCombMm:0}});
     reports.push({id:site.id,part:site.part,positionMm:[x,y,top-s.seatDepthMm],openingMm:top,bottomMm:bottom,cavityVolumeMm3,volumeMm3,
       nozzleC:s.nozzleC??plan.setup.nozzleC,flowMm3S:Math.min(s.flowMm3S,plan.process.maxFlowMm3S)});
   }

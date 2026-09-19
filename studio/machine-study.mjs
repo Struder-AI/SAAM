@@ -15,6 +15,8 @@ const snapshot=createFileSnapshot();
 export async function bundleFingerprint(dir,{program=true}={}){
   return hash(JSON.stringify(await Promise.all(['plan.json','machine.json',...(program?['motion.json']:[])].map(name=>snapshot(resolve(dir,name))))));
 }
+// Studies have no review metadata, so presentation and source identity agree.
+export async function bundleFingerprints(dir,options){const source=await bundleFingerprint(dir,options);return {source,presentation:source};}
 export async function loadBundle(dir,{program=true,allSources=false}={}){
   const [planText,machineText,source]=await files(dir,program||allSources),plan=JSON.parse(planText),machine=JSON.parse(machineText);
   if(plan.schema!=='saam-machine-study/1'||plan.output!=='machine-study')throw Error('Invalid machine study plan');
@@ -26,7 +28,7 @@ export async function loadBundle(dir,{program=true,allSources=false}={}){
   const vertices=Array.from({length:8},(_,i)=>[0,1,2].map(j=>bounds[(i>>j)&1?'max':'min'][j]));
   const geometry={geometryVersion:revision,boundsMm:bounds,vertices,faces:[],labels:[],edges:[],roof:null};
   const state={kind:'wedge',plan,machine,revision,planHash:revision,exportHash,geometry,pathSummary:{planarLayers:0},
-    geometryApproved:false,planApproved:false,toolpathApproved:false,outputAvailability:'Simulation only; machine output is unavailable.',
+    toolpathApproved:false,outputAvailability:'Simulation only; machine output is unavailable.',
     review:{generation:{mode:'development'},approvals:{}},
     inspection:{title:machine.name,description:'Nominal mechanism study · inspect source motion and machine geometry.',
       facts:[['Machine',machine.name],...(decoded?[['Motion',decoded.seconds+' seconds']]:[]),['Source','Authored mechanism study']],settings:[['Model',machine.kinematicModel?.basis??'Nominal profile']],

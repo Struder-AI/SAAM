@@ -86,6 +86,20 @@ test('tour gates require geometry edits, file selection, playback start and sett
   await tour.action('finish');assert.match((await tour.info()).agentInstruction,/ordinary chat text congratulating/);
   assert.deepEqual((await loadBundle(roof,{program:false})).plan.geometry.heightsMm,heightsMm,'switching preserves roof edits');
 });
+
+test('a valid toolpath confirms and completes the tour before reaching the export lesson',async t=>{
+  let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
+  const editing=createAgentRequests(dir),edit=await editing.begin({directory:starter,instruction:'Change the fin'});
+  await editFin(starter);await editing.update(edit.id,{status:'working',resultStage:'geometry'});await ready(tour,starter);await editing.update(edit.id);
+  await tour.action('step',1);await tour.action('step',2);await tour.setStartAt({layer:12});await tour.select(starter);await tour.action('step',4);
+  await generateBundle(starter);await tour.playback('play');
+  assert.equal((await tour.info()).step,4,'still on the playback lesson, not the export lesson');
+  await assert.rejects(tour.action('finish'),/Download the print file/,'completion still requires a downloaded file');
+  const state=await loadBundle(starter,{program:'source'});
+  await tour.downloaded(state.exportHash);
+  await tour.action('finish');
+  assert.equal((await tour.info()).completed,true,'export and completion are available once the toolpath is valid');
+});
 test('chat edit lesson accepts requested geometry after current toolpath display',async t=>{
   let time=1000;const dir=await library(t),tour=createTour(dir,{now:()=>time}),{directory:starter}=await tour.action('fresh');
   const requests=createAgentRequests(dir,{now:()=>time});
@@ -157,7 +171,7 @@ test('exit ends the run; restarting begins lesson one and preserves earlier prin
   const roofState=await referenceAdapter({loadBundle}).loadBundle(newRoof,{program:false});
   assert.deepEqual(roofState.plan.geometry,surfaceDrapePlan().geometry,'the current roof shape is preserved');
   assert.equal(roofState.review.generation,null,'tour startup does not generate or inherit a toolpath');
-  assert.equal(roofState.geometryApproved,false);
+  assert.equal(roofState.toolpathApproved,false);
   assert.equal((await tour.info()).canNext,false);assert.ok(await readFile(join(first,'plan.json')));
   assert.equal(await createTour(dir).landing(),second);
 });
@@ -180,7 +194,7 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal((await(await fetch(url+'/api/prints')).json()).prints.length,2);
   const opened=await post('open',{path:starter});assert.equal(opened.status,200,await opened.text());
   let state=await(await fetch(url+'/api/state')).json();assert.equal(state.program,undefined);assert.equal(state.review.generation,null);
-  assert.equal(state.geometryApproved,false);assert.equal(state.planApproved,false);assert.equal(state.toolpathApproved,false);
+  assert.equal(state.toolpathApproved,false);
   assert.equal(state.tour.step,3,'selection advances straight to the optional import lesson');
   const preparation=await(await fetch(url+'/api/preparation')).json();
   assert.equal(preparation.planHash,state.planHash);assert.ok(['preparing','ready'].includes(preparation.status));
@@ -194,10 +208,38 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal(state.toolpathApproved,false,'preparation does not confirm the final settings');
   assert.equal((await post('generate',{planHash:'stale',development:false})).status,400);
   assert.equal((await post('tour',{action:'step',step:5})).status,400);
-  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC tour test',revision:state.revision})).status,400);
-  assert.equal((await post('approve',{stage:'toolpath',actor:'SYNTHETIC tour test',revision:state.revision})).status,400,'tour export remains the toolpath approval action');
+  assert.equal((await post('approve',{actor:'SYNTHETIC tour test',revision:state.revision})).status,400,'tour export remains the toolpath approval action');
   assert.equal((await post('tour',{action:'exit'})).status,200);
   assert.equal(await tourExample(starter),null);
   state=await(await fetch(url+'/api/state')).json();assert.equal(state.tour.active,false);
-  assert.equal((await post('approve',{stage:'geometry',actor:'SYNTHETIC tour test',revision:state.revision})).status,400);
+});
+
+test('the chat edit lesson survives a Studio relaunch under a different agent owner',async t=>{
+  let time=1000;const dir=await library(t);
+  const first=createTour(dir,{now:()=>time,ownerId:'owner-one'}),{directory:starter}=await first.action('fresh');
+  const before=createAgentRequests(dir,{now:()=>time,ownerId:'owner-one'});
+  await editFin(starter);await ready(first,starter);
+  await first.action('step',1);await first.action('step',2);await first.select(starter);await first.action('step',4);
+  await generateBundle(starter);await first.playback('play');await first.action('step',5);
+  const edit=await before.begin({directory:starter,instruction:'The participant requests a taller fin'});
+  await editFin(starter);await before.update(edit.id,{status:'waiting',resultStage:'geometry'});
+  await generateBundle(starter);
+  // Studio is relaunched: a new process with its own agent owner, the same saved
+  // lesson and the same request records on disk.
+  const relaunched=createTour(dir,{now:()=>time,ownerId:'owner-two'});
+  assert.equal((await createAgentRequests(dir,{now:()=>time,ownerId:'owner-two'}).list({printId:before.printId(starter)}))
+    .some(r=>r.id===edit.id),false,'the edit is invisible to the new owner as live work');
+  await ready(relaunched,starter);
+  assert.equal((await relaunched.info()).canNext,true,'the displayed result of the participant edit still completes the lesson');
+  // Automatic Studio work still cannot satisfy it, whichever owner recorded it.
+  const fresh=createTour(dir,{now:()=>time,ownerId:'owner-three'}),{directory:other}=await fresh.action('fresh');
+  const automatic=createAgentRequests(dir,{now:()=>time,ownerId:'owner-three'});
+  await editFin(other);await ready(fresh,other);
+  await fresh.action('step',1);await fresh.action('step',2);await fresh.select(other);await fresh.action('step',4);
+  await generateBundle(other);await fresh.playback('play');await fresh.action('step',5);
+  const studioWork=await automatic.begin({directory:other,source:'studio',instruction:'Automatic preparation'});
+  await automatic.update(studioWork.id,{status:'working'});
+  await adjustBundle(other,{process:{planarSpeedMmS:31}});await generateBundle(other);await automatic.update(studioWork.id);
+  await ready(createTour(dir,{now:()=>time,ownerId:'owner-four'}),other);
+  assert.equal((await createTour(dir,{now:()=>time,ownerId:'owner-four'}).info()).canNext,false);
 });

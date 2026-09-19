@@ -3,7 +3,7 @@ import {parseArgs} from 'node:util';
 import {createInterface} from 'node:readline';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {onboarding, readSkill, readMaps, contextPacket, preview, beginWork, waitForRequests, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
+import {onboarding, readSkill, readMaps, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
 
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
@@ -13,11 +13,12 @@ const schemas = {
   'read-skill': {maker: boolean, builder: boolean, developer: boolean},
   'read-guidance': {},
   'read-map': {section: string, node: string, inventory: boolean, evidence: boolean},
-  'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean},
-  'open-print': {library: string, 'no-open': boolean},
-  'create-preview': {library: string, recipe: string, stl: string, kind: string, machine: string, units: string, 'no-open': boolean},
+  'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
+  'open-print': {library: string, 'no-open': boolean, studio: string, 'agent-owner': string},
+  'create-preview': {library: string, recipe: string, stl: string, kind: string, machine: string, units: string, 'no-open': boolean, studio: string, 'agent-owner': string},
   'begin-studio-work': {library: string, instruction: string, request: string, kind: string, 'include-geometry': boolean,'studio-instance':string,'agent-owner':string},
-  'wait-for-studio-request': {library: string, after: many, 'wait-ms': string, claim: boolean,'studio-instance':string,'agent-owner':string},
+  'wait-for-studio-request': {library: string, after: many, 'wait-ms': string, claim: boolean,'studio-instance':string,'agent-owner':string,studio:string},
+  'read-studio-events': {studio: string, 'agent-owner': string, 'wait-ms': string, history: boolean},
   'respond-to-studio-request': {library: string, status: string, message: string, 'result-stage': string,'studio-instance':string,'agent-owner':string},
   'record-request-activity': {library:string,'studio-instance':string,'agent-owner':string},
   'inspect-generation-failure': {library: string, request: string, 'include-geometry': boolean}
@@ -30,19 +31,22 @@ export const help = {
     'read-map PAGE [--section ID#HEADING] [--node ADDRESS] [--inventory] [--evidence]': 'Read one page, a map-owned contract section, file ownership or detailed impact evidence from current source.',
     'read-skill ID [--maker] [--builder] [--developer]': 'Read only the selected skill roles; defaults to maker. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
-    'start-tour [--start-at-layer 12] [--no-open]': 'Fresh tour copies, live Studio, browser dispatch and participation context.',
-    'open-print DIRECTORY [--no-open]': 'Open saved geometry/toolpath and return current recipe/review state.',
-    'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open]': 'Create/import unapproved geometry, open Studio and report assumptions.',
+    'start-tour [--start-at-layer 12] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
+    'open-print DIRECTORY [--no-open] [--studio URL] [--agent-owner ID]': 'Open saved geometry/toolpath and return current recipe/review state. With the live Studio URL and agentOwnerId from studio-ready it shows the print in that Studio and exits instead of launching another; --agent-owner alone launches a new Studio under that resumed owner.',
+    'create-preview DIRECTORY [--recipe FILE | --stl FILE] [--machine ID] [--units auto|mm|inch] [--no-open] [--studio URL] [--agent-owner ID]': 'Create/import unapproved geometry, open Studio and report assumptions. With --studio and --agent-owner the new print is shown in that live Studio instead of a new one; --agent-owner alone launches a new Studio under that resumed owner.',
     'begin-studio-work [DIRECTORY] [--instruction TEXT | --request ID] [--kind edit|guidance] [--include-geometry]': 'Start/claim work first, then read recipe, revision, confirmations and tour instruction.',
-    'wait-for-studio-request [--claim] [--wait-ms 25000] [--after ID]': 'Bounded wait, optional claim, and next cursor.',
+    'wait-for-studio-request [--studio URL --agent-owner ID] [--claim] [--wait-ms 25000] [--after ID]': 'Bounded wait for Studio requests and delivered Studio events, optional claim, and next cursor. With the live Studio URL and agentOwnerId from studio-ready it reads the owning agent’s event queue and calculation progress across processes.',
+    'read-studio-events --studio URL --agent-owner ID [--wait-ms 0] [--history]': 'Read and clear queued Studio events (what the person did) plus current toolpath calculation progress from a live owned Studio.',
     'respond-to-studio-request ID [--status working|completed|failed|waiting|cancelled] [--result-stage geometry|toolpath] [--message TEXT]': 'Record a prepared result or resolve the matching request through the shared coordination API.',
     'record-request-activity ID': 'Record actual request-specific agent/tool activity without resuming work or changing its target. Never run as an idle heartbeat.',
     'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
   },
   developmentAreas: Object.keys(developmentAreas),
   notes: ['--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
+    'Relaunching a Studio with --agent-owner ID, the agentOwnerId from an earlier studio-ready line, resumes that owner so its in-flight requests stay visible. The relaunch always gets a new Studio instance.',
     '--area and --after may repeat where accepted. Skill manuals are individual follow-up reads.',
     'Studio commands stay in the managed command session. Read studio-ready before waiting for completion.',
+    'Reuse your live Studio and browser tab by default: later open-print/create-preview calls pass --studio URL --agent-owner ID. Launch another instance only when the person asks, or for a compelling reason you tell them.',
     'For the shared launcher permission use node studio/server.mjs --toolkit start-tour|open-print|create-preview ...',
     'Output is newline-delimited JSON: studio-ready for a live preview, then result; failures contain stage and partial results.']
 };
@@ -59,6 +63,10 @@ function attachLiveControl(opened,input,write){
       if(command==='begin-studio-work')result=await beginWork({...base,target:message.target??opened.result.directory,instruction:message.instruction,requestId:message.requestId,includeGeometry:Boolean(message.includeGeometry),kind:message.kind});
       else if(command==='respond-to-studio-request')result=await respondToRequest({...base,requestId:message.requestId,status:message.status,message:message.message,resultStage:message.resultStage});
       else if(command==='record-request-activity')result=await recordRequestActivity({...base,requestId:message.requestId,target:message.target});
+      else if(command==='read-studio-events')result=await readStudioEvents({events:opened.agent.events,server:opened.server,history:Boolean(message.history)});
+      else if(command==='wait-for-studio-request')result=await waitForRequests({...base,server:opened.server,after:message.after??[],waitMs:message.waitMs??25000,claim:Boolean(message.claim)});
+      else if(command==='open-print'||command==='create-preview')result=await showPrint({...message,command,library:opened.result.listener.library,
+        open:async directory=>{await opened.server.openPrint(directory);opened.result.directory=opened.result.studio.directory=opened.agent.session().directory;return opened.result.studio;}});
       else if(command==='get-studio-session')result=opened.agent.session();
       else if(command==='close-studio'){result=opened.agent.session();await opened.server.shutdown();}
       else throw Error('Unknown live Studio command.');
@@ -88,8 +96,9 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     else if (command === 'read-skill') result = await readSkill(positionals[0], v);
     else if (command === 'read-guidance') result = await contextPacket([positionals[0]]);
     else if (command === 'read-map') result = {maps: await readMaps([positionals[0]], v)};
+    else if (['open-print', 'create-preview'].includes(command) && v.studio) result = await showPrint({...options, studio: v.studio});
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
-      const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event})});
+      const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event}),onEvents:event=>write({ok:true,event:'studio-events',command,...event})});
       result = opened.result; liveServer = opened.server;
       attachLiveControl(opened,input,write);
       const stop = () => {void liveServer.shutdown();};
@@ -100,7 +109,11 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     else if (command === 'wait-for-studio-request') {
       const waitMs = v['wait-ms'] === undefined ? 25000 : Number(v['wait-ms']);
       if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 25000) throw Error('--wait-ms must be an integer from 0 to 25000.');
-      result = await waitForRequests({library: v.library, after: v.after, claim: v.claim, waitMs,studioInstanceId:v['studio-instance'],ownerId:v['agent-owner']});
+      result = await waitForRequests({library: v.library, after: v.after, claim: v.claim, waitMs,studioInstanceId:v['studio-instance'],ownerId:v['agent-owner'],studio:v.studio});
+    } else if (command === 'read-studio-events') {
+      const waitMs = v['wait-ms'] === undefined ? 0 : Number(v['wait-ms']);
+      if (!Number.isInteger(waitMs) || waitMs < 0 || waitMs > 25000) throw Error('--wait-ms must be an integer from 0 to 25000.');
+      result = await readStudioEvents({studio: v.studio, ownerId: v['agent-owner'], waitMs, history: v.history});
     } else if (command === 'respond-to-studio-request') result = await respondToRequest({library: v.library, requestId: positionals[0], status: v.status, message: v.message, resultStage: v['result-stage']});
     else if(command==='record-request-activity')result=await recordRequestActivity({library:v.library,requestId:positionals[0]});
     else result = await inspectFailure(options);

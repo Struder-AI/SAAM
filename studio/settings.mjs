@@ -2,7 +2,7 @@ import {planarWallTolerance} from '../core/machine/rules.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
 const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
-export const skillName=name=>({'pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
+export const skillName=name=>({'line-network':'Line network','pipe-cladding':'Surface cladding','full-fill':'Full fill','planar-infill':'Planar infill','vase-wall':'Vase wall','draped-skin':'Draped skin',supports:'Supports','rimming-planar':'Rimming · horizontal offsets','rimming-normal':'Rimming · normal offsets (experimental)'}[name]??name);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>globalSkills.includes(name)?Boolean(plan.skills?.[name]?.enabled):plan.composition?.regions?.length
   ?plan.composition.regions.some(region=>Object.hasOwn(region.skills,name))
@@ -21,22 +21,29 @@ export function claddingSubstrateName(plan){
 }
 const fields={
   lineSpacingMm:['Wave spacing along surface',' mm'],beadHeightMm:['Bead height',' mm'],speedMmS:['Deposition speed',' mm/s'],
-  fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],maxWaves:['Wave budget',''],maxEvaluations:['Surface evaluation budget',''],
+  fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],
   spacingFactor:['Line spacing','× nominal spacing; bead width unchanged'],
-  pattern:['Pattern',''],maxPatternCells:['Pattern cell budget',''],interfaceDensity:['Interface fraction',''],
+  pattern:['Pattern',''],interfaceDensity:['Interface fraction',''],
   interfaceLayers:['Interface layers',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
   mode:['Fill mode',''],bottomLayers:['Solid bottom layers',''],topLayers:['Solid top layers',''],
   perimeters:['Walls',''],density:['Infill fraction',''],fillAnglesDeg:['Fill directions','°'],fillOverlap:['Wall overlap (bead fraction)',''],
   minFeatureMm:['Smallest sampled feature',' mm'],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
   strokeAngleDeg:['Stroke direction','°'],sampleStepMm:['Maximum sampling step',' mm'],surveyStepMm:['Surface survey grid',' mm'],
   maxAngleDegOverride:['Experimental angle override','°'],zStartMm:['Start above component base',' mm'],zEndMm:['End above component base',' mm'],
-  toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],offsetTightness:['Offset tightness',' · 0 loose / 1 exact'],maxPoints:['Point budget',''],endTransition:['Wall ending','']
+  toleranceMm:['Contour tolerance',' mm'],boundaryToleranceMm:['Boundary tolerance',' mm'],offsetTightness:['Offset tightness',' · 0 loose / 1 exact'],endTransition:['Wall ending','']
 };
 export function skillSettingsRows(name,settings,prefix=skillName(name)){
   if(name==='vase-wall'&&settings.pathMode==='segmented')prefix=prefix.replace(skillName(name),'Segmented paths');
   const rows=[];
   for(const [key,v] of Object.entries(settings)){
     if(['enabled','part','parts'].includes(key))continue;
+    if(name==='line-network'&&key==='layers'){
+      rows.push([prefix+' · Courses',String(v)]);continue;
+    }
+    if(name==='line-network'&&key==='networks'){
+      rows.push([prefix+' · Independent faces',String(v.length)],
+        [prefix+' · Centerline strokes',String(v.reduce((sum,network)=>sum+network.strokes.length,0))]);continue;
+    }
     if(name==='wave-overhangs'&&key==='slices'){
       for(const s of v)rows.push([s.id+' · Wave slice',s.reason],
         [s.id+' · Surface',s.surface.patch?`${s.surface.part??'Part'} / ${s.surface.patch}`:`Spline degrees ${s.surface.degreeU}/${s.surface.degreeV}; ${s.surface.controlPoints.length} × ${s.surface.controlPoints[0].length} controls`],
@@ -52,6 +59,14 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
         [prefix+' · Contact side',v.contactSide==='inside'?'Keep pattern inside mesh envelope':'Keep pattern outside mesh envelope'],
         [prefix+' · Spline fit',v.circumferentialControls+' circumferential × '+v.heightControls+' height controls'],
         [prefix+' · Mesh detail tolerance',v.detailToleranceMm+' mm']);
+      continue;
+    }
+    if(name==='vase-wall'&&key==='sleeveToleranceMm'){
+      // Only the ordinary continuous wall uses this; a configured mesh sleeve or
+      // an authored pattern own their own following behavior above.
+      if(!settings.meshSleeve&&settings.pattern===null)rows.push([prefix+' · Wall following',v>0
+        ?'Fitted NURBS sleeve within '+v+' mm; exact inset on thin or non-sleeve walls'
+        :'Exact inset contour at every height']);
       continue;
     }
     if(key==='spacingFactor'&&v===1)continue;
@@ -179,3 +194,9 @@ export function robotRows(plan){
 }
 // User-selected display estimate: 1.2 g/cm³, shared by all materials/machines.
 export const materialGrams=volumeMm3=>volumeMm3*1.2/1000;
+
+// Only explicit version tokens advance; ordinary friendly names stay stable.
+export function nextExportName(name){
+  const match=/^(.*-V)(\d+)(-.+)$/i.exec(name.trim());
+  return match?match[1]+(Number(match[2])+1)+match[3]:name;
+}

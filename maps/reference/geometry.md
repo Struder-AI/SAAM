@@ -9,7 +9,7 @@ source, dependency declarations and remaining helpers with their maintenance own
 | Map page | Responsibility and constraints |
 |---|---|
 | `3i_numerics` | NURBS evaluation, XY projection, bracketed roots, numerical seam cleanup and contour parameterization. Units and tolerance dimensions follow the precision contract below; these helpers do not choose printing resolution. |
-| `3j_mesh` | Indexed mesh validation, compact edge incidence and vertex fans, spatial candidate queries, bounded nearest distance, memory budgets and streamed STL input. Spatial acceleration does not expand the validity guarantees below. A distance query returns infinity when no surface lies within its supplied search bound. |
+| `3j_mesh` | Indexed mesh validation, compact edge incidence and vertex fans, spatial candidate queries, bounded nearest distance, index capacity and streamed STL input. Spatial acceleration does not expand the validity guarantees below. A distance query returns infinity when no surface lies within its supplied search bound. |
 | `3k_construct` | Closed native shell/pipe construction, solid mesh operations and explicit tessellation for solid modifiers. Viewer proxies remain separate from the compiled mesh used by a solid modifier. |
 | `3l_surfaces` | Selected surface charts, independent text references, curvature-weighted offsets, sleeve contact/frames and support references. An open reference surface is distinct from a printable closed solid. |
 | `3m_text` | Font outlines, layout and compiled-record validation. Pattern tools remain in the text skill; shared geometry compilation and identity belong here. |
@@ -23,7 +23,11 @@ numeric limits, source integrity and supported skill consumers.
 
 ## Repair worker and native process boundary
 
-`core/print/mesh-repair-job.mjs` owns one Node worker per repair. Progress callback
+`core/print/mesh-repair-job.mjs` owns one Node worker per repair or repairing
+import (`importOrRepairSTLBundle`, mode `import`); each of these entries runs the
+job when called on the main thread and works inline inside the worker. The job
+settles only after terminating its worker, so a caller can safely remove the
+directory it was writing. Progress callback
 errors abort work; a geometry callback must acknowledge its matching message ID
 before the worker continues. Abort rejects pending acknowledgements. A worker exit
 without a result is an error, and a result received after caller cancellation does
@@ -175,8 +179,9 @@ faces, so Studio selects the imported component as a whole.
 `core/geom/mesh.mjs` rejects invalid indices/nonfinite coordinates, degenerate or
 duplicate triangles, open edges, inconsistent winding, nonmanifold vertices and
 intersecting nonadjacent triangles. It does not repair geometry. Checks are
-controlled by a configurable memory estimate and a spatial hierarchy. The candidate
-work allowance grows with face count (at least two million tests). Adjacent
+controlled by a configurable memory estimate and a spatial hierarchy. The number
+of candidate pairs tested is whatever the mesh's own overlapping bounds and
+shared vertices produce; there is no work allowance on it. Adjacent
 facets sharing vertices are excluded from the intersection pass, so this is not
 a complete solid-kernel validity proof. Explicit [mesh repair](#explicit-mesh-repair)
 adds an adjacent-contact check to its own output validation. Mesh sections preserve holes/islands and
@@ -255,8 +260,10 @@ the displacement from the source to the loose offset. The area is quadratic in
 that displacement, so checking its first limiting root also catches offsets that
 would pass through two reversals and end with a positive Jacobian. Failing samples
 reduce the depths of their supporting controls together; periodic duplicate
-controls share reductions. The bounded iteration fails explicitly if it cannot
-converge. Safe offsets retain their original control displacements.
+controls share reductions. Passes repeat until every sample clears the area
+floor; since each incomplete pass shrinks at least one depth, the only explicit
+failure is a pass that no longer changes any depth at all. Safe offsets retain
+their original control displacements.
 
 Preparation is reused per reference; at most 128 limited depth patches are cached.
 Reports expose sample count, area floor, limited-patch construction count, maximum
@@ -377,7 +384,10 @@ recovery and residual orthogonality independently of the fitted mesh.
 | `circumferentialControls`, `heightControls` | Independent fit resolution; defaults 12 and 6. Fewer controls smooth local texture; increasing them permits more detail in the underlying estimate. Both accept 4–64. |
 | `circumferentialSamples`, `heightSamples` | Uniform observation grid, defaults 96 and 25. At least twice as many circumferential samples as controls, and at least as many height samples as controls, are required. These are fit samples, not a certified mesh-error bound. |
 | `toleranceMm` | Bounded chord deviation for polyline sections of the fitted polynomial spline, default 0.02 mm. It is independent of fit residual and source-mesh detail. |
-| `maxSectionPoints` | Construction allowance per complete fitted section, default 16,384; exceeding it fails without returning a truncated section. |
+
+The number of points in a complete fitted section follows from `toleranceMm` and
+the fitted second-derivative bound; there is no separate allowance on it, and
+`report.sectionSegments` gives the count actually used.
 
 The result contains `patch` (the existing shared NURBS patch representation),
 `pointAt(u,z)` (periodic U, actual millimetre Z), `sectionAt(z)` (a smooth outer
@@ -414,11 +424,18 @@ not physical support or machine clearance.
 
 `directional-contour.mjs` unfolds one-turn section contours into ordered polar
 profiles within the selected planar correspondence allowance. Larger folds
-reject. `prepared-radial-contact.mjs` uses 16,384 fixed samples per profile and
+reject, as does a source whose radial variation needs more angular room than the
+one turn an unfolded profile has. The fixed sample count per profile has a floor,
+not a ceiling: a contour whose sampling error exceeds the detail tolerance says so
+and can be sampled more finely. `prepared-radial-contact.mjs` uses 16,384 fixed
+samples per profile by default and
 interpolates their ordered correspondence across height. At sampled validation
 heights, the actual profile certificate is deducted before allocating the
 remaining detail tolerance to interpolation. This avoids an unnecessarily
-fixed five-percent interpolation budget.
+fixed five-percent interpolation budget. Height slabs are halved as long as Z can
+be halved, with no profile-count or mesh-distance-query budget; a slab that still
+misses its interpolation tolerance at one representable height is a step in the
+source that no mesh transition confirmed.
 
 Narrow horizontal ledges can use radial transitions checked against the original
 triangles through `mesh-distance.mjs` and the shared triangle hierarchy. Checks
@@ -440,12 +457,15 @@ consumer is switched to Manifold.
 
 [Font outline extraction](../../core/geom/text-outline.mjs) uses pinned `fontkit@2.0.4` for glyph
 selection, positioning and vector paths. Bezier subdivision bounds control-point
-distance to each chord in flat millimetres. The original font bytes, hash, text,
+distance to each chord in flat millimetres, and ends only on that tolerance or on
+a parameter interval too small to halve again, which is reported as such. The original font bytes, hash, text,
 layout and variation settings are retained. Flat baseline deformation is followed
 by planar normalization before extrusion, avoiding cap diagonals that cross newly
 curved letter boundaries. The volume is subdivided, then mapped to the reference
 surface along its normal. Mid-edge and triangle-centroid deviations drive further
-subdivision; these samples are not a global error certificate. Reversed reference
+subdivision; these samples are not a global error certificate. Refinement repeats
+while the deviation keeps falling, and a pass that no longer reduces it reports a
+reference that cannot be resolved rather than spending a fixed pass count. Reversed reference
 normals retain outward solid winding.
 
 Explicit `outlineOffsetMm` uses the existing shared planar offset before layout
@@ -477,6 +497,9 @@ and saved compiled meshes retain their semantics.
 matches shared boundaries geometrically despite different parameterizations,
 and propagates mesh orientation. Its dyadic grid refines against sampled chord
 deviation and rejects unmatched seams or shared mesh-validation failures. The
+grid keeps doubling until that deviation meets the requested tolerance; there is
+no triangle budget, and a doubling that no longer lowers the deviation is
+reported as a tolerance this shell cannot reach. The
 1e-7 mm vertex welding grid is distinct from its 0.02 mm default approximation
 target. Manifold's JS mesh boundary stores float32 coordinates, so precision also
 depends on coordinate magnitude. Input solids must have positive material volume.
@@ -491,14 +514,15 @@ without rerunning font shaping or booleans. Text edits rebuild through
 affected reviews. Text's original STL source hash remains checked. Assembly edits
 retain the selected component id and other components' representations.
 
-New text records also save digest-bound `materialParts`: `base` and
+Text records save digest-bound `materialParts`: `base` and
 `text/<feature-id>`. Raised additions exclude existing material; later recessed
 cuts subtract from every partition. Empty partitions are omitted. An uncut base
 uses `geometry: null` to retain the original native geometry and its queries;
 other partitions store their resulting mesh. Their boolean construction uses the
 same tessellation approximation as the final solid. `standalone: true` retains
 the source only as a reference and exposes no base material or base preparation
-details. Older records without these optional fields remain valid whole solids.
+details; it is the one optional field, present only on a reference body. A record
+without `materialParts` is rejected, not read as a whole solid.
 
 [Geometry selections](../../core/geom/selections.mjs) exposes these partitions to regional
 consumers, prefixing their names with the assembly component id where present.
@@ -570,16 +594,28 @@ file results are staged and validated before publishing a new destination.
 The shared validator uses packed edge incidence, a triangle AABB hierarchy, and
 compact normals. Cached identity is a streaming SHA-256 digest; derived cache data
 is capped at 32 MiB. Public normals and edge maps materialize lazily. The former
-fixed face-count gate is gone. `SAAM_MESH_MEMORY_MIB` sets a working-set estimate
-budget; the default is the smallest of 1,536 MiB, 40% of the Node heap limit and
-25% of system RAM. An exhausted budget reports its estimate and setting, without
-changing geometry. This is a conservative estimate, not a hard RSS reservation.
-The source indexed mesh, CGAL mesh and final result still require memory. Neither
-native repair nor downstream bundle serialization is fully out-of-core.
+fixed face-count gate is gone, and so is the working-set estimate that used to
+refuse a mesh before any of it was read: no stage rejects geometry because a
+predicted size looked large. What remains is index capacity, a representational
+limit of the indexed arrays (at most 0x7ffffffe vertices and 0x3ffffffe
+triangles). A real allocation failure is reported as it happens, naming the stage
+and the mesh size, and never changes geometry. When the Node heap itself is
+exhausted inside the repair worker the supervisor reports that the mesh exceeded
+available memory rather than an anonymous worker failure. The source indexed mesh,
+CGAL mesh and final result still require memory. Neither native repair nor
+downstream bundle serialization is out-of-core; a mesh larger than the machine can
+hold fails on the allocation that actually failed, not on a prediction.
 
-Repair runs in a worker thread, with CGAL in a child process. Async repair accepts `signal`, `timeoutMs`, `progress` and `onGeometry`.
+Repair runs in a worker thread, with CGAL in a child process. Async repair accepts `signal`, `progress` and `onGeometry`.
 Countable stages report completed/total and percentage within that stage. CGAL
 patch work is indeterminate; no fabricated global percentage is reported.
+Elapsed time never refuses a repair. The child process ends when it finishes,
+when it fails, or when the caller cancels through `signal`; nothing kills it for
+running long, because the pinned helper reports only when it enters a stage and
+its self-intersection and hole-triangulation work can run for a long time in one
+stage. Silence is therefore not evidence of a stalled child, and no interval of
+silence is treated as one. The helper's stdout report is a single line of counts;
+anything larger is rejected as output that did not come from this helper.
 After final validation, `onGeometry` receives at most 4,096 full-quality triangles
 per chunk, with local vertices/indices, first-triangle offset and completion
 percentage. Each callback is awaited, allowing the consumer to release a chunk
@@ -634,22 +670,22 @@ Sources: [query.mjs](../../core/geom/query.mjs), [shell.mjs](../../core/geom/she
 
 ## Changing mesh topology and spatial queries
 
-Sources: [mesh.mjs](../../core/geom/mesh.mjs), [mesh-topology.mjs](../../core/geom/mesh-topology.mjs), [mesh-spatial.mjs](../../core/geom/mesh-spatial.mjs), [triangle-bvh.mjs](../../core/geom/triangle-bvh.mjs), [mesh-budget.mjs](../../core/geom/mesh-budget.mjs), [stl-file.mjs](../../core/geom/stl-file.mjs).
+Sources: [mesh.mjs](../../core/geom/mesh.mjs), [mesh-topology.mjs](../../core/geom/mesh-topology.mjs), [mesh-spatial.mjs](../../core/geom/mesh-spatial.mjs), [triangle-bvh.mjs](../../core/geom/triangle-bvh.mjs), [mesh-capacity.mjs](../../core/geom/mesh-capacity.mjs), [stl-file.mjs](../../core/geom/stl-file.mjs).
 
-**Contract.** Indexed mesh geometry retains actual triangle connectivity. Topology checks distinguish shared adjacency from improper contact; spatial queries use bounded triangle acceleration without replacing the source mesh. STL parsing accepts the supported binary/text forms and normalizes into this representation. The memory budget estimates vertices, triangles and retained source bytes before large allocations, using heap/RAM-derived defaults or the documented environment override.
+**Contract.** Indexed mesh geometry retains actual triangle connectivity. Topology checks distinguish shared adjacency from improper contact; spatial queries use bounded triangle acceleration without replacing the source mesh. STL parsing accepts the supported binary/text forms and normalizes into this representation. Mesh size is never predicted and refused: the only size check is index capacity, the representational limit of the indexed arrays, and memory is reported only when an allocation genuinely fails.
 
-**Failures.** Malformed STL, invalid indices/nonfinite coordinates, nonmanifold or intersecting geometry and budget/index-capacity overflow fail with useful diagnostics. The budget is an estimate, not a guaranteed RSS cap. Shared vertices/edges must not be falsely reported as collisions, nor may real coplanar overlap be suppressed as adjacency. No automatic simplification is implied.
+**Failures.** Malformed STL, invalid indices/nonfinite coordinates, nonmanifold or intersecting geometry and index-capacity overflow fail with useful diagnostics. An allocation that fails is reported with its stage and the mesh size (`MESH_MEMORY_EXHAUSTED`); do not reintroduce a working-set estimate that refuses a mesh before reading it. Shared vertices/edges must not be falsely reported as collisions, nor may real coplanar overlap be suppressed as adjacency. No automatic simplification is implied.
 
 **Change together.** Review import and repair boundaries, sectioning, BVH consumers, mesh-distance/contact queries and viewer proxy construction. Keep strict source validation distinct from permissive display welding.
 
-**Verification.** Use closed, open, nonmanifold, coplanar and self-intersecting fixtures; test adjacency exclusions, large binary input and explicit memory-budget rejection. Checks: [mesh.test.mjs](../../core/tests/mesh.test.mjs), [mesh-boundary.test.mjs](../../core/tests/mesh-boundary.test.mjs), [mesh-large.test.mjs](../../core/tests/mesh-large.test.mjs).
+**Verification.** Use closed, open, nonmanifold, coplanar and self-intersecting fixtures; test adjacency exclusions, large binary input and index-capacity rejection, and confirm that a mesh whose working set would once have been refused now imports. Checks: [mesh.test.mjs](../../core/tests/mesh.test.mjs), [mesh-boundary.test.mjs](../../core/tests/mesh-boundary.test.mjs), [mesh-large.test.mjs](../../core/tests/mesh-large.test.mjs).
 
 
 ## Changing generated geometry and persistence
 
 Sources: [shapes.mjs](../../core/geom/shapes.mjs), [cylinder.mjs](../../core/geom/cylinder.mjs), [spline-tube.mjs](../../core/geom/spline-tube.mjs), [tessellate.mjs](../../core/geom/tessellate.mjs), [geometry.mjs](../../core/print/geometry.mjs).
 
-**Contract.** Constructors create the declared solid/shell backend from a validated recipe. Spline tubes combine a periodic cubic exterior with a rational bore and bounded control-net dimensions. tessellateShell explicitly converts a supported closed spline shell into a mesh for solid modifiers, subject to geometric tolerance and triangle budgets; ordinary spline slicing stays native. This is distinct from the coarse viewer proxy. Print geometry stores named surfaces or meshes in 3DM and reopens the bytes to verify their identity and closure against the descriptor. Recipe, file and rounded control-net hashes serve different identity checks.
+**Contract.** Constructors create the declared solid/shell backend from a validated recipe. Spline tubes combine a periodic cubic exterior with a rational bore and bounded control-net dimensions. tessellateShell explicitly converts a supported closed spline shell into a mesh for solid modifiers, refining until its geometric tolerance is met; ordinary spline slicing stays native. This is distinct from the coarse viewer proxy. Print geometry stores named surfaces or meshes in 3DM and reopens the bytes to verify their identity and closure against the descriptor. Recipe, file and rounded control-net hashes serve different identity checks.
 
 **Failures.** Reject invalid dimensions, unsupported recipes and malformed control nets; a tessellation tolerance is not a print-process tolerance or a license to change shape. Stored geometry must remain tied to the recipe that produced it.
 
@@ -724,7 +760,11 @@ The shared solid kernel initializes once. Mesh input passes through float32
 Manifold coordinates and must enclose positive volume with outward winding.
 Solid conversion rejects kernel errors/empty output; add/subtract are the supported
 binary operations. Callers own and delete returned native solids, including
-intermediates on failure. This lifetime boundary is separate from JavaScript mesh
+intermediates on failure. The kernel addresses 32-bit WebAssembly memory, so it
+publishes the largest triangle count it can hold; that capacity, not a chosen
+triangle budget, is what refuses an impossible subdivision. An aborted kernel
+instance is discarded so the next caller builds a fresh one, and releasing solids
+of a discarded instance must not replace the failure that discarded it. This lifetime boundary is separate from JavaScript mesh
 objects and the explicitly tessellated target's geometric error budget.
 
 **Verification.** Exercise layout/holes, feature placement, deterministic record hashes, changed recipes, invalid solids and generation using the resulting geometry. Checks: [text-layout.test.mjs](../../core/tests/text-layout.test.mjs), [geometry.test.mjs](../../core/tests/geometry.test.mjs), [pipeline.test.mjs](../../core/tests/pipeline.test.mjs).
@@ -734,9 +774,9 @@ objects and the explicitly tessellated target's geometric error budget.
 
 Sources: [mesh-native.mjs](../../core/geom/mesh-native.mjs), [mesh-repair.mjs](../../core/geom/mesh-repair.mjs), [mesh-repair.cpp](../../core/geom/native/mesh-repair.cpp), [repair-stl.mjs](../../core/print/repair-stl.mjs), [mesh-repair-job.mjs](../../core/print/mesh-repair-job.mjs), [mesh-repair-worker.mjs](../../core/print/mesh-repair-worker.mjs).
 
-**Contract.** Repair is an explicit operation with retained input, output and report. JavaScript validates requests and budgets; a worker owns the native child process and progress; the pinned CGAL executable performs the configured topology/repair stages. The executable must match the checked source/build manifest. [Native build and stages](native-repair.md) owns toolchain, artifact location and repair limits. Hole closing obeys both configured limits; zero limits disable it.
+**Contract.** Repair is an explicit operation with retained input, output and report. JavaScript validates requests; a worker owns the native child process and progress, and lets it run until it finishes, fails or is cancelled; the pinned CGAL executable performs the configured topology/repair stages. The executable must match the checked source/build manifest. [Native build and stages](native-repair.md) owns toolchain, artifact location and repair limits. Hole closing obeys both configured limits; zero limits disable it.
 
-**Failures.** Missing/stale native builds are setup failures, not permission to download or search arbitrary executables. Cancellation/worker failure must terminate the child, reject the operation and preserve the original input. A repaired mesh still crosses strict validation; successful software repair does not approve a manufactured part.
+**Failures.** Missing/stale native builds are setup failures, not permission to download or search arbitrary executables. Cancellation/worker failure must terminate the child, reject the operation and preserve the original input. Cancellation is the only way a running child is stopped from JavaScript; do not reintroduce an elapsed-time limit, and do not treat silence as a stall unless the helper first learns to report while it works. A repaired mesh still crosses strict validation; successful software repair does not approve a manufactured part.
 
 **Change together.** Review the C++ argument/progress protocol, manifest source hash, JS stage parsing, worker cancellation, report schema and Studio import cleanup together. Changing native code requires rebuilding the pinned helper before interpreting repair results.
 
@@ -747,10 +787,10 @@ Sources: [mesh-native.mjs](../../core/geom/mesh-native.mjs), [mesh-repair.mjs](.
 
 Sources: [import-stl.mjs](../../core/print/import-stl.mjs).
 
-**Contract.** STL import reads an explicit file, resolves units under the supported import policy, normalizes geometry/placement and writes a print recipe with identity tied to the resulting source. Strict geometry validation remains the default; explicit repair is a separate operation used by the Studio import coordinator only for eligible geometry defects.
+**Contract.** STL import reads an explicit file, resolves units under the supported import policy, normalizes geometry/placement and writes a print recipe with identity tied to the resulting source. Strict geometry validation remains the default; `importOrRepairSTLBundle` falls back to explicit repair into the new bundle's `repair/` folder only for recognized geometry defects (hole closing disabled), then imports the repaired millimetre STL. The Studio import coordinator is its caller and owns the reserved directory.
 
-**Failures.** Reject malformed files, unsupported units, invalid/budget-exceeding meshes and unavailable geometry. Never treat a setup or memory error as an invitation to repair or silently simplify.
+**Failures.** Reject malformed files, unsupported units, invalid meshes and unavailable geometry. No mesh is refused for its size; only index capacity and a real allocation failure stop an import. Never treat a setup or memory error as an invitation to repair or silently simplify.
 
 **Change together.** Coordinate STL parsing, mesh validation, recipe schema, source-file retention and Studio reserved-directory rollback. Imported geometry starts without human approval.
 
-**Verification.** Exercise binary/text input, millimetre/inch conversion, strict failures, large-input budgets and the recipe generated from valid source. Checks: [studio-import.test.mjs](../../core/tests/studio-import.test.mjs), [mesh.test.mjs](../../core/tests/mesh.test.mjs), [mesh-large.test.mjs](../../core/tests/mesh-large.test.mjs).
+**Verification.** Exercise binary/text input, millimetre/inch conversion, strict failures, large inputs and the recipe generated from valid source. Checks: [studio-import.test.mjs](../../core/tests/studio-import.test.mjs), [mesh.test.mjs](../../core/tests/mesh.test.mjs), [mesh-large.test.mjs](../../core/tests/mesh-large.test.mjs).

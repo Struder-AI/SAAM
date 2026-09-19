@@ -34,6 +34,8 @@ on `get_studio_requests` explicitly selects full history. Print tools accept
 receive contact renewal at entry/exit; listener waits and unrelated calls do not.
 `get_studio_sessions`, `request_review.studioInstanceId` / `newInstance` and
 `close_studio_session` explicitly manage the one-agent-to-many-Studio relation;
+`request_review` without either rebinds the instance showing the print, else the
+sole live instance, so switching prints opens no second Studio;
 an instance never crosses adapter ownership, while print bundles remain shared.
 Tour start-layer writes require the run and lesson identities they were prepared
 for. See [coordination and its concurrency limits](../../studio/README.md#agent-request-coordination).

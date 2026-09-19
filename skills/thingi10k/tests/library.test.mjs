@@ -133,8 +133,7 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   const manual=await call('read_skill',{skillId:'thingi10k'}); assert.ok(manual);
   const results=await call('search_thingi10k',{query:'bunny'});
   const imported=await call('import_thingi10k_print',{printId:'Bunny',fileId:results.results[0].fileId,machineId:'ultimaker-s5'});
-  assert.equal(imported.imported,true);assert.equal(imported.approvals.geometry,false);
-  assert.equal(imported.approvals.toolpath,false);
+  assert.equal(imported.imported,true);assert.equal(imported.toolpathApproved,false);
   assert.ok(imported.chatNotice.includes(imported.attribution.licenseUrl));
   const dir=resolve(printsRoot,'Bunny');
   let state=await loadBundle(dir,{program:false});
@@ -153,7 +152,7 @@ test('MCP searches, imports and opens an unapproved print; attribution survives 
   state=await loadBundle(dir,{program:false});
   await generateBundle(dir);
   state=await loadBundle(dir);
-  await approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC TEST ONLY'});
+  await approve(dir,{revision:state.revision,actor:'SYNTHETIC TEST ONLY'});
   const destination=await deliver(dir);
   assert.equal(createHash('sha256').update(await readFile(destination)).digest('hex'),state.exportHash);
   const attribution=JSON.parse(await readFile(resolve(dir,'delivery/source-attribution.json')));

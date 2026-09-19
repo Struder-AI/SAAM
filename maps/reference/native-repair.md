@@ -7,6 +7,23 @@ preservation enabled. Optional hole filling uses both an edge-count limit and
 the boundary bounding-box diagonal in millimeters. These algorithms can fail;
 partial output is never accepted. This is not a universal solid Boolean kernel.
 
+## Stage reporting and how long a repair may take
+
+The helper writes one JSON line to stderr as it enters each of its four stages —
+`orient`, `patch`, `boundaries` and `native-validation` — and one JSON line of
+counts to stdout at the end. Nothing is written while a stage runs. Self-intersection
+removal inside `patch`, and hole triangulation inside `boundaries`, grow much faster
+than the triangle count, so a single stage can be silent for a very long time on a
+large or badly tangled mesh and still be making progress.
+
+The caller therefore has no liveness signal to judge the child by, and no elapsed
+time refuses a repair: the child ends when it finishes, when it fails, or when the
+caller cancels. A repair that appears stuck cannot be distinguished from a slow one
+from outside the process. Making that distinction possible is a change to this
+helper — emit a line periodically from within the long stages — and it requires
+rebuilding the pinned executable, because the adapter checks the wrapper source
+hash against the build manifest.
+
 ## Build
 
 [CMakeLists.txt](../../core/geom/native/CMakeLists.txt) declares the exact CGAL

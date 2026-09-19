@@ -18,7 +18,7 @@ const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!A
 const same=isDeepStrictEqual;
 
 export async function prepareMeshVase(directory,options={}, {expectedRevision}={}){
-  keys(options,['meshSleeve','pattern','motif','loop','cellsPerTurn','courseRiseMm','tiltDeg','repeats','baseHeightMm','endTransition','maxPoints','detect'],'mesh vase');
+  keys(options,['meshSleeve','pattern','motif','loop','cellsPerTurn','courseRiseMm','tiltDeg','repeats','baseHeightMm','endTransition','detect'],'mesh vase');
   if(Object.hasOwn(options,'detect'))keys(options.detect,['marginMm','toleranceMm','sampleCount','maxSecondaryAreaFraction','zMinMm','zMaxMm'],'sleeve detection');
   // Generation uses the shared fit's 0.1% extraction allowance. Detection may
   // be stricter, but cannot accept a topology the persisted fit would reject.
@@ -68,12 +68,11 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
     automaticCount=options.repeats===undefined;
   }
   validateVasePattern(pattern,'continuous');
-  let maxPoints=options.maxPoints??wall.maxPoints,authoredPoints=0;
-  requireThat(Number.isSafeInteger(maxPoints)&&maxPoints>=100,'maxPoints must be a safe integer of at least 100.');
+  let authoredPoints=0;
   const endTransition=options.endTransition??(wall.enabled?wall.endTransition:'level');
   requireThat(['level','spiral'].includes(endTransition),'endTransition must be level or spiral.');
   if(pattern){
-    const expanded=isTiledMotif(pattern)?tileVaseMotif(pattern,maxPoints):pattern;
+    const expanded=isTiledMotif(pattern)?tileVaseMotif(pattern):pattern;
     let minimum=Infinity,maximum=-Infinity;
     for(const path of expanded.paths)for(const p of path.points){minimum=Math.min(minimum,p[1]);maximum=Math.max(maximum,p[1]);}
     requireThat(minimum>=-1e-9,'The authored motif descends below its first bead; revise motif tilt or height.');
@@ -85,18 +84,16 @@ export async function prepareMeshVase(directory,options={}, {expectedRevision}={
       'The requested complete motif courses exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
     authoredPoints=expanded.paths.reduce((n,p)=>n+p.points.length,0)*(pattern.repeats+(endTransition==='level'?2:0));
     requireThat(Number.isSafeInteger(authoredPoints),'The authored motif point count exceeds the safe integer range.');
-    if(options.maxPoints===undefined)maxPoints=Math.max(maxPoints,Math.min(Number.MAX_SAFE_INTEGER,authoredPoints*4));
-    requireThat(maxPoints>=authoredPoints,`Complete motif courses require at least ${authoredPoints} authored points; increase maxPoints.`);
   }
-  const settings={enabled:true,part:null,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,maxPoints,
+  const settings={enabled:true,part:null,zStartMm:baseHeight,zEndMm:end-low,endTransition,pathMode:'continuous',pattern,
     meshSleeve};
   const skills={'vase-wall':settings,'full-fill':{enabled:baseHeight>0}};
   for(const name of disabled)skills[name]={enabled:false};
   const updated=await adjustBundle(directory,{skills},{expectedRevision:state.revision});
-  return {directory:updated.dir,revision:updated.revision,geometryHash:updated.geometryHash,geometryApproved:updated.geometryApproved,
-    planApproved:updated.planApproved,settings:updated.plan.skills['vase-wall'],
+  return {directory:updated.dir,revision:updated.revision,geometryHash:updated.geometryHash,
+    toolpathApproved:updated.toolpathApproved,settings:updated.plan.skills['vase-wall'],
     report:{detectedSleeve:detected,baseHeightMm:baseHeight,wallRangeMm:[start,end],automaticCourseCount:automaticCount,
-      bodyCourses:pattern?.repeats??null,boundaryCourses:pattern&&endTransition==='level'?2:0,authoredPoints,maxPoints,
+      bodyCourses:pattern?.repeats??null,boundaryCourses:pattern&&endTransition==='level'?2:0,authoredPoints,
       baseEnabled:baseHeight>0,disabledDefaultSkills:disabled,sourceGeometryChanged:false,
       nextStep:'Review the recipe and use the normal check-path/Studio generation workflow; preparation creates no machine program or approval.'}};
 }

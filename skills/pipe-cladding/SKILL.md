@@ -71,7 +71,6 @@ uses unwrapped rotary angles, including many revolutions without a modulo reset.
 | `tiltDeg` | `45` | Tool axis tilt from downward vertical, between 0 and 90. |
 | `sampleStepMm` | `1` | Maximum axial/circumferential sample spacing. |
 | `toleranceMm` | `0.01` | Circumferential chord tolerance. |
-| `maxPoints` | `500000` | Explicit generation budget; increase if a larger plan needs it. |
 | `offsetTightness` | `1` | For explicit spline surfaces, blend a fixed-size loose NURBS offset field (`0`) toward the exact unit-normal offset (`1`). Mesh-strip surfaces retain their existing exact normal interpolation. |
 
 By default, shared line width sets track spacing and helix pitch; `skinSpeedMmS` controls
@@ -149,7 +148,7 @@ For any new provisional RC8 part, call `developmentPipePlan()` from
 development mode; the labeled setup is reusable across shapes and is not remembered.
 Disable pipe-cladding when selecting only ordinary fixed-orientation skills.
 For an existing development bundle, use `node core/print/cli.mjs demo <directory>`;
-use `upgrade` first if its saved machine snapshot needs the current profile.
+recreate it if its saved machine snapshot predates the current profile.
 
 Studio defaults to **Follow build plate**, retaining stationary part coordinates;
 clear it to inspect bed and material rotation in the room frame. **Machine view**
@@ -282,7 +281,8 @@ patches can be selected through the same query. Arbitrary folded offset surfaces
 offset self-intersections and mesh normal-field singularities are not resolved.
 Coverage uses sampled arc-length cells and projected cell widths; it is not a
 globally certified geodesic spacing or complete bead-volume coverage proof.
-`sampleStepMm`, `toleranceMm` and `maxPoints` control construction. Narrow terminal
+`sampleStepMm` and `toleranceMm` control construction; the sample count follows
+from them and the measured surface, with no fixed budget. Narrow terminal
 cells have small intended bead widths. Fixed relay flow cannot meter those widths;
 software intent and relay estimates remain separate. Physical clearance, robot
 feasibility and execution remain unverified.

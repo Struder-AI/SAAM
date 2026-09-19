@@ -85,12 +85,15 @@ test('native repair fixes orientation without changing the face geometry',native
   const source=boxMesh();source.triangles[0].reverse();const result=await repairSTL(encodeRepairSTL(source),{units:'mm'});
   assert.equal(result.report.unchangedSourceFaces,12);assert.equal(result.report.changedSourceFaces,0);validateRepair(parseSTL(result.repairedBytes,{units:'mm'}));
 });
-test('repair aborts, times out and rejects obsolete options without publishing output',native,async t=>{
+test('repair stops on cancellation or native failure, never on elapsed time',native,async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-repair-test-'));t.after(()=>rm(root,{recursive:true,force:true}));
   const source=boxMesh();source.triangles[0].reverse();const bytes=encodeRepairSTL(source);
-  await assert.rejects(repairSTL(bytes,{units:'mm',resolutionMm:1}),/Unsupported repair option/);
   await assert.rejects(repairSTL(bytes,{units:'mm',signal:AbortSignal.abort()}),{name:'AbortError'});
-  await assert.rejects(repairSTLFiles(join(root,'failed'),bytes,{units:'mm',timeoutMs:1}),/exceeded/);await assert.rejects(access(join(root,'failed')));
+  await assert.rejects(repairSTLFiles(join(root,'cancelled'),bytes,{units:'mm',signal:AbortSignal.abort()}),{name:'AbortError'});await assert.rejects(access(join(root,'cancelled')));
+  const open=boxMesh(2,2,2);open.triangles=open.triangles.slice(1);
+  await assert.rejects(repairSTLFiles(join(root,'failed'),encodeRepairSTL(open),{units:'mm'}),/Open boundaries/);await assert.rejects(access(join(root,'failed')));
+  // The retired timeoutMs is inert; a repair is never refused for taking long.
+  assert.equal((await repairSTLFiles(join(root,'kept'),bytes,{units:'mm',timeoutMs:1})).outputTriangles,12);
 });
 test('repair shape threshold rejects a changed patch even when output vertices lie on the source',native,async()=>{
   const source=boxMesh(2,2,2);source.triangles=source.triangles.slice(1);

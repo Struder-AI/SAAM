@@ -13,8 +13,10 @@ specifies configured capabilities. Use [machine tests](testing.md#test-registry)
 for the affected mechanism and integration boundary.
 
 [presentation.mjs](../../core/machine/presentation.mjs) implements the provider side of the
-[Studio contract](presentation.md). A closed registry selects the
-model by machine ID. Profiles supply data, never executable module paths.
+[Studio contract](presentation.md). Gantry machines are drawn from profile data alone (`kinematics` of
+`cartesian-fixed-vertical-nozzle` and the profile bounds), so every such
+profile gets the schematic without code. A closed registry selects the two arm
+models by machine ID. Profiles supply data, never executable module paths.
 The renderer receives simple rigid components and world transforms; it has no
 machine-specific solvers. [Study tools](../../tools/kinematics/README.md) open
 nominal mechanisms in the same Studio.
@@ -104,7 +106,7 @@ all registered providers, and deterministic source playback.
 
 Sources: [profile.mjs](../../core/machine/profile.mjs), [rules.mjs](../../core/machine/rules.mjs), [denso.mjs](../../core/machine/denso.mjs).
 
-**Contract.** Known machine IDs load their checked-in JSON profiles; setup validation resolves units, limits, tools/materials and declared output availability. Geometry review may proceed with documented unresolved installation fields, while export requires the machine-specific setup. Path checks validate finite axes, bounds, flow and supported actions; they do not simulate collisions.
+**Contract.** Known machine IDs load their checked-in JSON profiles; setup validation resolves units, limits, tools/materials and declared output availability. Geometry review may proceed with documented unresolved installation fields, while export requires the machine-specific setup. Path checks validate finite axes, bounds, flow and supported actions; they do not simulate collisions. What differs between non-robot machines is profile data, never a machine-ID test in code: `ams` (feeder units and slots per unit that a setup may request), `limitations` (notes added to the shared list), `startup.handsOverRetracted` (the startup leaves the previous job's withdrawal outstanding) and an output's `defaultFilamentColor`. Only the Dobot and DENSO, whose installation validators, relay rules and arm models are genuinely their own, are still selected by ID.
 
 **Failures.** Reject unknown profiles, invalid limits/setup and unsupported actions. A profile listing an output with implemented false cannot enable it. Robot installation placeholders must not acquire invented defaults merely to pass export.
 
