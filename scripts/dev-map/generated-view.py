@@ -267,6 +267,11 @@ def node_page(packet, page, unit, port, drawn, dropped):
 
 def lists(packet, page, pages):
     """What the stored packet holds beside its boxes and wires, printed as data."""
+    # The one authored thing on any page: a row of maps/facts.tsv about this declaration or file.
+    if packet.get("facts"):
+        page.row("head", f'facts ({len(packet["facts"])}) — authored, from maps/facts.tsv')
+        for f in packet["facts"]:
+            page.row("item", f'{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]')
     if packet.get("requires"):
         page.row("head", f'requires ({len(packet["requires"])})')
         for item in packet["requires"]:
@@ -304,10 +309,13 @@ def lists(packet, page, pages):
 
 # ---- the viewer ---------------------------------------------------------------------------
 LEGEND = [
-    ("h", None, "Nothing on these pages is authored."),
+    ("h", None, "Nothing on these pages is authored except a facts list."),
     ("p", None, "Every box, wire, label, gate and list was produced from the parsed source by "
                 "scripts/dev-map/flow.mjs and scripts/dev-map/store.mjs, and drawn by "
-                "scripts/dev-map/generated-view.py. This legend is the only writing in the viewer."),
+                "scripts/dev-map/generated-view.py. The one exception is a facts list, whose rows "
+                "are written by hand in maps/facts.tsv because code cannot state a measurement, a "
+                "vendor behaviour or a recorded decision; each such list says so above itself. "
+                "This legend is the only other writing in the viewer."),
     ("h", None, "Boxes"),
     ("b", "stage", "a page one level down: a region on page 0, a file on a region page."),
     ("b", "ast", "a callee read straight from the AST (ast-call-site, ast-closure, ast-member)."),
@@ -555,8 +563,8 @@ def emit(out, model, pages, svgs):
 <div id="side">
   <h1>SAAM — the generated map</h1>
   <div class="sub">{len(pages)} pages, generated {escape(model["generated"])}. Read by
-    <code>read-map INDEX --generated</code>; drawn by
-    <code>node scripts/dev-map.mjs build --generated</code>.</div>
+    <code>read-map INDEX|DECLARATION</code>; drawn by
+    <code>node scripts/dev-map.mjs build</code>.</div>
   <input id="filter" placeholder="index or declaration path…" autocomplete="off">
   <div id="tree">{''.join(rows)}</div>
 </div>

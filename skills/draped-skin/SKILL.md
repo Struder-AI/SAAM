@@ -23,8 +23,7 @@ under skinnable surface, and generate surface-following strokes. The reserve is
 subtracted from full-fill and planar-infill. All supporting body operations must
 finish before the skins; skins remain ordered. Surface height means the highest
 exposed surface at XY, not the underside of an overhang or a general wrapped skin.
-Closed footprint/reservation booleans use the
-[shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections);
+Closed footprint/reservation booleans use the shared Clipper2 region tool;
 surface sampling and level-set extraction retain their existing limits.
 
 S5 declares a 15° software limit; H2D uses an **experimental 15° limit**.
@@ -104,15 +103,13 @@ the locked `liftMm` (default 1 mm; zero allowed). Shared comb routing uses the
 allowed footprint, including holes, and samples each skin's local height for
 detours within `maxCombMm`. The local surface query controls straight-chord
 clearance; completed operations constrain every direct or routed segment.
-Follow the [shared travel contract](../../core/path/README.md#whole-plan-travel-requirement).
 
 ## Validation status
 
 Software tests exercise mesh and spline inputs against both S5 and H2D profiles.
 S5 supports checked Griffin export, Studio's final toolpath/settings confirmation and exact-byte
 delivery. H2D uses the same workflow with experimental sliced-3MF output and
-strict interpretation of the print body. Its firmware service routines are not
-simulated; read the [machine contract](../../core/export/bambu.md#h2d-output-contract).
+strict interpretation of the print body. Its firmware service routines are not simulated.
 
 No physical print, head-clearance or surface-finish validation has been performed.
 Beads, skin offsets and first-skin bridging are approximate. Curvature convergence,

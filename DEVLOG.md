@@ -5228,3 +5228,36 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - Verification: eight dev-map test files pass 82 of 82; `dev-map.mjs check`
   passes; viewer opened in the browser pane at `0` and `#6.3.1`; the first-open
   fit was wrong and is fixed.
+
+## 2026-09-19 — Switch-over: the generated map replaces the authored maps
+
+- Source: user, as developer work: "go ahead and switch"; old maps remain
+  readable at commit 5526585.
+- Implemented: `read-map INDEX|DECLARATION [--code]` is the only map read and
+  `regenerate [INDEX]` the only scan; `--generated` and the authored flags are
+  gone; `--code` is refused on `0` and region pages. Store `dev-map/store/`,
+  viewer `dev-map/view/` (`node scripts/dev-map.mjs build`). Developer and
+  builder onboarding return page `0` and, for `--area REGION`, that region
+  page. Deleted: 10 authored region files, 23 `maps/reference/` files, 21
+  redirect-only component READMEs, the authored pipeline (model, generate,
+  evidence, containment, reference, maintenance, render) and six test files.
+  Every inbound link was removed; AGENTS, BUILDERS, DEVELOPER-CONTEXT, SETUP,
+  README, the context-map pages and `maps/README.md` now describe the walk from
+  `0`, discourage text search for orientation, and drop the responsibilities
+  and contract authoring procedure. `maps/facts.tsv` (header only) is the one
+  authored map content: rows attach to pages, orphans are reported, malformed
+  rows fail `dev-map.mjs check`, which also fails on a missing or stale store.
+- Lost with the reference prose and not yet re-homed: operator-facing Studio
+  guidance that lived in `maps/reference/studio.md` (agent permissions, opening
+  local prints, agent request coordination, event queue, STL import), machine
+  program notes for Griffin, Bambu, Dobot and DENSO, and the caller contracts
+  skill manuals linked to. AGENTS.md still says SETUP.md covers Studio client
+  permissions; SETUP.md no longer does. The subagent listed 25 candidate
+  external facts by old location; none were added to `maps/facts.tsv`.
+- Not built: `check --since REF`.
+- Verification: `dev-map-flow`, `dev-map-view`, `agent-toolkit`, `context-map`
+  and `mcp-access` tests pass 56 of 56; `mcp.test.mjs` 16 of 17 with the same
+  transport-close failure present at 5526585; `dev-map.mjs check` exit 0 (2128
+  linked, 1285 unresolved, 5383 external, 0 unreached); `check-repo.mjs` reports
+  only BR-049's existing "Remaining" format error; no reference to the deleted
+  system remains outside DEVLOG and DECISIONS history.

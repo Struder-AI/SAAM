@@ -8,15 +8,13 @@ import {readGuidance} from './manuals.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+// Areas outside the map: skills, adapters and setup are not core/Studio, so they have their own
+// guidance instead of a region page. Every other `--area` value is a map target — a region path
+// like `core/path`, or its index.
 export const developmentAreas = {
-  geometry: ['maps/reference/geometry.md'], regions: ['maps/reference/regions.md'],
-  path: ['maps/reference/motion.md'], print: ['maps/reference/lifecycle.md'],
-  machine: ['maps/reference/machine.md', 'maps/reference/output.md'],
-  studio: ['maps/reference/studio.md'], mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
-  skills: ['skills/AUTHORING.md'], tests: ['maps/reference/testing.md'], setup: ['SETUP.md'], agent: ['maps/reference/agent.md']
+  mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
+  skills: ['skills/AUTHORING.md'], setup: ['SETUP.md']
 };
-const areaMaps = {geometry: ['3_geometry'], regions: ['4_regions'], path: ['5_motion'],
-  print: ['1_lifecycle', '2_generation'], machine: ['6_output', '8_machine'], studio: ['7_studio'], agent: ['9_agent']};
 const json = async path => JSON.parse(await readFile(path, 'utf8'));
 
 export async function contextPacket(ids) {
@@ -61,19 +59,11 @@ export async function readSkill(id, {maker = false, builder = false, developer =
     ...await contextPacket(ids)};
 }
 
+// One page of the stored map per key: an index, or the declaration path that index is for.
+// The read comes out of the store and never scans; `--code` adds that page's own source span.
 export async function readMaps(keys, options = {}) {
-  if (options.generated) {
-    if (options.section || options.node || options.inventory) throw Error('--generated accepts only --code.');
-    const {readGenerated, readCode} = await import('../../scripts/dev-map/store.mjs');
-    return Promise.all(keys.map(key => options.code ? readCode(key) : readGenerated(key)));
-  }
-  const {loadModel, regionContext} = await import('../../scripts/dev-map/model.mjs');
-  const model = await loadModel(), regions = new Map();
-  for (const key of keys) {
-    const region = regionContext(model, key, options);
-    regions.set(region.page, region);
-  }
-  return [...regions.values()];
+  const {readGenerated, readCode} = await import('../../scripts/dev-map/store.mjs');
+  return Promise.all(keys.map(key => options.code ? readCode(key) : readGenerated(key)));
 }
 
 // Scanning is a choice, and this is the only command that makes it. With no index, or `0`, it
@@ -84,17 +74,25 @@ export async function regenerateMap(target) {
   return generate({region});
 }
 
+// A developer starts at page `0`; a builder starts at the region it was given. `--area` is
+// either an outside area with its own guidance, or a region of the map.
 export async function onboarding({role, areas = []}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
-  for (const area of areas) if (!Object.hasOwn(developmentAreas, area)) throw Error(`Unknown development area: ${area}.`);
-  const areaIds = areas.filter(area=>!areaMaps[area]&&area!=='tests').flatMap(area => developmentAreas[area]);
+  const outside = areas.filter(area => Object.hasOwn(developmentAreas, area));
+  const regions = [...new Set(areas.filter(area => !Object.hasOwn(developmentAreas, area)))];
+  const areaIds = [...new Set(outside.flatMap(area => developmentAreas[area]))];
   const ids = role === 'maker' ? ['MAKERS.md', 'skills/README.md', 'core/print/USAGE.md']
     : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/README.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...areaIds]
     : ['DEVELOPER-CONTEXT.md#orientation', 'BUILDERS.md', ...areaIds];
-  const mapKeys = role === 'maker' ? [] : [...(role === 'developer'||areas.includes('tests') ? ['0_system'] : []), ...areas.flatMap(area => areaMaps[area] ?? [])];
+  const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...regions];
+  if (mapKeys.length) {
+    const {readIndex, storeDir} = await import('../../scripts/dev-map/store.mjs');
+    if (!await readIndex(storeDir(root))) await regenerateMap();
+  }
   const [context, environment, maps] = await Promise.all([contextPacket(ids), environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
   return {role, environment, ...context, maps,
-    nextStep: 'Reuse the returned context. For core or Studio, read the affected map page and its map-owned contract sections with read-map PAGE --section ID#heading. Use --inventory for file ownership and --evidence for detailed impact evidence. Skills and adapters keep separate authoring references; skill-only builders read consumed map contracts without implementation maps. Maker workflow and skill manuals are selective reads for developers.'};
+    nextStep: role === 'maker' ? 'Reuse the returned context and choose individual skill manuals when an edit needs them.'
+      : 'Reuse the returned context. Walk the map from the returned page: a region page names its files, a file page its entry points, an entry point what it calls. Read a page with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a page, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references.'};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }

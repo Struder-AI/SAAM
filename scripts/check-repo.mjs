@@ -5,7 +5,10 @@ import { execFileSync } from 'node:child_process';
 import { checkSkillDigest } from './skill-digest.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const excluded = new Set(['.git', '.local', '.saam', 'Prints', 'node_modules', 'dist', 'build']);
+const excluded = new Set(['.git', '.claude', '.local', '.saam', 'Prints', 'node_modules', 'dist', 'build']);
+// Dated records of past work name the files as they were then; their targets are not required
+// to still exist, and the records are never rewritten to keep a link alive.
+const historical = new Set(['DEVLOG.md', 'DECISIONS.md']);
 const documents = [];
 async function walk(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -74,6 +77,7 @@ for (const path of documents) {
     const [target,fragment] = match[1].split('#');
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
     links++;
+    if (historical.has(relative(root, path))) continue;
     const resolved = target ? resolve(dirname(path), decodeURIComponent(target)) : path;
     if (!resolved.startsWith(root + sep)) errors.push(`${relative(root,path)}: link escapes repository: ${target}`);
     else try {
@@ -122,6 +126,6 @@ if (errors.length) {
   console.error(errors.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log(`Checked ${documents.length} documents, ${links} local links, ${entries.length} decision records, open build-request structure, devlog presence, skill digest freshness and coverage, and private-file exclusions.`);
+  console.log(`Checked ${documents.length} documents, ${links} local links (dated records excepted), ${entries.length} decision records, open build-request structure, devlog presence, skill digest freshness and coverage, and private-file exclusions.`);
   console.log('Repository checks only; manufacturing software tests run separately and do not establish physical print success.');
 }

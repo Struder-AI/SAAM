@@ -1,8 +1,7 @@
 # Planar-infill implementation
 
 Sparse and solid composition, construction and scoped regression evidence.
-The [skill manual](SKILL.md) owns user settings and limits;
-[regions](../../core/region/README.md) owns shared geometric operations.
+The [skill manual](SKILL.md) owns user settings and limits.
 
 ## Planar-infill design
 

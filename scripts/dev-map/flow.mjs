@@ -10,8 +10,7 @@ import {parse} from 'acorn';
 import {extractGraph,sourceFiles} from './graph.mjs';
 import {projectGraph,select} from './projection.mjs';
 import {classify,functionAt} from './shapes.mjs';
-import {importAliases} from './generate.mjs';
-import {scanRoots} from './scope.mjs';
+import {importAliases,scanRoots} from './scope.mjs';
 
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
@@ -445,22 +444,6 @@ export function flowPacket(context,target,{evidence=false}={}) {
     ...(evidence?{externalSites:page.external.map(site)}:{})};
   // `gates` is filled while the rows above are built; it is placed after them for reading order.
   return packet;
-}
-
-const slug=path=>path.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
-// Layout and viewer are the shared Python ones; flow.py adds only provenance styling.
-export async function buildFlow(targets,out,{repo=fileURLToPath(new URL('../../',import.meta.url))}={}) {
-  const {mkdir}=await import('node:fs/promises'),{spawn}=await import('node:child_process');
-  const context=await loadFlow({repo});
-  const pages=targets.map(target=>{const packet=flowPage(context,target);return {...packet,key:slug(packet.node.path)};});
-  const sources=Object.fromEntries([...new Set(pages.flatMap(p=>[p.node.file,...p.components.map(c=>c.file)]))]
-    .map(file=>[file,context.sources.get(file)]));
-  await mkdir(out,{recursive:true});
-  const child=spawn(process.env.PYTHON??'python',[fileURLToPath(new URL('./flow.py',import.meta.url)),out],
-    {stdio:['pipe','inherit','inherit'],env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:fileURLToPath(new URL('./',import.meta.url))}});
-  child.stdin.end(JSON.stringify({pages,sources}));
-  await new Promise((done,reject)=>{child.on('error',reject);child.on('exit',code=>code===0?done():reject(Error(`Flow renderer exited ${code}`)));});
-  return `${out}: ${pages.map(p=>p.key+'.svg').join(', ')}`;
 }
 
 export async function loadFlow({repo=fileURLToPath(new URL('../../',import.meta.url)),files,readSource=file=>readFile(resolve(repo,file),'utf8')}={}) {

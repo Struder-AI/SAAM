@@ -333,7 +333,7 @@ test('a formula is not a component, and the data that passed through it keeps fl
 });
 
 // ---- the stored map ----------------------------------------------------------------------
-import {mkdtemp,rm,readdir,readFile} from 'node:fs/promises';
+import {mkdtemp,rm,readdir,readFile,writeFile,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -456,7 +456,7 @@ test('nothing is off the map: what no entry reaches is listed under the unreache
   assert.ok(inRegion.every(at=>roots.some(root=>at===root||at.startsWith(root+'.'))));
 });
 
-test('the code read answers a page with its own span and a root or region with its children',async t=>{
+test('the code read answers a page with its own span and refuses a root or region',async t=>{
   const fixture=await fixtureStore(t);
   await fixture.run();
   const code=await fixture.code('core/alpha/entry.mjs::main');
@@ -466,12 +466,8 @@ test('the code read answers a page with its own span and a root or region with i
   const leaf=await fixture.code('core/alpha/helper.mjs::take');
   assert.equal(leaf.code,true);
   assert.match(leaf.source,/export function take/);
-  for(const key of ['0','1']) {
-    const refused=await fixture.code(key);
-    assert.equal(refused.code,false);
-    assert.ok(refused.children.length&&refused.children.every(c=>typeof c.lines==='number'));
-    assert.ok(!('source' in refused));
-  }
+  for(const key of ['0','1'])
+    await assert.rejects(fixture.code(key),/spans no code of its own/);
 });
 
 test('no packet in the store carries a sentence',async t=>{
@@ -562,11 +558,8 @@ test('a file page answers --code with the whole file; a region and the root stil
   assert.equal(code.line,1);
   assert.equal(code.source.split('\n').length,code.lines);
   assert.match(code.source.split('\n')[0],/^1\timport \{guardThat\}/);
-  for(const key of ['0','1']) {
-    const refused=await fixture.code(key);
-    assert.equal(refused.code,false);
-    assert.ok(!('source' in refused));
-  }
+  for(const key of ['0','1'])
+    await assert.rejects(fixture.code(key),/spans no code of its own/);
   // Every box on a file page states its size before it is read.
   const file=await fixture.page('core/alpha/helper.mjs');
   assert.ok(file.components.every(c=>typeof c.lines==='number'));
@@ -638,4 +631,97 @@ test('a registration shape makes its handler an entry; a non-literal or non-func
   assert.ok(file.ports.some(p=>p.port==='event-listener'));
   const handler=await fixture.page('core/ev/host.mjs::handleReady');
   assert.deepEqual(file.wires.filter(w=>w.to===handler.index&&w.from==='event-listener').map(w=>w.label),['ready']);
+});
+
+// ---- external facts ------------------------------------------------------------------------
+import {readFacts,factsPath} from '../../scripts/dev-map/facts.mjs';
+import {storeStatus} from '../../scripts/dev-map/store.mjs';
+
+const writeFacts=async(repo,rows)=>{
+  await mkdir(resolve(repo,'maps'),{recursive:true});
+  await writeFile(resolve(repo,factsPath),['declaration\tkind\tfact\tsource\tdate',...rows].join('\n')+'\n','utf8');
+};
+const writeDecisions=repo=>writeFile(resolve(repo,'DECISIONS.md'),
+  '# Decisions\n\n## D-007 — Keep the nozzle warm between operations\n\n- Status: accepted\n','utf8');
+
+test('an external fact attaches to the page of the declaration or file it names',async t=>{
+  const fixture=await fixtureStore(t);
+  await writeFacts(fixture.repo,[
+    'core/alpha/entry.mjs::main\tmeasurement\t0.42 mm bead at 12 mm/s\tDEVLOG.md\t2026-09-18',
+    'core/alpha/entry.mjs::main\tvendor\tfirmware 01.08 rejects M204 above 8000\tvendor note\t2026-09-01',
+    'core/alpha/helper.mjs\tmeasurement\t3.1 s median over 20 runs\tDEVLOG.md\t2026-09-10']);
+  const result=await fixture.run();
+  assert.equal(result.facts,3);
+  assert.deepEqual(result.orphanFacts,[]);
+  assert.deepEqual(result.factErrors,[]);
+  const main=await fixture.page('core/alpha/entry.mjs::main');
+  assert.deepEqual(main.facts,[
+    {kind:'measurement',fact:'0.42 mm bead at 12 mm/s',source:'DEVLOG.md',date:'2026-09-18'},
+    {kind:'vendor',fact:'firmware 01.08 rejects M204 above 8000',source:'vendor note',date:'2026-09-01'}]);
+  const file=await fixture.page('core/alpha/helper.mjs');
+  assert.equal(file.kind,'file');
+  assert.deepEqual(file.facts,[{kind:'measurement',fact:'3.1 s median over 20 runs',source:'DEVLOG.md',date:'2026-09-10'}]);
+  // A page no row names carries no facts key at all.
+  assert.ok(!('facts' in await fixture.page('core/alpha/helper.mjs::take')));
+  // Removing the row removes the fact from the page.
+  await writeFacts(fixture.repo,[]);
+  await fixture.run();
+  assert.ok(!('facts' in await fixture.page('core/alpha/entry.mjs::main')));
+});
+
+test('a fact that names nothing the map holds is reported, never dropped',async t=>{
+  const fixture=await fixtureStore(t);
+  await writeFacts(fixture.repo,[
+    'core/alpha/entry.mjs::gone\tmeasurement\t9.5 N peel force\tDEVLOG.md\t2026-08-02',
+    'core/alpha/entry.mjs::main\tmeasurement\tkept\tDEVLOG.md\t2026-08-03']);
+  const result=await fixture.run();
+  assert.equal(result.facts,1);
+  assert.deepEqual(result.orphanFacts,[{line:2,declaration:'core/alpha/entry.mjs::gone',kind:'measurement',
+    fact:'9.5 N peel force',source:'DEVLOG.md',date:'2026-08-02'}]);
+  const status=await storeStatus({repo:fixture.repo,readSource:fixture.read});
+  assert.deepEqual(status.orphanFacts,result.orphanFacts);
+  assert.deepEqual(status.facts.errors,[]);
+});
+
+test('a malformed row is named by its line and does not remove the rows around it',async t=>{
+  const fixture=await fixtureStore(t);
+  await writeFacts(fixture.repo,[
+    'core/alpha/entry.mjs::main\tmeasurement\tfirst\tDEVLOG.md\t2026-08-03',
+    'core/alpha/entry.mjs::main\thearsay\tunknown kind\tDEVLOG.md\t2026-08-04',
+    'core/alpha/entry.mjs::main\tmeasurement\tmissing a field\tDEVLOG.md',
+    'core/alpha/entry.mjs::main\tmeasurement\tbad date\tDEVLOG.md\tlast August',
+    'core/alpha/entry.mjs::main\tmeasurement\t\tDEVLOG.md\t2026-08-05',
+    'core/alpha/entry.mjs::main\tmeasurement\tlast\tDEVLOG.md\t2026-08-06']);
+  const facts=await readFacts({repo:fixture.repo});
+  assert.deepEqual(facts.rows.map(r=>r.fact),['first','last']);
+  assert.deepEqual(facts.errors.map(e=>[e.line,e.reason]),[
+    [3,'Unknown kind hearsay; use measurement, vendor, decision.'],
+    [4,'4 tab-separated fields; 5 are required.'],
+    [5,'Date last August is not an ISO date.'],
+    [6,'Empty fact.']]);
+  assert.ok(facts.errors.every(e=>e.row.includes('core/alpha/entry.mjs::main')));
+  // A header that is not the header is itself named.
+  await writeFile(resolve(fixture.repo,factsPath),'declaration\tfact\n','utf8');
+  assert.match((await readFacts({repo:fixture.repo})).errors[0].reason,/First row must be the header/);
+  // A missing file is reported rather than read as an empty one.
+  await rm(resolve(fixture.repo,factsPath));
+  assert.deepEqual((await readFacts({repo:fixture.repo})).errors,[{line:0,row:'',reason:'Missing maps/facts.tsv.'}]);
+});
+
+test('a decision fact must cite an anchor that exists in DECISIONS.md',async t=>{
+  const fixture=await fixtureStore(t);
+  await writeDecisions(fixture.repo);
+  const anchor='d-007--keep-the-nozzle-warm-between-operations';
+  await writeFacts(fixture.repo,[
+    `core/alpha/entry.mjs::main\tdecision\tstationary deposition stays opt-in\t${anchor}\t2026-07-01`,
+    'core/alpha/entry.mjs::main\tdecision\tno record of this\td-404--invented\t2026-07-02']);
+  const facts=await readFacts({repo:fixture.repo});
+  assert.deepEqual(facts.rows.map(r=>r.source),[anchor]);
+  assert.deepEqual(facts.errors.map(e=>[e.line,e.reason]),[[3,'No DECISIONS.md anchor d-404--invented.']]);
+  const result=await fixture.run();
+  assert.deepEqual(result.factErrors.map(e=>e.line),[3]);
+  assert.deepEqual((await fixture.page('core/alpha/entry.mjs::main')).facts,
+    [{kind:'decision',fact:'stationary deposition stays opt-in',source:anchor,date:'2026-07-01'}]);
+  const status=await storeStatus({repo:fixture.repo,readSource:fixture.read});
+  assert.deepEqual(status.facts.errors.map(e=>e.line),[3]);
 });

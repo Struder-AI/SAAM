@@ -65,7 +65,7 @@ must be changed through the ordinary recipe tools.
 
 Use `composition.regions` for a same-part stack: assign full-fill to a base or
 cap, vase-wall to the intervening wall, and later skills to their own material
-regions. The [shared lifecycle](../../core/print/README.md) carries geometry, operation dependencies, machine
+regions. The shared print lifecycle carries geometry, operation dependencies, machine
 checks, Studio review and the exact delivered machine bytes.
 
 ## Input geometry: normally a solid
@@ -108,7 +108,7 @@ NURBS patch; intermediate values are functional evaluators. Loose distance is
 an approximate standoff and its direction-length range is reported. At sampled
 over-curvature, local control offsets are reduced to preserve one smooth sleeve;
 the maximum depth reduction is reported. This preserves the same control layout,
-but not the full requested offset everywhere. The [shared offset contract](../../core/geom/README.md#loose-and-tight-spline-offsets)
+but not the full requested offset everywhere. The shared offset contract
 defines the sampled regularity check and its global self-intersection limits.
 This limiting is separate from source-mesh contact and does not remove source folds.
 
@@ -190,7 +190,7 @@ and transitions only; they do not certify every unsampled height, global mesh
 error, or physical contact.
 
 The source mesh remains authoritative for contact queries. Small detached detail
-may be excluded under the [sleeve detector's section-area threshold](../../core/geom/README.md#mesh-reference-sleeves)
+may be excluded under the sleeve detector's section-area threshold
 (0.1% by default); significant branches, islands, multiple bores or separated
 usable height intervals fail. The fitted
 sleeve and contact preparation use bounded caches and report fit residuals,
@@ -217,5 +217,5 @@ Use Studio's generation progress and reports before changing quality settings.
 Changing a tolerance changes the numerical allowance and the point count that
 follows from it. Nothing permits silently trimming a wall.
 Reuse current checked output through the shared lifecycle instead of generating
-duplicate jobs. [Prepared contact](../../core/geom/README.md#prepared-mesh-contact)
+duplicate jobs. Prepared contact
 owns the numerical limits; [the devlog](../../DEVLOG.md) holds measured examples.

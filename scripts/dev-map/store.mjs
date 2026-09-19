@@ -8,9 +8,10 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadFlow,flowPacket} from './flow.mjs';
 import {model,numberRegion} from './regions.mjs';
+import {readFacts,bindFacts} from './facts.mjs';
 
 export const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
-export const storeDir=repo=>resolve(repo,'dev-map/generated');
+export const storeDir=repo=>resolve(repo,'dev-map/store');
 const slug=f=>f.replace(/[^A-Za-z0-9]+/g,'_');
 const sha=t=>createHash('sha256').update(t).digest('hex');
 const order=(a,b)=>a<b?-1:a>b?1:0;
@@ -95,6 +96,21 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     for(const f of numbered.files)filePages.set(f.index,filePage(m,r,f,numbered,index,packets,lines));
   }
   const root=rootPage(m,lines);
+
+  // External facts. A row names a declaration this scan holds or a file of the map; anything else
+  // is an orphan, carried in the store so a read and `check` both report it.
+  const facts=await readFacts({repo});
+  const known=new Set([...packets.keys(),...[...filePages.values()].map(p=>p.file)]);
+  const {byTarget,orphans}=bindFacts(facts.rows,known);
+  for(const packet of packets.values()) {
+    const held=byTarget.get(packet.path);
+    if(held)packet.facts=held;else delete packet.facts;
+  }
+  for(const page of filePages.values()) {
+    const held=byTarget.get(page.file);
+    if(held)page.facts=held;else delete page.facts;
+  }
+
   const records=new Map();
   for(const f of graph.files) {
     const file=f.file;if(!m.regionOf.has(file))continue;
@@ -106,17 +122,22 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     files:Object.fromEntries([...records.values()].map(r=>[r.file,{sha256:r.sha256,lines:r.lines,region:r.region}])),
     records:Object.fromEntries([...records.keys()].map(f=>[f,`${slug(f)}.json`])),
     nodes:Object.fromEntries([...packets.values()].map(p=>[p.index,{path:p.path,file:p.file}]).sort((a,b)=>byIndex(a[0],b[0]))),
+    // A page is reachable by the durable name of what it is about: a declaration path, a file
+    // path, or — for a region — the directory the region is.
     byPath:Object.fromEntries([...[...packets.values()].map(p=>[p.path,p.index]),
-      ...[...filePages.values()].map(p=>[p.file,p.index])].sort((a,b)=>order(a[0],b[0]))),
+      ...[...filePages.values()].map(p=>[p.file,p.index]),
+      ...m.regions.map(r=>[r.path,r.index])].sort((a,b)=>order(a[0],b[0]))),
     root,regionPages:Object.fromEntries([...regionPages].sort((a,b)=>byIndex(a[0],b[0]))),
-    filePages:Object.fromEntries([...filePages].sort((a,b)=>byIndex(a[0],b[0])))};
+    filePages:Object.fromEntries([...filePages].sort((a,b)=>byIndex(a[0],b[0]))),
+    orphanFacts:orphans,factErrors:facts.errors};
   await clock('write',async()=>{
     if(!region)await rm(resolve(dir,'files'),{recursive:true,force:true});
     await mkdir(resolve(dir,'files'),{recursive:true});
     for(const record of records.values())await write(resolve(dir,'files',`${slug(record.file)}.json`),record);
     await write(resolve(dir,'index.json'),stored);
   });
-  return {timings,regions:m.regions.length,pages:packets.size,files:records.size,scope:region??'0'};
+  return {timings,regions:m.regions.length,pages:packets.size,files:records.size,scope:region??'0',
+    facts:facts.rows.length-orphans.length,orphanFacts:orphans,factErrors:facts.errors};
 }
 
 // Page 0: the regions as components, the cross-region links as wires, and every way in from
@@ -264,10 +285,10 @@ async function staleness(held,behind,readSource) {
 
 // `--code` answers a function page or a leaf with its own span, and a file page with the whole
 // file: a file is a bounded unit of code whose size the page already states. A root or region page
-// spans no code of its own, so it answers with its children and how many lines each one is.
+// spans no code of its own, so it is refused rather than answered with something else.
 function codeFor(page,held) {
   if(page.kind==='root'||page.kind==='region')
-    return {generated:true,index:page.index,kind:page.kind,code:false,children:page.children};
+    throw Error(`Page ${page.index} is a ${page.kind} page and spans no code of its own; --code takes a file page or a node. Read ${page.index} without --code for its children.`);
   if(page.kind==='file')
     return {generated:true,index:page.index,kind:page.kind,file:page.file,line:1,endLine:page.lines,lines:page.lines,code:true};
   return {generated:true,index:page.index,path:page.path,file:page.file,line:page.line,endLine:page.endLine,lines:page.lines,code:true};
@@ -279,4 +300,32 @@ export async function readCode(target,{repo=repoRoot,readSource=file=>readFile(r
   const text=await readSource(head.file);
   const lines=text.split('\n').slice(head.line-1,head.endLine).map((line,i)=>`${head.line+i}\t${line}`);
   return {...head,source:lines.join('\n')};
+}
+
+// ---- status ------------------------------------------------------------------------------
+// What `check` reads: whether the store is there, whether the source has moved under it, the
+// repo-wide link accounting the pages already carry, and the facts that name nothing.
+export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resolve(repo,file),'utf8')}={}) {
+  const dir=storeDir(repo),held=await readIndex(dir);
+  const facts=await readFacts({repo});
+  if(!held)return {dir,missing:true,regenerate:'0',facts,orphanFacts:[]};
+  const changed=[];
+  for(const [file,stored] of Object.entries(held.files)) {
+    const text=await Promise.resolve(readSource(file)).catch(()=>null);
+    if(text===null||sha(text)!==stored.sha256)changed.push(file);
+  }
+  const regions=[...new Set(changed.map(f=>held.files[f]?.region).filter(Boolean))];
+  const nodes=[];
+  for(const record of Object.values(held.records))
+    nodes.push(...Object.values((await json(resolve(dir,'files',record))).pages));
+  const totals={regions:held.regions.length,files:Object.keys(held.files).length,pages:nodes.length,
+    linked:nodes.reduce((n,p)=>n+p.components.length,0),
+    unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
+    external:nodes.reduce((n,p)=>n+(p.external??0),0)};
+  const unreached=Object.values(held.filePages??{}).flatMap(p=>(p.unreached?.nodes??[])
+    .map(n=>({index:n.index,path:`${n.file}::${n.label}`,lines:n.lines})));
+  return {dir,missing:false,generated:held.generated,
+    stale:changed.length?{files:changed.sort(order),regenerate:regions.length===1?regions[0]:'0'}:null,
+    totals,unreached:unreached.sort((a,b)=>byIndex(a.index,b.index)),
+    facts,orphanFacts:held.orphanFacts??[]};
 }

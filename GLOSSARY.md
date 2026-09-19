@@ -57,14 +57,14 @@ linked manuals own its current limits.
 
 | Term | Proposed meaning | Open choice |
 |---|---|---|
-| Design file | The saved geometry, and editable design information where available. | [Geometry storage](core/geom/README.md#geometry-query-boundary) supports native meshes and direct spline inputs; a universal editable design format is not defined. |
-| Shell | A closed surface describing a solid's boundary. | Shared geometry queries accept supported spline shells and validated meshes; see [geometry inputs](core/geom/README.md#geometry-query-boundary). This does not mean a hollow print or a perimeter. |
+| Design file | The saved geometry, and editable design information where available. | Geometry storage supports native meshes and direct spline inputs; a universal editable design format is not defined. |
+| Shell | A closed surface describing a solid's boundary. | Shared geometry queries accept supported spline shells and validated meshes. This does not mean a hollow print or a perimeter. |
 | Spline shell | In current recipe names, a domed spline roof with tapered spline sides over a rectangular base. | The `spline-shell` builder is a bounded shape, not arbitrary spline-side editing; see [full-fill geometry](skills/full-fill/SKILL.md). |
 | Vertical spline shell | A domed spline roof over a bulged footprint whose walls remain vertical. | The `vertical-spline-shell` builder exposes symmetric bulges; see [full-fill geometry](skills/full-fill/SKILL.md). |
 | Full fill | Filling a selected region solid with outlines and interior material. | The [full-fill skill](skills/full-fill/SKILL.md) also supplies selected solid top/bottom regions alongside infill. |
 | Planar infill | Flat layers with walls and an interior pattern, or no interior fill when selected. | The [planar-infill skill](skills/planar-infill/SKILL.md) owns supported patterns and densities; solid regions reuse full-fill. |
 | Draped skin | Top layers that follow the surface instead of stepping across it in flat slices. | The [draped-skin skill](skills/draped-skin/SKILL.md) owns surface and process limits. |
 | Non-planar angle limit | A declared limit on surface steepness for deposition with a downward-pointing nozzle. | It is a software setting, not measured machine clearance or a validated printing capability; see [draped-skin](skills/draped-skin/SKILL.md). |
-| Layer | A flat, tilted or curved surface on which a portion of a print is laid down. | Current operation layers and dependencies are described in [skill composition](core/path/README.md#skill-result-composition); this is not a universal surface format. |
+| Layer | A flat, tilted or curved surface on which a portion of a print is laid down. | Current operation layers and dependencies follow the shared skill-result composition; this is not a universal surface format. |
 
 Proposed names do not commit us to an extra processing stage or file format.

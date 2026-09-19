@@ -92,15 +92,14 @@ existing fixed-orientation scope.
 
 ## Machine setup and source output
 
-Read the [RC8 output contract](../../core/export/denso.md#denso-rc8-output-contract).
-The profile is unconfigured by default. Record the actual tool/work frames,
+The RC8 profile is unconfigured by default. Record the actual tool/work frames,
 arm group and figure, rotary interface/axis/sign/zero, bed center, frame offset/yaw,
 initial position/orientation, relay IO and measured relay rate in `setup.denso`.
 `configurationSource` and `mounting` describe the basis for those values.
 Work coordinates must be defined with Z parallel to the bed axis; the calibrated
 RC8 Work definition accounts for the ceiling installation. The SAAM transform
 currently supports translation and yaw between that frame and the displayed room.
-The optional [nominal presentation model](../../core/machine/README.md) requires
+The optional nominal presentation model requires
 separate explicit base/tool alignment and model seed; it does not establish
 controller joint or FIG parity.
 
@@ -185,7 +184,7 @@ the complete side height. A spiral ending publishes only the side below its
 lowest unfinished rim height. The vase generator, stroke width and deposition
 path are unchanged by selecting cladding.
 
-The [finished-surface interface](../../core/path/README.md#finished-surfaces)
+The finished-surface interface
 binds chart geometry, material extent, coverage and source operation IDs.
 Other producers can publish this interface without adding their names to
 cladding. Unprinted components and selections outside a published extent are

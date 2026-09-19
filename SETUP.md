@@ -16,8 +16,8 @@ work; the person need not request it separately:
    an unapproved geometry preview served by Studio. This short check needs no Git
    metadata and creates no toolpath or manufacturing approval. Do not run the
    full regression suite as maker onboarding.
-4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
-   the shared launcher permission and browser access.
+4. Grant the client what Studio needs: project trust, the shared launcher
+   permission and browser access.
 
 Report a failure as a setup problem and stop there. Setup does not create a
 manufacturing approval. Git is needed only to clone; generation requires no
@@ -29,13 +29,11 @@ with `npm ci`. Installed source in `node_modules/` stays outside project edits
 and Git.
 
 Mesh repair beyond exact cleanup uses an optional native CGAL helper. Build it
-with `npm run setup:mesh` and the compiler/dependency paths described in
-[native mesh repair](core/geom/native/README.md). The helper has its own license
-notice and build manifest. Ordinary valid STL import does not need it.
+with `npm run setup:mesh`. The helper has its own license notice and build
+manifest. Ordinary valid STL import does not need it.
 
 Reuse completed setup while its relevant dependencies and environment are
 unchanged. A new agent or print does not require another setup run.
 
 For development demos and print commands, use [print tools](core/print/USAGE.md)
-and the relevant [skill manual](skills/README.md). [Studio](studio/README.md)
-owns launch behavior, print directories and client permissions.
+and the relevant [skill manual](skills/README.md).

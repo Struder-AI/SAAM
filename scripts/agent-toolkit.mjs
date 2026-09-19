@@ -12,7 +12,7 @@ const schemas = {
   'developer-onboarding': {area: many},
   'read-skill': {maker: boolean, builder: boolean, developer: boolean},
   'read-guidance': {},
-  'read-map': {section: string, node: string, inventory: boolean, evidence: boolean, generated: boolean, code: boolean},
+  'read-map': {code: boolean},
   'regenerate': {},
   'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
   'open-print': {library: string, 'no-open': boolean, studio: string, 'agent-owner': string},
@@ -27,10 +27,9 @@ const schemas = {
 export const help = {
   commands: {
     'maker-onboarding': 'Maker guidance, complete skill digest and print tools; choose follow-up reads for the task.',
-    'builder-onboarding [--area AREA]': 'Builder and maker context, skill authoring and digest; selected core/Studio maps or external-area references.',
-    'developer-onboarding [--area AREA]': 'Developer policy, system map and selected area maps; contracts are selective map reads.',
-    'read-map PAGE [--section ID#HEADING] [--node ADDRESS] [--inventory] [--evidence]': 'Read one page, a map-owned contract section, file ownership or detailed impact evidence from current source.',
-    'read-map INDEX|DECLARATION --generated [--code]': 'Read one stored page: 0 for the regions, N for a region, N.M... or a declaration path for a function page. --code returns that page’s own source span with line numbers, and answers 0 or a region page with its children instead. Reads the store; it never scans.',
+    'builder-onboarding [--area AREA]': 'Builder and maker context, skill authoring and digest; each --area is a map region (path or index) or one of the outside areas.',
+    'developer-onboarding [--area AREA]': 'Developer policy and map page 0; each --area adds that region page (path or index) or an outside area’s references.',
+    'read-map INDEX|DECLARATION [--code]': 'Read one stored page: 0 for the regions, N for a region, N.F for a file, N.F.E… or a declaration path for a function page. --code returns that page’s own source span with line numbers; it is refused on 0 and on a region page. Reads the store; it never scans.',
     'regenerate [INDEX]': 'Scan the source and write the stored map. No index, or 0, generates everything; a region or page index regenerates that region.',
     'read-skill ID [--maker] [--builder] [--developer]': 'Read only the selected skill roles; defaults to maker. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
@@ -45,7 +44,9 @@ export const help = {
     'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
   },
   developmentAreas: Object.keys(developmentAreas),
-  notes: ['--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
+  notes: ['--area takes a map region path or index (read-map 0 lists them), or one of the areas above.',
+    'Map indexes are regenerated and may change. Say the index and the name when talking about a page; write the declaration path when something must keep pointing at it.',
+    '--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
     'Relaunching a Studio with --agent-owner ID, the agentOwnerId from an earlier studio-ready line, resumes that owner so its in-flight requests stay visible. The relaunch always gets a new Studio instance.',
     '--area and --after may repeat where accepted. Skill manuals are individual follow-up reads.',
     'Studio commands stay in the managed command session. Read studio-ready before waiting for completion.',

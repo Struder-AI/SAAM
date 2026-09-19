@@ -20,7 +20,7 @@ valid. Reuse previously read context rather than requesting it again.
 Shared geometry and composition contracts are builder context when a skill
 consumes them. Dev maps cover core and Studio. Changes confined to skill scripts
 need skill guidance and consumed API contracts, not an automatic map read.
-Read the affected maps and shared-use references when changing core/Studio or
+Walk the map from `0` to the declaration when changing core/Studio or
 investigating their internals for a skill change.
 Map ownership and the value required of comments/docstrings are defined by the
 [map contract](../BUILDERS.md#maps-and-local-documentation). Do not copy the map's

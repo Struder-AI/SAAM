@@ -10,8 +10,7 @@ For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with t
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
 Software tests cover the S5 and H2D profiles,
 mesh and restricted spline inputs. No physical print is validated. Both machines
-use the shared export/review/delivery workflow. H2D output is experimental; read
-its [machine contract](../../core/export/bambu.md#h2d-output-contract) before use.
+use the shared export/review/delivery workflow. H2D output is experimental.
 
 ## Tools
 
@@ -102,8 +101,8 @@ plans resolve to the existing rectilinear behavior before locking.
 operations, including full-fill operations when solid regions are selected.
 It reuses the planar stroke generator and region operations. Walls precede
 interiors; supporting layers precede later layers and draped skins.
-Closed solid/sparse mask intersections, unions and differences use the
-[shared Clipper2 region tool](../../core/region/README.md#shared-planar-intersections).
+Closed solid/sparse mask intersections, unions and differences use the shared
+Clipper2 region tool.
 
 Shared `composition.regions` can place sparse walls above a solid cap on a vase,
 below a draped roof, or between other assigned material regions on the same
@@ -125,8 +124,7 @@ strokes; use compatible sequential regions until that transition is supported.
 
 Both geometry backends provide bounds and sections through `core/geom/query.mjs`.
 Machines must declare XYZ extrusion and planar capabilities; machine profiles
-own tool/material limits and export behavior. Follow the
-[shared interoperability guidance](../../core/geom/README.md#geometry-interoperability-for-skill-authors).
+own tool/material limits and export behavior.
 
 Travel uses nearest wall starts, alternating fill direction and verified combing,
 including bounded routes around holes. Fill completes disconnected regions and
@@ -139,7 +137,7 @@ starting within 2 mm of the preceding deposition, inside the layer's region,
 continue as short printed connectors rather than travels, so sparse rows join
 along the wall. A nearby start on the next layer is one rising move without
 retraction. Other moves clear
-the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../core/path/README.md#whole-plan-travel-requirement).
+the highest deposited material plus `liftMm` (default 1 mm; zero allowed).
 Thin features may collapse under offsets; density is approximate near
 boundaries. No collision or automatic support model is implied by these checks.
 

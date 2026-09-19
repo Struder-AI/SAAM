@@ -4,7 +4,7 @@
     {
       "name": "generated-map",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "dev-map/generated-view"],
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "dev-map/view"],
       "port": 8765
     }
   ]

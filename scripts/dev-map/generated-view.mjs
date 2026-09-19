@@ -51,7 +51,7 @@ const bytesUnder=async dir=>{
   return {bytes:total,files};
 };
 
-export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,'dev-map/generated-view'),readSource}={}) {
+export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,'dev-map/view'),readSource}={}) {
   const model=await viewModel({repo,...(readSource?{readSource}:{})});
   await rm(out,{recursive:true,force:true});
   await mkdir(out,{recursive:true});

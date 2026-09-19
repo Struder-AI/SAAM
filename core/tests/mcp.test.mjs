@@ -130,8 +130,8 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   const digest = await call('read_guidance', { guidanceId: digestLink.guidanceId });
   assert.equal(digest.path, 'skills/README.md');
   assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
-  const section = await call('read_guidance', { guidanceId: 'core/export/griffin.md#s5-startup-observations' });
-  assert.match(section.text, /^### S5 startup observations/);
+  const section = await call('read_guidance', { guidanceId: 'MAKERS.md#standard-parameter-policy' });
+  assert.match(section.text, /^## Standard parameter policy/);
   await call('read_guidance', { guidanceId: '../package.json' }, /validation|Invalid/i);
   const machines = await call('list_machines');
   assert.ok(machines.every(machine => machine.outputs.every(output => !Object.hasOwn(output, 'program'))));
@@ -341,9 +341,9 @@ test('MCP rejected mesh import retains its diagnostic and routes to a readable t
   const manual = await call('read_skill', { skillId: 'mesh-tools' });
   assert.equal(manual.path, 'skills/mesh-tools/SKILL.md');
   assert.match(manual.manual, /repair-stl/);
-  const reference = manual.links.find(link => link.guidanceId.startsWith('core/geom/README.md'));
+  const reference = manual.links.find(link => link.guidanceId.startsWith('core/print/USAGE.md'));
   assert.ok(reference);
-  assert.equal((await call('read_guidance', { guidanceId: reference.guidanceId })).path, 'core/geom/README.md');
+  assert.equal((await call('read_guidance', { guidanceId: reference.guidanceId })).path, 'core/print/USAGE.md');
 });
 
 test('MCP reopens shared nested names and rejects ancestor junctions and invalid names', async t => {

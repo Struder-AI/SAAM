@@ -15,7 +15,7 @@ async function checkInstallation(){
   try{await access(nativeMeshExecutable);const build=JSON.parse(await readFile(join(dirname(nativeMeshExecutable),'build.json'),'utf8'));
     const source=createHash('sha256').update(await readFile(new URL('./native/mesh-repair.cpp',import.meta.url))).digest('hex');
     if(build.sourceSha256!==source||build.cgal!=='6.2.1')throw Error('stale');
-  }catch{throw Object.assign(Error('CGAL mesh repair is not built for this checkout. Run npm run setup:mesh; see core/geom/native/README.md. Exact cleanup remains available.'),{code:'MESH_BACKEND_UNAVAILABLE'});}
+  }catch{throw Object.assign(Error('CGAL mesh repair is not built for this checkout. Run npm run setup:mesh. Exact cleanup remains available.'),{code:'MESH_BACKEND_UNAVAILABLE'});}
 }
 async function* offChunks(mesh){yield `OFF\n${mesh.vertices.length} ${mesh.triangles.length} 0\n`;let chunk='';for(const p of mesh.vertices){chunk+=p.join(' ')+'\n';if(chunk.length>=65536){yield chunk;chunk='';}}for(const t of mesh.triangles){chunk+='3 '+t.join(' ')+'\n';if(chunk.length>=65536){yield chunk;chunk='';}}if(chunk)yield chunk;}
 async function readOff(path,{signal,progress}){

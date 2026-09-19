@@ -23,8 +23,7 @@ reachable; at a local boundary the control stops and reports the limit.
 
 The command writes `plan.json`, `machine.json` and `motion.json` into the named
 directory, replacing an existing study there. Robot examples explicitly use
-synthetic nominal floor installations. Dimensions and installation fields are
-described in the [model reference](../../core/machine/README.md).
+synthetic nominal floor installations.
 
 Optional third and fourth arguments supply motion and model-configuration JSON:
 

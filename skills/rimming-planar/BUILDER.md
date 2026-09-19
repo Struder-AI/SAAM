@@ -2,7 +2,7 @@
 
 Shared construction contract for [planar](SKILL.md) and
 [normal](../rimming-normal/SKILL.md) rimming. Read the selected manual for its
-implemented limits. [Composition](../../core/path/README.md) owns cross-skill dependencies.
+implemented limits.
 
 ## Rimming support specification
 

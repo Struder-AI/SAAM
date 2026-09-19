@@ -58,10 +58,8 @@ a hollow vase wall, to form a crossed exterior pattern.
 changes, reopening, setup reuse and generation/delivery. Pattern manuals add
 their own recipe settings and supported geometry.
 
-For a part combining patterns, read the selected manuals and their
-[material-region interface](../core/region/README.md#material-regions-and-shared-interfaces).
-For machine setup and export limitations, follow the
-[machine contracts](../core/export/README.md#machine-interoperability-design).
+For a part combining patterns, read the selected manuals; each owns its material
+regions, machine setup and export limitations.
 
 Maker guidance lives in [MAKERS.md](../MAKERS.md); connected-client tools and
 discovery scope live in the [MCP adapter manual](../adapters/mcp/README.md).

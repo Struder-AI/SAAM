@@ -73,8 +73,7 @@ request and resolve it after doing its work. Prepare the playback start layer
 silently; Studio supplies the playback instructions. Give proactive chat
 guidance only for the designated change-suggestion lesson and completion. Before then, let
 the participant read Studio and respond to her requested edits without adding
-introductory questions or repeating the UI's tasks. Local CLI equivalents are in
-[Studio coordination](../../studio/README.md#agent-request-coordination). An ended
+introductory questions or repeating the UI's tasks. An ended
 or disconnected chat is not automatically awakened. Local agents can read
 `node studio/tour.mjs status Prints` and choose the layer with
 `node studio/tour.mjs start-at Prints 12`.

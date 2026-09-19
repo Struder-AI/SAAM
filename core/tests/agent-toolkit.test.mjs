@@ -30,7 +30,7 @@ async function fixture(t) {
   }};
 }
 
-test('onboarding selects context by role and component; maps and contracts are selective reads', async t => {
+test('onboarding selects context by role and area; the map is read from the store by index or declaration', async t => {
   const {library} = await fixture(t);
   const {stdout} = await run(process.execPath, [cli, 'maker-onboarding'], {cwd: library});
   const maker = JSON.parse(stdout);
@@ -41,7 +41,7 @@ test('onboarding selects context by role and component; maps and contracts are s
   const builder = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'skills'])).stdout);
   assert.ok(builder.documents.some(doc => doc.path === 'BUILDERS.md'));
   assert.ok(builder.documents.some(doc => doc.path === 'MAKERS.md'), 'builder context includes maker context');
-  assert.ok(!builder.documents.some(doc => doc.path === 'core/README.md'));
+  assert.ok(!builder.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   const dev = JSON.parse((await run(process.execPath, [cli, 'developer-onboarding', '--area', 'mcp', '--area', 'setup', '--area', 'mcp'])).stdout);
   assert.ok(!dev.documents.some(doc => doc.path === 'AGENTS.md'), 'entry-point instructions are already loaded');
   assert.equal(new Set(dev.documents.map(doc => doc.path)).size, dev.documents.length);
@@ -51,21 +51,37 @@ test('onboarding selects context by role and component; maps and contracts are s
   assert.equal(orientation.text, (await readGuidance(root, orientation.guidanceId)).text);
   assert.deepEqual(maker.maps, []);
   assert.deepEqual(builder.maps, [], 'skill-only builders need no dev maps');
-  assert.deepEqual(dev.maps.map(map => map.source), ['maps/0_system.md']);
+  assert.deepEqual(dev.maps.map(map => [map.index, map.kind]), [['0', 'root']], 'a developer starts at page 0');
   assert.ok(!dev.documents.some(doc => ['MAKERS.md','core/print/USAGE.md','skills/AUTHORING.md'].includes(doc.path)), 'developers load workflow context when needed');
-  const mapped = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'regions', '--area', 'regions'])).stdout);
-  assert.deepEqual(mapped.maps.map(map => map.source), ['maps/4_regions.md']);
-  const region = JSON.parse((await run(process.execPath, [cli, 'read-map', '4d_perimeters'], {cwd: library})).stdout);
-  assert.equal(region.maps[0].pages.length,1);
-  assert.equal(region.maps[0].pages[0].key,'4d_perimeters');
-  assert.ok(region.maps[0].pages[0].nodes.find(node => node.component === 'offset').shared.some(use => use.page === '4a_offset'));
+  // An --area is a region of the map, named by its path or by its index.
+  const mapped = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', 'core/region', '--area', 'core/region'])).stdout);
+  assert.deepEqual(mapped.maps.map(map => [map.kind, map.path]), [['region', 'core/region']]);
+  const byIndex = JSON.parse((await run(process.execPath, [cli, 'builder-onboarding', '--area', mapped.maps[0].index])).stdout);
+  assert.deepEqual(byIndex.maps, mapped.maps);
+  // A declaration path and its index return the same page; --code adds that page's own source.
+  const declaration = 'core/path/compose.mjs::composeResults';
+  const page = JSON.parse((await run(process.execPath, [cli, 'read-map', declaration], {cwd: library})).stdout).maps[0];
+  assert.equal(page.path, declaration);
+  assert.equal(page.file, 'core/path/compose.mjs');
+  const sameByIndex = JSON.parse((await run(process.execPath, [cli, 'read-map', page.index], {cwd: library})).stdout).maps[0];
+  assert.deepEqual(sameByIndex, page);
+  const code = JSON.parse((await run(process.execPath, [cli, 'read-map', declaration, '--code'], {cwd: library})).stdout).maps[0];
+  assert.equal(code.code, true);
+  assert.equal(code.source.split('\n').length, code.endLine - code.line + 1);
   assert.ok(!dev.documents.some(doc=>doc.path==='skills/README.md'));
-  const sliceId = 'maps/4_regions.md#planar-kernel';
+  const sliceId = 'BUILDERS.md#avoid-check-spirals';
+  const whole = await readFile(resolve(root, 'BUILDERS.md'), 'utf8');
   const slice = JSON.parse((await run(process.execPath, [cli, 'read-guidance', sliceId])).stdout);
   assert.equal(slice.documents[0].text, (await readGuidance(root, sliceId)).text);
-  assert.ok(slice.documents[0].text.includes('WASM instance'));
-  assert.ok(!slice.documents[0].text.includes('## Perimeter recovery'));
+  assert.ok(whole.includes(slice.documents[0].text) && slice.documents[0].text.length < whole.length);
+  // An index or declaration the store does not hold is refused, not guessed at.
   await assert.rejects(run(process.execPath, [cli, 'read-map', 'invented']));
+  await assert.rejects(run(process.execPath, [cli, 'read-map', '5_motion']), error => {
+    assert.match(JSON.parse(error.stdout).error, /No generated page for 5_motion/); return true;
+  });
+  await assert.rejects(run(process.execPath, [cli, 'read-map', '0', '--code']), error => {
+    assert.match(JSON.parse(error.stdout).error, /spans no code of its own/); return true;
+  });
   assert.ok(dev.documents.some(doc => doc.path === 'adapters/mcp/DEVELOP.md'));
   assert.ok(dev.documents.some(doc => doc.path === 'SETUP.md'));
   for (const packet of [maker, builder]) {

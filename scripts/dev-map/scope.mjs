@@ -6,3 +6,6 @@ export const outsideRoots=['skills','adapters','scripts'];
 export const scanRoots=[...mappedRoots,...outsideRoots];
 const mappedPrefix=new RegExp(`^(${mappedRoots.join('|')})/`);
 export const isMapped=file=>mappedPrefix.test(file);
+// A served path that is not the module path on disk: the import specifier cannot be resolved by
+// the file system alone, so the serving alias is stated here rather than guessed.
+export const importAliases={'studio/app.mjs:./studio/machine-session.mjs':'studio/machine-session.mjs'};
