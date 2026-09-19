@@ -42,7 +42,7 @@
                     "studio/app.mjs::setTab",
                     "studio/app.mjs::draw",
                     "studio/app.mjs::draw::segment",
-                    "studio/app.mjs::draw::<callable@542:92>",
+                    "studio/app.mjs::draw::<callable@545:92>",
                     "studio/app.mjs::draw::local",
                     "studio/app.mjs::draw::materialProject"
                   ]
@@ -62,7 +62,6 @@
                     "studio/app.mjs::requestMachinePose",
                     "studio/app.mjs::worldToDisplay",
                     "studio/app.mjs::fitMachine",
-                    "studio/app.mjs::fitMachine::<callable@666:112>",
                     "studio/app.mjs::fitDisplayedPart",
                     "studio/app.mjs::fit"
                   ]
@@ -86,7 +85,7 @@
                     "studio/app.mjs::acknowledgeDisplayedView",
                     "studio/app.mjs::decodeInWorker",
                     "studio/app.mjs::openPrint",
-                    "studio/app.mjs::openPrint::<callable@747:62>",
+                    "studio/app.mjs::openPrint::<callable@750:62>",
                     "studio/app.mjs::onsubmit",
                     "studio/app.mjs::scheduleChange"
                   ]
@@ -104,17 +103,17 @@
                     "studio/app.mjs::blob::draw",
                     "studio/app.mjs::blob::onProgress",
                     "studio/app.mjs::animate",
-                    "studio/app.mjs::seek"
+                    "studio/app.mjs::seekTourLayer"
                   ]
                 },
                 {
                   "id": "session",
                   "label": "Session and interaction",
                   "members": [
-                    "studio/app.mjs::agentUI::onActivity",
-                    "studio/app.mjs::agentUI::onRequests",
-                    "studio/app.mjs::agentUI::onPresentation",
-                    "studio/app.mjs::agentUI::getStage",
+                    "studio/app.mjs::initializeAgentInterface::onActivity",
+                    "studio/app.mjs::initializeAgentInterface::onRequests",
+                    "studio/app.mjs::initializeAgentInterface::onPresentation",
+                    "studio/app.mjs::initializeAgentInterface::getStage",
                     "studio/app.mjs::viewPerformance::report",
                     "studio/app.mjs::viewPerformance::context",
                     "studio/app.mjs::viewStorageKey",
@@ -128,8 +127,22 @@
                     "studio/app.mjs::oncontextmenu",
                     "studio/app.mjs::onkeydown",
                     "studio/app.mjs::poll",
-                    "studio/app.mjs::poll::<callable@842:154>",
-                    "studio/app.mjs::isBusy"
+                    "studio/app.mjs::poll::<callable@845:154>",
+                    "studio/app.mjs::createStudioTour::isBusy",
+                    "studio/app.mjs::initializeAgentInterface",
+                    "studio/app.mjs::connectViewPersistence",
+                    "studio/app.mjs::startPreparationPolling",
+                    "studio/app.mjs::createStudioTour",
+                    "studio/app.mjs::createStudioTour::state",
+                    "studio/app.mjs::loadStudio",
+                    "studio/app.mjs::studioChanged",
+                    "studio/app.mjs::studioVisible",
+                    "studio/app.mjs::connectStudioUpdates",
+                    "studio/app.mjs::disposeStudioSession",
+                    "studio/app.mjs::restoreStudioSession",
+                    "studio/app.mjs::restoreStudioSession::<callable@888:54>",
+                    "studio/app.mjs::connectStudioSession",
+                    "studio/app.mjs::initializeStudio"
                   ]
                 },
                 {
@@ -781,7 +794,7 @@
             "studio/app.mjs::setTab",
             "studio/app.mjs::draw",
             "studio/app.mjs::draw::segment",
-            "studio/app.mjs::draw::<callable@542:92>",
+            "studio/app.mjs::draw::<callable@545:92>",
             "studio/app.mjs::draw::local",
             "studio/app.mjs::draw::materialProject"
           ]
@@ -801,7 +814,6 @@
             "studio/app.mjs::requestMachinePose",
             "studio/app.mjs::worldToDisplay",
             "studio/app.mjs::fitMachine",
-            "studio/app.mjs::fitMachine::<callable@666:112>",
             "studio/app.mjs::fitDisplayedPart",
             "studio/app.mjs::fit"
           ]
@@ -825,7 +837,7 @@
             "studio/app.mjs::acknowledgeDisplayedView",
             "studio/app.mjs::decodeInWorker",
             "studio/app.mjs::openPrint",
-            "studio/app.mjs::openPrint::<callable@747:62>",
+            "studio/app.mjs::openPrint::<callable@750:62>",
             "studio/app.mjs::onsubmit",
             "studio/app.mjs::scheduleChange"
           ]
@@ -843,17 +855,17 @@
             "studio/app.mjs::blob::draw",
             "studio/app.mjs::blob::onProgress",
             "studio/app.mjs::animate",
-            "studio/app.mjs::seek"
+            "studio/app.mjs::seekTourLayer"
           ]
         },
         {
           "id": "session",
           "label": "Session and interaction",
           "members": [
-            "studio/app.mjs::agentUI::onActivity",
-            "studio/app.mjs::agentUI::onRequests",
-            "studio/app.mjs::agentUI::onPresentation",
-            "studio/app.mjs::agentUI::getStage",
+            "studio/app.mjs::initializeAgentInterface::onActivity",
+            "studio/app.mjs::initializeAgentInterface::onRequests",
+            "studio/app.mjs::initializeAgentInterface::onPresentation",
+            "studio/app.mjs::initializeAgentInterface::getStage",
             "studio/app.mjs::viewPerformance::report",
             "studio/app.mjs::viewPerformance::context",
             "studio/app.mjs::viewStorageKey",
@@ -867,8 +879,22 @@
             "studio/app.mjs::oncontextmenu",
             "studio/app.mjs::onkeydown",
             "studio/app.mjs::poll",
-            "studio/app.mjs::poll::<callable@842:154>",
-            "studio/app.mjs::isBusy"
+            "studio/app.mjs::poll::<callable@845:154>",
+            "studio/app.mjs::createStudioTour::isBusy",
+            "studio/app.mjs::initializeAgentInterface",
+            "studio/app.mjs::connectViewPersistence",
+            "studio/app.mjs::startPreparationPolling",
+            "studio/app.mjs::createStudioTour",
+            "studio/app.mjs::createStudioTour::state",
+            "studio/app.mjs::loadStudio",
+            "studio/app.mjs::studioChanged",
+            "studio/app.mjs::studioVisible",
+            "studio/app.mjs::connectStudioUpdates",
+            "studio/app.mjs::disposeStudioSession",
+            "studio/app.mjs::restoreStudioSession",
+            "studio/app.mjs::restoreStudioSession::<callable@888:54>",
+            "studio/app.mjs::connectStudioSession",
+            "studio/app.mjs::initializeStudio"
           ]
         },
         {
