@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaults,validatePlan} from '../../../core/print/plan.mjs';
 import {loadMachine,checkMachinePath} from '../../../core/machine/profile.mjs';
-import {generatePath,buildShell,translateShell} from '../../../core/print/generate.mjs';
+import {generatePath,buildShell,translateShell,applyResultDependencies} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {supportResults,assignedSupportSection} from '../scripts/supports.mjs';
@@ -35,11 +35,14 @@ test('support dependency lookup chooses the final existing layer below each oper
   const plan=supportPlan();
   const heights=[-0.1,0.19,0.2,0.6-5e-9,1.1,2.8,9];
   const modelResults=[{operations:heights.map((high,i)=>({id:'model:'+i,after:[],strokes:[{points:[[0,0,high-0.1],[0,0,high]]}]}))}];
-  const results=supportResults({plan,shells:[],modelResults}),supports=results.flatMap(r=>r.operations);
+  for(const op of modelResults[0].operations){Object.freeze(op.after);Object.freeze(op);}
+  const {results,dependencyChanges}=supportResults({plan,shells:[],modelResults}),supports=results.flatMap(r=>r.operations);
+  const linked=applyResultDependencies(modelResults,dependencyChanges);
   for(const [i,high] of heights.entries()){
     const eligible=supports.filter(op=>op.rank<=high+1e-8);
     const finalRank=eligible.reduce((rank,op)=>Math.max(rank,op.rank),-Infinity);
-    assert.deepEqual(modelResults[0].operations[i].after,eligible.filter(op=>op.rank===finalRank).map(op=>op.id));
+    assert.deepEqual(linked[0].operations[i].after,eligible.filter(op=>op.rank===finalRank).map(op=>op.id));
+    assert.deepEqual(modelResults[0].operations[i].after,[]);
   }
 });
 

@@ -103,17 +103,18 @@ export function basisDerivatives(knots, span, t, order, count) {
 // Basis functions without derivatives (The NURBS Book, algorithm A2.2). The
 // sectioner evaluates g millions of times per part and needs no derivatives, so
 // this path avoids the derivative table entirely.
-export function basisFunctions(knots, span, t, order, out = new Float64Array(order)) {
-  const left = new Float64Array(order), right = new Float64Array(order);
+export function basisFunctions(knots, span, t, order) {
+  const out = new Float64Array(order);
   out[0] = 1;
   for (let j = 1; j < order; j++) {
-    left[j] = t - knots[span + 1 - j];
-    right[j] = knots[span + j] - t;
     let saved = 0;
     for (let k = 0; k < j; k++) {
-      const temp = out[k] / (right[k + 1] + left[j - k]);
-      out[k] = saved + right[k + 1] * temp;
-      saved = left[j - k] * temp;
+      // These are the same knot differences as the recurrence's left/right
+      // tables; computing them here leaves only the returned basis allocated.
+      const right = knots[span + k + 1] - t, left = t - knots[span + 1 - j + k];
+      const temp = out[k] / (right + left);
+      out[k] = saved + right * temp;
+      saved = left * temp;
     }
     out[j] = saved;
   }
@@ -128,8 +129,8 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
   const spanU = findSpan(knotsU, nu, orderU, du), spanV = findSpan(knotsV, nv, orderV, dv);
   const sw = [0, 0, 0, 0], swu = [0, 0, 0, 0], swv = [0, 0, 0, 0];
   if (!wantDerivatives) {
-    const bu = basisFunctions(knotsU, spanU, du, orderU, scratchU);
-    const bv = basisFunctions(knotsV, spanV, dv, orderV, scratchV);
+    const bu = basisFunctions(knotsU, spanU, du, orderU);
+    const bv = basisFunctions(knotsV, spanV, dv, orderV);
     for (let i = 0; i < orderU; i++) {
       const iu = spanU - orderU + 1 + i;
       for (let j = 0; j < orderV; j++) {
@@ -166,10 +167,6 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
 
 export const clamp = (t, [a, b]) => t < a ? a : t > b ? b : t;
 
-// Reused across value-only evaluations; orders above this fall back to fresh
-// arrays inside basisFunctions.
-const scratchU = new Float64Array(16), scratchV = new Float64Array(16);
-
 // Signed plane distance of the control net, scaled by weight. The rational
 // numerator shares the sign of n.S - d because all weights are positive, so the
 // convex-hull property makes a same-sign net a conservative "no section" test.
@@ -192,8 +189,8 @@ export function evaluateScalar(patch, coefficients, u, v) {
   const { nu, nv, orderU, orderV, knotsU, knotsV } = patch;
   const du = clamp(u, patch.domainU), dv = clamp(v, patch.domainV);
   const spanU = findSpan(knotsU, nu, orderU, du), spanV = findSpan(knotsV, nv, orderV, dv);
-  const bu = basisFunctions(knotsU, spanU, du, orderU, scratchU);
-  const bv = basisFunctions(knotsV, spanV, dv, orderV, scratchV);
+  const bu = basisFunctions(knotsU, spanU, du, orderU);
+  const bv = basisFunctions(knotsV, spanV, dv, orderV);
   let sum = 0;
   for (let i = 0; i < orderU; i++) {
     const iu = spanU - orderU + 1 + i;

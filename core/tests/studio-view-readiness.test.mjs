@@ -200,7 +200,7 @@ function placeholderContext({program=null,stale=null,tab='toolpath'}={}){
     partBounds:()=>({min:[0,0,0],max:[10,10,10]}),view:()=>({skinPhase:'draped-skin',names:{}}),label:id=>id,
     machineDisplay:()=>null,requestMachinePose(){},updateMachineStatus(){},requestDraw(){},transform:p=>p,
     $:selector=>inputs[selector]??{value:'',checked:false,textContent:'',hidden:false}});
-  vm.runInContext(section('const presentedState=','const clock=')+'\n'+section('function draw({target=canvas','\ncanvas.onpointerdown'),context);
+  vm.runInContext(section('const presentedState=','const clock=')+'\n'+section('function draw({target=canvas','\nfunction planCanvasDrag('),context);
   return context;
 }
 

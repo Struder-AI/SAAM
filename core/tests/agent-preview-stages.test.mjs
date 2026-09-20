@@ -5,7 +5,7 @@ import {writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {preview,showPrint} from '../agent/toolkit.mjs';
-import {loadFlow,flowPacket} from '../../scripts/dev-map/flow.mjs';
+import {loadFlow,flowPacket} from '../../dev-map/lib/flow.mjs';
 
 async function fixture(t){
   const library=await mkdtemp(join(tmpdir(),'saam-preview-stages-')),servers=[];

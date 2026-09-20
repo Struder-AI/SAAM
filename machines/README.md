@@ -30,7 +30,7 @@ starting limits, not certification for every brand or a physical print result.
 These are the original **2 Extended** and standard **3**, not the 2+, Extended+,
 2+ Connect, 3 Extended or S3. UM3 hardware has two nozzles, but SAAM plans select
 one installed AA core; a BB support core and tool changes are not supported here.
-No nonplanar clearance limit is assigned to these new profiles. Conservative
+No nonplanar clearance limit is assigned to the Ultimaker profiles; the X1 Carbon carries only a user-chosen experimental 10° limit with no clearance rating. Conservative
 rectangular tool bounds avoid the X1 cutter region and UltiMaker glass clips;
 each profile records the reduced area and official hardware/Cura sources.
 

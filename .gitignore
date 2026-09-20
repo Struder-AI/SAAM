@@ -4,7 +4,12 @@ __pycache__/
 *.py[cod]
 
 # build output
-/dev-map/
+/dev-map/store/
+/dev-map/view/
+/dev-map/view.next/
+/dev-map/audit/
+/dev-map-OLD/audit/
+/dev-map-OLD/view/
 dist/
 build/
 *.tsbuildinfo

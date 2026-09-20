@@ -110,7 +110,7 @@ and labels may be authored; implementation nodes and wires are generated and mus
 not be authored. After an edit, `regenerate` and read again; repair any reported
 group reference that the edit invalidated. Indexes are regenerated and may change: say the index and the
 name when talking about a page, and write the declaration path when something
-must keep pointing at it. The [map guide](maps/README.md) owns the commands and
+must keep pointing at it. The [map guide](dev-map/README.md) owns the commands and
 the page fields; the [map contract](BUILDERS.md#maps-and-local-documentation)
 owns the reading rules.
 
@@ -171,7 +171,7 @@ result until relevant inputs change.
 - The component manuals own core/Studio behaviour, contracts and limits for makers and builders: [core architecture](core/README.md), the [agent CLI toolkit](core/agent/README.md), [machine interfaces and program output](core/export/README.md) with its [Bambu](core/export/bambu.md), [DENSO](core/export/denso.md), [Dobot](core/export/dobot.md) and [Griffin](core/export/griffin.md) pages, [geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md), [machine presentation models](core/machine/README.md), [skill composition and travel](core/path/README.md), the [print lifecycle](core/print/README.md), [regions](core/region/README.md), [development tests](core/tests/README.md), [machine files](machines/README.md), [benchmarks](scripts/bench/README.md), and [Studio](studio/README.md) with its [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md) contracts. Studio client permissions live in [studio/README.md](studio/README.md#studio-agent-permissions).
 - [Skill manuals](skills/README.md) own pattern and preparation-task tools, settings and limits; [shared print tools](core/print/USAGE.md) owns common operations.
 - [The MCP adapter manual](adapters/mcp/README.md) owns chat-client connection and tool use.
-- [The map guide](maps/README.md) owns the map commands, the fields each page carries, the scan scope and the external-fact rows; the [map contract](BUILDERS.md#maps-and-local-documentation) owns its reading rules.
+- [The map guide](dev-map/README.md) owns the map commands, the fields each page carries, the scan scope and the external-fact rows; the [map contract](BUILDERS.md#maps-and-local-documentation) owns its reading rules.
 - `maker-context-map.html` and `builder-context-map.html` own documentation navigation for people; they are a human reference, not an agent read.
 - [GLOSSARY.md](GLOSSARY.md) owns shared terms.
 - [DECISIONS.md](DECISIONS.md) owns contributor decisions and their approval status.

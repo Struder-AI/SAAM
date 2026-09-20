@@ -76,7 +76,7 @@ Checks (targeted, no full suite): `core/tests/denso.test.mjs`,
 `mcp*.test.mjs`, and the wave-overhangs, planar-infill, full-fill, text,
 rimming-planar, thick-lip, supports, draped-skin, vase-wall, plastic-weld,
 heat-set-inserts and gridfinity skill tests. All pass except the seven failures
-that predate this work. `node scripts/dev-map.mjs check` passes.
+that predate this work. `node dev-map/cli.mjs check` passes.
 
 ### Group B — core samplers and geometry the skills call (B1–B7)
 
@@ -125,7 +125,7 @@ Checks for group B (targeted): `core/tests/surface-cladding.test.mjs`,
 `line-network.test.mjs`, `dev-map*.test.mjs`, and the rimming-planar, full-fill,
 wave-overhangs, vase-wall, text, heat-set-inserts and draped-skin skill tests.
 All pass except the pre-existing finished-cladding failure.
-`node scripts/dev-map.mjs check` passes.
+`node dev-map/cli.mjs check` passes.
 
 - **Mesh sleeve `maxSectionPoints` (16,384).** Removed. The points in a complete
   fitted section already follow the section tolerance and the fitted
@@ -167,7 +167,7 @@ Checks for group B part 2: `core/tests/mesh-sleeve.test.mjs`,
 `mesh-large.test.mjs`, `mesh-distance.test.mjs`, `loose-surface-offset.test.mjs`,
 `cladding-offset-tightness.test.mjs`, `surface-offset.test.mjs`,
 `sleeve-frame.test.mjs`, `sleeve-contact.test.mjs` and the vase-wall skill test.
-All pass. `node scripts/dev-map.mjs check` passes.
+All pass. `node dev-map/cli.mjs check` passes.
 
 ### Group B — travel routing, machine commands and program readers (B12–B15)
 
@@ -225,7 +225,7 @@ Checks for group B part 3: `core/tests/travel.test.mjs`,
 `machine-presentation.test.mjs`, `bambu.test.mjs`, `pipeline.test.mjs`,
 `travel-advisory.test.mjs`, `studio-kinematics.test.mjs`, `dev-map.test.mjs`,
 `dev-map-reference.test.mjs` and the full-fill, planar-infill and draped-skin
-skill tests. All pass. `node scripts/dev-map.mjs check` passes.
+skill tests. All pass. `node dev-map/cli.mjs check` passes.
 
 ### Group C — time limits
 
@@ -267,7 +267,7 @@ four native-backend tests, which really ran here), `studio-import.test.mjs`,
 `dev-map.test.mjs`, `dev-map-reference.test.mjs`, `skill-digest.test.mjs` (29
 pass). The old test asserted that a 1 ms limit rejected a repair; it now asserts
 that the same call completes, that a cancelled repair and a failed repair each
-publish no directory. `node scripts/dev-map.mjs check` passes.
+publish no directory. `node dev-map/cli.mjs check` passes.
 
 ### Group D — memory guard
 
@@ -354,7 +354,7 @@ skips. The test that asserted the budget throws now asserts the opposite: the
 196,608-face streamed import completes with `SAAM_MESH_MEMORY_MIB=16` set, which
 is the setting that used to refuse it, and a separate fast test covers index
 capacity at its exact boundaries, an injected allocator failure naming its stage
-and size, and the worker out-of-memory mapping. `node scripts/dev-map.mjs check`
+and size, and the worker out-of-memory mapping. `node dev-map/cli.mjs check`
 passes.
 
 ### Group E — sweep, decisions and register
@@ -459,7 +459,14 @@ two runs); no skips. Each removed ceiling is now pinned from the other side: ten
 perimeters on a small box validates and deposits more wall than two, ten draped
 skins reach layer index nine, a 24-perimeter lip step generates, and a 150 second
 Dobot pause exports as 60,000 + 60,000 + 30,000 and reads back as 150 seconds.
-`node scripts/dev-map.mjs check` passes.
+`node dev-map/cli.mjs check` passes.
+
+Repository-wide checkpoint verification on 2026-09-19 ran `npm test`: 1,096 of
+1,100 tests passed. The four failures are the already recorded MCP
+transport-close expectation, Studio lifetime harness, and two plastic-weld
+overlap cases (the latter also fail at `6004141`); no new failure was found.
+`node dev-map/cli.mjs check --json` also passed with 1,527 pages, no stale store,
+no unreached pages, no orphan facts and no fact errors.
 
 ## 2026-09-18 — Finish opening Studio in a tab that is never painted
 
@@ -1287,8 +1294,8 @@ not runtime observations or physical evidence.
 ## 2026-09-17 — Report-only code-derived developer-map pilot
 
 Implemented lexical/import/alias resolution and exact source evidence in
-`scripts/dev-map/graph.mjs`, with declaration containment, typed relationship
-projection and shared-caller reports in `scripts/dev-map/evidence.mjs`.
+`dev-map/lib/graph.mjs`, with declaration containment, typed relationship
+projection and shared-caller reports in `dev-map/lib/evidence.mjs`.
 `node scripts/dev-map-evidence.mjs` regenerates the ignored JSON graph, comparison
 report and readable report. The existing viewer, region wiring, red-link behavior
 and manufacturing implementation were left unchanged. The pilot operates in the
@@ -1369,7 +1376,7 @@ the same file's header prose had already been updated — they now name the owni
 region maps and `scripts/bench/region-reference.md`. The builder map's two map
 nodes had no wires at all, so nothing showed how a builder reaches them and hover
 did nothing; they are now wired from `BUILDERS.md` with a `read-map` action, a
-`maps/README.md` node was added because the map guide was unreachable, and the
+`dev-map/README.md` node was added because the map guide was unreachable, and the
 generated viewer node says to build first. Its legend gained the blue-dashed
 swatch its prose already promised.
 
@@ -1394,7 +1401,7 @@ guarantee — are enforced only when a contributor runs them locally. `check-rep
 walks `*.md` only, so the two context-map HTML files are never link- or
 coverage-checked; that is why the stale nodes survived. The viewer's Doc pane
 renders region-prose Markdown links as literal text, because `md_to_html` in
-`scripts/dev-map/viewer.py` handles code, bold and italic but not links, so the
+`dev-map/lib/viewer.py` handles code, bold and italic but not links, so the
 routing half of the map contract does not reach people. The builder map still
 omits nodes for the test reference, benchmarks, MCP development, machine models
 and `skills/wave-overhangs/DEVELOP.md`. `--area path` returns `core/path/README.md`
@@ -5093,13 +5100,13 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - Source: user, as developer work: agents orient from graph structure only; node
   set, grouping, addresses, labels, boundaries and couplings come from a scan, and
   map prose is to be removed.
-- Implemented, additive: `read-map TARGET --generated` (`scripts/dev-map/projection.mjs`).
+- Implemented, additive: `read-map TARGET --generated` (`dev-map/lib/projection.mjs`).
   Identity is the declaration path; a numeric handle is recomputed every scan and
   stored nowhere. Nodes are named callables with a unique, non-positional path;
   other code is enclosed in its nearest such ancestor or a module node. Pages are
   directories, page reads return a file-level index, file and node reads return
   per-node edges with labels taken from parameter, argument and result names.
-  `scripts/dev-map/couplings.mjs` links literal worker message types, HTTP
+  `dev-map/lib/couplings.mjs` links literal worker message types, HTTP
   method/path, file writer/reader names and registry entries; `--tests` lists
   importing tests on request. Authored reads, build and check are unchanged.
 - Measured 2026-09-18: 9 pages, 134 files, 1274 nodes, 6119 enclosed
@@ -5118,7 +5125,7 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - Source: user, as developer work: the by-file generated map says where code
   lives, not what happens; the map wanted is a Grasshopper-style leveled flow.
 - Implemented, additive: `read-map DECLARATION --generated --flow` and
-  `dev-map.mjs build --flow DECLARATION` (`scripts/dev-map/flow.mjs`, `flow.py`).
+  `dev-map.mjs build --flow DECLARATION` (`dev-map/lib/flow.mjs`, `flow.py`).
   One function is one page: parameters are input ports, distinct callees are
   components in first-appearance order, local def-use gives named wires, a
   mutated receiver gives a state thread, the enclosing test gives the gate,
@@ -5150,7 +5157,7 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   resolve def-use through scopes, draw early returns and throws as output
   ports, list assertion-shaped calls as `requires`, keep formula-shaped callees
   off the page with wire continuity, and carry `calledFrom` and couplings.
-  `scripts/dev-map/store.mjs`, `regions.mjs`, `shapes.mjs`: a stored map under
+  `dev-map/lib/store.mjs`, `regions.mjs`, `shapes.mjs`: a stored map under
   `dev-map/generated/`, `regenerate [INDEX]`, region-local canonical numbering,
   page 0 and region pages, `unreached`, stale marking by file hash on read,
   `read-map INDEX --generated [--code]` with `--code` refused on root and
@@ -5183,7 +5190,7 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   page lists its formula-shaped callees; formulas additionally exclude async,
   `await`, `new`, nested block functions and unresolved calls (273 -> 201).
   Class pages draw method calls and shared `this.` fields as state wires.
-  `scripts/dev-map/scope.mjs` is the one authored scan scope (mapped: core,
+  `dev-map/lib/scope.mjs` is the one authored scan scope (mapped: core,
   studio; outside callers: skills, adapters, scripts). Event-listener
   registrations are entry points. `??` gates show the source slice.
 - Measured 2026-09-19: full regenerate 7.7 s wall (link 5.6 s, pages 0.9 s,
@@ -5205,8 +5212,8 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 
 - Source: user, as developer work: put everything generated so far where it can
   be viewed.
-- Implemented, additive: `node scripts/dev-map.mjs build --generated` draws the
-  stored map (`scripts/dev-map/generated-view.mjs`, `generated-view.py`) into
+- Implemented, additive: `node dev-map/cli.mjs build --generated` draws the
+  stored map (`dev-map/lib/generated-view.mjs`, `generated-view.py`) into
   `dev-map/generated-view/`: page `0`, region, file, class and function pages in
   the leveled layout, click-through between levels, breadcrumb to `0`, a URL
   hash per index, search by index or declaration path, a source pane, page
@@ -5236,15 +5243,15 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - Implemented: `read-map INDEX|DECLARATION [--code]` is the only map read and
   `regenerate [INDEX]` the only scan; `--generated` and the authored flags are
   gone; `--code` is refused on `0` and region pages. Store `dev-map/store/`,
-  viewer `dev-map/view/` (`node scripts/dev-map.mjs build`). Developer and
+  viewer `dev-map/view/` (`node dev-map/cli.mjs build`). Developer and
   builder onboarding return page `0` and, for `--area REGION`, that region
   page. Deleted: 10 authored region files, 23 `maps/reference/` files, 21
   redirect-only component READMEs, the authored pipeline (model, generate,
   evidence, containment, reference, maintenance, render) and six test files.
   Every inbound link was removed; AGENTS, BUILDERS, DEVELOPER-CONTEXT, SETUP,
-  README, the context-map pages and `maps/README.md` now describe the walk from
+  README, the context-map pages and `dev-map/README.md` now describe the walk from
   `0`, discourage text search for orientation, and drop the responsibilities
-  and contract authoring procedure. `maps/facts.tsv` (header only) is the one
+  and contract authoring procedure. `dev-map/facts.tsv` (header only) is the one
   authored map content: rows attach to pages, orphans are reported, malformed
   rows fail `dev-map.mjs check`, which also fails on a missing or stale store.
 - Lost with the reference prose and not yet re-homed: operator-facing Studio
@@ -5253,7 +5260,7 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   program notes for Griffin, Bambu, Dobot and DENSO, and the caller contracts
   skill manuals linked to. AGENTS.md still says SETUP.md covers Studio client
   permissions; SETUP.md no longer does. The subagent listed 25 candidate
-  external facts by old location; none were added to `maps/facts.tsv`.
+  external facts by old location; none were added to `dev-map/facts.tsv`.
 - Not built: `check --since REF`.
 - Verification: `dev-map-flow`, `dev-map-view`, `agent-toolkit`, `context-map`
   and `mcp-access` tests pass 56 of 56; `mcp.test.mjs` 16 of 17 with the same
@@ -5646,3 +5653,55 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   adaptive-loop state, toolkit preview ownership, and mesh-repair worker dispatch
   and lifetime. Inventory coverage is not used as evidence that these flows are
   complete.
+
+## 2026-09-19 — Developer-map wrap-up checkpoint
+
+- The user ended the active rollout with "We are in good shape on this, we can
+  wrap up." The team stopped new refactors and finished the stable integration.
+  Remaining authorized work is deferred in BR-052; inventory coverage is not a
+  claim that every flow or scanner limitation is resolved.
+- Active map tooling, authored grouping, tests and generated assets now live
+  under `dev-map/`; historical comparison assets live under `dev-map-OLD/`.
+  Toolkit entry commands remain unchanged. Maker/builder documentation maps
+  remain separate. Cross-project compatibility was explicitly not added as an
+  objective. Fixed the guidance reader's document root after relocation.
+- Scanner improvements resolve supported re-export chains, exported factory
+  destructuring and awaited literal dynamic imports, retaining conservative
+  ambiguity and unsupported-call diagnostics. Numeric helper destinations can
+  open directly as code. Presentation keeps distinct invocation identities,
+  short boundary/caller references and implementation behind source/details.
+  Error labels and condition wires no longer repeat full diagnostic/predicate
+  text. Class overviews consolidate repeated relationships.
+- The user approved private Lua interpreter variables, tables, scopes and call
+  stack behind an explicit stateful boundary. This is recorded in D-036 and the
+  developer orientation. Generated class fields carry distinct instance/static
+  identities and matching source spans through authored groups. Yellow hubs open
+  those spans, including stale/deleted live-source cases. Proved incoming class
+  construction/member calls connect to their actual target groups.
+- Planning/geometry changes include explicit comb routing, priming, perimeter
+  recovery, scanline and surface-offset stages, owned Bézier samples and NURBS
+  basis results, and staged sleeve fitting and directional regularization.
+  Studio changes include pointer planning, generation orchestration and source
+  sampling decisions; workflow edits return explicit replacement records.
+  Completed slices retain their captured outputs/error ordering under focused
+  tests. The last geometry batch passed 40 targeted checks with exact captured
+  outputs; its alternating NURBS benchmark improved, while directional sampling
+  showed no measured regression. These are software observations only.
+- Final integration passed all 302 map tests. Generation at 2026-09-20 00:48 UTC
+  (September 19 local time) covered nine regions, 138 files and 1,527 code
+  declarations: 1,218 graph destinations, 718 code destinations and 261 authored
+  groups. Eight external facts bound with no orphan/malformed facts; the final
+  map check passed with no staleness. The default LuaRuntime CLI packet and its
+  drawing were inspected together; clicking callStack opened the matching line
+  606, and Escape closed it. Its CLI packet was queued in the sidebar.
+- Forty-two service files and all 39 geometry files have recorded source
+  assessments; remaining Studio assessment and source/refinement priorities are
+  explicit. Immutable program enrichment and review transitions were not started
+  in the final slice. The Bambu source-offset tradeoff remains unresolved: early
+  final offsets alter partial sink rows on failure, while an offset view changes
+  result identity. Existing behavior remains intact. No new stateful exception
+  was silently introduced.
+- Local ignored evidence is in `dev-map/audit/`, including final test/generation
+  logs, exact review packets and source-hashed assessments. Current source/tests
+  and this log are the durable implementation record. This closeout does not
+  include a new commit or remote push after the earlier backup checkpoint.

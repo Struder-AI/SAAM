@@ -15,7 +15,8 @@
   ],
   "capabilities": [
     "xyz-extrusion",
-    "planar"
+    "planar",
+    "nonplanar"
   ],
   "bounds": {
     "min": [
@@ -836,7 +837,12 @@
     "validation": "Bambu Studio 02.08.02.61 PLA / Textured PEI reference startup, unmodified apart from removed slicer progress lines, followed by the explicit body origin [100,100,20]. Homing, nozzle wipe, bed leveling, mechanical-mode check, purge and extrusion/lidar calibration remain. Firmware service routines are not simulated; their conditions remain controlled by the printer. No physical validation."
   },
   "boundsBasis": "Nominal 256 mm cube. Selected-tool bounds conservatively exclude the entire x < 18 mm strip to avoid the official x=0..18, y=0..28 cutter exclusion without claiming polygon-aware clearance.",
-  "processBasis": "PLA is an editable default. Material temperature windows are bounded starting ranges, not spool-specific tuning. Flow/retraction caps are conservative SAAM choices; TPU denotes 95A-class material and needs maxFlowMm3S <= 2. Bed ceiling is conservatively 110 C across supply-voltage variants. The implemented output is PLA-only; other materials remain setup-review profiles. No active chamber heating, in-print AMS changes or nonplanar clearance is declared.",
+  "processBasis": "PLA is an editable default. Material temperature windows are bounded starting ranges, not spool-specific tuning. Flow/retraction caps are conservative SAAM choices; TPU denotes 95A-class material and needs maxFlowMm3S <= 2. Bed ceiling is conservatively 110 C across supply-voltage variants. The implemented output is PLA-only; other materials remain setup-review profiles. No active chamber heating or in-print AMS changes is declared. The nonplanar limit is a user-chosen experiment, not a clearance rating.",
+  "nonplanar": {
+    "maxAngleDeg": 10,
+    "experimental": true,
+    "basis": "User explicitly chose experimental 10 degrees on 2026-09-19 for a small draped-skin proof on a chess-pawn ball top; no manufacturer non-planar clearance rating or physical validation."
+  },
   "sources": [
     "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/Bambu%20Lab%20X1%20Carbon%200.4%20nozzle.json",
     "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/fdm_bbl_3dp_001_common.json",

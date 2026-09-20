@@ -43,6 +43,13 @@ infer material support or replace other skills' regions. Shared functional plann
 own machine output. Exact runtime
 identity includes the producer, shared numerical functions and dependencies.
 
+`waveResults` returns `{results, dependencyChanges}`. It reads `modelResults`
+without modifying their operations. Successor prerequisites are explicit
+`{operationId, after, mode: 'append'}` records; generation applies them in order
+with `applyResultDependencies` from `core/print/generate.mjs` before combining
+the updated model results with the new wave results. An unsuccessful generation
+does not leave partial prerequisite edits on its inputs.
+
 ## Research and license findings
 
 Inspected 2026-09-14 for `remettub`'s request inspired by a YouTube short:

@@ -26,28 +26,53 @@ export function sourceSession(worker){
     identity=sourceKey(state);latest=null;held=null;pendingPose=null;epoch++;
     if(!scene){worker.terminate();closed=true;}
   }
+  function beginBind(){pendingPose?.controller.abort();epoch++;latest=null;held=null;}
+  function readSamplingState(){return {hasScene:Boolean(scene),closed,latestKey:latest?.key,pendingKey:pendingPose?.key};}
+  function planPoseSample(session,key){
+    if(!session.hasScene)return {route:'unavailable'};
+    if(session.closed)return {route:'closed'};
+    return {route:session.latestKey===key?'cached':session.pendingKey===key?'pending':'request',
+      replacePending:session.pendingKey!==undefined&&session.pendingKey!==key};
+  }
+  function acceptPose({snapshot},request,version){
+    if(closed||epoch!==version)throw abortError();
+    return {key:request.key,seconds:request.seconds,snapshot,pose:poseMachine(scene,snapshot)};
+  }
+  function publishPose(result){latest=result;if(result.snapshot?.status==='ready'&&result.pose)held=result;error='';return result;}
+  function failPose(e,request){
+    if(e.name!=='AbortError'){error=e.message;latest={key:request.key,seconds:request.seconds,snapshot:null,pose:null};return latest;}
+    throw e;
+  }
+  function finishPose(request,abort,promise){
+    request.signal?.removeEventListener('abort',abort);if(pendingPose?.promise===promise)pendingPose=null;
+  }
+  function requestPose(request){
+    const {key,seconds,signal,manual,jog}=request,controller=new AbortController(),version=epoch;
+    const abort=()=>controller.abort(signal.reason);signal?.addEventListener('abort',abort,{once:true});
+    const receivePose=data=>{const accepted=acceptPose(data,request,version);return publishPose(accepted);};
+    const promise=rpc('sample',{seconds,...(manual?{manual:[...manual]}:{}),...(jog?{jog:structuredClone(jog)}:{})},controller.signal)
+      .then(receivePose).catch(e=>failPose(e,request)).finally(()=>finishPose(request,abort,promise));
+    pendingPose={key,promise,controller};return promise;
+  }
+  function applySampleDecision(decision,request){
+    if(decision.route==='unavailable')return Promise.resolve(null);
+    if(decision.route==='closed'){latest={key:request.key,seconds:request.seconds,snapshot:null,pose:null};return Promise.resolve(latest);}
+    if(decision.replacePending)pendingPose.controller.abort();
+    if(decision.route==='cached')return Promise.resolve(latest);
+    if(decision.route==='pending')return pendingPose.promise;
+    return requestPose(request);
+  }
   return {
     get scene(){return scene;},get error(){return error;},
     async load(state){const data=await rpc('load',{state});install(data,state);return {...data.program,moves:moveStore(data.program.moves)};},
-    async bind(state){if(identity===sourceKey(state)||!scene||closed)return;pendingPose?.controller.abort();epoch++;latest=null;held=null;const data=await rpc('bind',{state});install(data,state);},
+    async bind(state){if(identity===sourceKey(state)||!scene||closed)return;beginBind();const data=await rpc('bind',{state});install(data,state);},
     held(seconds){return held?.seconds===seconds?held:null;},
     current(seconds,{manual,jog}={}){return latest?.key===poseKey(seconds,manual,jog)?latest:null;},
     sample(seconds,{signal,manual,jog}={}){
       signal?.throwIfAborted();
       const key=poseKey(seconds,manual,jog);
-      if(!scene)return Promise.resolve(null);
-      if(closed){latest={key,seconds,snapshot:null,pose:null};return Promise.resolve(latest);}
-      if(pendingPose&&pendingPose.key!==key)pendingPose.controller.abort();
-      if(latest?.key===key)return Promise.resolve(latest);
-      if(pendingPose?.key===key)return pendingPose.promise;
-      const controller=new AbortController(),version=epoch;
-      const abort=()=>controller.abort(signal.reason);signal?.addEventListener('abort',abort,{once:true});
-      const promise=rpc('sample',{seconds,...(manual?{manual:[...manual]}:{}),...(jog?{jog:structuredClone(jog)}:{})},controller.signal).then(({snapshot})=>{
-        if(closed||epoch!==version)throw abortError();
-        const result={key,seconds,snapshot,pose:poseMachine(scene,snapshot)};latest=result;if(snapshot?.status==='ready'&&result.pose)held=result;error='';return result;
-      }).catch(e=>{if(e.name!=='AbortError'){error=e.message;latest={key,seconds,snapshot:null,pose:null};return latest;}throw e;})
-        .finally(()=>{signal?.removeEventListener('abort',abort);if(pendingPose?.promise===promise)pendingPose=null;});
-      pendingPose={key,promise,controller};return promise;
+      const session=readSamplingState(),decision=planPoseSample(session,key);
+      return applySampleDecision(decision,{key,seconds,signal,manual,jog});
     },
     dispose(){closed=true;epoch++;pendingPose?.controller.abort();for(const p of pending.values()){p.clean();p.reject(abortError());}pending.clear();worker.terminate();latest=null;held=null;scene=null;}
   };

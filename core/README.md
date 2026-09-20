@@ -2,7 +2,7 @@
 
 SAAM combines skill operations through shared geometry, region, motion and machine
 interfaces. This page retains shared boundary contracts and supported
-exceptions; the generated [dev map](../maps/README.md) owns the structural
+exceptions; the generated [dev map](../dev-map/README.md) owns the structural
 account, read with `node scripts/agent-toolkit.mjs read-map 0`.
 
 The [agent CLI toolkit](./agent/README.md) composes context reads, print preparation,

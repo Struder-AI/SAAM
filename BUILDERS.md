@@ -114,10 +114,10 @@ conveniently to source using ordinary repository tools.
 ## Maps and local documentation
 
 The dev map generates code entities and relationships from source. Authored
-flow grouping in `maps/flows.json` chooses which generated entities are shown
+flow grouping in `dev-map/flows.json` chooses which generated entities are shown
 together and names the groups; it cannot invent implementation nodes or wires.
-The scan scope lives in `scripts/dev-map/scope.mjs`, and external facts in
-`maps/facts.tsv`. The same generated pages serve the CLI and human viewer.
+The scan scope lives in `dev-map/lib/scope.mjs`, and external facts in
+`dev-map/facts.tsv`. The same generated pages serve the CLI and human viewer.
 
 **Developers orient by walking the map from `0`; builders may walk the region
 they are changing alongside its prose manual.** Page `0` is the regions; `N` is
@@ -128,7 +128,7 @@ and its source with `--code`. **Text search across the repository is discouraged
 for orientation**: it finds names, while the walk exposes relationships around
 the thing you are about to change. Inspect unresolved calls and flow uncertainty;
 an empty caller list is not proof that unscanned or dynamic callers do not exist.
-Makers need no maps. The [map guide](maps/README.md) owns the commands, the
+Makers need no maps. The [map guide](dev-map/README.md) owns the commands, the
 fields each kind of page carries, and the fact rows.
 
 Indexes are regenerated and may change. Use one for talking about a page — say
@@ -139,7 +139,7 @@ Map pages carry no prose. What a page cannot say belongs where it is already
 owned: a measurement in [DEVLOG.md](DEVLOG.md), an agreed direction in
 [DECISIONS.md](DECISIONS.md), a user-facing limit in the manual that owns the
 behavior, and a measurement, vendor behavior or recorded decision that the code
-itself cannot state in `maps/facts.tsv`.
+itself cannot state in `dev-map/facts.tsv`.
 
 ### Supporting text and comments
 
@@ -165,7 +165,7 @@ Nothing is kept current by hand: regenerate. After changing core or Studio, run
 rescans everything; with a region or page index it regenerates that region — and
 read the affected pages again. A read of a page whose source has moved since the
 store was written says so in its `stale` field and names the index to
-regenerate; `node scripts/dev-map.mjs check` reports the same for the whole
+regenerate; `node dev-map/cli.mjs check` reports the same for the whole
 store, together with the repository's unresolved, external and linked totals and
 any fact row that names a declaration the map no longer holds.
 
@@ -361,7 +361,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Adapter implementation | [MCP development](adapters/mcp/DEVELOP.md) |
 | Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/README.md) |
 | Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
-| Map commands, page fields, the scan scope and external facts | [Map guide](maps/README.md) and the [map contract](#maps-and-local-documentation) |
+| Map commands, page fields, the scan scope and external facts | [Map guide](dev-map/README.md) and the [map contract](#maps-and-local-documentation) |
 | Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the generated map owns technical navigation |
 | Documentation navigation for each role (human reference) | `maker-context-map.html` and `builder-context-map.html` |
 | Shared terms | [GLOSSARY.md](GLOSSARY.md) |

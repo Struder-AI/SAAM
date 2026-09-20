@@ -42,14 +42,14 @@ keep pointing at it. Reuse context already read.
 **Text search for orientation is discouraged.** Searching finds names; the walk
 is what shows who calls and consumes the code you are about to change.
 
-Flow membership and group labels are authored in `maps/flows.json` and
-`maps/flows/*.json`; nodes, wires,
+Flow membership and group labels are authored in `dev-map/flows.json` and
+`dev-map/flows/*.json`; nodes, wires,
 conditions and boundary connections remain generated. Necessary external facts
-are recorded with provenance in [maps/facts.tsv](maps/facts.tsv) and displayed on
-their owning pages. `scripts/dev-map/scope.mjs` holds the authored scan scope:
+are recorded with provenance in [dev-map/facts.tsv](dev-map/facts.tsv) and displayed on
+their owning pages. `dev-map/lib/scope.mjs` holds the authored scan scope:
 which roots are mapped and which are scanned only so
-their calls into the mapped roots are seen. The [map guide](maps/README.md) owns
-the commands and the fields each page carries; `node scripts/dev-map.mjs build`
+their calls into the mapped roots are seen. The [map guide](dev-map/README.md) owns
+the commands and the fields each page carries; `node dev-map/cli.mjs build`
 draws the same stored map for a person.
 
 ### Code shape
@@ -60,6 +60,10 @@ The map is only as good as the code's shape, so shape the code for it:
   A stage does not mutate its caller's planning state. Local working arrays and
   internal mutation are allowed; expose the resulting state and actions at the
   boundary. Avoid copying an accumulated toolpath on every move.
+- Keep owned caches and UI controllers behind explicit stateful boundaries.
+  The Lua interpreter also retains its private variables, tables, scopes and
+  call stack across execution steps. This approved runtime exception does not
+  permit ordinary planning stages to mutate caller-owned inputs.
 - Name handlers and stages, so each becomes a node on a page instead of an
   anonymous body inside one.
 - Separate uses of the same implementation remain distinct generated stage

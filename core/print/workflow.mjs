@@ -35,6 +35,64 @@ export function programCacheEntry(key,program,code) {
   return {key,program:motion,code:text,sources,metadata:{...metadata,sources:sourceInfo}};
 }
 
+export function applyPlanPatch(previous, patch, geometryTemplate) {
+  const plan = mergePlanPatch(previous, patch, geometryTemplate);
+  if (patch.setup?.firmwareVersion !== undefined
+    && patch.setup.firmwareVersion !== previous.setup.firmwareVersion
+    && patch.setup.startupVerified === undefined)
+    return {...plan, setup:{...plan.setup, startupVerified:false}};
+  return plan;
+}
+
+export function editedPlanReview(review, previousPlanHash, geometryChanged, time = new Date().toISOString()) {
+  const event = {event:'plan-edited', time, previousPlanHash, geometryChanged, invalidated:['toolpath']};
+  return {...review, history:[...review.history, event], approvals:{}, generation:null};
+}
+
+function mergePlanPatch(previous, changes, geometryTemplate) {
+  requireThat(changes && typeof changes === 'object' && !Array.isArray(changes), 'Adjustment must be an object.');
+  const target={...previous};
+  for (const [key, value] of Object.entries(changes)) {
+    requireThat(Object.hasOwn(target, key), `Unknown setting: ${key}`);
+    // Optional records begin at null. Installing a complete record is a
+    // replacement; validatePlan owns its fields. Subsequent patches merge.
+    if(target[key]===null&&value&&typeof value==='object'&&!Array.isArray(value)){
+      target[key]=structuredClone(value);continue;
+    }
+    // Surface selectors are discriminated records, including a legacy null.
+    // Replace the complete selection and let validatePlan check its schema.
+    if(key==='surface'&&value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'kind')){
+      target[key]=structuredClone(value);continue;
+    }
+    // Optional locked records (for example primeLine) are replaced as a whole;
+    // their alternate single-pass and multi-pass schemas cannot be deep-merged.
+    if((key==='primeLine'||target[key]===null||target[key]===undefined)&&value&&typeof value==='object'&&!Array.isArray(value)){
+      target[key]=structuredClone(value);continue;
+    }
+    // Vase pattern forms have distinct strict fields. A complete form switch
+    // replaces the record; ordinary motif/layout patches still merge in place.
+    if(key==='pattern'&&value&&typeof value==='object'&&target[key]&&typeof target[key]==='object'
+      &&(Object.hasOwn(value,'motif')&&!Object.hasOwn(target[key],'motif')
+         ||Object.hasOwn(value,'paths')&&Object.hasOwn(target[key],'motif'))){
+      target[key]=structuredClone(value);continue;
+    }
+    // Shapes deliberately have different strict field sets. Retain only the
+    // fields the new shape shares, start the new shape's fields from its own
+    // template, then apply the chat-requested geometry change.
+    if (geometryTemplate && key === 'geometry' && value && typeof value === 'object' && !Array.isArray(value)
+      && typeof value.shape === 'string' && value.shape !== target.geometry.shape) {
+      const template = geometryTemplate(value.shape);
+      const shared = Object.fromEntries(Object.entries(target.geometry).filter(([field]) => Object.hasOwn(template, field)));
+      target.geometry = { ...template, ...shared };
+      target.geometry = mergePlanPatch(target.geometry, value, geometryTemplate);
+      continue;
+    }
+    if (value && typeof value === 'object' && !Array.isArray(value)) target[key] = mergePlanPatch(target[key], value, geometryTemplate);
+    else target[key] = structuredClone(value);
+  }
+  return target;
+}
+
 export function createBundleWorkflow(adapter) {
   const {kind,defaults,validatePlan,createGeometry,verifyGeometry,generatePath,geometryTemplate,
     version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
@@ -305,79 +363,38 @@ async function generatePreparedProgram(state,onProgress){
 async function adjustBundle(directory, patch, { setupFile, expectedRevision } = {}) {
   const state = await loadBundle(directory, { program: false });
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
-  const plan = structuredClone(state.plan);
-  merge(plan, patch);
-  if (patch.setup?.firmwareVersion !== undefined
-    && patch.setup.firmwareVersion !== state.plan.setup.firmwareVersion
-    && patch.setup.startupVerified === undefined) plan.setup.startupVerified = false;
+  const plan = applyPlanPatch(state.plan, patch, geometryTemplate);
   const updated=await updatePlan(directory, plan, state.revision);
   if (patch.setup) await rememberSetup(directory, { setupFile });
   return updated;
 }
 
-function merge(target, changes) {
-  requireThat(changes && typeof changes === 'object' && !Array.isArray(changes), 'Adjustment must be an object.');
-  for (const [key, value] of Object.entries(changes)) {
-    requireThat(Object.hasOwn(target, key), `Unknown setting: ${key}`);
-    // Optional records begin at null. Installing a complete record is a
-    // replacement; validatePlan owns its fields. Subsequent patches merge.
-    if(target[key]===null&&value&&typeof value==='object'&&!Array.isArray(value)){
-      target[key]=structuredClone(value);continue;
-    }
-    // Surface selectors are discriminated records, including a legacy null.
-    // Replace the complete selection and let validatePlan check its schema.
-    if(key==='surface'&&value&&typeof value==='object'&&!Array.isArray(value)&&Object.hasOwn(value,'kind')){
-      target[key]=structuredClone(value);continue;
-    }
-    // Optional locked records (for example primeLine) are replaced as a whole;
-    // their alternate single-pass and multi-pass schemas cannot be deep-merged.
-    if((key==='primeLine'||target[key]===null||target[key]===undefined)&&value&&typeof value==='object'&&!Array.isArray(value)){
-      target[key]=structuredClone(value);continue;
-    }
-    // Vase pattern forms have distinct strict fields. A complete form switch
-    // replaces the record; ordinary motif/layout patches still merge in place.
-    if(key==='pattern'&&value&&typeof value==='object'&&target[key]&&typeof target[key]==='object'
-      &&(Object.hasOwn(value,'motif')&&!Object.hasOwn(target[key],'motif')
-         ||Object.hasOwn(value,'paths')&&Object.hasOwn(target[key],'motif'))){
-      target[key]=structuredClone(value);continue;
-    }
-    // Shapes deliberately have different strict field sets. Retain only the
-    // fields the new shape shares, start the new shape's fields from its own
-    // template, then apply the chat-requested geometry change.
-    if (geometryTemplate && key === 'geometry' && value && typeof value === 'object' && !Array.isArray(value)
-      && typeof value.shape === 'string' && value.shape !== target.geometry.shape) {
-      const template = geometryTemplate(value.shape);
-      const shared = Object.fromEntries(Object.entries(target.geometry).filter(([field]) => Object.hasOwn(template, field)));
-      target.geometry = { ...template, ...shared };
-      merge(target.geometry, value);
-      continue;
-    }
-    if (value && typeof value === 'object' && !Array.isArray(value)) merge(target[key], value);
-    else target[key] = value;
-  }
-}
 
 async function updatePlan(directory, plan, revision) {
   const state = await loadBundle(directory, { program: false });
   requireThat(revision === state.revision, 'This view is stale. Reload before changing the print.');
-  validatePlan(plan, state.machine);
-  if (canonical(plan) === canonical(state.plan)) return state;
+  const change = validatePlanUpdate(state, plan);
+  if (!change.changed) return state;
 
-  const geometryChanged = canonical(plan.geometry) !== canonical(state.plan.geometry);
-  // Build the geometry before anything is written, so a shape that cannot be
-  // made changes nothing. Then commit the plan and write what derives from it.
-  const geometry = geometryChanged ? await createGeometry(plan.geometry) : null;
-  const review = state.review;
-  review.history.push({
-    event: 'plan-edited', time: new Date().toISOString(), previousPlanHash: state.planHash,
-    geometryChanged, invalidated: ['toolpath']
-  });
-  review.approvals = {};
-  review.generation = null;
-  await save(resolve(state.dir, 'plan.json'), plan);
-  if (geometry) await saveGeometry(state.dir, geometry);
-  await save(resolve(state.dir, 'review.json'), review);
+  // Build before committing anything; plan.json remains the edit commit point.
+  const geometry = change.geometryChanged ? await createGeometry(change.plan.geometry) : null;
+  const review = editedPlanReview(state.review, state.planHash, change.geometryChanged);
+  await persistPlanUpdate(state.dir, change.plan, geometry, review);
   return loadBundle(directory);
+}
+
+function validatePlanUpdate(state, candidate) {
+  const plan = structuredClone(candidate);
+  validatePlan(plan, state.machine);
+  const changed = canonical(plan) !== canonical(state.plan);
+  const geometryChanged = changed && canonical(plan.geometry) !== canonical(state.plan.geometry);
+  return {plan, changed, geometryChanged};
+}
+
+async function persistPlanUpdate(dir, plan, geometry, review) {
+  await save(resolve(dir, 'plan.json'), plan);
+  if (geometry) await saveGeometry(dir, geometry);
+  await save(resolve(dir, 'review.json'), review);
 }
 
 // Generation performs the calculations the locked plan specifies. Both modes

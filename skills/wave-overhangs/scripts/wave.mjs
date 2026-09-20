@@ -236,8 +236,8 @@ export function surfaceWaves(patch,domainUv,seedUv,settings){
 }
 
 export function waveResults({plan,machine,placed,componentShells,modelResults}){
-  const settings=plan.skills['wave-overhangs'];if(!settings.enabled)return [];
-  const modelOps=modelResults.flatMap(r=>r.operations),results=[];
+  const settings=plan.skills['wave-overhangs'];if(!settings.enabled)return {results:[],dependencyChanges:[]};
+  const modelOps=modelResults.flatMap(r=>r.operations),results=[],dependencyChanges=[];
   const belongs=(op,part)=>part===null||op.id.startsWith(part+':')||plan.composition.regions.some(r=>r.id===op.regionId&&r.part===part);
   let previousSlice=[];
   for(const slice of settings.slices){
@@ -272,10 +272,10 @@ export function waveResults({plan,machine,placed,componentShells,modelResults}){
     for(const part of slice.beforeParts){
       const successors=modelOps.filter(op=>belongs(op,part));
       requireThat(successors.length>0,'Wave successor has no deposited operations: '+part);
-      for(const op of successors)(op.after??=[]).push(...previous);
+      for(const op of successors)dependencyChanges.push({operationId:op.id,after:[...previous],mode:'append'});
     }
     results.push({id:'wave-overhangs:'+slice.id,operations,report:{slice:slice.id,reason:slice.reason,...generated.report,
       evaluations:generated.report.evaluations+connected.report.evaluations,points:generated.report.points+connected.report.points,continuity:connected.report}});
   }
-  return results;
+  return {results,dependencyChanges};
 }

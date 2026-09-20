@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createMachinePresentation} from '../machine/presentation.mjs';
 import {loadMachine,MACHINE_IDS} from '../machine/profile.mjs';
-import {loadFlow,flowPacket} from '../../scripts/dev-map/flow.mjs';
+import {loadFlow,flowPacket} from '../../dev-map/lib/flow.mjs';
 
 function freeze(value){
   if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}

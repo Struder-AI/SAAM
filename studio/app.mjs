@@ -656,11 +656,45 @@ function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight
   }
 }
 
-canvas.onpointerdown=e=>{if(e.button>2)return;e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pan:e.shiftKey||e.button===1||e.button===2};moved=false;};
-canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>2)moved=true;if(drag.pan){pan[0]+=dx;pan[1]+=dy;}else{yaw+=dx*.008;tilt=Math.max(-1.5,Math.min(1.5,tilt+dy*.008));}drag.x=e.clientX;drag.y=e.clientY;lastMotion=performance.now();requestDraw();};
-canvas.onpointerup=e=>{const select=drag&&!drag.pan&&!moved;drag=null;viewPerformance.flush();if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}};
-canvas.onpointercancel=canvas.onlostpointercapture=()=>{drag=null;};
-canvas.oncontextmenu=e=>e.preventDefault();
+function planCanvasDrag(current,point){
+  const dx=point.x-current.drag.x,dy=point.y-current.drag.y;
+  return {drag:{...current.drag,x:point.x,y:point.y},
+    moved:current.moved||Math.hypot(point.x-current.drag.startX,point.y-current.drag.startY)>2,
+    pan:current.drag.pan?[current.pan[0]+dx,current.pan[1]+dy]:[...current.pan],
+    yaw:current.drag.pan?current.yaw:current.yaw+dx*.008,
+    tilt:current.drag.pan?current.tilt:Math.max(-1.5,Math.min(1.5,current.tilt+dy*.008))};
+}
+function readCanvasDrag(){
+  return {drag:{...drag},moved,yaw,tilt,pan:[...pan]};
+}
+function applyCanvasDrag(next){
+  drag.x=next.drag.x;drag.y=next.drag.y;moved=next.moved;
+  pan[0]=next.pan[0];pan[1]=next.pan[1];yaw=next.yaw;tilt=next.tilt;
+  lastMotion=performance.now();requestDraw();
+}
+function beginCanvasDrag(e){
+  if(e.button>2)return;
+  e.preventDefault();canvas.focus();canvas.setPointerCapture(e.pointerId);
+  drag={x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,pan:e.shiftKey||e.button===1||e.button===2};moved=false;
+}
+function moveCanvasDrag(e){
+  if(!drag)return;
+  const current=readCanvasDrag();
+  const next=planCanvasDrag(current,{x:e.clientX,y:e.clientY});
+  applyCanvasDrag(next);
+}
+function endCanvasDrag(e){
+  const select=drag&&!drag.pan&&!moved;drag=null;viewPerformance.flush();
+  if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}
+}
+function cancelCanvasDrag(){drag=null;}
+function suppressCanvasContextMenu(e){e.preventDefault();}
+function connectCanvasPointerEvents(){
+  canvas.onpointerdown=beginCanvasDrag;canvas.onpointermove=moveCanvasDrag;canvas.onpointerup=endCanvasDrag;
+  canvas.onpointercancel=canvas.onlostpointercapture=cancelCanvasDrag;
+  canvas.oncontextmenu=suppressCanvasContextMenu;
+}
+connectCanvasPointerEvents();
 canvas.addEventListener('wheel',e=>{e.preventDefault();lastWheel=lastMotion=performance.now();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
 canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();lastMotion=performance.now();requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);

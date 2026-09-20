@@ -75,8 +75,8 @@ export async function readSkill(id, {maker = false, builder = false, developer =
 // One page of the stored map per key: an index, or the declaration path that index is for.
 // The read never scans. --code returns source; --details retains scanner evidence.
 export async function readMaps(keys, options = {}) {
-  const {readGenerated, readCode} = await import('../../scripts/dev-map/store.mjs');
-  const {compactPage} = await import('../../scripts/dev-map/agent-view.mjs');
+  const {readGenerated, readCode} = await import('../../dev-map/lib/store.mjs');
+  const {compactPage} = await import('../../dev-map/lib/agent-view.mjs');
   return Promise.all(keys.map(async key => {
     const page = await (options.code ? readCode(key) : readGenerated(key));
     return options.details ? page : compactPage(page, options);
@@ -86,11 +86,11 @@ export async function readMaps(keys, options = {}) {
 // Scanning is a choice, and this is the only command that makes it. With no index, or `0`, it
 // generates everything; with a region or page index it regenerates that region.
 export async function regenerateMap(target) {
-  const {generate} = await import('../../scripts/dev-map/store.mjs');
+  const {generate} = await import('../../dev-map/lib/store.mjs');
   const region = target === undefined || target === '0' ? null : String(target).split('.')[0];
   const result = await generate({region});
   // The person's viewer follows every regenerate, so it always shows the latest stored map.
-  const {drawView} = await import('../../scripts/dev-map/generated-view.mjs');
+  const {drawView} = await import('../../dev-map/lib/generated-view.mjs');
   return {...result, view: await drawView()};
 }
 
@@ -107,7 +107,7 @@ export async function onboarding({role, areas = []}) {
     : ['DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...regions];
   if (mapKeys.length) {
-    const {readIndex, storeDir} = await import('../../scripts/dev-map/store.mjs');
+    const {readIndex, storeDir} = await import('../../dev-map/lib/store.mjs');
     if (!await readIndex(storeDir(root))) await regenerateMap();
   }
   const [context, environment, maps] = await Promise.all([contextPacket(ids), environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);

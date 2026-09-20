@@ -36,6 +36,18 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-052 — Remaining developer-map and code-shape refinements
+
+- Status: open; deferred at the user's wrap-up checkpoint.
+- Contributor: Current requester; account attribution unconfirmed.
+- Authorization: human requested — apply the reviewed Grasshopper-style code-and-map standard throughout core and Studio. On 2026-09-19 the user said, "We are in good shape on this, we can wrap up"; further rollout stops at this checkpoint.
+- Session: Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`; exact chat title unavailable.
+- Source: Same task: "Let's apply this to the whole core/studio codebase now" and "don't stop the team until the whole core/studio codebase is mapped", followed by the wrap-up instruction above. The user approved authored grouping, generated relationships and private Lua interpreter state behind an explicit stateful boundary. See [D-036](DECISIONS.md#d-036--explicit-planning-stages-and-state-in-the-path-planning-pilot) and the [checkpoint](DEVLOG.md#2026-09-19--developer-map-wrap-up-checkpoint).
+- Context: All eligible core/Studio files are inventoried and grouped; many planning, geometry, worker and UI flows have been rewritten and verified. Inventory coverage does not certify conceptual completeness or arbitrary callback/state analysis.
+- Remaining: Complete the per-file Studio conceptual/ownership assessment; refine text-outline and feature-compilation orchestration where useful; return immutable export enrichment and approval/machine-change review transitions; review prepared-query cache/live-report ownership. Retain explicit scanner limits, including same-named static/instance method identity collisions and unsupported temporal/receiver analysis. Large overview diagnostics and high-reuse caller lists still need the user's density choice; retain current visibility until decided.
+- Remaining contract decision: Bambu currently applies source line offsets to a compact move sink only after successful interpretation. Immediate final-line emission changes partial rows on failure; a returned offset view changes sink identity. No change or new exception was approved at wrap-up. Preserve current behavior until this is resolved.
+- Completion: Resume only on a new instruction, review code and graph together with the shared CLI presentation, preserve verified behavior or explicitly agree each change, and rewire/remove superseded entities. Cross-project portability remains out of scope. Detailed local audit evidence is under ignored `dev-map/audit/`; tracked source and tests are the durable implementation record.
+
 ### BR-051 — Complete output for the three new printer profiles
 
 - Status: open

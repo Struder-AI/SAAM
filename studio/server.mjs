@@ -173,16 +173,22 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     if(preparation===job)preparation=null;
     await result.done;return {cancelled:true,committing:false};
   };
-  const prepare=(state,readDir)=>{
-    if(closed||resolveBundle!==bundleFor)return null;
+  const planPreparation=(state,readDir,session)=>{
+    if(session.closed||!session.workerEnabled)return {action:'skip'};
     // Geometry-only reads deliberately omit program bytes. A matching saved
     // generation is enough to defer speculation; explicit review still checks
     // its bytes and will regenerate if that stored result is damaged.
-    if(state.program||state.outputAvailability||state.review?.generation?.planHash===state.planHash&&!state.programError){discardPreparation();return null;}
+    if(state.program||state.outputAvailability||state.review?.generation?.planHash===state.planHash&&!state.programError)return {action:'discard'};
     const key=readDir+':'+state.planHash;
-    if(preparation?.key===key)return preparation;
+    return {action:session.currentKey===key?'reuse':'create',key};
+  };
+  const prepare=(state,readDir)=>{
+    const decision=planPreparation(state,readDir,{closed,workerEnabled:resolveBundle===bundleFor,currentKey:preparation?.key});
+    if(decision.action==='skip')return null;
+    if(decision.action==='discard'){discardPreparation();return null;}
+    if(decision.action==='reuse')return preparation;
     discardPreparation();
-    return preparation=new PreparedGenerationJob({key,directory:readDir,planHash:state.planHash,
+    return preparation=new PreparedGenerationJob({key:decision.key,directory:readDir,planHash:state.planHash,
       createWorker:cancellation=>new Worker(new URL('./generation-worker.mjs',import.meta.url),
         {workerData:{directory:readDir,planHash:state.planHash,progress:true,cancellation}})});
   };
@@ -197,30 +203,41 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       status:run?(job?.status==='preparing'?'preparing':'generating'):'preparing',requested:Boolean(run),trigger:run?.trigger??null,
       startedAt:run?.startedAt??null,elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
-  const generate=async(current,development,trigger='generate')=>{
+  const readGeneration=async current=>{
     generationCancelled=null;
-    const generationDir=dir,state=await current.loadBundle(generationDir,{program:'source'});
+    const directory=dir,state=await current.loadBundle(directory,{program:'source'});
     if(state.inspection)throw Error('This inspection does not support print generation.');
-    const calculating=!(state.program&&!state.programError);
-    if(calculating){generationRun={directory:generationDir,planHash:state.planHash,trigger,development,startedAt:Date.now()};note('generation-started',{planHash:state.planHash,development,trigger});}
-    try{
-      if(state.program&&!state.programError){
-        // A valid saved development export needs only the shared mode transition.
-        // Do not start a new slicing worker for an already-reviewed program.
-        if(!development&&state.review.generation?.mode!=='production')await current.generateBundle(generationDir,{development:false});
-      }else if(resolveBundle===bundleFor){
-        // A stopped worker needs restarting; a completed preparation diagnostic
-        // is already useful and need not be recomputed on the first Continue.
-        if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===generationDir&&generationFailure.planHash===state.planHash))await discardPreparation();
-        const job=prepare(state,dir);
-        if(job){await job.generate(development);if(preparation===job)preparation=null;}
-        else await current.generateBundle(dir,{development});
-      }else await current.generateBundle(dir,{development});
-      generationFailure=null;
-      if(calculating)note('generation-finished',{planHash:state.planHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
-      const guide=await tour.info();
-      if(guide.active&&guide.directory===generationDir&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
-    }catch(error){
+    return {directory,state,calculating:!(state.program&&!state.programError)};
+  };
+  const planGeneration=(state,development,workerEnabled)=>{
+    // A valid saved development export needs only the shared mode transition.
+    if(state.program&&!state.programError)return {route:!development&&state.review.generation?.mode!=='production'?'promote':'reuse'};
+    return {route:workerEnabled?'prepared':'direct'};
+  };
+  const beginGeneration=(snapshot,development,trigger)=>{
+    if(snapshot.calculating){generationRun={directory:snapshot.directory,planHash:snapshot.state.planHash,trigger,development,startedAt:Date.now()};note('generation-started',{planHash:snapshot.state.planHash,development,trigger});}
+  };
+  const executeGeneration=async(current,snapshot,decision,development)=>{
+    const {directory:generationDir,state}=snapshot;
+    if(decision.route==='promote')await current.generateBundle(generationDir,{development:false});
+    else if(decision.route==='prepared'){
+      // A stopped worker needs restarting; a completed preparation diagnostic
+      // is already useful and need not be recomputed on the first Continue.
+      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===generationDir&&generationFailure.planHash===state.planHash))await discardPreparation();
+      const job=prepare(state,dir);
+      if(job){await job.generate(development);if(preparation===job)preparation=null;}
+      else await current.generateBundle(dir,{development});
+    }else if(decision.route==='direct')await current.generateBundle(dir,{development});
+    return {directory:generationDir,planHash:state.planHash,calculating:snapshot.calculating};
+  };
+  const publishGeneration=async(outcome,development,trigger)=>{
+    generationFailure=null;
+    if(outcome.calculating)note('generation-finished',{planHash:outcome.planHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
+    const guide=await tour.info();
+    if(guide.active&&guide.directory===outcome.directory&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
+  };
+  const publishGenerationFailure=async(error,snapshot,trigger)=>{
+      const {directory:generationDir,state}=snapshot;
       if(error.code==='GENERATION_CANCELLED')throw error;
       // Before the message reaches the page, the event queue and the failure
       // request, say whether this process is behind the files the worker read.
@@ -232,7 +249,16 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           '\nInspect the current recipe and relevant skill limits, diagnose the cause and apply appropriate fixes before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then regenerate and verify the current toolpath is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
         note('generation-failed',{planHash:state.planHash,trigger,error:error.message,requestId:record.id});}
       finally{throw error;} // A notification failure must not hide the generation error.
-    }finally{generationRun=null;}
+  };
+  const generate=async(current,development,trigger='generate')=>{
+    const snapshot=await readGeneration(current);
+    beginGeneration(snapshot,development,trigger);
+    try{
+      const decision=planGeneration(snapshot.state,development,resolveBundle===bundleFor);
+      const outcome=await executeGeneration(current,snapshot,decision,development);
+      await publishGeneration(outcome,development,trigger);
+    }catch(error){await publishGenerationFailure(error,snapshot,trigger);}
+    finally{generationRun=null;}
   };
   const openPrint=async input=>{
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);

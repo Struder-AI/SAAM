@@ -10,6 +10,16 @@ export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isInteger(samples)&&samples>=32,
     'Directional contour needs positive tolerance and a fixed sample count of at least32.');
   requireThat(Array.isArray(anchor)&&anchor.length===2&&anchor.every(Number.isFinite),'Directional contour needs a finite XY center.');
+  const sampled=sampleDirectionalContour(curve,samples,toleranceMm);
+  const profile=unwrapDirectionalProfile(sampled.points,anchor);
+  const spacing=conditionDirectionalSpacing(profile,toleranceMm-sampled.samplingErrorMm,logRadiusSlopeTarget);
+  const angles=fitDirectionalAngles(profile,spacing);
+  const reconstructed=reconstructDirectionalContour(sampled.points,profile.radii,angles,anchor);
+  const report=verifyDirectionalContour(reconstructed,sampled.samplingErrorMm,spacing.step,logRadiusSlopeTarget,toleranceMm,anchor);
+  return {loop:reconstructed.loop,report};
+}
+
+function sampleDirectionalContour(curve,samples,toleranceMm){
   const points=Array.from({length:samples},(_,i)=>curve.at(i/samples));
   let samplingErrorMm=0;
   // Both source and sampled polylines are piecewise linear in normalized arc
@@ -21,7 +31,11 @@ export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8
   }
   requireThat(samplingErrorMm<toleranceMm,
     `Directional contour fixed sampling error ${samplingErrorMm.toFixed(6)} mm exceeds detail tolerance ${toleranceMm} mm; increase its fixed sample count.`);
-  const available=toleranceMm-samplingErrorMm,radii=points.map(p=>distance(p,anchor));
+  return {points,samplingErrorMm};
+}
+
+function unwrapDirectionalProfile(points,anchor){
+  const samples=points.length,radii=points.map(p=>distance(p,anchor));
   requireThat(radii.every(r=>r>1e-8),'Directional contour touches its fitted center.');
   const theta=points.map(p=>Math.atan2(p[1]-anchor[1],p[0]-anchor[0])),angles=[theta[0]];
   let turn=0;
@@ -30,6 +44,11 @@ export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8
     turn+=Math.atan2(Math.sin(delta),Math.cos(delta));angles.push(theta[0]+turn);
   }
   requireThat(Math.abs(turn-TAU)<1e-8,'Directional contour must wind once counterclockwise around its fitted center.');
+  return {radii,angles};
+}
+
+function conditionDirectionalSpacing({radii},available,logRadiusSlopeTarget){
+  const samples=radii.length;
   // Fixed positive spacing keeps the inverse radial query single-valued. The
   // constrained weighted projection remains continuous as source points move.
   const step=Math.min(available/(4*Math.max(...radii)*samples),TAU/(samples*16));
@@ -40,6 +59,11 @@ export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8
   const prefix=[0];
   for(let i=1;i<=samples;i++)prefix.push(prefix.at(-1)+Math.max(step,Math.abs(Math.log(radii[i%samples]/radii[i-1]))/logRadiusSlopeTarget));
   requireThat(prefix[samples]<TAU,'Directional contour radial variation needs more angular room than one full turn.');
+  return {step,prefix,available};
+}
+
+function fitDirectionalAngles({radii,angles},{prefix,available}){
+  const samples=radii.length;
   const minimum=angles[0],maximum=angles[samples]-prefix[samples],blocks=[];
   let feasibleMinimum=minimum;
   for(let i=1;i<samples;i++){
@@ -60,11 +84,19 @@ export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8
     const mean=Math.max(block.lower,Math.min(block.upper,block.sum/block.weight));
     for(let i=block.first;i<=block.last;i++)adjusted[i]=mean+prefix[i];
   }
+  return adjusted;
+}
+
+function reconstructDirectionalContour(points,radii,adjusted,anchor){
   let angularAdjustmentMm=0,movedVertices=0;
   const loop=points.map((p,i)=>{
     const q=[anchor[0]+radii[i]*Math.cos(adjusted[i]),anchor[1]+radii[i]*Math.sin(adjusted[i])],d=distance(p,q);
     angularAdjustmentMm=Math.max(angularAdjustmentMm,d);if(d>1e-9)movedVertices++;return q;
   });
+  return {loop,angularAdjustmentMm,movedVertices};
+}
+
+function verifyDirectionalContour({loop,angularAdjustmentMm,movedVertices},samplingErrorMm,step,logRadiusSlopeTarget,toleranceMm,anchor){
   const correspondenceErrorMm=samplingErrorMm+angularAdjustmentMm;
   // Corresponding edges are linear interpolations of paired endpoints. Thus
   // endpoint displacement bounds the whole-edge displacement, in both senses.
@@ -76,7 +108,7 @@ export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8
     const denominator=a[0]*e[1]-a[1]*e[0];
     maxChordLogRadiusSlope=Math.max(maxChordLogRadiusSlope,Math.abs((a[0]*e[0]+a[1]*e[1])/denominator),Math.abs((b[0]*e[0]+b[1]*e[1])/denominator));
   }
-  return {loop,report:{samples,samplingErrorMm,angularAdjustmentMm,correspondenceErrorMm,movedVertices,minimumAngleStep:step,logRadiusSlopeTarget,maxChordLogRadiusSlope}};
+  return {samples:loop.length,samplingErrorMm,angularAdjustmentMm,correspondenceErrorMm,movedVertices,minimumAngleStep:step,logRadiusSlopeTarget,maxChordLogRadiusSlope};
 }
 
 export function prepareRegularizedSleeveContact({curveAt,anchorAt,side='inside',toleranceMm=.05,samples=8192}){

@@ -76,8 +76,8 @@ export function preparePlasticWeld({plan,placed,componentShells}){
 }
 
 export function plasticWeldResult({plan,sites,modelResults}){
-  if(!sites.length)return null;
-  const model=modelResults.flatMap(r=>r.operations),operations=[],reports=[];
+  if(!sites.length)return {result:null,dependencyChanges:[]};
+  const model=modelResults.flatMap(r=>r.operations),operations=[],reports=[],dependencyChanges=[];
   const planarLayers=new Map();
   for(const op of model)if(op.region&&op.materialCoverage==='area'){
     const key=height(op).toFixed(7);
@@ -120,7 +120,7 @@ export function plasticWeldResult({plan,sites,modelResults}){
     // A height barrier prevents later cover layers (from any skill) closing the
     // mouth before injection. Existing prerequisites remain authoritative.
     const after=[...hostIds];
-    for(const op of model)if(height(op)>top+1e-8)op.after=[...new Set([...(op.after??[]),id])];
+    for(const op of model)if(height(op)>top+1e-8)dependencyChanges.push({operationId:op.id,after:[id],mode:'union'});
     const volumeMm3=cavityVolumeMm3*s.volumeFactor;
     const layerZ=shell.bounds.min[2]+plan.process.firstLayerMm+layer*plan.process.layerMm;
     operations.push({id,phase:'plastic-weld',layer,layerId:'planar:'+layerZ,rank:top,after,order:'given',
@@ -130,5 +130,5 @@ export function plasticWeldResult({plan,sites,modelResults}){
     reports.push({id:site.id,part:site.part,positionMm:[x,y,top-s.seatDepthMm],openingMm:top,bottomMm:bottom,cavityVolumeMm3,volumeMm3,
       nozzleC:s.nozzleC??plan.setup.nozzleC,flowMm3S:Math.min(s.flowMm3S,plan.process.maxFlowMm3S)});
   }
-  return {id:'plastic-weld',operations,report:{sites:reports,physicalValidation:'not performed'}};
+  return {result:{id:'plastic-weld',operations,report:{sites:reports,physicalValidation:'not performed'}},dependencyChanges};
 }

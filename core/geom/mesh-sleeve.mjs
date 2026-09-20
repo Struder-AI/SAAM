@@ -80,6 +80,27 @@ export function fitMeshSleeve(mesh,{
   circumferentialControls=12,heightControls=6,circumferentialSamples=96,heightSamples=25,
   toleranceMm=0.02,maxSecondaryAreaFraction=0.001
 }={}){
+  const settings={zMinMm,zMaxMm,circumferentialControls,heightControls,circumferentialSamples,heightSamples,toleranceMm,maxSecondaryAreaFraction};
+  validateSleeveFit(mesh,settings);
+  const source=prepareSleeveSource(mesh,settings);
+  const basis=prepareSleeveBasis(settings);
+  const samples=sampleSleeveSections(source.sourceSectionAt,basis,settings);
+  const controlXY=fitSleeveControls(samples,basis);
+  const patch=assembleSleevePatch(controlXY,basis,settings);
+  const pointAt=sleevePointQuery(patch,settings);
+  const quality=measureSleeveFit(samples,controlXY,basis,pointAt,settings);
+  const sectionAt=prepareFittedSections(pointAt,source.anchor,quality,settings);
+  // Validate newly constructed fit sections where the fit is constrained.
+  for(const v of basis.vs)sectionAt(zMinMm+v*(zMaxMm-zMinMm));
+  return {patch,pointAt,sectionAt,sourceSectionAt:source.sourceSectionAt,rangeMm:[zMinMm,zMaxMm],
+    report:{kind:'periodic-cubic-least-squares',circumferentialControls,heightControls,circumferentialSamples,heightSamples,
+      toleranceMm,maxSecondaryAreaFraction,...quality,
+      get sourceClassification(){return source.report.sourceClassification;},
+      get maxSecondaryAreaMm2(){return source.report.maxSecondaryAreaMm2;},get maxSecondaryLoops(){return source.report.maxSecondaryLoops;},get maxPoreAreaMm2(){return source.report.maxPoreAreaMm2;},
+      get sourceSectionQueries(){return source.report.sourceSectionQueries;}}};
+}
+
+function validateSleeveFit(mesh,{zMinMm,zMaxMm,circumferentialControls,heightControls,circumferentialSamples,heightSamples,toleranceMm,maxSecondaryAreaFraction}){
   requireThat(mesh?.kind==='triangle-mesh','Mesh sleeve fitting requires validated triangle-mesh geometry.');
   requireThat(Number.isFinite(zMinMm)&&Number.isFinite(zMaxMm)&&zMaxMm>zMinMm&&zMinMm>=mesh.bounds.min[2]&&zMaxMm<=mesh.bounds.max[2],
     'Mesh sleeve fitting needs a nonempty height interval within the mesh.');
@@ -91,8 +112,10 @@ export function fitMeshSleeve(mesh,{
     requireThat(Number.isInteger(count)&&count>=min&&count<=max,`Mesh sleeve ${name} must be an integer from ${min} to ${max}.`);
   requireThat(circumferentialSamples>=2*circumferentialControls&&heightSamples>=heightControls,
     'Mesh sleeve fitting needs at least twice as many circumferential samples as controls and at least as many height samples as controls.');
-  const sectionQuery=createSectionQuery(mesh),sourceCache=new Map(),fittedCache=new Map();
-  const spanMm=zMaxMm-zMinMm;
+}
+
+function prepareSleeveSource(mesh,{zMinMm,zMaxMm,toleranceMm,maxSecondaryAreaFraction}){
+  const sectionQuery=createSectionQuery(mesh),sourceCache=new Map();
   // The anchor remains outside the whole mesh and is translated with the part.
   // A fixed direction avoids choosing a new arbitrary triangle seam per ring.
   const anchor=[mesh.bounds.max[0]+Math.max(1,mesh.bounds.max[0]-mesh.bounds.min[0]),(mesh.bounds.min[1]+mesh.bounds.max[1])/2];
@@ -108,6 +131,13 @@ export function fitMeshSleeve(mesh,{
     if(sourceCache.size>=64)sourceCache.delete(sourceCache.keys().next().value);
     sourceCache.set(z,value);return value;
   }
+  return {sourceSectionAt,anchor,report:{
+    get sourceClassification(){return seenHollow?(seenSolid?'closed-vessel-with-base':'hollow-sleeve'):'solid-envelope';},
+    get maxSecondaryAreaMm2(){return maxSecondaryAreaMm2;},get maxSecondaryLoops(){return maxSecondaryLoops;},get maxPoreAreaMm2(){return maxPoreAreaMm2;},
+    get sourceSectionQueries(){return sourceQueries;}}};
+}
+
+function prepareSleeveBasis({circumferentialControls,heightControls,circumferentialSamples,heightSamples}){
   const n=circumferentialControls,nu=n+3,nv=heightControls;
   const knotsU=Float64Array.from({length:nu+4},(_,i)=>(i-3)/n);
   const knotsV=Float64Array.from({length:nv+4},(_,i)=>i<=3?0:i>=nv?1:(i-3)/(nv-3));
@@ -115,23 +145,43 @@ export function fitMeshSleeve(mesh,{
   const vs=Array.from({length:heightSamples},(_,i)=>i/(heightSamples-1));
   const solveU=leastSquares(us.map(u=>basisRow(knotsU,nu,u,n)));
   const solveV=leastSquares(vs.map(v=>basisRow(knotsV,nv,v)));
+  return {n,nu,nv,knotsU,knotsV,us,vs,solveU,solveV};
+}
+
+function sampleSleeveSections(sourceSectionAt,{us,vs},{zMinMm,zMaxMm}){
+  const spanMm=zMaxMm-zMinMm;
+  return vs.map(v=>{const curve=sourceSectionAt(zMinMm+v*spanMm).curve;return us.map(u=>curve.at(u));});
+}
+
+function fitSleeveControls(samples,{n,solveU,solveV}){
   // Product-grid sampling permits two separable QR solves for the exact tensor
   // least-squares solution, instead of one much larger dense normal system.
-  const samples=vs.map(v=>{const curve=sourceSectionAt(zMinMm+v*spanMm).curve;return us.map(u=>curve.at(u));});
   const ringControls=samples.map(ring=>[0,1].map(k=>solveU(ring.map(p=>p[k]))));
-  const controlXY=Array.from({length:n},(_,i)=>[0,1].map(k=>solveV(ringControls.map(row=>row[k][i]))));
+  return Array.from({length:n},(_,i)=>[0,1].map(k=>solveV(ringControls.map(row=>row[k][i]))));
+}
+
+function assembleSleevePatch(controlXY,{n,nu,nv,knotsU,knotsV},{zMinMm,zMaxMm}){
+  const spanMm=zMaxMm-zMinMm;
   const cp=new Float64Array(nu*nv*4);
   for(let i=0;i<nu;i++)for(let j=0;j<nv;j++){
     // Greville abscissae reproduce z(v) exactly, so queries stay at actual Z.
     const v=(knotsV[j+1]+knotsV[j+2]+knotsV[j+3])/3;
     cp.set([controlXY[i%n][0][j],controlXY[i%n][1][j],zMinMm+v*spanMm,1],(i*nv+j)*4);
   }
-  const patch={name:'mesh-reference-sleeve',nu,nv,orderU:4,orderV:4,knotsU,knotsV,cp,domainU:[0,1],domainV:[0,1]};
-  const pointAt=(u,z)=>{
+  return {name:'mesh-reference-sleeve',nu,nv,orderU:4,orderV:4,knotsU,knotsV,cp,domainU:[0,1],domainV:[0,1]};
+}
+
+function sleevePointQuery(patch,{zMinMm,zMaxMm}){
+  const spanMm=zMaxMm-zMinMm;
+  return (u,z)=>{
     requireThat(Number.isFinite(u)&&Number.isFinite(z)&&z>=zMinMm-1e-9&&z<=zMaxMm+1e-9,'Sleeve point parameters must be finite and within the fitted height interval.');
     const p=evaluate(patch,wrap(u),Math.max(0,Math.min(1,(z-zMinMm)/spanMm)),false).point;
     p[2]=z;return p;
   };
+}
+
+function measureSleeveFit(samples,controlXY,{n,nv,us,vs},pointAt,{zMinMm,zMaxMm,toleranceMm}){
+  const spanMm=zMaxMm-zMinMm;
   let sumSquared=0,maxResidual=0;
   for(let j=0;j<vs.length;j++)for(let i=0;i<us.length;i++){
     const residual=distance(samples[j][i],pointAt(us[i],zMinMm+vs[j]*spanMm).slice(0,2));
@@ -151,7 +201,12 @@ export function fitMeshSleeve(mesh,{
   const sectionSegments=n*Math.max(1,Math.ceil(Math.sqrt(secondDerivativeBound/(8*toleranceMm))/n));
   requireThat(Number.isSafeInteger(sectionSegments),'Fitted sleeve toleranceMm is too fine to resolve a representable section point count.');
   const sectionChordBoundMm=secondDerivativeBound/(8*sectionSegments*sectionSegments);
-  function sectionAt(z){
+  return {sectionSegments,sectionChordBoundMm,rmsFitResidualMm:Math.sqrt(sumSquared/(us.length*vs.length)),maxSampledFitResidualMm:maxResidual};
+}
+
+function prepareFittedSections(pointAt,anchor,{sectionSegments},{toleranceMm}){
+  const fittedCache=new Map();
+  return function sectionAt(z){
     if(fittedCache.has(z))return fittedCache.get(z);
     const loop=Array.from({length:sectionSegments},(_,i)=>pointAt(i/sectionSegments,z).slice(0,2));
     const area=loopArea(loop),normalized=union([loop],[],{precisionMm:1e-7});
@@ -160,13 +215,5 @@ export function fitMeshSleeve(mesh,{
     const value={loops:[loop],requestedZ:z,zMm:z,nudgedByMm:0,outer:loop,holes:[],curve:contourPath(loop,anchor)};
     if(fittedCache.size>=64)fittedCache.delete(fittedCache.keys().next().value);
     fittedCache.set(z,value);return value;
-  }
-  // Validate newly constructed fit sections where the fit is constrained.
-  for(const v of vs)sectionAt(zMinMm+v*spanMm);
-  return {patch,pointAt,sectionAt,sourceSectionAt,rangeMm:[zMinMm,zMaxMm],
-    report:{kind:'periodic-cubic-least-squares',circumferentialControls,heightControls,circumferentialSamples,heightSamples,
-      toleranceMm,maxSecondaryAreaFraction,sectionSegments,sectionChordBoundMm,rmsFitResidualMm:Math.sqrt(sumSquared/(us.length*vs.length)),maxSampledFitResidualMm:maxResidual,
-      get sourceClassification(){return seenHollow?(seenSolid?'closed-vessel-with-base':'hollow-sleeve'):'solid-envelope';},
-      get maxSecondaryAreaMm2(){return maxSecondaryAreaMm2;},get maxSecondaryLoops(){return maxSecondaryLoops;},get maxPoreAreaMm2(){return maxPoreAreaMm2;},
-      get sourceSectionQueries(){return sourceQueries;}}};
+  };
 }

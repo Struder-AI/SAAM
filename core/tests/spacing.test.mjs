@@ -95,7 +95,7 @@ test('draped rows leave gaps while segment extrusion retains actual bead width',
 
 test('support body and interfaces retain bead size when their rows spread apart',()=>{
   const p=boxPlan();Object.assign(p.skills.supports,{enabled:true,perimeters:0,assignments:[{id:'ledge',style:'standard',reason:'Synthetic spacing test',contactZMm:2,footprint:[[[20,0],[30,0],[30,10],[20,10]]],treeNodes:[]}]});
-  const run=()=>supportResults({plan:p,machine,shells:[buildShell(r,p.geometry)],modelResults:[]});
+  const run=()=>supportResults({plan:p,machine,shells:[buildShell(r,p.geometry)],modelResults:[]}).results;
   const a=run();p.skills.supports.spacingFactor=3;const b=run();
   assert.ok(b.reduce((n,x)=>n+volume(x),0)<a.reduce((n,x)=>n+volume(x),0));
   for(const result of b)for(const s of strokes(result))near(s.beadAreaMm2,.08);
@@ -104,7 +104,7 @@ test('support body and interfaces retain bead size when their rows spread apart'
 test('both rimming modes keep the contacting bead fixed and widen only the paired-track separation',()=>{
   for(const [skillId,mode] of [['rimming-planar','horizontal'],['rimming-normal','normal']]){
     const p=boxPlan();Object.assign(p.skills[skillId],{enabled:true,surfaces:[{id:'edge',reason:'Synthetic spacing test',baseEdge:'bed',supportedEdge:'test edge',basePart:null,supportedPart:null,outwardSide:1,degreeU:1,degreeV:1,controlPoints:[[[0,0,0],[0,0,1]],[[8,0,0],[8,0,1]]]}]});
-    const run=()=>rimmingResults({plan:p,modelResults:[],skillId,mode})[0];
+    const run=()=>rimmingResults({plan:p,modelResults:[],skillId,mode}).results[0];
     const a=run();p.skills[skillId].spacingFactor=3;const b=run();
     assert.deepEqual(a.operations[0].strokes[0],b.operations[0].strokes[0]);
     const pair=b.operations[0].strokes;near(Math.abs(pair[0].points[0][1]-pair[1].points[0][1]),1.2);

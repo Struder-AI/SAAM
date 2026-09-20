@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {writeFile,mkdir,rm,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {generationFixture} from './workflow-generation-fixture.mjs';
-import {loadFlow,flowPacket} from '../../scripts/dev-map/flow.mjs';
+import {loadFlow,flowPacket} from '../../dev-map/lib/flow.mjs';
 async function fixture(t){const f=await generationFixture();t.after(f.cleanup);return f;}
 
 test('prepared calculations commit once and reviewed promotion checks bytes without regenerating',async t=>{

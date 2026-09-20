@@ -6,15 +6,30 @@ import { loopArea, pointInRegion } from './region2d.mjs';
 import { TOLERANCE } from '../geom/tolerance.mjs';
 
 export function perimeterLoops(region, insetMm) {
-  let loops = offsetRegion(region, -insetMm);
+  const prepared=preparePerimeterContours(region,insetMm);
+  if(!prepared.needsRecovery)return prepared.loops;
+  const recovered=recoverCollapsedPerimeters(region,insetMm,prepared);
+  // Centerlines are deposition, not material regions: normalization would erase
+  // them or reinterpret the enclosed, unprinted hole as material.
+  return [...recovered.loops,...recovered.centers];
+}
+
+export function preparePerimeterContours(region,insetMm) {
+  const loops = offsetRegion(region, -insetMm);
   const holes = region.filter(loop => loopArea(loop) < 0);
-  if (!holes.length) return loops;
+  if (!holes.length) return {loops,holes,needsRecovery:false};
   const remainingHoles = loops.filter(loop => loopArea(loop) < 0);
   // Quantized fronts can leave tiny rings at collapse. A matching hole count
   // alone does not mean the original holes survived: each must still be inside
   // a remaining hole before skipping central-track recovery.
   if (remainingHoles.length === holes.length && holes.every(hole =>
-    remainingHoles.some(remaining => pointInRegion(hole[0], [remaining])))) return loops;
+    remainingHoles.some(remaining => pointInRegion(hole[0], [remaining])))) return {loops,holes,needsRecovery:false};
+  return {loops,holes,needsRecovery:true};
+}
+
+export function recoverCollapsedPerimeters(region,insetMm,prepared) {
+  const {holes}=prepared;
+  let loops=prepared.loops;
   // Each front is constructed to the shared chord target; their comparison
   // allows the sum of those two approximation errors.
   // This is a contour coincidence bound, not a thin-feature fill policy.
@@ -40,7 +55,5 @@ export function perimeterLoops(region, insetMm) {
       }
     }
   }
-  // Keep centerlines separate from region normalization: union would erase a
-  // recovered line or reinterpret its enclosed (unprinted) hole as material.
-  return [...loops, ...centers];
+  return {loops,centers};
 }

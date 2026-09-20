@@ -7,7 +7,7 @@ import {scheduleOperations} from '../../../core/path/compose.mjs';
 import {pointInRegion} from '../../../core/region/region2d.mjs';
 import {defaults,validatePlan} from '../../../core/print/plan.mjs';
 import {loadMachine,checkMachinePath} from '../../../core/machine/profile.mjs';
-import {generatePath} from '../../../core/print/generate.mjs';
+import {generatePath,applyResultDependencies} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../../../core/export/registry.mjs';
 
@@ -109,8 +109,11 @@ test('wave dependencies hold complete seed and successor operations across an or
     surface:{degreeU:1,degreeV:1,controlPoints:[[[0,0,1],[0,2,1]],[[2,0,1],[2,2,1]]]},
     domainUv:[rect(0,0,1,1)],seedUv:[rect(0,0,0.5,1)],afterParts:['base'],beforeParts:[]};
   plan.skills['wave-overhangs']={...settings,enabled:true,slices:[slice,{...structuredClone(slice),id:'second',afterParts:[],beforeParts:['upper']}]};
-  const results=waveResults({plan,machine,placed:null,componentShells:null,modelResults});
-  const order=scheduleOperations([...modelResults,...results]).map(op=>op.id);
+  Object.freeze(base.after);Object.freeze(base);Object.freeze(upper.after);Object.freeze(upper);
+  const {results,dependencyChanges}=waveResults({plan,machine,placed:null,componentShells:null,modelResults});
+  const linked=applyResultDependencies(modelResults,dependencyChanges);
+  assert.deepEqual(upper.after,[]);
+  const order=scheduleOperations([...linked,...results]).map(op=>op.id);
   assert.equal(order[0],base.id);assert.equal(order.at(-1),upper.id);
   assert.ok(order.indexOf(results[0].operations.at(-1).id)<order.indexOf(results[1].operations[0].id));
   const invalid=structuredClone(plan);invalid.skills['wave-overhangs'].slices[0].domainUv=[rect(0,0,2,1)];

@@ -249,14 +249,48 @@ export function addComplementaryResults(plan,machine,{placed,componentShells,wel
     results.push(result);summary.pipeCladding=result.report;
   }
   const waves=waveResults({plan,machine,placed,componentShells,modelResults:results});
-  if(waves.length){results.push(...waves);summary.waveOverhangs=waves.map(r=>r.report);}
-  const rims=[...rimmingPlanarResults({plan,modelResults:results}),...rimmingNormalResults({plan,modelResults:results})];
-  if(rims.length){results.unshift(...rims);summary.rimming=rims.map(r=>r.report);}
-  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:results});
-  if(supports.length){results.unshift(...supports);summary.supports=supports.map(r=>r.report);}
-  const welds=plasticWeldResult({plan,sites:weldSites,modelResults:results});
-  if(welds){results.push(welds);summary.plasticWeld=welds.report;}
-  return {...batch,results,summary};
+  const wavedResults=[...applyResultDependencies(results,waves.dependencyChanges),...waves.results];
+  if(waves.results.length)summary.waveOverhangs=waves.results.map(r=>r.report);
+  const planarRims=rimmingPlanarResults({plan,modelResults:wavedResults});
+  const planarLinked=applyResultDependencies(wavedResults,planarRims.dependencyChanges);
+  const normalRims=rimmingNormalResults({plan,modelResults:planarLinked});
+  const rims=[...planarRims.results,...normalRims.results];
+  const rimmedResults=[...rims,...applyResultDependencies(planarLinked,normalRims.dependencyChanges)];
+  if(rims.length)summary.rimming=rims.map(r=>r.report);
+  const supports=supportResults({plan,machine,shells:componentShells?[...componentShells.values()]:[placed],modelResults:rimmedResults});
+  const supportedResults=[...supports.results,...applyResultDependencies(rimmedResults,supports.dependencyChanges)];
+  if(supports.results.length)summary.supports=supports.results.map(r=>r.report);
+  const welds=plasticWeldResult({plan,sites:weldSites,modelResults:supportedResults});
+  const weldedResults=applyResultDependencies(supportedResults,welds.dependencyChanges);
+  if(welds.result)summary.plasticWeld=welds.result.report;
+  return {...batch,results:welds.result?[...weldedResults,welds.result]:weldedResults,summary};
+}
+
+// Dependency changes address operation IDs, which are unique within a composed
+// result batch. Apply ordered appends and ordered unions without changing earlier
+// stages' result, operation or prerequisite records. Geometry/policies stay shared.
+export function applyResultDependencies(results,dependencyChanges){
+  if(!dependencyChanges.length)return results;
+  const changesByOperation=new Map();
+  for(const change of dependencyChanges){
+    if(!changesByOperation.has(change.operationId))changesByOperation.set(change.operationId,[]);
+    changesByOperation.get(change.operationId).push(change);
+  }
+  return results.map(result=>{
+    let changed=false;
+    const operations=result.operations.map(operation=>{
+      const changes=changesByOperation.get(operation.id);
+      if(!changes)return operation;
+      changed=true;
+      let after=[...(operation.after??[])];
+      for(const change of changes){
+        if(change.mode==='union')after=[...new Set([...after,...change.after])];
+        else after.push(...change.after);
+      }
+      return {...operation,after};
+    });
+    return changed?{...result,operations}:result;
+  });
 }
 
 export function addPrimeResult(plan,machine,batch) {

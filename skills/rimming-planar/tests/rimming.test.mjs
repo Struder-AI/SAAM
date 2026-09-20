@@ -4,7 +4,7 @@ import {supportSurface,supportSurfaceSection,supportBoundaryAt} from '../../../c
 import {offsetSurfaceSection} from '../../../core/region/section-offset.mjs';
 import {defaults,validatePlan} from '../../../core/print/plan.mjs';
 import {loadMachine,checkMachinePath} from '../../../core/machine/profile.mjs';
-import {generatePath} from '../../../core/print/generate.mjs';
+import {generatePath,applyResultDependencies} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 import {exportProgram,interpretProgram} from '../../../core/export/registry.mjs';
@@ -127,12 +127,15 @@ test('both rim modes wait for the whole sloping base and finish before any suppo
     // completion is necessary even though a max-Z-only lookup would omit it.
     const base=op('lower:crossing',1,3),upper=op('upper:first',4,4.2),peer=op('peer:middle',3.5,3.5);
     const modelResults=[{operations:[base,upper,peer]}];
-    const rims=rimmingResults({plan,modelResults,mode,skillId:skill});
+    for(const op of modelResults[0].operations){Object.freeze(op.after);Object.freeze(op);}
+    const {results:rims,dependencyChanges}=rimmingResults({plan,modelResults,mode,skillId:skill});
+    const linked=applyResultDependencies(modelResults,dependencyChanges);
     const rimOps=rims[0].operations,last=rimOps.at(-1);
-    assert.ok(rimOps[0].after.includes(base.id));assert.ok(upper.after.includes(last.id));
-    const ordered=scheduleOperations([...rims,...modelResults]),index=id=>ordered.findIndex(o=>o.id===id);
+    assert.ok(rimOps[0].after.includes(base.id));assert.ok(linked[0].operations[1].after.includes(last.id));
+    assert.deepEqual(upper.after,[]);
+    const ordered=scheduleOperations([...rims,...linked]),index=id=>ordered.findIndex(o=>o.id===id);
     assert.ok(index(base.id)<index(rimOps[0].id));assert.ok(index(last.id)<index(upper.id));
     assert.ok(index(peer.id)>index(rimOps[0].id)&&index(peer.id)<index(last.id),'independent skills still weave while the rim grows');
-    assert.throws(()=>scheduleOperations([...rims,...modelResults],{order:[upper.id,last.id]}),/cycle/);
+    assert.throws(()=>scheduleOperations([...rims,...linked],{order:[upper.id,last.id]}),/cycle/);
   }
 });

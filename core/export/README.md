@@ -68,7 +68,7 @@ bounds, feeds and flow.
 |---|---|---|
 | UltiMaker S5 | Fill, planar-infill, drape and bounded vase-wall on mesh/splines | Griffin exporter/interpreter, same-file Studio review/delivery. |
 | Bambu H2D | Fill, planar-infill, drape and bounded vase-wall on mesh/splines | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
-| Bambu X1 Carbon | Planar skills only (no nonplanar capability declared); PLA output | The H2D exporter, interpreter and package writer with the X1's own pinned envelope and machine-file package facts; same-file review/delivery. |
+| Bambu X1 Carbon | Fill, planar-infill and drape on mesh/splines within an experimental user-chosen 10° nonplanar limit (no clearance rating); PLA output | The H2D exporter, interpreter and package writer with the X1's own pinned envelope and machine-file package facts; same-file review/delivery. |
 | Dobot MG400 | Shared fill, planar-infill, drape and vase-wall paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
 | DENSO VP-6242 / RC8 + rotary | Native pipe body/cladding plus fixed-orientation mesh/spline regional skills, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
 
