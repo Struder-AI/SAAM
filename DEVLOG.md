@@ -58,6 +58,35 @@
   WASM hash check; their cause was not investigated here. No commit of the skill,
   push or publication occurred.
 
+## 2026-09-19 — Reconcile origin/TK-Dev with this branch
+
+- Source: user: "push everything to TKDEV and merge from main anything new." `origin/main`
+  had nothing new. `origin/TK-Dev` carried three commits this branch lacked (`1cee91b`
+  dice workflow and H2D setup metadata, `5f26d11` a merge of main, `60d61b9` compact
+  sequential Studio export names), all dated 2026-09-17, so a plain push was not a
+  fast-forward.
+- Measured before deciding: a real merge conflicted in 23 files, in shared core, H2D export
+  and machine-profile code that main's port (`777a8f2`, `cc0cf18`) re-implemented rather than
+  copied. The exact-hunk check showed most of the three commits' changes are not present in this
+  branch in their original form. Running those commits' own tests against this branch and against
+  plain `origin/main` gives the same 21 failures of 64 in both, so none is caused by work done
+  here; they are original-form expectations that main's port does not meet.
+- Resolution: `git merge -s ours origin/TK-Dev`. This branch's tree, which is main's version
+  plus this session's work, is kept; the three commits are recorded as merged, so the push is a
+  fast-forward and nothing is lost from history. Hand-merging those files would have replaced
+  main's reviewed core and H2D output code with the older form. This follows the 2026-09-17
+  merge of main and BR-052, which likewise took main's version over this branch's own.
+- Carried over: the export-names DEVLOG entry above, because the feature itself
+  (`nextExportName` in `studio/settings.mjs`) is already present on this branch.
+- Set aside, not lost (recoverable from `60d61b9` and `1cee91b`): the original H2D nozzle,
+  firmware and metadata handling and its tests; a more general `downloadName` for compound file
+  extensions in `studio/print-name.mjs`; and the original-form line-network, regional-process and
+  spacing behaviors that the 21 tests cover. Whether any should be brought forward onto main's
+  version is an open choice for the requester; nothing here decides it.
+- Verification: the merge commit's tree is identical to the checkpoint's (zero differing lines).
+  Nothing about this changes generation or output, so no new run was needed beyond the overlay
+  comparison above.
+
 ## 2026-09-19 — Width ladder narrowed to the walls' own footprint
 
 - Source: user: "the printed bounding box for the test piece should not be wider than the
@@ -1078,6 +1107,16 @@ stack/cladding cases (confirmed failing at 3609a20 in a detached worktree), the
 two plastic-weld cases and the two vase-wall interoperability cases (confirmed
 by the agents at main f352322). Each package was developed and tested in its own
 worktree, then cherry-picked here.
+
+## 2026-09-17 — Compact sequential Studio export names
+
+Studio now recognizes an explicit `-V<number>-` token in the editable print
+name. After a successful reviewed-file export it advances that token for the
+next export in the same Studio session, while ordinary friendly names remain
+unchanged. This keeps printer-facing names such as `DICE-V1-H2D2-0-6` short and
+retains the machine-specific compound extension automatically. Focused naming
+and settings checks passed; this changes download naming only, not reviewed
+toolpath bytes or bundle identity.
 
 ## 2026-09-17 — One fingerprint pass per Studio state read
 
