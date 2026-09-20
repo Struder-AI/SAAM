@@ -22,3 +22,20 @@ This is an explicit experimental path skill. The supplied centerlines own the
 result; it does not infer junction reinforcement, Euler routing or structural
 adequacy. Intersections must overlap geometrically, and physical welding between
 crossing beads remains a print-validation responsibility.
+
+## Networks on their own layer grids
+
+A network may carry its own `layers` (course count) and `process`, with any of
+`firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS` and `firstLayerSpeedMmS`,
+so one print can hold fine and thick lines. Its override is validated as if the whole
+print used it, so machine, layer and width limits apply to that network unchanged; a
+network without one uses the plan process. A stroke's `layers` count against its own
+network's course count.
+
+Courses print by ascending deposition height. Where courses of different networks
+share a height, the finer layer goes first, so a thick line's single course follows the
+several fine courses beneath it. Heights that coincide across grids are treated as
+equal (to a millionth of a millimetre). Each course's `layer` is the height's place among
+all course heights in the print, the same for every network. The minimum layer time
+applies to each distinct height, so a print with many close heights waits at each of them
+unless `minimumLayerSeconds` is lowered.

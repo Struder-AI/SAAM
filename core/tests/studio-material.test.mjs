@@ -122,3 +122,20 @@ test('WebGL projection matches Studio screen coordinates in both rotary views an
     }
   }
 });
+
+test('a line network on its own layer grid draws its bead at its own layer height and true width',()=>{
+  const own={...plan,skills:{...plan.skills,'line-network':{networks:[
+    {id:'thick',layers:3,process:{firstLayerMm:1,layerMm:1,lineWidthMm:2}},
+    {id:'fine',layers:12,process:{firstLayerMm:.25,layerMm:.25,lineWidthMm:.5}}]}}};
+  // 20 mm long, area = commanded width x own layer height, at a global layer of 0.2.
+  const thick=beadSection(move([0,0,2],[20,0,2],{layer:5,operation:'line-network:thick:1',commandedVolumeMm3:20*2*1}),own,{});
+  near(thick.height,1);near(thick.width,2);near(length(thick.a.wide),1);near(length(thick.a.short),.5);
+  const fine=beadSection(move([0,0,.5],[20,0,.5],{layer:1,operation:'line-network:fine:1',commandedVolumeMm3:20*.5*.25}),own,{});
+  near(fine.height,.25);near(fine.width,.5);
+  const first=beadSection(move([0,0,1],[20,0,1],{layer:3,operation:'line-network:thick:0',commandedVolumeMm3:20*2*1}),own,{});
+  near(first.height,1);
+  // Without an override the global layer height still applies, as before.
+  const plain=beadSection(move([0,0,.4],[20,0,.4],{layer:1,operation:'line-network:frame:1',commandedVolumeMm3:20*.4*.2}),
+    {...own,skills:{...own.skills,'line-network':{networks:[{id:'frame',layers:2}]}}},{});
+  near(plain.height,.2);near(plain.width,.4);
+});

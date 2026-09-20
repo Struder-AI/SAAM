@@ -42,7 +42,14 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     }
     if(name==='line-network'&&key==='networks'){
       rows.push([prefix+' · Independent faces',String(v.length)],
-        [prefix+' · Centerline strokes',String(v.reduce((sum,network)=>sum+network.strokes.length,0))]);continue;
+        [prefix+' · Centerline strokes',String(v.reduce((sum,network)=>sum+network.strokes.length,0))]);
+      // A network with its own layer grid or bead width is shown by what it overrides.
+      for(const network of v)if(network.layers!==undefined||network.process){
+        const own=[network.layers!==undefined?network.layers+' courses':null,network.process?.layerMm!==undefined?network.process.layerMm+' mm layers':null,
+          network.process?.lineWidthMm!==undefined?network.process.lineWidthMm+' mm bead':null,network.process?.planarSpeedMmS!==undefined?network.process.planarSpeedMmS+' mm/s':null].filter(Boolean);
+        rows.push([network.id+' · Own line network process',own.join(' · ')||'Overrides the plan process']);
+      }
+      continue;
     }
     if(name==='wave-overhangs'&&key==='slices'){
       for(const s of v)rows.push([s.id+' · Wave slice',s.reason],

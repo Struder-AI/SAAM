@@ -1,5 +1,206 @@
 # Development log
 
+## 2026-09-19 — Line text: words as centerline strokes, sized by intent
+
+- Source: user, as builder work (BR-054): print a spoken word in letters, starting
+  with single-line thick letters sized from the described text, then parallel
+  strokes for thicker and larger text, choosing fonts from single-line and
+  handwriting-script libraries. The user approved merging `origin/main` and
+  downloading font files, and directed that construction follow the described
+  size: fine single-line at small sizes, `line-network`'s wide bead at larger
+  sizes, parallel strokes once one bead cannot be wide enough.
+- Merge: `origin/main` (31 commits, 60 files) into TK-DEV as `614a212`. Conflicts
+  in `DEVLOG.md`, `full-fill/scripts/fill.mjs` and `planar-infill/scripts/infill.mjs`
+  were additive: TK-DEV's heat-set `solidAt`/`detailWalls` and `main`'s
+  `layerOriginMm`/`layerIndexOffset` were both kept. 71 heat-set, planar-infill,
+  full-fill, text and line-network tests passed on the merge before it was
+  committed. Uncommitted wing-design edits were stashed around the merge and restored.
+- Implemented: [line-text](skills/line-text/SKILL.md) compiles a word into
+  `line-network` strokes with no core change. Eleven bundled stroke fonts (two
+  Hershey, eight Evil Mad Scientist derivatives, Relief SingleLine; about 800 KB)
+  are unmodified. A parser reads full SVG path syntax including cubic curves,
+  relative commands, closed subpaths and kerning. A size-driven planner picks fine,
+  single-bead or parallel construction from the machine's bead range; parallel beads
+  are concentric offset loops of the centerline. A specimen sheet renders a word in
+  every feasible font at physical scale for selection by eye. A CLI writes an
+  `adjust` patch.
+- Measured, not assumed: the fonts' declared cap heights (500) are wrong by up to
+  2×; measured capitals run 652–1052 units, so size comes from glyph extents. EMS
+  and Hershey Script fonts contain cubic curves, not only polylines. Endpoint gaps
+  to neighboring strokes are exact touches or under 0.03 of cap height, none from
+  0.03 to 0.04, so junction snapping closes gaps up to 0.03. The stroke width at
+  which counters fill in (tightest tenth of glyphs, fraction of cap height) is 16–23%
+  for Hershey Sans, EMS Tech, Relief and Casual Hand, 12% Invite, 8% Readability and
+  3–4% for the looped scripts, which therefore cannot be made heavy at any size.
+  Hershey's Med and Bold variants fake weight with doubled strokes and were not bundled.
+- Size behavior with Relief, regular weight: one bead through about 13 mm with
+  0.3–0.8 mm beads and about 31 mm with 2 mm beads, then parallel beads. An
+  earlier rule that fixed the bead at the maximum overshot the wanted stroke
+  (4.0 mm against 3.2 mm at 40 mm); beads are now the fewest that fit under the
+  maximum, sized to sum to the stroke. A stroke within 25% of the maximum stays one
+  bead rather than doubling the work.
+- Verification: 16 line-text tests pass, including an end-to-end run through
+  `line-network` validation and path generation and a reproduction of the
+  junction-snapping and parallel-loop behavior; breaking either in the compiler
+  makes a test fail. A scratch print created with `init`, patched with `adjust`
+  and generated through the shared CLI passed its checks: 24 mm "SAAM" as one
+  1.92 mm bead, 2 courses of 289.27 mm, 578.55 mm printed and 1110.8 mm³, matching
+  length × bead width × layer height. Specimen sheets at 12 mm, 40 mm and 60 mm
+  were inspected as rendered images.
+- Not done: no physical print, so weights, clearances, dot shapes, stroke crossings
+  and parallel-bead ends are unvalidated; no curve smoothing (several fonts are
+  coarse polylines); no travel ordering; no Studio-integrated font or size selection;
+  no outline-to-centerline conversion of other fonts.
+- Full suite: 738 tests, 686 pass, 45 fail, 7 skipped. The same 45 fail on plain
+  `origin/main` (713 tests, 661 pass) and on the merge commit before this skill
+  (722 tests, 670 pass), so neither the merge nor line-text introduced a failure.
+  They are Studio, tour and MCP process tests, region-cladding composition and one
+  WASM hash check; their cause was not investigated here. No commit of the skill,
+  push or publication occurred.
+
+## 2026-09-19 — Width ladder narrowed to the walls' own footprint
+
+- Source: user: "the printed bounding box for the test piece should not be wider than the
+  test lines. it just needs to connect them across the end of each so they stay together."
+  This supersedes the closed frame described in the next entry, which extended one pitch
+  (15 mm) past the outer walls on each side because "closed box" was read as an outer frame.
+- Change: the frame is now two open rails, 2 courses at the nominal width and layer height,
+  running from the first printed wall to the last and centered half their width inside the
+  wall ends, so the piece is exactly as wide and as long as its walls and the outer walls are
+  its sides. The rails follow the walls that print, not the fixed slots: with the 0.25 and
+  2.5 mm walls refused, the H2D piece is 46.25 x 20 mm (was 105 x 20). A ladder needs two
+  walls to tie together, so the Ultimaker S5, which allows only the 0.5 mm wall by default,
+  now reports that instead of building a lone wall.
+- Verification: 6 width-calibration tests, including one that computes the footprint from
+  the actual strokes and bead widths and checks it equals the walls' extent (breaking the
+  rails to overshoot fails three tests). Regenerated print: 680 mm of bead and 314.4 mm3
+  (300 walls plus 14.4 rails), which reconcile with width x layer x length, about 2.1 minutes.
+  Inspected in Studio's top view: four walls of increasing width and two rails, nothing past
+  the outer walls. No physical print.
+- Decision: the user accepted the ladder as a calibration article, to be used as people bring
+  new printers, filaments and nozzles so commanded-versus-actual width data can be collected and
+  calibration improved over time. Collection is not built (BR-055).
+
+## 2026-09-19 — Width calibration ladder and per-network layer grids
+
+- Source: user described a bead-width test object and directed its behavior: a closed box
+  whose top and bottom lines (nominal width, two layers) tie together vertical test walls at
+  0.25, 0.5, 1, 1.5, 2 and 2.5 mm, 3 mm tall, so calipers can measure each; "definitely not
+  one layer height per print"; thicker lines want thicker layers (a 1:2 layer-to-width ratio as
+  a starting point); "print the lower layer heights first and proceed to thicker ones", so the
+  thinnest line prints several times before the thickest once; then wall spacing of at least
+  15 mm; then load it in Studio. The user also said a developer role is not needed for pushing
+  to TK-DEV; the scope of the change, not the branch, decided this: the per-network override
+  is an isolated, local core change and was made as builder work.
+- Core change ([line-network](skills/line-network/SKILL.md#networks-on-their-own-layer-grids)):
+  a network may carry `layers` and a `process` of the five region-overridable keys. Plan
+  validation checks each override as if the whole print used it. The composer already orders by
+  deposition height with rank breaking ties, so each course's rank is its layer height (finest
+  first) and heights are rounded to a millionth of a millimetre so coincident heights tie.
+  Plans without overrides are unchanged (the four original tests pass, and validation still
+  never mutates a plan). Studio settings list an override. Verified against the map's
+  plan-schema checks (pipeline, regional-workflow, printer-profiles).
+- Studio defect found and fixed: the material view drew every planar bead at the global layer
+  height, so on the ladder a 1 mm wall showed about 2.4 mm wide and the 1.5 and 2 mm walls merged
+  into one 12 mm block. Beads of a network with its own process now use that network's layer
+  height (its operation id names the network); the toolpath is unchanged, the display was wrong.
+- New skill [width-calibration](skills/width-calibration/SKILL.md): builds the ladder, reports
+  per wall whether the machine's limits allow it and why not, prints a prediction table (the
+  rectangle volume model against a rounded bead, wider by about 0.21 x layer height), and
+  analyzes caliper readings against both models.
+- On the H2D the default ladder cannot be made whole: 0.25 mm is below the 0.3 mm width floor and
+  2.5 mm exceeds the 2 mm ceiling (and would need a 1.25 mm layer against a 1 mm maximum), so
+  those two walls are left out and reported; 1 to 2 mm needs experimental deposition, which the
+  command turns on. On the Ultimaker S5 only the 0.5 mm wall is allowed. A pre-existing quirk:
+  the ordinary minimum bead is computed as 0.4 x 0.75 = 0.30000000000000004, so exactly 0.3 mm
+  is rejected on a 0.4 mm nozzle.
+- Spacing: the 15 mm is read as centerline to centerline, as the earlier 5 mm was, giving a
+  105 x 20 mm box with faces at least 12.75 mm apart. It is the `pitchMm` option.
+- Verification: `line-network` 8 tests, Studio material 11, width-calibration 5 (with an
+  end-to-end run through validation and generation), each new behavior mutation-checked. The
+  generated ladder passes its checks: 1000 mm of bead and 340 mm3 (300 walls, 40 frame), about
+  2.2 minutes and 0.41 g, and the volumes reconcile with width x layer height x length. Opened
+  in Studio and inspected: the frame and four distinct walls. Full suite: 757 tests, 705 pass,
+  45 fail, 7 skipped; the failing set is identical to the earlier baseline that also fails on plain
+  `origin/main`, so nothing new fails. No physical print, so the width model is unmeasured. No
+  commit or publication occurred.
+
+## 2026-09-19 — Line text: bead width against flow and speed
+
+- Source: user asked whether the skill differentiates stroke thickness by nozzle
+  size, flow and printhead speed, and knows when a single stroke cannot be thick
+  enough so lines must double up.
+- Finding: width was planned from the nozzle-derived range (0.75-2 x nozzle, or the
+  tool's experimental range) and parallel beads were chosen only when a stroke
+  exceeded the widest bead. Flow and speed were not planned, reported or set. The
+  process default `maxFlowMm3S` of 4 mm3/s stayed in force, and the path builder
+  (`core/path/builder.mjs`) slows any move above it, so the earlier 24 mm "SAAM"
+  demo (1.92 x 1 mm bead) printed at about 2.1 mm/s, an estimated 4.6 minutes, without
+  the skill saying so.
+- Implemented: `depositionEstimate` (bead area, flow-limited and effective speed,
+  what limits it, print time); the command prints it as `deposition` and warns below
+  5 mm/s; `--speed` and `--max-flow` pass through to the patch. The skill never raises
+  the flow limit itself. The manual states that flow does not argue for parallel beads.
+- Verification: 21 tests pass. Predictions matched generated programs for the same
+  word: 4.5 vs 4.6 minutes at 4 mm3/s, and 0.6 vs 0.7 minutes at 30 mm3/s with 20 mm/s
+  process speed (15.6 mm/s effective); volume 1077.1 mm3 in both. The H2D accepted 30
+  mm3/s in experimental mode. No physical print; whether the material and hotend
+  deliver 30 mm3/s at this bead is unvalidated. No commit or publication occurred.
+
+## 2026-09-19 — Line text: font library scope and chat image preview
+
+- Source: user: "font library is good for now. lets keep the studio picker just a
+  generated image preview in the chat window for now." The bundled eleven fonts
+  are the library; font and size selection is an image in chat, not a Studio picker.
+  BR-054's remaining scope was narrowed to match.
+- Implemented: `specimen.mjs --png` renders numbered candidates as a PNG with a
+  dependency-free anti-aliased stroke rasterizer and PNG encoder
+  ([raster.mjs](skills/line-text/scripts/raster.mjs)); labels are drawn in the
+  bundled Relief stroke font, so no font renderer or graphics library is used.
+  Only fonts that can hold the word at that size are drawn, best first (`--top`
+  limits the count); the command prints the numbered candidates with font ids and
+  the count omitted so a reply of "2" maps to a font. A 4-candidate 12 mm sheet
+  renders 1200 × 932 px in under a second.
+- Verification: 20 line-text tests pass; the four added cover round-capped
+  anti-aliased beads (including a 70%-coverage edge pixel), PNG signature, size and
+  decompressed length, numbered scene contents and omission of a font too small to
+  hold the bead, and the size budget for large text. Rendered sheets were viewed
+  as images. No commit or publication occurred.
+
+## 2026-09-19 — Guided control, tail and construction requirements
+
+Extended the wing workspace brief from the user's next workflow description:
+control surfaces and tails follow application-led airfoil selection, followed by
+reinforcement and fuselage attachment. Recorded the requested mounting and member
+alternatives, progressive CAD updates, separate hardware identity and dependent
+feature consistency. Distinguished straight/coaxial tube axes from wing planform
+sweep. Updated BR-053's remaining scope. This is a requirements update; no viewer,
+geometry or structural-analysis capability was added.
+
+## 2026-09-19 — Wing workspace scope and airfoil source research
+
+Recorded the user's Use / Shape / Construction focus, orbitable wing viewer,
+wireframe interior inspection and independent spar/hardware visibility. Inspected
+UIUC coordinate and wind-tunnel sources, a Clark Y coordinate file, BigFoil search
+and profile metadata, Foil.tools' published search capabilities, XFOIL's primary
+documentation and application guidance. Recommended UIUC geometry with separately
+identified performance evidence and SAAM-owned search; retained source links,
+data reuse conditions and the distinction between measured and predicted results
+in the skill's source guide. AirfoilTools search returned a gateway error.
+
+The requested first source-research step is complete. The workspace remains a
+documentation stub; no provider integration, geometry generator or viewer was
+implemented. BR-053 retains that future work for collaborative development.
+
+## 2026-09-19 — Wing design workspace stub
+
+Added `skills/wing-design` after the user chose a workspace stub for collaborative
+workflow development. The manual and design brief distinguish open design topics
+from implemented capabilities; no wing generator, Studio controls or print recipe
+was added. Registered the stub in the skill catalog and regenerated the digest,
+preserving the existing heat-set-insert entry. The toolkit's maker skill read
+resolves the new manual and brief link; `git diff --check` passed.
+
 ## 2026-09-18 — Remove fixed failing caps
 
 - Source: owner rule, 2026-09-18: "fixed cap limits like that will ALWAYS fail at
@@ -3785,6 +3986,7 @@ passes, and non-XYZ source words are identical. Results and search bounds are in
 bounded search, not proof of a global maximum. Previous unmodeled-body and physical
 validation limitations remain.
 
+
 ## 2026-09-12 — Reject interleaved Splitty plate attachments
 
 The user identified that the optimized plate had collapsed toward a triangle. Its perimeter order was C1,B2,A1,C2,B1,A2, violating the intended three paired edges. Added a design-family constraint requiring each pair to stay in its tower sector and a convex A1,A2,B1,B2,C1,C2 perimeter. The optimizer rejects this layout; the viewer flags it instead of falsely saying all pairs occupy their own edges. Three focused analytical/layout tests pass. The recorded full-rod and half-rod comparisons retain this rejected plate arrangement; no replacement physical search has been performed after this correction.
@@ -3796,6 +3998,7 @@ The user identified that the optimized plate had collapsed toward a triangle. It
 - Reused the fixed source with XYZ scaling only. Rod/part travel checks use progressively deposited height; startup is not compared against a finished part. Plate/part checks remain at cladding endpoints. The earlier skinny candidate is superseded because it omitted rod/rail collision checks.
 - Selected the candidate in `Prints/development/splitty-assembly-search/search.json`: scale 5.23524, deposited centerline diameter 127.739 mm, top Z157.057 mm, rods544.502 mm, tool107.118 mm, frame height958.720 mm, average physical envelope diameter285.904 mm. Operating carriage interval589.471–851.661 mm, travel262.189 mm. Updated the standalone and machine profile revision4; no Studio integration or hardware program was built.
 - Evidence: 81,453 operating interpolation samples pass modeled assembly and progressive rod/part checks; minimum assembly surface gap1.777 mm. All45,225 cladding endpoints pass rod/plate checks. Angular checks cover70 operating poses and1,820 raw limit probes. Source non-XYZ words are identical. Nineteen focused kinematics/interpreter tests and two analytical assembly-clearance tests pass. These are sampled geometry results, not full mechanical certification or a global optimum.
+
 
 ## 2026-09-12 — Splitty standalone kinematics and profile clearance
 
@@ -3816,6 +4019,7 @@ to share a commit while coordinating changes to shared lines and Git operations.
 The normal pull-request `test` job checks fresh-runner setup using read-only source
 permissions; no commit-status write permission is added. Local setup passed in
 0.27 seconds; the combined source passed all 434 regression tests.
+
 
 Completed work, development checkpoints, measurements and scoped observations.
 [Build requests](build_request.md#outstanding-work) contains only outstanding or
