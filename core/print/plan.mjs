@@ -122,8 +122,11 @@ export function geometryTemplate(shape,geometry) {
 
 // The process keys a line network may override for itself; the region override keys.
 const LINE_NETWORK_PROCESS_KEYS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS'];
+const LINE_NETWORK_KEYS=['id','strokes','layers','process','tool','baseMm'];
 
-export function validatePlan(plan, machine) {
+// `ignoreGeometryReach` is internal: a line network's nozzle is checked against a child plan whose
+// placeholder geometry is not what that nozzle prints; each network's own reach is checked at generation.
+export function validatePlan(plan, machine, options = {}) {
   requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(plan.geometry?.shape), 'Unsupported shape.');
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Pre-policy bundles are recreated from their skills, not migrated.
@@ -152,7 +155,7 @@ export function validatePlan(plan, machine) {
   validateCladding(plan,machine);
   if(['mesh','text','gridfinity','heat-set'].includes(geometry.shape)) {
     const mesh=makeMesh(geometry.vertices,geometry.triangles),bounds=toolBounds(machine,setup.tool);
-    requireThat(machine.motionChecks==='deferred'||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
+    requireThat(machine.motionChecks==='deferred'||options.ignoreGeometryReach||mesh.bounds.min.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]>=bounds.min[i]-1e-8)&&mesh.bounds.max.every((v,i)=>v+[placement.xMm,placement.yMm,0][i]<=bounds.max[i]+1e-8),'Placed mesh exceeds selected tool bounds.');
     if(geometry.shape==='mesh')requireThat(geometry.source===null||(geometry.source?.format==='stl'&&/^[a-f0-9]{64}$/.test(geometry.source.sha256)&&['mm','inch'].includes(geometry.source.units)&&Number.isFinite(geometry.source.scale)&&geometry.source.scale>0),'Invalid mesh source provenance.');
   }
   if (geometry.shape === 'box') number(geometry.heightMm, 0.5, 200, 'heightMm');
@@ -265,18 +268,27 @@ export function validatePlan(plan, machine) {
   requireThat(typeof network.enabled==='boolean'&&Number.isInteger(network.layers)&&network.layers>=1&&Array.isArray(network.networks),'Invalid line-network settings.');
   const networkIds=new Set();
   for(const item of network.networks){
-    requireThat(item&&typeof item==='object'&&['id,strokes','id,layers,strokes','id,process,strokes','id,layers,process,strokes'].includes(Object.keys(item).sort().join())&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0,'Invalid line network.');networkIds.add(item.id);
+    requireThat(item&&typeof item==='object'&&Object.keys(item).every(key=>LINE_NETWORK_KEYS.includes(key))&&/^[a-z][a-z0-9-]*$/.test(item.id)&&!networkIds.has(item.id)&&Array.isArray(item.strokes)&&item.strokes.length>0,'Invalid line network.');networkIds.add(item.id);
+    requireThat(item.baseMm===undefined||Number.isFinite(item.baseMm)&&item.baseMm>=0,`Line network ${item.id} baseMm must be a height at or above the bed.`);
+    // A network may name its own nozzle. It is checked as if the whole plan used that nozzle with this
+    // network's process, so the tool, core, bead width and layer limits are the machine's own.
+    if(item.tool!==undefined){
+      requireThat(item.tool&&typeof item.tool==='object'&&Object.keys(item.tool).sort().join()==='core,index,nozzleMm'&&Number.isInteger(item.tool.index)&&typeof item.tool.core==='string'&&Number.isFinite(item.tool.nozzleMm),
+        `Line network ${item.id} tool must give index, core and nozzleMm.`);
+      requireThat(machine.tools.some(candidate=>candidate.index===item.tool.index),`Line network ${item.id} names a nozzle this machine does not have.`);
+    }
     // A network may own its course count and its layer grid, bead width and speeds, the
     // same five process keys a region may override. The override is checked as if the whole
     // plan ran with it, so machine, layer and width limits apply to that network unchanged.
     requireThat(item.layers===undefined||Number.isInteger(item.layers)&&item.layers>=1,'Invalid line-network course count.');
     const courses=item.layers??network.layers;
-    if(item.process!==undefined){
-      requireThat(item.process&&typeof item.process==='object'&&!Array.isArray(item.process)&&Object.keys(item.process).length>0&&Object.keys(item.process).every(key=>LINE_NETWORK_PROCESS_KEYS.includes(key)),
+    if(item.process!==undefined||item.tool!==undefined){
+      if(item.process!==undefined)requireThat(item.process&&typeof item.process==='object'&&!Array.isArray(item.process)&&Object.keys(item.process).length>0&&Object.keys(item.process).every(key=>LINE_NETWORK_PROCESS_KEYS.includes(key)),
         `Line network ${item.id} process overrides must be a non-empty object of ${LINE_NETWORK_PROCESS_KEYS.join(', ')}.`);
-      const child=structuredClone(plan);Object.assign(child.process,item.process);
+      const child=structuredClone(plan);Object.assign(child.process,item.process??{});
+      if(item.tool)Object.assign(child.setup,{tool:item.tool.index,core:item.tool.core,nozzleMm:item.tool.nozzleMm});
       child.skills['line-network'].networks=[{id:item.id,strokes:[{closed:false,points:[[0,0],[1,0]]}]}];
-      validatePlan(child,machine);
+      validatePlan(child,machine,{ignoreGeometryReach:true});
     }
     for(const stroke of item.strokes){
       const keys=Object.keys(stroke).sort().join();
@@ -357,7 +369,7 @@ export function validatePlan(plan, machine) {
     : geometry.shape === 'vertical-spline-shell' ? geometry.xBulgeMm : 0;
   const bounds=toolBounds(machine,setup.tool);
   if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
-  if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
+  if(machine.motionChecks!=='deferred'&&!options.ignoreGeometryReach&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
   const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {

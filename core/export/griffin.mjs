@@ -117,6 +117,7 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
       let remaining=Math.ceil(a.seconds*1000);
       do{const part=Math.min(remaining,DWELL_COMMAND_MS);lines.push(`G4 P${part}`);remaining-=part;}while(remaining>0);
     }
+    else if(a.kind==='tool') throw new Error('This job changes nozzles, and this machine output declares no validated nozzle-change sequence, so it cannot be exported. Use one nozzle, or supply a reference export of a nozzle change.');
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
   }
   return lines;
@@ -275,6 +276,7 @@ export function validatePath(path) {
     else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
     else if(a.kind==='fan') number(a.percent,0,100,'Fan');
     else if(a.kind==='dwell') requireThat(Number.isFinite(a.seconds)&&a.seconds>=0,'Dwell outside limits.');
+    else if(a.kind==='tool') throw new Error('This job changes nozzles, and this machine output declares no validated nozzle-change sequence, so it cannot be exported. Use one nozzle, or supply a reference export of a nozzle change.');
     else throw new Error('Unsupported SAAMpath action: '+a.kind);
   }
 }

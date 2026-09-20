@@ -39,3 +39,18 @@ equal (to a millionth of a millimetre). Each course's `layer` is the height's pl
 all course heights in the print, the same for every network. The minimum layer time
 applies to each distinct height, so a print with many close heights waits at each of them
 unless `minimumLayerSeconds` is lowered.
+
+## Networks on their own nozzle, above a base
+
+A network may name its own nozzle with `tool: {index, core, nozzleMm}` (on the H2D, index 0 is the left
+nozzle and 1 the right) and a `baseMm`, the height its first course starts above the bed. The nozzle is checked
+as if the whole print used it, with the network's process, so that nozzle's own bead-width and layer limits
+apply: a 0.35 mm bead is allowed on a 0.4 mm nozzle and refused on a 0.6 mm one. Courses above a base use the
+network's layer height throughout and the planar speed, and lettering can sit on material another nozzle laid
+down. A network's strokes are held to the reach of its own nozzle, not the recipe's placeholder shape.
+
+When any network names a nozzle, every operation names one; the composer keeps one nozzle's work together
+within a height, and the path records a `tool` action (`fromTool`, `toTool`) where the nozzle changes. **A job
+that changes nozzles cannot be exported until the machine declares a validated nozzle-change sequence**; the
+H2D declares none, so such a job generates and reviews as a path but exporting it is refused. Bambu Studio
+itself refuses nozzles of different diameters in one print, so no reference for that case exists.

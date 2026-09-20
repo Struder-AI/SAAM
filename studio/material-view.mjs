@@ -11,7 +11,7 @@ const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 // heights. Its operations are named line-network:<network id>:<course number>.
 function networkProcess(move,plan){
   const named=/^line-network:([^:]+):(\d+)$/.exec(move.operation??''),network=named&&plan.skills['line-network']?.networks?.find(n=>n.id===named[1]);
-  return network?.process?{...plan.process,...network.process,course:Number(named[2])}:null;
+  return network&&(network.process||network.baseMm)?{...plan.process,...network.process,course:Number(named[2]),baseMm:network.baseMm??0}:null;
 }
 
 export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=false}={}){
@@ -19,7 +19,7 @@ export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=fa
   const p=plan.process,tangent=normalize(subtract(to,from));
   const clad=['cladding-axial','cladding-hoop','cladding-helix-forward','cladding-helix-reverse'].includes(move.phase);
   const own=networkProcess(move,plan);
-  let height=own?(own.course===0?own.firstLayerMm:own.layerMm):move.layer===0?p.firstLayerMm:p.layerMm,normal=()=>[0,0,1],centered=false;
+  let height=own?(own.course===0&&own.baseMm===0?own.firstLayerMm:own.layerMm):move.layer===0?p.firstLayerMm:p.layerMm,normal=()=>[0,0,1],centered=false;
   if(clad){
     const center=plan.setup.denso?.rotaryCenterMm??[plan.placement.xMm,plan.placement.yMm,0];
     height=plan.skills['pipe-cladding'].normalMm;centered=true;

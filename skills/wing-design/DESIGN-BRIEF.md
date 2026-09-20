@@ -61,6 +61,17 @@ with placement relative to the craft. Tail sizing, control effectiveness and
 stability depend on aircraft context; an attractive CAD assembly is not evidence
 of those results. Retain unknown fuselage, balance and load inputs as unknown.
 
+## Printed section construction
+
+The intended construction is continuous-vase wing sections with integral skin
+stiffeners and tube-channel webs, assembled onto separate reinforcing tubes and
+glued/plastic welded together. Conventional transverse ribs currently shown in
+the prototype are not the user's intended construction. See
+[Vase construction research](VASE-CONSTRUCTION.md) for the CAD topology, supplied
+example inspection, toolpath proof boundary and section-preview requirements.
+Section breaks should accommodate control-surface boundaries and printer usable
+Z, as well as the footprint and joint allowances in the chosen print orientation.
+
 ## Reinforcement and fuselage attachment choices
 
 The guided discussion must include the user-requested alternatives:

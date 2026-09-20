@@ -137,8 +137,9 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
 
   const builder = new PathBuilder({
     start: startupPosition(machine,plan),
-    process, machine, generatorVersion: VERSION,motion:plan.setup.denso??null
+    process, machine, generatorVersion: VERSION,motion:plan.setup.denso??null,tool:plan.setup.tool
   });
+  builder.boundsFor=index=>toolBounds(machine,index);
   builder.setContext('start', 0);
   builder.motionBounds=bounds;
   builder.retracted=startupRetracted(machine,plan);
@@ -147,7 +148,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   const summary = { generatorVersion: VERSION, shape: plan.geometry.shape };
   const results=[];
   let survey = null;
-  if(network.enabled){const result=lineNetworkResult({plan,bounds:machine.motionChecks==='deferred'?null:bounds});results.push(result);summary.lineNetwork=result.report;}
+  if(network.enabled){const result=lineNetworkResult({plan,bounds:machine.motionChecks==='deferred'?null:bounds,boundsFor:machine.motionChecks==='deferred'?null:index=>toolBounds(machine,index)});results.push(result);summary.lineNetwork=result.report;}
   else if(plan.composition.regions.length) {
     const selections=geometrySelections(plan.geometry),regionShells=new Map();
     for(const assignment of plan.composition.regions){

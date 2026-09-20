@@ -26,7 +26,7 @@ export const NEARBY_MOVE_MM = 1;
 import { pointInRegion, pointSegmentDistance, SegmentIndex } from '../region/region2d.mjs';
 
 export class PathBuilder {
-  constructor({ start, process, machine, generatorVersion, motion=null }) {
+  constructor({ start, process, machine, generatorVersion, motion=null, tool=null }) {
     requireThat(Array.isArray(start) && start.length === 3 && start.every(Number.isFinite), 'PathBuilder needs a 3D start position.');
     this.actions = [];
     this.start = [...start];
@@ -37,6 +37,7 @@ export class PathBuilder {
     this.motion=motion;
     this.pose=motion?structuredClone(motion.initialPose):null;
     this.retracted = false;
+    this.tool = tool; // the nozzle in use, or null for a machine with one
     this.phase = 'start';
     this.layer = 0;
     this.layerSeconds = 0;
@@ -110,6 +111,20 @@ export class PathBuilder {
   }
 
   fan(percent) { this.actions.push({ kind: 'fan', percent, phase: this.phase, layer: this.layer }); }
+
+  // Change to another nozzle: park at clearance, record the change, and adopt the new nozzle's bounds.
+  // The machine's own sequence decides where the head goes and how the new nozzle is primed. Parking has
+  // already raised the head, and combing only happens at one height, so the next travel is a lifted hop.
+  switchTool(index) {
+    if (index === this.tool) return;
+    requireThat(Number.isInteger(index) && index >= 0, 'Invalid tool index.');
+    this.park();
+    this.actions.push({kind: 'tool', fromTool: this.tool, toTool: index, phase: this.phase, layer: this.layer, operation: this.operationId});
+    this.tool = index;
+    if (this.boundsFor) this.motionBounds = this.boundsFor(index);
+    this.retracted = false;
+    this.moveRun = null;
+  }
 
   nozzle(targetC) {
     requireProcessControl(this.machine);

@@ -14,18 +14,26 @@ const height=z=>Math.round(z*1e6)/1e6;
 // so one print can hold fine and thick lines. The composer prints by ascending deposition
 // height; at one height each course's `rank` is its layer height, so the finer line goes
 // first, and a thick line's single course follows the several fine courses beneath it.
-export function lineNetworkResult({plan,bounds=null}){
+//
+// A network may also name its own nozzle (`tool`: index, core and nozzle diameter) and a `baseMm`, the
+// height its first course starts above the bed, so lettering can sit on material another nozzle laid
+// down. Courses above a base use the network's layer height throughout and the planar speed. When any
+// network names a nozzle, every operation names one, so the composer can keep each nozzle's work together.
+export function lineNetworkResult({plan,bounds=null,boundsFor=null}){
   const settings=plan.skills['line-network'],operations=[];
+  const multiTool=settings.networks.some(network=>network.tool);
   let lengthMm=0,strokeCount=0,courseCount=0,maxCourses=0;
   const heights=new Set(),placed=[];
   settings.networks.forEach(network=>{
     const process={...plan.process,...network.process},width=process.lineWidthMm,courses=network.layers??settings.layers;
+    const base=network.baseMm??0,tool=network.tool?.index??plan.setup.tool,limits=boundsFor?boundsFor(tool):bounds;
     maxCourses=Math.max(maxCourses,courses);
     for(let layer=0;layer<courses;layer++){
-      const z=height(process.firstLayerMm+layer*process.layerMm);
+      const onBed=base===0&&layer===0;
+      const z=height(base>0?base+(layer+1)*process.layerMm:process.firstLayerMm+layer*process.layerMm);
       heights.add(z);
-      const beadHeight=layer===0?process.firstLayerMm:process.layerMm;
-      const speed=layer===0?process.firstLayerSpeedMmS:process.planarSpeedMmS;
+      const beadHeight=onBed?process.firstLayerMm:process.layerMm;
+      const speed=onBed?process.firstLayerSpeedMmS:process.planarSpeedMmS;
       const strokes=[],active=network.strokes.filter(stroke=>!stroke.layers||stroke.layers.includes(layer));
       if(!active.length)continue;
       const points2=active.flatMap(stroke=>stroke.points);
@@ -35,13 +43,13 @@ export function lineNetworkResult({plan,bounds=null}){
       for(const stroke of active){
         const local=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
         const points=local.map(([x,y])=>[x+plan.placement.xMm,y+plan.placement.yMm,z]);
-        if(bounds)requireThat(points.every(p=>p[0]-width/2>=bounds.min[0]-1e-8&&p[0]+width/2<=bounds.max[0]+1e-8&&p[1]-width/2>=bounds.min[1]-1e-8&&p[1]+width/2<=bounds.max[1]+1e-8&&z<=bounds.max[2]+1e-8),
+        if(limits)requireThat(points.every(p=>p[0]-width/2>=limits.min[0]-1e-8&&p[0]+width/2<=limits.max[0]+1e-8&&p[1]-width/2>=limits.min[1]-1e-8&&p[1]+width/2<=limits.max[1]+1e-8&&z<=limits.max[2]+1e-8),
           `Line network ${network.id} exceeds the selected tool bounds on course ${layer}.`);
         lengthMm+=points.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-points[i][0],p[1]-points[i][1]),0);strokeCount++;
         strokes.push({role:'line-network',closed:false,points,speedMmS:speed,beadAreaMm2:width*beadHeight});
       }
       courseCount++;
-      const operation={id:`line-network:${network.id}:${layer}`,layerId:`planar:${z}`,phase:'planar',layer,rank:process.layerMm,after:[],order:'given',regionId:network.id,region,strokes,
+      const operation={id:`line-network:${network.id}:${layer}`,layerId:`planar:${z}`,phase:'planar',layer,rank:process.layerMm,after:[],order:'given',regionId:network.id,region,strokes,...(multiTool?{tool}:{}),
         travelPolicy:planarPolicy(region,{layerZ:z,liftMm:process.liftMm,maxCombMm:0,lineWidthMm:width}),clearanceZ:z+process.liftMm};
       operations.push(operation);placed.push([operation,z]);
     }

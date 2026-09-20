@@ -58,6 +58,105 @@
   WASM hash check; their cause was not investigated here. No commit of the skill,
   push or publication occurred.
 
+## 2026-09-20 — Mixed nozzle diameters deferred; what was learned is preserved
+
+- Source: user: "I do want to be able to support multiple nozzle sizes, but this work isnt necessary for the
+  production of my demo... preserve what knowledge we gained here, push it to my repo in an appropriate way and lets
+  get back to producing this demo file with two different colors both on 0.4 nozzles."
+- Decision: mixed diameters are deferred (BR-058). The demo is two colours on two 0.4 mm nozzles, which still needs
+  the H2D to change nozzles in one job (BR-057); the 0.4 mm and 0.4 mm reference is the one it needs.
+- Preserved: the measurements, slot table, unknowns, the code that exists, and the ordered steps to finish are in the
+  H2D output contract ([nozzle changes](maps/reference/bambu.md#nozzle-changes-and-mixed-nozzle-diameters-studied-not-exported)),
+  which owns that machine's output; `scripts/h2d-switch-analysis.mjs` reproduces the analysis from any dual-nozzle
+  slices (2 tests, run on the three real references); the three slices themselves stay outside Git and are recorded by
+  hash. The entry below and the two before it are the dated evidence.
+- Verification: the dev-map check passes (57 pages). No hardware. No new capability beyond the analysis script.
+
+## 2026-09-20 — Multi-nozzle path support (software), and what the H2D output still needs
+
+- Source: user: "Bambu doesnt support different nozzles, but SAAM absolutley should", after Bambu Studio's
+  "Switch diameter" dialog refused a 0.4 mm left and 0.6 mm right nozzle in one print: the limit is a slicer's
+  single diameter and process per plate, while SAAM already carries layer height, bead width and speed per part.
+  The user also supplied a dual-nozzle H2D slice (`two color test print.gcode.3mf`, Bambu Studio 02.05.03.61,
+  both nozzles 0.4 mm, sha256 `1d08ee49...c1ff`, kept outside Git).
+- What the reference shows: six nozzle switches, each a firmware macro of about 135 lines (`M620 S<n>A`, `T<n>`,
+  `M621 S<n>A`, `M620.10/.11/.15`, `M628/M629`) with a few varying slots, then a wipe-tower purge as ordinary
+  moves, plus a temperature routine (the idle nozzle pre-cooled to a slicer-computed value, pre-heated to 210 C,
+  220 C at the switch). Per-nozzle lines (`M620.10 A0 ... H0.4` and `A1 ... H0.4`) carry each nozzle's own
+  diameter, which is encouraging for mixed diameters but unverified on hardware.
+- Second reference: the user then supplied `twoat6.gcode.3mf` (sha256 `1976cd72...fe58`, kept outside Git), the same
+  model and filaments in the same Bambu Studio 02.05.03.61 with both nozzles 0.6 mm and four switches. Diffing its
+  switch macros against the 0.4 mm file isolates the diameter dependence. Only these tokens change: the two
+  per-nozzle lines `M620.10 A<n> F<flow> L0 H<diameter> T240 P220 S1` (F 498.898 to 598.678, H 0.4 to 0.6); the two
+  `M620.11 ... F` retract lines and their `;VG1` comments (623.623 to 748.347); `M983.3 F` (10.4167 to 12.5); and
+  `M1015.4 S1 K1 H<diameter>` (0.4 to 0.6). Every F scales by exactly 1.2, which is a volumetric speed over the
+  filament area (20 to 24 mm3/s and 25 to 30 mm3/s), not the diameter ratio. `M983.3 A0.4` does not change. The rest
+  of the difference is the lift height, the wipe-tower geometry, fan values and a slightly different line count. The
+  per-nozzle `A0` and `A1` lines are unambiguous for mixed diameters. Which nozzle owns the `M620.11` F, the
+  `M983.3` F and the `M1015.4` H is not decided by these files, since both nozzles matched in each; the `I` index
+  is 0 on the switch to nozzle 1 and 1 on the switch to nozzle 0, so it likely names the nozzle being left.
+- Third reference: `basic:matte.gcode.3mf` (sha256 `1a3e387c...7288`, kept outside Git): the same 0.6 mm job with PLA
+  Basic on the left nozzle and PLA Matte on the right. Its executable G-code is identical to the both-Basic file, and
+  only 24 comment lines differ (filament density, ids and material coefficients). The project settings explain it: at
+  0.6 mm both presets have the same volumetric-speed limit (30 mm3/s), so no macro token changes. Filament type
+  therefore does not decide any switch token here, and this pair cannot decode which nozzle owns the `M620.11` F, the
+  `M983.3` F or the `M1015.4` H. A Bambu slice cannot decode it at all unless the two nozzles differ in a way Bambu
+  Studio accepts; diameters it refuses. Across all 14 switches in the three files (7 each direction) the firmware part
+  reduces to a fixed skeleton with these slots: lift height (twice, equal), the per-nozzle `M620.10` F and H, the
+  `M620.11` F, the `;VG1` comment Fs, a counter (`M620.10 R` and `M983.3 R`: 0 on the first switch, 2 after), the
+  `M983.3` F, the `M1015.4` H, the restored fan value, and the purge X. The `M620.11 I` index names the nozzle left.
+  The startup of a dual job also differs from SAAM's pinned single-nozzle start (it heats the second nozzle early,
+  `M104 S220 T1`, and pre-cools the idle one), and SAAM's pinned start is 291 lines.
+- Built (software only): a `line-network` network may name its own nozzle and a base height
+  ([manual](skills/line-network/SKILL.md#networks-on-their-own-nozzle-above-a-base)). Plan validation checks the
+  nozzle against a child plan with that nozzle, so its own core and bead-width limits apply. Operations carry
+  their tool, the composer keeps one nozzle's work together within a height, and the builder parks and records a
+  `tool` action. The path writers reject that action with a clear message, so a two-nozzle job cannot be
+  exported as single-nozzle code. The demo panel is expressed this way and generates one change.
+- Found while building: validating a network against another nozzle also re-checked the recipe's placeholder
+  geometry against that nozzle's reach and wrongly rejected valid plans, so that check is skipped for the child
+  only; a first draft named the nozzle numbers `from` and `to`, colliding with the position meaning of `to`, and
+  they are `fromTool` and `toTool`; and a forced-hop rule I added was redundant, since parking already raises the
+  head, so it was removed after a mutation showed it changed nothing.
+- Measured on the panel (140 x 128 mm): one change; background 22.6 m of bead, 2265 mm3 (2.8 g) on the left nozzle
+  at 0.2 and 0.4 mm; lettering 8.1 m, 1622 mm3 (2.0 g) on the right nozzle at 0.7, 1.0 and 1.3 mm; about 12.6 and
+  6.8 minutes at the default 4 mm3/s flow limit, so the flow limit dominates the time.
+- Verification: 6 new multi-tool tests and 6 panel tests; the switch and export refusal are mutation-checked. The
+  contract tests for plans, profiles, regions, composition, export and Studio pass (52 tests). Full suite: 770 tests,
+  718 pass, 45 fail, 7 skipped; the failing set is identical to the earlier baseline that also fails on plain
+  `origin/main`, so nothing new fails.
+- Not done: the H2D nozzle-change sequence (needs a template from the reference and its nozzle-diameter tokens for
+  a 0.6 mm nozzle, which Bambu Studio cannot slice), a purge or prime pad for the switch, the idle-nozzle
+  temperature policy, Studio colouring by nozzle, and any physical print. See BR-056. No commit or publication.
+
+## 2026-09-20 — Two-nozzle demo panel: design and preview
+
+- Source: user asked for a flat demo rectangle on the H2D using both nozzles, with three
+  lines of thick text ("Individial" as typed, built as "Individual"; "toolpath"; "Control"), Control
+  bold and Individual italic or script, over a background of two layers of 25% infill at 45 and -45
+  degrees with a 2 mm border and a 1 mm ring inset 5 mm from it. The background uses the left nozzle;
+  the text prints 3 layers on top with a 0.6 mm nozzle. A preview was requested first.
+- Built: [panel.mjs](skills/line-text/scripts/panel.mjs) builds every part's centerline strokes and draws a
+  true-scale PNG. The background bead is 0.5 mm so the 2 mm border is four beads and the 1 mm ring two, and
+  25% infill gives 2 mm line spacing; infill stops at the border's innermost bead and leaves out the ring
+  band. The lettering uses the thick-line planner with a 0.6 mm nozzle's bead range (0.45 to 0.8 mm): EMS
+  Invite for Individual (3 x 0.59 mm, a 1.76 mm stroke; EMS Swiss, the other italic, was cut to one thin bead),
+  EMS Tech for toolpath (2 x 0.72 mm) and Hershey Sans bold for Control (4 x 0.72 mm, 2.86 mm). The panel is
+  sized from the lettering to 140 x 130 mm, with 4 mm clear inside the inner ring.
+- Not printable yet, and why: the plan carries one `setup.tool` and the H2D exporter emits one tool per
+  job, so one job cannot use the left and right nozzles; a `line-network` network starts at the bed and has
+  no base height to sit 0.4 mm up on the background; and `line-network` cannot be combined with infill.
+  The preview is design only. See BR-056.
+- Follow-up the same day: the requester corrected an assumption in the first preview, which called the
+  whole object one colour; the features each nozzle builds will be different colours, so the preview
+  colours them by nozzle and its legend no longer claims a filament colour. Tweaks: "toolpath" became
+  "Toolpath", and "Control" moved up 2 mm with the panel's bottom edge moving up with it (its distance
+  from the edge is unchanged), making the panel 140 x 128 mm. The layout is done at full height and then
+  cropped, since centering in the shortened panel had shifted the other lines; a test covers this.
+- Verification: 4 panel tests (whole-bead border, infill angle, spacing and ring exclusion, lettering inside
+  the ring, size refusal), the ring exclusion mutation-checked. The preview was inspected as a rendered image.
+  No toolpath, no print, no commit or publication.
+
 ## 2026-09-19 — Reconcile origin/TK-Dev with this branch
 
 - Source: user: "push everything to TKDEV and merge from main anything new." `origin/main`

@@ -45,7 +45,8 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
     remaining:prerequisites.get(op.id).size,following:[]}));
   const nodesById=new Map(nodes.map(node=>[node.op.id,node]));
   for(const node of nodes)for(const id of prerequisites.get(node.op.id))nodesById.get(id).following.push(node);
-  const compare=(a,b)=>a.band-b.band||a.result-b.result||a.op.rank-b.op.rank||a.index-b.index;
+  // Within a height, keep one nozzle's work together so each change is paid for once.
+  const compare=(a,b)=>a.band-b.band||(a.op.tool??0)-(b.op.tool??0)||a.result-b.result||a.op.rank-b.op.rank||a.index-b.index;
   const ready=[],scheduled=[];
   const push=node=>{
     let i=ready.length;ready.push(node);
@@ -85,6 +86,7 @@ export function composeResults(builder, results, rules = {}, onProgress) {
   for (const op of operations) {
     builder.setContext(op.phase, op.layer);
     builder.operationId = op.id;
+    if (op.tool !== undefined) builder.switchTool(op.tool);
     builder.layerSeconds = elapsed.get(op.layerId) ?? 0;
     if (op.fanPercent !== undefined) builder.fan(op.fanPercent);
     // Heat at clearance, before approaching the work. Restore at clearance too.

@@ -95,6 +95,75 @@ The 0.6/0.8 diameter metadata, mixed-nozzle preset naming and AMS unit/slot sele
 have software round-trip checks only.
 Model-import CLI checks do not verify the program-viewer route.
 
+### Nozzle changes and mixed nozzle diameters (studied, not exported)
+
+**Status.** The path layer can describe a job that changes nozzles; **no writer exports it**, and H2D output
+rejects the `tool` action with "no validated nozzle-change sequence". Everything below is measured from dual-nozzle
+slices supplied by the requester (2026-09-20); it is the starting point for anyone finishing this. See BR-057
+(same-diameter output) and BR-058 (mixed diameters).
+
+**In code today** (software only, no hardware): a `line-network` network may name its own nozzle and a base
+height ([manual](../../skills/line-network/SKILL.md#networks-on-their-own-nozzle-above-a-base)); operations carry
+a `tool`; the composer keeps one nozzle's work together within a height
+([motion](motion.md#skill-result-composition)); `PathBuilder.switchTool` parks and records a `tool` action
+(`fromTool`, `toTool`); `core/export/griffin.mjs` refuses it. Tests: `core/tests/multi-tool.test.mjs`. The demo
+panel (`skills/line-text/scripts/panel.mjs`) builds such a plan.
+
+**Reference slices** (Bambu Studio 02.05.03.61, model O1D = H2D, PLA, one small model with a wipe tower; kept
+outside Git, only these hashes recorded):
+
+| Name | sha256 (start) | Nozzles | Filaments | Switches |
+|---|---|---|---|---|
+| two color test print | `1d08ee49…c1ff` | 0.4 / 0.4 | Basic, Basic | 6 |
+| twoat6 | `1976cd72…fe58` | 0.6 / 0.6 | Basic, Basic | 4 |
+| basic:matte | `1a3e387c…7288` | 0.6 / 0.6 | Basic (left), Matte (right) | 4 |
+
+The existing single-nozzle references are 02.08.02.61, so the macro may differ between versions. Bambu Studio
+refuses different diameters in one print ("Switch diameter"), so a mixed reference cannot exist.
+`node scripts/h2d-switch-analysis.mjs <slices…>` reproduces the analysis below.
+
+**One switch is three parts.** (1) A firmware macro of about 57 lines: `M993` camera-detection save,
+`M1015.4 S1 K0`, `M620 S<n>A` … `M621 S<n>A`, `M620.10` per nozzle, `M620.11`, `M620.15 C210`, `M628`/`M629`,
+`T<n>`, `;VG1`/`VFLUSH` comments, `M983.3`, the travel to the tower entry, then detection restore and
+`M1015.4 S1 K1 H<dia>`. (2) A wipe tower printed as ordinary moves at the back of the bed (about 70 lines,
+`CP_TOOLCHANGE_WIPE`). (3) A temperature routine outside the macro: the idle nozzle pre-cooled to a
+slicer-computed value (25, 102, 144 to 158 C), pre-heated to 210 C ahead of use, 220 C at the switch.
+
+**What varies** (14 switches, 7 per direction, two skeletons per direction: one extra commented path block):
+the lift `G1 Z…` (twice, equal, tracks the layer height); per nozzle `M620.10 A<n> F<flow> L0 H<dia> T240 P220 S1`;
+the `M620.11 K1 …` and `M620.11 S1 … F` retract lines and their `;VG1` comments; a counter `R` in `M620.10 R` and
+`M983.3 R` (0 on the first switch, 2 after); `M983.3 F`; `M1015.4 … H<dia>`; the restored fan `M106 S…`; and the
+purge X (tower geometry). `M620 S<n>A`, `T<n>` and `M620.11 … I<idx>` follow the direction (`I` is 0 on the
+switch to nozzle 1 and 1 on the switch to nozzle 0, so it likely names the nozzle being left).
+
+**Diameter dependence** (0.4 to 0.6): only `H` (0.4 to 0.6, three places) and the flow `F`s change, and every `F`
+scales by exactly 1.2 (498.898 to 598.678, 623.623 to 748.347, 10.4167 to 12.5): a volumetric speed over the
+filament area, 20 to 24 mm3/s and 25 to 30 mm3/s, not the diameter ratio. `M983.3 A0.4` is constant. **Filament
+type changes nothing** at 0.6 mm: the Basic/Matte pair has identical executable G-code (24 comment lines differ),
+because both presets share a 30 mm3/s limit there.
+
+**Unknown, and why it matters for mixed diameters.** The two per-nozzle `M620.10 A0/A1` lines are unambiguous. Which
+nozzle owns the `M620.11` F, the `M983.3` F and the `M1015.4` H cannot be read from any of these files, since the
+nozzles matched in each. Untested guess: `M620.11` the nozzle left, `M1015.4` the nozzle entered. A conservative
+default that needs no guess: `M620.10` per nozzle, every unowned F from the slower nozzle, `M1015.4` from the nozzle
+entered, labelled experimental with a supervised first print. Also unknown: whether the firmware accepts a mixed
+job at all (Bambu Studio's refusal is a slicer limit; the per-nozzle macro lines suggest the firmware is
+per-nozzle); the meaning of the `R` counter beyond 0 then 2; how much the tower purge matters when each nozzle keeps
+its own filament; and the temperature values, which are timing-derived in the slicer.
+
+**A dual job also starts differently.** SAAM's pinned H2D start is 291 lines for one nozzle. The dual reference
+start heats the second nozzle early (`M104 S220 T1`), carries `T1001` remap and per-nozzle `M620.10` lines, and
+pre-cools the idle nozzle (`M104 T0 S25 N0`) after start.
+
+**To finish, in order.** (1) Put the switch skeleton in the machine profile with the slots above, and prove it by
+regenerating all 14 reference switches byte for byte (the analysis script gives the slots). (2) A dual-job start
+variant. (3) Generate the purge or prime and the idle-nozzle temperatures as path actions with a stated policy
+(the reference prints a tower; SAAM may declare a smaller pad in the profile). (4) Teach the H2D interpreter
+(`bambu-player.mjs`) the block so bounds, feed and flow checks still cover the whole job. (5) Package metadata for
+two filaments and nozzles: `filament_sequence.json` (`nozzle_sequence`, `sequence`), `filament_maps`,
+`slice_info.config` filaments, nozzles and `layer_filament_lists`, and `project_settings.config`. (6) A supervised
+hardware print with equal diameters. (7) Only then mixed diameters: decide ownership, print supervised.
+
 ### X1 Carbon output contract
 
 X1 Carbon output is **experimental** and uses the same `bambu-gcode` adapter as

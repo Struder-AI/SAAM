@@ -44,9 +44,11 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
       rows.push([prefix+' · Independent faces',String(v.length)],
         [prefix+' · Centerline strokes',String(v.reduce((sum,network)=>sum+network.strokes.length,0))]);
       // A network with its own layer grid or bead width is shown by what it overrides.
-      for(const network of v)if(network.layers!==undefined||network.process){
+      for(const network of v)if(network.layers!==undefined||network.process||network.tool||network.baseMm){
         const own=[network.layers!==undefined?network.layers+' courses':null,network.process?.layerMm!==undefined?network.process.layerMm+' mm layers':null,
           network.process?.lineWidthMm!==undefined?network.process.lineWidthMm+' mm bead':null,network.process?.planarSpeedMmS!==undefined?network.process.planarSpeedMmS+' mm/s':null].filter(Boolean);
+        if(network.tool)own.unshift((network.tool.index===0?'Left':network.tool.index===1?'Right':'Nozzle '+network.tool.index)+' nozzle '+network.tool.nozzleMm+' mm');
+        if(network.baseMm)own.push('starts '+network.baseMm+' mm up');
         rows.push([network.id+' · Own line network process',own.join(' · ')||'Overrides the plan process']);
       }
       continue;

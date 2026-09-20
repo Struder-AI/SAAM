@@ -31,7 +31,10 @@ a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
 `rank` for ordering within a height batch, and `after` dependencies. Rank is a scheduling
 coordinate, not universally Z: planar fill uses layer height. Operations also
 provide strokes (3D points, speed, role, and either uniform bead area or per-segment
-volume/metadata) and travel-policy queries. Local `material` queries constrain
+volume/metadata) and travel-policy queries. An operation may also name a `tool` (a nozzle
+index): the composer keeps one nozzle's work together within a height, and the builder parks
+and records a `tool` action (`fromTool`, `toTool`; not `to`, which means a position) where it
+changes. Writers reject that action until a machine output declares a validated sequence. Local `material` queries constrain
 combing against completed operations; policies without them retain their
 conservative `clearanceFor` comparison. An operation is atomic; expose smaller
 operations when within-layer interleaving is permitted.
