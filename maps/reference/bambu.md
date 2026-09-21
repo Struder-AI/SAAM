@@ -164,6 +164,39 @@ refuses different diameters in one print ("Switch diameter"), so a mixed referen
 `CP_TOOLCHANGE_WIPE`). (3) A temperature routine outside the macro: the idle nozzle pre-cooled to a
 slicer-computed value (25, 102, 144 to 158 C), pre-heated to 210 C ahead of use, 220 C at the switch.
 
+**The prime tower, measured** (`node scripts/h2d-tower-analysis.mjs <slice.3mf> <model.step>`). The slicer labels it
+`; FEATURE: Prime tower`; separately, comparing the slice with the model's STEP file (a 100 x 100 x 4 mm plate) shows the
+model at a fixed offset (125.2 to 224.8, 110.2 to 209.8 on the bed) with **no tower move inside that footprint and no
+other move outside it**. The start-of-print purge line (`Custom`, y -0.5) is neither. For the 0.4 / 0.4 slice:
+
+| | |
+|---|---|
+| Position | x 155.5 to 179.8, y 236.7 to 259.7 at the back of the bed; the rows and grid are x 158.4 to 176.9 |
+| Height | printed on **every layer up to the layer of the last change** (layer 15 of 20, z 3.0 of 4.0) |
+| Layer 1 | 73 mm3 |
+| Each further layer | 18.6 mm3: a 3-column grid over x 158.4 to 176.9, y 239.8 to 256.1, and a wavy rounded outline (arcs) around it |
+| Each change layer | 50 mm3 = the 18.6 above plus a **31.4 mm3 flush** zigzag on top of the tower at that layer's z |
+| Total | 522 of 20,096 mm3 (2.6 %) |
+
+**The flush at a change**, in order: the old nozzle prints that layer's tower; it retracts and wipes (`E-1.9` along the
+tower); the macro runs (no extrusion in it: `M620.10 … L0`, the `;VG1`/`VFLUSH` lines are comments); the new nozzle
+returns to the tower, extrudes a 3 mm stub (0.27 mm3), retracts 0.4 mm and scribbles a 4.5 x 2 mm area at 10 mm/s
+without extruding (the nozzle wipe, `CP_TOOLCHANGE_WIPE`); it is heated to 220 C (`M104 T<n> S220 N0`); then 17 rows
+0.75 mm apart, 18.5 mm long, each 1.69 mm3 (0.457 x 0.2 mm), y 255.57 down to 243.57, with the feed rising from 1,782 to
+4,775 mm/min (2.7 to 7.3 mm3/s) and the part fan going to 100 % half way; then a 1 mm retract wipe and the return to the part.
+
+**What drives it** (`Metadata/project_settings.config` in each slice). Identical in the 0.4 and 0.6 mm slices:
+`filament_prime_volume` 30 mm3, `filament_minimal_purge_on_wipe_tower` 15, `prime_tower_width` 60,
+`prime_tower_rib_width` 8, `prime_tower_infill_gap` 150 %, `wipe_distance` 2, `prime_tower_fillet_wall` 1, tower position
+(155.927, 237.19), `filament_change_length_nc` 10 (the macro's `E-10`). **Not explained:** the same prime volume deposits
+31.4 mm3 per change in the 0.4 mm slice (0.2 mm layers) and 25.8 mm3 in the 0.6 mm slice (0.3 mm layers); nozzle and
+layer height changed together, so the dependence cannot be separated from these slices. Slices that would separate it,
+all of the same body: 0.4 / 0.4 at 0.1 and 0.3 mm layers; 0.4 / 0.4 at 0.2 mm with the prime volume changed; a taller
+part with changes early and late.
+
+SAAM's pad (`toolChange.purge`) reproduces the row geometry and volume of that flush but **not** the tower (it flushes on
+the bed at z 0.2, one layer higher per change), the stub and scribble wipe, the speed ramp or the fan step.
+
 **What varies** (14 switches, 7 per direction, two skeletons per direction: one extra commented path block):
 the lift `G1 Z…` (twice, equal, tracks the layer height); per nozzle `M620.10 A<n> F<flow> L0 H<dia> T240 P220 S1`;
 the `M620.11 K1 …` and `M620.11 S1 … F` retract lines and their `;VG1` comments; a counter `R` in `M620.10 R` and
