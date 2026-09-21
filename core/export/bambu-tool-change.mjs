@@ -1,4 +1,3 @@
-import {createHash} from 'node:crypto';
 import {requireThat} from '../geom/tolerance.mjs';
 
 // The H2D nozzle-change block. Firmware macros are allowed in a job's body only as this pinned template, rendered
@@ -6,8 +5,6 @@ import {requireThat} from '../geom/tolerance.mjs';
 // nozzle switch in the supplied Bambu Studio slices (scripts/h2d-derive-tool-change.mjs; maps/reference/bambu.md).
 // Diameters are equal on both nozzles: how the diameter tokens split across nozzles of different sizes is unknown.
 export const TOOL_CHANGE_BEGIN = ';SAAM_TOOLCHANGE_BEGIN', TOOL_CHANGE_END = ';SAAM_TOOLCHANGE_END';
-
-export const toolChangeDigest = config => createHash('sha256').update(JSON.stringify(config)).digest('hex');
 
 const NUMBER = '(-?\\d+(?:\\.\\d+)?)';
 const compiled = new WeakMap();

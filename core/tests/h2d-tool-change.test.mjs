@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {loadMachine} from '../machine/profile.mjs';
 import {defaults} from '../print/plan.mjs';
-import {checkBlock, changeLines, parseBlock, renderBlock, TOOL_CHANGE_BEGIN, TOOL_CHANGE_END, toolChangeDigest} from '../export/bambu-tool-change.mjs';
+import {checkBlock, changeLines, parseBlock, renderBlock, TOOL_CHANGE_BEGIN, TOOL_CHANGE_END} from '../export/bambu-tool-change.mjs';
+import {toolChangeDigest} from '../export/bambu.mjs';
 
 const machine = loadMachine('bambu-h2d'), config = machine.outputs[0].program.toolChange;
 const {switches} = JSON.parse(readFileSync(new URL('./fixtures/h2d-tool-change-switches.json', import.meta.url), 'utf8'));

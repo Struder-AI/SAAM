@@ -5,23 +5,6 @@ import {interpretDobotFiles} from '../core/export/dobot-player.mjs';
 import {interpretDensoFiles} from '../core/export/denso-player.mjs';
 import {moveStore} from './move-store.mjs';
 
-// Source replay does not consume printable geometry. Keep the worker message
-// bounded even when Studio's plan contains a large imported or voxelized mesh.
-// Tool declarations remain because H2D source validation uses them to replay
-// multi-nozzle changes and colors.
-export function playbackPlan(plan) {
-  const lineNetwork=plan.skills?.['line-network'];
-  return {
-    output:plan.output,
-    setup:plan.setup,
-    process:plan.process,
-    skills:{'line-network':{
-      enabled:lineNetwork?.enabled===true,
-      networks:(lineNetwork?.networks??[]).map(network=>network.tool?{tool:network.tool}:{})
-    }}
-  };
-}
-
 // Inputs are the exact checked machine source, plus its locked machine setup.
 // Both runtimes execute the same modal/Lua interpreter used by export checks.
 export function decodeSource(sources,plan,machine,{compact=true}={}) {

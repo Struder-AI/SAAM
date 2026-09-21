@@ -5697,11 +5697,14 @@ junction. All flight performance remains unvalidated.
 
 - Source: user report that Generate toolpath left the dice demo at “Machine player stopped.” The checked H2D archive
   and its 2,188-move interpreted program were already present; generation itself had succeeded.
-- Cause: Studio posted the complete plan to the source-playback worker. This demo's voxelized geometry made the state
-  response about 16 MB even though the source interpreters consume only output, setup, process, and line-network tool
-  declarations. The browser worker failed while receiving that unnecessary mesh payload.
+- Cause: the recent H2D nozzle-change interpreter added a browser dependency on `bambu-tool-change.mjs`, but Studio's
+  explicit module allowlist did not serve it, and that runtime validator still imported Node cryptography for an
+  export-only digest, so the source-playback worker could not start. Studio also posted the complete plan to that
+  worker: this demo's voxelized geometry made the state response about 16 MB even though replay consumes only output,
+  setup, process, and line-network tool declarations.
 - Change: `playbackPlan` builds the bounded source-replay contract and strips geometry, composition, strokes, and other
-  skill data before the worker message. H2D multi-nozzle tool declarations remain available to strict source checks;
-  the app imports it through Studio's explicit `/studio/` browser-dependency route.
+  skill data before the worker message. H2D multi-nozzle tool declarations remain available to strict source checks.
+  The missing H2D validator and a lightweight playback-plan helper now have explicit browser routes. The pinned
+  sequence digest remains in the Node-only Bambu exporter; the browser-safe validator no longer imports Node APIs.
 - Evidence: the focused source-player, playback-cache, and kinematics suites pass (18/18), including a regression with
   large synthetic geometry and line-network strokes. Browser verification against the dice bundle follows separately.

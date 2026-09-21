@@ -6,7 +6,7 @@ import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdg
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
-import {playbackPlan} from './studio/source-player.mjs';
+import {playbackPlan} from './studio/playback-plan.mjs';
 import {transform,untransform,machineFitBounds,boundsCorners,drawMachineCanvas,machinePalette} from './machine-view.mjs';
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
