@@ -184,9 +184,9 @@ Sources: [prepared-generation-job.mjs](../../studio/prepared-generation-job.mjs)
 
 ## Changing source workers and machine sessions
 
-Sources: [source-player.mjs](../../studio/source-player.mjs), [source-worker.mjs](../../studio/source-worker.mjs), [machine-session.mjs](../../studio/machine-session.mjs).
+Sources: [source-player.mjs](../../studio/source-player.mjs), [source-worker.mjs](../../studio/source-worker.mjs), [machine-session.mjs](../../studio/machine-session.mjs), [playback-plan.mjs](../../studio/playback-plan.mjs).
 
-**Contract.** Source loading checks exact file hashes and strict UTF-8/stream framing before dispatching to the same dialect interpreters used by export. Compact move storage replaces retained source/code when no longer needed. Worker request IDs, epochs and provider identity bind asynchronous loads/samples to the current machine session. Rebinding disposes the old provider; unavailable machine presentation does not invalidate otherwise valid source.
+**Contract.** Source loading checks exact file hashes and strict UTF-8/stream framing before dispatching to the same dialect interpreters used by export. The worker receives only the plan fields those interpreters consume; printable geometry and authored stroke payloads stay in the main Studio state. Compact move storage replaces retained source/code when no longer needed. Worker request IDs, epochs and provider identity bind asynchronous loads/samples to the current machine session. Rebinding disposes the old provider; unavailable machine presentation does not invalidate otherwise valid source.
 
 **Failures.** Reject missing/duplicate/unexpected source members, hash mismatches and malformed stream records. Cancel/release readers on all exits. Do not transfer/detach move buffers while a retained provider still needs them; stale sample results must be ignored.
 

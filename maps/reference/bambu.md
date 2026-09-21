@@ -25,7 +25,7 @@ nozzle while the selected nozzle and slice records carry the actual diameter.
 Package structure also follows [Bambu Studio's format implementation](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp).
 
 The pinned start/end arrays originate in the reference's executable blocks.
-Machine revision 10 uses `h2d-02.08.02.61-pla-textured-v3`, which omits startup
+Machine revision 14 uses `h2d-02.08.02.61-pla-textured-v3`, which omits startup
 triage item H10: initial X homing, early wiping-area moves, `M972 S24` and the
 `M1009`-bracketed Z-clearance/center-positioning/Z-homing sequence (13 lines). Adjacent
 object/bin checks and all later probing, calibration and priming remain; this
@@ -34,6 +34,22 @@ The v3 envelope adds a locked AMS selector placeholder to the otherwise pinned
 service sequence. It is the only recognized envelope; a bundle holding an
 earlier machine snapshot is recreated, with normal plan/toolpath review
 invalidation. Existing exports and delivery files are not rewritten.
+
+`setup.startupMode` is `full` by default. The explicit experimental `batch`
+mode selects the separately pinned `h2d-02.08.02.61-pla-textured-batch-v1`
+envelope for repeated, supervised production on an already prepared machine.
+It retains tool/AMS selection, heating, the 45 mm hot purge, front priming line,
+safe-Z positioning, the reference startup's minimum `G28 R` path, final setup
+and shutdown. It omits the per-job extrusion calibration branches, G29 bed
+probing, G383/G39 Z calibration, M970/M974 resonance measurement and automatic
+toolhead-offset calibration. Plate detection and firmware-conditioned service
+moves outside those named blocks remain. No explicit first-layer-inspection
+block exists in the pinned source, so none is removed. Batch mode is not a
+general safe-start replacement: it assumes the same plate and a machine whose
+bed, nozzle and mechanics remain valid from a recent full preparation. Software
+envelope checks do not establish that assumption; the first output requires a
+supervised physical test.
+
 Allowed substitutions are planned temperatures, selected physical heater,
 placed geometry's probe rectangle and whole-plan shutdown/parking clearance.
 The reference PLA purge recipe uses 240 °C and up to 25 mm³/s independently of

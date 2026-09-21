@@ -48,6 +48,7 @@ export function validateSetup(plan,machine,{required=false}={}) {
   // A colour only labels the job in the printer's own software; it is optional.
   requireThat(s.filamentColor==null||/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Filament color must be a six-digit hex color such as #28A090.');
   feederSelector(plan,machine);
+  if(Object.hasOwn(machine.defaultSetup,'startupMode'))requireThat(['full','batch'].includes(s.startupMode),'Bambu startup mode must be full or batch.');
   if(machine.id==='dobot-mg400'){
     validateDobotConfiguration(plan,machine,{required});
     requireThat(p.retractMm===0&&p.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');

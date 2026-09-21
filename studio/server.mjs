@@ -58,12 +58,12 @@ export async function annotateSourceSkew(error){
   return error;
 }
 // Explicit browser module allowlist; no generic repository/file serving.
-const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
+const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs','studio/playback-plan.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
   'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
-  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
+  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs','core/export/bambu-tool-change.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs','core/path/process-controls.mjs']);
 
 // Studio reviews whatever print it is opened on. A bundle names its own schema,

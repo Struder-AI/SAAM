@@ -1,5 +1,23 @@
 # Development log
 
+## 2026-09-21 — H2D batch startup envelope
+
+- Source: user requested a USB-transfer dice-demo output for repeated H2D cycles,
+  retaining priming while skipping per-job bed probing, flow calibration,
+  vibration compensation and toolhead-offset calibration.
+- Added an explicit locked `setup.startupMode` (`full` default, `batch` opt-in).
+  The batch program is derived from and independently hashed against the pinned
+  H2D v3 envelope; normal H2D output is unchanged.
+- The batch envelope retains heating, AMS/tool selection, hot purge, front prime,
+  minimum `G28 R` positioning, plate detection, final setup and shutdown. It
+  removes only the named extrusion-calibration, G29/G383/G39, M970/M974 and
+  automatic toolhead-offset blocks. The source has no explicit first-layer
+  inspection block to remove.
+- Software round-trip checks confirm retained/omitted commands and prevent batch
+  artifacts from reopening as full-startup jobs. This is not physical evidence:
+  the shortened sequence is experimental and requires a supervised first print
+  on the target H2D before repeated use.
+
 ## 2026-09-19 — Line text: words as centerline strokes, sized by intent
 
 - Source: user, as builder work (BR-054): print a spoken word in letters, starting
@@ -5674,3 +5692,19 @@ junction. All flight performance remains unvalidated.
 - Not verified: everything physical. No two-colour print has been made. The `M620.17 L` meaning is inferred from the
   slicer's own template, the purge size and idle-nozzle switch-off are policy choices, and Studio does not colour by
   nozzle yet. The first print must be supervised. Mixed diameters remain deferred (BR-058).
+
+## 2026-09-21 — Studio playback no longer copies printable geometry into its worker
+
+- Source: user report that Generate toolpath left the dice demo at “Machine player stopped.” The checked H2D archive
+  and its 2,188-move interpreted program were already present; generation itself had succeeded.
+- Cause: the recent H2D nozzle-change interpreter added a browser dependency on `bambu-tool-change.mjs`, but Studio's
+  explicit module allowlist did not serve it, and that runtime validator still imported Node cryptography for an
+  export-only digest, so the source-playback worker could not start. Studio also posted the complete plan to that
+  worker: this demo's voxelized geometry made the state response about 16 MB even though replay consumes only output,
+  setup, process, and line-network tool declarations.
+- Change: `playbackPlan` builds the bounded source-replay contract and strips geometry, composition, strokes, and other
+  skill data before the worker message. H2D multi-nozzle tool declarations remain available to strict source checks.
+  The missing H2D validator and a lightweight playback-plan helper now have explicit browser routes. The pinned
+  sequence digest remains in the Node-only Bambu exporter; the browser-safe validator no longer imports Node APIs.
+- Evidence: the focused source-player, playback-cache, and kinematics suites pass (18/18), including a regression with
+  large synthetic geometry and line-network strokes. Browser verification against the dice bundle follows separately.
