@@ -5692,3 +5692,15 @@ junction. All flight performance remains unvalidated.
 - Not verified: everything physical. No two-colour print has been made. The `M620.17 L` meaning is inferred from the
   slicer's own template, the purge size and idle-nozzle switch-off are policy choices, and Studio does not colour by
   nozzle yet. The first print must be supervised. Mixed diameters remain deferred (BR-058).
+
+## 2026-09-21 — Studio playback no longer copies printable geometry into its worker
+
+- Source: user report that Generate toolpath left the dice demo at “Machine player stopped.” The checked H2D archive
+  and its 2,188-move interpreted program were already present; generation itself had succeeded.
+- Cause: Studio posted the complete plan to the source-playback worker. This demo's voxelized geometry made the state
+  response about 16 MB even though the source interpreters consume only output, setup, process, and line-network tool
+  declarations. The browser worker failed while receiving that unnecessary mesh payload.
+- Change: `playbackPlan` builds the bounded source-replay contract and strips geometry, composition, strokes, and other
+  skill data before the worker message. H2D multi-nozzle tool declarations remain available to strict source checks.
+- Evidence: the focused source-player, playback-cache, and kinematics suites pass (18/18), including a regression with
+  large synthetic geometry and line-network strokes. Browser verification against the dice bundle follows separately.

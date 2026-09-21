@@ -9,10 +9,30 @@ import {initBundle,generateBundle,loadBundle} from '../print/bundle.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
 import {createStudio} from '../../studio/server.mjs';
-import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
+import {decodeSource,fetchSources,playbackPlan} from '../../studio/source-player.mjs';
 import {moveStore,moveBuffers} from '../../studio/move-store.mjs';
 import {frameAtTime} from '../../studio/playback.mjs';
 import {buildToolpathView,toolpathFrame} from '../../studio/toolpath-view.mjs';
+
+test('playback worker plan excludes geometry while preserving source-replay inputs',()=>{
+  const plan={
+    output:'bambu-gcode',setup:{tool:1,nozzleMm:.6,nozzleC:250},process:{maxFlowMm3S:42},
+    geometry:{shape:'mesh',triangles:new Array(1000).fill([0,0,0])},composition:{copies:6},
+    skills:{'line-network':{enabled:true,networks:[
+      {strokes:new Array(1000).fill([[0,0],[1,1]]),tool:{index:0,nozzleMm:.6,color:'#654321'}},
+      {strokes:[[[2,2],[3,3]]]}
+    ]},unrelated:{enabled:true}}
+  };
+  const compact=playbackPlan(plan);
+  assert.deepEqual(compact,{
+    output:plan.output,setup:plan.setup,process:plan.process,
+    skills:{'line-network':{enabled:true,networks:[{tool:plan.skills['line-network'].networks[0].tool},{}]}}
+  });
+  assert.equal(compact.geometry,undefined);
+  assert.equal(compact.composition,undefined);
+  assert.equal(compact.skills.unrelated,undefined);
+  assert.equal(compact.skills['line-network'].networks[0].strokes,undefined);
+});
 
 for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])test(`${id}: Studio plays exact machine source with identical motion, timing and layer controls`,async t=>{
   const machine=loadMachine(id),plan=defaults(machine);

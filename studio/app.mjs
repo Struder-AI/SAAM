@@ -6,6 +6,7 @@ import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdg
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
+import {playbackPlan} from './source-player.mjs';
 import {transform,untransform,machineFitBounds,boundsCorners,drawMachineCanvas,machinePalette} from './machine-view.mjs';
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -427,7 +428,7 @@ async function decodeInWorker(snapshot){
   machineSession?.dispose();requestingPose=null;
   machineSession=sourceSession(new Worker('/studio/source-worker.mjs',{type:'module'}));
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
-    plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
+    plan:playbackPlan(snapshot.plan),machine:snapshot.machine,program:{sources:snapshot.program.sources}});
 }
 function table(entries) {
   const dl=document.createElement('dl');
