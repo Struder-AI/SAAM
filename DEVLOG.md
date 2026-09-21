@@ -1,5 +1,23 @@
 # Development log
 
+## 2026-09-21 — H2D batch startup envelope
+
+- Source: user requested a USB-transfer dice-demo output for repeated H2D cycles,
+  retaining priming while skipping per-job bed probing, flow calibration,
+  vibration compensation and toolhead-offset calibration.
+- Added an explicit locked `setup.startupMode` (`full` default, `batch` opt-in).
+  The batch program is derived from and independently hashed against the pinned
+  H2D v3 envelope; normal H2D output is unchanged.
+- The batch envelope retains heating, AMS/tool selection, hot purge, front prime,
+  minimum `G28 R` positioning, plate detection, final setup and shutdown. It
+  removes only the named extrusion-calibration, G29/G383/G39, M970/M974 and
+  automatic toolhead-offset blocks. The source has no explicit first-layer
+  inspection block to remove.
+- Software round-trip checks confirm retained/omitted commands and prevent batch
+  artifacts from reopening as full-startup jobs. This is not physical evidence:
+  the shortened sequence is experimental and requires a supervised first print
+  on the target H2D before repeated use.
+
 ## 2026-09-19 — Line text: words as centerline strokes, sized by intent
 
 - Source: user, as builder work (BR-054): print a spoken word in letters, starting

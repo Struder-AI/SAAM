@@ -147,6 +147,7 @@ export function regionRows(plan){
 export function recipeRows(plan,machine){
   const composition=plan.composition,regions=composition?.regions??[],rows=[];
   rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm']);
+  if(machine?.id==='bambu-h2d'&&plan.setup.startupMode)rows.push(['Machine · Startup',plan.setup.startupMode==='batch'?'Batch · priming and minimum positioning; optional calibration omitted':'Full H2D startup']);
   if(composition){
     rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],
       ['Requested operation order',composition.order.length?composition.order.join(' → '):'Shared dependency order'],

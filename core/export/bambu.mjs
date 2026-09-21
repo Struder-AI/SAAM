@@ -17,18 +17,35 @@ const json=value=>JSON.stringify(value)+'\n';
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const meta=values=>Object.entries(values).map(([k,v])=>`    <metadata key="${k}" value="${xml(v)}"/>`).join('\n');
 const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.gcode';
+const BATCH_CONTRACT='h2d-02.08.02.61-pla-textured-batch-v1';
 // Updated only after reviewing changes to the firmware service contract.
 const ENVELOPE_HASHES={
   'h2d-02.08.02.61-pla-textured-v3':'913c45b16fb4f9fcefa0fb66174fcee1ff8f3fe55b11d0d486ea3339188ef610',
+  [BATCH_CONTRACT]:'97e0a336ec2a3874de9f9a4553f5f1e69472fb631e81806ff196f156da0fe6db',
   'x1c-02.08.02.61-pla-textured-v1':'85020a9b75d1468099f2313f08c24318a3bf5d7bed30e0ac8cc67a00cc8f43d6',
 };
 // The pinned nozzle-change sequence, reviewed separately from the start and end envelope.
 const TOOL_CHANGE_HASHES={
   'h2d-02.08.02.61-pla-textured-v3':'9be18024848d39d5b6f306d44c683c2f84413f958f112502e271e84ff07d1734',
+  [BATCH_CONTRACT]:'9be18024848d39d5b6f306d44c683c2f84413f958f112502e271e84ff07d1734',
 };
+const marker=(lines,value)=>{const found=lines.reduce((all,line,i)=>(line===value&&all.push(i),all),[]);requireThat(found.length===1,`Expected one H2D startup marker: ${value}`);return found[0];};
+function batchProgram(source){
+  requireThat(source.contract==='h2d-02.08.02.61-pla-textured-v3','Batch startup requires the reviewed H2D v3 source envelope.');
+  const start=[...source.start];
+  const extrusion=marker(start,'M1002 judge_flag extrude_cali_flag'),purge=start.indexOf('M106 P1 S0',extrusion);
+  requireThat(purge>extrusion,'Invalid H2D extrusion calibration boundary.');start.splice(extrusion,purge-extrusion);
+  const leveling=marker(start,'M1002 judge_flag g29_before_print_flag'),offset=marker(start,'M1002 judge_flag auto_cali_toolhead_offset_flag');
+  requireThat(offset>leveling,'Invalid H2D leveling boundary.');
+  start.splice(leveling,offset-leveling,'M190 S{bedC}','M109 S140 A','M106 S0','G91','G1 Z5 F1200','G90','G1 X175 Y160 F30000','G28 R','M190 S{bedC}');
+  const toolOffset=marker(start,'M1002 judge_flag auto_cali_toolhead_offset_flag'),offsetEnd=start.findIndex((line,i)=>i>toolOffset&&line==='M623'&&start[i+1]==='M400');
+  requireThat(offsetEnd>toolOffset,'Invalid H2D toolhead-offset boundary.');start.splice(toolOffset,offsetEnd-toolOffset+1);
+  return {...source,contract:BATCH_CONTRACT,start,end:[...source.end]};
+}
+function selectedOutput(plan,output){return (plan.setup.startupMode??'full')==='batch'?{...output,program:batchProgram(output.program)}:output;}
 function configuration(plan,machine){
   validateSetup(plan,machine);
-  const output=machine.outputs.find(o=>o.id===plan.output),s=plan.setup,k=output?.constraints;
+  const declared=machine.outputs.find(o=>o.id===plan.output),output=selectedOutput(plan,declared),s=plan.setup,k=output?.constraints;
   requireThat(plan.output==='bambu-gcode'&&Object.hasOwn(ENVELOPE_HASHES,output?.program?.contract),'Unsupported Bambu output contract.');
   const change=output.program.toolChange;
   if(change)requireThat(toolChangeDigest(change)===TOOL_CHANGE_HASHES[output.program.contract],'Unknown Bambu nozzle-change sequence; an interpreter update is required.');
@@ -52,19 +69,19 @@ function changeWriter(output,plan,machine){
     heater:a=>{requireThat(a.targetC===0||a.targetC===plan.setup.nozzleC,'Unplanned nozzle temperature.');return [`M104 T${machine.tools[a.tool].physicalExtruder} S${a.targetC} N0`];}
   };
 }
-function contextFor(path,plan,machine,release){
+function contextFor(path,plan,machine,release,output){
   const moves=path.actions.filter(a=>a.kind==='move'),points=[path.initialPosition,...moves.map(m=>m.to)];
   const deposits=moves.filter(m=>m.volumeMm3>0);requireThat(deposits.length,'Bambu output needs deposition.');
   const bounds=path.summary?.boundsMm;
   const layers=new Set(deposits.filter(m=>m.phase!=='prime').map(m=>`${m.phase}:${m.layer}`));
-  const context={schema:'saam-bambu-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
+  const context={schema:'saam-bambu-artifact/1',contract:output.program.contract,release,bounds,initialPosition:path.initialPosition,
     pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size};
   checkContext(context,plan,machine);return context;
 }
 function checkContext(c,plan,machine){
   const reach=usedTools(plan).map(tool=>toolBounds(machine,tool));
   const b={min:[0,1,2].map(i=>Math.max(...reach.map(r=>r.min[i]))),max:[0,1,2].map(i=>Math.min(...reach.map(r=>r.max[i])))};
-  const output=machine.outputs.find(o=>o.id===plan.output),k=output.constraints;
+  const output=selectedOutput(plan,machine.outputs.find(o=>o.id===plan.output)),k=output.constraints;
   requireThat(c?.schema==='saam-bambu-artifact/1'&&c.contract===output.program.contract&&JSON.stringify(c.initialPosition)===JSON.stringify(startupPosition(machine,plan)),'Invalid Bambu artifact context.');
   requireThat(c.bounds&&['min','max'].every(side=>Array.isArray(c.bounds[side])&&c.bounds[side].length===3&&c.bounds[side].every(Number.isFinite)),'Missing Bambu geometry bounds.');
   requireThat(c.bounds.min.every((v,i)=>v>=b.min[i]&&v<c.bounds.max[i])&&c.bounds.max.every((v,i)=>v<=b.max[i]),'Bambu geometry bounds exceed selected nozzle area.');
@@ -110,7 +127,7 @@ export function exportBambu(path,plan,machine,release){
 export function exportAndInterpretBambu(path,plan,machine,release){
   const output=configuration(plan,machine);
   const body=prelude(plan)+exportMotion(path,plan,{extrusionMode:'relative',toolChange:changeWriter(output,plan,machine)}).map(l=>l==='M107'?'M106 S0':l).join('\n')+'\n';
-  const c=contextFor(path,plan,machine,release),s=sections(c,plan,machine,output);
+  const c=contextFor(path,plan,machine,release,output),s=sections(c,plan,machine,output);
   const program=interpretBody(body,plan,machine);
   const code=header(c,program)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
   const bytes=packZip(packageEntries(code,c,program,plan,machine,output));

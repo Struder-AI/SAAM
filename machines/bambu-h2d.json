@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 13,
+  "revision": 14,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -151,6 +151,7 @@
     "material": "PLA",
     "filamentColor": null,
     "ams": null,
+    "startupMode": "full",
     "filamentMm": 1.75,
     "nozzleC": 215,
     "bedC": 60,

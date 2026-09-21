@@ -176,6 +176,21 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const edited=structuredClone(machine);edited.outputs[0].program.end.push('M999');assert.throws(()=>exportProgram(path,plan,edited,release),/Unknown Bambu firmware envelope/);
   assert.throws(()=>interpretProgram(bytes,plan,loadMachine('bambu-h2d')),'an X1 archive is not an H2D program');
 });
+test('H2D batch startup keeps priming and positioning while omitting optional per-job calibration',async()=>{
+  const {machine,plan}=fixture(1,0.6),path=generatePath(plan,machine,await rhino());plan.setup.startupMode='batch';
+  const bytes=exportProgram(path,plan,machine,release),code=unpackZip(bytes).get(GCODE).toString(),start=code.split(';SAAM_BODY_BEGIN\n')[0];
+  assert.equal(interpretProgram(bytes,plan,machine).envelope.contract,'h2d-02.08.02.61-pla-textured-batch-v1');
+  assert.doesNotMatch(start,/extrude_cali_flag|g29_before_print_flag|auto_cali_toolhead_offset_flag|^G29 A[12] |^G383(?:\.3)? |^G39\.1$|^M970|^M974/m);
+  assert.match(start,/M109 S215\nM83\nG1 E45 F623\.623/,'hot purge remains');
+  assert.match(start,/G1 X290 E10 F623\.623/,'front priming line remains');
+  assert.match(start,/M190 S60\nM109 S140 A\nM106 S0\nG91\nG1 Z5 F1200\nG90\nG1 X175 Y160 F30000\nG28 R\nM190 S60/,'minimal positioning and bed wait remain');
+  assert.match(start,/M620 S0A H-1[\s\S]*T0 H-1[\s\S]*M621 S0A/,'AMS/tool selection remains');
+  const full=structuredClone(plan);full.setup.startupMode='full';
+  const fullStart=unpackZip(exportProgram(path,full,machine,release)).get(GCODE).toString().split(';SAAM_BODY_BEGIN\n')[0];
+  assert.match(fullStart,/extrude_cali_flag/);assert.match(fullStart,/G29 A1 O /);assert.match(fullStart,/M970\.3/);assert.match(fullStart,/auto_cali_toolhead_offset_flag/);
+  assert.throws(()=>interpretProgram(bytes,full,machine),/artifact context/,'batch output cannot masquerade as full startup');
+  const invalid=structuredClone(plan);invalid.setup.startupMode='fast';assert.throws(()=>exportProgram(path,invalid,machine,release),/startup mode/);
+});
 test('ZIP format rejects unsafe names, damaged directories and unreferenced bytes',()=>{
   for(const name of ['../file','/file','a//b','a/./b','a\\b'])assert.throws(()=>packZip(new Map([[name,'x']])),/name/);
   const bytes=packZip(new Map([['test','content']]));assert.equal(unpackZip(bytes).get('test').toString(),'content');
