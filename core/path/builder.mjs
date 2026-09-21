@@ -38,6 +38,7 @@ export class PathBuilder {
     this.pose=motion?structuredClone(motion.initialPose):null;
     this.retracted = false;
     this.tool = tool; // the nozzle in use, or null for a machine with one
+    this.toolChange = null; // the output's nozzle-change sequence, when it has one
     this.phase = 'start';
     this.layer = 0;
     this.layerSeconds = 0;
@@ -113,17 +114,51 @@ export class PathBuilder {
   fan(percent) { this.actions.push({ kind: 'fan', percent, phase: this.phase, layer: this.layer }); }
 
   // Change to another nozzle: park at clearance, record the change, and adopt the new nozzle's bounds.
-  // The machine's own sequence decides where the head goes and how the new nozzle is primed. Parking has
-  // already raised the head, and combing only happens at one height, so the next travel is a lifted hop.
+  // The machine's own sequence (`toolChange`, from the output profile) decides where the head goes: it lifts
+  // clear of everything moved so far, runs the change at its fixed entry point, and the new nozzle is then
+  // primed on a small pad. Without a declared sequence the change is recorded and the exporter refuses it.
   switchTool(index) {
     if (index === this.tool) return;
     requireThat(Number.isInteger(index) && index >= 0, 'Invalid tool index.');
     this.park();
-    this.actions.push({kind: 'tool', fromTool: this.tool, toTool: index, phase: this.phase, layer: this.layer, operation: this.operationId});
+    const change = this.toolChange, action = {kind: 'tool', fromTool: this.tool, toTool: index, phase: this.phase, layer: this.layer, operation: this.operationId};
+    if (change) {
+      // A lift the profile's clearance rule allows, at the export's written precision: the tallest point the head has reached, plus the margin.
+      const reached = Math.max(this.start[2], ...this.actions.filter(a => a.kind === 'move').map(a => a.to[2]));
+      action.lift = Math.ceil(Math.max(change.lift.minMm, reached + change.lift.aboveWorkMm) * 1000 - 1e-6) / 1000;
+      action.position = [change.entry.x, change.entry.y, action.lift];
+    }
+    this.actions.push(action);
+    this.changes = (this.changes ?? 0) + 1;
     this.tool = index;
     if (this.boundsFor) this.motionBounds = this.boundsFor(index);
+    if (action.position) this.position = [...action.position];
     this.retracted = false;
     this.moveRun = null;
+    if (change?.purge) this.purge(change.purge, action.lift);
+  }
+
+  // Flush the new nozzle on a pad at the machine's service edge, then leave lifted and retracted like any hop.
+  // Rows alternate direction; each change prints one pad layer higher so a later pad never meets an earlier one.
+  purge({x0, x1, y0, pitchMm, volumeMm3}, lift) {
+    const p = this.process, area = p.lineWidthMm * p.layerMm, length = x1 - x0;
+    const rows = Math.ceil(volumeMm3 / (area * (length + pitchMm)));
+    const z = p.firstLayerMm + (this.changes - 1) * p.layerMm, deposit = {role: 'prime'};
+    const context = [this.phase, this.layer];
+    this.setContext('prime', this.changes - 1);
+    this.move([x0, y0, lift], p.travelSpeedMmS);
+    this.move([x0, y0, z], p.zSpeedMmS);
+    this.recover();
+    let x = x0;
+    for (let row = 0; row < rows; row++) {
+      const y = y0 + row * pitchMm, far = x === x0 ? x1 : x0;
+      if (row > 0) this.move([x, y, z], p.firstLayerSpeedMmS, pitchMm * area, deposit);
+      this.move([far, y, z], p.firstLayerSpeedMmS, length * area, deposit);
+      x = far;
+    }
+    this.retract();
+    this.move([x, y0 + (rows - 1) * pitchMm, lift], p.zSpeedMmS);
+    this.setContext(...context);
   }
 
   nozzle(targetC) {

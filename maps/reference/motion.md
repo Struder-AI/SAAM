@@ -363,15 +363,15 @@ Sources: [compose.mjs](../../core/path/compose.mjs).
 
 ## Changing path state and travel
 
-Sources: [builder.mjs](../../core/path/builder.mjs), [comb.mjs](../../core/path/comb.mjs), [material.mjs](../../core/path/material.mjs).
+Sources: [builder.mjs](../../core/path/builder.mjs), [comb.mjs](../../core/path/comb.mjs), [heat.mjs](../../core/path/heat.mjs), [material.mjs](../../core/path/material.mjs).
 
-**Contract.** PathBuilder owns sequential position, extrusion/retraction and action state for emitted motion. Combing computes permitted travel against known material regions; material tracking supplies the deposited-region model used by later travel. Geometry queries and previous deposition guide routing, without claiming a full machine collision simulation.
+**Contract.** PathBuilder owns sequential position, extrusion/retraction and action state for emitted motion. A nozzle change is a `tool` action carrying its lift and entry position, followed by prime strokes on the profile's purge pad; `scheduleHeaters` then adds `heater` (and, when the print is too short to heat in time, `dwell`) actions on the finished path so the next nozzle is at temperature a lead time before its change. Combing computes permitted travel against known material regions; material tracking supplies the deposited-region model used by later travel. Geometry queries and previous deposition guide routing, without claiming a full machine collision simulation.
 
 **Failures.** Invalid motion/state and impossible constrained travel must fail or use only the documented fallback. A missing material region is not proof of clear travel. Do not silently omit retract/recover, stationary actions or short material-bearing segments.
 
 **Change together.** Review composition, stroke footprints, machine clearances/capabilities and source interpreters together. Preserve command order and operation metadata when coalescing moves.
 
-**Verification.** Use hole crossings, disconnected islands, already deposited material, short/straight segments and retract/recover transitions; inspect actual resulting route and volume. Checks: [travel.test.mjs](../../core/tests/travel.test.mjs), [material-travel.test.mjs](../../core/tests/material-travel.test.mjs), [straight-moves.test.mjs](../../core/tests/straight-moves.test.mjs).
+**Verification.** Use hole crossings, disconnected islands, already deposited material, short/straight segments and retract/recover transitions; inspect actual resulting route and volume. Checks: [travel.test.mjs](../../core/tests/travel.test.mjs), [material-travel.test.mjs](../../core/tests/material-travel.test.mjs), [straight-moves.test.mjs](../../core/tests/straight-moves.test.mjs), [heat.test.mjs](../../core/tests/heat.test.mjs), [multi-tool.test.mjs](../../core/tests/multi-tool.test.mjs).
 
 
 ## Changing deposition spacing and process controls

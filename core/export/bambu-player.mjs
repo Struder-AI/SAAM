@@ -1,17 +1,25 @@
 import {interpretMotion} from './griffin.mjs';
+import {checkBlock,TOOL_CHANGE_BEGIN,TOOL_CHANGE_END} from './bambu-tool-change.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds} from '../machine/rules.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 export const prelude=plan=>`G90\nG21\nM83\nG92 E0\nM190 S${plan.setup.bedC}\nM109 S${plan.setup.nozzleC}\n`;
 export function interpretBody(body,plan,machine,options={}){
   requireThat(body.startsWith(prelude(plan)),'Bambu body is missing its explicit modal/temperature state.');
-  // Physical T selectors and firmware macros belong only to the pinned envelope.
-  for(const line of gcodeLines(body))requireThat(!/^T\d/.test(line.trim()),'Bambu body cannot change the selected tool.');
+  // Physical T selectors and firmware macros belong only to the pinned envelope and to the pinned nozzle-change
+  // block, which the interpreter reads whole and checks exactly against its template.
+  let inside=false;
+  for(const line of gcodeLines(body)){
+    if(line===TOOL_CHANGE_BEGIN){inside=true;continue;}
+    if(line===TOOL_CHANGE_END){inside=false;continue;}
+    if(!inside)requireThat(!/^T\d/.test(line.trim()),'Bambu body cannot change the selected tool.');
+  }
+  const change=machine.outputs.find(o=>o.id===plan.output)?.program?.toolChange??null;
   const bounds=toolBounds(machine,plan.setup.tool),start=[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm];
   requireThat(start.every((v,i)=>v>=bounds.min[i]-1e-5&&v<=bounds.max[i]+1e-5),'Bambu body exceeds selected nozzle area.');
   // interpretMotion checks each decoded endpoint against these same bounds;
   // each following segment starts at the preceding checked endpoint.
-  return interpretMotion(body,plan,machine,{...options,extrusionMode:'relative'});
+  return interpretMotion(body,plan,machine,{...options,extrusionMode:'relative',toolChange:change?{check:(lines,state)=>checkBlock(change,lines,state)}:null});
 }
 
 export function interpretBambuSource(code,plan,machine,options={}) {

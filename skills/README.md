@@ -48,7 +48,7 @@ Describe a container by one boundary (inner or outer) and a wall thickness inste
 | [width-calibration](width-calibration/SKILL.md) | Print a small calibration ladder to check whether commanded bead widths come out as expected. A closed low frame ties together upright walls commanded at different widths, each on its own layer height, printed finest first, with 5 mm centerline spacing so calipers can measure each wall. Use before trusting a commanded width in line-network or line-text. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Add catalog-sized heat-set insert bores with four local wall loops and ribs that tie those loops to the surrounding infill, an optional lead-in chamfer, and blind or through-hole depth from either flat exterior face. Uses shared planar fill, infill, assemblies, and material regions. Includes SPIROL Series 19/29, CNC Kitchen, and one McMaster-Carr selection, covering metric M2–M10 and imperial 2-56–1/2"-13; insertion faces must be flat and normal to Z. |
-| [wing-design](wing-design/SKILL.md) | Plan a 3D printed wing with the user. Workspace stub for developing the design workflow together; wing geometry generation, structural design and aerodynamic analysis are not implemented. |
+| [wing-design](wing-design/SKILL.md) | Explore wing design in a local prototype with source-backed airfoils and an orbitable assembly. Generate a developmental Clark Y continuous-vase sample; full aircraft design, validated full-span toolpaths and aerodynamic/structural analysis remain unsupported. |
 
 <!-- END GENERATED SKILL DIGEST -->
 

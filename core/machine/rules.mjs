@@ -108,7 +108,7 @@ export function requireMachine(machine,capabilities,skill) {
 
 // Validate SAAMpath independently of the chosen machine-program language.
 export function checkMachinePath(path,plan,machine) {
-  const bounds=toolBounds(machine,plan.setup.tool),area=Math.PI*(plan.setup.filamentMm/2)**2;
+  let bounds=toolBounds(machine,plan.setup.tool);const area=Math.PI*(plan.setup.filamentMm/2)**2;
   let from=path.initialPosition;
   const point=p=>requireThat(Array.isArray(p)&&p.length===3&&p.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]-1e-7&&v<=bounds.max[i]+1e-7),'SAAMpath exceeds selected tool bounds.');
   point(from);
@@ -125,6 +125,9 @@ export function checkMachinePath(path,plan,machine) {
     } else if(action.kind==='temperature'){
       requireProcessControl(machine);validateNozzleC(action.targetC,plan,machine);
       requireThat(plannedNozzleTemperatures(plan).has(action.targetC),'Unplanned operation temperature.');
+    } else if(action.kind==='tool'){
+      // Later moves are held to the new nozzle's reach; the machine's own sequence leaves the head at the recorded position.
+      bounds=toolBounds(machine,action.toTool);if(action.position){point(action.position);from=action.position;}
     } else if(['retract','recover'].includes(action.kind))requireThat(action.speedMmS<=machine.maxFeedMmS.e&&(machine.id!=='dobot-mg400'||action.filamentMm===0),'Machine extruder feed exceeded or relay retraction unsupported.');
     else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
   }

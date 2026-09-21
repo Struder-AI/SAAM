@@ -66,7 +66,7 @@
 - Decision: mixed diameters are deferred (BR-058). The demo is two colours on two 0.4 mm nozzles, which still needs
   the H2D to change nozzles in one job (BR-057); the 0.4 mm and 0.4 mm reference is the one it needs.
 - Preserved: the measurements, slot table, unknowns, the code that exists, and the ordered steps to finish are in the
-  H2D output contract ([nozzle changes](maps/reference/bambu.md#nozzle-changes-and-mixed-nozzle-diameters-studied-not-exported)),
+  H2D output contract ([nozzle changes](maps/reference/bambu.md#nozzle-changes-and-mixed-nozzle-diameters)),
   which owns that machine's output; `scripts/h2d-switch-analysis.mjs` reproduces the analysis from any dual-nozzle
   slices (2 tests, run on the three real references); the three slices themselves stay outside Git and are recorded by
   hash. The entry below and the two before it are the dated evidence.
@@ -5633,3 +5633,44 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   three region-composition failures that already fail on a clean checkout of
   `e783862` and are unrelated to this change. A new regression generates a
   wall above 100000 points on the exact path and reads old budgets as inert.
+
+## 2026-09-20 — Clark Y continuous-vase construction coupon
+
+Built a first-principles 200 mm nominal chord / 200 mm span sample in the wing
+skill, with 5 mm bores at 30/60% chord, 2.5 mm weld troughs and shallow diagonal
+skin cuts. Diagonal penetration fades at protected nose/tail/cap regions to avoid
+orphan islands. This is a sample solid, not the conventional display-rib assembly.
+Shared solid/mesh validation and offset checks pass at 1,000 regular stations and
+2,056 feature-adjacent stations. The focused coupon regression passes. No islands
+are discarded. The existing exact vase producer generated a separate first-5-mm
+proof as one stroke (44,487 points); full-span rising motion and physical printing
+remain unverified. Personal mesh, diagnostic plots, geometry-only 3MF and review
+bundle are under `Prints/development/clark-y-vase-200`. Current joins between shallow
+stiffeners and deep spar webs terminate through skin lands, not a fully merged
+junction. All flight performance remains unvalidated.
+
+## 2026-09-20 — H2D two-colour output for equal nozzles; the two-colour demo exports
+
+- Source: user: "its silly that we cant do a two color switching print. We need to be able to do that."
+- Change: a job may change nozzles on the H2D when both nozzles have the same diameter (BR-057). The nozzle change is a
+  pinned 44-line template in the machine profile (`program.toolChange`), rendered from numeric slots by
+  `core/export/bambu-tool-change.mjs`, digest-pinned in `core/export/bambu.mjs`, and read back by the strict
+  interpreter, which checks every line and the departing nozzle, lift clearance, fans, counter, diameters and pre-heat
+  time. The template regenerates all 14 real Bambu Studio switches byte for byte. Body firmware macros stay refused
+  everywhere else.
+- Path side: the change lifts clear of everything reached, records its entry position, then flushes the new nozzle on
+  a purge pad (`PathBuilder.purge`, one layer higher per later change); `core/path/heat.mjs` heats the next nozzle 150 s
+  ahead, waits for any shortfall, and switches an idle nozzle off. `summary.boundsMm` for line-network paths is now the
+  deposited toolpath (it was the placeholder geometry, which mis-sized the bed-leveling probe area). Package metadata
+  lists each filament; a single-nozzle package is unchanged. The two-filament start differs from the single one only
+  in `M620.17 T0 … L1`.
+- Demo: `skills/line-text/scripts/panel.mjs` now builds the panel for two 0.4 mm nozzles (bead range 0.3 to 0.8 mm,
+  0.3 mm layers) with per-nozzle colours and a `--patch` plan for `core/print/cli.mjs adjust`;
+  `Prints/development/two-color-demo` generates and exports a 140 x 128 mm panel: 25 minutes estimated, one nozzle
+  change, 3,920 mm3 (34 mm3 of it the purge).
+- Evidence: 12 new tests (`h2d-two-color`, `heat`) and updated `multi-tool` and panel tests; mutations (no heater
+  scheduling, lift ignoring height, no purge) each fail a test. Full suite 45 failures, the same as the pre-existing
+  baseline; dev-map check passes.
+- Not verified: everything physical. No two-colour print has been made. The `M620.17 L` meaning is inferred from the
+  slicer's own template, the purge size and idle-nozzle switch-off are policy choices, and Studio does not colour by
+  nozzle yet. The first print must be supervised. Mixed diameters remain deferred (BR-058).

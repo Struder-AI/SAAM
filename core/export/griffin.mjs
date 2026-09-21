@@ -2,6 +2,7 @@ import { distance, requireThat } from '../geom/tolerance.mjs';
 import {gcodeLines} from './gcode-lines.mjs';
 import {toolBounds,startupRetracted} from '../machine/rules.mjs';
 import {plannedNozzleTemperatures,validateNozzleC} from '../path/process-controls.mjs';
+import {TOOL_CHANGE_BEGIN,TOOL_CHANGE_END} from './bambu-tool-change.mjs';
 const number = (v,min,max,name) => requireThat(Number.isFinite(v) && v>=min && v<=max, `${name} outside limits.`);
 // One G4 carries at most this many milliseconds; it is what the firmware reads
 // from a single command, not a limit on how long a path may pause.
@@ -44,12 +45,14 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
 }
 
 // The same volumetric SAAMpath actions and rounding rules feed every dialect.
-export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
+const NO_TOOL_CHANGE='This job changes nozzles, and this machine output declares no validated nozzle-change sequence, so it cannot be exported. Use one nozzle, or supply a reference export of a nozzle change.';
+// `toolChange` is the machine output's validated way to change nozzles: {change(action,{fan,changeIndex}) -> {lines,position}, heater(action) -> lines}.
+export function exportMotion(path,plan,{extrusionMode='absolute',toolChange=null}={}) {
   validatePath(path);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const relativeE=extrusionMode==='relative';
   const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2;
-  let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition];
+  let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition],fanS=0,changes=0;
   // This body is also embedded in machine templates. Establish XYZ and feed on
   // its first use, then rely only on modal state written by this exporter.
   const modal={};
@@ -110,14 +113,20 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
       const nextE=Number((relativeE?filamentMm:e).toFixed(5));
       motion('G1',null,nextE,a.speedMmS*60);
       if(!relativeE)writtenE=nextE;
-    } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);
+    } else if(a.kind==='fan'){fanS=a.percent===0?0:Math.round(a.percent*255/100);lines.push(a.percent===0?'M107':`M106 S${fanS}`);}
     else if(a.kind==='dwell'){
       // A longer pause is the same pause in commands the firmware accepts; the
       // parts sum to the requested milliseconds, so the wait is not shortened.
       let remaining=Math.ceil(a.seconds*1000);
       do{const part=Math.min(remaining,DWELL_COMMAND_MS);lines.push(`G4 P${part}`);remaining-=part;}while(remaining>0);
     }
-    else if(a.kind==='tool') throw new Error('This job changes nozzles, and this machine output declares no validated nozzle-change sequence, so it cannot be exported. Use one nozzle, or supply a reference export of a nozzle change.');
+    else if(a.kind==='tool'){
+      requireThat(toolChange,NO_TOOL_CHANGE);
+      const out=toolChange.change(a,{fan:fanS,changeIndex:changes++});
+      lines.push(...out.lines);writtenPosition=out.position;
+      for(const key of Object.keys(modal))delete modal[key]; // the macro leaves its own modal feed and position
+    }
+    else if(a.kind==='heater'){requireThat(toolChange,NO_TOOL_CHANGE);lines.push(...toolChange.heater(a));}
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
   }
   return lines;
@@ -130,8 +139,8 @@ export const interpretGriffin=(text,plan,machine,options={})=>interpretGcode(tex
 // It still requires explicit units, modes, tool and temperature waits. This is
 // the same modal engine as Griffin, without inventing a Griffin header.
 export const interpretMotion=(text,plan,machine,{extrusionMode='absolute',...options}={})=>interpretGcode(text,plan,machine,true,extrusionMode,options);
-function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute',{moves=[]}={}) {
-  const bounds=toolBounds(machine,plan.setup.tool);
+function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute',{moves=[],toolChange=null}={}) {
+  let bounds=toolBounds(machine,plan.setup.tool);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2;
   // Withdrawn filament that has not been recovered. The material profile states
@@ -144,6 +153,10 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   let pos=[...machine.tools[s.tool].startupXY,startupZ],e=0,feed=0,absolute=null,absE=null,metric=false;
   let tool=bodyOnly?s.tool:null,nozzle=0,bed=0,hot=false,bedReady=false,fan=0,debt=0,startupRecoveryPending=startupRetracted(machine,plan),phase='startup',layer=-1,time=0,volume=0,operation='';
   const events=[],header={};
+  // Nozzle changes: each nozzle's heater target and when it reached the planned temperature, by tool index.
+  const physicalOf=i=>machine.tools[i]?.physicalExtruder??i,targets=new Map(),heatedAt=new Map();
+  const heat={targetC:i=>targets.get(i)??0,secondsHot:i=>heatedAt.has(i)?time-heatedAt.get(i):0};
+  let block=null,changes=0;
   let extrusionMoves=0;
   const motionMin=[Infinity,Infinity,Infinity],motionMax=[-Infinity,-Infinity,-Infinity];
   let inHeader=false,endedHeader=bodyOnly;
@@ -151,6 +164,16 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
   let line=0;
   for(const raw of gcodeLines(text)) {
     line++;
+    // A nozzle-change block is read whole and checked against the pinned template; the strict engine below never sees its firmware commands.
+    if(block!==null){
+      if(raw===TOOL_CHANGE_END){
+        const effect=toolChange.check(block,{plan,machine,tool,fan,maxZ:motionMax[2],changeIndex:changes++,heat,boundsOf:i=>toolBounds(machine,i)});
+        tool=effect.to;bounds=toolBounds(machine,tool);pos=[...effect.position];nozzle=plan.setup.nozzleC;hot=true;debt=0;startupRecoveryPending=false;fan=effect.fan;
+        events.push({line,kind:'tool',tool,positionMm:[...pos]});block=null;
+      } else block.push(raw);
+      continue;
+    }
+    if(raw===TOOL_CHANGE_BEGIN){requireThat(toolChange,`Nozzle change block at line ${line} in a program that cannot contain one.`);block=[];continue;}
     const trim=raw.trim();
     if(trim===';START_OF_HEADER'){requireThat(!inHeader&&!endedHeader&&line===1,'Malformed Griffin header.');inHeader=true;continue;}
     if(trim===';END_OF_HEADER'){requireThat(inHeader,'Malformed Griffin header.');inHeader=false;endedHeader=true;continue;}
@@ -187,10 +210,20 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
       case 'T0':case 'T1':only('');requireThat(Number(command[1])===s.tool,'Unexpected tool change.');tool=Number(command[1]);break;
       case 'M190':case 'M140':
         only('S','S');number(args.S,...machine.temperatureLimitsC.bed,'Bed temperature');bed=args.S;bedReady=command==='M190';events.push({line,kind:'bed',target:bed,wait:bedReady});break;
-      case 'M109':case 'M104':
-        only('ST','S');requireThat(args.T===undefined||args.T===s.tool,'Temperature addressed to unexpected tool.');
+      case 'M109':case 'M104': {
+        only('STN','S');
+        const target=args.T===undefined?tool:machine.tools.findIndex((_,i)=>physicalOf(i)===args.T);
+        requireThat(target>=0,'Temperature addressed to an unknown tool.');
+        requireThat(args.T===undefined||target===s.tool||(toolChange&&command==='M104'),'Temperature addressed to unexpected tool.');
+        requireThat(args.N===undefined||(toolChange&&command==='M104'&&args.N===0),'Unsupported temperature argument.');
         requireThat(args.S===0||(args.S>=machine.temperatureLimitsC.nozzle[0]&&args.S<=machine.temperatureLimitsC.nozzle[1]),'Nozzle temperature outside limits.');
-        nozzle=args.S;hot=command==='M109';events.push({line,kind:'nozzle',target:nozzle,wait:hot});break;
+        if(args.S===0)heatedAt.delete(target);
+        else if(command==='M109')heatedAt.set(target,-1e9); // waited: ready
+        else if(targets.get(target)!==args.S)heatedAt.set(target,time);
+        targets.set(target,args.S);
+        if(target===tool){nozzle=args.S;hot=command==='M109';}
+        events.push({line,kind:'nozzle',target:args.S,wait:command==='M109',tool:target});break;
+      }
       case 'G92':only('E','E');e=args.E;break;
       case 'M106':only('S','S');number(args.S,0,255,'Fan');fan=args.S;events.push({line,kind:'fan',value:fan});break;
       case 'M107':only('');fan=0;events.push({line,kind:'fan',value:fan});break;
@@ -198,7 +231,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
       case 'G4':only('P','P');number(args.P,0,DWELL_COMMAND_MS,'Dwell milliseconds');events.push({line,kind:'dwell',seconds:args.P/1000,startSeconds:time});time+=args.P/1000;break;
       case 'G0':case 'G1': {
         only('XYZEF');requireThat(Object.keys(args).length>0,'Empty move.');
-        requireThat(metric&&absolute!==null&&absE!==null&&tool===s.tool&&hot&&bedReady,'Unknown initial motion state.');
+        requireThat(metric&&absolute!==null&&absE!==null&&tool!==null&&hot&&bedReady,'Unknown initial motion state.');
         if(args.F!==undefined){requireThat(args.F>0,'Feed must be positive.');feed=args.F/60;}
         requireThat(feed>0,'Move has no feed.');
         const next=pos.map((v,i)=>args['XYZ'[i]]===undefined?v:(absolute?args['XYZ'[i]]:v+args['XYZ'[i]]));
@@ -212,7 +245,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
           if(de>1e-8){requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,'Extrusion without the planned temperature waits.');requireThat(debt<1e-4,'Extrusion while retracted.');}
           const v=Math.max(0,de)*area;
           requireThat(v/duration<=plan.process.maxFlowMm3S+0.03,`Flow exceeds locked limit at line ${line}.`);
-          moves.push({line,from:[...pos],to:next,extruding:de>1e-8,volumeMm3:v,speedMmS:feed,phase,layer,operation,fan,startSeconds:time,durationSeconds:duration});
+          moves.push({line,from:[...pos],to:next,extruding:de>1e-8,volumeMm3:v,speedMmS:feed,phase,layer,operation,fan,tool,startSeconds:time,durationSeconds:duration});
           if(de>1e-8)extrusionMoves++;
           for(let i=0;i<3;i++){motionMin[i]=Math.min(motionMin[i],pos[i],next[i]);motionMax[i]=Math.max(motionMax[i],pos[i],next[i]);}
           volume+=v;time+=duration;
@@ -226,7 +259,7 @@ function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute
             requireThat(hot&&bedReady&&temperatures.has(nozzle)&&bed===s.bedC,'Stationary extrusion without planned temperature waits.');
             const seconds=de/feed,v=de*area;
             requireThat(v/seconds<=plan.process.maxFlowMm3S+0.003,'Stationary extrusion exceeds locked material flow.');
-            moves.push({line,from:[...pos],to:[...pos],extruding:true,volumeMm3:v,speedMmS:0,phase,layer,operation,fan,startSeconds:time,durationSeconds:seconds});
+            moves.push({line,from:[...pos],to:[...pos],extruding:true,volumeMm3:v,speedMmS:0,phase,layer,operation,fan,tool,startSeconds:time,durationSeconds:seconds});
             events.push({line,kind:'injection',positionMm:[...pos],volumeMm3:v,nozzleC:nozzle,phase,layer,operation,startSeconds:time,seconds});
             volume+=v;time+=seconds;extrusionMoves++;
             for(let i=0;i<3;i++){motionMin[i]=Math.min(motionMin[i],pos[i]);motionMax[i]=Math.max(motionMax[i],pos[i]);}
@@ -276,7 +309,8 @@ export function validatePath(path) {
     else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
     else if(a.kind==='fan') number(a.percent,0,100,'Fan');
     else if(a.kind==='dwell') requireThat(Number.isFinite(a.seconds)&&a.seconds>=0,'Dwell outside limits.');
-    else if(a.kind==='tool') throw new Error('This job changes nozzles, and this machine output declares no validated nozzle-change sequence, so it cannot be exported. Use one nozzle, or supply a reference export of a nozzle change.');
+    else if(a.kind==='tool')requireThat(Number.isInteger(a.toTool)&&a.toTool>=0&&(a.fromTool===null||Number.isInteger(a.fromTool)),'Invalid nozzle change.');
+    else if(a.kind==='heater')requireThat(Number.isInteger(a.tool)&&a.tool>=0&&Number.isFinite(a.targetC)&&a.targetC>=0,'Invalid nozzle heater action.');
     else throw new Error('Unsupported SAAMpath action: '+a.kind);
   }
 }

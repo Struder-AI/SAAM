@@ -180,3 +180,20 @@ from [compile.mjs](scripts/compile.mjs), which returns `lineNetwork` settings, t
 measurement, size-driven planning, snapping, parallel beads and an end-to-end run
 through line-network validation and path generation. After adding a font run
 `node skills/line-text/scripts/build-manifest.mjs`.
+
+## A two-colour panel (demo)
+
+`scripts/panel.mjs` builds a flat panel of three lines of lettering over a sparse crossed-infill background, as
+[line-network](../line-network/SKILL.md#networks-on-their-own-nozzle-above-a-base) settings for two nozzles of the same
+diameter: the background on the left nozzle and the lettering, in its own colour, on the right nozzle above it.
+
+```sh
+node skills/line-text/scripts/panel.mjs /tmp/panel.png --patch /tmp/panel-patch.json   # preview + plan patch
+node core/print/cli.mjs init Prints/development/two-color-demo --machine bambu-h2d
+node core/print/cli.mjs adjust Prints/development/two-color-demo /tmp/panel-patch.json
+node core/print/cli.mjs generate Prints/development/two-color-demo
+```
+
+On the H2D this exports as one two-colour job with a nozzle change; the panel is centered on the bed, clear of the purge
+pad. Nothing has been printed yet: the first print must be supervised
+([the output contract](../../maps/reference/bambu.md#nozzle-changes-and-mixed-nozzle-diameters)).

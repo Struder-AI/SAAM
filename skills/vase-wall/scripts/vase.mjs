@@ -164,20 +164,40 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
       mappedPoint:(u,z,offset)=>{const p=[...prepared.at(u,z,offset),z];return reference?reference.map(p):p;},mappingErrorMm,onProgress,
       sectionReport:()=>({sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report,...reference?.report()})});
   }
-  const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
+  // Exact mesh sections can contain many tiny routed features. Prepare their
+  // existing arc-length correspondence over Z instead of rebuilding a mesh cut
+  // and offset at every spiral vertex. Offset is fixed for this plain wall.
+  // The shared family checks the whole perimeter at intermediate heights and
+  // falls back to exact queries where correspondence cannot meet the allowance.
+  const mappingErrorMm=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
+  const validatedFrames=new WeakSet();
+  const prepared=!reference&&shell.kind==='triangle-mesh'?prepareContourFamily({
+    curveAt:z=>{
+      const frame=section(z);
+      if(!validatedFrames.has(frame)){
+        for(const u of frame.curve.knots())mappedPoint(u,z);
+        validatedFrames.add(frame);
+      }
+      return frame.curve;
+    },startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm
+  }):null;
+  const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):prepared?[...prepared.at(t,zAt(t)),zAt(t)]:mappedPoint(t,zAt(t));
   const points=[point(0)],times=[0];
   function append(a,b,pa,pb) {
     const mid=(a+b)/2,pm=point(mid),linear=pa.map((v,i)=>(v+pb[i])/2);
-    if(distance(pa,pb)>settings.sampleStepMm||distance(pm,linear)>settings.toleranceMm/2||pb[2]-pa[2]>settings.minFeatureMm/2) {
+    if(distance(pa,pb)>settings.sampleStepMm||distance(pm,linear)>settings.toleranceMm/2-(prepared?2*mappingErrorMm:0)||pb[2]-pa[2]>settings.minFeatureMm/2) {
       requireThat(mid>a&&mid<b,'Vase contour cannot meet the locked chord tolerance: the subdivided turn midpoint is no longer distinct from its ends.');
       append(a,mid,pa,pm);append(mid,b,pm,pb);return;
     }
     points.push(pb);times.push(b);
   }
   // At most 1/16 turn per initial interval avoids aliasing an entire revolution.
+  onProgress?.({stage:"Tracing continuous wall",completed:0,total:Math.ceil(turns)});
+  let lastProgress=-1;
   for(let t=0;t<turns-1e-10;) {
     const next=Math.min(turns,t<spiralTurns-1e-10?spiralTurns:Infinity,(Math.floor(t*16+1e-8)+1)/16);
     append(t,next,points.at(-1),point(next));t=next;
+    if(Math.floor(t)>lastProgress){lastProgress=Math.floor(t);onProgress?.({stage:"Tracing continuous wall",completed:Math.min(Math.ceil(turns),lastProgress),total:Math.ceil(turns)});}
   }
   const lengths=points.slice(1).map((p,i)=>distance(points[i],p)),turnLengths=new Map();
   const maximumAngleDeg=maximumPathAngle(points);
@@ -205,7 +225,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   return {id,...(levelBoundary?{levelBoundary}:{}),operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
     after,strokes:[stroke],order:'given',continuous:true,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,clearanceFor:()=>end+process.liftMm}}],
-    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
+    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,sectionQueries,nudgedSections,...prepared?.report,offsetPrecisionMm:OFFSET_PRECISION_MM,
       volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,...reference?.report(),
       scope:'One outer section with arc-length correspondence from a fixed projected seam; concavity is supported while the inset remains one loop. Sampled topology and boundary checks; no physical validation.'}};
 }

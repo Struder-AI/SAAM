@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 12,
+  "revision": 13,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -178,6 +178,92 @@
       "defaultFilamentColor": "#28A090",
       "program": {
         "contract": "h2d-02.08.02.61-pla-textured-v3",
+        "toolChange": {
+          "template": [
+            "M993 A2 B2 C2 ; nozzle cam detection allow status save.",
+            "M993 A0 B0 C0 ; nozzle cam detection not allowed.",
+            "M1015.4 S1 K0 ;disable E air printing detect",
+            "M620 S{sel}A",
+            "M1002 gcode_claim_action : 4",
+            "M204 S9000",
+            "G1 Z{lift} F1200",
+            "M400",
+            "M106 P1 S0",
+            "M106 P2 S0",
+            "M620.10 A0 F{f20} L0 H{dia} T240 P220 S1",
+            "M620.10 A1 F{f20} L0 H{dia} T240 P220 S1",
+            "M620.11 P0 I{old} E0",
+            "M620.11 K1 I{old} R10 F{f25}",
+            "M620.15 C210",
+            "M628 S1",
+            "M620.11 S1 L0 I{old} R10 D8 E-10 F{f25}",
+            "M629",
+            "M620.11 H0",
+            "T{sel}",
+            "SYNC T0",
+            "M1002 set_filament_type:PLA",
+            "M400",
+            "M83",
+            "M620.10 R{counter}",
+            "M628 S0",
+            "M629",
+            "M400",
+            "M983.3 F{f983} A0.4 R{counter}",
+            "M400",
+            "G1 Y320 F30000",
+            "G1 X{purgeX}",
+            "G1 Y295",
+            "G1 Y265 F18000",
+            "G1 Z{lift} F3000",
+            "M204 S8000",
+            "M621 S{sel}A",
+            "M993 A3 B3 C3 ; nozzle cam detection allow status restore.",
+            "M1015.3 S0;disable tpu clog detect",
+            "M1015.4 S1 K1 H{dia} ;enable E air printing detect",
+            "M620.6 I{sel} W1 ;enable ams air printing detect",
+            "M1002 gcode_claim_action : 0",
+            "M106 S{fanPart}",
+            "M106 P2 S{fanAux}"
+          ],
+          "diameters": {
+            "0.4": {
+              "f20": "498.898",
+              "f25": "623.623",
+              "f983": "10.4167"
+            },
+            "0.6": {
+              "f20": "598.678",
+              "f25": "748.347",
+              "f983": "12.5"
+            }
+          },
+          "counters": {
+            "first": 0,
+            "later": 2
+          },
+          "entry": {
+            "x": 180.861,
+            "y": 265
+          },
+          "lift": {
+            "minMm": 5,
+            "aboveWorkMm": 3
+          },
+          "purge": {
+            "x0": 158.4,
+            "x1": 176.9,
+            "y0": 244,
+            "pitchMm": 0.75,
+            "volumeMm3": 33
+          },
+          "heat": {
+            "leadSeconds": 120,
+            "marginSeconds": 30
+          },
+          "dualStart": {
+            "M620.17 T0 S{nozzleC} L0": "M620.17 T0 S{nozzleC} L1"
+          }
+        },
         "start": [
           "M201 X20000 Y20000 Z500 E5000",
           "M203 X1000 Y1000 Z30 E50",

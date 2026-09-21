@@ -273,8 +273,8 @@ export function validatePlan(plan, machine, options = {}) {
     // A network may name its own nozzle. It is checked as if the whole plan used that nozzle with this
     // network's process, so the tool, core, bead width and layer limits are the machine's own.
     if(item.tool!==undefined){
-      requireThat(item.tool&&typeof item.tool==='object'&&Object.keys(item.tool).sort().join()==='core,index,nozzleMm'&&Number.isInteger(item.tool.index)&&typeof item.tool.core==='string'&&Number.isFinite(item.tool.nozzleMm),
-        `Line network ${item.id} tool must give index, core and nozzleMm.`);
+      requireThat(item.tool&&typeof item.tool==='object'&&['core,index,nozzleMm','color,core,index,nozzleMm'].includes(Object.keys(item.tool).sort().join())&&Number.isInteger(item.tool.index)&&typeof item.tool.core==='string'&&Number.isFinite(item.tool.nozzleMm)&&(item.tool.color===undefined||/^#[0-9A-Fa-f]{6}$/.test(item.tool.color)),
+        `Line network ${item.id} tool must give index, core, nozzleMm and optionally a #RRGGBB color.`);
       requireThat(machine.tools.some(candidate=>candidate.index===item.tool.index),`Line network ${item.id} names a nozzle this machine does not have.`);
     }
     // A network may own its course count and its layer grid, bead width and speeds, the

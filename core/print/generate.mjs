@@ -34,6 +34,7 @@ import {heatSetFeatures,validateHeatSetAssignments} from '../../skills/heat-set-
 import {heatSetDetails} from '../../skills/heat-set-inserts/scripts/reinforcement.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
 import {lineNetworkResult} from '../../skills/line-network/scripts/network.mjs';
+import {scheduleHeaters} from '../path/heat.mjs';
 
 export const hasMesh=geometry=>['mesh','pipe','text','gridfinity','heat-set'].includes(geometry.shape)||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)));
 
@@ -140,6 +141,7 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
     process, machine, generatorVersion: VERSION,motion:plan.setup.denso??null,tool:plan.setup.tool
   });
   builder.boundsFor=index=>toolBounds(machine,index);
+  builder.toolChange=machine.outputs.find(o=>o.id===plan.output)?.program?.toolChange??null;
   builder.setContext('start', 0);
   builder.motionBounds=bounds;
   builder.retracted=startupRetracted(machine,plan);
@@ -250,7 +252,10 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   builder.park();
   builder.fan(0);
 
-  summary.boundsMm = placed.bounds;
+  summary.boundsMm = network.enabled ? toolpathBounds(builder.actions, builder.start, Math.max(process.lineWidthMm, ...network.networks.map(n => n.process?.lineWidthMm ?? 0)) / 2) : placed.bounds;
+  if (builder.changes) {
+    requireThat(!overlapsPurgePad(summary.boundsMm, builder.toolChange.purge, process), 'The part reaches the purge pad this machine uses after a nozzle change; move or resize it.');
+  }
   summary.clearance = 'operator responsibility; no collision model implemented';
   summary.physicalValidation = 'not performed';
   if (survey) summary.nonplanarLimit = {
@@ -260,5 +265,32 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
     surfaceMaxSlopeDeg: Number(survey.maxSlopeDeg.toFixed(3)),
     excludedAreaPercent: Number((survey.steepFraction * 100).toFixed(2))
   };
-  return builder.toPath(summary);
+  const path = builder.toPath(summary);
+  if (builder.changes) scheduleHeaters(path, {nozzleC: plan.setup.nozzleC, initialTool: plan.setup.tool,
+    leadSeconds: builder.toolChange.heat.leadSeconds + builder.toolChange.heat.marginSeconds});
+  return path;
+}
+
+// What the head actually deposited, not the placeholder geometry a line network is drawn against: the extent the
+// machine's leveling and the package thumbnail must cover. Purge-pad strokes are service work, not part.
+function toolpathBounds(actions, start, halfBeadMm) {
+  const min = [Infinity, Infinity, 0], max = [-Infinity, -Infinity, -Infinity];
+  let position = start;
+  for (const a of actions) {
+    if (a.kind === 'move') {
+      if (a.volumeMm3 > 0 && a.role !== 'prime') for (const p of [position, a.to]) for (let i = 0; i < 3; i++) {
+        if (i < 2) min[i] = Math.min(min[i], p[i]);
+        max[i] = Math.max(max[i], p[i]);
+      }
+      position = a.to;
+    } else if (a.kind === 'tool' && a.position) position = a.position;
+  }
+  requireThat(Number.isFinite(max[0]) && Number.isFinite(max[1]), 'The toolpath deposits nothing to bound.');
+  return {min: [min[0] - halfBeadMm, min[1] - halfBeadMm, 0], max: [max[0] + halfBeadMm, max[1] + halfBeadMm, max[2]]};
+}
+
+// The purge pad's rows, the same count the builder prints, and a margin around it for the head.
+function overlapsPurgePad(bounds, {x0, x1, y0, pitchMm, volumeMm3}, process) {
+  const rows = Math.ceil(volumeMm3 / (process.lineWidthMm * process.layerMm * (x1 - x0 + pitchMm))), margin = 3;
+  return bounds.min[0] < x1 + margin && bounds.max[0] > x0 - margin && bounds.min[1] < y0 + (rows - 1) * pitchMm + margin && bounds.max[1] > y0 - margin;
 }

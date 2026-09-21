@@ -95,18 +95,53 @@ The 0.6/0.8 diameter metadata, mixed-nozzle preset naming and AMS unit/slot sele
 have software round-trip checks only.
 Model-import CLI checks do not verify the program-viewer route.
 
-### Nozzle changes and mixed nozzle diameters (studied, not exported)
+### Nozzle changes and mixed nozzle diameters
 
-**Status.** The path layer can describe a job that changes nozzles; **no writer exports it**, and H2D output
-rejects the `tool` action with "no validated nozzle-change sequence". Everything below is measured from dual-nozzle
-slices supplied by the requester (2026-09-20); it is the starting point for anyone finishing this. See BR-057
-(same-diameter output) and BR-058 (mixed diameters).
+**Status.** A job may change nozzles on the H2D **when both nozzles have the same diameter** (0.4 or 0.6 mm; BR-057).
+Mixed diameters are refused at export with "same nozzle diameter on both nozzles" and are the open work (BR-058).
+Nothing has been printed: the first two-colour print must be supervised, and what it shows should be recorded here.
+The rest of this section is measured from dual-nozzle slices supplied by the requester (2026-09-20).
 
-**In code today** (software only, no hardware): a `line-network` network may name its own nozzle and a base
+**How a change is exported.**
+- The machine output declares `program.toolChange` (`machines/bambu-h2d.json`): a 44-line template with numeric slots,
+  per-diameter flow values, the counters, the entry point, lift rule, purge pad, heating lead times and the start
+  patch for a two-filament job. [bambu-tool-change.mjs](../../core/export/bambu-tool-change.mjs) renders and
+  checks it. The template regenerates all 14 real Bambu Studio switches byte for byte
+  (`node scripts/h2d-derive-tool-change.mjs`).
+- The profile's copy is **pinned by digest** in `core/export/bambu.mjs` (`TOOL_CHANGE_HASHES`), separately from the
+  start and end envelope. Any edit of the sequence, its slots or the diameter table needs an interpreter update.
+- The writer emits each change between `;SAAM_TOOLCHANGE_BEGIN` and `;SAAM_TOOLCHANGE_END`. The interpreter reads that
+  block whole, requires every line to match the template, and checks: the nozzle left is the one in use, both nozzles
+  have the same diameter, flow values match the diameter, the counter is 0 then 2, lift is at least 5 mm and 3 mm above
+  everything the head has reached (and inside the nozzle's reach), the entry point is inside the new nozzle's reach,
+  restored fans equal the program's, and the new nozzle has been at temperature for the lead time. Firmware
+  macros and `T` commands anywhere else in the body are still refused.
+- After the block the builder flushes the new nozzle on a purge pad at the back of the bed (x 158.4 to 176.9, from
+  y 244; about 33 mm3, matching the reference's tower) at 0.2 mm, one layer higher for each later change. Pad strokes
+  are labelled phase `prime`, role `prime`, and are not part of the layer count or the part's bounds. A part that
+  comes within 3 mm of the pad is refused.
+- `scheduleHeaters` ([heat.mjs](../../core/path/heat.mjs)) heats the next nozzle 150 s before its change (120 s lead
+  plus 30 s margin, counted the way the interpreter counts time), waits parked for any shortfall, and switches a
+  nozzle off when it will be idle for 300 s or more, or is never used again.
+- Package metadata lists each used filament (colour, nozzle, share of the material), `filament_maps`,
+  `filament_sequence.json` and `project_settings` per filament. A one-nozzle package is byte-identical to before.
+  A second nozzle's colour comes from the network's `tool.color`; the plan's own nozzle uses `setup.filamentColor`.
+- A two-filament start differs from the single-filament start only in `M620.17 T0 S<temp> L1` (`M620.17` names the
+  filament each extruder starts with: `L` is the filament index), applied by `toolChange.dualStart`.
+  The reference's early pre-cool of the idle nozzle (`M104 T0 S25 N0`) is not reproduced: the idle nozzle is simply
+  not heated until needed.
+- Bounds: for line-network paths `summary.boundsMm` is now the deposited toolpath, not the placeholder geometry, so
+  the bed-leveling probe area and thumbnail cover what is printed.
+
+**Not verified.** The `L` flag meaning, the purge size, cooling the idle nozzle to off (the reference cools it to a
+low temperature), the lift height, and the whole sequence on hardware.
+
+**In code** (software only): a `line-network` network may name its own nozzle, colour and base
 height ([manual](../../skills/line-network/SKILL.md#networks-on-their-own-nozzle-above-a-base)); operations carry
 a `tool`; the composer keeps one nozzle's work together within a height
-([motion](motion.md#skill-result-composition)); `PathBuilder.switchTool` parks and records a `tool` action
-(`fromTool`, `toTool`); `core/export/griffin.mjs` refuses it. Tests: `core/tests/multi-tool.test.mjs`. The demo
+([motion](motion.md#skill-result-composition)); `PathBuilder.switchTool` parks, lifts, records a `tool` action
+(`fromTool`, `toTool`, `lift`, `position`) and primes. Tests: `core/tests/multi-tool.test.mjs`,
+`core/tests/h2d-tool-change.test.mjs`, `core/tests/h2d-two-color.test.mjs`, `core/tests/heat.test.mjs`. The demo
 panel (`skills/line-text/scripts/panel.mjs`) builds such a plan.
 
 **Reference slices** (Bambu Studio 02.05.03.61, model O1D = H2D, PLA, one small model with a wipe tower; kept
@@ -151,18 +186,14 @@ job at all (Bambu Studio's refusal is a slicer limit; the per-nozzle macro lines
 per-nozzle); the meaning of the `R` counter beyond 0 then 2; how much the tower purge matters when each nozzle keeps
 its own filament; and the temperature values, which are timing-derived in the slicer.
 
-**A dual job also starts differently.** SAAM's pinned H2D start is 291 lines for one nozzle. The dual reference
-start heats the second nozzle early (`M104 S220 T1`), carries `T1001` remap and per-nozzle `M620.10` lines, and
-pre-cools the idle nozzle (`M104 T0 S25 N0`) after start.
+**A dual job's start.** SAAM's pinned H2D start is 291 lines. The dual reference start already carries the `T1001` remap
+and per-nozzle `M620.10` lines; it differs in `M620.17 … L1`, comments, and the idle nozzle's pre-cool
+(`M104 T0 S25 N0`) after start.
 
-**To finish, in order.** (1) Put the switch skeleton in the machine profile with the slots above, and prove it by
-regenerating all 14 reference switches byte for byte (the analysis script gives the slots). (2) A dual-job start
-variant. (3) Generate the purge or prime and the idle-nozzle temperatures as path actions with a stated policy
-(the reference prints a tower; SAAM may declare a smaller pad in the profile). (4) Teach the H2D interpreter
-(`bambu-player.mjs`) the block so bounds, feed and flow checks still cover the whole job. (5) Package metadata for
-two filaments and nozzles: `filament_sequence.json` (`nozzle_sequence`, `sequence`), `filament_maps`,
-`slice_info.config` filaments, nozzles and `layer_filament_lists`, and `project_settings.config`. (6) A supervised
-hardware print with equal diameters. (7) Only then mixed diameters: decide ownership, print supervised.
+**To finish, in order.** Equal diameters are exported (see above); what remains: (1) a supervised hardware print with
+equal diameters, recording what the firmware, the purge and the idle-nozzle policy did. (2) Studio colouring by
+nozzle. (3) Only then mixed diameters (BR-058): decide ownership of the values above, build the macro from per-nozzle
+values, print supervised.
 
 ### X1 Carbon output contract
 

@@ -19,14 +19,15 @@ function planWith(networks,{x=100,y=100}={}){
 }
 const background=()=>bar('background',{tool:LEFT,layers:2,process:{firstLayerMm:.2,layerMm:.2,lineWidthMm:.5}});
 const lettering=()=>bar('lettering',{tool:RIGHT,baseMm:.4,layers:3,process:{layerMm:.3,lineWidthMm:.72}});
-const deposits=path=>path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0);
+const part=a=>a.kind==='move'&&a.volumeMm3>0&&a.role!=='prime';
+const deposits=path=>path.actions.filter(part);
 
 test('a network may name its own nozzle, checked against that nozzle\'s own limits',()=>{
   const ok=networks=>{const {machine,plan}=planWith(networks);return()=>validatePlan(plan,machine);};
   assert.doesNotThrow(ok([background(),lettering()]));
   assert.throws(ok([bar('a',{tool:{...RIGHT,index:2}})]),/does not have/,'a nozzle the machine lacks');
   assert.throws(ok([bar('a',{tool:{...RIGHT,core:'Hardened steel 0.7',nozzleMm:0.7}})]),/./,'a core that tool does not carry');
-  assert.throws(ok([bar('a',{tool:{index:1,core:'Hardened steel 0.6'}})]),/must give index, core and nozzleMm/);
+  assert.throws(ok([bar('a',{tool:{index:1,core:'Hardened steel 0.6'}})]),/must give index, core, nozzleMm/);
   assert.throws(ok([bar('a',{baseMm:-1})]),/baseMm/);
   // The same 0.3 mm bead is fine for the 0.4 mm nozzle and refused for the 0.6, whose thinnest bead is 0.45.
   assert.doesNotThrow(ok([bar('a',{tool:LEFT,process:{lineWidthMm:.35}})]));
@@ -44,8 +45,8 @@ test('a job on two nozzles changes once, between the background and the letterin
   near(volume('lettering',.7),20*.72*.3);near(volume('lettering',1.3),20*.72*.3,1e-6);
   near(volume('background',.2),20*.5*.2);
   const change=path.actions.indexOf(changes[0]);
-  assert.ok(path.actions.slice(0,change).filter(a=>a.kind==='move'&&a.volumeMm3>0).every(m=>m.region==='background'),'nothing of the lettering comes before the change');
-  assert.ok(path.actions.slice(change).filter(a=>a.kind==='move'&&a.volumeMm3>0).every(m=>m.region==='lettering'),'nothing of the background comes after it');
+  assert.ok(path.actions.slice(0,change).filter(part).every(m=>m.region==='background'),'nothing of the lettering comes before the change');
+  assert.ok(path.actions.slice(change).filter(part).every(m=>m.region==='lettering'),'nothing of the background comes after it');
 });
 
 function near(a,b,tol=1e-6){assert.ok(Math.abs(a-b)<=tol,`${a} != ${b}`);}
@@ -60,7 +61,7 @@ test('after a change the head reaches the next stroke by a lifted hop, even a ne
   validatePlan(plan,machine);
   const path=generatePath(plan,machine,await rhino()),at=path.actions.findIndex(a=>a.kind==='tool');
   assert.ok(at>0,'the nozzle changes between the two bars');
-  const next=path.actions.slice(at+1),firstDeposit=next.findIndex(a=>a.kind==='move'&&a.volumeMm3>0),travel=next.slice(0,firstDeposit).filter(a=>a.kind==='move');
+  const next=path.actions.slice(at+1),firstDeposit=next.findIndex(part),travel=next.slice(0,firstDeposit).filter(a=>a.kind==='move');
   assert.ok(travel.length>=2&&travel.some(m=>m.to[2]>=plan.process.liftMm-1e-9),'it rises to clearance before crossing');
   assert.ok(travel.every(m=>m.travel!=='combed'),'and never combs');
 });
@@ -85,5 +86,8 @@ test('a job that changes nozzles cannot be exported until a machine declares a v
   const {machine,plan}=planWith([background(),lettering()]);
   const path=generatePath(plan,machine,await rhino());
   assert.throws(()=>exportMotion(path,plan),/no validated nozzle-change sequence/);
-  assert.throws(()=>validatePath(path),/no validated nozzle-change sequence/);
+  assert.doesNotThrow(()=>validatePath(path),'the path itself is well formed; only a writer without a sequence refuses it');
+  const bad=structuredClone(path),change=bad.actions.find(a=>a.kind==='tool');
+  change.toTool=1.5;
+  assert.throws(()=>validatePath(bad),/./,'a malformed tool action is refused at the path');
 });

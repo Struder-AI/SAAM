@@ -6,15 +6,18 @@ import {lineText} from './compile.mjs';
 import {layoutText} from './layout.mjs';
 import {encodePng, rasterize} from './raster.mjs';
 
-// A flat panel made of two parts printed by different nozzles: a background of a solid border, a
-// thin inset ring and sparse crossed infill on the first nozzle, and thick lettering on top of it
-// from a second. This builds every part's centerline strokes and draws a true-scale preview.
-// It is a design and a preview: the shared plan cannot yet print one job with two nozzles.
+// A flat panel made of two parts printed by different nozzles, each in its own colour: a background of a solid
+// border, a thin inset ring and sparse crossed infill on the first nozzle, and thick lettering on top of it from a
+// second. This builds every part's centerline strokes and draws a true-scale preview. On a Bambu H2D with two
+// equal nozzles the plan exports as a two-colour job; mixed nozzle diameters are not supported yet (BR-058).
 
 export const PANEL_DEFAULTS = Object.freeze({
   background: {beadMm: 0.5, layerMm: 0.2, layers: 2, density: 0.25, anglesDeg: [45, -45], borderMm: 2, ringInsetMm: 5, ringMm: 1, nozzleMm: 0.4},
-  text: {nozzleMm: 0.6, layerMm: 0.3, layers: 3, beadRangeMm: [0.45, 0.8], clearanceMm: 4, lineGapMm: 8}
+  text: {nozzleMm: 0.4, layerMm: 0.3, layers: 3, beadRangeMm: [0.3, 0.8], clearanceMm: 4, lineGapMm: 8}
 });
+
+// The filament colours the two nozzles are declared with: the preview's border blue and lettering orange.
+export const PANEL_COLORS = Object.freeze({background: '#34689E', text: '#C4541E'});
 
 const rectLoop = ([x0, y0, x1, y1]) => ({closed: true, points: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]});
 const inset = (w, h, d) => [d, d, w - d, h - d];
@@ -97,10 +100,10 @@ export function buildPanel({lines, widthMm, heightMm, trimBottomMm = 0, backgrou
 // The panel as `line-network` settings: the background on one nozzle (borders on every course, the two
 // infill angles on alternate courses) and each lettering line on the other, starting where the background
 // ends, each line with its own bead width and the text nozzle's own layer height.
-export function panelNetworks(panel, {backgroundTool = 0, textTool = 1, coreFor = nozzleMm => `Hardened steel ${nozzleMm}`} = {}) {
+export function panelNetworks(panel, {backgroundTool = 0, textTool = 1, coreFor = nozzleMm => `Hardened steel ${nozzleMm}`, colors = PANEL_COLORS} = {}) {
   const {background: bg, text: tx} = panel, b = bg.options, x = tx.options;
   const background = {
-    id: 'background', layers: b.layers, tool: {index: backgroundTool, core: coreFor(b.nozzleMm), nozzleMm: b.nozzleMm},
+    id: 'background', layers: b.layers, tool: {index: backgroundTool, core: coreFor(b.nozzleMm), nozzleMm: b.nozzleMm, color: colors.background},
     process: {firstLayerMm: b.layerMm, layerMm: b.layerMm, lineWidthMm: b.beadMm},
     strokes: [
       ...bg.borders.map(s => ({closed: s.closed, points: s.points})),
@@ -108,12 +111,25 @@ export function panelNetworks(panel, {backgroundTool = 0, textTool = 1, coreFor 
     ]
   };
   const lettering = tx.lines.map((line, i) => ({
-    id: `text-${i + 1}`, layers: x.layers, baseMm: b.layers * b.layerMm, tool: {index: textTool, core: coreFor(x.nozzleMm), nozzleMm: x.nozzleMm},
+    id: `text-${i + 1}`, layers: x.layers, baseMm: b.layers * b.layerMm, tool: {index: textTool, core: coreFor(x.nozzleMm), nozzleMm: x.nozzleMm, color: colors.text},
     process: {layerMm: x.layerMm, lineWidthMm: +line.plan.beadWidthMm.toFixed(4)},
     strokes: line.strokes.map(s => ({closed: s.closed, points: s.points.map(p => [+p[0].toFixed(4), +p[1].toFixed(4)])}))
   }));
   return {enabled: true, layers: Math.max(b.layers, x.layers), networks: [background, ...lettering]};
 }
+
+// A plan patch for `core/print/cli.mjs adjust`: this panel as the only skill, its background nozzle's colour as the
+// plan's own, centered on a bed of the given size.
+export function panelPatch(panel, {bedMm = [350, 320], ...options} = {}) {
+  const skills = Object.fromEntries(PLAN_SKILLS.map(id => [id, {enabled: false}]));
+  skills['line-network'] = panelNetworks(panel, options);
+  return {
+    skills, setup: {filamentColor: (options.colors ?? PANEL_COLORS).background},
+    process: {minimumLayerSeconds: 0},
+    placement: {xMm: Math.round(bedMm[0] / 2 - panel.widthMm / 2), yMm: Math.round(bedMm[1] / 2 - panel.heightMm / 2)}
+  };
+}
+const PLAN_SKILLS = ['plastic-weld', 'wave-overhangs', 'pipe-cladding', 'supports', 'rimming-planar', 'rimming-normal', 'full-fill', 'planar-infill', 'vase-wall', 'thick-lip', 'draped-skin'];
 
 const COLORS = {bed: [246, 246, 244], infillA: [158, 190, 214], infillB: [110, 152, 190], border: [52, 104, 158], text: [196, 84, 30], label: [80, 80, 80], edge: [190, 190, 186]};
 
@@ -152,8 +168,10 @@ export const DEMO_LINES = Object.freeze([
 export const DEMO_TRIM_BOTTOM_MM = 2;
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const out = process.argv[2] ?? 'panel-preview.png';
+  const args = process.argv.slice(2), at = args.indexOf('--patch'), patchOut = at < 0 ? null : args.splice(at, 2)[1];
+  const out = args[0] ?? 'panel-preview.png';
   const panel = buildPanel({lines: DEMO_LINES, trimBottomMm: DEMO_TRIM_BOTTOM_MM}), image = renderPanel(panel);
+  if (patchOut) writeFileSync(patchOut, JSON.stringify(panelPatch(panel), null, 2) + '\n');
   writeFileSync(out, image.png);
   console.log(JSON.stringify({png: out, panelMm: [panel.widthMm, panel.heightMm], image: {widthPx: image.widthPx, heightPx: image.heightPx},
     background: {borderLoops: panel.background.borders.length, infillLinesPerLayer: panel.background.infill.map(l => l.length), infillSpacingMm: panel.background.spacingMm},

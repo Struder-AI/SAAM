@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildPanel, DEMO_LINES, DEMO_TRIM_BOTTOM_MM, panelNetworks, renderPanel} from '../scripts/panel.mjs';
+import {buildPanel, DEMO_LINES, DEMO_TRIM_BOTTOM_MM, PANEL_COLORS, panelNetworks, renderPanel} from '../scripts/panel.mjs';
 import {defaults, validatePlan} from '../../../core/print/plan.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {exportMotion} from '../../../core/export/griffin.mjs';
+import {exportProgram} from '../../../core/export/registry.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
 
 const panel = buildPanel({lines: DEMO_LINES, trimBottomMm: DEMO_TRIM_BOTTOM_MM});
@@ -49,7 +50,7 @@ test('the lettering keeps its own fonts and weights and sits inside the inner ri
   assert.deepEqual(lines.map(l => l.text), ['Individual', 'Toolpath', 'Control']);
   assert.deepEqual(lines.map(l => l.fontId), ['ems-invite', 'ems-tech', 'hershey-sans-1']);
   assert.ok(lines[2].plan.strokeWidthMm > lines[0].plan.strokeWidthMm, 'Control is bold, heavier than the script');
-  assert.ok(lines.every(l => l.plan.beadWidthMm >= 0.45 - 1e-9 && l.plan.beadWidthMm <= 0.8 + 1e-9), 'beads stay within a 0.6 mm nozzle\'s range');
+  assert.ok(lines.every(l => l.plan.beadWidthMm >= 0.3 - 1e-9 && l.plan.beadWidthMm <= 0.8 + 1e-9), 'beads stay within a 0.4 mm nozzle\'s range');
   const inner = 8 + panel.text.options.clearanceMm;
   for (const line of lines) {
     const w = line.plan.beadWidthMm;
@@ -77,10 +78,11 @@ test('raising Control by 2 mm and trimming the bottom edge with it keeps its mar
   near(panel.heightMm - a.boxMm[3], plain.heightMm - pa.boxMm[3], 1e-9); // the top margin is unchanged
 });
 
-test('the panel is a plan for two nozzles: background on the left, lettering on the right starting 0.4 mm up', async () => {
+test('the panel is a plan for two 0.4 mm nozzles: background on the left, lettering on the right starting 0.4 mm up', async () => {
   const machine = loadMachine('bambu-h2d'), plan = defaults(machine);
   plan.geometry = boxMesh();
   plan.placement = {xMm: 100, yMm: 100};
+  plan.setup.filamentColor = PANEL_COLORS.background;
   for (const settings of Object.values(plan.skills)) settings.enabled = false;
   Object.assign(plan.process, {minimumLayerSeconds: 0});
   Object.assign(plan.skills['line-network'], panelNetworks(panel));
@@ -88,7 +90,8 @@ test('the panel is a plan for two nozzles: background on the left, lettering on 
   const path = generatePath(plan, machine, await rhino()), changes = path.actions.filter(a => a.kind === 'tool');
   assert.deepEqual(changes.map(a => [a.fromTool, a.toTool]), [[0, 1]], 'one change, left to right');
   const deposits = path.actions.filter(a => a.kind === 'move' && a.volumeMm3 > 0), at = path.actions.indexOf(changes[0]);
-  const before = path.actions.slice(0, at).filter(a => a.kind === 'move' && a.volumeMm3 > 0), after = path.actions.slice(at).filter(a => a.kind === 'move' && a.volumeMm3 > 0);
+  const part = a => a.kind === 'move' && a.volumeMm3 > 0 && a.role !== 'prime';
+  const before = path.actions.slice(0, at).filter(part), after = path.actions.slice(at).filter(part);
   assert.ok(before.every(m => m.region === 'background') && after.every(m => m.region.startsWith('text-')));
   assert.deepEqual([...new Set(before.map(m => +m.to[2].toFixed(6)))], [0.2, 0.4]);
   assert.deepEqual([...new Set(after.map(m => +m.to[2].toFixed(6)))], [0.7, 1, 1.3], 'text starts on top of the 0.4 mm background, in 0.3 mm layers');
@@ -99,5 +102,7 @@ test('the panel is a plan for two nozzles: background on the left, lettering on 
     const got = after.filter(m => m.region === net.id).reduce((sum, m) => sum + m.volumeMm3, 0);
     assert.ok(got > 0 && Math.abs(got / expected - 1) < 1e-6, `${net.id}: ${got} != ${expected}`);
   }
-  assert.throws(() => exportMotion(path, plan), /no validated nozzle-change sequence/, 'and it cannot be exported until the machine declares one');
+  assert.throws(() => exportMotion(path, plan), /no validated nozzle-change sequence/, 'a writer without a validated change refuses it');
+  const bytes = exportProgram(path, plan, machine, {generatorVersion: 'test', buildDate: '2026-09-20'});
+  assert.ok(bytes.length > 1000, 'and the H2D exports it as one two-colour job');
 });

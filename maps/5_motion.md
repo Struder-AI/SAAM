@@ -145,7 +145,7 @@ n5 > out | transform rotating bed result | data
 
 ```saam-responsibilities
 composition | core/path/compose.mjs | motion#changing-operation-composition | core/tests/composition.test.mjs, core/tests/interoperability.test.mjs, core/tests/regional-workflow.test.mjs
-travel-builder | core/path/builder.mjs, core/path/comb.mjs, core/path/material.mjs | motion#changing-path-state-and-travel | core/tests/travel.test.mjs, core/tests/material-travel.test.mjs, core/tests/straight-moves.test.mjs
+travel-builder | core/path/builder.mjs, core/path/comb.mjs, core/path/heat.mjs, core/path/material.mjs | motion#changing-path-state-and-travel | core/tests/travel.test.mjs, core/tests/material-travel.test.mjs, core/tests/straight-moves.test.mjs, core/tests/heat.test.mjs, core/tests/multi-tool.test.mjs
 deposition-policy | core/path/deposition.mjs, core/path/spacing.mjs, core/path/prime.mjs, core/path/process-controls.mjs | motion#changing-deposition-spacing-and-process-controls | core/tests/spacing.test.mjs, core/tests/prime.test.mjs, core/tests/modal-export.test.mjs, core/tests/pipeline.test.mjs
 tool-pose | core/path/pose.mjs | motion#changing-motion-pose-conventions | core/tests/denso.test.mjs, core/tests/robot-playback.test.mjs, core/tests/machine-presentation.test.mjs
 finished-surfaces | core/path/finished-surface.mjs | motion#changing-finished-surface-publication | core/tests/finished-cladding.test.mjs, core/tests/reservation-surface.test.mjs

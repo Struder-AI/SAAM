@@ -165,7 +165,7 @@ n2 > out | check entry checksum result | data
 
 ```saam-responsibilities
 output-selection | core/export/registry.mjs | output#changing-output-selection-and-shared-checking | core/tests/export.test.mjs, core/tests/printer-profiles.test.mjs, core/tests/interoperability.test.mjs
-gcode-dialects | core/export/griffin.mjs, core/export/bambu.mjs, core/export/bambu-player.mjs, core/export/gcode-lines.mjs | output#changing-g-code-writers-and-readers | core/tests/export.test.mjs, core/tests/bambu.test.mjs, core/tests/modal-export.test.mjs, core/tests/gcode-stream.test.mjs
+gcode-dialects | core/export/griffin.mjs, core/export/bambu.mjs, core/export/bambu-player.mjs, core/export/bambu-tool-change.mjs, core/export/gcode-lines.mjs | output#changing-g-code-writers-and-readers | core/tests/export.test.mjs, core/tests/bambu.test.mjs, core/tests/h2d-tool-change.test.mjs, core/tests/h2d-two-color.test.mjs, core/tests/modal-export.test.mjs, core/tests/gcode-stream.test.mjs
 robot-dialects | core/export/dobot.mjs, core/export/dobot-player.mjs, core/export/dobot-lua-subset.mjs, core/export/denso.mjs, core/export/denso-player.mjs | output#changing-robot-source-and-bounded-interpretation | core/tests/dobot.test.mjs, core/tests/denso.test.mjs, core/tests/robot-playback.test.mjs
 archives | core/export/zip.mjs | output#changing-archive-containers | core/tests/bambu.test.mjs, core/tests/dobot.test.mjs, core/tests/denso.test.mjs
 source-time | core/export/source-time.mjs, core/export/travel-advisory.mjs | output#changing-shared-source-time-and-travel-advisories | core/tests/source-player.test.mjs, core/tests/travel-advisory.test.mjs, core/tests/robot-playback.test.mjs
