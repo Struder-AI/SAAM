@@ -18,6 +18,7 @@ import {compileText} from '../../text/scripts/text.mjs';
 import {rhino} from '../../../core/print/geometry.mjs';
 import {initBundle} from '../../../core/print/bundle.mjs';
 import {applyHeatSet} from '../../../core/print/heat-set.mjs';
+import {unwrapTextGeometry,rebuildTextGeometry} from '../../../core/print/text.mjs';
 
 const machine=loadMachine(),base=boxMesh(40,40,12),feature=heatSetFeature({positionMm:[20,20,12]});
 const geometry=await compileHeatSet(base,[feature],{buildGeometry:g=>buildShell(null,g)});
@@ -99,6 +100,30 @@ test('insert edits under raised text preserve text and rebuild the original bore
     const removed=await applyHeatSet(dir,{remove:'insert'});
     assert.equal(removed.plan.geometry.shape,'text');assert.equal(removed.plan.geometry.base.shape,'mesh');
   }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('text-owned wrapper stages preserve frozen layer order and stop at standalone text',async()=>{
+  const r=await rhino(),bytes=await readFile(new URL('../../text/tests/fixtures/Abel-Regular.ttf',import.meta.url));
+  const font={data:bytes.toString('base64'),sha256:createHash('sha256').update(bytes).digest('hex')};
+  const text=(id,value,positionMm)=>({id,text:value,font,positionMm,sizeMm:3,reference:{kind:'plane',origin:[0,0,12],xAxis:[1,0,0],yAxis:[0,1,0]}});
+  const buildGeometry=g=>buildShell(r,g);
+  const inner=await compileText(geometry,[text('inner','A',[2,2])],{buildGeometry,toleranceMm:.02,maxEdgeMm:.8});
+  const outer=await compileText(inner,[text('outer','B',[8,2])],{buildGeometry,toleranceMm:.03,maxEdgeMm:.9});
+  const before=structuredClone(outer);
+  const freeze=value=>{if(value&&typeof value==='object'&&!Object.isFrozen(value)){Object.freeze(value);for(const child of Object.values(value))freeze(child);}return value;};
+  freeze(outer);
+  const stack=unwrapTextGeometry(outer);
+  assert.deepEqual(stack.layers.map(layer=>layer.features[0].id),['outer','inner']);
+  assert.equal(stack.base.shape,'heat-set');
+  const rebuilt=await rebuildTextGeometry(stack.base,stack.layers,{buildGeometry});
+  assert.deepEqual(rebuilt,before);
+  assert.deepEqual(outer,before);
+
+  const standalone=await compileText(geometry,[text('standalone','C',[2,2])],{buildGeometry,standalone:true});
+  const wrapped=await compileText(standalone,[text('wrapper','D',[8,2])],{buildGeometry});
+  const stopped=unwrapTextGeometry(wrapped);
+  assert.deepEqual(stopped.layers.map(layer=>layer.features[0].id),['wrapper']);
+  assert.equal(stopped.base.standalone,true);
 });
 
 test('insufficient host and invalid feature settings fail explicitly',async()=>{

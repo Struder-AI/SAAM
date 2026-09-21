@@ -24,10 +24,17 @@ reopening, setup reuse and delivery. The shell adapter supplies
 recipe validation, geometry, generator, limitations and release metadata.
 Studio chooses the adapter by saved plan schema. There is no standalone settings
 confirmation. `approve({actor, revision})` writes the only approval record,
-`review.approvals.toolpath`, carrying the export hash and the plan hash it was
+`review.approvals.toolpath`, carrying the export hash and the generation-input hash it was
 given for; `toolpathApproved` is the one derived boolean. Any recorded change
 (plan, machine, upgrade or regeneration) empties `review.approvals`. Generation is available for inspection;
 production delivery still requires the exact current final confirmation.
+
+`generationHash` identifies the combined plan, machine and geometry inputs; it
+is not a plan-only hash. State, checks, review records and worker/cache contracts
+use this name. Legacy `planHash` and `previousPlanHash` fields in saved reviews
+and checks are normalized on read without rewriting the files. Conflicting old
+and new identities are rejected. Matching approved exports remain approved;
+an open view with an old revision token must refresh before changing the print.
 
 The [text preparation entry](./text.mjs) compiles editable font/surface features
 into the same native mesh geometry used by Studio and slicing, then calls

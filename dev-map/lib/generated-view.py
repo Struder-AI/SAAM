@@ -9,6 +9,7 @@ import json
 import pathlib
 import re
 import sys
+import textwrap
 from xml.sax.saxutils import escape
 
 from leveled import (Page, STYLE, EDGE, MARGIN_L, FS_FOOT, FS_NOTE, LH_NOTE, LH_TITLE,
@@ -254,7 +255,7 @@ def build_page(packet, ctx):
     page.context_pages = pages
     page.key_line = meta["k"] + ("  ·  " + meta["d"] if meta["d"] else "")
     if packet.get("stateful"):
-        page.key_line += " · stateful class"
+        page.key_line += " · stateful boundary"
     kind, drawn, dropped = packet["kind"], set(), ctx["dropped"]
     def references(rows):
         found = {}
@@ -277,6 +278,10 @@ def build_page(packet, ctx):
         node.go = address if address in pages else ""
         component = next((c for c in packet.get("components", []) if c.get("id", c["index"]) == index), None)
         callers = references(component.get("callerReferences", [])) if component else []
+        summary = component.get("callerSummary") if component else None
+        if summary:
+            target = summary.get("index", "")
+            callers = [(f'{summary["count"]} callers → {target}', target if target in pages else "")]
         if callers:
             node.co = tuple(label for label, _target in callers)
             node.co_targets = dict(callers)
@@ -531,15 +536,37 @@ def lists(packet, page, pages):
         page.row("head", "declaration calls — invocation not established")
         for relation in packet["declarationReferences"]:
             page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"])
+    for category in ("unresolved", "uncertainty"):
+        summary = packet.get(category + "Summary")
+        if not summary:
+            continue
+        count = summary["count"] + sum(row.get("count", 1) for row in packet.get(category, []))
+        page.row("head", f'{category} ({count})')
+        for source in summary["sources"]:
+            target = source.get("index") or next((index for index, meta in pages.items()
+                           if meta.get("d") == source.get("path")), "")
+            identity = target or source.get("path", "unknown source")
+            page.row("warn", f'{identity} · {source["count"]}', target)
     if packet.get("unresolved"):
-        page.row("head", f'unresolved ({len(packet["unresolved"])})')
+        if not packet.get("unresolvedSummary"):
+            page.row("head", f'unresolved ({len(packet["unresolved"])})')
         for u in packet["unresolved"]:
             location = (u.get("file", "") + ":" if u.get("file") else "") + str(u["line"])
             page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}')
     if packet.get("uncertainty"):
-        page.row("head", f'uncertainty ({len(packet["uncertainty"])})')
+        if not packet.get("uncertaintySummary"):
+            page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})')
         for u in packet["uncertainty"]:
-            page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()))
+            if u.get("kind") == "closure-capture" and u.get("bindings"):
+                target = next((index for index, meta in pages.items() if meta.get("d") == u["closure"]), "")
+                identity = target or u["closure"]
+                limits = ", ".join(k for k, v in u.items() if k.endswith("Unknown") and v)
+                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}', target)
+                for access, bindings in u["bindings"].items():
+                    for line in textwrap.wrap(f'{access}: ' + ", ".join(bindings), width=120):
+                        page.row("warn", line, target)
+            else:
+                page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()))
     if packet.get("analysisContext"):
         context = packet["analysisContext"]
         page.row("head", "analysis context")
@@ -549,10 +576,6 @@ def lists(packet, page, pages):
         page.row("head", f'consumedBy ({len(packet["consumedBy"])})')
         for c in packet["consumedBy"]:
             page.row("item", "  ".join(f'{k}: {v}' for k, v in c.items()), c.get("index") or "")
-    if packet.get("composition") and packet.get("children") and packet["kind"] in ("region", "file"):
-        page.row("head", "canonical source pages")
-        for c in packet["children"]:
-            page.row("item", f'{c["index"]} {c.get("file") or c.get("path") or c.get("label")}', c["index"])
     if packet.get("external"):
         page.row("head", f'external ({packet["external"]})')
         page.row("item", f'{packet["external"]} call sites without mapped targets')
@@ -808,6 +831,8 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   if(sourceNode){openCode(sourceNode.dataset.ref);return;}
   dismissCode();});
 document.addEventListener('click',e=>{
+  const evidence=e.target.closest('#codepane [data-go]');
+  if(evidence&&PAGES[evidence.dataset.go]){dismissCode();show(evidence.dataset.go);return;}
   const tw=e.target.closest('#tree .tw');
   if(tw){const k=tw.parentElement.dataset.key;collapsed.has(k)?collapsed.delete(k):collapsed.add(k);paint();return;}
   const go=e.target.closest('#bar [data-go],#tree [data-go]');
@@ -846,6 +871,10 @@ function need(then){if(SRC)return then();
   s.onload=()=>then();s.onerror=()=>{SRC={};then();};document.head.appendChild(s);}
 function closeCode(){sourceVersion++;codePane.classList.remove('on');codePane.innerHTML='';}
 function dismissCode(){closeCode();}
+function callerEvidence(page){const rows=page?.metadata?.calledFrom||[];if(!rows.length)return '';
+  let body='';for(const row of rows){const label=row.index||row.path||row.file||'external caller';
+    body+=`<div>${row.index&&PAGES[row.index]?`<a data-go="${esc(row.index)}">${esc(label)}</a>`:`<span>${esc(label)}</span>`}</div>`;}
+  return `<details open><summary>called from · ${rows.length}</summary><div class="caller-evidence">${body}</div></details>`;}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
   const version=++sourceVersion;
@@ -860,7 +889,7 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
       `<div class="num">${page?esc(page.t)+' · ':''}${esc(file)}</div><h3>lines ${a}–${b}</h3>`+
       `<div id="source-freshness">${esc(freshnessMessage().source)}</div>`+
       `<button onclick="copy('${esc(file)}:${a}')">Copy path:line</button></div>`+
-      `<div class="cb">${body}</div>`;
+      `<div class="cb">${body}${callerEvidence(page)}</div>`;
     codePane.classList.add('on');});}
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
@@ -1014,7 +1043,7 @@ def build(model, out):
                    f'{sum(r["nodes"] for r in p["regions"])} nodes')
         elif kind == "region":
             title = f'{index} {p["path"]}'
-            sub = f'{len(p["files"])} files · {p["lines"]} lines · {p["nodes"]} nodes'
+            sub = f'{p["fileCount"]} files · {p["lines"]} lines · {p["nodes"]} nodes'
             detail, ref = p["path"], None
         elif kind == "file":
             title = f'{index} {p["file"]}'

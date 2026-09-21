@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {shortTravelAdvisory} from '../export/travel-advisory.mjs';
+import {shortTravelAdvisory,withTravelAdvisory} from '../export/travel-advisory.mjs';
 import {exportAndInterpretProgram,interpretProgram} from '../export/registry.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {defaults} from '../print/plan.mjs';
@@ -8,6 +8,17 @@ import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
 
 const move=(from,to,extruding=false,extra={})=>({from,to,extruding,...extra});
+test('program enrichment returns new metadata envelopes without copying or mutating payloads',()=>{
+  const moves=Object.freeze([Object.freeze(move([0,0,0],[1,0,0],true))]);
+  const events=Object.freeze([Object.freeze({kind:'temperature',line:1})]);
+  const summary=Object.freeze({materialModel:'filament'});
+  const program=Object.freeze({moves,events,summary,source:'large immutable payload'});
+  const enriched=withTravelAdvisory(program);
+  assert.notStrictEqual(enriched,program);assert.notStrictEqual(enriched.summary,summary);
+  assert.strictEqual(enriched.moves,moves);assert.strictEqual(enriched.events,events);
+  assert.deepEqual(program,{moves,events,summary,source:'large immutable payload'});
+  assert.equal(enriched.summary.materialModel,'filament');assert.equal(enriched.summary.shortTravel.travelCount,0);
+});
 test('travel advisory measures complete XYZ trips, includes 2 mm, and retains producer/source context',()=>{
   const moves=[
     move([0,0,0],[10,0,0],true,{operation:'fill:0'}),

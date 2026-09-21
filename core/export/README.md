@@ -77,7 +77,10 @@ non-planar limit. The profile records official hardware/slicer sources, separate
 nozzle work areas and conservative PLA settings. The inherited left-tool height
 is 320 mm; the advertised overall height is 325 mm. The supplied left/right
 Bambu Studio exports establish the bounded [H2D output contract](./bambu.md#h2d-output-contract).
-No physical H2D print has been validated.
+The current startup revision awaits physical acceptance; earlier print reports
+do not validate every nozzle, plate or AMS configuration. The Bambu contract
+owns the startup duplication inventory, actual installed-nozzle declarations and
+the distinction between logical filament IDs and physical AMS tray intent.
 
 Unavailable outputs are rejected. SAAMpath is an interoperability
 boundary, not an automatic translator to every machine language. Current actions

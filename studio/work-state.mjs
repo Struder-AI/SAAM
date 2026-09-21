@@ -51,21 +51,21 @@ export function hasUnpreparedEdit(requests=[],snapshot,{now=Date.now()}={}){
 // when every active edit and any load target the toolpath, 'all' when something
 // broader (a geometry edit, a full reload) is in flight, or null when idle. A
 // toolpath-only result lets the geometry pane stay crisp while it computes.
-export function activeEditStage(requests=[],{now=Date.now(),closedOwners=new Set(),view}={}){
-  const records=requests.filter(r=>edits(r)&&(!view?.printId||r.printId===view.printId));
+export function summarizeWork(requests=[],{now=Date.now(),closedOwners=new Set(),view}={}){
   const context={now,closedOwners,view};
-  const working=records.filter(r=>requestReceiptState(r,context).activity==='working');
+  let working=false,allToolpath=true,latest=null,latestTime=-Infinity,status;
+  for(const request of requests){
+    if(!edits(request)||view?.printId&&request.printId!==view.printId)continue;
+    const state=requestReceiptState(request,context),time=Math.max(request.updatedAt,request.timedOut?request.expiresAt:0);
+    if(state.activity==='working'){working=true;if(request.target?.stage!=='toolpath')allToolpath=false;}
+    const delta=time-latestTime;
+    if(!latest||Number.isNaN(delta)||delta>=0){latest=request;latestTime=time;status=state.activity;}
+  }
   const loadingScope=view?.loading?(view.loadingStage??'all'):null;
-  const requestScope=working.length?(working.every(r=>r.target?.stage==='toolpath')?'toolpath':'all'):null;
-  if(loadingScope&&requestScope)return loadingScope==='toolpath'&&requestScope==='toolpath'?'toolpath':'all';
-  return loadingScope??requestScope??null;
-}
-
-export function agentIndicator(requests,{now=Date.now(),closedOwners=new Set(),view}={}){
-  const records=requests.filter(r=>edits(r)&&(!view?.printId||r.printId===view.printId));
-  const context={now,closedOwners,view};
-  const active=Boolean(view?.loading)||records.some(r=>requestReceiptState(r,context).activity==='working');
-  const latest=[...records].sort((a,b)=>Math.max(a.updatedAt,a.timedOut?a.expiresAt:0)-Math.max(b.updatedAt,b.timedOut?b.expiresAt:0)).at(-1);
-  const status=latest&&requestReceiptState(latest,context).activity;
-  return {active,message:active?'':status==='disconnected'?'(connection closed)':status==='expired'?'(lost contact)':''};
+  const requestScope=working?(allToolpath?'toolpath':'all'):null;
+  const stage=loadingScope&&requestScope
+    ?loadingScope==='toolpath'&&requestScope==='toolpath'?'toolpath':'all'
+    :loadingScope??requestScope??null;
+  const active=Boolean(view?.loading)||working;
+  return {active,message:active?'':status==='disconnected'?'(connection closed)':status==='expired'?'(lost contact)':'',stage};
 }

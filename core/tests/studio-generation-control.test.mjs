@@ -19,7 +19,7 @@ class SyntheticWorker extends EventEmitter {
 
 const syntheticJob=()=>{
   const worker=new SyntheticWorker();let detachments=0;
-  const job=new PreparedGenerationJob({key:'part:plan',directory:'part',planHash:'plan',createWorker:()=>worker,
+  const job=new PreparedGenerationJob({key:'part:plan',directory:'part',generationHash:'plan',createWorker:()=>worker,
     attachSource:()=>()=>{detachments++;}});
   return {job,worker,get detachments(){return detachments;}};
 };
@@ -32,8 +32,8 @@ test('prepared generation job owns ready, generating and disposed settlement',as
   worker.emit('message',{type:'prepared'});assert.equal(job.status,'ready');
   const generated=job.generate(true);assert.equal(job.status,'generating');
   assert.deepEqual(worker.messages,[{type:'generate',development:true}]);
-  worker.emit('message',{type:'generated',checks:{planHash:'plan'}});
-  assert.deepEqual(await generated,{planHash:'plan'});assert.equal(job.status,'disposed');
+  worker.emit('message',{type:'generated',checks:{generationHash:'plan'}});
+  assert.deepEqual(await generated,{generationHash:'plan'});assert.equal(job.status,'disposed');
   assert.equal(worker.terminations,1);assert.equal(fixture.detachments,1);
   await job.dispose();assert.equal(worker.terminations,1);assert.equal(fixture.detachments,1);
 });
@@ -69,10 +69,10 @@ test('Studio cancellation bypasses the generation queue, stops its worker and pe
   const {root,dir,get,post}=await fixture(t),state=await get('state');
   assert.equal((await post('cancel-generation',{printId:state.printId},'invalid')).status,403);
   assert.equal((await post('cancel-generation',{printId:'stale'})).status,400);
-  const generating=post('generate',{printId:state.printId,planHash:state.planHash,development:true});
+  const generating=post('generate',{printId:state.printId,generationHash:state.generationHash,development:true});
   let job;for(let n=0;n<100;n++){job=await get('preparation');if(job.cancellable)break;await new Promise(done=>setTimeout(done,5));}
   assert.ok(job.cancellable);
-  const cancelled=await post('cancel-generation',{printId:state.printId,planHash:state.planHash});
+  const cancelled=await post('cancel-generation',{printId:state.printId,generationHash:state.generationHash});
   assert.equal(cancelled.status,200);assert.equal((await cancelled.json()).cancelled,true);
   const original=await generating;assert.equal((await original.json()).code,'GENERATION_CANCELLED');
   assert.equal(JSON.parse(await readFile(resolve(dir,'review.json'),'utf8')).generation,null,'cancelled calculations write no generation record');

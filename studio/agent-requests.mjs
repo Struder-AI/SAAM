@@ -80,7 +80,8 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       if(typeof listener!=='function')throw Error('Request listener must be a function.');
       listeners.add(listener);const release=index.retain();
       void mkdir(folder,{recursive:true}).then(()=>index.refresh()).catch(()=>{});
-      return()=>{listeners.delete(listener);release();};
+      const unsubscribe=()=>{listeners.delete(listener);release();};
+      return unsubscribe;
     },
     close(){disconnected=true;wake();listeners.clear();index.close();},
     async activity(id,{directory}={}){
@@ -135,15 +136,19 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
         await save({...record,status:'failed',connectionClosed:true,updatedAt:Math.max(now(),record.updatedAt+1)});
       index.close();
     },
+    async selectQueued(candidates,{after=[],claim=false,studioInstanceId}={}){
+      const requests=candidates.filter(request=>!after.includes(request.id)&&(!studioInstanceId||request.studioInstanceId===studioInstanceId));
+      return claim?Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests;
+    },
     async wait({after=[],waitMs=25000,claim=false,studioInstanceId}={}){
       const deadline=Date.now()+Math.min(25000,Math.max(0,waitMs));
       await mkdir(folder,{recursive:true});const release=index.retain();
       try{for(;;){
         const observed=changeVersion;
-        const requests=(await query({status:'queued'})).filter(r=>!after.includes(r.id)&&(!studioInstanceId||r.studioInstanceId===studioInstanceId));
+        const requests=await this.selectQueued(await query({status:'queued'}),{after,claim,studioInstanceId});
         const remaining=deadline-Date.now();
         // A delivered Studio event ends the wait too, carrying every held event.
-        if(requests.length||remaining<=0||disconnected||events?.pendingDelivery())return {requests:claim?await Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests,...(events?{events:events.drain()}:{})};
+        if(requests.length||remaining<=0||disconnected||events?.pendingDelivery())return {requests,...(events?{events:events.drain()}:{})};
         if(changeVersion!==observed)continue;
         await new Promise(resolve=>{
           let timer,stopEvents;const done=()=>{clearTimeout(timer);waiters.delete(done);stopEvents?.();resolve();};

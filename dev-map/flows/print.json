@@ -23,7 +23,9 @@
                 "core/print/workflow.mjs::createBundleWorkflow::fitLineWidthToSetup",
                 "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
                 "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
-                "core/print/workflow.mjs::createBundleWorkflow::changeMachine"
+                "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
+                "core/print/workflow.mjs::createBundleWorkflow::machineChangeTransition",
+                "core/print/workflow.mjs::machineChangedReview"
               ]
             },
             {
@@ -40,7 +42,10 @@
                 "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
                 "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints",
                 "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints::snapshot",
-                "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprint"
+                "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprint",
+                "core/print/workflow.mjs::migratedIdentity",
+                "core/print/workflow.mjs::migrateReview",
+                "core/print/workflow.mjs::migrateChecks"
               ]
             },
             {
@@ -53,7 +58,8 @@
                 "core/print/workflow.mjs::createBundleWorkflow::persistPlanUpdate",
                 "core/print/workflow.mjs::applyPlanPatch",
                 "core/print/workflow.mjs::mergePlanPatch",
-                "core/print/workflow.mjs::editedPlanReview"
+                "core/print/workflow.mjs::editedPlanReview",
+                "core/print/workflow.mjs::invalidateReview"
               ]
             },
             {
@@ -67,7 +73,11 @@
                 "core/print/workflow.mjs::createBundleWorkflow::restoreBundleProgram",
                 "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle",
                 "core/print/workflow.mjs::createBundleWorkflow::prepareProgram",
-                "core/print/workflow.mjs::createBundleWorkflow::generateBundle"
+                "core/print/workflow.mjs::createBundleWorkflow::generateBundle",
+                "core/print/workflow.mjs::createBundleWorkflow::currentGenerationCandidate",
+                "core/print/workflow.mjs::createBundleWorkflow::promoteReviewedGeneration",
+                "core/print/workflow.mjs::createBundleWorkflow::generationChecks",
+                "core/print/workflow.mjs::createBundleWorkflow::persistGeneratedProgram"
               ]
             },
             {
@@ -75,7 +85,8 @@
               "label": "approval and delivery",
               "members": [
                 "core/print/workflow.mjs::createBundleWorkflow::approve",
-                "core/print/workflow.mjs::createBundleWorkflow::deliver"
+                "core/print/workflow.mjs::createBundleWorkflow::deliver",
+                "core/print/workflow.mjs::approvedReview"
               ]
             },
             {
@@ -254,7 +265,9 @@
             "core/print/workflow.mjs::createBundleWorkflow::fitLineWidthToSetup",
             "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
             "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
-            "core/print/workflow.mjs::createBundleWorkflow::changeMachine"
+            "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
+            "core/print/workflow.mjs::createBundleWorkflow::machineChangeTransition",
+            "core/print/workflow.mjs::machineChangedReview"
           ]
         },
         {
@@ -271,7 +284,10 @@
             "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
             "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints",
             "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints::snapshot",
-            "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprint"
+            "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprint",
+            "core/print/workflow.mjs::migratedIdentity",
+            "core/print/workflow.mjs::migrateReview",
+            "core/print/workflow.mjs::migrateChecks"
           ]
         },
         {
@@ -284,7 +300,8 @@
             "core/print/workflow.mjs::createBundleWorkflow::persistPlanUpdate",
             "core/print/workflow.mjs::applyPlanPatch",
             "core/print/workflow.mjs::mergePlanPatch",
-            "core/print/workflow.mjs::editedPlanReview"
+            "core/print/workflow.mjs::editedPlanReview",
+            "core/print/workflow.mjs::invalidateReview"
           ]
         },
         {
@@ -298,7 +315,11 @@
             "core/print/workflow.mjs::createBundleWorkflow::restoreBundleProgram",
             "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle",
             "core/print/workflow.mjs::createBundleWorkflow::prepareProgram",
-            "core/print/workflow.mjs::createBundleWorkflow::generateBundle"
+            "core/print/workflow.mjs::createBundleWorkflow::generateBundle",
+            "core/print/workflow.mjs::createBundleWorkflow::currentGenerationCandidate",
+            "core/print/workflow.mjs::createBundleWorkflow::promoteReviewedGeneration",
+            "core/print/workflow.mjs::createBundleWorkflow::generationChecks",
+            "core/print/workflow.mjs::createBundleWorkflow::persistGeneratedProgram"
           ]
         },
         {
@@ -306,7 +327,8 @@
           "label": "approval and delivery",
           "members": [
             "core/print/workflow.mjs::createBundleWorkflow::approve",
-            "core/print/workflow.mjs::createBundleWorkflow::deliver"
+            "core/print/workflow.mjs::createBundleWorkflow::deliver",
+            "core/print/workflow.mjs::approvedReview"
           ]
         }
       ]
@@ -322,7 +344,8 @@
             "core/print/workflow.mjs::createBundleWorkflow::fitLineWidthToSetup",
             "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
             "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
-            "core/print/workflow.mjs::createBundleWorkflow::changeMachine"
+            "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
+            "core/print/workflow.mjs::createBundleWorkflow::machineChangeTransition"
           ]
         },
         {
@@ -359,7 +382,11 @@
             "core/print/workflow.mjs::createBundleWorkflow::restoreBundleProgram",
             "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle",
             "core/print/workflow.mjs::createBundleWorkflow::prepareProgram",
-            "core/print/workflow.mjs::createBundleWorkflow::generateBundle"
+            "core/print/workflow.mjs::createBundleWorkflow::generateBundle",
+            "core/print/workflow.mjs::createBundleWorkflow::currentGenerationCandidate",
+            "core/print/workflow.mjs::createBundleWorkflow::promoteReviewedGeneration",
+            "core/print/workflow.mjs::createBundleWorkflow::generationChecks",
+            "core/print/workflow.mjs::createBundleWorkflow::persistGeneratedProgram"
           ]
         },
         {

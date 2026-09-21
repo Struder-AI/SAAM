@@ -8,6 +8,22 @@ import {buildShell} from './generate.mjs';
 import {compileText} from '../../skills/text/scripts/text.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 
+export function unwrapTextGeometry(geometry){
+  const layers=[];
+  let base=geometry;
+  while(base.shape==='text'&&base.base&&!base.standalone){layers.push(base);base=base.base;}
+  return {base,layers};
+}
+
+export async function rebuildTextGeometry(base,layers,{buildGeometry}){
+  let rebuilt=base;
+  for(let i=layers.length-1;i>=0;i--){
+    const layer=layers[i];
+    rebuilt=await compileText(rebuilt,layer.features,{buildGeometry,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
+  }
+  return rebuilt;
+}
+
 export async function applyText(directory,request,{expectedRevision}={}){
   requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','regions','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one feature to add/update, or remove its id.');

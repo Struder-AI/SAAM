@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
-import { intersect, union, difference } from '../region/intersection.mjs';
+import { intersect, union, difference, clipOpenPaths } from '../region/intersection.mjs';
 import { intersectionFixtures } from '../../scripts/bench/intersection-fixtures.mjs';
 import { offsetRegion } from '../region/offset.mjs';
 import { pointInRegion } from '../region/region2d.mjs';
@@ -46,6 +46,13 @@ test('closed material operations retain nested holes, islands, overlaps and empt
   assert.equal(pointInRegion([8,8],intersect(a,a)),true);
   // Overlapping positive loops are material once, as in the offset interface.
   near(area(union([rect(0,0,10,10),rect(5,0,10,10)],[])),150);
+});
+
+test('open subjects clip against closed material and retain empty semantics',()=>{
+  const region=[rect(0,0,10,10)], path=[[[-2,5],[3,5],[12,5]]];
+  assert.deepEqual(clipOpenPaths(path,region),[[[0,5],[3,5],[10,5]]]);
+  assert.deepEqual(clipOpenPaths([],region),[]);
+  assert.deepEqual(clipOpenPaths(path,[]),[]);
 });
 
 test('edge and point contacts produce no material area; point-touching islands remain separate', () => {

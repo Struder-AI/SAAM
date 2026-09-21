@@ -55,3 +55,14 @@ test('a failed arm solve keeps the part where the source put it, never at an ide
   assert.ok(pose.worldFromFrame.tcp&&!pose.worldFromFrame['arm-0'],'source frames remain; unsolved arm frames are omitted');
   provider.dispose();
 });
+test('scaled Dobot output keeps source frames but omits the incompatible rigid arm overlay',async()=>{
+  const machine=loadMachine('dobot-mg400'),program={language:'dobot-lua',seconds:1,moves:[{from:[0,0,25],to:[0,0,25],startSeconds:0,durationSeconds:1}]};
+  const provider=await createMachinePresentation({program,machine,sourceIdentity:{printId:'fixture',revision:'1',exportHash:'scaled'},
+    setup:{dobot:{scaleX:2,scaleY:1},kinematicModel:{worldFromBase:rigid([-300,0,0]),toolLengthMm:70}}});
+  assert.deepEqual(provider.descriptor.controls,[]);
+  assert.match(provider.descriptor.limitations.at(-1),/non-unit Dobot design calibration/);
+  const pose=await provider.sample({requestId:1,seconds:.5});
+  assert.equal(pose.status,'ready');assert.equal(pose.diagnostics[0].code,'arm-unavailable');
+  assert.ok(pose.worldFromFrame.part&&pose.worldFromFrame.tcp&&!pose.worldFromFrame.base&&!pose.worldFromFrame['arm-0']);
+  provider.dispose();
+});

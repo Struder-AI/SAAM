@@ -9,8 +9,8 @@ export function composeStudioState(bundleState,studioFacts){
   const {code,dir,...displayed}=bundleState;
   const work={printId:workId??printId,snapshot:{...workSnapshot(bundleState),studioInstanceId:instanceId},
     requests:workId?records.filter(record=>record.printId===workId):[]};
-  const failed=generationFailure?.directory===directory&&generationFailure.planHash===bundleState.planHash&&!bundleState.program;
-  const cancelled=generationCancelled?.directory===directory&&generationCancelled.planHash===bundleState.planHash;
+  const failed=generationFailure?.directory===directory&&generationFailure.generationHash===bundleState.generationHash&&!bundleState.program;
+  const cancelled=generationCancelled?.directory===directory&&generationCancelled.generationHash===bundleState.generationHash;
   const response={...displayed,tour:guide,localPrintDirectory:directory,instanceId,importRepair,work,
     ...(failed?{generationError:generationFailure.message}:{}),generationCancelled:cancelled,
     presentationFingerprint,printName,downloadName:downloadName(printName,bundleState.exportName),printId,fingerprint};

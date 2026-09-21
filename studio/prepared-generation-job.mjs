@@ -13,15 +13,15 @@ export class PreparedGenerationJob {
   #onError;
   #onExit;
 
-  constructor({key,directory,planHash,createWorker,attachSource=attachCheckedProgramWorker,createControl=generationControl}){
-    this.key=key;this.directory=directory;this.planHash=planHash;
+  constructor({key,directory,generationHash,createWorker,attachSource=attachCheckedProgramWorker,createControl=generationControl}){
+    this.key=key;this.directory=directory;this.generationHash=generationHash;
     this.status='preparing';this.progress={stage:'Preparing geometry'};
     this.control=createControl();this.worker=null;this.started=false;
     try{
       this.worker=createWorker(this.control.buffer);
       this.started=true;
       if(!(this.worker instanceof Worker)&&attachSource===attachCheckedProgramWorker)throw new TypeError('Expected the Studio generation worker.');
-      this.#detachSource=attachSource(this.worker,planHash);
+      this.#detachSource=attachSource(this.worker,generationHash);
       this.#onMessage=message=>this.#receive(message);
       this.#onError=error=>{this.#fail(error,true);};
       this.#onExit=code=>{if(code&&this.worker)this.#fail(new Error('Toolpath preparation stopped unexpectedly.'),true);};

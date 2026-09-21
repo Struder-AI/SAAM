@@ -103,6 +103,41 @@ test('each external rule fires on its own shape, and a same-named mapped method 
     ['core/held.mjs::local::hold']);
 });
 
+test('lexical homonyms do not become member names, while callable member shapes remain conservative',async()=>{
+  const local={'core/local.mjs':`export function localNames(receiver){
+  const slice=1,trim='';
+  return receiver.slice()+receiver.trim();
+}`};
+  const localGraph=await extractGraph({repo:'',files:Object.keys(local),readSource:f=>local[f],literalCouplings:true,receiverCalls:true});
+  for(const call of ['receiver.slice()','receiver.trim()'])
+    assert.deepEqual(localGraph.callSites.externalSites.filter(s=>s.site.text===call).map(s=>s.rule),['member-name-not-in-mapped-code'],call);
+
+  const shaped={'core/members.mjs':`function slice(value){return value;}
+export function record(){return {slice};}
+export class Tool{run(){return 1;}static make(){return new Tool();}}
+const assigned={};assigned.save=slice;
+export function unknown(a,b,c,d){a.slice();b.run();c.make();d.save();}
+export function known(){return record().slice(1)+new Tool().run()+Tool.make().run();}
+`};
+  const g=await extractGraph({repo:'',files:Object.keys(shaped),readSource:f=>shaped[f],literalCouplings:true,receiverCalls:true});
+  const sites=text=>[...g.callSites.externalSites,...g.callSites.unresolved].filter(s=>s.site.text===text);
+  for(const call of ['a.slice()','b.run()','c.make()','d.save()'])
+    assert.deepEqual(sites(call).map(s=>s.reason??s.rule),['member-receiver-unresolved'],call);
+  const name=anchors(g),known=g.relations.filter(r=>r.kind==='call'&&name.get(r.from)==='core/members.mjs::known').map(r=>name.get(r.to));
+  assert.ok(known.includes('core/members.mjs::slice'),'shorthand callable property links');
+  assert.ok(known.includes('core/members.mjs::Tool::run'),'instance method links');
+  assert.ok(known.includes('core/members.mjs::Tool::@static/make'),'static method links');
+});
+
+test('literal computed callable members stay unresolved until computed definitions can link',async()=>{
+  const source=`function fn(){}class Tool{['run'](){}}const record={['save']:fn};
+export function unknown(a,b,c){a.run();b.save();c[dynamic]();}`;
+  const g=await extractGraph({repo:'',files:['core/computed.mjs'],readSource:()=>source,literalCouplings:true,receiverCalls:true});
+  for(const call of ['a.run()','b.save()'])assert.deepEqual(g.callSites.unresolved.filter(s=>s.site.text===call).map(s=>s.reason),
+    ['member-receiver-unresolved'],call);
+  assert.deepEqual(g.callSites.unresolved.filter(s=>s.site.text==='c[dynamic]()').map(s=>s.reason),['computed-member']);
+});
+
 const factory={
   'core/session.mjs':`function load(id){return id;}
 function save(id){return id;}
@@ -143,7 +178,7 @@ test('a function body reads as a flow: parameters in, callees in call order, ret
   // Order is the first call site, not the declaration order of the callees.
   assert.deepEqual(p.components.map(c=>[c.order,c.label,c.calls,c.links.join()]),[[1,'prepare',1,'ast-call-site'],
     [2,'begin',1,'receiver-value'],[3,'heat',1,'receiver-value'],[4,'place',1,'receiver-value'],[5,'finish',1,'receiver-value']]);
-  assert.deepEqual(p.outputs,[{port:'out1',name:'tool.finish()',kind:'return',lines:[11],provenance:'ast-return'}]);
+  assert.deepEqual(p.outputs,[{port:'out1',name:'tool.finish()',kind:'return',lines:[11],returnCall:'tool.finish',provenance:'ast-return'}]);
   assert.ok(p.components.every(c=>c.foot===`${c.file.split('/').pop()}:${c.line}-${c.endLine}`));
   assert.ok(p.components.every(c=>c.lines===c.endLine-c.line+1));
 });

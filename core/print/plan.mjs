@@ -123,7 +123,7 @@ export function geometryTemplate(shape,geometry) {
 export function validatePlan(plan,machine) {
   const fields=validatePlanFields(plan,machine);
   const geometry=validatePlanGeometry(fields,machine);
-  const process=validatePlanProcess(geometry);
+  const process=validatePlanProcess(geometry,machine);
   const auxiliary=validatePlanAuxiliary(process,machine);
   const walls=validatePlanWalls(auxiliary);
   const selections=validatePlanSelections(walls,machine);
@@ -193,15 +193,26 @@ export function validatePlanGeometry(plan,machine) {
   return plan;
 }
 
-export function validatePlanProcess(plan) {
+// Layer height, bead width, flow and retraction ceilings are declared by the
+// selected tool and material, and validateSetup enforces them against that
+// profile two steps later. Repeating them here as chosen numbers refused a
+// legitimate 0.8 mm nozzle, so this pass keeps only the floors that say a value
+// is not a usable process value at all. Axis speeds are bounded by the machine's
+// own declared feed, which is a property of the hardware rather than a budget.
+export function validatePlanProcess(plan,machine) {
   const {process}=plan;
   requireThat(typeof process.experimentalDeposition==='boolean','experimentalDeposition must be boolean.');
-  const planarLimits=process.experimentalDeposition?{firstLayerMm:1,layerMm:1,lineWidthMm:2,maxFlowMm3S:30}:{firstLayerMm:.3,layerMm:.3,lineWidthMm:.8,maxFlowMm3S:15};
-  for (const [key, min, max] of [['firstLayerMm', 0.1, planarLimits.firstLayerMm], ['layerMm', 0.06, planarLimits.layerMm], ['lineWidthMm', 0.3, planarLimits.lineWidthMm],
-    ['planarSpeedMmS', 2, 80], ['skinSpeedMmS', 2, 40], ['firstLayerSpeedMmS', 2, 40], ['travelSpeedMmS', 5, 200],
-    ['zSpeedMmS', 1, 20], ['retractMm', 0, 10], ['retractSpeedMmS', 1, 50], ['liftMm', 0, 20],
-    ['maxCombMm', 0, 100], ['fanPercent', 0, 100], ['maxFlowMm3S', 0.1, planarLimits.maxFlowMm3S], ['minimumLayerSeconds', 0, 60]])
-    number(process[key], min, max, key);
+  const feed=machine?.maxFeedMmS,xy=feed?Math.min(feed.x,feed.y):null;
+  const finiteAtLeast=(value,min,name)=>requireThat(typeof value==='number'&&Number.isFinite(value)&&value>=min,
+    `${name} must be a finite value of at least ${min}.`);
+  const bounded2=(value,min,max,name)=>max===null||max===undefined?finiteAtLeast(value,min,name):number(value,min,max,name);
+  const bounded=(key,min,max)=>max===null||max===undefined?finiteAtLeast(process[key],min,key):number(process[key],min,max,key);
+  for (const [key, min] of [['firstLayerMm', 0.01], ['layerMm', 0.01], ['lineWidthMm', 0.05], ['maxFlowMm3S', 0.1],
+    ['retractMm', 0], ['retractSpeedMmS', 1], ['liftMm', 0], ['maxCombMm', 0], ['minimumLayerSeconds', 0]])
+    finiteAtLeast(process[key], min, key);
+  for (const [key, min, max] of [['planarSpeedMmS', 2, xy], ['skinSpeedMmS', 2, xy], ['firstLayerSpeedMmS', 2, xy],
+    ['travelSpeedMmS', 5, xy], ['zSpeedMmS', 1, feed?feed.z:null]]) bounded(key, min, max);
+  number(process.fanPercent, 0, 100, 'fanPercent');
   requireThat(process.clearanceResponsibility === 'operator', 'Clearance responsibility must be recorded as operator.');
   requireThat(typeof process.clearanceNote === 'string' && process.clearanceNote.length <= 1000, 'Invalid clearance note.');
   if(process.primeLine!==null){
@@ -213,8 +224,8 @@ export function validatePlanProcess(plan) {
       requireThat(pass&&typeof pass==='object'&&!Array.isArray(pass)&&Object.keys(pass).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid prime pass fields.');
       requireThat([pass.startMm,pass.endMm].every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite))&&
         Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>=10,'Prime pass needs two finite XY endpoints at least 10 mm apart.');
-      number(pass.zMm,.05,10,'Prime line Z');number(pass.widthMm,.3,planarLimits.lineWidthMm,'Prime line width');
-      number(pass.heightMm,.05,planarLimits.layerMm,'Prime line height');number(pass.speedMmS,2,80,'Prime line speed');
+      finiteAtLeast(pass.zMm,.05,'Prime line Z');finiteAtLeast(pass.widthMm,.05,'Prime line width');
+      finiteAtLeast(pass.heightMm,.01,'Prime line height');bounded2(pass.speedMmS,2,xy,'Prime line speed');
     }
   }
 

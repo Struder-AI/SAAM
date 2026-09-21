@@ -12,7 +12,7 @@ import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino,createGeometry,verifyGeometry} from '../print/geometry.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {exportProgram,interpretProgram,exportAndInterpretProgram} from '../export/registry.mjs';
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
 import {bedPoint,uprightPose} from '../path/pose.mjs';
@@ -81,7 +81,9 @@ test('oriented motion preserves pose-only actions and unsupported outputs reject
   const raised=planMove(rotated.state,[10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
   const path=planningPath(raised.state,[rotated.actions,raised.actions]);
   assert.equal(path.actions.length,2);assert.equal(path.actions[0].pose.rotaryDeg,720);
-  const s5=loadMachine();assert.throws(()=>exportProgram(path,defaults(s5),s5),/cannot represent/);
+  const s5=loadMachine(),unsupported=defaults(s5);
+  assert.throws(()=>exportProgram(path,unsupported,s5),/cannot represent/);
+  assert.throws(()=>exportAndInterpretProgram(path,unsupported,s5),/cannot represent/);
 });
 
 test('actual T/EX commands reconstruct fixed-room rotary deposition across multiple turns',()=>{

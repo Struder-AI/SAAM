@@ -69,7 +69,7 @@ test('Studio authored groups contain no semantic edges or prose and nested scope
 });
 
 test('Studio drawing retains separate projection invocations and valid endpoints through composition',async()=>{
-  const {packets,pages,groupPages}=await loaded,path='studio/app.mjs::draw';
+  const {packets,pages,groupPages}=await loaded,path='studio/viewer-renderer.mjs::createViewerRenderer::draw';
   const raw=packets.get(path),shown=presentationPage(raw),project=raw.components.find(c=>c.label==='createProjection::project');
   const calls=raw.callBindings.filter(c=>c.callee==='studio/camera.mjs::createProjection::project');
   const instances=shown.components.filter(c=>c.index===project.index);
@@ -87,15 +87,23 @@ test('Studio drawing retains separate projection invocations and valid endpoints
 
 test('refresh decision results connect to explicit host application stages',async()=>{
   const {packets,index,m}=await loaded,refresh=packets.get('studio/app.mjs::refresh');
-  const stages=['studio/refresh-plan.mjs::planProgramPresentation','studio/app.mjs::applyProgramPresentation',
+  const stages=['studio/studio-state.mjs::prepareStudioState','studio/app.mjs::applyProgramPresentation',
     'studio/refresh-plan.mjs::planRefreshNavigation','studio/app.mjs::applyRefreshNavigation'];
   for(let i=0;i<stages.length-1;i++)assert.ok(refresh.wires.some(w=>w.from===index.get(stages[i])&&w.to===index.get(stages[i+1])),`${stages[i]} → ${stages[i+1]}`);
   assert.ok(!m.nodes.some(n=>n.path==='studio/app.mjs::refresh::staleForMoves'),'old captured-state decision helper removed');
 });
 
+test('adopted Studio state reaches presentation planning and the returned state port',async()=>{
+  const {packets,index}=await loaded,page=packets.get('studio/studio-state.mjs::prepareStudioState');
+  const adopted=index.get('studio/studio-state.mjs::adoptProgramState'),planning=index.get('studio/refresh-plan.mjs::planProgramPresentation');
+  assert.ok(page.wires.some(w=>w.from===adopted&&w.to===planning&&w.label==='state'));
+  assert.ok(page.wires.some(w=>w.from===adopted&&w.to==='out1'&&w.label==='state'));
+  assert.ok(!page.uncertainty?.some(u=>['argument-origin','return-origin'].includes(u.kind)&&u.expression==='state'));
+});
+
 test('state response assembly receives loaded state and drives the current preparation consumer',async()=>{
   const {packets,index}=await loaded,server=packets.get('studio/server.mjs::createStudio');
-  const loadedState=index.get('studio/server.mjs::readStableBundle'),assembly=index.get('studio/state-response.mjs::composeStudioState'),prepare=index.get('studio/server.mjs::createStudio::prepare');
+  const loadedState=index.get('studio/adapter-resolution.mjs::readStableBundle'),assembly=index.get('studio/state-response.mjs::composeStudioState'),prepare=index.get('studio/server.mjs::createStudio::prepare');
   assert.ok(server.wires.some(w=>w.from===loadedState&&w.to===assembly),'loaded state enters assembly');
   assert.ok(server.wires.some(w=>w.from===assembly&&w.to===prepare),'returned preparation values enter the existing effect');
 });

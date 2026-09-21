@@ -17,6 +17,7 @@
           "members": [
             "core/export/griffin.mjs",
             "core/export/bambu.mjs",
+            "core/export/bambu-job.mjs",
             "core/export/bambu-player.mjs",
             "core/export/gcode-lines.mjs"
           ],
@@ -66,6 +67,7 @@
               "label": "Bambu envelope and package",
               "members": [
                 "core/export/bambu.mjs",
+                "core/export/bambu-job.mjs",
                 "core/export/bambu-player.mjs"
               ],
               "groups": [
@@ -87,7 +89,6 @@
                   "label": "archive and thumbnails",
                   "members": [
                     "core/export/bambu.mjs::packageEntries",
-                    "core/export/bambu.mjs::packageEntries::perTool",
                     "core/export/bambu.mjs::thumbnail",
                     "core/export/bambu.mjs::thumbnail::project",
                     "core/export/bambu.mjs::thumbnail::chunk"
@@ -332,8 +333,8 @@
                 "core/export/dobot-lua-subset.mjs::LuaSubsetError::constructor",
                 "core/export/dobot-lua-subset.mjs::LuaTable",
                 "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-                "core/export/dobot-lua-subset.mjs::LuaTable::from",
-                "core/export/dobot-lua-subset.mjs::LuaTable::fromArray",
+                "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
+                "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
                 "core/export/dobot-lua-subset.mjs::LuaTable::get",
                 "core/export/dobot-lua-subset.mjs::LuaTable::set",
                 "core/export/dobot-lua-subset.mjs::LuaTable::length",
@@ -366,8 +367,8 @@
                   "members": [
                     "core/export/dobot-lua-subset.mjs::LuaTable",
                     "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::from",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::fromArray",
+                    "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
+                    "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
                     "core/export/dobot-lua-subset.mjs::LuaTable::get",
                     "core/export/dobot-lua-subset.mjs::LuaTable::set",
                     "core/export/dobot-lua-subset.mjs::LuaTable::length",
@@ -590,8 +591,8 @@
             "core/export/dobot-lua-subset.mjs::LuaSubsetError::constructor",
             "core/export/dobot-lua-subset.mjs::LuaTable",
             "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-            "core/export/dobot-lua-subset.mjs::LuaTable::from",
-            "core/export/dobot-lua-subset.mjs::LuaTable::fromArray",
+            "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
+            "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
             "core/export/dobot-lua-subset.mjs::LuaTable::get",
             "core/export/dobot-lua-subset.mjs::LuaTable::set",
             "core/export/dobot-lua-subset.mjs::LuaTable::length",
@@ -624,8 +625,8 @@
               "members": [
                 "core/export/dobot-lua-subset.mjs::LuaTable",
                 "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-                "core/export/dobot-lua-subset.mjs::LuaTable::from",
-                "core/export/dobot-lua-subset.mjs::LuaTable::fromArray",
+                "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
+                "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
                 "core/export/dobot-lua-subset.mjs::LuaTable::get",
                 "core/export/dobot-lua-subset.mjs::LuaTable::set",
                 "core/export/dobot-lua-subset.mjs::LuaTable::length",

@@ -244,3 +244,10 @@ explicitly supplied with it. Keep user-reported findings distinct from assumed
 profile behavior. The [S5 setup guidance](../export/griffin.md#s5-setup-and-troubleshooting)
 and other [machine contracts](../export/README.md) own installation-specific
 questions and required calibration.
+
+Bambu agents must read [maker setup and the startup inventory](../export/bambu.md#maker-setup)
+before selecting output. The recipe records the actual other H2D nozzle diameter,
+plate and startup choices in `setup.bambu`. Logical filament IDs and physical AMS
+tray requests are distinct; confirm the printer's tray mapping before printing.
+Reference slicer presets may declare equal diameters even when the installed
+hardware differs. Do not copy those declarations over the actual setup.

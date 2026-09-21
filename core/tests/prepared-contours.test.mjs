@@ -15,6 +15,16 @@ const circle=(z,o)=>contourPath(Array.from({length:64},(_,i)=>{
   return [z*.1+r*Math.cos(t),r*Math.sin(t)];
 }),[100,0]);
 
+test('prepared contour reports are detached snapshots of private query counters',()=>{
+  const prepared=prepareContourFamily({curveAt:circle,startMm:0,endMm:2,stepMm:.4,toleranceMm:.0025});
+  const changed=prepared.report();changed.preparedCells=999;
+  const frozen=Object.freeze(prepared.report());
+  prepared.at(.25,.2,0);
+  const later=prepared.report();
+  assert.notStrictEqual(later,frozen);assert.notEqual(later.preparedCells,999);
+  assert.ok(later.preparedCells>frozen.preparedCells);
+});
+
 test('prepared height/depth mapping reuses expensive curves and keeps independent samples within its allowance',()=>{
   let calls=0;
   const curveAt=(z,o)=>{calls++;return circle(z,o);};
@@ -26,8 +36,8 @@ test('prepared height/depth mapping reuses expensive curves and keeps independen
   }
   assert.ok(worst<=.0025,`maximum independently sampled deviation ${worst}`);
   assert.ok(calls<2000,`prepared ${calls} source curves for 2000 distinct mapping positions`);
-  assert.ok(prepared.report.preparedCells>0);
-  assert.ok(prepared.report.maxCachedCurves<=2048);
+  assert.ok(prepared.report().preparedCells>0);
+  assert.ok(prepared.report().maxCachedCurves<=2048);
 });
 
 test('prepared curve queries expose the same mapping and complete perimeter breakpoints',()=>{
@@ -51,7 +61,7 @@ test('prepared mapping retains concave contour correspondence, negative phase an
     worst=Math.max(worst,error(prepared.at(u,z,o),curveAt(z,o).at(u)));
   }
   assert.ok(worst<=.0025,`concave maximum independently sampled deviation ${worst}`);
-  assert.ok(prepared.report.preparedCells>3,'changing corners require refinement');
+  assert.ok(prepared.report().preparedCells>3,'changing corners require refinement');
 });
 
 test('twisting eccentric contours preserve the projected seam across refinement boundaries',()=>{
@@ -83,7 +93,7 @@ test('off-path contour collapse refines locally, actual invalid queries preserve
   assert.ok(error(prepared.at(.2,.3271,.129),curveAt(.3271,.129).at(.2))<=.0025);
   assert.throws(()=>prepared.at(.2,.4,.14),/offset contour collapsed/);
   assert.deepEqual(prepared.at(.2,.3271,0),curveAt(.3271,0).at(.2));
-  assert.ok(prepared.report.directFallbacks>0);
+  assert.ok(prepared.report().directFallbacks>0);
 });
 
 test('mesh connectivity preparation is byte-identical across vertex levels, boundaries, holes and revisited bands',()=>{
@@ -92,6 +102,14 @@ test('mesh connectivity preparation is byte-identical across vertex levels, boun
     const heights=[mesh.bounds.min[2],mesh.bounds.max[2],...mesh.vertices.map(p=>p[2]),...Array.from({length:41},(_,i)=>mesh.bounds.min[2]+(mesh.bounds.max[2]-mesh.bounds.min[2])*(i+.31)/42)];
     for(const z of [...heights,...heights.toReversed()])assert.deepEqual(query(z),sectionMesh(mesh,z));
   }
+});
+
+test('prepared mesh sections own stable geometry after caller mutation',()=>{
+  const source=boxMesh(12,10,2,1),mesh=makeMesh(source.vertices,source.triangles),query=createMeshSectionQuery(mesh),z=.731;
+  const expected=sectionMesh(mesh,z);
+  mesh.vertices[0][0]=999;mesh.triangles[0][0]=mesh.triangles[0][1];
+  mesh.vertices=[];mesh.triangles=[];mesh.bounds.min[2]=100;mesh.bounds.max[2]=101;
+  assert.deepEqual(query(z),expected);
 });
 
 test('prepared source accepts mesh and spline section queries without backend branching',async()=>{
@@ -117,7 +135,7 @@ test('prepared source accepts mesh and spline section queries without backend br
 test('cache size stays bounded over arbitrarily many height slabs and offset cells',()=>{
   const prepared=prepareContourFamily({curveAt:circle,startMm:0,endMm:12,stepMm:.4,toleranceMm:.0025});
   for(let i=0;i<75;i++)prepared.at(.217,(i+.3)/75*12,-2+(i*13%75)/75*4);
-  assert.ok(prepared.report.maxCachedCurves<=2048);
+  assert.ok(prepared.report().maxCachedCurves<=2048);
   assert.throws(()=>prepared.at(NaN,1,0),/finite/);
   assert.throws(()=>prepareContourFamily({curveAt:circle,startMm:0,endMm:1,stepMm:Infinity,toleranceMm:.01}),/finite/);
 });

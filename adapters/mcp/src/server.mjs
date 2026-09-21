@@ -10,7 +10,8 @@ import {openBrowser} from '../../../studio/browser.mjs';
 export {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
 import { MACHINE_IDS, loadMachine } from '../../../core/machine/profile.mjs';
-import { bundleFor, createStudio, listPrints } from '../../../studio/server.mjs';
+import { createStudio, listPrints } from '../../../studio/server.mjs';
+import { bundleFor } from '../../../studio/adapter-resolution.mjs';
 import {createTour} from '../../../studio/tour.mjs';
 import {createAgentRequests} from '../../../studio/agent-requests.mjs';
 import {createStudioEvents} from '../../../studio/studio-events.mjs';
@@ -409,10 +410,11 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
   server.server.oninitialized=()=>{void notifyRequests();};
   function close(){return closing??=Promise.resolve().then(async()=>{
     stopRequestWatch();stopEventWatch();
-    for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     await queue;
+    await agentRequests.disconnect();
+    for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
-    await agentRequests.disconnect();studioEvents.close();
+    studioEvents.close();
     studioSessions.clear();preferredStudioByPrint.clear();
     await server.close();
   });}

@@ -10,8 +10,7 @@
 // runtime validation pass. See BUILDERS.md for limits and reference status.
 import { requireThat, dot, cross, normalize } from '../geom/tolerance.mjs';
 import { surfaceDerivatives } from '../geom/surface-derivatives.mjs';
-import { clipperContext, clipPaths } from './clipper.mjs';
-import {simplifyPaths} from './clipper2.mjs';
+import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
 import {intersect,difference,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
 

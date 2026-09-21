@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import {prepareSleeveContact} from '../geom/sleeve-contact.mjs';
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
 const square=[[0,0],[10,0],[10,10],[0,10]];
+test('sleeve contact reports are detached snapshots of private query counters',()=>{
+  const contact=prepareSleeveContact({loopsAt:()=>[square],anchorAt:()=>[5,5]});
+  const changed=contact.report();changed.contactSamples=999;
+  const frozen=Object.freeze(contact.report());
+  contact.at([12,5,2]);
+  const later=contact.report();
+  assert.notStrictEqual(later,frozen);assert.notEqual(later.contactSamples,999);
+  assert.equal(later.contactSamples,frozen.contactSamples+1);
+});
 test('contact compresses only the forbidden side and blends continuously',()=>{
   const c=prepareSleeveContact({loopsAt:()=>[square],anchorAt:()=>[5,5]});
   for(const fidelity of [0,.01,.27,.5,.93,1]){
@@ -10,7 +19,7 @@ test('contact compresses only the forbidden side and blends continuously',()=>{
     assert.deepEqual(c.at([12,5,2],fidelity),[12-2*fidelity,5,2]);
   }
   assert.deepEqual(c.at([12,12,2]),[10,10,2]);
-  assert.equal(c.report.contactSections,1);
+  assert.equal(c.report().contactSections,1);
 });
 test('contact can face outward, keeps actual height and follows translated sections',()=>{
   const c=prepareSleeveContact({loopsAt:z=>[square.map(([x,y])=>[x+z,y-3])],anchorAt:z=>[5+z,2],side:'outside'});

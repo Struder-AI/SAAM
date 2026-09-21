@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {compileMachine,poseMachine,validateSnapshot,transform,untransform,machineFitBounds,boundsCorners} from '../../studio/machine-view.mjs';
+import {compileMachine,poseMachine,validateSnapshot,machineFitBounds,boundsCorners} from '../../studio/machine-view.mjs';
+import {point,invert,rotation} from '../machine/rigid.mjs';
 import {sourceSession,machineCameras} from '../../studio/machine-session.mjs';
 import {createProjection} from '../../studio/camera.mjs';
 import {createMachinePresentation} from '../machine/presentation.mjs';
@@ -20,12 +21,20 @@ test('moving-bed source alignment retains tool contact with nonzero placement in
   const pose=poseMachine(scene,validateSnapshot(await provider.sample(request),scene.descriptor,request));
   const tcp=pose.components.find(c=>c.role==='tool').vertices[0];
   assert.deepEqual(tcp,[105,85,10]);
-  const room=transform(pose.part,tcp);assert.deepEqual(room,pose.part.translationMm.map((v,i)=>v+tcp[i]));
-  assert.deepEqual(untransform(pose.part,room),tcp);
-  const display=p=>untransform(pose.part,p).map((v,i)=>v-([100,80,0][i]));
+  const room=point(pose.part,tcp);assert.deepEqual(room,pose.part.translationMm.map((v,i)=>v+tcp[i]));
+  assert.deepEqual(point(invert(pose.part),room),tcp);
+  const display=p=>point(invert(pose.part),p).map((v,i)=>v-([100,80,0][i]));
   assert.deepEqual(display(room),[5,5,10]);
   const bounds=machineFitBounds(scene,pose,display);assert.ok(bounds.min.every(Number.isFinite));
   provider.dispose();
+});
+
+test('shared rigid transforms round-trip rotated and translated presentation points',()=>{
+  const transform={translationMm:[13,-7,4],rotation:rotation([1,2,3],.73)},local=[2,-5,11];
+  const world=point(transform,local),roundTrip=point(invert(transform),world);
+  assert.ok(roundTrip.every((value,i)=>Math.abs(value-local[i])<1e-12));
+  const expected=transform.rotation.map((row,i)=>row.reduce((sum,value,j)=>sum+value*local[j],transform.translationMm[i]));
+  assert.ok(world.every((value,i)=>Math.abs(value-expected[i])<1e-12));
 });
 
 test('rail endpoints and slider bounds come from the machine and stay fixed across source and manual movement',async()=>{

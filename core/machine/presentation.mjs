@@ -17,9 +17,8 @@ function buildMachineMechanism({program,machine,setup,config}){
   const box=(id,role,size,frameId=id)=>component(id,role,{kind:'box',sizeMm:size},frameId);
   const joint=id=>component(id,'joint',{kind:'sphere',radiusMm:3});
   const limits=['Nominal mechanism presentation; no collision, load, compliance or hardware validation.'];
-  let solve,sourcePose,probeMargins,extraStatic={},machineBoundsWorldMm=null,manualEnabled=true;
   const bounds=machine.bounds??{min:[-100,-100,0],max:[100,100,200]},toolLength=config.toolLengthMm??70;
-  let coordinateBounds=structuredClone(bounds),angularLever=toolLength;
+  const defaultCoordinateBounds=structuredClone(bounds);
   const bed=[ [bounds.min[0],bounds.min[1],0],[bounds.max[0],bounds.min[1],0],[bounds.max[0],bounds.max[1],0],[bounds.min[0],bounds.max[1],0] ];
   component('bed','bed',{kind:'polyline',pointsMm:bed,closed:true},'part');
   component('tool','tool',{kind:'cone',lengthMm:4,radiusStartMm:0,radiusEndMm:2},'tcp');
@@ -27,13 +26,13 @@ function buildMachineMechanism({program,machine,setup,config}){
 
   if(isGantry(machine)){
     const [w,d,h]=bounds.max,headZ=h+toolLength;
-    sourcePose=at=>({part:rigid([0,0,headZ-toolLength-at.point[2]])});
+    const gantrySourcePose=at=>({part:rigid([0,0,headZ-toolLength-at.point[2]])});
     limits.push('Schematic travel centerlines from profile bounds; housings, belts and parked tools omitted.');
     for(const x of [0,w])line('y-rail-'+x,'rail',[x,0,headZ],[x,d,headZ]);
     for(const x of [0,w])line('z-rail-'+x,'rail',[x,d,0],[x,d,h]);
     line('x-rail','rail',[0,0,0],[w,0,0],'gantry');box('carriage','carriage',[24,20,14]);
-    machineBoundsWorldMm={min:[-15,-15,0],max:[w+15,d+15,headZ+25]};
-    solve=at=>{const [x,y,z]=at.point,part=rigid([0,0,headZ-toolLength-z]);return {worldFromFrame:{part,tcp:rigid([x,y,headZ-toolLength]),gantry:rigid([0,y,headZ]),carriage:rigid([x,y,headZ])},margins:at.point.flatMap((v,i)=>[v-bounds.min[i],bounds.max[i]-v])};};
+    const solveGantryPose=at=>{const [x,y,z]=at.point,part=rigid([0,0,headZ-toolLength-z]);return {worldFromFrame:{part,tcp:rigid([x,y,headZ-toolLength]),gantry:rigid([0,y,headZ]),carriage:rigid([x,y,headZ])},margins:at.point.flatMap((v,i)=>[v-bounds.min[i],bounds.max[i]-v])};};
+    return {components,frameIds:[...frames],limits,machineBoundsWorldMm:{min:[-15,-15,0],max:[w+15,d+15,headZ+25]},coordinateBounds:defaultCoordinateBounds,angularLever:toolLength,manualEnabled:true,solve:solveGantryPose,sourcePose:gantrySourcePose,probeMargins:undefined,extraStatic:{}};
   }else{
     // Room/part alignment is established by source playback. Arm installation is
     // separate; never infer a robot base from a print's bounding box.
@@ -41,45 +40,44 @@ function buildMachineMechanism({program,machine,setup,config}){
     const dobot=machine.id==='dobot-mg400',model=dobot?dobotGeometry(config):densoGeometry(config);
     const scaledDobot=dobot&&program.language==='dobot-lua'&&(setup.dobot?.scaleX!==1||setup.dobot?.scaleY!==1);
     const aligned=config.worldFromBase&&Number.isFinite(config.toolLengthMm)&&(dobot||Array.isArray(config.modelSeedDeg))&&!scaledDobot;
-    manualEnabled=!!aligned;
     limits.push(dobot?'Nominal MG400 linkage; calibrated user/tool orientation and coupled interference are unchecked.':'Nominal VP-6242 drawing centerlines and seeded IK; model angles are not RC8 encoders or FIG.');
-    const sourceFrames=at=>{
+    const robotSourcePose=at=>{
       const center=setup.denso?.rotaryCenterMm??[0,0,0],a=at.rotaryDeg??0,R=rotation([0,0,1],a*Math.PI/180),part=rigid(sub(center,mv(R,center)),R);
       const tcp=point(part,at.point),axis=rotateZ(at.toolAxis??[0,0,-1],a),up=rotateZ(at.toolUp??[0,1,0],a);
       return {part,tcp:rigid(tcp,axisFrame(scale(axis,-1),up))};
     };
-    sourcePose=sourceFrames;
     if(aligned){
-      if(!dobot)probeMargins=at=>{
-        const local=compose(invert(config.worldFromBase),sourceFrames(at).tcp),wrist=add(local.translationMm,mv(local.rotation,[0,0,model.flangeMm+model.toolLengthMm]));
+      function densoReachMargins(at){
+        const local=compose(invert(config.worldFromBase),robotSourcePose(at).tcp),wrist=add(local.translationMm,mv(local.rotation,[0,0,model.flangeMm+model.toolLengthMm]));
         const distance=norm(sub(wrist,[0,0,model.shoulderHeightMm])),fore=Math.hypot(model.forearmMm,model.elbowOffsetMm);
         return [model.upperMm+fore-distance,distance-Math.abs(model.upperMm-fore)];
-      };
+      }
       const baseCenter=point(config.worldFromBase,dobot?model.baseOriginMm:[0,0,model.shoulderHeightMm]);
       const radius=dobot?norm(model.shoulderMm)+model.l1+model.l2+norm(model.wristMm)+model.toolLengthMm:model.upperMm+Math.hypot(model.forearmMm,model.elbowOffsetMm)+model.flangeMm+model.toolLengthMm;
       const center=setup.denso?.rotaryCenterMm??[0,0,0],radial=radius+Math.hypot(baseCenter[0]-center[0],baseCenter[1]-center[1]);
-      coordinateBounds={min:[center[0]-radial,center[1]-radial,baseCenter[2]-radius],max:[center[0]+radial,center[1]+radial,baseCenter[2]+radius]};
-      angularLever=dobot?model.toolLengthMm:model.flangeMm+model.toolLengthMm;
+      const armCoordinateBounds={min:[center[0]-radial,center[1]-radial,baseCenter[2]-radius],max:[center[0]+radial,center[1]+radial,baseCenter[2]+radius]};
+      const armAngularLever=dobot?model.toolLengthMm:model.flangeMm+model.toolLengthMm;
       const lengths=dobot?[Math.abs(model.baseOriginMm[2]),norm(model.shoulderMm),norm(model.upperMm),norm(model.forearmMm),norm(model.wristMm),model.toolLengthMm]
         :[model.shoulderHeightMm,model.upperMm,Math.hypot(model.forearmMm,model.elbowOffsetMm),model.flangeMm,model.toolLengthMm];
       lengths.forEach((length,i)=>{link('arm-'+i,length);joint('pivot-'+i);});
-      box('base','structure',dobot?[100,100,20]:[160,160,20]);extraStatic.base=config.worldFromBase;
+      box('base','structure',dobot?[100,100,20]:[160,160,20]);
       // No guessed reach cube: explicit fit uses the currently resolved assembly.
       // A calibrated installation can add a real framing envelope when needed.
-      solve=at=>{
-        const pose=sourceFrames(at),local=compose(invert(config.worldFromBase),pose.tcp),axis=mv(local.rotation,[0,0,-1]);
+      const solveAlignedArmPose=at=>{
+        const pose=robotSourcePose(at),local=compose(invert(config.worldFromBase),pose.tcp),axis=mv(local.rotation,[0,0,-1]);
         const yaw=Math.atan2(local.rotation[1][0],local.rotation[0][0])*180/Math.PI;
         const result=dobot?dobotInverse(model,{tcp:local.translationMm,yawDeg:yaw,toolAxis:axis}):densoInverse(model,{tcp:local.translationMm,rotation:local.rotation},{seed:config.modelSeedDeg});
-        const margins=dobot?result.margins:probeMargins(at);
+        const margins=dobot?result.margins:densoReachMargins(at);
         if(!result.valid)return {worldFromFrame:pose,margins,diagnostics:result.errors.map(message=>({code:'arm-solve',severity:'warning',message}))};
         result.points.slice(1).forEach((p,i)=>{const a=point(config.worldFromBase,result.points[i]),b=point(config.worldFromBase,p);pose['arm-'+i]=rodFrame(a,b);pose['pivot-'+i]=rigid(b);});return {worldFromFrame:pose,margins};
       };
+      return {components,frameIds:[...frames],limits,machineBoundsWorldMm:null,coordinateBounds:armCoordinateBounds,angularLever:armAngularLever,manualEnabled:true,solve:solveAlignedArmPose,sourcePose:robotSourcePose,probeMargins:dobot?undefined:densoReachMargins,extraStatic:{base:config.worldFromBase}};
     }else{
       limits.push(scaledDobot?'Arm omitted: non-unit Dobot design calibration cannot be overlaid with rigid physical frames.':'Arm omitted: supply kinematicModel.worldFromBase and installed toolLengthMm'+(dobot?'':', plus modelSeedDeg')+'.');
-      solve=at=>({worldFromFrame:sourceFrames(at),diagnostics:[{code:'arm-unavailable',severity:'info',message:limits.at(-1)}]});
+      const solveUnavailableArmPose=at=>({worldFromFrame:robotSourcePose(at),diagnostics:[{code:'arm-unavailable',severity:'info',message:limits.at(-1)}]});
+      return {components,frameIds:[...frames],limits,machineBoundsWorldMm:null,coordinateBounds:defaultCoordinateBounds,angularLever:toolLength,manualEnabled:false,solve:solveUnavailableArmPose,sourcePose:robotSourcePose,probeMargins:undefined,extraStatic:{}};
     }
   }
-  return {components,frameIds:[...frames],limits,machineBoundsWorldMm,coordinateBounds,angularLever,manualEnabled,solve,sourcePose,probeMargins,extraStatic};
 }
 
 function machineControlLayout(machine,{manualEnabled,coordinateBounds}){

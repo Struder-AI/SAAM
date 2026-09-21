@@ -23,6 +23,14 @@ const children = node => {
   return out;
 };
 const property = node => !node.computed ? node.property?.name : node.property?.type==='Literal' ? String(node.property.value) : null;
+// Static and instance methods occupy different receiver namespaces in JavaScript. Keep the
+// ordinary source spelling for instance methods and reserve a generated segment for every static
+// method, so adding or removing a same-named counterpart never retargets either declaration.
+const methodPath = node => {
+  const name=String(node.key.name??node.key.value);
+  if(node.static)return `@static/${encodeURIComponent(name)}`;
+  return name.startsWith('@')?`@name/${encodeURIComponent(name)}`:name;
+};
 const passed = n => n.type==='Identifier'?n.name:n.type==='AssignmentPattern'?passed(n.left):n.type==='RestElement'&&n.argument.type==='Identifier'?`...${n.argument.name}`:
   n.type==='ObjectPattern'&&n.properties.every(p=>p.type==='Property'&&!p.computed)?`{${n.properties.map(p=>p.key.name??p.key.value).join(',')}}`:null;
 
@@ -45,6 +53,7 @@ const mappedCode=isMapped;
 export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
   const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[], declFn=new Map(),declarationPaths=new Map();
   const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap();
+  const parameterDefaultNames=new WeakMap();
   const scopes=[], bindings=[];
   const scope=(parent,kind)=>{const s={parent,kind,bindings:new Map()};scopes.push(s);return s;};
   const lookup=(s,name)=>s?.bindings.get(name)??(s?.parent?lookup(s.parent,name):null);
@@ -56,16 +65,29 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   function pattern(node,s,info={},from=null) {
     if(!node)return;
     if(node.type==='Identifier')bind(s,node.name,from?{...info,destructured:from}:info);
-    else if(node.type==='RestElement')pattern(node.argument,s);
-    else if(node.type==='AssignmentPattern')pattern(node.left,s,{},from?{...from,defaulted:true}:null);
-    else if(node.type==='ObjectPattern')for(const p of node.properties)pattern(p.value??p.argument,s,{},
+    else if(node.type==='RestElement')pattern(node.argument,s,info,from);
+    else if(node.type==='AssignmentPattern')pattern(node.left,s,info,from?{...from,defaulted:true}:null);
+    else if(node.type==='ObjectPattern')for(const p of node.properties)pattern(p.value??p.argument,s,info,
       from&&p.type==='Property'&&!p.computed?{...from,keys:[...from.keys,String(p.key.name??p.key.value)]}:null);
-    else if(node.type==='ArrayPattern')for(const p of node.elements)pattern(p,s);
+    else if(node.type==='ArrayPattern')for(const p of node.elements)pattern(p,s,info,from);
   }
   function location(m,n) {return {file:m.file,start:n.start,end:n.end,line:n.loc.start.line,column:n.loc.start.column+1,endLine:n.loc.end.line,text:m.text.slice(n.start,n.end)};}
   function declaration(m,n,path,kind,owner,anchor=true) {
     const d={id:`${m.file}:${n.start}:${kind}`,anchor:anchor?`${m.file}::${path.join('::')}`:null,name:path.at(-1),kind,parent:owner?.id??null,...location(m,n)};
     declarations.push(d);declarationPaths.set(d.id,path);nodeDecl.set(n,d);return d;
+  }
+  const patternNames=n=>n.type==='Identifier'?[n.name]:n.type==='ObjectPattern'?n.properties.flatMap(p=>patternNames(p.value??p.argument))
+    :n.type==='ArrayPattern'?n.elements.filter(Boolean).flatMap(patternNames):n.type==='RestElement'?patternNames(n.argument)
+    :n.type==='AssignmentPattern'?patternNames(n.left):[];
+  function markParameterDefaults(node) {
+    if(!node)return;
+    if(node.type==='AssignmentPattern') {
+      if(node.left.type==='Identifier'&&functions.has(node.right.type))parameterDefaultNames.set(node.right,node.left.name);
+      markParameterDefaults(node.left);return;
+    }
+    if(node.type==='ObjectPattern')for(const p of node.properties)markParameterDefaults(p.value??p.argument);
+    else if(node.type==='ArrayPattern')for(const p of node.elements)markParameterDefaults(p);
+    else if(node.type==='RestElement')markParameterDefaults(node.argument);
   }
   function returnedCallable(node,parent) {
     let child=node;
@@ -95,13 +117,15 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     }
     if(functions.has(n.type)) {
       const named=n.type==='FunctionDeclaration'&&!!n.id;
+      const defaultName=parameterDefaultNames.get(n);
       const inherited=!!parent&&nodeDecl.has(parent)&&(
         parent.type==='VariableDeclarator'&&parent.init===n||
         ['Property','MethodDefinition'].includes(parent.type)&&parent.value===n||
         parent.type==='AssignmentExpression'&&parent.right===n);
-      const next=named?[...path,n.id.name]:inherited?path:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
-      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,'function',owner,named);
+      const next=named?[...path,n.id.name]:inherited?path:defaultName?[...path,`@default/${encodeURIComponent(defaultName)}`]:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
+      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,'function',owner,named||!!defaultName);
       if(!named&&!inherited&&returnedCallable(n,parent))d.generatedRole='returned-callable';
+      if(defaultName)d.generatedRole='parameter-default';
       d.callable=true;nodeDecl.set(n,d);nodeOwner.set(n,d);declFn.set(d.id,n);m.functions.push(n);
       if(named)bind(s,n.id.name,{fn:n,decl:d,module:m});
       const inner=scope(s,'parameters');nodeScope.set(n,inner);
@@ -110,7 +134,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         if(parent?.type==='MethodDefinition') {let outer=s;while(outer&&!outer.classNode)outer=outer.parent;inner.thisClass=outer?.classNode;inner.thisStatic=!!parent.static;}
       }
       if(n.id&&!named)bind(inner,n.id.name,{fn:n,decl:d,module:m});
-      for(const p of n.params)pattern(p,inner,{parameter:true});
+      for(const p of n.params) {pattern(p,inner,{parameter:true});markParameterDefaults(p);}
       for(const p of n.params)visit(m,p,inner,next,d,n);
       visit(m,n.body,scope(inner,'function'),next,d,n);return;
     }
@@ -122,7 +146,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       for(const child of children(n))if(child!==n.id)visit(m,child,inner,next,d,n);return;
     }
     if((n.type==='Property'||n.type==='MethodDefinition')&&!n.computed&&functions.has(n.value?.type)) {
-      const next=[...path,String(n.key.name??n.key.value)];
+      const next=[...path,n.type==='MethodDefinition'?methodPath(n):String(n.key.name??n.key.value)];
       declaration(m,n,next,'method',owner);visit(m,n.value,s,next,owner,n);return;
     }
     if(n.type==='AssignmentExpression'&&n.left.type==='MemberExpression'&&property(n.left)&&functions.has(n.right.type)) {
@@ -146,9 +170,6 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     if(importAliases[`${m.file}:${source}`])return importAliases[`${m.file}:${source}`];
     return source.startsWith('.')?posix.normalize(posix.join(posix.dirname(m.file),source)):null;
   }
-  const patternNames=n=>n.type==='Identifier'?[n.name]:n.type==='ObjectPattern'?n.properties.flatMap(p=>patternNames(p.value??p.argument))
-    :n.type==='ArrayPattern'?n.elements.filter(Boolean).flatMap(patternNames):n.type==='RestElement'?patternNames(n.argument)
-    :n.type==='AssignmentPattern'?patternNames(n.left):[];
   for(const m of modules.values())for(const n of m.ast.body) {
     if(n.type==='ExportNamedDeclaration') {
       if(n.declaration?.id)m.exports.set(n.declaration.id.name,{binding:lookup(m.scope,n.declaration.id.name)});
@@ -164,12 +185,19 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   }
   for(const a of assignments) {
     const lhs=a.node.left??a.node.argument;
+    function recordWrite(n,value=null) {
+      if(n.type==='Identifier') {const b=lookup(a.scope,n.name);if(b)(b.writeValues??=[]).push(value);}
+      else if(n.type==='ObjectPattern')for(const p of n.properties)recordWrite(p.value??p.argument);
+      else if(n.type==='ArrayPattern')for(const p of n.elements)if(p)recordWrite(p);
+      else if(n.type==='RestElement'||n.type==='AssignmentPattern')recordWrite(n.argument??n.left);
+    }
     function mark(n) {
       if(n.type==='Identifier') {const b=lookup(a.scope,n.name);if(b)b.written=true;}
       else if(n.type==='ObjectPattern')for(const p of n.properties)mark(p.value??p.argument);
       else if(n.type==='ArrayPattern')for(const p of n.elements)if(p)mark(p);
       else if(n.type==='RestElement'||n.type==='AssignmentPattern')mark(n.argument??n.left);
     }
+    recordWrite(lhs,a.node.type==='AssignmentExpression'&&a.node.operator==='='&&lhs.type==='Identifier'?a.node.right:null);
     mark(lhs);
     if(lhs.type==='MemberExpression') {
       let base=lhs.object;while(base.type==='MemberExpression')base=base.object;
@@ -182,6 +210,12 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         markObject(lookup(a.scope,base.name));
       }
     }
+  }
+  // A call may mutate an array passed by reference. Receiver classification below uses this only
+  // as a conservative escape marker; it does not infer whether the callee actually mutates it.
+  for(const c of calls)for(const arg of c.node.arguments) {
+    const value=arg.type==='SpreadElement'?arg.argument:arg;
+    if(value.type==='Identifier') {const b=lookup(c.scope,value.name);if(b)b.callEscaped=true;}
   }
   function exportTarget(m,name,seen) {
     // An unscanned star source may also provide this name. It cannot silently
@@ -465,17 +499,29 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   // that decided it. Linking follows the receiver's or callee's value through the coupling
   // resolver, extended with destructured bindings and factory-returned object members.
   function accountCalls(origins) {
-    // Names mapped code can carry on an object: every declaration name, plus every
-    // non-computed property or class field whose value is not a plain literal.
+    // Names mapped code can carry on an object. Lexical declarations do not make their
+    // spelling a member name: `const slice=...` must not make an unrelated `value.slice()`
+    // internal. Keep explicit methods and properties whose values may be callable, including
+    // shorthand properties and callable member assignments. Unknown values stay conservative.
     const carried=new Set(),plain=new Set(['Literal','TemplateLiteral','ArrayExpression','ObjectExpression']);
-    for(const d of declarations)if(mappedCode(d.file))carried.add(d.name);
+    for(const d of declarations)if(mappedCode(d.file)&&d.callable)carried.add(d.name);
     for(const m of modules.values())if(mappedCode(m.file))(function walk(n) {
-      if(['Property','PropertyDefinition'].includes(n.type)&&!n.computed&&n.key&&!plain.has(n.value?.type??'Literal'))carried.add(String(n.key.name??n.key.value));
+      const key=!n.computed?n.key?.name??n.key?.value:n.key?.type==='Literal'?n.key.value:null;
+      if(['Property','PropertyDefinition','MethodDefinition'].includes(n.type)&&key!==null&&key!==undefined&&
+        (n.type==='MethodDefinition'||!plain.has(n.value?.type??'Literal')))carried.add(String(key));
+      if(n.type==='AssignmentExpression'&&n.left.type==='MemberExpression'&&property(n.left)!==null&&
+        !plain.has(n.right.type))carried.add(property(n.left));
       for(const c of children(n))walk(c);
     })(m.ast);
     const rootOf=n=>{let base=n;while(base&&['MemberExpression','ChainExpression','AwaitExpression','TSNonNullExpression'].includes(base.type))base=base.object??base.expression??base.argument;return base;};
     const packageImport=b=>!!b?.imported&&!importPath(b.module,b.source);
     const bindingOf=n=>n?.type==='Identifier'?lookup(nodeScope.get(n),n.name):null;
+    // Reassignment alone does not erase a receiver's built-in type when every value written to
+    // that binding is visibly an array. This is type evidence only: it does not select a mapped
+    // implementation of the member or imply that any particular write reaches the call.
+    const alwaysArray=(b,key)=>b?.init?.type==='ArrayExpression'&&b.writeValues?.length&&
+      b.writeValues.every(n=>n?.type==='ArrayExpression')&&!b.callEscaped&&!b.objectWritten&&
+      !b.memberWrites?.has(key)&&!b.memberWrites?.has(null);
 
     // A value that is provably not mapped code. `key` is the member the call needs.
     function externalValue(node,module,key,seen) {
@@ -487,6 +533,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         const b=bindingOf(node);
         if(!b)return 'receiver-unbound-identifier';
         if(packageImport(b))return 'receiver-package-import';
+        if(alwaysArray(b,key))return 'receiver-array-valued-binding';
         return null;
       }
       if(node.type==='CallExpression'||node.type==='NewExpression')return externalCall(node,module,seen)?'receiver-external-call-result':null;
@@ -551,10 +598,14 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       if(callEdges.has(c.node)) {linked['ast-call-site']++;count(rules,'ast-call-site');continue;}
       const from=c.owner?.id??`${c.module.file}:<module>`,site=location(c.module,c.node);
       const by=callee.type==='MemberExpression'?'receiver-value':'value-follow',found=new Map();
+      // A default expression is one possible value of a parameter, not proof that it was selected
+      // at this call. Concrete callback arguments traced from callers remain valid possible targets.
+      const directParameter=callee.type==='Identifier'&&lookup(c.scope,callee.name)?.parameter;
       if(callee.type!=='MemberExpression'||key!==null) {
         for(const o of follow(callee.type==='MemberExpression'?callee.object:callee,c.module))
           for(const v of choices(value(o.node,nodeScope.get(o.node),o.module)).flatMap(v=>o.awaited?awaitedValues(v):[v])) {
             for(const fn of key===null?(v.fn?[v.fn]:[]):holderFns(v,key,o.module)) {
+              if(directParameter&&parameterDefaultNames.has(fn))continue;
               const d=nodeDecl.get(fn);
               if(d&&mappedCode(d.file))found.set(d.id,{decl:d,fn});
             }
@@ -610,6 +661,15 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     d.generatedRole??='invoked-callable';
     reanchored.add(d.id);
   }
+  // Repeated inline object callbacks can have the same lexical property path while still being
+  // distinct callable values (for example two `{filter: c=>...}` arguments in one function).
+  // If their shared path were left ambiguous, projection would represent calls to either callback
+  // as calls to the enclosing function. Keep the source property name and add source position only
+  // for that collision; ordinary duplicate declarations remain ambiguous.
+  const propertyAnchorCounts=new Map();
+  for(const d of declarations)if(d.anchor&&d.callable&&d.kind==='method'&&parents.get(declFn.get(d.id))?.type==='Property')
+    propertyAnchorCounts.set(d.anchor,(propertyAnchorCounts.get(d.anchor)??0)+1);
+  for(const d of declarations)if(propertyAnchorCounts.get(d.anchor)>1)d.anchor+=`@${d.line}:${d.column}`;
   const anchorCounts=new Map();for(const d of declarations)if(d.anchor)anchorCounts.set(d.anchor,(anchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(anchorCounts.get(d.anchor)>1)d.ambiguousAnchor=true;
   return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,

@@ -36,15 +36,15 @@ test('bundle stages reuse semantic validation while reading current bytes and is
   assert.deepEqual(counts,{plan:2,geometry:1});
   first.plan.placement.xMm=-999;
   const cached=await api.loadBundle(directory,{program:false});
-  assert.notEqual(cached.plan.placement.xMm,-999);assert.equal(cached.planHash,first.planHash);
+  assert.notEqual(cached.plan.placement.xMm,-999);assert.equal(cached.generationHash,first.generationHash);
   assert.deepEqual(counts,{plan:2,geometry:1});
   const file=join(directory,'plan.json'),plan=JSON.parse(await readFile(file,'utf8'));
   await writeFile(file,JSON.stringify(plan));
-  assert.equal((await api.loadBundle(directory,{program:false})).planHash,first.planHash);
+  assert.equal((await api.loadBundle(directory,{program:false})).generationHash,first.generationHash);
   assert.deepEqual(counts,{plan:2,geometry:1},'formatting alone preserves semantic validation');
   await writeFile(file,JSON.stringify({...plan,rejected:true}));
   await assert.rejects(()=>api.loadBundle(directory,{program:false}),/Rejected fixture plan/);
   await writeFile(file,JSON.stringify(plan));
-  assert.equal((await api.loadBundle(directory,{program:false})).planHash,first.planHash);
+  assert.equal((await api.loadBundle(directory,{program:false})).generationHash,first.generationHash);
   assert.deepEqual(counts,{plan:3,geometry:1},'a failed plan does not discard successful geometry checks');
 });

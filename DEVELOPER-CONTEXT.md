@@ -17,7 +17,9 @@ make the edit, `regenerate` the region, read again.
 
 Reads use compact JSON: `range` is `[firstLine,lastLine]` inclusive; nested
 locations inherit `file`; empty arrays are omitted. Caller relations appear once
-in `callerReferences`, `callerWires`, or residual `calledFrom`. `--details`
+in `callerReferences`, `callerWires`, or residual `calledFrom`. High-reuse
+components show `callerSummary`: a count and the canonical index with the full
+caller list. `--details`
 returns the full stored evidence without scanning. `--code` omits the graph body.
 Condition gates show a short identity and branch; their complete predicates live
 under the source click and in `--details`, rather than on the drawing.
@@ -35,8 +37,8 @@ A read comes out of the stored map and never parses source into a new graph;
 staleness; follow the returned regeneration instruction. The separate
 `flow-evidence` command explicitly rescans for an audit, and first onboarding
 generates a store when none exists. Indexes are
-regenerated and may change: say the index and the name when talking about a
-page, and write the **declaration path** (`file.mjs::name`) when something must
+regenerated and may change: use the index when talking about the current map,
+and write the **declaration path** (`file.mjs::name`) when something must
 keep pointing at it. Reuse context already read.
 
 **Text search for orientation is discouraged.** Searching finds names; the walk
@@ -64,8 +66,9 @@ The map is only as good as the code's shape, so shape the code for it:
   The Lua interpreter also retains its private variables, tables, scopes and
   call stack across execution steps. This approved runtime exception does not
   permit ordinary planning stages to mutate caller-owned inputs.
-- Name handlers and stages, so each becomes a node on a page instead of an
-  anonymous body inside one.
+- Give conceptual handlers and stages code binding names so authored grouping
+  survives line edits. Small implementation callbacks may remain anonymous;
+  authored membership must not depend on their source-position identities.
 - Separate uses of the same implementation remain distinct generated stage
   instances. Replacing an entity requires rewiring all consumers and removing
   the superseded entity; do not retain compatibility wrappers or parallel paths.

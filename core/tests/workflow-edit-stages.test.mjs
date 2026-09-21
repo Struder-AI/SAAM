@@ -22,7 +22,7 @@ test('patch and review transitions preserve frozen prior records and locked repl
   const review=freeze({approvals:{toolpath:{hash:'old'}},generation:{id:'old'},history:[{event:'reviewed'}],extra:1});
   const updated=editedPlanReview(review,'old-plan',true,'fixed-time');
   assert.deepEqual(updated,{approvals:{},generation:null,history:[{event:'reviewed'},
-    {event:'plan-edited',time:'fixed-time',previousPlanHash:'old-plan',geometryChanged:true,invalidated:['toolpath']}],extra:1});
+    {event:'plan-edited',time:'fixed-time',previousGenerationHash:'old-plan',geometryChanged:true,invalidated:['toolpath']}],extra:1});
   assert.equal(review.history.length,1);assert.equal(review.generation.id,'old');
   assert.throws(()=>applyPlanPatch(previous,{geometry:{unknown:1}}),/Unknown setting: unknown/);
 });

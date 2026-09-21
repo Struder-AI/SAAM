@@ -77,3 +77,22 @@ test('spreads and computed returned fields retain uncertainty instead of certify
   assert.ok(p.uncertainty.some(u=>u.kind==='return-field-origin'));
   assert.ok(p.wires.some(w=>w.from==='in2'&&w.to==='out1'));
 });
+
+test('known disjoint spread keys preserve returned field origins while overlaps and unknown spreads stay uncertain',async()=>{
+  const disjoint=await packet(`export const left=x=>x;export function main(x,flag){
+    return {value:left(x),...(flag?{materialModel:x}:{physicalValidation:x}),...{...{['checks']:x}}};
+  }`),left=disjoint.components.find(c=>c.label==='left');
+  assert.ok(disjoint.wires.some(w=>w.from===left.index&&w.to==='out1'&&w.label==='value'));
+  assert.ok(!disjoint.uncertainty.some(u=>u.kind==='return-field-override'&&u.field==='value'));
+  assert.ok(disjoint.uncertainty.some(u=>u.kind==='return-field-origin'),'spread value flow remains explicitly unsupported');
+
+  for(const source of [
+    'export const left=x=>x;export function main(x){return {value:left(x),...{value:x}};}',
+    'export const left=x=>x;export function main(x,record){return {value:left(x),...record};}',
+    'export const left=x=>x;export function main(x,key){return {value:left(x),...{[key]:x}};}'
+  ]){
+    const p=await packet(source),component=p.components.find(c=>c.label==='left');
+    assert.ok(!p.wires.some(w=>w.from===component.index&&w.to==='out1'));
+    assert.ok(p.uncertainty.some(u=>u.kind==='return-field-override'&&u.field==='value'));
+  }
+});

@@ -17,6 +17,7 @@ import {
   rememberSetup, bundleFingerprint, EXPORT_PATH, changeMachine
 } from '../print/bundle.mjs';
 import { createStudio } from '../../studio/server.mjs';
+import { approvedReview, machineChangedReview } from '../print/workflow.mjs';
 
 const ACTOR = 'SYNTHETIC TEST REVIEWER — not a real approval';
 const clone = value => structuredClone(value);
@@ -35,6 +36,33 @@ async function fixture(t, plan = smallPlan()) {
   await initBundle(dir, plan);
   return dir;
 }
+
+test('review transitions preserve their input review',()=>{
+  const earlier=Object.freeze({event:'generated'});
+  const previousApproval=Object.freeze({actor:'earlier'});
+  const review=Object.freeze({
+    schema:'saam-review/1',
+    approvals:Object.freeze({previous:previousApproval}),
+    generation:Object.freeze({mode:'production'}),
+    history:Object.freeze([earlier])
+  });
+  const before=clone(review);
+  const record={actor:ACTOR,time:'2026-09-19T00:00:00.000Z',hash:'export',generationHash:'generation',scope:['settings','toolpath']};
+  const approved=approvedReview(review,record);
+  assert.deepEqual(review,before);
+  assert.deepEqual(approved.approvals,{toolpath:record});
+  assert.deepEqual(approved.history.slice(0,-1),review.history);
+  assert.deepEqual(approved.history.at(-1),{event:'human-approval',...record});
+
+  const changed=machineChangedReview(approved,'bambu-lab-s5','bambu-h2d','2026-09-19T00:01:00.000Z');
+  assert.deepEqual(approved.approvals,{toolpath:record});
+  assert.deepEqual(changed.approvals,{});
+  assert.equal(changed.generation,null);
+  assert.deepEqual(changed.history.slice(0,-1),approved.history);
+  assert.deepEqual(changed.history.at(-1),{
+    event:'machine-changed',from:'bambu-lab-s5',to:'bambu-h2d',time:'2026-09-19T00:01:00.000Z'
+  });
+});
 
 test('changing printer clears final confirmation and rejects stale edits',async t=>{
   const dir=await fixture(t);let state=await loadBundle(dir);
@@ -112,7 +140,7 @@ test('one final confirmation, stale views, reopening and byte-identical delivery
   const { approvals } = (await loadBundle(dir)).review;
   assert.deepEqual(Object.keys(approvals), ['toolpath']);
   assert.deepEqual(approvals.toolpath.scope, ['settings', 'toolpath']);
-  assert.equal(approvals.toolpath.planHash, state.planHash);
+  assert.equal(approvals.toolpath.generationHash, state.generationHash);
 
   // An export edited after approval loses it, and cannot be delivered.
   await writeFile(exported, (await readFile(exported, 'utf8')).replace('S215', 'S216'));
@@ -120,6 +148,58 @@ test('one final confirmation, stale views, reopening and byte-identical delivery
   assert.match(state.programError, /files changed/);
   assert.equal(state.toolpathApproved, false);
   await assert.rejects(deliver(dir), /requires approval/);
+});
+
+test('legacy generation identities migrate on read without weakening approval or stale-view checks',async t=>{
+  const dir=await fixture(t);await generateBundle(dir);
+  let state=await loadBundle(dir);state=await approve(dir,{actor:ACTOR,revision:state.revision});
+  const reviewPath=resolve(dir,'review.json'),checksPath=resolve(dir,'checks.json');
+  const currentReview=JSON.parse(await readFile(reviewPath,'utf8')),currentChecks=JSON.parse(await readFile(checksPath,'utf8'));
+  assert.doesNotMatch(JSON.stringify(currentReview),/planHash|previousPlanHash/);
+  assert.doesNotMatch(JSON.stringify(currentChecks),/planHash/);
+  const legacyRecord=record=>{
+    if(!record||typeof record!=='object'||!Object.hasOwn(record,'generationHash'))return record;
+    const next={...record,planHash:record.generationHash};delete next.generationHash;return next;
+  };
+  const legacyReview={...currentReview,generation:legacyRecord(currentReview.generation),
+    approvals:{...currentReview.approvals,toolpath:legacyRecord(currentReview.approvals.toolpath)},
+    history:currentReview.history.map(event=>{
+      let next=legacyRecord(event);
+      if(Object.hasOwn(next,'previousGenerationHash')){next={...next,previousPlanHash:next.previousGenerationHash};delete next.previousGenerationHash;}
+      return next;
+    })};
+  const legacyChecks=legacyRecord(currentChecks),legacyReviewText=JSON.stringify(legacyReview),legacyChecksText=JSON.stringify(legacyChecks);
+  await writeFile(reviewPath,legacyReviewText);await writeFile(checksPath,legacyChecksText);
+  const legacyRevision=hash({geometryHash:state.geometryHash,planHash:state.generationHash,review:legacyReview});
+  const reopened=await loadBundle(dir);
+  assert.equal(reopened.toolpathApproved,true);assert.ok(reopened.program);assert.equal(reopened.programError,undefined);
+  assert.equal(Object.hasOwn(reopened,'planHash'),false);assert.equal(Object.hasOwn(reopened.review.generation,'planHash'),false);
+  assert.equal(Object.hasOwn(reopened.review.approvals.toolpath,'planHash'),false);
+  assert.equal(await readFile(reviewPath,'utf8'),legacyReviewText);assert.equal(await readFile(checksPath,'utf8'),legacyChecksText);
+  assert.notEqual(reopened.revision,legacyRevision);
+  await assert.rejects(updatePlan(dir,reopened.plan,legacyRevision),/stale/);
+
+  const dualReview={...legacyReview,generation:{...legacyReview.generation,generationHash:legacyReview.generation.planHash},
+    approvals:{...legacyReview.approvals,toolpath:{...legacyReview.approvals.toolpath,generationHash:legacyReview.approvals.toolpath.planHash}}};
+  const dualChecks={...legacyChecks,generationHash:legacyChecks.planHash};
+  const dualReviewText=JSON.stringify(dualReview),dualChecksText=JSON.stringify(dualChecks);
+  await writeFile(reviewPath,dualReviewText);await writeFile(checksPath,dualChecksText);
+  assert.equal((await loadBundle(dir)).toolpathApproved,true);
+  assert.equal((await generateBundle(dir)).mode,'production');
+  assert.equal(await readFile(reviewPath,'utf8'),dualReviewText);assert.equal(await readFile(checksPath,'utf8'),dualChecksText);
+
+  for(const mutate of [
+    review=>({...review,generation:{...review.generation,generationHash:'conflict'}}),
+    review=>({...review,approvals:{...review.approvals,toolpath:{...review.approvals.toolpath,generationHash:'conflict'}}}),
+    review=>({...review,history:[...review.history,{event:'human-approval',planHash:'legacy',generationHash:'conflict'}]}),
+    review=>({...review,history:[...review.history,{event:'plan-edited',previousPlanHash:'legacy',previousGenerationHash:'conflict'}]})
+  ]){
+    await writeFile(reviewPath,JSON.stringify(mutate(legacyReview)));
+    await assert.rejects(loadBundle(dir),/Conflicting generation identity/);
+  }
+  await writeFile(reviewPath,legacyReviewText);
+  await writeFile(checksPath,JSON.stringify({...legacyChecks,generationHash:'conflict'}));
+  await assert.rejects(generateBundle(dir),/Conflicting generation identity/);
 });
 
 test('reopening verifies the locked plan and detects a stale program', async t => {
@@ -160,7 +240,8 @@ test('geometry and settings edits invalidate the approvals they affect', async t
 
   await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
   await assert.rejects(adjustBundle(dir, { skills: { 'full-fill': { perimeter: 3 } } }), /Unknown setting/);
-  await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /layerMm/);
+  // The selected tool's declared layer range owns this rejection, not a fixed cap.
+  await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /Layer height outside profile limits/);
   await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
   state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.endMm[0],20);
   await adjustBundle(dir,{process:{primeLine:{passes:[

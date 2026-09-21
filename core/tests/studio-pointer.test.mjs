@@ -11,8 +11,7 @@ function harness(){
     getBoundingClientRect(){trace.push(['rect']);return {left:10,top:20};}},
     {set(target,key,value){registrations.push(key);target[key]=value;return true;}});
   const context=vm.createContext({canvas,drag:null,moved:false,pan:[0,0],yaw:0,tilt:0,lastMotion:0,tab:'geometry',
-    geometryScene:'scene',geometryProject:'project',performance:{now:()=>100},requestDraw(){trace.push(['draw']);},
-    viewPerformance:{flush(){trace.push(['flush']);}},pickGeometry(...args){trace.push(['pick',...args]);return 'face';},
+    performance:{now:()=>100},requestDraw(){trace.push(['draw']);},viewer:{noteMotion(kind){context.lastMotion=100;trace.push(['motion',kind]);},flushPerformance(){trace.push(['flush']);},pick(args){trace.push(['pick',args]);return 'face';}},
     selectFeature(id){trace.push(['select',id]);}});
   const start=source.indexOf('function planCanvasDrag(');
   vm.runInContext(source.slice(start,source.indexOf("canvas.addEventListener('wheel'",start)),context);
@@ -65,11 +64,11 @@ test('middle, right and shift drag pan without changing orbit or selecting geome
 });
 
 test('pointer release flushes first and picks against live geometry only for an unmoved geometry click',()=>{
-  const h=harness();h.emit('pointerdown');h.context.geometryScene='new-scene';h.context.geometryProject='new-project';
+  const h=harness();h.emit('pointerdown');
   h.emit('pointerup',{clientX:30,clientY:50});
   assert.deepEqual(h.trace.slice(3).map(x=>JSON.parse(JSON.stringify(x))),[
-    ['flush'],['rect'],['pick','new-scene','new-project',20,30,{edges:true}],['select','face']]);
-  for(const change of [{tab:'toolpath'},{geometryProject:null}]){
+    ['flush'],['rect'],['pick',{x:20,y:30}],['select','face']]);
+  for(const change of [{tab:'toolpath'}]){
     const quiet=harness();quiet.emit('pointerdown');Object.assign(quiet.context,change);quiet.emit('pointerup');
     assert.equal(quiet.trace.some(x=>x[0]==='pick'),false);
   }

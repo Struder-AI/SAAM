@@ -5,7 +5,7 @@ import {workSnapshot} from '../../studio/agent-requests.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
 
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
-const state=()=>({plan:{geometry:{shape:'box'}},machine:{name:'Test'},review:{history:[{event:'generated',planHash:'old'}]},planHash:'plan',exportName:'old.gcode.3mf',code:'private code',dir:'private dir',generationError:'existing notice'});
+const state=()=>({plan:{geometry:{shape:'box'}},machine:{name:'Test'},review:{history:[{event:'generated',generationHash:'old'}]},generationHash:'plan',exportName:'old.gcode.3mf',code:'private code',dir:'private dir',generationError:'existing notice'});
 const facts=(patch={})=>({directory:'/prints/part',printId:'opaque-id',workId:'part',instanceId:'instance',
   guide:{active:true,directory:'/prints/part',step:L.import},records:[],importRepair:{method:'checked'},
   printName:'Part: one',fingerprint:'source-view',presentationFingerprint:'review-view',now:100,...patch});
@@ -26,12 +26,12 @@ test('Studio response is assembled without mutating loader state or acquired fac
 });
 
 test('generation feedback applies only to the corresponding print and plan',()=>{
-  const input=freeze(state()),failure={directory:'/prints/part',planHash:'plan',message:'failed generation'},cancelled={directory:'/prints/part',planHash:'plan'};
+  const input=freeze(state()),failure={directory:'/prints/part',generationHash:'plan',message:'failed generation'},cancelled={directory:'/prints/part',generationHash:'plan'};
   const failed=composeStudioState(input,freeze(facts({generationFailure:failure,generationCancelled:cancelled})));
   assert.equal(failed.response.generationError,'failed generation');assert.equal(failed.response.generationCancelled,true);assert.equal(failed.preparation,null);
   const completed=composeStudioState(freeze({...input,program:{moves:[]}}),facts({generationFailure:failure}));
   assert.equal(completed.response.generationError,'existing notice','completed source suppresses this generation failure');
-  for(const mismatch of [{...failure,directory:'/prints/other'},{...failure,planHash:'other'}]){
+  for(const mismatch of [{...failure,directory:'/prints/other'},{...failure,generationHash:'other'}]){
     const result=composeStudioState(input,facts({generationFailure:mismatch,generationCancelled:mismatch}));
     assert.equal(result.response.generationError,'existing notice');assert.equal(result.response.generationCancelled,false);
   }

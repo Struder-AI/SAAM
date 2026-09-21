@@ -36,17 +36,62 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
-### BR-052 — Remaining developer-map and code-shape refinements
+### BR-055 — Express plate choice, and close the AMS package gap
 
-- Status: open; deferred at the user's wrap-up checkpoint.
+- Status: in progress
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — "Can you figure out the AMS issue from web search or something?" after three failed H2D load attempts. Scope covers the package fields below; changing spool-selection behaviour itself is not authorized here.
+- Session: Claude Code session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`; exact chat title unavailable.
+- Source: current conversation, 2026-09-19, reporting a build-plate mismatch warning alongside the nozzle warning, and an AMS that displayed the right spool but loaded a different tray.
+- Follow-up authorization: current user, 2026-09-21, explicitly requested an inventory of all startup duplication points, exporter/guidance rewrites and a single source for every required repeated setting. Current chat title/account attribution is unavailable; the supplied reference is `twistedbox.gcode.3mf`, SHA-256 `3a0cf2396c1f05862945ca740bd2e3f8cd7545d9947a3bf68a28adab97fc2459`.
+- Context: initial work addressed plate/nozzle warnings and wrong-tray loading. The September 21 reference corrects two earlier hypotheses: plate JSON filament IDs are zero-based, and `Manual` describes nozzle mapping, not the printer's manual tray-selection capability. Saved project preferences can legitimately differ from resolved slice configuration. The user reports actual H2D left 0.4 / right 0.8 and one four-slot AMS on the right; the reference declares 0.8/0.8 because of Studio limitations.
+- Implemented: a canonical resolved Bambu job, synchronized command/package fields, explicit other-nozzle diameter, Textured/Smooth PEI selection including detection/offset/temperature metadata, startup flag choices, logical filament versus physical tray separation, declared AMS connectivity/counts, read-only archive audit tooling and rewritten maker guidance/inventory. See [the Bambu contract](core/export/bambu.md). Twenty-five targeted software checks pass; this does not close hardware acceptance.
+- Remaining: compare controlled left-nozzle and Smooth PEI exports; determine the minimum package/dispatch facts that enable reliable physical AMS selection and the printer's manual mapping screen. Verify cold-start homing (the inherited H10 omission remains), plate detection/correction, selected-nozzle behavior and actual spool loading on the hardware. Do not replace these checks with round-trip self-consistency. Both-nozzle mixed-diameter operation is tracked separately below.
+- Completion: the selected plate/nozzle and intended physical spool are confirmed on the printer using SAAM's complete archive, with reference comparisons and physical observations recorded separately. Until then, tray intent and colour are not claimed to force a physical slot.
+
+### BR-056 — Use both H2D nozzles with different diameters in one print
+
+- Status: in progress
+- Contributor: current user; account identity unconfirmed, no identity question required.
+- Authorization: human requested — "bambu studio does not support 2-extruder prints with different nozzle sizes. On the other hand, we MUST support this. So there will be differences" (2026-09-21).
+- Session: current startup/nozzle/plate/AMS task; exact task title and stable ID unavailable.
+- Source: follow-up accompanying `twistedbox.gcode.3mf`, with actual left 0.4 / right 0.8 and four-slot AMS connected to the right.
+- Context: the canonical startup job now preserves differing installed nozzle diameters. The shared path, process state, Bambu body interpreter and package usage still describe one selected tool per job. Different installed diameters are not equivalent to using both tools in one program.
+- Remaining: establish bounded tool-change protocol from a requested small both-nozzle Studio reference (equal declared diameters are acceptable as protocol evidence only). Implement per-operation tool/filament/process selection, safe changeover and per-tool heater/retraction/extrusion state, tool-specific bounds/deposition checks, actual layer/filament usage metadata and review/playback. Derive each nozzle's diameter independently; do not inherit Studio's equal-diameter restriction. Confirm nozzle offsets/clearance and both material paths on hardware, including how the left nozzle is supplied when only the right has AMS.
+- Completion: one reviewed SAAM program deposits with both actual 0.4/0.8 tools, with correct process settings, synchronized startup/changeover/package declarations and recorded physical acceptance. No such program has been implemented or physically tested yet.
+
+### BR-054 — A brim producer that does not need a modeled flange
+
+- Status: open
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — after a physical bed-adhesion failure, asked for a brim on the current print and then: "you may want to escalate to builder and write the first draft of a bed adhesion skill, currently very small, only with one entry - brims." Scope covers the brim entry; a raft, a detached skirt and a removal gap are proposals, not authorized here.
+- Session: Claude Code session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`; exact chat title unavailable.
+- Source: current conversation, 2026-09-19: "It didn't adhere to the print bed, can you give it a good solid brim to start out, maybe 8 layers on the outside before getting to the part, with full flow or maybe even a little more", clarified as "Just do the first layer and then vase on top of that".
+- Context: [bed-adhesion](skills/bed-adhesion/SKILL.md) documents the brim that is achievable today: a flange modeled into the part's first layer height plus a first-layer region assigning `planar-infill` with `density: 0`, a `perimeters` count and a region `process` override for bead width and speed. Verified on the `chalice-drip` bundles — nine loops at the predicted radii, 3,111 mm of first-layer path at a measured 0.652 x 0.2 mm bead. Because the loops come from the region's own section, the brim width lives in the geometry, so an imported STL cannot take a brim without editing its mesh.
+- Remaining: Derive the brim loops from the part's own first-layer section offset outward, rather than from a modeled flange, so brim width and loop count are ordinary recipe settings. Decide where the offset belongs relative to the existing shared section/offset components before adding a producer. Keep `density: 0` behaviour so an open-bottom part stays open.
+- Completion: A brim is requested through recipe settings alone on any supported geometry, including an imported STL, with its loop placement visible in Studio's first layer. Covered by a test. No physical validation is implied.
+
+### BR-053 — Restart an agent-owned Studio on the same port
+
+- Status: open
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — asked whether a Studio can be restarted on the same port and, if that is not supported, said it can go in a build request. Scope: let an agent restart its own Studio and keep its URL. Any related stale-source warning or onboarding guidance is a proposal and is not authorized here.
+- Session: Claude Code session `01e30a9a-dde6-45f3-b8eb-5829055cdac7`; exact chat title unavailable.
+- Source: current conversation, 2026-09-19: "Is it possible to restart and use the same port? If not supported currently, we can put that in a build request." The user had just asked why a second Studio instance was started; "We've been trying to reduce multiple studio instances."
+- Context: During a builder task an edit to `machines/bambu-x1-carbon.json` left the live Studio running [older source than the files on disk](studio/README.md), so it had to be restarted. The toolkit launch path (`--toolkit create-preview|open-print|start-tour`) always listens on port 0 (`listenPreview` in [toolkit.mjs](core/agent/toolkit.mjs)), so the restart got a new URL and the person's tab had to be re-pointed. The plain launcher `node studio/server.mjs DIR` reads an undocumented `SAAM_STUDIO_PORT` variable, but it does not carry the agent owner, requests or events, so it is not a substitute.
+- Remaining: Let the toolkit launch path bind a requested port (or reuse the previous instance's port when relaunching with `--agent-owner`), and fail clearly, naming the process holding it, when the port is busy. Document it where agents already read Studio restart guidance. Keep one Studio per agent by default.
+- Completion: An agent stops its own Studio and relaunches on the same URL, and the person's open tab reconnects with the print and pending requests intact. A busy port gives an actionable error and never silently picks another. Covered by a test.
+
+### BR-052 — Eliminate unresolved and uncertain map relationships
+
+- Status: open; paused at the user's requested integration checkpoint after scanner accuracy and uncertainty-led code-shape work.
 - Contributor: Current requester; account attribution unconfirmed.
-- Authorization: human requested — apply the reviewed Grasshopper-style code-and-map standard throughout core and Studio. On 2026-09-19 the user said, "We are in good shape on this, we can wrap up"; further rollout stops at this checkpoint.
+- Authorization: human requested — apply the reviewed Grasshopper-style code-and-map standard throughout core and Studio. The September 19 wrap-up checkpoint was subsequently resumed with the stronger whole-scope goal and additional authorized code-improvement tickets.
 - Session: Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`; exact chat title unavailable.
 - Source: Same task: "Let's apply this to the whole core/studio codebase now" and "don't stop the team until the whole core/studio codebase is mapped", followed by the wrap-up instruction above. The user approved authored grouping, generated relationships and private Lua interpreter state behind an explicit stateful boundary. See [D-036](DECISIONS.md#d-036--explicit-planning-stages-and-state-in-the-path-planning-pilot) and the [checkpoint](DEVLOG.md#2026-09-19--developer-map-wrap-up-checkpoint).
+- Priority correction: Same user, same task, after the checkpoint: "the priority specifically is to eliminate unresolved and uncertain, using some combination of better scanner, sensible hand authorship, or rewrite with different code practices." The user rejected requiring each developer to reconstruct missing relationships from source and rejected unknown affected callers as acceptable outcomes. This correction governs the remaining work; shortening diagnostic lists is not its completion criterion.
 - Context: All eligible core/Studio files are inventoried and grouped; many planning, geometry, worker and UI flows have been rewritten and verified. Inventory coverage does not certify conceptual completeness or arbitrary callback/state analysis.
-- Remaining: Complete the per-file Studio conceptual/ownership assessment; refine text-outline and feature-compilation orchestration where useful; return immutable export enrichment and approval/machine-change review transitions; review prepared-query cache/live-report ownership. Retain explicit scanner limits, including same-named static/instance method identity collisions and unsupported temporal/receiver analysis. Large overview diagnostics and high-reuse caller lists still need the user's density choice; retain current visibility until decided.
-- Remaining contract decision: Bambu currently applies source line offsets to a compact move sink only after successful interpretation. Immediate final-line emission changes partial rows on failure; a returned offset view changes sink identity. No change or new exception was approved at wrap-up. Preserve current behavior until this is resolved.
-- Completion: Resume only on a new instruction, review code and graph together with the shared CLI presentation, preserve verified behavior or explicitly agree each change, and rewire/remove superseded entities. Cross-project portability remains out of scope. Detailed local audit evidence is under ignored `dev-map/audit/`; tracked source and tests are the durable implementation record.
+- Primary remaining work: Eliminate the underlying unresolved and uncertain relationships across eligible core/Studio code.
 
 ### BR-051 — Complete output for the three new printer profiles
 

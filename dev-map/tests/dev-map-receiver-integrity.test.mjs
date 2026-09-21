@@ -38,6 +38,39 @@ test('known synchronous then/catch/finally methods are not rejected by spelling'
   assert.deepEqual(methods.map(c=>c.target),[`${file}::then`,`${file}::caught`,`${file}::final`]);
 });
 
+test('an array-valued mutable binding remains an external receiver across array resets',async()=>{
+  const context=await scan(`export function push(){}export function join(){}
+    export function lines(flag){let pending=[];pending.push('a');if(flag)pending=[];return pending.join('');}
+    export function mixed(flag){let value=[];if(flag)value={};value.push('a');}
+    export function replaced(opaque){let xs=[];xs=[];xs.push=opaque;xs.push('a');}
+    export function exposed(mutate){let ys=[];mutate(ys);ys=[];ys.push('a');}`);
+  const records=[...context.graph.callSites.externalSites,...context.graph.callSites.unresolved];
+  const state=call=>records.filter(r=>r.site.text===call).map(r=>r.rule??r.reason);
+  assert.deepEqual(state("pending.push('a')"),['receiver-array-valued-binding']);
+  assert.deepEqual(state("pending.join('')"),['receiver-array-valued-binding']);
+  assert.deepEqual(state("value.push('a')"),['member-receiver-unresolved']);
+  assert.deepEqual(state("xs.push('a')"),['member-receiver-unresolved']);
+  assert.deepEqual(state("ys.push('a')"),['member-receiver-unresolved']);
+});
+
+test('destructuring an awaited literal dynamic import resolves its exact named exports',async()=>{
+  const entry='core/entry.mjs',adapter='core/adapter.mjs',sources={
+    [entry]:`export async function read(){const {open}=await import('./adapter.mjs');return open();}`,
+    [adapter]:`export function open(){return {};}`};
+  const context=await loadFlow({repo:'',files:Object.keys(sources),readSource:file=>sources[file]});
+  assert.deepEqual(callRows(context).filter(c=>c.call==='open()').map(c=>c.target),[`${adapter}::open`]);
+});
+
+test('same-named inline property callbacks keep distinct identities instead of borrowing their enclosing function',async()=>{
+  const context=await scan(`function invoke({filter}){filter(1);}
+    export function outer(){invoke({filter:value=>value>0});invoke({filter:value=>value<0});}`);
+  const calls=callRows(context).filter(c=>c.call==='filter(1)');
+  assert.equal(calls.length,2);
+  assert.equal(new Set(calls.map(c=>c.target)).size,2);
+  assert.ok(calls.every(c=>c.target.startsWith(`${file}::outer::filter@`)));
+  assert.ok(!calls.some(c=>c.target===`${file}::outer`));
+});
+
 test('await does not certify thenable payloads or generator return holders',async()=>{
   const context=await scan(`export function run(){}
     export async function thenable(){return {run,then(resolve){resolve({});}};}

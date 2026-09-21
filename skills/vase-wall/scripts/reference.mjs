@@ -112,7 +112,7 @@ export function createVaseMeshReference({shell,settings,start,end,width,onProgre
   return {sectionAt:fit.sectionAt,mappingErrorMm,referenceLengthMm:fit.sectionAt(start).curve.length,
     pointAt:(u,z,offset=0)=>frame.at(u,z,offset+beadOffset,config.offsetTightness??0),
     map:point=>contact?contact.at(point,config.fidelity):point,
-    report:()=>({meshSleeve:{...config,...fit.report,...frame.report(),... (contact?contact.report:{}),contactPreparation:contact?{...contact.report}:null,
+    report:()=>({meshSleeve:{...config,...fit.report,...frame.report(),... (contact?contact.report():{}),contactPreparation:contact?contact.report():null,
       referenceChart:'Periodic U fitted to normalized source-section arc length; the same U is retained at every motif depth. Z remains the authored height.',
       contactMetric:'horizontal radial clamp from fitted centerline; only forbidden-side points move',
       contactTarget:'path-centerline',

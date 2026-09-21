@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {agentIndicator,requestReceiptState,hasUnpreparedEdit} from '../../studio/work-state.mjs';
+import {summarizeWork,requestReceiptState,hasUnpreparedEdit} from '../../studio/work-state.mjs';
 import {createAgentRequests,workSnapshot} from '../../studio/agent-requests.mjs';
 import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -10,7 +10,7 @@ const original={inputKey:'original',generationKey:'original-program',stage:'tool
 const updated={inputKey:'updated',generationKey:'updated-program',stage:'toolpath'};
 const request={id:'edit',printId:'part',kind:'edit',status:'working',baseline:original,updatedAt:10,expiresAt:1000};
 const view={printId:'part',snapshot:original,ready:true,loading:false};
-const active=(records,patch={})=>agentIndicator(records,{now:20,view:{...view,...patch}}).active;
+const active=(records,patch={})=>summarizeWork(records,{now:20,view:{...view,...patch}}).active;
 
 test('old playback remains distinct from the requested result; readiness ends activity before acknowledgement',()=>{
   assert.equal(active([request]),true);
@@ -39,7 +39,7 @@ test('waiting, guidance, failures, cancellation and work on another print have d
   assert.equal(active([{...request,printId:'other'}]),false);
   assert.equal(active([request],{errorAt:15,ready:false}),false);
   assert.equal(active([{...request,updatedAt:16}],{errorAt:15,ready:false}),true,'claimed recovery starts new activity');
-  assert.deepEqual(agentIndicator([{...request,presented:true}],{now:1001,closedOwners:new Set([undefined]),view}),{active:false,message:''},'delivered work cannot later report a bookkeeping timeout or disconnect');
+  assert.deepEqual(summarizeWork([{...request,presented:true}],{now:1001,closedOwners:new Set([undefined]),view}),{active:false,message:'',stage:null},'delivered work cannot later report a bookkeeping timeout or disconnect');
 });
 
 test('a generation already underway when a new edit arrives cannot satisfy that edit',()=>{
@@ -72,8 +72,8 @@ test('intermediate saves, unchanged geometry and unrelated work cannot satisfy o
     {activity:'waiting',receipt:false,awaitingConfirmation:true});
   assert.equal(active([bound],waiting),false,'the exact prepared result can wait for shape confirmation');
   assert.equal(active([bound,unbound],waiting),true,'that confirmation cannot hide an unrelated edit');
-  assert.deepEqual(agentIndicator([{...bound,status:'completed',result:updated}],{now:1001,view}),
-    {active:false,message:'(lost contact)'},'early completion cannot leave an absent result busy forever');
+  assert.deepEqual(summarizeWork([{...bound,status:'completed',result:updated}],{now:1001,view}),
+    {active:false,message:'(lost contact)',stage:null},'early completion cannot leave an absent result busy forever');
 });
 
 test('one Studio instance cannot present another instance request for the same bundle',()=>{

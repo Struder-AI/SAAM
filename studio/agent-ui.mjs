@@ -1,5 +1,5 @@
-import {agentIndicator,requestReceiptState,activeEditStage} from './work-state.mjs';
-export {agentIndicator} from './work-state.mjs';
+import {summarizeWork,requestReceiptState} from './work-state.mjs';
+export {summarizeWork} from './work-state.mjs';
 export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
   let running=false,refreshAgain=false,requests=[],view={},lastActivity,askedPresentation;const closedOwners=new Set(),retired=new Map();
@@ -16,17 +16,17 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     }
     if(changed){requests=[...merged.values()];onRequests(requests);}
   }
-  function fadeActive(){
-    const {active}=agentIndicator(requests,{closedOwners,view});
+  function fadeActive(summary=summarizeWork(requests,{closedOwners,view})){
+    const {active,stage}=summary;
     // The pane being regenerated dims; an unrelated stage stays crisp. A toolpath
     // (re)generation therefore leaves the geometry pane sharp while it runs, so
     // the person can step back to the shape without losing the faded preview.
-    return active&&(activeEditStage(requests,{closedOwners,view})!=='toolpath'||getStage()!=='geometry');
+    return active&&(stage!=='toolpath'||getStage()!=='geometry');
   }
-  function reflectFade(){document.getElementById('canvas').classList.toggle('work-faded',fadeActive());}
+  function reflectFade(summary){document.getElementById('canvas').classList.toggle('work-faded',fadeActive(summary));}
   function render(){
-    const {active,message}=agentIndicator(requests,{closedOwners,view});
-    reflectFade();
+    const summary=summarizeWork(requests,{closedOwners,view}),{active,message}=summary;
+    reflectFade(summary);
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
     indicator.setAttribute('aria-label',active?'Updating preview':message);
     if(active!==lastActivity){lastActivity=active;onActivity(active);}
@@ -65,7 +65,7 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
   void refresh();setInterval(render,750);setInterval(()=>{void refresh();},15_000);
   function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
   return {refresh,reflectFade,
-    generating(){return activeEditStage(requests,{closedOwners,view})==='toolpath';},
+    generating(){return summarizeWork(requests,{closedOwners,view}).stage==='toolpath';},
     updated(records){merge(records);render();},
     loading(stage){view={...view,loading:true,loadingStage:stage??null,ready:false,errorAt:null};render();},
     received(work){

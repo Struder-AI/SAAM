@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 12,
+  "revision": 13,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -11,7 +11,7 @@
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "H2D uses the supplied PLA / Textured PEI firmware envelope. Startup purge uses 240 C and up to 25 mm³/s; its time and material are excluded from print-body totals. Printer-selected calibration may heat both nozzles. Experimental output has not been physically validated.",
+    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Mixed-diameter dual-tool printing remains under development.",
     "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
   ],
   "capabilities": [
@@ -157,7 +157,20 @@
     "buildVolumeC": 0,
     "materialGuid": null,
     "firmwareVersion": "",
-    "startupVerified": false
+    "startupVerified": false,
+    "bambu": {
+      "plate": "textured_plate",
+      "otherNozzleMm": 0.4,
+      "amsConnections": null,
+      "filaments": null,
+      "filament": 0,
+      "startup": {
+        "bedLeveling": "printer",
+        "flowCalibration": "printer",
+        "plateDetection": "printer",
+        "toolOffsetCalibration": "printer"
+      }
+    }
   },
   "defaultProcess": {
     "planarSpeedMmS": 40,
@@ -177,8 +190,9 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "h2d-02.08.02.61-pla-textured-v3",
+        "contract": "h2d-saam-startup-v4",
         "start": [
+          "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
           "M203 X1000 Y1000 Z30 E50",
           "M204 P20000 R5000 T20000",
@@ -232,7 +246,7 @@
           "M140 S{bedC}",
           "M982.2 S1",
           "M1002 gcode_claim_action : 74",
-          "M972 S26 P0 C0",
+          "{plateDetection}",
           "M972 S35 P0 C0",
           "M972 S41 P0 T5000",
           "M400",
@@ -252,12 +266,12 @@
           "M211 X0 Y0 Z0",
           "M975 S1",
           "G29.2 S0",
-          "M620.10 A0 F498.898 H0.4 T240 P{nozzleC} S1",
-          "M620.10 A1 F498.898 H0.4 T240 P{nozzleC} S1",
+          "M620.10 A0 F{reducedFlushFeed} H{nozzleMm} T{flushC} P{nozzleC} S1",
+          "M620.10 A1 F{reducedFlushFeed} H{nozzleMm} T{flushC} P{nozzleC} S1",
           "M620.11 P0 I0 B-1 E0",
-          "M620.11 K1 I0 B-1 R10 F623.623",
+          "M620.11 K1 I0 B-1 R10 F{flushFeed}",
           "M628 S1",
-          "M620.11 S1 L0 I0 B-1 R10 D8 E-10 F623.623",
+          "M620.11 S1 L0 I0 B-1 R10 D8 E-10 F{flushFeed}",
           "M629",
           "M620 S{filamentTool}A H-1",
           "M1002 gcode_claim_action : 4",
@@ -278,7 +292,7 @@
           "M975 S1",
           "M1002 judge_flag extrude_cali_flag",
           "M622 J0",
-          "M983.3 F10.4167 A0.4",
+          "M983.3 F{calibrationFeed} A0.4",
           "M623",
           "M622 J1",
           "M1002 set_filament_type:PLA",
@@ -286,7 +300,7 @@
           "M109 S{nozzleC}",
           "G90",
           "M83",
-          "M983.3 F10.4167 A0.4",
+          "M983.3 F{calibrationFeed} A0.4",
           "M400",
           "M106 P1 S255",
           "M400 S5",
@@ -299,7 +313,7 @@
           "M109 S{nozzleC}",
           "G90",
           "M83",
-          "M983.3 F10.4167 A0.4",
+          "M983.3 F{calibrationFeed} A0.4",
           "M400",
           "M106 P1 S255",
           "M400 S5",
@@ -310,7 +324,7 @@
           "M400 S2",
           "M109 S{nozzleC}",
           "M83",
-          "G1 E45 F623.623",
+          "G1 E45 F{flushFeed}",
           "G1 E-3 F1800",
           "M400 P500",
           "G150.2",
@@ -422,7 +436,7 @@
           "M106 P9 S255",
           "M400 S1",
           "M400",
-          "G29.1 Z-0.02",
+          "G29.1 Z{plateOffset}",
           "G150.1",
           "M975 S1",
           "M983.4 S1",
@@ -448,8 +462,8 @@
           "M400 S3",
           "M109 S{nozzleC}",
           "M83",
-          "G1 E5 F623.623",
-          "G1 X290 E10 F623.623",
+          "G1 E5 F{flushFeed}",
+          "G1 X290 E10 F{flushFeed}",
           "G91",
           "G3 Z0.4 I1.217 J0 P1 F60000",
           "G90",
@@ -458,8 +472,8 @@
           "M400",
           "M993 A1 B1 C1",
           "M1015.3 S0",
-          "M1015.4 S1 K1 H0.4",
-          "M620.6 I0 H-1 W1",
+          "M1015.4 S1 K1 H{nozzleMm}",
+          "M620.6 I{filamentTool} H-1 W1",
           "M620 Q1",
           "M211 Z1",
           "G29.99",
@@ -556,9 +570,9 @@
         "material": "PLA",
         "nozzleMm": [0.4, 0.6, 0.8],
         "filamentMm": 1.75,
-        "bedType": "textured_plate",
+        "plates": ["textured_plate", "hot_plate"],
         "chamberC": 0,
-        "startupPurgeC": 240,
+        "startupFlushC": 240,
         "startupPurgeFlowMm3S": 25,
         "endLiftMm": 10,
         "parkLimitMm": 320,
@@ -569,18 +583,15 @@
       "package": {
         "printerModelId": "O1D",
         "clientVersion": "02.08.02.61",
-        "projectSettings": {
-          "filament_map_mode": "Manual",
-          "nozzle_type": ["hardened_steel", "hardened_steel", "hardened_steel", "hardened_steel", "hardened_steel"]
-        }
+        "projectSettings": {}
       },
-      "validation": "Experimental output: the firmware envelope comes from a 0.4 mm Bambu Studio reference and is reused for explicitly selected 0.6 and 0.8 mm jobs with nozzle-correct package metadata. The 0.6 and 0.8 mm paths have software checks only and no independent Bambu Studio or physical validation. Later probing and calibration remain; firmware routines are checked as a fixed contract, not motion-simulated."
+      "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested; service motion, mixed-nozzle jobs and physical AMS mapping require reference and hardware acceptance."
     }
   ],
   "startup": {
     "protocol": "bambu-h2d-reference-envelope-without-initial-homing",
     "zAfterStartupMm": 20,
-    "validation": "Bambu Studio 02.08.02.61 PLA / Textured PEI reference envelope with startup triage H10 removed: initial X home, early wiping-area moves/M972 S24, and initial Z-clearance/center/Z-home block. Later bed leveling, Z/XY calibration and priming remain. Explicit body origin [100,100,20]. Firmware service routines are not simulated; their conditions remain controlled by the printer. Revised startup has no physical validation."
+    "validation": "SAAM bounded H2D startup, cross-referenced to Bambu Studio 02.08.02.61. The inherited early H10 homing/wipe omission remains; later bed leveling, Z/XY calibration and priming remain. Nozzle, plate and logical filament parameters derive from the resolved job. Explicit origin [100,100,20]. Service routines are not simulated. Supported flag choices are explicit; cold-start and physical acceptance remain open."
   },
   "nonplanar": {
     "maxAngleDeg": 15,

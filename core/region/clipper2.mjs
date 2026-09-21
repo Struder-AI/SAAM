@@ -28,7 +28,7 @@ function decode(paths){
   }
   return result;
 }
-export function booleanPaths(subject,clip,operation,{open=false}={}){
+export function nativeBooleanPaths(subject,clip,operation,{open=false}={}){
   const owned=[],own=object=>(owned.push(object),object);
   try{
     const a=own(encode(subject)),b=own(encode(clip)),engine=own(new clipper.Clipper64()),result=own(new clipper.Paths64());
@@ -36,8 +36,10 @@ export function booleanPaths(subject,clip,operation,{open=false}={}){
     if(open)engine.AddOpenSubject(a);else engine.AddSubject(a);
     engine.AddClip(b);
     const closed=open?own(new clipper.Paths64()):null;
-    requireThat(open?engine.ExecutePath(clipper.ClipType[operation],clipper.FillRule.NonZero,closed,result):
-      engine.ExecutePath(clipper.ClipType[operation],clipper.FillRule.NonZero,result),'Clipper2 region operation failed.');
+    const kind={union:'Union',difference:'Difference',intersection:'Intersection'}[operation];
+    requireThat(kind,'Unsupported offset cleanup operation.');
+    requireThat(open?engine.ExecutePath(clipper.ClipType[kind],clipper.FillRule.NonZero,closed,result):
+      engine.ExecutePath(clipper.ClipType[kind],clipper.FillRule.NonZero,result),'Clipper2 region operation failed.');
     return decode(result);
   }finally{for(const object of owned.reverse())object.delete();}
 }
@@ -50,7 +52,7 @@ export function inflatePaths(paths,delta,{join,miterLimit,arcTolerance,end='Poly
   }finally{result?.delete();input.delete();}
 }
 
-export function simplifyPaths(paths,epsilon,closed=true){
+export function nativeSimplifyPaths(paths,epsilon,closed=true){
   const input=encode(paths);let result;
   try{result=clipper.SimplifyPaths64(input,epsilon,closed);return decode(result);}
   finally{result?.delete();input.delete();}

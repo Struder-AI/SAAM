@@ -1,5 +1,577 @@
 # Development log
 
+## 2026-09-21 — Bambu startup settings resolve once; hardware acceptance remains open
+
+- Request: current user asked for all startup duplication points, exporter and
+  guidance rewrites, and one source for values repeated in G-code. They then
+  required both different-diameter H2D nozzles to operate within one print.
+  This is developer work; pre-existing local edits were retained.
+- Implemented `core/export/bambu-job.mjs`: selected/other diameter, physical and
+  logical nozzle IDs, compact variant indices, logical filament identity, plate,
+  temperatures, startup flags and AMS connectivity are resolved once. Both the
+  G-code config and package settings consume that record; profile overrides of
+  generated fields are rejected. H2D flush/detection H parameters and the
+  previously fixed AMS detector I0 now follow their actual job settings.
+- The machine envelopes are `h2d-saam-startup-v4` and `x1c-saam-startup-v2`.
+  Their hashes now bind constraints as well as start/end arrays. Smooth PEI uses
+  its detection branch and zero texture correction; Textured PEI retains each
+  model's correction. Fixed calibration A0.4 and service/unload sentinels remain
+  distinct from nozzle diameter or logical filament IDs. The earlier H10 homing
+  omission is retained and remains a physical acceptance question.
+- Removed the shared profile's installation-specific four-tray colours and the
+  inference that declaring N filaments selects physical tray N. Physical tray
+  intent is now explicit in the manifest/review, and declared AMS connectivity
+  rejects requests through the wrong nozzle. Four-slot connection counts derive
+  from that declaration. No physical dispatch mapping adapter is implemented.
+- Supplied reference: `twistedbox.gcode.3mf`, SHA-256
+  `3a0cf2396c1f05862945ca740bd2e3f8cd7545d9947a3bf68a28adab97fc2459`,
+  Bambu Studio 02.08.02.61. The user reports left 0.4 / right 0.8 and a four-slot
+  AMS feeding the right. The archive declares 0.8/0.8, so those declarations
+  must not override actual hardware. Its resolved slice selects right (map 2,
+  nozzle 1, heater 0, map_2 1, Manual), while project preferences retain left /
+  Auto For Flush. This corrects the earlier assumption that these modes govern
+  physical manual AMS tray selection. Its plate JSON IDs are zero-based.
+- The reference confirms H0.8 in flush/air-print detection and A0.4 in flow
+  calibration. Its service flow is 30 mm³/s; SAAM retains its distinct bounded
+  25 mm³/s service recipe. Primary vendor source and installed template
+  expressions were also inspected, not copied into new reference-derived headers.
+- Added the read-only `scripts/bambu-audit.mjs` report and a small sanitized
+  reference-facts fixture. Full local reports and a synthetic development cube
+  artifact are under `.local/bambu-startup-audit/`; the cube's unit 1 slot 1
+  request is a test input, not a claim about the user's intended spool. No
+  development artifact was delivered, approved, sent to a printer or printed.
+- Rewrote `core/export/bambu.md` with maker setup and the full duplication
+  inventory; print-tool guidance links to it. Historical spool hypotheses above
+  remain history; current behavior is described at the component owner.
+- Verification: 25 targeted tests passed across Bambu, interoperability and
+  export suites, including both H2D tools, three diameters, both plates,
+  independent other-nozzle diameter, nonzero logical filament, physical-tray
+  separation, connectivity, temperature, startup flags, override/tamper rejection,
+  reference facts and Studio same-file approval/delivery. These are software
+  checks, not firmware/service-motion or physical-print evidence.
+- Remaining: controlled left/smooth references, printer AMS acceptance and cold
+  startup checks (BR-055), plus actual mixed-diameter two-tool planning,
+  changeover, interpretation and physical validation (BR-056). A both-nozzle
+  Studio reference was requested as protocol evidence without inheriting Studio's
+  equal-diameter restriction. The overall request is not yet complete.
+
+## 2026-09-19 — layer_filament_lists decided which tray loaded
+
+- Source: same maker session. With the inventory declared and per-tray identity
+  correct, the warnings were gone and the screen offered tray A4 brown, but the
+  print still came out A1 grey — no error reported.
+- `slice_info.config` carries `layer_filament_lists`, whose `filament_list` is
+  the zero-based filament those layers print. This exporter hardcoded `0` while
+  the startup addressed the requested position, so the layer data said the job
+  prints the first tray and the printer followed it. Confirmed against the one
+  reference program that uses a non-first filament: it pairs
+  `filament_list="2"` with `M620 S2A` and `<filament id="3">`.
+- That was the last record still describing position 0. The delivered program now
+  names tray 4 in the config block, `M620 S3A`, `limit_filament_maps 0 0 0 1`,
+  `<filament id="4" tray_info_idx="GFA01">`, `plate_1.json` `filament_ids [3]`
+  and `layer_filament_list filament_list="3"`.
+- 32 tests pass. Checks pass at 145 min and 27.6 g.
+- Not established: that this program prints, or that no record remains
+  inconsistent. Each of the four attempts before this one was also internally
+  consistent as far as it had been checked.
+
+## 2026-09-19 — Declared trays must carry their own identity
+
+- Source: same maker session. Declaring four entries and naming position 3
+  returned "failed to get ams mapping" again, and the revert that followed
+  changed three things at once. The user: "you do have to declare the inventory,
+  surely, you reverted something else at the same time". Correct on both counts.
+- The inventory was right; the fabricated value in it was not. All four declared
+  entries repeated the one requested colour, which asks the printer to find four
+  trays holding it against a single brown spool. The reference program declares
+  four entries with four real tray colours,
+  `#8E9089;#8E9089;#0056B8;#B15533` against `GFA00;GFA00;GFA00;GFA01`.
+- Added `outputs[].package.amsTrays` to the H2D profile, read from that
+  program: the installation's tray inventory. Declared entries now take their id
+  and colour per tray, so with trays known the package describes the spool in the
+  selected tray and `setup.filamentColor` no longer decides what is recorded.
+- Two further records still described one filament while the config block
+  declared four. `slice_info.config` now carries `filament_maps` per declared
+  entry with `limit_filament_maps` marking the used one (`0 0 0 1` for tray 4,
+  matching the reference's `1 0 0 0` for tray 1), and its `<filament>` element
+  takes the used tray's one-based position, filament id and colour.
+  `model_settings.config` carries the same list.
+- Verified against the reference: every package record now names tray 4
+  consistently — config `GFA01`/`#B15533` at position 4, `M620 S3A`,
+  `limit_filament_maps 0 0 0 1`, `<filament id="4" tray_info_idx="GFA01">`,
+  plate `filament_ids [3]`. 32 tests pass.
+- `amsTrays` is installation data sitting in a shared profile; it belongs in the
+  local machine setup, and is recorded under BR-055.
+- Not established: that this program prints.
+
+## 2026-09-19 — The declared filament list is the AMS inventory
+
+- Source: same maker session. With the config block and `Auto For Flush` in
+  place the three warnings cleared, but the printer offered tray A4 brown on
+  screen and then printed A1 grey.
+- Found by looking for the closest reference rather than reasoning further: the
+  operator's card holds two Bambu Studio **single-filament** H2D programs, one of
+  them on the 0.8 nozzle. Both declare four filament entries, one per AMS tray,
+  while keeping `; filament: 1` in the header:
+  `filament_ids = GFA00;GFA00;GFA00;GFA01`,
+  `filament_colour = #8E9089;#8E9089;#0056B8;#B15533`,
+  `filament_self_index = 1,2,3,4`, and print tray 1 with `M620 S0A`. The grey it
+  printed is the same `#8E9089` the operator was getting.
+- So the declared list is the AMS inventory in tray order and the startup names a
+  position in it. Declaring one entry pinned every SAAM job to tray 1 regardless
+  of the screen's mapping, and the earlier `M620 S3A` against a single declared
+  entry named a filament that did not exist, which is what produced "failed to
+  get ams mapping". Both observations now have one cause.
+- `projectSettings` declares entries up to `feederSelector`'s position, with
+  `filament_self_index`, `filament_is_support` and the per-filament temperature,
+  density and flow arrays sized to match, and `plate_1.json` carries the used
+  position in `filament_ids` and `first_extruder`. The startup names that
+  position again. Verified field by field against the single-filament reference:
+  identical in shape, count and separators.
+- Unused entries repeat this job's own filament, because the operator's real
+  inventory is not knowable from a recipe. That is the one fabricated value in
+  the package and is recorded as such in the contract.
+- 32 tests pass across `bambu`, `interoperability`, `export`, `workflow` and
+  `regional-workflow`.
+- Not established: that this program prints, or how a printer responds to
+  repeated colours across declared trays.
+
+## 2026-09-19 — M620 takes a filament index, and the map mode must be automatic
+
+- Source: same maker session. After the config block landed, the user rejected
+  the remaining `filament_map_mode = Manual` outright and declined to keep
+  test-printing. Both points were correct and both are now fixed without another
+  trial.
+- **Map mode.** The H2D profile was the only thing in this repository asking for
+  `Manual`; the X1 Carbon profile, on the machine whose prints work, already
+  declared `Auto For Flush`, and so do both Bambu Studio H2D programs on the
+  operator's drive. The H2D profile now matches.
+- **M620 takes a logical filament index, not an AMS tray.** Bambu's own
+  change-filament code is `M620 S[next_filament_id]A`, and the reference programs
+  use `S2A` with three filaments and `S1A` with two — always below the declared
+  filament count. This exporter declares one filament, so the only valid index is
+  `0`. `feederSelector` was feeding an AMS tray number into that field, which is
+  harmless only when it resolves to 0; the X1 Carbon's remembered `{unit 1, slot
+  1}` always did, which is why the defect stayed hidden. Setting `{unit 1, slot
+  4}` emitted `M620 S3A`, naming a filament that does not exist, and the printer
+  answered "failed to get ams mapping". The startup now emits the logical index.
+- This restores the original reading that `setup.ams` does not pick a tray from
+  the card, which an earlier entry today wrongly revised. The tray is chosen by
+  the printer from the recorded colour, exactly as the maker said; `setup.ams`
+  stays a validated record of intent. Two assertions in `core/tests/bambu.test.mjs`
+  encoded the tray-as-index behaviour and were corrected.
+- Added `filament_self_index`, a one-based sequence in the reference programs and
+  `1` for a single filament. `filament_settings_id` is still omitted: its value
+  is a preset name that would have to be extrapolated rather than read.
+- Verified offline against a Bambu Studio H2D program rather than on hardware:
+  all 29 emitted config keys match the reference in form, with per-filament keys
+  carrying one element and per-tool keys two. 32 tests pass across `bambu`,
+  `interoperability`, `export`, `workflow` and `regional-workflow`.
+- Not established: that this program prints.
+
+## 2026-09-19 — Bambu programs were missing their CONFIG_BLOCK
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`, third failed H2D
+  load. Warning `[05ff-8053 132520]` "The right nozzle is not matched with
+  slicing file", a build-plate mismatch, and — new after `setup.ams` was set —
+  "failed to get ams mapping". The user: "You need to KNOW what to do, not guess
+  at random shit." That was fair; the preceding `printer_settings_id` change was
+  reasoned from field names in `project_settings.config` and changed nothing.
+- Root cause, found by diffing the G-code rather than the package metadata: no
+  SAAM export has ever emitted a `; CONFIG_BLOCK_START` ... `; CONFIG_BLOCK_END`
+  section. Bambu Studio writes 548 `; key = value` lines there, including
+  `nozzle_diameter`, `curr_bed_type`, `printer_model`, `filament_map` and the AMS
+  fields, and the printer validates against that block. Checked: two SAAM
+  packages on the operator's drive have zero config blocks, two Bambu Studio H2D
+  packages have one each. This explains all three warnings together, and why the
+  single-nozzle X1 Carbon was unaffected.
+- `projectSettings` is now one exported function in [bambu.mjs](core/export/bambu.mjs),
+  rendered as JSON for `project_settings.config` and as the program's CONFIG_BLOCK.
+  Per-key list separators were read from the reference program, not assumed.
+  The H2D profile gained `extruder_ams_count`, `default_ams_type` and
+  `enable_filament_dynamic_map` from a real slice of that operator's machine, and
+  its `nozzle_type` was corrected from five entries to one per tool.
+- Regenerated: the program now carries `nozzle_diameter = 0.4,0.8`,
+  `curr_bed_type = Textured PEI Plate`, `extruder_ams_count = 1#0|4#0;1#0|4#0`
+  and `filament_map = 2`, with the block between `HEADER_BLOCK_END` and
+  `EXECUTABLE_BLOCK_START`. Checks pass at 145 min and 27.6 g. `bambu`,
+  `interoperability` and `export` pass (19 tests), including the round trip that
+  re-derives the header and compares it to the stored bytes.
+- Not established: that this file prints. Three warnings have a named cause and a
+  fix; whether any remain is the next observation.
+
+## 2026-09-19 — H2D right-nozzle refusal, and the AMS tray the program asked for
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`, printing
+  `chalice-drip-h2d-08` on a Bambu H2D whose right nozzle is 0.8 mm. The card
+  loaded, the screen pre-selected the brown spool in AMS slot 4 from the recorded
+  colour, and the printer then raised `[05ff-8053 132520]`: "The right nozzle is
+  not matched with slicing file. Please initiate the print after re-slicing, or
+  continue printing after replacing with the correct nozzle." Ignored, it went on
+  to a build-plate warning and then loaded slot 1, grey, instead of slot 4.
+- **Nozzle refusal, fixed.** `printer_settings_id` was built from the first
+  tool's diameter, so a right-nozzle job on a 0.4/0.8 machine claimed
+  "Bambu Lab H2D 0.4 nozzle" with a 0.8 mm nozzle fitted. It now follows the
+  selected tool. Evidence: an earlier SAAM right-nozzle H2D package on the
+  operator's drive carries "0.8 nozzle" with the same `nozzle_diameter`
+  `['0.4','0.8']`, and a Bambu Studio H2D slice carries "0.6 nozzle" with
+  `['0.6','0.6']` — the field names the nozzle that must be fitted, not the first
+  one. `core/tests/bambu.test.mjs` asserted the old behaviour and was corrected.
+- **Build plate.** Not ours. `plate_1.json` `bed_type: textured_plate` and
+  `project_settings.config` `curr_bed_type: Textured PEI Plate` are byte-identical
+  across this export, the earlier SAAM package and a real Bambu Studio H2D slice.
+  `curr_bed_type` is hardcoded in the exporter, so no other plate can be
+  expressed; recorded as [BR-055](build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
+- **AMS tray.** The print carried `setup.ams: null`, so `feederSelector` wrote
+  selector 0 and the program asked for the first tray. The screen's colour match
+  and the program's selector disagreed for the first time here, and the tray that
+  loaded was the program's. The 2026-09-18 X1 Carbon observation cannot decide
+  between them: that print carried `{unit: 1, slot: 1}`, so colour and selector
+  both named slot 1. Which mechanism governs is recorded as unsettled in
+  [the Bambu contract](core/export/bambu.md#choosing-the-spool), with both set to
+  the same spool as the working practice.
+- Regenerated with `setup.ams: {unit: 1, slot: 4}` and the preset fix: the program
+  now carries `M620 S3A` / `T3` / `M621 S3A` and "Bambu Lab H2D 0.8 nozzle".
+  Checks pass at 145 min and 27.6 g. Delivered unmodified.
+- Not established: that this file prints, or which of colour and selector governs
+  tray choice. Setting both to the same spool makes the next print succeed under
+  either reading, so that print will not decide it either.
+
+## 2026-09-19 — Process validation stops shadowing the machine profile
+
+- Source: same maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`. A 0.8 mm
+  right-nozzle H2D recipe was refused with "lineWidthMm must be between 0.3 and
+  0.8" although the tool declares 0.8 mm and the profile allows a 0.6–1.6 mm
+  bead. The user: "We shouldn't have arbitrary caps, fix that when you are done
+  with the toolpath."
+- `validatePlanProcess` carried a `planarLimits` object of chosen numbers
+  (`firstLayerMm`/`layerMm` 0.3, `lineWidthMm` 0.8, `maxFlowMm3S` 15) applied
+  without reference to any machine. `validateSetup` already enforced all four
+  against the selected tool's `layerHeightMm`, `lineWidthLimits` and the
+  material's `maxFlowMm3S`, two steps later in the same `validatePlan` chain, so
+  the fixed numbers only shadowed the real limits with smaller ones.
+- The fixed ceilings are removed. `validatePlanProcess` now takes the machine,
+  keeps floors that say a value is not a usable process value, and bounds axis
+  speeds by the machine's declared `maxFeedMmS` instead of 80/40/200. Prime-line
+  width and height follow the same rule. The profile keeps every real ceiling.
+- Checked on the H2D profile: a 0.8 mm nozzle now accepts a 0.9 mm bead at 0.4 mm
+  layers and up to the profile's 1.6 mm, while 1.7 mm, a 0.9 mm bead on a 0.4 mm
+  nozzle, a 0.7 mm layer past the tool's 0.6 mm, 5 mm³/s past PLA's 4 and a
+  1200 mm/s axis speed are all still rejected — now with the profile's own
+  messages. `bambu`, `workflow`, `regional-workflow`, `demos`, `composition`,
+  `export`, `interoperability`, `line-network` and `workflow-generation-stages`
+  pass (55 tests). One assertion in `workflow.test.mjs` expected the old
+  `/layerMm/` text and now expects the profile's "Layer height outside profile
+  limits"; the value is still rejected.
+- The kept-limits register in [core/README.md](core/README.md#limits-that-adapt-and-limits-that-are-kept)
+  now names layer height and bead width in the machine-limits row.
+
+## 2026-09-19 — AMS spool selection follows filament colour
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`, printing the
+  `chalice-drip-h2d` bundle on a Bambu H2D. The maker reported needing the AMS,
+  asked "does the AMS only use right nozzle or something?", then stated the
+  mechanism: "I think you just set color (do brown) and AMS chooses slot for
+  you." They later reported the job "won't print" while mapped to the left
+  nozzle and asked for the right nozzle.
+- `core/export/bambu.md` already recorded colour-based tray matching for the
+  X1 Carbon, but the H2D section of the same file called `setup.filamentColor`
+  a value "used only for package labelling". That contradiction is corrected and
+  the spool guidance is now one section covering both profiles. The matching
+  comment in `core/machine/rules.mjs` said a colour "only labels the job"; it now
+  points at the export contract.
+- The failing export had `setup.ams: null` and `setup.filamentColor: null`, so
+  `feederSelector` returned selector 0 and the exporter wrote the H2D output's
+  `defaultFilamentColor` `#28A090` — a profile placeholder matching no spool the
+  operator owns. A machine with no remembered setup reaches this by default.
+- Nozzle mapping was checked against references on the operator's drive rather
+  than inferred. Two Bambu Studio H2D packages and one earlier SAAM right-nozzle
+  H2D package agree with this exporter: `filament_map` is `tool + 1`,
+  `filament_nozzle_map` is `tool`, `first_extruder` tracks the filament id and
+  not the tool, and a right-nozzle job starts `T0` / `G151 P0` because H2D tool 1
+  declares `physicalExtruder` 0. No exporter defect was found; an earlier reading
+  of `filament_map: ["2"]` as out of range was wrong.
+- Regenerated the bundle on `setup.tool: 1` with `filamentColor: "#8B5A2B"`;
+  checks pass at 96.9 min and 19.1 g, with the same single short-travel advisory
+  in `bowl:vase-wall:wall`. Delivered to the operator unmodified.
+- Not established: that colour matching selects the spool on the H2D specifically,
+  or that this part prints. Both are maker reports and a software check; no
+  completed print has confirmed either.
+
+## 2026-09-19 — Bed-adhesion skill first draft, from a reported brim failure
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`. The user printed
+  an open-bottom vase-mode part on a Bambu X1 Carbon in PLA and reported "It
+  didn't adhere to the print bed", then asked for "a good solid brim to start
+  out, maybe 8 layers on the outside before getting to the part, with full flow
+  or maybe even a little more", clarified as "Just do the first layer and then
+  vase on top of that", and finally asked for a bed-adhesion skill draft.
+- Physical evidence: the failed part's only bed contact was one 0.5 mm vase-wall
+  bead around an 80 mm circle, roughly 125 mm² carrying a 124 mm tall part. No
+  brim has been printed; the brim figures below are software measurements.
+- Added [skills/bed-adhesion/SKILL.md](skills/bed-adhesion/SKILL.md) with one
+  entry, brims, and registered it in [skills/catalog.mjs](skills/catalog.mjs)
+  after `supports`. Regenerated the digest.
+- The documented brim uses existing components only: a flange modeled over the
+  first layer height, plus a first-layer region assigning `planar-infill` with
+  `density: 0` and a `perimeters` count, with a region `process` override for
+  bead width and speed. `line-network` was assessed first and rejected — it is
+  validated as a standalone planar path and is generated only from the global
+  skill path in `core/print/generate.mjs`, so it cannot coexist with a vase wall
+  or with composition regions.
+- Measured on the `chalice-drip` bundles: nine first-layer loops at radii 39.75
+  through 44.55 mm, matching the derivation in the manual; 3,111 mm of path at a
+  measured 0.652 x 0.2 mm bead and 18 mm/s, about 2,030 mm² of bed contact. Both
+  the X1 Carbon and H2D bundles check `pass`.
+- The flange requirement is recorded as [BR-054](build_request.md#br-054--a-brim-producer-that-does-not-need-a-modeled-flange).
+
+## 2026-09-19 — Developer-map scanner and architecture integration
+
+- Post-checkpoint priority correction: the user explicitly rejected treating
+  unresolved/uncertain relationships as an acceptable finished state or requiring
+  every developer to reconstruct missing dependencies from source. BR-052 now
+  prioritizes eliminating the gaps through scanner inference, sensible reviewed
+  authorship and code-practice changes. Complete affected-caller/consumer coverage
+  and useful data/control/state relationships are the acceptance criterion;
+  warning suppression and payload reduction do not establish it. The broader
+  goal and team remain paused; this correction updates the authorized remainder.
+- Final requested checkpoint: private prepared mesh-section queries now copy
+  vertices, triangle indices and bounds once, so cached indices cannot observe
+  later caller geometry mutation. Returned query closures capture `fixedMesh`
+  rather than caller-owned mesh geometry. This costs one geometry snapshot for
+  each prepared query's lifetime; public mesh mutability is unchanged. Geometry
+  behavior checks passed 23/23, including nested and top-level caller mutation.
+- Ambiguous repeated-invocation endpoints now identify an unknown producer or
+  consumer instead of pretending to be function parameters/returns. Canonical
+  source navigation and unresolved wire evidence remain: 13 endpoints on four
+  pages. Integrated map checks passed 335/335 and full regeneration produced
+  1,990 destinations (142 files), with no stale pages or orphan facts.
+- Final stored declaration diagnostic counts are 1,056 unresolved and 12,475
+  uncertainty rows, versus 1,054/12,472 before the ownership correction. The
+  added snapshot array traversals expose two further receiver-call limitations;
+  these totals count analysis rows, not unique bugs or completion tasks. Runtime
+  core/Studio source totals 15,345 physical lines (core 11,041; Studio 4,304),
+  counting mjs/js/cjs/cpp/h/hpp/css/html and excluding tests. No commit or push
+  was made at this checkpoint; existing unrelated checkout work was preserved.
+- The user requested wrap-up at the next logical stopping point and explicitly
+  chose "Pause at the checkpoint". Remaining conceptual review, local diagnostic
+  usability and the observed Studio overview ownership-projection defect remain
+  in BR-052. The whole-scope goal is not achieved. All assigned agents completed;
+  no additional implementation assignment was started.
+- Corrected overview reads after the user's cost report and clarification that
+  maps should locate descendant detail without displaying it. Region/file/group
+  diagnostics now roll up to counts and immediate child addresses; unmatched
+  local findings stay explicit. Default drawings and CLI omit expanded member,
+  file, child and code-target inventories. Visible boxes retain their navigation;
+  raw details and complete matching code reads remain available. Fixed compact
+  file reads restoring full shared-helper caller lists from child metadata.
+- Equivalent fresh default CLI responses for regions `9,7,6,4,3` fell from
+  402,269 to 33,350 UTF-8 bytes (392.8 to 32.6 KiB, 91.7% reduction); files
+  `4.38,5.7,9.12` fell from 30,928 to 14,140 bytes (54.3%). The reported 71k
+  estimated tokens were the region discovery reads, not those three file reads.
+  These are payload savings, not resolved scanner findings or tokenizer counts.
+  Adopted cross-level redundancy as a review metric: separate repeated descendant
+  detail from necessary identities, addresses and boundary-edge perspectives.
+  Summary counts across nesting overlap and are not unique-finding totals.
+- Verification: all 333 map tests pass; regenerated all 1,990 destinations with
+  no stale pages or orphan facts. Independent navigation check covered all 3,492
+  displayed boxes. Inspected drawing and CLI for region `9`; inventories and
+  verbose warning dictionaries are gone. Its large number of connections still
+  makes the drawing crowded; payload reduction alone does not establish good
+  visual composition.
+- Resumed after the user's architecture/size reflection: conceptual simplification
+  and increased code visibility remain primary; runtime size and function counts
+  remain reported countermeasures. The proposed small-leaf absorption policy is
+  not yet adopted. Measured 748 canonical code leaves from matching snapshot
+  source spans: mean 241 characters, population standard deviation 313, median
+  131, 90th percentile 542. Full-line spans include comments/whitespace and may
+  overlap, so their sum is not a partition of codebase size.
+- Machine mechanism selection now returns explicit gantry, aligned-arm and
+  unavailable-arm records instead of reassigning shared callback bindings.
+  Existing value-flow analysis can follow the actual solver/source-pose choices;
+  no authored links or broader scanner guesses were added. Behavior checks,
+  including scaled Dobot overlay suppression, passed 21/21; independent factory
+  callback inference regressions passed 2/2. Source delta: -2 lines, +530 characters,
+  unchanged function count. Five newly anchored callback entities increase map
+  coverage without adding runtime callbacks. Current runtime total is 15,337 lines.
+- Corrected sole local-closure invocation endpoints when a separate callable
+  reference is also needed. `sweepSurfaceOffset`, `simplifySurfaceLoops` and
+  `offsetSurfaceSection` no longer gain fabricated untraced return ports; their
+  arguments reach the real invocation. Captures, callable returns, recursion and
+  genuinely ambiguous multiple invocations remain distinct. After integration,
+  333 map tests pass; regenerated canonical pages contain 1,054 unresolved rows
+  and 12,472 uncertainty rows. This counts stored evidence, separately from
+  presentation-only invocation-origin diagnostics.
+- Consolidated local request waiting and live Studio polling's selection/claim
+  policy in `createAgentRequests().selectQueued`; transports retain their own
+  waiting behavior. This removes one competing policy implementation while adding
+  one function and three runtime lines. Focused toolkit/work checks passed 23/23.
+  Runtime core/Studio totals at this checkpoint: 11,035 + 4,304 = 15,339 lines,
+  using the same runtime-extension scope as the earlier comparison.
+- Mutable array receivers are classified only when initialization and every direct
+  reassignment are array literals, with no own-member writes or direct call escapes.
+  The conservative final rule removes 10 false unresolved sites on identical source;
+  overridden methods and uncertain mutation remain unresolved. A broader candidate
+  was rejected during integration review. Literal dynamic-import destructuring was
+  already supported and gained regression coverage.
+- Preserved adapter selection provenance through flow construction. Matching
+  exporter/interpreter alternatives now have four `bytes` connections rather than
+  sixteen; independent selections retain all possible pairings. No runtime export
+  behavior changed. Region overview diagnostics now summarize counts by source and
+  finding type, retaining flagged-limit counts and detailed drill-down in both CLI
+  and drawing. Underlying findings remain intact.
+- Regenerated September 20 at 04:20 UTC: 142 files, 1,567 declarations, 266 groups,
+  1,237 graph pages and 748 code destinations, with no stale pages or orphan facts
+  at generation. Canonical stored pages contain 1,059 unresolved rows and 12,496
+  uncertainty rows (not a claim of distinct source sites). All 328 map tests passed.
+  Machine solver callback selection remains the next code/graph visibility gap.
+- Source: user follow-up in Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`:
+  remove `dev-map/audit`, use Sol agents for code-shape/scanner improvements,
+  distinguish static/instance declaration identities, and implement the five
+  proposed action-delta, Dobot, generation, Clipper and viewer cleanups.
+  The user subsequently strengthened the goal to require architectural clarity
+  and conceptual usefulness throughout core/Studio, beyond inventory coverage.
+- Removed the disposable `dev-map/audit` tree. Temporary verification output now
+  uses the operating system's temporary directory. Updated active guidance to use
+  just the current map index; durable references continue to use declaration paths.
+- The scanner no longer treats every scalar local declaration as a possible
+  carried method name. A same-source comparison moved 187 call sites from
+  unresolved to external while preserving all 4,922 linked sites in that scan.
+  Static methods now have `@static/` declaration identities; reserved-looking
+  instance names are escaped without renaming source methods. Static spread-key
+  analysis also preserves return fields proved disjoint from a spread: the
+  generation-check record's 17 false override findings became zero. Unknown
+  spreads and unsupported value flow remain explicit.
+- `materializeActions` now uses `ActionAccumulator`; planning results carry
+  state/actions/decisions without copied timing/accounting fields. Dobot imports
+  the existing rigid-vector helpers. Approval and machine-change transitions
+  return new review records instead of mutating loaded review/history objects.
+- Core `generateBundle` owns current-output reuse, development promotion and
+  generation. Studio supplies computation transport only. Promotion rechecks
+  plan/export/review identity after the commit hook; failed prepared jobs retain
+  their existing diagnostic/retry lifecycle. The transport consumes the execution
+  state supplied by core rather than an earlier Studio snapshot.
+- Region operations use one lowercase Clipper adapter vocabulary with an explicit
+  `open` option. The native-memory module is reached through that adapter,
+  including simplification and setup verification.
+- Studio's `createViewerRenderer` owns scene publication, renderers, picking,
+  quality and redraw scheduling. The app assembles an explicit frame snapshot and
+  applies returned DOM annotations; movie output uses the same renderer.
+  Verification caught and corrected early-resize, restored-page disposal and
+  coalesced-redraw races. Viewer tests live in the normal core test suite.
+- Integration evidence: 195/195 Studio tests and 306/306 map tests passed after
+  source/group updates. The generation agent's focused lifecycle checks passed
+  47/47; the later named-transport change passed 11/11 Studio stage tests.
+  Earlier slice checks covered action input identity/order, frozen review
+  transitions, Clipper reference fixtures and static/instance source identity.
+- Explicit regeneration at 02:34 UTC on September 20 produced 139 source files,
+  1,550 declarations, 262 groups, 1,223 graph destinations and 738 code destinations
+  across nine regions, with eight facts, no orphan facts and no stale sources.
+  Human and CLI review exposed excessive repeated helper callers, expression
+  bodies on wires and suspicious receiver-call references. Those remain follow-up
+  work; this checkpoint does not certify the full conceptual goal as complete.
+- The subsequent text/heat-set ownership pass moved text-layer unwrapping and
+  reconstruction into `core/print/text.mjs`. Heat-set editing no longer imports
+  the text compiler or owns its wrapper schema/order. The existing text and
+  heat-set suites plus a frozen nested-layer reconstruction regression passed
+  28/28, retaining compiled record hashes, material partitions and standalone
+  stopping behavior. Local outline accumulators and compiler-owned kernel handles
+  were inspected and retained; they were not caller-owned planning mutations.
+- Export advisory enrichment now returns detached program/summary records while
+  retaining motion payload identities. Frozen-input and export regressions passed
+  40/40. Prepared contour, radial-contact and sleeve-contact query reports now
+  return snapshots; all consumers were rewired. Snapshot isolation and existing
+  query/skill checks passed 39/39.
+- An ownership assessment covered all 39 geometry and 12 region source files.
+  Pure/local algorithms and explicit cache/native-resource owners were retained;
+  this is code-ownership evidence, not certification of each conceptual map.
+  A subsequent exact-contract vector cleanup removed four duplicate helpers and
+  reused shared operations in NURBS normal evaluation. Arbitrary-dimension mesh
+  operations and the scalar 2D sleeve determinant remain distinct. Focused
+  geometry tests passed 41/41.
+- The next user-supplied proposals were checked against current source: accepted
+  one work-status summary, one export representability guard, immutable Studio
+  response adoption, control-policy derivation and DOM-update ownership. Declined
+  a generic review-event helper because the pure transitions retain deliberately
+  different approval policies, and declined merging print identities because the
+  absolute-directory hash and library-relative request identity differ.
+- Studio response adoption now returns state and presentation decisions without
+  mutating fetched JSON. Successful preview publication explicitly reports
+  consumption, allowing detached state/cache envelopes to release preview data
+  while preserving move-buffer identity. Unavailable, failed or superseded
+  publication retains that data. The control model supplies button/tab policy;
+  the duplicate refresh-time skin-label write was removed. Work-status and export
+  guard checks passed 56/56; the integrated Studio suite passed 199/199 after
+  correcting a test fixture that failed to retain its simulated viewer response.
+- The user approved naming architectural stages while permitting anonymous
+  implementation callbacks. All 30 authored anonymous source-position references
+  were replaced by named bindings or removed from incidental callback grouping.
+  Parameter-default functions use stable `@default/NAME` identities, without
+  claiming the runtime caller selected that default. Generation rejects anonymous
+  position paths in authored grouping. No map-specific source IDs are introduced.
+- Caller summaries now replace long off-page component lists with a count and
+  canonical caller-page link. The generation-page drawing and exact default CLI
+  were inspected together: the assertion summary retained all 225 off-page
+  callers, and its canonical view retained 228 total callers. This reduced that
+  CLI response from about 20.8k to 13.4k characters. The viewer factory was grouped
+  into scene publication, frame scheduling and performance responsibilities,
+  with direct teardown; it still needs shared-state presentation work.
+- Regeneration at 03:28 UTC on September 20 covered 141 files, 1,560 declarations,
+  266 groups, 1,231 graph destinations and 746 code destinations. The comparable
+  canonical-source count was 1,075 unresolved sites and 12,414 distinct uncertainty
+  findings (12,506 rows), versus the saved baseline 1,070 and 12,402. Increased or
+  reclassified findings are not claimed as analysis improvement. Subsequent source
+  changes correctly marked that snapshot stale while leaving it readable.
+- A further user ticket batch was accepted for shared Studio rigid math, one
+  polling adoption path, one normal/inspection render selection, invariant travel
+  policy construction, structural planning-result fields, and a generation-input
+  identity rename with persisted-record migration. Shared pure review invalidation
+  was accepted; a generic bundle write loop was declined because it would not
+  establish atomicity or complete file sets. The path changes passed 34 checks;
+  shared invalidation passed 16 workflow/edit checks.
+- Studio now shares core rigid-transform math, retains its descriptor validation,
+  and uses one polling state-adoption path while preserving metadata-only playback,
+  manual controls and fading. A named presentation selection skips normal table
+  construction for inspection content. The core/Studio generation-input identity
+  is now `generationHash`; legacy saved reviews/checks normalize at read boundaries,
+  reject conflicting identities and leave source files untouched. Existing approved
+  exports remain valid; old revision tokens require refresh. Runtime/API/cache
+  contracts have no parallel old-name aliases.
+- Bundle adapter resolution moved out of the HTTP server into one neutral module,
+  with all consumers rewired. The tour adapter names its complete delegated
+  interface instead of spreading an implicit export surface. Integrated map tests
+  passed 320/320; Studio/workflow/handoff and wave-workflow checks passed 231/231.
+  A subsequent focused presentation refinement passed 22/22. Verification also
+  found a real MCP disconnect ordering bug: failure records are now persisted
+  before notifying Studio, while notification still precedes shutdown. Its existing
+  scoped-owner regression passed without weakening assertions.
+- The final 03:47 UTC generation covered nine regions, 142 files and 1,566
+  declarations, with 266 authored groups, 1,235 graph and 749 code destinations,
+  eight facts and no orphan facts or stale sources. Canonical-source diagnostics:
+  1,070 unresolved sites and 12,408 distinct uncertainty findings (12,500 rows),
+  down five and six respectively from the previous reported snapshot. These totals
+  reflect changed source as well as analysis, not a same-source scanner benchmark.
+  Exact shared-state/capture duplicates now consolidate in both default views;
+  the viewer controller CLI shrank from 108 to 79 wire records without merging
+  invocations, ordered state transitions or distinct fields. Its 59 uncertainty
+  findings remain. The generation drawing and CLI were reinspected together at
+  current index 7.16.44; the exact CLI was queued in the sidebar. The controller
+  still needs a clearer presentation of real owned state and repeated uncertainty.
+- At the user's request, code size joins diagnostic counts in progress reports.
+  Count physical lines (including comments/blanks) in runtime `.mjs`, `.js`,
+  `.cjs`, `.cpp`, `.h`, `.hpp`, `.css` and `.html` files under core/Studio;
+  exclude tests, node_modules, .local, docs and generated maps. Compare each
+  revision's actual file set, including new untracked runtime files in the worktree.
+  Current: core 11,036, Studio 4,299, total 15,335 (JavaScript alone 15,174).
+  HEAD b3515d8: 10,971 + 4,223 = 15,194; a11926e and b1ef0cb:
+  10,739 + 4,138 = 14,877; 36a671d: 10,269 + 4,036 = 14,305;
+  ab61e96: 10,251 + 4,036 = 14,287; 5526585: 10,260 + 4,036 = 14,296.
+  Thus this batch adds 141 runtime lines (+0.93%), not a net size reduction.
+  App/controller/state/control extraction nets +39 lines, workflow +44, tour's
+  explicit facade +24, adapter/server ownership +14. Runtime nonblank lines
+  increased 126 and normalized characters increased 10,833; the increase is not
+  solely blank lines. Tests are separate: 11,647 currently versus 11,215 at HEAD.
+
 ## 2026-09-18 — Remove fixed failing caps
 
 - Source: owner rule, 2026-09-18: "fixed cap limits like that will ALWAYS fail at

@@ -16,7 +16,7 @@ export function createPlanningState({start,process,machine,generatorVersion,moti
 }
 
 export function planningResult(state,actions={chunks:[]},decisions={}) {
-  return {state,actions,timing:{layerSeconds:state.layerSeconds},accounting:{...state.stats},...decisions};
+  return {...decisions,state,actions};
 }
 
 // Local emission storage for ONE planning stage, never shared planning state.
@@ -225,17 +225,14 @@ export function planConnection(state,target,policy,speed,volumePerMm,extra,targe
   return {...moved,connected:true};
 }
 
-// Flatten once, at delivery (or into the legacy adapter's own array). A replacement
+// Flatten once at delivery. A replacement
 // changes only the output array's tail, never the action object that preceded it.
 export function materializeActions(actionChunks) {
-  const actions=[],pending=[...actionChunks].reverse();
-  while(pending.length){
-    const delta=pending.pop();
-    if(delta.chunks){for(let i=delta.chunks.length-1;i>=0;i--)pending.push(delta.chunks[i]);continue;}
-    if(delta.replaceLast){requireThat(actions.length>0,'A merged move needs an earlier action.');actions[actions.length-1]=delta.replaceLast;}
-    for(const action of delta.append??[])actions.push(action);
-  }
-  return actions;
+  const accumulator=new ActionAccumulator();
+  accumulator.add({chunks:actionChunks});
+  const {replaceLast,append}=accumulator.finish();
+  requireThat(!replaceLast,'A merged move needs an earlier action.');
+  return append;
 }
 
 export function planningPath(state,actionChunks,summary={}) {

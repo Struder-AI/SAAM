@@ -14,7 +14,7 @@ import {once} from 'node:events';
 import workerThreads from 'node:worker_threads';
 import {syncBuiltinESMExports} from 'node:module';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
-import {agentIndicator} from '../../studio/work-state.mjs';
+import {summarizeWork} from '../../studio/work-state.mjs';
 
 test('an explicit scratch resolver follows Studio opening and listing without changing the default registry',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-scratch-'));t.after(()=>rm(library,{recursive:true,force:true}));
@@ -46,7 +46,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   const response=await fetch(origin+'/api/open',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({path:join(library,'second','plan.json')})});
   assert.equal(response.status,200);
   assert.equal((await(await fetch(origin+'/api/state')).json()).marker,join(library,'second'));
-  const {bundleFor,listPrints}=await import('../../studio/server.mjs');
+  const [{bundleFor},{listPrints}]=await Promise.all([import('../../studio/adapter-resolution.mjs'),import('../../studio/server.mjs')]);
   await assert.rejects(bundleFor(join(library,'first')),/cannot review/);
   assert.deepEqual(await listPrints(library),[]);
 });
@@ -88,8 +88,8 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.deepEqual(pending.requests[0].evidence.shortTravel,state.program.summary.shortTravel);
   assert.ok(pending.requests[0].evidence.shortTravel.count>0);
   assert.match(pending.requests[0].instruction,/Tell the person[\s\S]*Mention this finding to the person in your next reply/);
-  assert.equal(agentIndicator(pending.requests,{now:Date.now()+3600000}).active,false);
-  assert.equal(agentIndicator(pending.requests,{now:Date.now()+3600000}).message,'');
+  assert.equal(summarizeWork(pending.requests,{now:Date.now()+3600000}).active,false);
+  assert.equal(summarizeWork(pending.requests,{now:Date.now()+3600000}).message,'');
   assert.equal((await createAgentRequests(library,{now:()=>Date.now()+3600000}).list())[0].status,'working');
   await requests.update(pending.requests[0].id,{status:'completed'});
   await post('view-ready',shown);
@@ -110,7 +110,7 @@ test('background preparation leaves review writable and persists only a currentl
   const dir=await mkdtemp(join(tmpdir(),'saam-studio-preparation-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   await shell.initBundle(dir,boxPlan());
   const initial=await shell.loadBundle(dir,{program:false}),original=await readFile(join(dir,'review.json'));
-  const worker=new Worker(new URL('../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,planHash:initial.planHash}});
+  const worker=new Worker(new URL('../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,generationHash:initial.generationHash}});
   t.after(()=>worker.terminate());
   const [prepared]=await once(worker,'message');assert.equal(prepared.type,'prepared');assert.equal(prepared.error,undefined);
   assert.deepEqual(await readFile(join(dir,'review.json')),original);
@@ -200,7 +200,7 @@ test('preparation diagnostics stay actionable until explicit retry; state pollin
 
 
 test('Studio opening retries a read spanning a multi-file edit but preserves persistent validation errors',async()=>{
-  const {readStableBundle}=await import('../../studio/server.mjs');let reads=0;
+  const {readStableBundle}=await import('../../studio/adapter-resolution.mjs');let reads=0;
   const adapter={bundleFingerprints:async()=>({source:'current',presentation:'current'}),loadBundle:async()=>{if(reads++===0)throw Error('Plan and geometry disagree. Ask the agent to recreate the geometry.');return {revision:'updated'};}};
   assert.equal((await readStableBundle(adapter,'synthetic',{program:false})).state.revision,'updated');assert.equal(reads,2);
   reads=0;adapter.loadBundle=async()=>{reads++;throw Error('Unconfigured machine');};

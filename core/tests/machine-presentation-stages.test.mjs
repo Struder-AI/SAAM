@@ -59,4 +59,8 @@ test('generated setup flow connects mechanism and controls to the returned descr
   const sample=flowPacket(context,`${file}::createMachinePresentation::sample`);
   assert.ok(sample.components.some(c=>c.label==='sampleMachinePresentation'));
   assert.ok(!page.components.some(c=>['component','line','link','box','joint'].includes(c.label)));
+  const sampling=flowPacket(context,`${file}::sampleMachinePresentation`),labels=sampling.components.map(c=>c.label);
+  for(const callback of ['solveGantryPose','solveAlignedArmPose','solveUnavailableArmPose','gantrySourcePose','robotSourcePose'])
+    assert.ok(labels.some(label=>label.endsWith('::'+callback)),callback);
+  assert.ok(!sampling.unresolved.some(({call})=>['solve','sourcePose','probeMargins'].includes(call)));
 });

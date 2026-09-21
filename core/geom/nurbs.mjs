@@ -10,7 +10,7 @@
 //   * Knot vectors omit the first and last superfluous knot, so their length is
 //     cpCount + order - 2. We restore the full vector on extraction.
 
-import { requireThat } from './tolerance.mjs';
+import { requireThat, cross, length } from './tolerance.mjs';
 
 export function patchFromSurface(surface, name = 'patch') {
   const ns = surface.toNurbsSurface();
@@ -158,10 +158,10 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
     dU[k] = (swu[k] - point[k] * swu[3]) / w;
     dV[k] = (swv[k] - point[k] * swv[3]) / w;
   }
-  const cross = [dU[1] * dV[2] - dU[2] * dV[1], dU[2] * dV[0] - dU[0] * dV[2], dU[0] * dV[1] - dU[1] * dV[0]];
-  const length = Math.hypot(...cross);
+  const normalVector = cross(dU, dV);
+  const normalLength = length(normalVector);
   // A pole (a degenerate patch edge, as at a cap centre) has no unique normal.
-  const normal = length > 1e-12 ? cross.map(c => c / length) : null;
+  const normal = normalLength > 1e-12 ? normalVector.map(c => c / normalLength) : null;
   return { point, du: dU, dv: dV, normal, degenerate: normal === null };
 }
 

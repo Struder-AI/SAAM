@@ -162,7 +162,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const prepared=prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm});
     return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm:section(start).curve.length,
       mappedPoint:(u,z,offset)=>{const p=[...prepared.at(u,z,offset),z];return reference?reference.map(p):p;},mappingErrorMm,onProgress,
-      sectionReport:()=>({sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report,...reference?.report()})});
+      sectionReport:()=>({sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report(),...reference?.report()})});
   }
   const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
   const points=[point(0)],times=[0];

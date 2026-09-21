@@ -36,8 +36,18 @@ export function invocationInstances(page) {
     }
     const found=site&&lookup.get(`${at}:${site.file}:${site.start}:${site.end}`);
     if(found)return found;
+    // Compact flow packets omit occurrence spans when a declaration has only one
+    // invocation. If that closure also needs a canonical callable reference, the
+    // invocation is still unambiguous: ordinary data belongs to its sole copy.
+    // Callable-value and capture edges returned above remain on the declaration.
+    const copies=instances.get(at);
+    if(!site&&copies.length===1)return copies[0].id;
     const id=`untraced:${direction}:${at}`;
-    if(!missing.some(p=>p.port===id))missing.push({port:id,name:at,index:at,unknown:true,role:direction==='from'?'input':'return'});
+    if(!missing.some(p=>p.port===id)) {
+      const producer=direction==='from',component=(page.components??[]).find(c=>c.index===at);
+      missing.push({port:id,name:`unknown invocation ${producer?'producer':'consumer'} · ${component?.label??at}`,
+        index:at,unknown:true,role:`unknown-invocation-${producer?'producer':'consumer'}`,side:producer?'input':'output'});
+    }
     return id;
   };
   const wires=(page.wires??[]).map(({sourceSite,targetSite,...wire})=>({...wire,
@@ -56,7 +66,7 @@ export function invocationInstances(page) {
   });
   return {...page,components,wires,callerWires,callBindings:calls,
     ...(declarationReferences.length?{declarationReferences}:{}),
-    inputs:[...(page.inputs??[]),...missing.filter(p=>p.role==='input')],
-    outputs:[...(page.outputs??[]),...missing.filter(p=>p.role==='return')],
+    inputs:[...(page.inputs??[]),...missing.filter(p=>p.side==='input')],
+    outputs:[...(page.outputs??[]),...missing.filter(p=>p.side==='output')],
     ...(missing.length?{uncertainty:[...(page.uncertainty??[]),...missing.map(p=>({kind:'invocation-origin',index:p.index,port:p.port}))]}:{})};
 }

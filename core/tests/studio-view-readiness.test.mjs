@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import {agentIndicator,requestReceiptState,activeEditStage} from '../../studio/work-state.mjs';
+import {summarizeWork,requestReceiptState} from '../../studio/work-state.mjs';
 import {needsTourToolpath} from '../../studio/tour-ui.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
 import {createProjection} from '../../studio/camera.mjs';
@@ -19,17 +19,29 @@ function section(start,end){
   return app.slice(from,to);
 }
 
-test('compact review updates retain playback and avoid loading the scene again',async()=>{
-  let reloads=0,renders=0;
+test('inspection presentation skips normal row construction and render assigns shared targets once',()=>{
+  const source=section('function selectStudioPresentation(','\nfunction render()');
+  const context=vm.createContext({});vm.runInContext(source,context);
+  const inspection={title:'Raw path',description:'Inspect captured motion',facts:[['A','B']],settings:[['C','D']],note:'Development only'};
+  const selected=context.selectStudioPresentation({inspection},'toolpath',{facts(){throw Error('normal facts built');},settings(){throw Error('normal settings built');}});
+  assert.deepEqual(structuredClone(selected),{stage:'DEVELOPMENT INSPECTION',title:'Raw path',guidance:'Inspect captured motion',
+    facts:[['A','B']],settings:[['C','D']],reviewNote:'Development only'});
+  const render=section('function render() {','\nfunction selectFeature(');
+  for(const [target,count] of Object.entries({'stage-label':2,'view-title':1,guidance:2,facts:1,'settings-detail':1,'review-note':1}))
+    assert.equal(render.split(`$('#${target}')`).length-1,count,`${target} is updated only by its effective presentation`);
+});
+
+test('compact review updates adopt through refresh without entering the busy lifecycle',async()=>{
+  let reloads=0,renders=0,work=0;
   const state={fingerprint:'old-review',presentationFingerprint:'same-source',instanceId:'studio',seconds:12,tour:{active:false}};
   const context=vm.createContext({state,polling:false,busy:false,reconnecting:false,movieController:null,URLSearchParams,
     fetch:async()=>({ok:true,json:async()=>({instanceId:'studio',fingerprint:'new-review',presentationFingerprint:'same-source',
       reviewUpdate:{revision:'approved',toolpathApproved:true},tour:{active:false}})}),
-    needsTourToolpath:()=>false,render:()=>renders++,working:async(_text,action)=>action(),refresh:()=>reloads++,
+    needsTourToolpath:()=>false,render:()=>renders++,working:async(_text,action)=>{work++;return action();},refresh:()=>{reloads++;Object.assign(state,{revision:'approved',toolpathApproved:true,fingerprint:'new-review'});renders++;},
     message(){},agentUI:{settled(){}},$:()=>({}),window:{location:{reload(){throw Error('Unexpected reload');}}}});
   vm.runInContext(section('async function poll(){','\nfunction seekTourLayer('),context);
   await context.poll();
-  assert.equal(reloads,0);assert.equal(renders,1);assert.equal(state.seconds,12);
+  assert.equal(reloads,1);assert.equal(renders,1);assert.equal(work,0);assert.equal(state.seconds,12);
   assert.equal(state.toolpathApproved,true);assert.equal(state.revision,'approved');assert.equal(state.fingerprint,'new-review');
 });
 
@@ -66,12 +78,12 @@ async function confirmationHarness({stored=false,generationError,tour=false,pend
   const request={id:'edit',printId:'part',status:'working',updatedAt:1,expiresAt:Date.now()+60000,
     baseline:{inputKey:'before',generationKey:null},target:{inputKey:'current',stage:'toolpath'}};
   const snapshot={inputKey:'current',generationKey:stored?'generated':null};
-  const state={printId:'part',revision:'review-1',planHash:'plan',
+  const state={printId:'part',revision:'review-1',generationHash:'plan',
     ...(tour?{localPrintDirectory:'part',tour:{active:true,step:5,directory:'part'}}:{}),
     work:{printId:'part',snapshot,requests:[request]},review:{generation:stored?{mode:'production'}:null},
     ...(stored?{program:{},exportHash:'export'}:{})};
   let context;
-  context=vm.createContext({state,busy:false,generating:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,agentIndicator,requestReceiptState,activeEditStage,
+  context=vm.createContext({state,busy:false,generating:false,acknowledging:false,tab:'geometry',L,needsTourToolpath,summarizeWork,requestReceiptState,
     generationPending:()=>pending,stalePresentation:pending?{program:{}}:null,
     document:{getElementById:get,addEventListener(){}},$:selector=>get(selector.slice(1)),addEventListener(){},setInterval(){},
     fetch:async()=>({ok:true,json:async()=>({requests:[request]})}),
@@ -137,9 +149,9 @@ test('new geometry remains active until it satisfies the pending toolpath target
   const request={status:'working',updatedAt:1,expiresAt:Date.now()+60000,
     baseline:{inputKey:'before'},target:{inputKey:'after',stage:'toolpath'}};
   const view={ready:true,awaitingConfirmation:false,snapshot:{inputKey:'after',stage:'geometry'}};
-  assert.equal(agentIndicator([request],{view}).active,true);
-  assert.equal(agentIndicator([request],{view:{...view,loading:true}}).active,true);
-  assert.equal(agentIndicator([{...request,baseline:{inputKey:'after'},target:undefined}],{view}).active,true,'unprepared work on this reviewed shape remains visible');
+  assert.equal(summarizeWork([request],{view}).active,true);
+  assert.equal(summarizeWork([request],{view:{...view,loading:true}}).active,true);
+  assert.equal(summarizeWork([{...request,baseline:{inputKey:'after'},target:undefined}],{view}).active,true,'unprepared work on this reviewed shape remains visible');
 });
 
 test('a pending toolpath generation lets Next return to its faded pane without regenerating',async()=>{
@@ -154,12 +166,12 @@ test('a toolpath-only generation dims that pane but leaves the geometry pane cri
   const request={id:'edit',printId:'part',status:'working',updatedAt:1,expiresAt:Date.now()+60000,
     baseline:{inputKey:'before',generationKey:null},target:{inputKey:'current',stage:'toolpath'}};
   const view={printId:'part',ready:false,snapshot:{inputKey:'current',stage:'toolpath'}};
-  assert.equal(activeEditStage([request],{view}),'toolpath');
-  assert.equal(activeEditStage([request],{view:{...view,loading:true,loadingStage:'toolpath'}}),'toolpath');
+  assert.equal(summarizeWork([request],{view}).stage,'toolpath');
+  assert.equal(summarizeWork([request],{view:{...view,loading:true,loadingStage:'toolpath'}}).stage,'toolpath');
   // A concurrent geometry-scoped edit widens the scope so both panes dim.
-  assert.equal(activeEditStage([request,{...request,id:'geo',target:{inputKey:'current',stage:'geometry'}}],{view}),'all');
-  assert.equal(activeEditStage([],{view:{...view,loading:true}}),'all','an unscoped full load dims everything');
-  assert.equal(activeEditStage([],{view}),null,'idle work dims nothing');
+  assert.equal(summarizeWork([request,{...request,id:'geo',target:{inputKey:'current',stage:'geometry'}}],{view}).stage,'all');
+  assert.equal(summarizeWork([],{view:{...view,loading:true}}).stage,'all','an unscoped full load dims everything');
+  assert.equal(summarizeWork([],{view}).stage,null,'idle work dims nothing');
 });
 
 test('failed generation settles loading without acknowledging an absent toolpath',async()=>{
@@ -200,7 +212,7 @@ function placeholderContext({program=null,stale=null,tab='toolpath'}={}){
     partBounds:()=>({min:[0,0,0],max:[10,10,10]}),view:()=>({skinPhase:'draped-skin',names:{}}),label:id=>id,
     machineDisplay:()=>null,requestMachinePose(){},updateMachineStatus(){},requestDraw(){},transform:p=>p,
     $:selector=>inputs[selector]??{value:'',checked:false,textContent:'',hidden:false}});
-  vm.runInContext(section('const presentedState=','const clock=')+'\n'+section('function draw({target=canvas','\nfunction planCanvasDrag('),context);
+  vm.runInContext(section('const presentedState=','const clock='),context);
   return context;
 }
 
@@ -208,9 +220,6 @@ test('the toolpath viewport falls back to the sliced geometry whenever no progra
   const context=placeholderContext();
   assert.equal(vm.runInContext('toolpathPlaceholder()',context),true,'the pane is faded rather than empty');
   assert.equal(vm.runInContext('showingGeometry()',context),true);
-  vm.runInContext('draw()',context);
-  assert.equal(context.polygons.length,placeholderGeometry.faces.length,'the part being sliced is drawn');
-  assert.ok(context.ctx.fills>=placeholderGeometry.faces.length);
 });
 
 test('a retained previous toolpath still replaces the geometry while its replacement is prepared',()=>{

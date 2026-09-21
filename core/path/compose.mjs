@@ -30,9 +30,9 @@ export function planOperation(initialState,op,{deposited=[],layerSeconds=0,finis
   const strokes=op.order==='nearest'?orderStrokes(op.strokes,prepared.state.position)
     :op.order==='nearest-cells'?orderScanlineCells(op.strokes,prepared.state.position):op.strokes;
   const actions=new ActionAccumulator();actions.add(prepared.actions);
+  const policy=operationTravelPolicy(op.travelPolicy,deposited);
   let state=prepared.state;
   for(const stroke of strokes){
-    const policy=operationTravelPolicy(op.travelPolicy,deposited);
     const approached=planStrokeApproach(state,stroke,op,policy);
     const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
     state=depositedStroke.state;actions.add(approached.actions);actions.add(depositedStroke.actions);

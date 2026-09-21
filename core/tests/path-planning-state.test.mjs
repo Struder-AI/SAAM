@@ -5,8 +5,8 @@ import {defaults} from '../print/plan.mjs';
 import {uprightPose} from '../path/pose.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {ActionAccumulator,createPlanningState,planMove,planTravel,planPark,planLayerCooling,
-  planFan,planNozzle,planExtrusion,planningPath} from '../path/planning.mjs';
-import {planComposition,planStrokeDeposition,scheduleOperations,validateOperationBatch,
+  planFan,planNozzle,planExtrusion,planningResult,planningPath} from '../path/planning.mjs';
+import {planComposition,planOperation,planStrokeDeposition,scheduleOperations,validateOperationBatch,
   prepareOperationPriorities,prepareOperationDependencies,orderReadyOperations} from '../path/compose.mjs';
 import {planPriming} from '../path/prime.mjs';
 
@@ -22,6 +22,19 @@ function initial(overrides={}) {
 }
 const partRegion=[[[0,0],[30,0],[30,30],[0,30]]];
 const policy=()=>planarPolicy(partRegion,{layerZ:1,liftMm:1,maxCombMm:8,lineWidthMm:.4});
+
+test('planning decisions cannot replace structural state or action fields',()=>{
+  const state=initial(),actions={append:[]};
+  const result=planningResult(state,actions,{state:{wrong:true},actions:{wrong:true},connected:true});
+  assert.equal(result.state,state);assert.equal(result.actions,actions);assert.equal(result.connected,true);
+});
+
+test('an empty operation prepares its travel policy without evaluating geometry callbacks',()=>{
+  let clearanceReads=0;
+  const state=initial(),op={id:'empty',phase:'test',layer:0,strokes:[],travelPolicy:{clearanceFor:()=>{clearanceReads++;return 1;}}};
+  const result=planOperation(state,op);
+  assert.equal(clearanceReads,0);assert.deepEqual(result.state.position,state.position);assert.deepEqual(result.actions.append,[]);
+});
 
 // Object.freeze does not prevent Map/Set writes; reject their mutation methods too.
 function readonlyCollection(value) {
@@ -241,6 +254,20 @@ test('finishing a local accumulator detaches its published buffer before reuse',
   assert.equal(next.append.length,0);assert.ok(next.replaceLast);
   assert.deepEqual(copy(published),before);
   assert.deepEqual(planningPath(second.state,[published,next]),planningPath(second.state,[first.actions,second.actions]));
+});
+
+test('materialization is repeatable, ordered and preserves action identity',()=>{
+  const start=frozen(initial()),first=frozen(planFan(start,30));
+  const second=frozen(planMove(first.state,[11,10,1],10,.08));
+  const chunks=frozen([first.actions,second.actions]),before=copy(chunks);
+  const firstPass=planningPath(second.state,chunks).actions;
+  const secondPass=planningPath(second.state,chunks).actions;
+  assert.notStrictEqual(firstPass,secondPass);
+  assert.deepEqual(firstPass.map(action=>action.kind),['fan','move']);
+  assert.strictEqual(firstPass[0],first.actions.append[0]);
+  assert.strictEqual(firstPass[1],second.actions.append[0]);
+  assert.deepEqual(secondPass,firstPass);
+  assert.deepEqual(copy(chunks),before);
 });
 
 test('a subdivided straight deposition stage retains only the final merged action',()=>{

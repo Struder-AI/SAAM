@@ -11,7 +11,9 @@
             "studio/app.mjs",
             "studio/agent-ui.mjs",
             "studio/settings.mjs",
-            "studio/refresh-plan.mjs"
+            "studio/refresh-plan.mjs",
+            "studio/studio-state.mjs",
+            "studio/studio-controls.mjs"
           ],
           "groups": [
             {
@@ -41,10 +43,8 @@
                     "studio/app.mjs::selectFeature",
                     "studio/app.mjs::setTab",
                     "studio/app.mjs::draw",
-                    "studio/app.mjs::draw::segment",
-                    "studio/app.mjs::draw::<callable@545:92>",
-                    "studio/app.mjs::draw::local",
-                    "studio/app.mjs::draw::materialProject"
+                    "studio/app.mjs::readViewerSnapshot",
+                    "studio/app.mjs::applyViewerAnnotations"
                   ]
                 },
                 {
@@ -85,9 +85,10 @@
                     "studio/app.mjs::acknowledgeDisplayedView",
                     "studio/app.mjs::decodeInWorker",
                     "studio/app.mjs::openPrint",
-                    "studio/app.mjs::openPrint::<callable@784:62>",
+                    "studio/app.mjs::openPrint::loadSavedPrint",
                     "studio/app.mjs::onsubmit",
-                    "studio/app.mjs::scheduleChange"
+                    "studio/app.mjs::scheduleChange",
+                    "studio/app.mjs::bindCachedProgram"
                   ]
                 },
                 {
@@ -114,8 +115,7 @@
                     "studio/app.mjs::initializeAgentInterface::onRequests",
                     "studio/app.mjs::initializeAgentInterface::onPresentation",
                     "studio/app.mjs::initializeAgentInterface::getStage",
-                    "studio/app.mjs::viewPerformance::report",
-                    "studio/app.mjs::viewPerformance::context",
+                    "studio/app.mjs::viewer::reportPerformance",
                     "studio/app.mjs::viewStorageKey",
                     "studio/app.mjs::saveView",
                     "studio/app.mjs::restoreView",
@@ -131,7 +131,7 @@
                     "studio/app.mjs::suppressCanvasContextMenu",
                     "studio/app.mjs::onkeydown",
                     "studio/app.mjs::poll",
-                    "studio/app.mjs::poll::<callable@879:154>",
+                    "studio/app.mjs::poll::refreshUpdatedPrint",
                     "studio/app.mjs::createStudioTour::isBusy",
                     "studio/app.mjs::initializeAgentInterface",
                     "studio/app.mjs::connectViewPersistence",
@@ -144,7 +144,7 @@
                     "studio/app.mjs::connectStudioUpdates",
                     "studio/app.mjs::disposeStudioSession",
                     "studio/app.mjs::restoreStudioSession",
-                    "studio/app.mjs::restoreStudioSession::<callable@922:54>",
+                    "studio/app.mjs::restoreStudioSession::reloadRestoredPrint",
                     "studio/app.mjs::connectStudioSession",
                     "studio/app.mjs::initializeStudio"
                   ]
@@ -157,7 +157,8 @@
                     "studio/app.mjs::materialFact",
                     "studio/app.mjs::materialSetup",
                     "studio/app.mjs::vaseSettings",
-                    "studio/app.mjs::machineSettings"
+                    "studio/app.mjs::machineSettings",
+                    "studio/app.mjs::selectStudioPresentation"
                   ]
                 }
               ]
@@ -175,6 +176,15 @@
               "members": [
                 "studio/settings.mjs"
               ]
+            },
+            {
+              "id": "state-policy",
+              "label": "Refresh and control policy",
+              "members": [
+                "studio/refresh-plan.mjs",
+                "studio/studio-state.mjs",
+                "studio/studio-controls.mjs"
+              ]
             }
           ]
         },
@@ -188,7 +198,8 @@
             "studio/changes.mjs",
             "studio/lifetime.mjs",
             "studio/viewer-session.mjs",
-            "studio/print-name.mjs"
+            "studio/print-name.mjs",
+            "studio/adapter-resolution.mjs"
           ],
           "groups": [
             {
@@ -205,10 +216,6 @@
                     "studio/server.mjs::changedSince",
                     "studio/server.mjs::sourceSkewNotice",
                     "studio/server.mjs::annotateSourceSkew",
-                    "studio/server.mjs::bundles::saam-machine-study/1",
-                    "studio/server.mjs::bundles::saam-shell-plan/1",
-                    "studio/server.mjs::bundleFor",
-                    "studio/server.mjs::readStableBundle",
                     "studio/server.mjs::printDirectory",
                     "studio/server.mjs::listPrints",
                     "studio/server.mjs::listPrints::walk"
@@ -225,14 +232,15 @@
                     "studio/server.mjs::createStudio::generationStatus",
                     "studio/server.mjs::createStudio::planPreparation",
                     "studio/server.mjs::createStudio::readGeneration",
-                    "studio/server.mjs::createStudio::planGeneration",
                     "studio/server.mjs::createStudio::beginGeneration",
                     "studio/server.mjs::createStudio::executeGeneration",
                     "studio/server.mjs::createStudio::publishGeneration",
                     "studio/server.mjs::createStudio::publishGenerationFailure",
                     "studio/server.mjs::createStudio::generate",
                     "studio/server.mjs::createStudio::validateGeometrySelection",
-                    "studio/server.mjs::createStudio::setStartAt"
+                    "studio/server.mjs::createStudio::setStartAt",
+                    "studio/server.mjs::createStudio::executeGeneration::markCalculation",
+                    "studio/server.mjs::createStudio::executeGeneration::dispatchComputation"
                   ]
                 },
                 {
@@ -296,9 +304,17 @@
             "studio/machine-view.mjs",
             "studio/machine-session.mjs",
             "studio/camera.mjs",
-            "studio/view-performance.mjs"
+            "studio/view-performance.mjs",
+            "studio/viewer-renderer.mjs"
           ],
           "groups": [
+            {
+              "id": "viewer-renderer",
+              "label": "Viewer state and frames",
+              "members": [
+                "studio/viewer-renderer.mjs"
+              ]
+            },
             {
               "id": "mesh-view",
               "label": "mesh view",
@@ -364,11 +380,11 @@
                   "label": "Material scene",
                   "members": [
                     "studio/material-view.mjs::buildMaterialScene",
-                    "studio/material-view.mjs::buildMaterialScene::<callable@54:74>",
-                    "studio/material-view.mjs::buildMaterialScene::<callable@54:91>",
+                    "studio/material-view.mjs::buildMaterialScene::@default/onProgress",
+                    "studio/material-view.mjs::buildMaterialScene::@default/yieldTask",
                     "studio/material-view.mjs::buildMaterialScene::due",
                     "studio/material-view.mjs::buildMaterialScene::pause",
-                    "studio/material-view.mjs::buildMaterialScene::<callable@63:171>",
+                    "studio/material-view.mjs::buildMaterialScene::indexedMove",
                     "studio/material-view.mjs::materialTemplate",
                     "studio/material-view.mjs::materialTemplate::vertex",
                     "studio/material-view.mjs::materialTemplate::triangle",
@@ -495,8 +511,8 @@
                   "label": "Movie export",
                   "members": [
                     "studio/playback.mjs::exportMovie",
-                    "studio/playback.mjs::exportMovie::<callable@65:74>",
-                    "studio/playback.mjs::exportMovie::<callable@67:13>",
+                    "studio/playback.mjs::exportMovie::@default/onProgress",
+                    "studio/playback.mjs::exportMovie::@default/yieldTask",
                     "studio/playback.mjs::exportMovie::check",
                     "studio/playback.mjs::exportMovie::encoder::output",
                     "studio/playback.mjs::exportMovie::encoder::error",
@@ -518,7 +534,7 @@
                   "members": [
                     "studio/machine-view.mjs::bindingKey",
                     "studio/machine-view.mjs::require",
-                    "studio/machine-view.mjs::rigid",
+                    "studio/machine-view.mjs::validatePresentationRigid",
                     "studio/machine-view.mjs::binding",
                     "studio/machine-view.mjs::validateDescriptor",
                     "studio/machine-view.mjs::validateDescriptor::positive",
@@ -536,11 +552,6 @@
                   "label": "Posed machine geometry",
                   "members": [
                     "studio/machine-view.mjs::vector",
-                    "studio/machine-view.mjs::dot",
-                    "studio/machine-view.mjs::sub",
-                    "studio/machine-view.mjs::cross",
-                    "studio/machine-view.mjs::transform",
-                    "studio/machine-view.mjs::untransform",
                     "studio/machine-view.mjs::primitive",
                     "studio/machine-view.mjs::primitive::point",
                     "studio/machine-view.mjs::primitive::ring",
@@ -685,9 +696,10 @@
                     "studio/agent-requests.mjs::createAgentRequests::query",
                     "studio/agent-requests.mjs::createAgentRequests::list",
                     "studio/agent-requests.mjs::createAgentRequests::subscribe",
-                    "studio/agent-requests.mjs::createAgentRequests::subscribe::<return@83:13>",
+                    "studio/agent-requests.mjs::createAgentRequests::subscribe::unsubscribe",
                     "studio/agent-requests.mjs::createAgentRequests::close",
-                    "studio/agent-requests.mjs::createAgentRequests::wait"
+                    "studio/agent-requests.mjs::createAgentRequests::wait",
+                    "studio/agent-requests.mjs::createAgentRequests::selectQueued"
                   ]
                 }
               ]
@@ -814,10 +826,8 @@
             "studio/app.mjs::selectFeature",
             "studio/app.mjs::setTab",
             "studio/app.mjs::draw",
-            "studio/app.mjs::draw::segment",
-            "studio/app.mjs::draw::<callable@545:92>",
-            "studio/app.mjs::draw::local",
-            "studio/app.mjs::draw::materialProject"
+            "studio/app.mjs::readViewerSnapshot",
+            "studio/app.mjs::applyViewerAnnotations"
           ]
         },
         {
@@ -858,9 +868,10 @@
             "studio/app.mjs::acknowledgeDisplayedView",
             "studio/app.mjs::decodeInWorker",
             "studio/app.mjs::openPrint",
-            "studio/app.mjs::openPrint::<callable@784:62>",
+            "studio/app.mjs::openPrint::loadSavedPrint",
             "studio/app.mjs::onsubmit",
-            "studio/app.mjs::scheduleChange"
+            "studio/app.mjs::scheduleChange",
+            "studio/app.mjs::bindCachedProgram"
           ]
         },
         {
@@ -887,8 +898,7 @@
             "studio/app.mjs::initializeAgentInterface::onRequests",
             "studio/app.mjs::initializeAgentInterface::onPresentation",
             "studio/app.mjs::initializeAgentInterface::getStage",
-            "studio/app.mjs::viewPerformance::report",
-            "studio/app.mjs::viewPerformance::context",
+            "studio/app.mjs::viewer::reportPerformance",
             "studio/app.mjs::viewStorageKey",
             "studio/app.mjs::saveView",
             "studio/app.mjs::restoreView",
@@ -904,7 +914,7 @@
             "studio/app.mjs::suppressCanvasContextMenu",
             "studio/app.mjs::onkeydown",
             "studio/app.mjs::poll",
-            "studio/app.mjs::poll::<callable@879:154>",
+            "studio/app.mjs::poll::refreshUpdatedPrint",
             "studio/app.mjs::createStudioTour::isBusy",
             "studio/app.mjs::initializeAgentInterface",
             "studio/app.mjs::connectViewPersistence",
@@ -917,7 +927,7 @@
             "studio/app.mjs::connectStudioUpdates",
             "studio/app.mjs::disposeStudioSession",
             "studio/app.mjs::restoreStudioSession",
-            "studio/app.mjs::restoreStudioSession::<callable@922:54>",
+            "studio/app.mjs::restoreStudioSession::reloadRestoredPrint",
             "studio/app.mjs::connectStudioSession",
             "studio/app.mjs::initializeStudio"
           ]
@@ -930,7 +940,8 @@
             "studio/app.mjs::materialFact",
             "studio/app.mjs::materialSetup",
             "studio/app.mjs::vaseSettings",
-            "studio/app.mjs::machineSettings"
+            "studio/app.mjs::machineSettings",
+            "studio/app.mjs::selectStudioPresentation"
           ]
         }
       ]
@@ -945,10 +956,6 @@
             "studio/server.mjs::changedSince",
             "studio/server.mjs::sourceSkewNotice",
             "studio/server.mjs::annotateSourceSkew",
-            "studio/server.mjs::bundles::saam-machine-study/1",
-            "studio/server.mjs::bundles::saam-shell-plan/1",
-            "studio/server.mjs::bundleFor",
-            "studio/server.mjs::readStableBundle",
             "studio/server.mjs::printDirectory",
             "studio/server.mjs::listPrints",
             "studio/server.mjs::listPrints::walk"
@@ -965,14 +972,15 @@
             "studio/server.mjs::createStudio::generationStatus",
             "studio/server.mjs::createStudio::planPreparation",
             "studio/server.mjs::createStudio::readGeneration",
-            "studio/server.mjs::createStudio::planGeneration",
             "studio/server.mjs::createStudio::beginGeneration",
             "studio/server.mjs::createStudio::executeGeneration",
             "studio/server.mjs::createStudio::publishGeneration",
             "studio/server.mjs::createStudio::publishGenerationFailure",
             "studio/server.mjs::createStudio::generate",
             "studio/server.mjs::createStudio::validateGeometrySelection",
-            "studio/server.mjs::createStudio::setStartAt"
+            "studio/server.mjs::createStudio::setStartAt",
+            "studio/server.mjs::createStudio::executeGeneration::markCalculation",
+            "studio/server.mjs::createStudio::executeGeneration::dispatchComputation"
           ]
         },
         {
@@ -1046,9 +1054,10 @@
             "studio/agent-requests.mjs::createAgentRequests::query",
             "studio/agent-requests.mjs::createAgentRequests::list",
             "studio/agent-requests.mjs::createAgentRequests::subscribe",
-            "studio/agent-requests.mjs::createAgentRequests::subscribe::<return@83:13>",
+            "studio/agent-requests.mjs::createAgentRequests::subscribe::unsubscribe",
             "studio/agent-requests.mjs::createAgentRequests::close",
-            "studio/agent-requests.mjs::createAgentRequests::wait"
+            "studio/agent-requests.mjs::createAgentRequests::wait",
+            "studio/agent-requests.mjs::createAgentRequests::selectQueued"
           ]
         }
       ]
@@ -1121,7 +1130,7 @@
           "members": [
             "studio/machine-view.mjs::bindingKey",
             "studio/machine-view.mjs::require",
-            "studio/machine-view.mjs::rigid",
+            "studio/machine-view.mjs::validatePresentationRigid",
             "studio/machine-view.mjs::binding",
             "studio/machine-view.mjs::validateDescriptor",
             "studio/machine-view.mjs::validateDescriptor::positive",
@@ -1139,11 +1148,6 @@
           "label": "Posed machine geometry",
           "members": [
             "studio/machine-view.mjs::vector",
-            "studio/machine-view.mjs::dot",
-            "studio/machine-view.mjs::sub",
-            "studio/machine-view.mjs::cross",
-            "studio/machine-view.mjs::transform",
-            "studio/machine-view.mjs::untransform",
             "studio/machine-view.mjs::primitive",
             "studio/machine-view.mjs::primitive::point",
             "studio/machine-view.mjs::primitive::ring",
@@ -1190,11 +1194,11 @@
           "label": "Material scene",
           "members": [
             "studio/material-view.mjs::buildMaterialScene",
-            "studio/material-view.mjs::buildMaterialScene::<callable@54:74>",
-            "studio/material-view.mjs::buildMaterialScene::<callable@54:91>",
+            "studio/material-view.mjs::buildMaterialScene::@default/onProgress",
+            "studio/material-view.mjs::buildMaterialScene::@default/yieldTask",
             "studio/material-view.mjs::buildMaterialScene::due",
             "studio/material-view.mjs::buildMaterialScene::pause",
-            "studio/material-view.mjs::buildMaterialScene::<callable@63:171>",
+            "studio/material-view.mjs::buildMaterialScene::indexedMove",
             "studio/material-view.mjs::materialTemplate",
             "studio/material-view.mjs::materialTemplate::vertex",
             "studio/material-view.mjs::materialTemplate::triangle",
@@ -1341,12 +1345,46 @@
           "label": "Movie export",
           "members": [
             "studio/playback.mjs::exportMovie",
-            "studio/playback.mjs::exportMovie::<callable@65:74>",
-            "studio/playback.mjs::exportMovie::<callable@67:13>",
+            "studio/playback.mjs::exportMovie::@default/onProgress",
+            "studio/playback.mjs::exportMovie::@default/yieldTask",
             "studio/playback.mjs::exportMovie::check",
             "studio/playback.mjs::exportMovie::encoder::output",
             "studio/playback.mjs::exportMovie::encoder::error",
             "studio/playback.mjs::exportMovie::abort"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "studio/viewer-renderer.mjs::createViewerRenderer",
+      "groups": [
+        {
+          "id": "scene",
+          "label": "Scene publication and queries",
+          "members": [
+            "studio/viewer-renderer.mjs::createViewerRenderer::sceneState",
+            "studio/viewer-renderer.mjs::createViewerRenderer::publishGeometry",
+            "studio/viewer-renderer.mjs::createViewerRenderer::publishProgram",
+            "studio/viewer-renderer.mjs::createViewerRenderer::clearProgram",
+            "studio/viewer-renderer.mjs::createViewerRenderer::pick"
+          ]
+        },
+        {
+          "id": "frames",
+          "label": "Frame scheduling and rendering",
+          "members": [
+            "studio/viewer-renderer.mjs::createViewerRenderer::requestDraw",
+            "studio/viewer-renderer.mjs::createViewerRenderer::noteMotion",
+            "studio/viewer-renderer.mjs::createViewerRenderer::draw"
+          ]
+        },
+        {
+          "id": "performance",
+          "label": "Performance reporting",
+          "members": [
+            "studio/view-performance.mjs::createViewPerformance",
+            "studio/viewer-renderer.mjs::createViewerRenderer::performanceView::context",
+            "studio/viewer-renderer.mjs::createViewerRenderer::flushPerformance"
           ]
         }
       ]

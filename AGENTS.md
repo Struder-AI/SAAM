@@ -76,10 +76,9 @@ experienced management.
 
 ### Report sync state at session start
 
-At the start of a maker or builder session — after launching a tour, or before
-taking on any other request — tell the user in one line the date of this
+At the start of a maker or builder session, tell the user in one line the date of this
 checkout's last pull from `main`, the current commit hash and how many commits `main` has advanced since,
-so they can pull the latest first if they want.
+so they can pull the latest first if they want. You can do this WITH maker/builder onboarding, or soon after.
 
 If the checkout also holds local work the user wants to publish, it belongs on
 that user's contributor dev branch, never on `main` directly; keep one such
@@ -108,8 +107,8 @@ node scripts/agent-toolkit.mjs regenerate 6
 tells you who calls and consumes what you are about to change. Group membership
 and labels may be authored; implementation nodes and wires are generated and must
 not be authored. After an edit, `regenerate` and read again; repair any reported
-group reference that the edit invalidated. Indexes are regenerated and may change: say the index and the
-name when talking about a page, and write the declaration path when something
+group reference that the edit invalidated. Indexes are regenerated and may change: use the index
+when talking about the current map, and write the declaration path when something
 must keep pointing at it. The [map guide](dev-map/README.md) owns the commands and
 the page fields; the [map contract](BUILDERS.md#maps-and-local-documentation)
 owns the reading rules.

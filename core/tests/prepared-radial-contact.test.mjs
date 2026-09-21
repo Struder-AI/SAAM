@@ -6,6 +6,15 @@ import {pointSegmentDistance} from '../region/region2d.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {createMeshDistanceQuery} from '../geom/mesh-distance.mjs';
 const loop=()=>[[0,10],[.1,10],[.099,12],[.11,12],...[.2,.4,.6,.8,1,1.2,1.4,1.6,1.8].map(a=>[a*Math.PI,10])].map(([a,r])=>[r*Math.cos(a),r*Math.sin(a)]);
+test('radial contact reports are detached snapshots of private query counters',()=>{
+  const contact=prepareRadialSleeveContact({curveAt:()=>contourPath(loop()),anchorAt:()=>[0,0],startMm:0,endMm:1,toleranceMm:.1});
+  const changed=contact.report();changed.contactSamples=999;
+  const frozen=Object.freeze(contact.report());
+  contact.at([15,0,.2]);
+  const later=contact.report();
+  assert.notStrictEqual(later,frozen);assert.notEqual(later.contactSamples,999);
+  assert.equal(later.contactSamples,frozen.contactSamples+1);
+});
 test('radial preparation shares interval endpoints and preserves unilateral fidelity',()=>{
   const source=loop(),contact=prepareRadialSleeveContact({curveAt:z=>contourPath(source.map(([x,y])=>[x*(1+z*.01),y*(1+z*.01)])),
     anchorAt:()=>[0,0],startMm:0,endMm:1,stepMm:.4,toleranceMm:.1});
@@ -15,7 +24,7 @@ test('radial preparation shares interval endpoints and preserves unilateral fide
     assert.deepEqual(contact.at([2,2,z]),[2,2,z]);
   }
   for(const z of [.4,.8])assert.ok(Math.hypot(...contact.at([15,0,z-1e-9]).map((v,k)=>v-contact.at([15,0,z+1e-9])[k]))<1e-7);
-  assert.ok(contact.report.maxDetailCorrespondenceMm<.095);
+  assert.ok(contact.report().maxDetailCorrespondenceMm<.095);
 });
 test('moving radial folds retain boundary detail with continuous contact across height slabs',()=>{
   const source=loop(),at=z=>source.map(([x,y])=>[x*Math.cos(z*.002)-y*Math.sin(z*.002),x*Math.sin(z*.002)+y*Math.cos(z*.002)]);
@@ -41,9 +50,9 @@ test('profile interpolation spends only the tolerance remaining after actual sou
   for(const z of [.25,.75]){
     const p=contact.at([20,0,z]);assert.ok(Math.abs(p[0]-(12+z*z))<=.1);
   }
-  assert.equal(contact.report.contactIntervals,3,'source profiles with negligible sampling error retain a larger interpolation allowance');
-  assert.ok(contact.report.maxProfileInterpolationTargetMm>.099);
-  assert.ok(contact.report.maxSampledProfileCombinedErrorMm>.05&&contact.report.maxSampledProfileCombinedErrorMm<=.1);
+  assert.equal(contact.report().contactIntervals,3,'source profiles with negligible sampling error retain a larger interpolation allowance');
+  assert.ok(contact.report().maxProfileInterpolationTargetMm>.099);
+  assert.ok(contact.report().maxSampledProfileCombinedErrorMm>.05&&contact.report().maxSampledProfileCombinedErrorMm<=.1);
 });
 test('a horizontal mesh ledge permits a continuous centerline transition within 3D tolerance',()=>{
   const n=16,ring=r=>Array.from({length:n},(_,i)=>[r*Math.cos(i*2*Math.PI/n),r*Math.sin(i*2*Math.PI/n)]);
@@ -58,7 +67,7 @@ test('a horizontal mesh ledge permits a continuous centerline transition within 
   const contact=prepareRadialSleeveContact({curveAt:z=>contourPath(ring(z<=1?12:10)),anchorAt:()=>[0,0],
     startMm:.2,endMm:1.8,stepMm:.4,toleranceMm:.1,samples:256,distanceToSourceWithin:distance});
   const points=[1-1e-7,1,1+1e-7].map(z=>contact.at([15,0,z]));
-  assert.ok(contact.report.meshTransitionIntervals>0);assert.ok(points.every(p=>distance(p,.1)<=.1));
+  assert.ok(contact.report().meshTransitionIntervals>0);assert.ok(points.every(p=>distance(p,.1)<=.1));
   assert.ok(Math.hypot(...points[0].map((v,k)=>v-points[2][k]))<.01);
   assert.deepEqual(contact.at([2,0,1]),[2,0,1]);
 });
@@ -69,5 +78,5 @@ test('a step the source cannot interpolate is reported as a step, not a spent bu
     startMm:.2,endMm:1.8,stepMm:.4,toleranceMm:.1,samples:256});
   assert.throws(()=>contact.at([15,0,1]),/steps within one representable height/);
   // The retired depth-16 ceiling stopped long before the height itself ran out.
-  assert.ok(contact.report.maxDepth>16);
+  assert.ok(contact.report().maxDepth>16);
 });

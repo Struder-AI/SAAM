@@ -33,7 +33,7 @@ export function attachOverviewAnchors(pages, index) {
 }
 
 export function structuralOverview(page) {
-  if(!page.structural)return page;
+  if(!page.structural||page.relationshipSummary)return page;
   const endpoints=new Map(),ports=(values,direction)=>{
     const grouped=new Map();
     for(const port of values??[]) {

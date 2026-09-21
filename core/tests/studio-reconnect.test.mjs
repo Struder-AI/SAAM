@@ -45,10 +45,10 @@ test('tour metadata updates preserve playback and source; a newly published edit
   const context=vm.createContext({URLSearchParams,polling:false,busy:false,reconnecting:false,movieController:null,playing:true,
     state:{instanceId:'same',fingerprint:'same',tour:{step:4,canNext:false,startAt:{layer:12}}},
     fetch:async()=>({ok:true,json:async()=>next}),message(){},render(){renders++;},needsTourToolpath:()=>needsGeneration,
-    working:async(_label,task)=>{context.playing=false;return task();},refresh:async()=>loads++});
+    working:async(_label,task)=>{context.playing=false;return task();},refresh:async()=>{loads++;context.state.tour=next.tour;renders++;}});
   await vm.runInContext(poll+'\npoll()',context);
-  assert.equal(loads,0);assert.equal(renders,1);assert.equal(context.playing,true);
+  assert.equal(loads,1);assert.equal(renders,1);assert.equal(context.playing,true);
   assert.equal(context.state.tour.startAt.layer,8);
   needsGeneration=true;await vm.runInContext('poll()',context);
-  assert.equal(loads,1,'request target changes need no bundle rewrite to trigger generation');
+  assert.equal(loads,2,'request target changes need no bundle rewrite to trigger generation');
 });

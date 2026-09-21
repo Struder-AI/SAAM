@@ -5,23 +5,25 @@ import vm from 'node:vm';
 import {needsTourToolpath} from '../../studio/tour-ui.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
 import {planProgramPresentation,planRefreshNavigation} from '../../studio/refresh-plan.mjs';
+import {prepareStudioState,withoutPreviewMaterial} from '../../studio/studio-state.mjs';
 
 const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
 const refresh=app.slice(app.indexOf('async function refresh('),app.indexOf('\nasync function acknowledgeDisplayedView'));
 const clear=app.slice(app.indexOf('function clearProgramView(){'),app.indexOf('\nconst message='));
-const snapshot=(patch={})=>({printId:'part',planHash:'plan',exportHash:'export',revision:'revision',
+const snapshot=(patch={})=>({printId:'part',generationHash:'plan',exportHash:'export',revision:'revision',
   program:{summary:{}},plan:{},machine:{name:'Test machine'},review:{generation:{mode:'production'}},
   geometry:{geometryVersion:'geometry',labels:[]},tour:{active:true,step:L.playback},tourExample:{id:'starter'},...patch});
 
 function harness(){
   const counts={decode:0,bind:0,geometry:0,path:0,material:0,dispose:0},nodes=new Map(),mutations=[];
+  const effects={manual:0,fade:0};
   const noop=()=>{},element=id=>{if(!nodes.has(id))nodes.set(id,{replaceChildren(){}});return nodes.get(id);};
   let next,context;
   context=vm.createContext({state:undefined,playbackCache:null,stalePresentation:null,pathView:null,materialScene:null,materialRenderer:null,
-    machineSession:null,geometryScene:null,geometryRenderer:null,selected:null,tab:'geometry',seconds:0,L,needsTourToolpath,planProgramPresentation,planRefreshNavigation,
+    machineSession:null,geometryScene:null,geometryRenderer:null,selected:null,tab:'geometry',seconds:0,L,needsTourToolpath,planProgramPresentation,planRefreshNavigation,prepareStudioState,withoutPreviewMaterial,
     document:{},$:element,fetch:async()=>({ok:true,json:async()=>structuredClone(next)}),
-    agentUI:{received:noop},view:()=>({skinLabel:'Test'}),cameras:{mode:'ghost',reset:noop},layerFade:{reset:noop},
-    stop:noop,clearManual:noop,restoreView:noop,render:noop,acknowledgeDisplayedView:async()=>{},
+    agentUI:{received:noop},view:()=>({skinLabel:'Test'}),cameras:{mode:'ghost',reset:noop},layerFade:{reset:()=>effects.fade++},
+    stop:noop,clearManual:()=>effects.manual++,restoreView:noop,render:noop,acknowledgeDisplayedView:async()=>{},
     activity:noop,message:noop,selectFeature:noop,machineTheme:()=>({}),duration:()=>0,
     tourUI:{initialTab:()=>next.tour.step<L.playback?'geometry':'toolpath'},
     createGeometryRenderer:()=>({}),createMaterialRenderer:()=>({dispose(){counts.dispose++;}}),
@@ -35,8 +37,17 @@ function harness(){
     },
     async api(route){mutations.push(route);await context.generationGate;next={...next,program:{summary:{}},exportHash:'chat-export',review:{generation:{mode:'production'}}};}
   });
+  context.viewer={
+    clearProgram(){if(context.materialScene)counts.dispose++;context.pathView=null;context.materialScene=null;},
+    publishGeometry(){counts.geometry++;context.geometryScene={edgeFeatures:new Map()};},
+    sceneState(){return {hasGeometry:Boolean(context.geometryScene),pathView:context.pathView,pathMoves:context.pathView?.moves,materialMoves:context.materialScene?.moves,
+      hasSelectedEdge:id=>context.geometryScene?.edgeFeatures.has(id)??false};},
+    async publishProgram({moves,previewMaterial,buildPath,buildMaterial}){if(buildPath){counts.path++;context.pathView={moves};}if(buildMaterial){counts.material++;context.materialScene={moves};}
+      return {previewMaterialConsumed:Boolean(buildMaterial&&previewMaterial)};}
+  };
+  context.bindCachedProgram=snapshot=>context.machineSession?.bind(snapshot);
   vm.runInContext(clear+'\n'+refresh,context);
-  return {counts,context,mutations,async load(value,{reopen=false,follow=false}={}){next=value;await vm.runInContext('refresh('+follow+','+reopen+')',context);}};
+  return {counts,effects,context,mutations,async load(value,{reopen=false,follow=false}={}){next=value;await vm.runInContext('refresh('+follow+','+reopen+')',context);}};
 }
 
 test('Back/Continue and explicit same-print reopen reuse decoded source and drawing scenes',async()=>{
@@ -56,8 +67,8 @@ test('Back/Continue and explicit same-print reopen reuse decoded source and draw
 test('changed export, plan or print identity rebuilds the decoded playback cache',async()=>{
   const {load,counts,context}=harness();
   await load(snapshot());
-  for(const patch of [{exportHash:'new-export'},{planHash:'new-plan',exportHash:'new-export'},
-    {printId:'other-part',planHash:'new-plan',exportHash:'new-export'}]){
+  for(const patch of [{exportHash:'new-export'},{generationHash:'new-plan',exportHash:'new-export'},
+    {printId:'other-part',generationHash:'new-plan',exportHash:'new-export'}]){
     const previous=context.state.program;
     await load(snapshot(patch));
     assert.notEqual(context.state.program,previous);
@@ -71,7 +82,7 @@ test('a plan edit preserves stale playback until its replacement is ready',async
   await load(snapshot());
   const path=context.pathView,material=context.materialScene;
   let release;context.generationGate=new Promise(resolve=>{release=resolve;});
-  const replacing=load(snapshot({planHash:'edited-plan',program:undefined,tour:{active:true,step:L.settings}}),{follow:true});
+  const replacing=load(snapshot({generationHash:'edited-plan',program:undefined,tour:{active:true,step:L.settings}}),{follow:true});
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(context.state.program,undefined);assert.ok(context.stalePresentation?.program);
   assert.equal(context.pathView,path);assert.equal(context.materialScene,material);
@@ -81,6 +92,23 @@ test('a plan edit preserves stale playback until its replacement is ready',async
   assert.equal(counts.decode,2);assert.equal(counts.material,2);assert.equal(counts.bind,0);
 });
 
+test('successful preview adoption drops only the adopted state and cache envelope',async()=>{
+  const {load,context}=harness(),preview={unsupported:[],supported:[]},fetched=snapshot({program:{summary:{},previewMaterial:preview}});
+  await load(fetched);
+  assert.equal(fetched.program.previewMaterial,preview);
+  assert.equal(context.state.program.previewMaterial,undefined);
+  assert.equal(context.playbackCache.program,context.state.program);
+  assert.equal(context.playbackCache.program.moves,context.state.program.moves);
+});
+
+test('metadata-only refresh preserves manual controls and layer fade',async()=>{
+  const {load,effects}=harness();
+  await load(snapshot());
+  const before={...effects};
+  await load(snapshot({revision:'approved',toolpathApproved:true,tour:{active:true,step:L.playback,canNext:true}}),{follow:true});
+  assert.deepEqual(effects,before);
+});
+
 test('real refresh applies planned navigation after presentation and keeps restored view authoritative',async()=>{
   const {load,context}=harness(),messages=[];
   context.message=text=>messages.push(text);context.duration=()=>20;
@@ -88,9 +116,9 @@ test('real refresh applies planned navigation after presentation and keeps resto
   context.seconds=7;context.tab='geometry';context.selected='face';
   await load(snapshot({tour:undefined,tourExample:undefined,geometry:{geometryVersion:'geometry',labels:['face']}}));
   assert.equal(context.seconds,7);assert.equal(context.tab,'geometry');
-  await load(snapshot({planHash:'process-edit',geometryHash:'same',tour:undefined,tourExample:undefined}),{follow:true});
+  await load(snapshot({generationHash:'process-edit',geometryHash:'same',tour:undefined,tourExample:undefined}),{follow:true});
   assert.equal(context.tab,'geometry','changed geometry selects geometry review');
-  await load(snapshot({planHash:'second-process-edit',geometryHash:'same',tour:undefined,tourExample:undefined}),{follow:true});
+  await load(snapshot({generationHash:'second-process-edit',geometryHash:'same',tour:undefined,tourExample:undefined}),{follow:true});
   assert.equal(context.tab,'toolpath');assert.equal(messages.at(-1),'Updated from chat.');
   await load(snapshot({exportHash:'changed-export',tour:undefined,tourExample:undefined}));
   assert.equal(context.seconds,20);

@@ -152,18 +152,19 @@ export function regionComponents(loops) {
   }
   const roots = nodes.filter(node => node.area > 0 && (!node.parent || node.parent.area < 0));
   if (!roots.length) return loops.length ? [loops] : [];
-  const components = roots.map(root => {
+  const componentFromRoot = root => {
     const component = [];
-    const collect = node => {
+    const collectDescendants = node => {
       component.push(node.loop);
       // A positive child of a positive boundary is part of the same material
       // component. A positive child of a hole is a separate island/root.
       for (const child of node.children)
-        if (child.area < 0 || node.area > 0) collect(child);
+        if (child.area < 0 || node.area > 0) collectDescendants(child);
     };
-    collect(root);
+    collectDescendants(root);
     return component;
-  });
+  };
+  const components = roots.map(componentFromRoot);
   return components.sort((a, b) => {
     const [ax, ay] = componentKey(a), [bx, by] = componentKey(b);
     return ax - bx || ay - by;

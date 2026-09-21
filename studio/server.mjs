@@ -1,4 +1,5 @@
-import {createTour,referenceAdapter,tourExample,useExample} from './tour.mjs';
+import {createTour,tourExample,useExample} from './tour.mjs';
+import {bundleFor,readStableBundle,supportsBundleSchema} from './adapter-resolution.mjs';
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
 import {composeStudioState} from './state-response.mjs';
@@ -66,38 +67,6 @@ const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mj
   'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs','core/path/process-controls.mjs']);
 
-// Studio reviews whatever print it is opened on. A bundle names its own schema,
-// and that selects its geometry/recipe adapter. Both adapters use the single
-// workflow implementation in core/print/workflow.mjs.
-const bundles={
-  'saam-machine-study/1':()=>import('./machine-study.mjs'),
-  'saam-shell-plan/1':()=>import('../core/print/bundle.mjs')
-};
-export async function bundleFor(directory) {
-  const plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));
-  const load=bundles[plan.schema];
-  if(!load)throw new Error(`This print uses ${plan.schema??'an unknown plan format'}, which Studio cannot review.`);
-  const adapter=await load();return plan.schema==='saam-shell-plan/1'?referenceAdapter(adapter):adapter;
-}
-// A CLI update replaces several bundle files. Retry only reads caught between
-// those replacements; persistent corruption still fails the normal validation.
-// One fingerprint pass on each side of the load yields both the source and
-// presentation fingerprints; presentation derives from files source covers.
-export async function readStableBundle(adapter,directory,options){
-  for(let attempt=0;;attempt++){
-    let before;
-    try{
-      before=await adapter.bundleFingerprints(directory,options);
-      const state=await adapter.loadBundle(directory,options);
-      if(before.source!==(await adapter.bundleFingerprints(directory,options)).source)throw Error('The print is being updated.');
-      return {state,fingerprint:before.source,presentationFingerprint:before.presentation};
-    }catch(error){
-      const changing=before!==undefined&&before.source!==(await adapter.bundleFingerprints(directory,options)).source;
-      if(attempt>=3||!changing&&error.code!=='ENOENT'&&!/Plan and geometry disagree|being updated/.test(error.message))throw error;
-      await new Promise(resolve=>setTimeout(resolve,60*(attempt+1)));
-    }
-  }
-}
 // A selected plan, export or delivery file reopens its owning print bundle.
 // Standalone foreign programs need an interpreter contract before review.
 export async function printDirectory(input,resolveBundle=bundleFor) {
@@ -116,7 +85,7 @@ export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
     let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return;throw error;}
     if(entries.some(e=>e.name==='plan.json'&&e.isFile())){
       try{const plan=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),machine=JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
-        if(bundles[plan.schema]||await resolveBundle(dir))prints.push({path:dir,name:await printName(dir,plan),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
+        if(supportsBundleSchema(plan.schema)||await resolveBundle(dir))prints.push({path:dir,name:await printName(dir,plan),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
       }catch{/* One damaged bundle must not hide the other prints. */}
       return;
     }
@@ -168,8 +137,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const cancelGeneration=async(reason='person')=>{
     const job=preparation;if(!job)return {cancelled:false,committing:false};
     const result=job.cancel();if(!result.cancelled)return {cancelled:false,committing:result.committing};
-    generationCancelled={directory:job.directory,planHash:job.planHash};
-    note('generation-cancelled',{planHash:job.planHash,reason});
+    generationCancelled={directory:job.directory,generationHash:job.generationHash};
+    note('generation-cancelled',{generationHash:job.generationHash,reason});
     if(preparation===job)preparation=null;
     await result.done;return {cancelled:true,committing:false};
   };
@@ -178,19 +147,22 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     // Geometry-only reads deliberately omit program bytes. A matching saved
     // generation is enough to defer speculation; explicit review still checks
     // its bytes and will regenerate if that stored result is damaged.
-    if(state.program||state.outputAvailability||state.review?.generation?.planHash===state.planHash&&!state.programError)return {action:'discard'};
-    const key=readDir+':'+state.planHash;
+    if(state.program||state.outputAvailability||state.review?.generation?.generationHash===state.generationHash&&!state.programError)return {action:'discard'};
+    const key=readDir+':'+state.generationHash;
     return {action:session.currentKey===key?'reuse':'create',key};
   };
-  const prepare=(state,readDir)=>{
-    const decision=planPreparation(state,readDir,{closed,workerEnabled:resolveBundle===bundleFor,currentKey:preparation?.key});
+  const prepare=(state,readDir,{computationRequired=false}={})=>{
+    const key=readDir+':'+state.generationHash;
+    const decision=computationRequired
+      ?(closed||resolveBundle!==bundleFor?{action:'skip'}:{action:preparation?.key===key?'reuse':'create',key})
+      :planPreparation(state,readDir,{closed,workerEnabled:resolveBundle===bundleFor,currentKey:preparation?.key});
     if(decision.action==='skip')return null;
     if(decision.action==='discard'){discardPreparation();return null;}
     if(decision.action==='reuse')return preparation;
     discardPreparation();
-    return preparation=new PreparedGenerationJob({key:decision.key,directory:readDir,planHash:state.planHash,
+    return preparation=new PreparedGenerationJob({key:decision.key,directory:readDir,generationHash:state.generationHash,
       createWorker:cancellation=>new Worker(new URL('./generation-worker.mjs',import.meta.url),
-        {workerData:{directory:readDir,planHash:state.planHash,progress:true,cancellation}})});
+        {workerData:{directory:readDir,generationHash:state.generationHash,progress:true,cancellation}})});
   };
   // Only a real calculation is an event; a mode transition of a valid saved
   // program starts nothing the person or agent would wait on.
@@ -199,40 +171,45 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     if(!run&&!(job&&['preparing','generating'].includes(job.status)))return null;
     const progress=job?.progress??null,percent=progress?.total>0?Math.floor(100*progress.completed/progress.total):null;
     const directory=run?.directory??job.directory;
-    return {studioInstanceId:instanceId,printId:requests.printId(directory,{optional:true}),directory,planHash:run?.planHash??job.planHash,
+    return {studioInstanceId:instanceId,printId:requests.printId(directory,{optional:true}),directory,generationHash:run?.generationHash??job.generationHash,
       status:run?(job?.status==='preparing'?'preparing':'generating'):'preparing',requested:Boolean(run),trigger:run?.trigger??null,
       startedAt:run?.startedAt??null,elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
   const readGeneration=async current=>{
     generationCancelled=null;
-    const directory=dir,state=await current.loadBundle(directory,{program:'source'});
+    const directory=dir,state=await current.loadBundle(directory,{program:false});
     if(state.inspection)throw Error('This inspection does not support print generation.');
-    return {directory,state,calculating:!(state.program&&!state.programError)};
-  };
-  const planGeneration=(state,development,workerEnabled)=>{
-    // A valid saved development export needs only the shared mode transition.
-    if(state.program&&!state.programError)return {route:!development&&state.review.generation?.mode!=='production'?'promote':'reuse'};
-    return {route:workerEnabled?'prepared':'direct'};
+    return {directory,state};
   };
   const beginGeneration=(snapshot,development,trigger)=>{
-    if(snapshot.calculating){generationRun={directory:snapshot.directory,planHash:snapshot.state.planHash,trigger,development,startedAt:Date.now()};note('generation-started',{planHash:snapshot.state.planHash,development,trigger});}
+    if(generationRun)return;
+    generationRun={directory:snapshot.directory,generationHash:snapshot.state.generationHash,trigger,development,startedAt:Date.now()};
+    note('generation-started',{generationHash:snapshot.state.generationHash,development,trigger});
   };
-  const executeGeneration=async(current,snapshot,decision,development)=>{
+  const executeGeneration=async(current,snapshot,development,trigger)=>{
     const {directory:generationDir,state}=snapshot;
-    if(decision.route==='promote')await current.generateBundle(generationDir,{development:false});
-    else if(decision.route==='prepared'){
+    let calculated=false;
+    const markCalculation=()=>{if(!calculated){calculated=true;beginGeneration(snapshot,development,trigger);}};
+    async function dispatchComputation(execution){
+      const {directory:executionDir,state:executionState}=execution;
       // A stopped worker needs restarting; a completed preparation diagnostic
       // is already useful and need not be recomputed on the first Continue.
-      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===generationDir&&generationFailure.planHash===state.planHash))await discardPreparation();
-      const job=prepare(state,dir);
-      if(job){await job.generate(development);if(preparation===job)preparation=null;}
-      else await current.generateBundle(dir,{development});
-    }else if(decision.route==='direct')await current.generateBundle(dir,{development});
-    return {directory:generationDir,planHash:state.planHash,calculating:snapshot.calculating};
+      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===executionState.generationHash))await discardPreparation();
+      const job=prepare(executionState,executionDir,{computationRequired:true});
+      if(!job)return current.generateBundle(executionDir,{development,onProgress:progress=>{if(progress.stage==='Preparing geometry')markCalculation();}});
+      if(job.status==='preparing')markCalculation();
+      const checks=await job.generate(development);
+      if(preparation===job)preparation=null;
+      return checks;
+    }
+    const checks=await current.generateBundle(dir,{development,
+      dispatchComputation:resolveBundle===bundleFor?dispatchComputation:undefined,
+      onProgress:progress=>{if(progress.stage==='Preparing geometry')markCalculation();}});
+    return {directory:generationDir,generationHash:state.generationHash,calculated,checks};
   };
   const publishGeneration=async(outcome,development,trigger)=>{
     generationFailure=null;
-    if(outcome.calculating)note('generation-finished',{planHash:outcome.planHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
+    if(outcome.calculated)note('generation-finished',{generationHash:outcome.generationHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
     const guide=await tour.info();
     if(guide.active&&guide.directory===outcome.directory&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
   };
@@ -242,20 +219,18 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       // Before the message reaches the page, the event queue and the failure
       // request, say whether this process is behind the files the worker read.
       await annotateSourceSkew(error);
-      generationFailure={directory:generationDir,planHash:state.planHash,message:error.message};
+      generationFailure={directory:generationDir,generationHash:state.generationHash,message:error.message};
       try{const record=await requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
-        key:'generation-failure:'+generationDir+':'+state.planHash+':'+error.message,
+        key:'generation-failure:'+generationDir+':'+state.generationHash+':'+error.message,
         instruction:'Toolpath generation failed for this print. Error: '+error.message+
           '\nInspect the current recipe and relevant skill limits, diagnose the cause and apply appropriate fixes before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then regenerate and verify the current toolpath is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
-        note('generation-failed',{planHash:state.planHash,trigger,error:error.message,requestId:record.id});}
+        note('generation-failed',{generationHash:state.generationHash,trigger,error:error.message,requestId:record.id});}
       finally{throw error;} // A notification failure must not hide the generation error.
   };
   const generate=async(current,development,trigger='generate')=>{
     const snapshot=await readGeneration(current);
-    beginGeneration(snapshot,development,trigger);
     try{
-      const decision=planGeneration(snapshot.state,development,resolveBundle===bundleFor);
-      const outcome=await executeGeneration(current,snapshot,decision,development);
+      const outcome=await executeGeneration(current,snapshot,development,trigger);
       await publishGeneration(outcome,development,trigger);
     }catch(error){await publishGenerationFailure(error,snapshot,trigger);}
     finally{generationRun=null;}
@@ -327,7 +302,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
         if(importProgress){send(importProgress);return;}
         const job=preparation;
-        send({printId:printId(),planHash:job?.planHash??null,cancellable:Boolean(job?.cancellable),status:job?.status??'idle',progress:job?.progress??null,error:job?.error??null});return;
+        send({printId:printId(),generationHash:job?.generationHash??null,cancellable:Boolean(job?.cancellable),status:job?.status??'idle',progress:job?.progress??null,error:job?.error??null});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
         const p=await tour.info(),prints=p.active
@@ -410,7 +385,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
-        if(data.printId!==printId()||data.planHash&&data.planHash!==preparation?.planHash)throw Error('The calculation changed. Refresh before cancelling.');
+        if(data.printId!==printId()||data.generationHash&&data.generationHash!==preparation?.generationHash)throw Error('The calculation changed. Refresh before cancelling.');
         send(await cancelGeneration());return;
       }
       const run=queue.then(async()=>{
@@ -421,7 +396,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           if(progress.active)throw Error('Import STL is available after you finish or exit the tour.');
           await discardPreparation();
           const state=await current.loadBundle(dir,{program:false});
-          importProgress={printId:printId(),planHash:null,status:'importing',progress:{stage:'Checking your STL'}};
+          importProgress={printId:printId(),generationHash:null,status:'importing',progress:{stage:'Checking your STL'}};
           note('import-started',{name:data.name??null,units:data.units??null});
           let imported;
           try{imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId:state.machine.id,
@@ -445,7 +420,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             if(stage==='toolpath'&&advisory?.count&&requests.printId(dir,{optional:true}))
               await requests.begin({directory:dir,source:'studio',kind:'advisory',studioInstanceId:instanceId,
                 key:`short-travel:${dir}:${state.exportHash}`,
-                evidence:{exportHash:state.exportHash,planHash:state.planHash,skills:state.skills,shortTravel:advisory},
+                evidence:{exportHash:state.exportHash,generationHash:state.generationHash,skills:state.skills,shortTravel:advisory},
                 instruction:`Toolpath quality advisory for export ${state.exportHash}: ${advisory.message}\n`+
                   `Affected recipe skills: ${(state.skills??[]).join(', ')}. This notification preserves source locations and operation counts in evidence.shortTravel. `+
                   'Mention this finding to the person in your next reply, then acknowledge this advisory as completed and continue the current user task; no repair or new approval is required.'});
@@ -523,7 +498,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}});return;
         }
         else if(url.pathname==='/api/generate'){
-          if(data.planHash&&(await current.loadBundle(dir,{program:false})).planHash!==data.planHash)throw Error('The print changed before generation. Review the updated print.');
+          if(data.generationHash&&(await current.loadBundle(dir,{program:false})).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
           await generate(current,data.development===true);
         }
         else if(url.pathname==='/api/deliver') {
@@ -563,7 +538,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     if(kinds.includes('print')&&job?.cancellable&&!checkingGeneration){
       checkingGeneration=true;
       void resolveBundle(job.directory).then(adapter=>readStableBundle(adapter,job.directory,{program:false})).then(({state})=>{
-        if(preparation===job&&state.planHash!==job.planHash)return cancelGeneration('inputs-changed');
+        if(preparation===job&&state.generationHash!==job.generationHash)return cancelGeneration('inputs-changed');
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });

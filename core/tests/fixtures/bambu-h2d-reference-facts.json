@@ -1,0 +1,53 @@
+{
+  "source": {
+    "file": "twistedbox.gcode.3mf",
+    "sha256": "3a0cf2396c1f05862945ca740bd2e3f8cd7545d9947a3bf68a28adab97fc2459",
+    "studioVersion": "02.08.02.61",
+    "hardwareReportedByUser": {
+      "nozzleDiametersMm": [
+        0.4,
+        0.8
+      ],
+      "ams": {
+        "slots": 4,
+        "tool": 1
+      }
+    }
+  },
+  "sliceConfig": {
+    "filament_map": "2",
+    "filament_map_2": "1",
+    "filament_map_mode": "Manual",
+    "filament_nozzle_map": "1",
+    "filament_self_index": "1",
+    "nozzle_diameter": "0.8,0.8",
+    "physical_extruder_map": "1,0",
+    "print_extruder_id": "1,2",
+    "curr_bed_type": "Textured PEI Plate",
+    "extruder_ams_count": "1#0|4#0;1#0|4#1"
+  },
+  "projectPreferences": {
+    "filament_map": [
+      "1"
+    ],
+    "filament_map_mode": "Auto For Flush"
+  },
+  "plate": {
+    "bed_type": "textured_plate",
+    "filament_ids": [
+      0
+    ],
+    "first_extruder": 0
+  },
+  "sequence": {
+    "nozzle_sequence": [
+      1
+    ],
+    "optimal_assignment": [
+      0
+    ],
+    "sequence": [
+      1
+    ]
+  }
+}

@@ -19,6 +19,24 @@ const nativeFile=geometry=>{const name=geometry.nativeFile??'model.3dm';requireT
 const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
 const hash=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:canonical(value)).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
+function migratedIdentity(record,newName,oldName,scope) {
+  if(!record||typeof record!=='object')return record;
+  const hasNew=Object.hasOwn(record,newName),hasOld=Object.hasOwn(record,oldName);
+  if(hasNew&&hasOld&&record[newName]!==record[oldName])throw Error(`Conflicting generation identity in ${scope}.`);
+  if(!hasOld)return record;
+  const next={...record,[newName]:record[newName]??record[oldName]};delete next[oldName];return next;
+}
+function migrateReview(review) {
+  const approvals={...review?.approvals};
+  if(Object.hasOwn(approvals,'toolpath'))approvals.toolpath=migratedIdentity(approvals.toolpath,'generationHash','planHash','toolpath approval');
+  return {...review,
+    generation:migratedIdentity(review?.generation,'generationHash','planHash','review generation'),
+    approvals,
+    history:(review?.history??[]).map((event,index)=>migratedIdentity(
+      migratedIdentity(event,'generationHash','planHash',`review history ${index}`),
+      'previousGenerationHash','previousPlanHash',`review history ${index}`))};
+}
+const migrateChecks=checks=>migratedIdentity(checks,'generationHash','planHash','saved checks');
 const originalSource=geometry=>geometry?.source??(['text','heat-set'].includes(geometry?.shape)?originalSource(geometry.base):null);
 async function save(file,value){
   await replaceFile(file,typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value,null,2)+'\n');
@@ -44,9 +62,25 @@ export function applyPlanPatch(previous, patch, geometryTemplate) {
   return plan;
 }
 
-export function editedPlanReview(review, previousPlanHash, geometryChanged, time = new Date().toISOString()) {
-  const event = {event:'plan-edited', time, previousPlanHash, geometryChanged, invalidated:['toolpath']};
-  return {...review, history:[...review.history, event], approvals:{}, generation:null};
+export function editedPlanReview(review, previousGenerationHash, geometryChanged, time = new Date().toISOString()) {
+  const event = {event:'plan-edited', time, previousGenerationHash, geometryChanged, invalidated:['toolpath']};
+  return invalidateReview(review,event);
+}
+
+function invalidateReview(review,event) {
+  return {...review, history:[...review.history,event], approvals:{}, generation:null};
+}
+
+export function approvedReview(review, record) {
+  return {
+    ...review,
+    approvals:{toolpath:record},
+    history:[...review.history,{event:'human-approval',...record}]
+  };
+}
+
+export function machineChangedReview(review, from, to, time = new Date().toISOString()) {
+  return invalidateReview(review,{event:'machine-changed',from,to,time});
 }
 
 function mergePlanPatch(previous, changes, geometryTemplate) {
@@ -111,7 +145,7 @@ export function createBundleWorkflow(adapter) {
   let inputCache={};
   let preparedProgram;
   const fileSnapshot=createFileSnapshot();
-  const programKey=(planHash,exportHash)=>hash([planHash,exportHash]);
+  const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
 async function proposedPlan(machineId, { setupFile } = {}) {
   const machine = machineId ? loadMachine(machineId) : await json(machineFile);
   const plan = defaults(machine);
@@ -171,10 +205,10 @@ async function rememberedSetup(setupFile, machine) {
 
 async function readBundleInput(directory) {
   const dir = resolve(directory);
-  const [planText, machineText, geometryText, review] = await Promise.all([
+  const [planText, machineText, geometryText, storedReview] = await Promise.all([
     readFile(resolve(dir, 'plan.json'),'utf8'), readFile(resolve(dir, 'machine.json'),'utf8'), readFile(resolve(dir, 'geometry/model.json'),'utf8'),
     json(resolve(dir, 'review.json'))]);
-  const machine=JSON.parse(machineText),geometry=JSON.parse(geometryText);
+  const machine=JSON.parse(machineText),geometry=JSON.parse(geometryText),review=migrateReview(storedReview);
   const bytes=await readFile(resolve(dir,nativeFile(geometry)));
   return {dir,planText,machineText,geometryText,review,machine,geometry,bytes};
 }
@@ -196,15 +230,15 @@ async function validateBundleInput(input,previousCache) {
         await verifyGeometry(bytes,geometry);
         cache.verifiedGeometryHash=geometryHash;
       }
-      if(cache.validatedPlanHash!==inputsHash){
+      if(cache.validatedInputsHash!==inputsHash){
         validatePlan(plan,machine);
-        cache.validatedPlanHash=inputsHash;
+        cache.validatedInputsHash=inputsHash;
         cache.validatedPlanText=JSON.stringify(plan);
       }else plan=JSON.parse(cache.validatedPlanText);
       if(canonical(plan.geometry)!==canonical(geometry.parameters)){
         return {dir,plan,machine,geometry,review,cache,rebuild:true};
       }
-      identity={key:identityKey,geometryHash,planHash:hash({plan,machine,geometryHash}),planText:cache.validatedPlanText};
+      identity={key:identityKey,geometryHash,generationHash:hash({plan,machine,geometryHash}),planText:cache.validatedPlanText};
       cache.identity=identity;
     }
     return {dir,plan,machine,geometry,review,identity,cache,rebuild:false};
@@ -212,10 +246,10 @@ async function validateBundleInput(input,previousCache) {
 }
 
 async function describeBundle({dir,plan,machine,geometry,review,identity},program) {
-  const {geometryHash,planHash}=identity;
+  const {geometryHash,generationHash}=identity;
   if(originalSource(plan.geometry))requireThat(await hashFile(resolve(dir,'geometry/source.stl'))===originalSource(plan.geometry).sha256,'Imported STL source changed; reload the current geometry.');
   const state = {
-    kind, dir, plan, machine, geometry, review, geometryHash, planHash, programChecked:Boolean(program),
+    kind, dir, plan, machine, geometry, review, geometryHash, generationHash, programChecked:Boolean(program),
     exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: plan.composition?.regions?.length
@@ -231,7 +265,7 @@ async function describeBundle({dir,plan,machine,geometry,review,identity},progra
     if(!state.machineConfiguration.configured)state.outputAvailability='Dobot installation is unconfigured; geometry can be reviewed. Supply frame, calibration, workspace, initial pose, controller limits and relay/thermal setup before generation.';
   }
   state.toolpathApproved = false;
-  state.revision = hash({ geometryHash, planHash, review });
+  state.revision = hash({ geometryHash, generationHash, review });
   state.setupBasis = plan.setup.startupVerified
     ? 'Confirmed startup behavior'
     : machine.startup.validation;
@@ -240,13 +274,13 @@ async function describeBundle({dir,plan,machine,geometry,review,identity},progra
 }
 
 async function restoreBundleProgram(input,program,allSources,previousProgram) {
-  const state={...input},{dir,plan,machine,review,planHash}=state;
+  const state={...input},{dir,plan,machine,review,generationHash}=state;
   let cachedProgram=previousProgram;
   if (program && review.generation) {
     try {
-      requireThat(review.generation.planHash === planHash, 'Generated program is stale; regenerate for the current plan.');
+      requireThat(review.generation.generationHash === generationHash, 'Generated program is stale; regenerate for the current plan.');
       const code = await readFile(resolve(dir, exportPath(plan,machine)));
-      const exportHash=hash(code),key=programKey(planHash,exportHash);
+      const exportHash=hash(code),key=programKey(generationHash,exportHash);
       requireThat(exportHash === review.generation.exportHash,
         'Generated files changed; regenerate and review again.');
       if(cachedProgram?.key!==key||(program!=='source'&&!cachedProgram.program)) {
@@ -254,7 +288,7 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
         // commands; reopening never invokes a slicing skill or exporter. Source
         // requests can reuse our worker's checked result after the current-byte
         // hash above matches. Full-motion and cold callers still interpret.
-        const source=program==='source'?checkedSourceFor(planHash,exportHash):null;
+        const source=program==='source'?checkedSourceFor(generationHash,exportHash):null;
         if(source)cachedProgram={key,...source,program:null};
         else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine),code);
       }
@@ -265,7 +299,7 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
       state.code = cachedProgram.code;
       if(allSources)state.sources={...cachedProgram.sources};
       state.toolpathApproved = review.approvals.toolpath?.hash === state.exportHash
-        && review.approvals.toolpath?.planHash === planHash
+        && review.approvals.toolpath?.generationHash === generationHash
         && review.generation.mode === 'production';
     } catch (error) { state.programError = error.message; }
   }
@@ -344,7 +378,7 @@ function selectPreparedProgram(state,previous){
   // Profiles can support geometry/setup review before an output contract exists.
   // Report that contract's reason before constructing geometry or motion.
   outputAdapter(state.plan,state.machine);
-  return previous?.planHash===state.planHash?previous:null;
+  return previous?.generationHash===state.generationHash?previous:null;
 }
 
 async function generatePreparedProgram(state,onProgress){
@@ -354,7 +388,7 @@ async function generatePreparedProgram(state,onProgress){
   const path=await generatePath(state.plan,state.machine,{onProgress});
   onProgress?.({stage:'Writing and checking machine commands'});
   const {bytes,program}=exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
-  return {planHash:state.planHash,summary:path.summary,bytes,program};
+  return {generationHash:state.generationHash,summary:path.summary,bytes,program};
 }
 
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
@@ -378,7 +412,7 @@ async function updatePlan(directory, plan, revision) {
 
   // Build before committing anything; plan.json remains the edit commit point.
   const geometry = change.geometryChanged ? await createGeometry(change.plan.geometry) : null;
-  const review = editedPlanReview(state.review, state.planHash, change.geometryChanged);
+  const review = editedPlanReview(state.review, state.generationHash, change.geometryChanged);
   await persistPlanUpdate(state.dir, change.plan, geometry, review);
   return loadBundle(directory);
 }
@@ -400,15 +434,24 @@ async function persistPlanUpdate(dir, plan, geometry, review) {
 // Generation performs the calculations the locked plan specifies. Both modes
 // may be inspected freely; development output is recorded as a preview and can
 // never satisfy the final reviewed-export delivery gate.
-async function generateBundle(directory, { development = false, onProgress, beforeCommit } = {}) {
+async function generateBundle(directory, { development = false, onProgress, beforeCommit, dispatchComputation } = {}) {
   const state = await loadBundle(directory, { program: false });
-  const reusable=await reviewedGenerationCandidate(directory,state,development,onProgress);
-  if(reusable){
+  const current=await currentGenerationCandidate(directory,state);
+  if(current){
+    if(development||current.checks.mode==='production')return current.checks;
     beforeCommit?.();
-    return persistReviewedGeneration(state.dir,reusable);
+    const confirmed=await currentGenerationCandidate(directory,state);
+    requireThat(confirmed&&confirmed.checks.mode==='development'
+      &&confirmed.current.generationHash===current.current.generationHash
+      &&confirmed.current.exportHash===current.current.exportHash
+      &&confirmed.current.revision===current.current.revision,
+    'The reviewed export changed before promotion. Generate it again.');
+    return promoteReviewedGeneration(state.dir,confirmed);
   }
+  if(dispatchComputation)return dispatchComputation({directory,state,development,onProgress,beforeCommit});
   const prepared=await prepareProgram(state,onProgress);
-  requireThat((await loadBundle(directory,{program:false})).planHash===state.planHash,'The print changed during generation. Review the updated print.');
+  const revalidated=await loadBundle(directory,{program:false});
+  requireThat(revalidated.generationHash===state.generationHash,'The print changed during generation. Review the updated print.');
   beforeCommit?.();
   onProgress?.({stage:'Saving your toolpath'});
   const checks=generationChecks(state,prepared,development);
@@ -418,35 +461,31 @@ async function generateBundle(directory, { development = false, onProgress, befo
   return committed.checks;
 }
 
-async function reviewedGenerationCandidate(directory,state,development,onProgress){
-  // Both modes use identical commands. Reuse a checked development export after
-  // review, without slicing merely to change its mode. Current
-  // input and byte identity still belong to loadBundle; no approval is added.
-  if(!development&&state.review.generation?.mode==='development'){
-    onProgress?.({stage:'Checking the reviewed file'});
-    const current=await loadBundle(directory,{program:'source'});
-    if(current.program&&!current.programError){
-      const checks=await json(resolve(state.dir,'checks.json'));
-      requireThat(checks.planHash===current.planHash&&checks.exportHash===current.exportHash&&checks.result==='pass','Saved checks do not match the reviewed export.');
-      return {checks:{...checks,mode:'production'},current};
-    }
-  }
-  return null;
+async function currentGenerationCandidate(directory,state){
+  if(!state.review.generation)return null;
+  const current=await loadBundle(directory,{program:'source'});
+  if(!current.program||current.programError)return null;
+  const checks=migrateChecks(await json(resolve(state.dir,'checks.json')));
+  requireThat(checks?.schema==='saam-checks/1'&&checks.result==='pass'
+    &&checks.generationHash===current.generationHash&&checks.exportHash===current.exportHash
+    &&checks.mode===current.review.generation?.mode,'Saved checks do not match the reviewed export.');
+  return {checks,current};
 }
 
-async function persistReviewedGeneration(dir,{checks,current}){
-  await save(resolve(dir,'checks.json'),checks);
+async function promoteReviewedGeneration(dir,{checks,current}){
+  const promoted={...checks,mode:'production'};
+  await save(resolve(dir,'checks.json'),promoted);
   const review={...current.review,generation:{...current.review.generation,mode:'production'},
     history:[...current.review.history,{event:'generation-reused',mode:'production',time:new Date().toISOString(),exportHash:current.exportHash}]};
   await save(resolve(dir,'review.json'),review);
-  return checks;
+  return promoted;
 }
 
 function generationChecks(state,prepared,development){
   const {bytes:code,program,summary}=prepared;
   return {
     schema: 'saam-checks/1', result: 'pass', mode: development ? 'development' : 'production',
-    generatorVersion: VERSION, planHash: state.planHash, exportHash: hash(code),
+    generatorVersion: VERSION, generationHash: state.generationHash, exportHash: hash(code),
     moves: program.moves.length,
     volumeMm3: Number(program.volumeMm3.toFixed(3)),
     estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
@@ -467,10 +506,10 @@ async function persistGeneratedProgram(state,{bytes:code,program,summary},checks
   await save(resolve(state.dir, exportPath(state.plan,state.machine)), code);
   await save(resolve(state.dir, 'checks.json'), checks);
   const review={...state.review,approvals:{},
-    generation:{mode:checks.mode,planHash:state.planHash,exportHash:checks.exportHash,summary,version:VERSION},
+    generation:{mode:checks.mode,generationHash:state.generationHash,exportHash:checks.exportHash,summary,version:VERSION},
     history:[...state.review.history,{event:'generated',mode:checks.mode,time:new Date().toISOString(),exportHash:checks.exportHash}]};
   await save(resolve(state.dir, 'review.json'), review);
-  return {checks,cachedProgram:programCacheEntry(programKey(state.planHash,checks.exportHash),program,code)};
+  return {checks,cachedProgram:programCacheEntry(programKey(state.generationHash,checks.exportHash),program,code)};
 }
 
 // The one human approval: current settings and the exact checked export together.
@@ -484,14 +523,16 @@ async function approve(directory, { actor, revision, program = true }) {
   'Generate and check the production plan before toolpath approval.');
   const record = {
     actor: actor.trim(), time: new Date().toISOString(),
-    hash: state.exportHash, planHash: state.planHash, scope: ['settings','toolpath']
+    hash: state.exportHash, generationHash: state.generationHash, scope: ['settings','toolpath']
   };
-  state.review.approvals = { toolpath: record };
-  state.review.history.push({ event: 'human-approval', ...record });
-  await save(resolve(state.dir, 'review.json'), state.review);
-  state.toolpathApproved = true;
-  state.revision=hash({geometryHash:state.geometryHash,planHash:state.planHash,review:state.review});
-  return state;
+  const review=approvedReview(state.review,record);
+  await save(resolve(state.dir, 'review.json'), review);
+  return {
+    ...state,
+    review,
+    toolpathApproved:true,
+    revision:hash({geometryHash:state.geometryHash,generationHash:state.generationHash,review})
+  };
 }
 
 // Delivery copies the bytes that were reviewed. It re-reads and re-hashes them
@@ -517,18 +558,21 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
   const state=await loadBundle(directory,{program:false});
   if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
   const machine=loadMachine(machineId),proposal=await proposedPlan(machineId,{setupFile});
+  const {plan,review}=machineChangeTransition(state,machine,proposal,machineId);
+  await save(resolve(state.dir,'machine.json'),machine);
+  await save(resolve(state.dir,'plan.json'),plan);
+  await save(resolve(state.dir,'review.json'),review);
+  return loadBundle(directory,{program:false});
+}
+
+function machineChangeTransition(state,machine,proposal,machineId,time) {
   const process={...state.plan.process};
   for(const key of new Set([...Object.keys(state.machine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))process[key]=proposal.process[key];
   const plan={...state.plan,setup:proposal.setup,output:proposal.output,process};
   fitLineWidthToSetup(plan,machine);
   validatePlan(plan,machine);
-  const review=state.review;
-  review.approvals={};review.generation=null;
-  review.history.push({event:'machine-changed',from:state.machine.id,to:machineId,time:new Date().toISOString()});
-  await save(resolve(state.dir,'machine.json'),machine);
-  await save(resolve(state.dir,'plan.json'),plan);
-  await save(resolve(state.dir,'review.json'),review);
-  return loadBundle(directory,{program:false});
+  const review=machineChangedReview(state.review,state.machine.id,machineId,time);
+  return {plan,review};
 }
 
 return {root,defaultSetupFile,EXPORT_NAME,EXPORT_PATH,proposedPlan,initBundle,loadBundle,bundleFingerprint,bundleFingerprints,rememberSetup,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};

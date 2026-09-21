@@ -5,7 +5,7 @@ import {Worker} from 'node:worker_threads';
 
 let activeAttachment,checkedSource;
 
-export function attachCheckedProgramWorker(worker,expectedPlanHash){
+export function attachCheckedProgramWorker(worker,expectedGenerationHash){
   if(!(worker instanceof Worker))throw new TypeError('Expected the Studio generation worker.');
   const attachment={};activeAttachment=attachment;
   const detach=()=>{
@@ -15,12 +15,12 @@ export function attachCheckedProgramWorker(worker,expectedPlanHash){
   const receive=message=>{
     if(message.type!=='generated'||message.error||activeAttachment!==attachment)return;
     const source=message.source;
-    if(!source||source.planHash!==expectedPlanHash||source.planHash!==message.checks?.planHash
+    if(!source||source.generationHash!==expectedGenerationHash||source.generationHash!==message.checks?.generationHash
       ||source.exportHash!==message.checks?.exportHash)return;
     // Metadata and strings only. Full motion remains in the producing worker;
-    // planHash already incorporates the machine and geometry identity.
+    // generationHash already incorporates the machine and geometry identity.
     const {moves,events,...metadata}=source.metadata;
-    checkedSource={planHash:source.planHash,exportHash:source.exportHash,
+    checkedSource={generationHash:source.generationHash,exportHash:source.exportHash,
       metadata:structuredClone(metadata),code:source.code,sources:{...source.sources}};
     detach();
   };
@@ -28,8 +28,8 @@ export function attachCheckedProgramWorker(worker,expectedPlanHash){
   return detach;
 }
 
-export function checkedSourceFor(planHash,exportHash){
-  if(checkedSource?.planHash!==planHash||checkedSource.exportHash!==exportHash)return null;
+export function checkedSourceFor(generationHash,exportHash){
+  if(checkedSource?.generationHash!==generationHash||checkedSource.exportHash!==exportHash)return null;
   // No mutable cached data escapes to workflow consumers or their callers.
   return {metadata:structuredClone(checkedSource.metadata),code:checkedSource.code,sources:{...checkedSource.sources}};
 }

@@ -79,7 +79,7 @@ These limits are deliberately kept. They are not work budgets.
 
 | Limit | Where | What it protects | Why it is real |
 |---|---|---|---|
-| Machine limits as a class: bounds, axis feed, flow, angle, temperature, retraction within the material profile | [machine profiles](../machines/README.md), [rules.mjs](./machine/rules.mjs), [profile.mjs](./machine/profile.mjs) | The machine and the material | Declared properties of hardware and filament, not guesses about work |
+| Machine limits as a class: bounds, axis feed, layer height, bead width, flow, angle, temperature, retraction within the material profile | [machine profiles](../machines/README.md), [rules.mjs](./machine/rules.mjs), [profile.mjs](./machine/profile.mjs) | The machine and the material | Declared properties of hardware and filament, not guesses about work |
 | Index capacity: at most `0x7ffffffe` vertices and `0x3ffffffe` triangles, plus `Number.isSafeInteger` counts | [mesh-capacity.mjs](./geom/mesh-capacity.mjs), and the same check in cylinder, sleeve and motif point counts | Indexed typed arrays | A count that cannot be represented, not one judged too large |
 | `KERNEL_TRIANGLE_CAPACITY`, the solid kernel's 32-bit address space | [solid.mjs](./geom/solid.mjs) | Manifold WASM, whose abort is unrecoverable | The largest count the kernel can hold, published by the kernel |
 | 64 MiB STL upload | [import-stl.mjs](../studio/import-stl.mjs) | The Studio HTTP boundary | Input safety on a network boundary; about 1,342,000 binary triangles, and not a geometry budget |

@@ -108,7 +108,8 @@
           "label": "connectedScanlineCells",
           "members": [
             "core/region/region2d.mjs::regionComponents",
-            "core/region/region2d.mjs::regionComponents::<callable@157:11>",
+            "core/region/region2d.mjs::regionComponents::componentFromRoot",
+            "core/region/region2d.mjs::regionComponents::componentFromRoot::collectDescendants",
             "core/region/region2d.mjs::componentKey",
             "core/region/region2d.mjs::scanlineFill",
             "core/region/region2d.mjs::scanlineFillComponent",

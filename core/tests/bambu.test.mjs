@@ -13,6 +13,7 @@ import {packZip,unpackZip} from '../export/zip.mjs';
 import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
+import {resolveBambuJob} from '../export/bambu-job.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-09'},GCODE='Metadata/plate_1.gcode';
 const actor='SYNTHETIC H2D TEST — not a real approval';
 function fixture(tool=0,nozzleMm=0.4){
@@ -52,8 +53,8 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
 test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either tool',async()=>{
   for(const tool of [0,1]){
     const {machine,plan}=fixture(tool,0.8);plan.setup.filamentColor='#8B5A2B';
-    // Second unit, third slot continues the first unit's numbering: selector 6.
-    plan.setup.ams=tool===0?{unit:1,slot:4}:{unit:2,slot:3};const selector=tool===0?3:6;
+    // A physical tray request does not rename the job's single logical filament.
+    plan.setup.ams=tool===0?{unit:1,slot:4}:{unit:2,slot:3};const selector=0;
     const path=generatePath(plan,machine,await rhino());
     const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
     assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
@@ -66,7 +67,14 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
     assert.match(slice,/color="#8B5A2B"/);
     const project=JSON.parse(entries.get('Metadata/project_settings.config'));
     assert.deepEqual(project.filament_colour,['#8B5A2B']);
-    assert.equal(project.printer_settings_id,tool===0?'Bambu Lab H2D 0.8 nozzle':'Bambu Lab H2D 0.4 nozzle');
+    assert.deepEqual(project.filament_self_index,['1']);
+    const intent=JSON.parse(entries.get('Metadata/saam-job.json'));
+    assert.equal(intent.requestedTray.index,tool===0?3:6);
+    assert.equal(intent.logicalFilament,0);
+    // The preset names the nozzle that must be fitted, so it follows the selected
+    // tool on both. Naming the first nozzle made a right-nozzle job claim 0.4 mm,
+    // and an H2D refused it: "The right nozzle is not matched with slicing file".
+    assert.equal(project.printer_settings_id,'Bambu Lab H2D 0.8 nozzle');
     assert.ok(project.nozzle_type.every(type=>type==='hardened_steel'));
     const code=entries.get(GCODE).toString();
     for(const line of ['M620 S'+selector+'A H-1','T'+selector+' H-1','M621 S'+selector+'A'])assert.equal(code.split('\n').filter(l=>l===line).length,2,line);
@@ -76,6 +84,7 @@ test('H2D needs no colour or AMS choice, and rejects only a malformed one',async
   const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
   assert.equal(plan.setup.filamentColor,null);assert.equal(plan.setup.ams,null);
   const entries=unpackZip(exportProgram(path,plan,machine,release)),code=entries.get(GCODE).toString();
+  // No AMS request uses one logical filament and the declared default colour.
   assert.match(entries.get('Metadata/slice_info.config').toString(),new RegExp('color="'+machine.outputs[0].defaultFilamentColor+'"'));
   assert.equal(code.split('\n').filter(l=>l==='M620 S0A H-1').length,2,'no request keeps the first filament path');
   for(const ams of [{unit:3,slot:1},{unit:1,slot:5},{unit:1,slot:0},{unit:1.5,slot:1},4]){
@@ -150,13 +159,13 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const path=generatePath(plan,machine,await rhino()),{bytes,program}=exportAndInterpretProgram(path,plan,machine,release);
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'archive bytes are deterministic');
   const cold=interpretProgram(bytes,plan,machine),moves=path.actions.filter(a=>a.kind==='move');
-  assert.equal(cold.envelope.contract,'x1c-02.08.02.61-pla-textured-v1');assert.equal(cold.moves.length,moves.length);assert.equal(program.moves.length,moves.length);
+  assert.equal(cold.envelope.contract,'x1c-saam-startup-v2');assert.equal(cold.moves.length,moves.length);assert.equal(program.moves.length,moves.length);
   moves.forEach((m,i)=>m.to.forEach((v,k)=>assert.ok(Math.abs(v-cold.moves[i].to[k])<6e-6)));
   const entries=unpackZip(bytes),code=entries.get(GCODE).toString(),[start,rest]=code.split(';SAAM_BODY_BEGIN\n'),end=rest.split(';SAAM_BODY_END\n')[1];
   const bounds=path.summary.boundsMm,top=bounds.max[2];
   assert.ok(!/\{[A-Za-z]+\}/.test(start+end),'every template value is rendered');
   assert.match(start,/^M140 S60\nM190 S60$/m);assert.match(start,/^M109 S195$/m,'wipe temperature follows the nozzle temperature');
-  assert.match(start,/^M620 S4A\n(?:.*\n)*?T4\n(?:.*\n)*?M621 S4A$/m,'second AMS unit continues the first unit’s numbering');
+  assert.match(start,/^M620 S0A\n(?:.*\n)*?T0\n(?:.*\n)*?M621 S0A$/m,'a profile with no declared trays keeps one entry, named as position 0');
   assert.ok(start.includes(`G29 A X${bounds.min[0]} Y${bounds.min[1]} I${bounds.max[0]-bounds.min[0]} J${bounds.max[1]-bounds.min[1]}\n`),'bed leveling covers the placed part');
   assert.ok(!/^M73 P/m.test(start+end),'reference progress estimates are not reused');
   assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
@@ -176,6 +185,113 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const edited=structuredClone(machine);edited.outputs[0].program.end.push('M999');assert.throws(()=>exportProgram(path,plan,edited,release),/Unknown Bambu firmware envelope/);
   assert.throws(()=>interpretProgram(bytes,plan,loadMachine('bambu-h2d')),'an X1 archive is not an H2D program');
 });
+test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent across every artifact',async()=>{
+  const r=await rhino();
+  for(const tool of [0,1])for(const diameter of [0.4,0.6,0.8])for(const plate of ['textured_plate','hot_plate']){
+    const {machine,plan}=fixture(tool,diameter);
+    plan.setup.bambu.otherNozzleMm=0.6;plan.setup.bambu.plate=plate;
+    plan.setup.nozzleC=225;plan.setup.bedC=65;
+    const bytes=exportProgram(generatePath(plan,machine,r),plan,machine,release),z=unpackZip(bytes);
+    const code=z.get(GCODE).toString(),p=JSON.parse(z.get('Metadata/project_settings.config'));
+    const slice=z.get('Metadata/slice_info.config').toString(),plateInfo=JSON.parse(z.get('Metadata/plate_1.json'));
+    assert.deepEqual(p.nozzle_diameter,tool===0?[String(diameter),'0.6']:['0.6',String(diameter)]);
+    assert.ok(code.includes('; nozzle_diameter = '+p.nozzle_diameter.join(',')));
+    assert.ok(slice.includes('key="nozzle_diameters" value="'+p.nozzle_diameter.join(',')+'"'));
+    assert.equal(plateInfo.nozzle_diameter,diameter);
+    assert.deepEqual([...code.matchAll(/^M620\.10 .* H([\d.]+) /gm)].map(m=>Number(m[1])),[diameter,diameter]);
+    assert.ok(code.includes('M1015.4 S1 K1 H'+diameter+'\n'));
+    assert.equal((code.match(/M983\.3 F10\.4167 A0\.4/g)??[]).length,3,'A0.4 is a calibration constant, not nozzle diameter');
+    assert.ok(code.includes('M104 S225 T'+(1-tool)+'\nG151 P'+(1-tool)+' M'));
+    assert.equal(plateInfo.bed_type,plate);
+    assert.equal(p.curr_bed_type,plate==='textured_plate'?'Textured PEI Plate':'Smooth PEI Plate');
+    const tempKey=plate==='textured_plate'?'textured_plate_temp':'hot_plate_temp';
+    assert.deepEqual(p[tempKey],['65']);assert.deepEqual(p[tempKey+'_initial_layer'],['65']);
+    assert.deepEqual(p.nozzle_temperature,['225']);assert.deepEqual(p.nozzle_temperature_initial_layer,['225']);
+    assert.ok(code.includes(plate==='textured_plate'?'G29.1 Z-0.02':'G29.1 Z0'));
+    assert.ok(code.includes(plate==='textured_plate'?'M972 S26 P0 C0':'M972 S36 P0 C0 X1'));
+    assert.doesNotMatch(code,plate==='textured_plate'?/M972 S36/:/M972 S26|G29\.1 Z-0\.02/);
+    assert.equal(interpretProgram(bytes,plan,machine).envelope.simulation,'not simulated');
+  }
+});
+
+test('logical filament selection reaches both load blocks, detection and every package reference independently of AMS tray',async()=>{
+  const {machine,plan}=fixture(1,0.8);plan.setup.ams={unit:2,slot:4};
+  plan.setup.bambu.filaments=[{id:'GFA00',colour:'#111111'},{id:'GFA01',colour:'#222222'},{id:'GFA00',colour:'#AABBCC'}];
+  plan.setup.bambu.filament=2;plan.setup.filamentColor='#AABBCC';
+  const z=unpackZip(exportProgram(generatePath(plan,machine,await rhino()),plan,machine,release));
+  const code=z.get(GCODE).toString(),slice=z.get('Metadata/slice_info.config').toString();
+  for(const command of ['M620 S2A H-1','T2 H-1','M621 S2A'])assert.equal(code.split('\n').filter(l=>l===command).length,2);
+  assert.match(code,/^M620\.6 I2 H-1 W1$/m);assert.doesNotMatch(code,/^M620 S7A|^T7 H/m);
+  assert.match(slice,/<filament id="3" .*color="#AABBCC"/);
+  assert.match(slice,/filament_list="2"/);
+  const plate=JSON.parse(z.get('Metadata/plate_1.json'));assert.deepEqual(plate.filament_ids,[2]);assert.equal(plate.first_extruder,2);
+  const seq=JSON.parse(z.get('Metadata/filament_sequence.json')).plate_1;assert.deepEqual(seq.sequence,[3]);assert.deepEqual(seq.nozzle_sequence,[1]);
+  const p=JSON.parse(z.get('Metadata/project_settings.config'));assert.deepEqual(p.filament_map,['2','2','2']);assert.deepEqual(p.filament_map_2,['1','1','1']);
+  assert.ok(code.includes('; filament_colour = #111111;#222222;#AABBCC'));
+  assert.match(z.get('Metadata/model_settings.config').toString(),/key="filament_maps" value="2 2 2"/);
+  assert.equal(JSON.parse(z.get('Metadata/saam-job.json')).requestedTray.index,7);
+});
+
+test('Bambu rejects conflicting declarations and unsupported settings before producing a program',async()=>{
+  const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
+  for(const [patch,message] of [
+    [{core:'Hardened steel 0.8'},/core and selected nozzle/],
+    [{bambu:{...plan.setup.bambu,plate:'unknown'}},/build plate/],
+    [{bambu:{...plan.setup.bambu,otherNozzleMm:null}},/other installed/],
+    [{bambu:{...plan.setup.bambu,filament:1}},/filament index/],
+    [{bambu:{...plan.setup.bambu,startup:{bedLeveling:'maybe'}}},/printer, on or off/],
+    [{filamentColor:'#FFFFFF',bambu:{...plan.setup.bambu,filaments:[{id:'GFA00',colour:'#000000'}]}},/colour disagrees/],
+  ]){const p=structuredClone(plan);Object.assign(p.setup,patch);assert.throws(()=>exportProgram(path,p,machine,release),message);}
+  const old=structuredClone(plan);delete old.setup.bambu;assert.throws(()=>exportProgram(path,old,machine,release),/older setup/);
+  for(const key of ['nozzle_diameter','filament_map','curr_bed_type','nozzle_type']){
+    const m=structuredClone(machine);m.outputs[0].package.projectSettings[key]=['wrong'];
+    assert.throws(()=>exportProgram(path,plan,m,release),/cannot override/);
+  }
+  const m=structuredClone(machine);m.outputs[0].constraints.startupPurgeFlowMm3S=100;
+  assert.throws(()=>exportProgram(path,plan,m,release),/Unknown Bambu firmware envelope/);
+});
+
+test('startup choices are explicit and X1 smooth plate has no textured correction',async()=>{
+  for(const id of ['bambu-h2d','bambu-x1-carbon']){
+    const machine=loadMachine(id),plan=defaults(machine);plan.geometry=boxMesh();
+    plan.setup.bambu.plate='hot_plate';Object.assign(plan.setup.bambu.startup,{bedLeveling:'on',flowCalibration:'off'});
+    const path=generatePath(plan,machine,await rhino()),z=unpackZip(exportProgram(path,plan,machine,release)),code=z.get(GCODE).toString();
+    assert.match(code,/M1002 set_flag g29_before_print_flag=1\nM1002 set_flag extrude_cali_flag=0/);
+    assert.doesNotMatch(code,/G29\.1 Z-0\.0[24]/);
+    assert.match(code,/M1002 judge_flag g29_before_print_flag/);
+    assert.match(code,/M1002 judge_flag extrude_cali_flag/);
+    if(id==='bambu-x1-carbon'){
+      assert.match(code,/M620\.1 E F523\.843 T240/);assert.match(code,/M109 S250/);
+      const p=JSON.parse(z.get('Metadata/project_settings.config'));assert.deepEqual(p.nozzle_type,['hardened_steel']);
+      plan.setup.bambu.startup.toolOffsetCalibration='on';assert.throws(()=>exportProgram(path,plan,machine,release),/does not implement/);
+    }
+  }
+});
+
+test('resolved H2D job follows supplied slice mappings while preserving independently reported mixed hardware',async()=>{
+  const facts=JSON.parse(await readFile(new URL('./fixtures/bambu-h2d-reference-facts.json',import.meta.url),'utf8'));
+  const {plan,machine}=fixture(1,0.8),job=resolveBambuJob(plan,machine,machine.outputs[0]);
+  for(const key of ['filament_map','filament_map_2','filament_map_mode','filament_nozzle_map','filament_self_index','physical_extruder_map','print_extruder_id','curr_bed_type']){
+    const value=job.settings[key];assert.equal(Array.isArray(value)?value.join(','):value,facts.sliceConfig[key],key);
+  }
+  assert.deepEqual(job.nozzles.map(Number),facts.source.hardwareReportedByUser.nozzleDiametersMm);
+  assert.notEqual(job.nozzles.join(','),facts.sliceConfig.nozzle_diameter,'the reference deliberately declares equal diameters; actual hardware differs');
+  assert.notDeepEqual(job.settings.filament_map,facts.projectPreferences.filament_map,'saved project preferences do not override resolved slice intent');
+  assert.notEqual(job.settings.filament_map_mode,facts.projectPreferences.filament_map_mode);
+});
+
+test('declared AMS connectivity cannot silently feed the other H2D nozzle',()=>{
+  const {plan,machine}=fixture(1,0.8);
+  plan.setup.bambu.amsConnections=[{unit:1,tool:1}];plan.setup.ams={unit:1,slot:4};
+  const job=resolveBambuJob(plan,machine,machine.outputs[0]);
+  assert.deepEqual(job.amsConnections,[{unit:1,tool:1}]);
+  assert.deepEqual(job.settings.extruder_ams_count,['1#0|4#0','1#0|4#1']);
+  plan.setup.tool=0;
+  assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/not connected/);
+  plan.setup.bambu.amsConnections=[{unit:1,tool:0},{unit:1,tool:1}];
+  assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/unique/);
+});
+
 test('ZIP format rejects unsafe names, damaged directories and unreferenced bytes',()=>{
   for(const name of ['../file','/file','a//b','a/./b','a\\b'])assert.throws(()=>packZip(new Map([[name,'x']])),/name/);
   const bytes=packZip(new Map([['test','content']]));assert.equal(unpackZip(bytes).get('test').toString(),'content');

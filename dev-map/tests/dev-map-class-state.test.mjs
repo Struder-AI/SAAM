@@ -36,9 +36,9 @@ read(){return this.value;}
 static change(){this.value++;}
 static readStatic(){return this.value;}
 }`);
-  const id=name=>p.components.find(c=>c.label===`Runtime::${name}`).index;
-  assert.ok(!p.wires.some(w=>w.kind==='state'&&w.from===id('change')&&w.to===id('read')));
-  assert.ok(p.wires.some(w=>w.kind==='state'&&w.from===id('change')&&w.to===id('readStatic')));
+  const id=(name,isStatic=false)=>p.components.find(c=>c.label===`Runtime::${isStatic?'@static/':''}${name}`).index;
+  assert.ok(!p.wires.some(w=>w.kind==='state'&&w.from===id('change',true)&&w.to===id('read')));
+  assert.ok(p.wires.some(w=>w.kind==='state'&&w.from===id('change',true)&&w.to===id('readStatic',true)));
 });
 
 test('literal computed fields are connected and dynamic instance fields stay explicit',async()=>{

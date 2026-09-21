@@ -6,6 +6,50 @@ import {attachPortReferences} from '../lib/port-references.mjs';
 import {presentationPage} from '../lib/presentation.mjs';
 
 const file='core/compact.mjs';
+test('region diagnostics expose counts and addresses while finding detail stays behind the click',()=>{
+  const path='core/example.mjs::main';
+  const page={kind:'region',index:'1',components:[{index:'1.0.1',path:'core::@group/work',kind:'group',label:'Work',members:[path],files:['core/example.mjs'],count:1}],
+    children:[{index:'1.1',file:'core/example.mjs'}],composition:{source:'flows.json',groups:[{members:[path]}]},uncertainty:[
+    {path,kind:'argument-origin',line:2,expression:'private implementation'},
+    {path,kind:'argument-origin',line:3,valueUnknown:true},
+    {path,kind:'closure-capture',count:2,lifetimeUnknown:true},
+    {file:'core/example.mjs',kind:'module-effect',line:1}],
+    unresolved:[{path,rule:'parameter-target',call:'callback',line:2}]};
+  const before=structuredClone(page),shown=presentationPage(freeze(page));
+  assert.deepEqual(shown.uncertaintySummary,{count:5,details:'1',sources:[
+    {index:'1.0.1',count:4},
+    {index:'1.1',count:1}]});
+  assert.deepEqual(shown.unresolvedSummary,{count:1,details:'1',sources:[{index:'1.0.1',count:1}]});
+  assert.ok(!shown.components[0].members&&!shown.components[0].files&&!shown.composition.groups);
+  assert.ok(!shown.uncertainty&&!shown.unresolved);
+  assert.deepEqual(page,before);
+  assert.deepEqual(presentationPage(shown),shown);
+  assert.deepEqual(compactPage(page).uncertaintySummary,shown.uncertaintySummary);
+  assert.deepEqual(compactPage(page,{code:true}).uncertaintySummary,shown.uncertaintySummary);
+  const unlocated={...page,uncertainty:[...page.uncertainty,{kind:'unknown-effect',line:9}]};
+  assert.deepEqual(presentationPage(unlocated).uncertainty,[{kind:'unknown-effect',line:9}]);
+  assert.deepEqual(presentationPage(unlocated).uncertaintySummary,shown.uncertaintySummary);
+  assert.deepEqual(presentationPage({...page,kind:'function'}).unresolved,page.unresolved);
+});
+test('capture diagnostics share closure metadata without losing bindings, access modes or limits',()=>{
+  const base={kind:'closure-capture',line:4,closure:'core/state.mjs::factory::read',valueUnknown:true};
+  const rows=[{...base,binding:'a',access:'read'},{...base,binding:'b',access:'read'},
+    {...base,binding:'c',access:'write'}, {...base,binding:'d',access:'read',lifetimeUnknown:true},
+    {...base,closure:'core/state.mjs::factory::other',binding:'a',access:'read'},
+    {kind:'argument-origin',line:7}];
+  const source={kind:'function',index:'1.1.1',uncertainty:rows};
+  const shown=presentationPage(source),group=shown.uncertainty[0];
+  assert.equal(group.count,3);
+  assert.deepEqual(group.bindings,{read:['a','b'],write:['c']});
+  const expand=shown.uncertainty.flatMap(({bindings,count,...row})=>bindings
+    ? Object.entries(bindings).flatMap(([access,names])=>names.map(binding=>({...row,binding,access}))) : [row]);
+  assert.deepEqual(expand,rows);
+  assert.equal(shown.uncertainty.reduce((n,u)=>n+(u.count??1),0),rows.length);
+  assert.deepEqual(presentationPage(shown),shown);
+  assert.equal(source.uncertainty.length,6);
+  assert.deepEqual(compactPage(source).uncertainty,shown.uncertainty);
+});
+const dataPathForTest=/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/;
 async function richPage(body) {
   const source=`export const make=x=>x;export const consume=x=>x;export function main(a,b,flag,cb){${body}}`;
   const context=await loadFlow({repo:'',files:[file],readSource:()=>source});
@@ -38,7 +82,7 @@ test('default caller references keep every destination and flag without predicat
     children:[{index:'4.8.3',callerReferences:refs}],callerWires:wires});
   const before=structuredClone(rich),shown=presentationPage(rich),compact=compactPage(rich);
   assert.deepEqual(shown.callerReferences,expected);assert.deepEqual(shown.calledFrom,expected);
-  assert.deepEqual(shown.components[0].callerReferences,expected);assert.deepEqual(shown.children[0].callerReferences,expected);
+  assert.deepEqual(shown.components[0].callerReferences,expected);assert.ok(!('children' in shown));
   assert.deepEqual(compact.callerReferences,expected);assert.deepEqual(compact.components[0].callerReferences,expected);
   assert.deepEqual(shown.callerWires,wires);assert.deepEqual(compact.callerWires,wires);
   assert.deepEqual(presentationPage(shown),shown,'default reference projection is idempotent');
@@ -55,6 +99,31 @@ test('terminal and fallback calledFrom references use the same concise identitie
     const rich=freeze({index:'1.1.1',file,path:`${file}::main`,destination,calledFrom:[caller]});
     for(const shown of [presentationPage(rich),compactPage(rich)])assert.deepEqual(shown.calledFrom,[{index:'6.2.3',unknown:true}]);
   }
+});
+
+test('busy off-page component callers compact to a canonical summary while page evidence stays complete',()=>{
+  const refs=Array.from({length:6},(_,i)=>({index:`6.2.${i+1}`,path:`core/a.mjs::caller${i+1}`}));
+  const few=refs.slice(0,5);
+  const rich=freeze({index:'4.8',path:file,file,kind:'file',destination:'graph',
+    callerReferences:refs,components:[{index:'4.8.3',file,label:'leaf',callerReferences:refs},
+      {index:'4.8.4',file,label:'small',callerReferences:few}],
+    children:[{index:'4.8.2'},{index:'4.8.3',path:`${file}::leaf`,lines:1,callerReferences:refs,uncertainty:[{kind:'raw'}]},
+      {index:'4.8.4',path:`${file}::small`,lines:1,callerReferences:few}],
+    regions:[{index:'1'},{index:'2',callerReferences:refs}]});
+  const shown=presentationPage(rich);
+  assert.deepEqual(shown.callerReferences,refs.map(({index})=>({index})));
+  assert.ok(!('callerReferences' in shown.components[0]));
+  assert.deepEqual(shown.components[0].callerSummary,{count:6,index:'4.8.3'});
+  assert.ok(!('children' in shown));
+  assert.deepEqual(shown.regions[1].callerReferences,refs.map(({index})=>({index})));
+  assert.deepEqual(presentationPage(shown),shown);
+  const compact=compactPage(rich);
+  assert.deepEqual(compact.callerReferences,refs.map(({index})=>({index})));
+  assert.deepEqual(compact.components[0].callerSummary,{count:6,index:'4.8.3'});
+  assert.ok(!('callerReferences' in compact.components[0]));
+  assert.ok(!('uncertainty' in compact.components[0]));
+  assert.equal(compact.components[0].path,`${file}::leaf`);assert.equal(compact.components[0].lines,1);
+  assert.deepEqual(compact.components[1].callerReferences,few.map(({index})=>({index})));
 });
 
 test('code reads omit repeated caller lists but keep unrepresented and outside callers',()=>{
@@ -183,15 +252,15 @@ test('alias arguments retain the exact producer invocation when a callee occurs 
   assert.equal(originalUse.arguments[0].producers[0].site.column,producers[0].column);
 });
 
-test('root and file inventories keep every address and child-only navigation field',()=>{
+test('visible boxes retain navigation while hidden descendants stay behind the click',()=>{
   for(const kind of ['root','file']) {
     const inventory=kind==='root'?'regions':'components';
     const compact=compactPage({index:kind==='root'?'0':'1.1',kind,destination:'graph',
       [inventory]:[{index:'1.1.1',label:'visible'}],children:[{index:'1.1.1',path:'core/a.mjs::visible',file:'core/a.mjs'},
         {index:'1.1.2',path:'core/a.mjs::extra',label:'extra'}]});
     assert.equal(compact[inventory][0].path,'core/a.mjs::visible');
-    assert.equal(compact.children[0].index,'1.1.2');
-    assert.equal(compact.children[0].path,'core/a.mjs::extra');
+    assert.ok(!('children' in compact));
+    assert.ok(!JSON.stringify(compact).includes('core/a.mjs::extra'));
   }
 });
 
@@ -313,7 +382,9 @@ test('return labels shorten only a whole call result and preserve arithmetic, me
   ]) {
     const rich=await richPage(body),shown=presentationPage(rich),compact=compactPage(rich);
     assert.equal(shown.outputs[0].name,expected,body);assert.equal(compact.outputs[0].name,expected,body);
-    assert.deepEqual(shown.wires,rich.wires.map(({expression,...wire})=>wire));assert.equal(shown.gates.length,rich.gates.length);
+    assert.deepEqual(shown.wires,rich.wires.map(({expression,...wire})=>!wire.label||dataPathForTest.test(wire.label)?wire:
+      wire.kind==='gate'||wire.toPort==='control'?{...wire,label:'condition'}:wire.fromPort==='selected'?{...wire,label:'selected result'}:wire));
+    assert.equal(shown.gates.length,rich.gates.length);
     assert.equal(shown.outputs[0].role,rich.outputs[0].role);
     assert.deepEqual(shown.outputs[0].lines,rich.outputs[0].lines);
   }
@@ -330,6 +401,40 @@ test('awaited return labels shorten only an entire resolved call result',async()
     const rich=flowPacket(context,`${file}::main`);
     assert.equal(presentationPage(rich).outputs[0].name,expected);
     assert.equal(compactPage(rich).outputs[0].name,expected);
+  }
+});
+
+test('default choice wires and unresolved returned calls show roles while details retain expressions',async()=>{
+  const source=`export function pick(){return {};}
+export function requireThat(condition){if(!condition)throw Error('failed');}
+export function main(dispatch,directory,development,onProgress,beforeCommit){const current=pick(),confirmed=pick();
+requireThat(confirmed&&confirmed.checks.mode==='development'&&confirmed.current.planHash===current.current.planHash);
+if(dispatch)return dispatch({directory,current,confirmed,development,onProgress,beforeCommit});return current.checks;}`;
+  const context=await loadFlow({repo:'',files:[file],readSource:()=>source}),rich=flowPacket(context,`${file}::main`);
+  const shown=presentationPage(rich),compact=compactPage(rich),serialized=JSON.stringify(compact);
+  assert.ok(rich.wires.some(w=>w.label?.includes("confirmed&&confirmed.checks.mode==='development'")));
+  assert.ok(!serialized.includes('&&')&&!serialized.includes("==='development'"));
+  assert.ok(shown.wires.some(w=>w.label==='confirmed.checks.mode'),'named property data remains visible');
+  assert.ok(shown.wires.some(w=>w.label==='condition'));
+  assert.ok(shown.wires.some(w=>w.label==='selected result'));
+  assert.equal(shown.outputs.find(output=>output.name.startsWith('dispatch'))?.name,'dispatch result');
+  assert.ok(shown.wires.some(w=>w.kind==='return'&&w.label==='dispatch result'));
+  assert.ok(!shown.wires.some(w=>w.label?.includes('dispatch({')),'call payload stays behind source on return wires too');
+  assert.ok(rich.outputs.some(output=>output.name.startsWith('dispatch({directory,current,confirmed')),'details retain the returned expression');
+});
+
+test('only AST-proven direct calls receive callable result labels',async()=>{
+  const source=`export function direct(dispatch,input){return dispatch({input,first:'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'});}
+export function compound(f,g,input){return f(input)+g(input)+f(input)+g(input)+f(input)+g(input)+f(input)+g(input)+f(input)+g(input);}
+export function pattern(input){return /a\\(b\\)|c[)]/.test(input)&&/another-long-pattern-value-with-many-more-characters-to-clip-safely/.test(input);}
+export function template(input){return \`a long template body that includes ( and ) and \${input} without being a call result\`;}`;
+  const context=await loadFlow({repo:'',files:[file],readSource:()=>source});
+  const page=name=>flowPacket(context,`${file}::${name}`),shown=name=>presentationPage(page(name));
+  assert.equal(page('direct').outputs[0].returnCall,'dispatch');assert.equal(shown('direct').outputs[0].name,'dispatch result');
+  for(const name of ['compound','pattern','template']){
+    assert.equal(page(name).outputs[0].returnCall,undefined,name);
+    assert.equal(shown(name).outputs[0].name,'return value',name);
+    assert.ok(page(name).outputs[0].name.endsWith('…'),'details retain clipped source evidence');
   }
 });
 

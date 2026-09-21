@@ -1,14 +1,14 @@
 import {createTourUI,needsTourToolpath} from './tour-ui.mjs';
-import { advancePlayback, frameAtTime, displayPoint, exportMovie } from './playback.mjs';
-import { createProjection } from './camera.mjs';
-import { buildToolpathView, toolpathFrame, toolpathPresentation, toolpathStyle, createLayerFade, layerKey, remainingLayerMs, layerIndexAt, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
-import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
-import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
+import { advancePlayback, exportMovie } from './playback.mjs';
+import { createLayerFade, layerEndSeconds, stepLayerIndex, TOOLPATH_COLORS } from './toolpath-view.mjs';
 import {hasSkill,regionRows,recipeRows,robotRows,materialGrams,claddingPatternName,claddingSubstrateName,nextExportName} from './settings.mjs';
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
-import {transform,untransform,machineFitBounds,boundsCorners,drawMachineCanvas,machinePalette} from './machine-view.mjs';
-import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
-import {planProgramPresentation,planRefreshNavigation} from './refresh-plan.mjs';
+import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
+import {point,invert} from '../core/machine/rigid.mjs';
+import {createViewerRenderer} from './viewer-renderer.mjs';
+import {planRefreshNavigation} from './refresh-plan.mjs';
+import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
+import {studioControls} from './studio-controls.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
@@ -25,22 +25,13 @@ function initializeAgentInterface(){return createAgentUI({onActivity:active=>tou
 },onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));},getStage:()=>tab});}
 let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,generating=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
-let polygons=[],drag=null,moved=false;
+let drag=null,moved=false;
 let pan=[0,0];
-let redrawFrame=0;
 // View bursts go to the server for agents; failures never reach the person.
-let lastWheel=0,lastMaterialStats=null;
 // Material detail drops while the view moves and the measured frame cost is
 // high; one full-detail frame follows when motion stops.
 // ?motion-quality=N pins a level, still frames included, to inspect or time it.
 const pinnedQuality=/^[0-2]$/.test(new URLSearchParams(location.search).get('motion-quality')??'')?Number(new URLSearchParams(location.search).get('motion-quality')):null;
-let motionQuality=null,lastMotion=0,lastMovingFrame=0,redrawRequested=0,settleTimer=0;
-const viewPerformance=createViewPerformance({report:burst=>void fetch('/api/view-performance',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(burst)}).catch(()=>{}),
-  context:()=>({tab,view:cameras.mode,solid:tab==='toolpath'&&!!materialScene&&!!materialRenderer,moves:state?.program?.moves.length??0,
-    canvasCss:[canvas.clientWidth,canvas.clientHeight],devicePixelRatio:+(devicePixelRatio||1).toFixed(3),userAgent:navigator.userAgent,renderer:materialRenderer?.renderer??null,material:tab==='toolpath'?lastMaterialStats:null})});
-let pathView,meshView;
-let geometryScene,geometryRenderer,geometryProject,geometryError='';
-let materialScene,materialRenderer,materialError='';
 const layerFade=createLayerFade();
 let movieController=null,movieUrl=null;
 let machineSession=null,playbackEpoch=0,requestingPose=null;
@@ -48,6 +39,10 @@ let playbackCache=null,stalePresentation=null;
 let exportNameState=null;
 let manualValues=null,manualJog=null,manualDescriptor=null;
 const cameras=machineCameras();
+const viewer=createViewerRenderer({canvas,pinnedQuality,reportPerformance:burst=>void fetch('/api/view-performance',{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify(burst)}).catch(()=>{})});
+const phaseSwatches={planar:{name:'Body · Sky blue',color:TOOLPATH_COLORS.skyBlue},'vase-wall':{name:'Vase substrate · Orange',color:TOOLPATH_COLORS.orange},
+  'cladding-axial':{name:'Axial · Teal',color:TOOLPATH_COLORS.teal},'cladding-hoop':{name:'Circumferential · Orange',color:TOOLPATH_COLORS.orange},
+  'cladding-helix-forward':{name:'Helix A · Teal',color:TOOLPATH_COLORS.teal},'cladding-helix-reverse':{name:'Helix B · Orange',color:TOOLPATH_COLORS.orange}};
 const cameraState=()=>({yaw,tilt,zoom,pan:[...pan],fitBounds});
 function useCamera(c){if(c)({yaw,tilt,zoom,pan,fitBounds}=c);}
 function machineSample(t=seconds){return machineSession?.current(t,{manual:manualValues,jog:manualJog})??null;}
@@ -130,14 +125,14 @@ function restoreView(){
 function connectViewPersistence(){window.addEventListener('pagehide',saveView);}
 connectViewPersistence();
 function requestDraw(){
-  if(!redrawFrame){redrawRequested=performance.now();redrawFrame=requestAnimationFrame(()=>{redrawFrame=0;draw();});}
+  viewer.requestDraw(readViewerSnapshot,applyViewerAnnotations);
 }
 function clearProgramView(){
   playbackCache=null;stalePresentation=null;
   clearManual();
   if(cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));
   cameras.reset();
-  pathView=null;materialScene=null;materialRenderer?.dispose();materialRenderer=null;
+  viewer.clearProgram();
   machineSession?.dispose();machineSession=null;
 }
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
@@ -148,8 +143,8 @@ const generationPending=()=>generating||agentUI.generating()||(!state?.program&&
 // The toolpath pane never goes empty. Without a current program it shows a faded
 // placeholder — the previous toolpath when one is retained, otherwise the part
 // being sliced — through first generation, regeneration, reload and failure.
-const toolpathPlaceholder=()=>tab==='toolpath'&&!state?.program;
 const showingGeometry=()=>tab!=='toolpath'||!presentedState()?.program;
+const toolpathPlaceholder=()=>tab==='toolpath'&&!state?.program;
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
@@ -285,7 +280,7 @@ const views={
   }
 };
 const view=()=>views.shell;
-const label=id=>{const edge=geometryScene?.edgeFeatures.get(id);return edge?edge.names.map(label).join(' / ')+' · edge '+edge.number:view().names[id]??id.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());};
+const label=id=>{const edge=viewer.sceneState().edge(id);return edge?edge.names.map(label).join(' / ')+' · edge '+edge.number:view().names[id]??id.replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());};
 
 // Part bounds come from the display proxy both packages write, so the camera
 // and the bed grid do not need to know which shape produced them.
@@ -309,7 +304,7 @@ function partBounds() {
 
 async function api(route,data) {
   const target=(route==='generate'||route==='tour'&&data?.action!=='finish'&&(data?.step??state?.tour?.step)>=L.playback)
-    ?{printId:state?.printId,planHash:route==='generate'?data?.planHash:null}:null;
+    ?{printId:state?.printId,generationHash:route==='generate'?data?.generationHash:null}:null;
   if(target)generationTarget=target;
   try{
     const response=await fetch('/api/'+route,{method:'POST',headers:{'Content-Type':'application/json','X-SAAM-Token':token},body:JSON.stringify({...data,printId:state?.printId})});
@@ -323,8 +318,8 @@ async function pollPreparation(){
   try{
     const response=await fetch('/api/preparation');if(!response.ok)return;
     const job=await response.json();
-    if(generationTarget!==target||job.printId!==target.printId||target.planHash&&job.planHash!==target.planHash)return;
-    target.planHash??=job.planHash;$('#cancel-generation').hidden=!job.cancellable;
+    if(generationTarget!==target||job.printId!==target.printId||target.generationHash&&job.generationHash!==target.generationHash)return;
+    target.generationHash??=job.generationHash;$('#cancel-generation').hidden=!job.cancellable;
     if(job.progress&&['preparing','generating','importing'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
@@ -333,44 +328,37 @@ startPreparationPolling();
 $('#cancel-generation').onclick=async()=>{
   const target=generationTarget;if(!target)return;
   $('#cancel-generation').disabled=true;
-  try{const result=await(await api('cancel-generation',{planHash:target.planHash})).json();
+  try{const result=await(await api('cancel-generation',{generationHash:target.generationHash})).json();
     if(result.cancelled){if(state)state.generationCancelled=true;message('Toolpath calculation cancelled.');}
     else if(result.committing)message('The calculation finished; saving its checked file.');
   }catch(error){message(error.message,true);}finally{$('#cancel-generation').disabled=false;}
 };
 async function refresh(follow=false,reopen=false) {
   const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
-  const next=await response.json(),loaded=state?.printId===next.printId?state:null,previous=!reopen?loaded:null;
-  agentUI.received(next.work);
-  if(!previous||previous.revision!==next.revision||previous.exportHash!==next.exportHash)clearManual();
-  if(next.program){
-    // Rebind serializable metadata before attaching the proxy-backed move store.
-    if(playbackCache?.printId===next.printId&&playbackCache.exportHash===next.exportHash&&playbackCache.planHash===next.planHash){await machineSession?.bind(next);next.program=playbackCache.program;}
-    else try{
-      const decoded=await decodeInWorker(next);
-      next.program={...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}};
-    }catch(error){next.programError=error.message;delete next.program;next.toolpathApproved=false;}
-  }
-  state=next;
+  const fetched=await response.json(),loaded=state?.printId===fetched.printId?state:null,previous=!reopen?loaded:null;
+  agentUI.received(fetched.work);
+  const presentationChanged=!previous||previous.generationHash!==fetched.generationHash||previous.exportHash!==fetched.exportHash
+    ||previous.geometry.geometryVersion!==fetched.geometry.geometryVersion;
+  if(presentationChanged)clearManual();
+  const scenes=viewer.sceneState();
+  const adopted=await prepareStudioState(fetched,{previous,follow,stalePresentation,playbackCache,
+    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,
+    // Serializable metadata is bound before the proxy-backed cached move store is adopted.
+    bind:bindCachedProgram});
+  state=adopted.state;
   // Metadata can change while the exact same source/move buffers are reused.
   $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
-  $('#skin-label').textContent=view().skinLabel;
   document.title='SAAM Studio · '+state.printName;
   $('#open-print').title='Open print: '+state.printName;
   // Geometry keys off the previously loaded state's version (null on a print
   // switch), not a value stored on geometryScene, so a different print always
   // rebuilds even when the two share a geometryVersion counter.
-  if(!geometryScene||loaded?.geometry.geometryVersion!==state.geometry.geometryVersion){
-    geometryScene=buildGeometryView(state.geometry,35,state.tourExample?.id==='surface-drape'?['top']:[]);meshView=geometryScene.topology;
-    try{geometryRenderer??=createGeometryRenderer();geometryError=geometryRenderer?'':'Shading needs WebGL2; showing flat surfaces.';}
-    catch(error){geometryError='Shading unavailable: '+error.message;}
-  }
-  const programPlan=planProgramPresentation(next,{previous,follow,stalePresentation,playbackCache,
-    pathMoves:pathView?.moves,materialMoves:materialScene?.moves});
-  const presentation=await applyProgramPresentation(programPlan,next);
-  layerFade.reset();
-  const navigation=planRefreshNavigation(previous,next,{follow,tab,seconds,duration:presentation.duration,selected,
-    hasSelectedEdge:geometryScene.edgeFeatures.has(selected),tourInitialTab:!previous&&next.tourExample?tourUI?.initialTab():undefined});
+  if(!viewer.sceneState().hasGeometry||!loaded||loaded.geometry.geometryVersion!==state.geometry.geometryVersion)
+    viewer.publishGeometry({geometry:state.geometry,featureEdges:state.tourExample?.id==='surface-drape'?['top']:[]});
+  const presentation=await applyProgramPresentation(adopted.presentation,state);state=presentation.state;
+  if(presentationChanged)layerFade.reset();
+  const navigation=planRefreshNavigation(previous,state,{follow,tab,seconds,duration:presentation.duration,selected,
+    hasSelectedEdge:viewer.sceneState().hasSelectedEdge(selected),tourInitialTab:!previous&&state.tourExample?tourUI?.initialTab():undefined});
   applyRefreshNavigation(navigation);
   machineColors=machineTheme();
   if(machineSession?.scene){
@@ -382,26 +370,20 @@ async function refresh(follow=false,reopen=false) {
   await acknowledgeDisplayedView();
   if(needsTourToolpath(state)){
     activity('Preparing your toolpath…');
-    try{await api('generate',{development:false,planHash:state.planHash});return refresh(follow);}
+    try{await api('generate',{development:false,generationHash:state.generationHash});return refresh(follow);}
     catch(error){state.generationError=error.message;message(error.message,true);render();}
   }
 }
 async function applyProgramPresentation(decision,next){
   if(decision.action==='clear')clearProgramView();
   else stalePresentation=decision.stalePresentation;
-  if(decision.buildPath)pathView=buildToolpathView(next.program.moves);
-  if(decision.action!=='clear')playbackCache=decision.playbackCache;
-  if(decision.buildMaterial){
-    materialError='';
-    try{
-      materialRenderer??=createMaterialRenderer();
-      if(materialRenderer&&next.program.previewMaterial){materialScene={...next.program.previewMaterial,moves:next.program.moves,plan:next.plan,geometry:next.geometry};delete next.program.previewMaterial;}
-      else if(materialRenderer)materialScene=await buildMaterialScene(next.program.moves,next.plan,next.geometry,
-        {onProgress:progress=>activity('Preparing material view…',progress)});
-      else materialError='3D material rendering needs WebGL2. Showing toolpath lines.';
-    }catch(error){materialScene=null;materialError='Material view unavailable: '+error.message+' Showing toolpath lines.';}
-  }
-  return {duration:duration()};
+  let publication=null;
+  if(decision.buildPath||decision.buildMaterial){
+    publication=await viewer.publishProgram({moves:next.program.moves,plan:next.plan,geometry:next.geometry,previewMaterial:next.program.previewMaterial,
+      buildPath:decision.buildPath,buildMaterial:decision.buildMaterial,onProgress:progress=>activity('Preparing material view…',progress)});}
+  const state=publication?.previewMaterialConsumed?withoutPreviewMaterial(next):next;
+  if(decision.action!=='clear')playbackCache=publication?.previewMaterialConsumed?{...decision.playbackCache,program:state.program}:decision.playbackCache;
+  return {duration:duration(),state};
 }
 function applyRefreshNavigation(decision){
   if(decision.resetExport){stop();seconds=decision.seconds;if(cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));cameras.reset();fitBounds=null;}
@@ -433,19 +415,32 @@ async function decodeInWorker(snapshot){
   return machineSession.load({printId:snapshot.printId,revision:snapshot.revision,exportHash:snapshot.exportHash,
     plan:snapshot.plan,machine:snapshot.machine,program:{sources:snapshot.program.sources}});
 }
+function bindCachedProgram(snapshot){return machineSession?.bind(snapshot);}
 function table(entries) {
   const dl=document.createElement('dl');
   for(const [key,value]of entries){const row=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value;row.append(dt,dd);dl.append(row);}
   return dl;
 }
+function selectStudioPresentation(state,tab,{facts,settings}){
+  const inspection=state.inspection;
+  if(inspection)return {stage:'DEVELOPMENT INSPECTION',title:inspection.title,guidance:inspection.description,
+    facts:inspection.facts,settings:inspection.settings,reviewNote:inspection.note};
+  const title=state.tourExample?state.printName+(tab==='toolpath'?' · toolpath':''):{geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
+  const guidance={geometry:'Check the shape and dimensions.',toolpath:'Inspect the full toolpath before exporting.'}[tab];
+  const reviewNote=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program
+    ?'Generate the toolpath to review it with all printing settings.'
+    :state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
+  return {stage:null,title,guidance,facts:facts(),settings:settings(),reviewNote};
+}
 function render() {
+  const presentation=selectStudioPresentation(state,tab,{facts:()=>view().facts(state,tab),
+    settings:()=>[...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]});
   $('#repair-review').hidden=tab!=='geometry'||!state.importRepair;
   $('#repair-summary').textContent=state.importRepair??'';
-  $('#stage-label').hidden=!state.inspection;
-  $('#view-title').textContent={geometry:'Your geometry',toolpath:'Your toolpath'}[tab];
-  $('#guidance').textContent={geometry:'Check the shape and dimensions.',toolpath:'Inspect the full toolpath before exporting.'}[tab];
-  $('#guidance').hidden=!$('#guidance').textContent;
-  $('#facts').replaceChildren(table(view().facts(state,tab)));
+  $('#stage-label').textContent=presentation.stage??'';$('#stage-label').hidden=!presentation.stage;
+  $('#view-title').textContent=presentation.title;
+  $('#guidance').textContent=presentation.guidance;$('#guidance').hidden=!presentation.guidance;
+  $('#facts').replaceChildren(table(presentation.facts));
   $('#more-settings').hidden=tab!=='toolpath';
   $('#print-setup').hidden=tab!=='toolpath';
   $('#print-setup-values').textContent=state.machine.name+' · '+state.plan.setup.material;
@@ -454,15 +449,15 @@ function render() {
   else if(!exportNameState.dirty&&exportNameState.suggested!==suggestedName)Object.assign(exportNameState,{suggested:suggestedName,value:suggestedName});
   const exportNameInput=$('#export-name');
   if(document.activeElement!==exportNameInput)exportNameInput.value=exportNameState.value;
-  exportNameInput.disabled=busy;$('#export-name-row').hidden=tab!=='toolpath'||!state.program||Boolean(state.inspection);
-  $('#settings-detail').replaceChildren(table([...view().facts(state,'plan'),...machineSettings(state,view().settings(state)),...recipeRows(state.plan,state.machine)]));
+  $('#settings-detail').replaceChildren(table(presentation.settings));
   $('#planar-label').textContent=hasSkill(state.plan,'line-network')?'Line networks':hasSkill(state.plan,'pipe-cladding')?'Body':'Flat layers';
   $('.dot.planar').style.background=TOOLPATH_COLORS.skyBlue;
+  const pathView=viewer.sceneState().pathView;
   const samples=$('#axial-colors');samples.replaceChildren();samples.hidden=!hasSkill(state.plan,'pipe-cladding')||!pathView;
   const sampledPhases=new Set();
   if(!samples.hidden)for(const [index,group] of pathView.groups.entries()){
     const move=pathView.moves[group.first];
-    const swatch={planar:{name:'Body · Sky blue',color:TOOLPATH_COLORS.skyBlue},'vase-wall':{name:'Vase substrate · Orange',color:TOOLPATH_COLORS.orange},'cladding-axial':{name:'Axial · Teal',color:TOOLPATH_COLORS.teal},'cladding-hoop':{name:'Circumferential · Orange',color:TOOLPATH_COLORS.orange},'cladding-helix-forward':{name:'Helix A · Teal',color:TOOLPATH_COLORS.teal},'cladding-helix-reverse':{name:'Helix B · Orange',color:TOOLPATH_COLORS.orange}}[move.phase];
+    const swatch=phaseSwatches[move.phase];
     if(!swatch||sampledPhases.has(move.phase))continue;
     sampledPhases.add(move.phase);
     const button=document.createElement('button'),dot=document.createElement('span');
@@ -479,44 +474,26 @@ function render() {
     samples.append(button);
   }
   $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
-  // The toolpath pane is worth showing whenever it can render something — the
-  // current program, or the faded previous one while its replacement computes.
-  const toolpathViewable=Boolean(state.program||stalePresentation?.program)||generationPending();
-  // Advancing to the toolpath no longer confirms geometry (that gate is gone), so
-  // the geometry action is a plain Next; the tour keeps its own lesson wording.
-  $('#confirm').disabled=busy&&!(generating&&toolpathViewable);
-  $('#confirm').textContent=tab==='geometry'?(tourUI?.active()?(state.program&&!state.programError&&state.review.generation?.mode==='production'?'View toolpath':'Generate toolpath'):'Next'):!state.program||state.programError||state.review.generation?.mode!=='production'?'Generate toolpath':state.toolpathApproved?(exportedThisSession.has(exportKey())?'Export again':'Export print file'):'Confirm settings & export';
-  if($('#reviewed-download'))$('#reviewed-download').hidden=$('#reviewed-download').dataset.exportKey!==exportKey();
-  $('#review-note').textContent=state.outputAvailability??(tab==='toolpath'?(state.generationError??state.programError??(!state.program?'Generate the toolpath to review it with all printing settings.':state.program.notice??state.program.envelope?.notice??'Review the settings and full toolpath together before exporting.')):'');
-  $('#playback').hidden=tab!=='toolpath'||!state.program;
-  $('#play').disabled=busy||!state.program||Boolean(state.programError);
-  $('#selection').hidden=tab==='toolpath';
-  canvas.setAttribute('aria-label',tab==='toolpath'?(state.program?'Toolpath viewer. Previous layer opacity is adjustable. Drag or use arrow keys to rotate; scroll to zoom.'
-    :stalePresentation?.program?'Previous toolpath shown while its replacement is prepared.':'Part geometry shown while its toolpath is prepared.'):'Part viewer. Drag or use arrow keys to rotate; scroll to zoom; click a surface or edge to see its name.');
-  canvas.classList.toggle('stale-toolpath',toolpathPlaceholder());
+  const reviewed=$('#reviewed-download'),controls=studioControls(state,{tab,busy,generating,pending:generationPending(),staleProgram:Boolean(stalePresentation?.program),
+    tourActive:Boolean(tourUI?.active()),exported:exportedThisSession.has(exportKey()),currentExportKey:exportKey(),inspection:state.inspection,
+    machineView:cameras.mode==='machine',reviewedExportKey:reviewed?.dataset.exportKey});
+  exportNameInput.disabled=controls.exportName.disabled;$('#export-name-row').hidden=controls.exportName.hidden;
+  $('#confirm').disabled=controls.confirm.disabled;$('#confirm').textContent=controls.confirm.label;$('#confirm').hidden=controls.confirm.hidden;
+  $('#confirm').setAttribute('aria-disabled',controls.confirm['aria-disabled']);
+  if(reviewed)reviewed.hidden=controls.reviewedDownload.hidden;
+  $('#review-note').textContent=presentation.reviewNote;
+  $('#playback').hidden=controls.playback.hidden;$('#play').disabled=controls.playback.playDisabled;
+  $('#selection').hidden=controls.selection.hidden;
+  canvas.setAttribute('aria-label',controls.canvas.label);canvas.classList.toggle('stale-toolpath',controls.canvas.stale);
   $('#scrub').max=duration();$('#scrub').value=seconds;
   $('#rotary-view').hidden=!machineSession?.scene&&!state.plan.setup.denso;
-  $('#fit-program').hidden=cameras.mode==='machine';
+  $('#fit-program').hidden=controls.fitProgram.hidden;
   updateMachineStatus();
   // Keep the tabs live during a toolpath generation: the geometry pane stays
   // reachable (and crisp), and the toolpath pane stays reachable whenever its
   // faded preview is available, so navigating between them never cancels work.
-  $$('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',b.dataset.tab==='toolpath'&&state.toolpathApproved);b.disabled=(busy&&!generating)||b.dataset.tab==='toolpath'&&!toolpathViewable;});
-  // Explicit local scratch adapters can describe historical paths without
-  // assigning them a current skill or presenting manufacturing approval controls.
-  $('#confirm').hidden=Boolean(state.inspection);
-  if(state.tourExample)$('#view-title').textContent=state.printName+(tab==='toolpath'?' · toolpath':'');
+  $$('[data-tab]').forEach(b=>{const policy=controls.tabs[b.dataset.tab];b.classList.toggle('active',b.dataset.tab===tab);b.classList.toggle('done',Boolean(policy.done));b.disabled=policy.disabled;});
   tourUI?.render(state);
-  if(state.inspection){
-    const inspection=state.inspection;
-    $('#stage-label').textContent='DEVELOPMENT INSPECTION';
-    $('#view-title').textContent=inspection.title;
-    $('#guidance').textContent=inspection.description;
-    $('#guidance').hidden=!inspection.description;
-    $('#facts').replaceChildren(table(inspection.facts));
-    $('#settings-detail').replaceChildren(table(inspection.settings));
-    $('#review-note').textContent=inspection.note;
-  }
   // The active-work fade is pane-specific, so re-evaluate it on every render in
   // case the tab changed without new agent activity arriving.
   agentUI.reflectFade();
@@ -525,137 +502,34 @@ function render() {
 function selectFeature(id){selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
 function setTab(next){if(!state)return;clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));tab=next;stop();layerFade.reset();render();}
 
-function draw({target=canvas,width=canvas.clientWidth,height=canvas.clientHeight,ratio=devicePixelRatio||1,
-  position=seconds,now=performance.now(),fadeState=layerFade,updateUI=true,
-  playbackSpeed=playing?Number($('#playback-speed').value):0,machineState=machineDisplay(position)}={}) {
-  const ctx=target.getContext('2d'),seconds=position,drawStart=performance.now(),moving=playing||drawStart-lastMotion<250;let materialMs=0,materialStats=null,quality=0;
-  function segment(a,b,color,width=1){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
-  if(updateUI&&redrawFrame){cancelAnimationFrame(redrawFrame);redrawFrame=0;}
-  if(!state)return;
-  const shown=tab==='toolpath'?(presentedState()??state):state;
-  if(updateUI){if(!playing&&!movieController)requestMachinePose();updateMachineStatus();}
-  if(target.width!==Math.round(width*ratio)||target.height!==Math.round(height*ratio)){target.width=Math.round(width*ratio);target.height=Math.round(height*ratio);}
-  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.globalAlpha=1;
-  // Paint the CSS ellipse into the pixels too: movies have no CSS background.
-  ctx.save();ctx.translate(width/2,height/2);ctx.scale(width/Math.SQRT2,height/Math.SQRT2);
-  const background=ctx.createRadialGradient(0,0,0,0,0,1);background.addColorStop(0,'#f8faf1');background.addColorStop(1,'#eaf0e0');
-  ctx.fillStyle=background;ctx.fillRect(-1,-1,2,2);ctx.restore();
-  const bounds=partBounds(),skinPhase=view().skinPhase;
-  const project=createProjection(tab==='toolpath'&&fitBounds?fitBounds:bounds,width,height,yaw,tilt,zoom,pan,tab==='toolpath'&&cameras.mode==='machine');
-  const referenceProject=tab==='toolpath'&&machineState?.pose&&!$('#follow-plate').checked?p=>{
-    const {xMm,yMm}=shown.plan.placement,q=transform(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);
-    return project([q[0]-xMm,q[1]-yMm,q[2]]);
-  }:project;
-  const previousLayerOpacity=Number($('#previous-layer-opacity').value)/100;
-  const strokeScale={lineWidthMm:shown.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity};
-  ctx.globalAlpha=1;
-  for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
-  for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
-  ctx.globalAlpha=1;
-  if(updateUI)polygons=[];
-  if(showingGeometry()) {
-    geometryProject=project;
-    if(geometryRenderer){
-      try{
-        const options={project,width,height,ratio,color:TOOLPATH_COLORS.skyBlue,selected};
-        // Project the actual silhouette onto the bed, retaining openings.
-        geometryRenderer.draw(geometryScene,{...options,shadow:true});
-        ctx.save();ctx.globalAlpha=.16;ctx.filter='blur(6px)';ctx.drawImage(geometryRenderer.canvas,0,0,width,height);ctx.restore();
-        geometryRenderer.draw(geometryScene,options);ctx.drawImage(geometryRenderer.canvas,0,0,width,height);
-      }catch(error){geometryError=error.message;geometryRenderer.dispose();geometryRenderer=null;}
-    }
-    if(!geometryRenderer){
-      const pts=state.geometry.vertices.map(project);
-      polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],edges:meshView.edgeMasks[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
-      for(const polygon of polygons){
-        ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
-        ctx.fillStyle=polygon.id===selected?'#83b5d6':TOOLPATH_COLORS.skyBlue;ctx.fill();
-        for(let i=0;i<polygon.points.length;i++)if(polygon.edges[i])segment(polygon.points[i],polygon.points[(i+1)%polygon.points.length],'#5c879e',.6);
-      }
-    }
-    if(!geometryRenderer&&geometryScene.edgeFeatures.has(selected))for(const [a,b]of visibleGeometryEdgeSegments(geometryScene,project,selected))segment(a,b,'#eb591f',3);
-    if(updateUI)$('#selection').textContent=selected?label(selected):geometryError||'Click a surface or edge to see its name';
-  }
-  if(tab==='toolpath'&&shown.program) {
-    const moves=shown.program.moves,at=frameAtTime(moves,seconds),count=at.completed,placement=shown.plan.placement,showTravel=$('#travel').checked;
-    if(updateUI)$('#layer-label').textContent='Layer '+(layerIndexAt(pathView,seconds)+1)+'/'+pathView.groups.length;
-    const center=shown.plan.setup.denso?.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0;
-    const machine=machineState?.pose,follow=$('#follow-plate').checked;
-    const local=p=>{const q=machine?(follow?p:transform(machine.part,p)):displayPoint(p,angle,center,!shown.plan.setup.denso||follow);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
-    if(shown.plan.setup.denso&&!machine?.hasBed){
-      const radius=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1])*.65;
-      let prior=null;
-      for(let i=0;i<=80;i++){const a=i*Math.PI/40,q=project(local([center[0]+radius*Math.cos(a),center[1]+radius*Math.sin(a),center[2]]));if(prior)segment(prior,q,'#718d91',1);prior=q;}
-      segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);
-    }
-    const solidView=!!materialScene&&!!materialRenderer;
-    if(solidView)motionQuality??=createMotionQuality();
-    quality=updateUI&&solidView?pinnedQuality??(moving?motionQuality.level:0):0;
-    const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
-    if(machine&&!solidView)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameras.mode,palette:machineColors,filter:c=>c.role!=='tool'});
-    const detail=!solidView||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
-    if(updateUI)$('#viewer-detail').textContent=solidView
-      ?(materialScene.unsupported.length?'Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':'')
-      :materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
-    const {displayed,current,currentLayer}=toolpathPresentation(moves,at,detail);
-    const fade=fadeState.frame(currentLayer,now,remainingLayerMs(pathView,at.active,seconds,playbackSpeed)),styles=new Map();
-    if(solidView){
-      try{
-        const materialStart=performance.now();
-        materialStats=materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,skinPhase,previousLayerOpacity,machine,machineMode:cameras.mode,machinePalette:machineColors,quality});
-        ctx.drawImage(materialRenderer.canvas,0,0,width,height);materialMs=performance.now()-materialStart;
-      }catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;requestDraw();}
-    }
-    // Draw the active layer last so older geometry cannot obscure it.
-    for(const active of [false,true])for(const edge of displayed) {
-      if(solidView&&edge.move.extruding&&materialScene?.supported[edge.first])continue;
-      const key=layerKey(edge.move),styleKey=key+':'+!!edge.move.extruding;
-      let style=styles.get(styleKey);
-      if(!style){style=toolpathStyle(edge.move,currentLayer,skinPhase,fade.weights.get(key)??0,strokeScale);styles.set(styleKey,style);}
-      if(style.active!==active)continue;
-      ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);
-    }
-    ctx.globalAlpha=1;
-    // Finish an outgoing fade even when playback is paused at the boundary.
-    // Stationary injection has duration and volume but no line segment. Show
-    // its source-decoded location without inventing a simulated filled rivet.
-    for(const event of shown.program.events??[])if(event.kind==='injection'&&seconds>=event.startSeconds){
-      const p=project(local(event.positionMm)),active=seconds<event.startSeconds+event.seconds;
-      ctx.beginPath();ctx.arc(p[0],p[1],active?7:4,0,Math.PI*2);ctx.strokeStyle='#b85c28';ctx.lineWidth=2;ctx.stroke();
-      if(active){ctx.fillStyle='#b85c28';ctx.font='12px Segoe UI';ctx.fillText(`Injecting ${event.volumeMm3.toFixed(2)} mm³ · ${event.nozzleC}°C`,p[0]+11,p[1]-8);}
-    }
-    if(updateUI&&fade.fading&&!playing)requestDraw();
-    if(current&&at.fraction<1&&(current.extruding||showTravel)&&!(solidView&&materialScene?.supported[at.active])){
-      const style=toolpathStyle(current,current,skinPhase,undefined,strokeScale);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);
-    }
-    if(machine&&!solidView)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameras.mode,palette:machineColors,filter:c=>c.role==='tool'});
-    if(at.point&&!manualValues){const axis=at.toolAxis??[0,0,-1],p=project(local(at.point)),q=project(local(at.point.map((v,i)=>v-axis[i]*6)));if(!machine?.hasTool)segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],machine?.hasTool?2:3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();
-      if(updateUI)$('#time-label').textContent=clock(seconds)+' / '+clock(duration());
-    }
-  }
-  const projectedOrigin=referenceProject([0,0,0]),origin=tab==='toolpath'?projectedOrigin:[width-48,height-42];
-  ctx.globalAlpha=tab==='toolpath'?1:.65;
-  ctx.font='10px Segoe UI';
-  for(const [point,name,color] of [[[5,0,0],'X','#b26751'],[[0,5,0],'Y','#659a7a'],[[0,0,5],'Z','#638599']]){
-    const p=referenceProject(point),end=tab==='toolpath'?p:[origin[0]+(p[0]-projectedOrigin[0])*5/project.pixelsPerMm,origin[1]+(p[1]-projectedOrigin[1])*5/project.pixelsPerMm];segment(origin,end,color,tab==='toolpath'?1.5:1);
-    if(Math.hypot(end[0]-origin[0],end[1]-origin[1])>1){ctx.fillStyle=color;ctx.fillText(name,end[0]+4,end[1]-4);}
-  }
-  ctx.globalAlpha=1;
-  ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
-  if(updateUI){
-    const end=performance.now();if(materialStats)lastMaterialStats=materialStats;
-    viewPerformance.frame(drag?(drag.pan?'pan':'orbit'):playing?'playback':end-lastWheel<200?'zoom':null,{start:drawStart,drawMs:end-drawStart,materialMs,quality});
-    if(moving&&motionQuality&&tab==='toolpath'){
-      // Playback is paced by its own frame loop; input-driven redraws are
-      // measured from the request so a slow hand is not read as a slow frame.
-      const cost=playing?(drawStart-lastMovingFrame<1000?drawStart-lastMovingFrame:end-drawStart):end-(redrawRequested||drawStart);
-      motionQuality.sample(cost);lastMovingFrame=drawStart;
-      if(quality>0&&pinnedQuality===null){clearTimeout(settleTimer);settleTimer=setTimeout(requestDraw,260);}
-    }
-    redrawRequested=0;
-  }
+function readViewerSnapshot(options={}) {
+  if(!state)return {state:null,target:options.target??canvas,updateUI:options.updateUI??true};
+  const position=options.position??seconds,updateUI=options.updateUI??true,shown=tab==='toolpath'?(presentedState()??state):state;
+  return {target:options.target??canvas,width:options.width??canvas.clientWidth,height:options.height??canvas.clientHeight,
+    ratio:options.ratio??(devicePixelRatio||1),position,frameNow:options.now??performance.now(),fadeState:options.fadeState??layerFade,updateUI,
+    playbackSpeed:options.playbackSpeed??(playing?Number($('#playback-speed').value):0),machineState:options.machineState??machineDisplay(position),
+    state,shown,tab,selected,selectionLabel:selected?label(selected):'',showGeometry:showingGeometry(),
+    camera:{yaw,tilt,zoom,pan:[...pan],fitBounds},bounds:partBounds(),skinPhase:view().skinPhase,cameraMode:cameras.mode,machineColors,
+    settings:{showTravel:$('#travel').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
+    playing,manualPose:Boolean(manualValues),duration:duration(),interaction:drag?(drag.pan?'pan':'orbit'):null,
+    performanceContext:{tab,view:cameras.mode,solid:tab==='toolpath'&&viewer.sceneState().solid,moves:state?.program?.moves.length??0,canvasCss:[canvas.clientWidth,canvas.clientHeight],
+      devicePixelRatio:+(devicePixelRatio||1).toFixed(3),userAgent:navigator.userAgent}};
 }
-
+function applyViewerAnnotations(annotations) {
+  if(!state)return;
+  if(!playing&&!movieController)requestMachinePose();
+  updateMachineStatus();
+  if(annotations.selectionText!==null)$('#selection').textContent=annotations.selectionText;
+  if(annotations.layerText!==null)$('#layer-label').textContent=annotations.layerText;
+  if(annotations.detailText!==null)$('#viewer-detail').textContent=annotations.detailText;
+  if(annotations.timeText!==null)$('#time-label').textContent=annotations.timeText;
+  if(annotations.fadeContinuation||annotations.redraw)requestDraw();
+}
+function draw(options={}) {
+  const snapshot=readViewerSnapshot(options),annotations=viewer.draw(snapshot);
+  if(snapshot.updateUI)applyViewerAnnotations(annotations);
+  return annotations;
+}
 function planCanvasDrag(current,point){
   const dx=point.x-current.drag.x,dy=point.y-current.drag.y;
   return {drag:{...current.drag,x:point.x,y:point.y},
@@ -670,7 +544,7 @@ function readCanvasDrag(){
 function applyCanvasDrag(next){
   drag.x=next.drag.x;drag.y=next.drag.y;moved=next.moved;
   pan[0]=next.pan[0];pan[1]=next.pan[1];yaw=next.yaw;tilt=next.tilt;
-  lastMotion=performance.now();requestDraw();
+  viewer.noteMotion(drag.pan?'pan':'orbit');requestDraw();
 }
 function beginCanvasDrag(e){
   if(e.button>2)return;
@@ -684,8 +558,8 @@ function moveCanvasDrag(e){
   applyCanvasDrag(next);
 }
 function endCanvasDrag(e){
-  const select=drag&&!drag.pan&&!moved;drag=null;viewPerformance.flush();
-  if(select&&tab!=='toolpath'&&geometryProject){const rect=canvas.getBoundingClientRect();selectFeature(pickGeometry(geometryScene,geometryProject,e.clientX-rect.left,e.clientY-rect.top,{edges:true}));}
+  const select=drag&&!drag.pan&&!moved;drag=null;viewer.flushPerformance();
+  if(select&&tab!=='toolpath'){const rect=canvas.getBoundingClientRect();selectFeature(viewer.pick({x:e.clientX-rect.left,y:e.clientY-rect.top}));}
 }
 function cancelCanvasDrag(){drag=null;}
 function suppressCanvasContextMenu(e){e.preventDefault();}
@@ -695,15 +569,15 @@ function connectCanvasPointerEvents(){
   canvas.oncontextmenu=suppressCanvasContextMenu;
 }
 connectCanvasPointerEvents();
-canvas.addEventListener('wheel',e=>{e.preventDefault();lastWheel=lastMotion=performance.now();zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
-canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();lastMotion=performance.now();requestDraw();};
+canvas.addEventListener('wheel',e=>{e.preventDefault();viewer.noteMotion('zoom');zoom=Math.max(.08,Math.min(4,zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
+canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')yaw-=.1;else if(e.key==='ArrowRight')yaw+=.1;else if(e.key==='ArrowUp')tilt-=.1;else tilt+=.1;}e.preventDefault();viewer.noteMotion(e.shiftKey?'pan':'orbit');requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
 $$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){yaw=-.78;tilt=.62;}if(mode==='side'){yaw=0;tilt=0;}if(mode==='top'){yaw=0;tilt=Math.PI/2;}requestDraw();});
-function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?untransform(pose.part,p):p;return [q[0]-plan.placement.xMm,q[1]-plan.placement.yMm,q[2]];}
+function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??state).plan,q=$('#follow-plate').checked&&pose?point(invert(pose.part),p):p;return [q[0]-plan.placement.xMm,q[1]-plan.placement.yMm,q[2]];}
 function fitMachine(){return machineSession?.scene?machineFitBounds(machineSession.scene,machineSample()?.pose,p=>worldToDisplay(p)):null;}
 function fitDisplayedPart(bounds=partBounds()){
   const pose=machineSample()?.pose;if(!pose||$('#follow-plate').checked)return null;
-  const {xMm,yMm}=(presentedState()??state).plan.placement,points=boundsCorners(bounds).map(p=>worldToDisplay(transform(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
+  const {xMm,yMm}=(presentedState()??state).plan.placement,points=boundsCorners(bounds).map(p=>worldToDisplay(point(pose.part,[p[0]+xMm,p[1]+yMm,p[2]]),pose));
   return {min:[0,1,2].map(i=>Math.min(...points.map(p=>p[i]))),max:[0,1,2].map(i=>Math.max(...points.map(p=>p[i])))};
 }
 $('#machine-view').onchange=()=>{
@@ -781,7 +655,8 @@ async function openPrint(path){
   if(busy)return;
   saveView();
   $('#picker-message').textContent='';$('#print-picker').close();
-  try{await working('Opening and checking your saved print…',async()=>{await api('open',{path});await tourUI?.load();await refresh(false,true);message('');});}
+  const loadSavedPrint=async()=>{await api('open',{path});await tourUI?.load();await refresh(false,true);message('');};
+  try{await working('Opening and checking your saved print…',loadSavedPrint);}
   catch(error){message(error.message,true);$('#picker-message').textContent=error.message;$('#print-picker').showModal();}
 }
 $('#open-print').onclick=async()=>{
@@ -801,7 +676,7 @@ $('#stl-file').onchange=async()=>{
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
     const query=new URLSearchParams({name:file.name,printId:state.printId});
-    const target={printId:state.printId,planHash:null};generationTarget=target;
+    const target={printId:state.printId,generationHash:null};generationTarget=target;
     let response;
     try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}
     finally{if(generationTarget===target)generationTarget=null;}
@@ -817,6 +692,7 @@ $('#previous-layer-opacity').oninput=()=>{$('#previous-layer-opacity-label').val
 $('#manual-reset').onclick=()=>{clearManual();requestDraw();};
 $('#scrub').oninput=()=>{clearManual();stop();layerFade.reset();seconds=Number($('#scrub').value);requestDraw();};
 function stepLayer(direction){
+  const pathView=viewer.sceneState().pathView;
   if(busy||!pathView||!pathView.groups.length)return;
   clearManual();stop();layerFade.reset();
   seconds=layerEndSeconds(pathView,stepLayerIndex(pathView,seconds,direction));
@@ -866,6 +742,7 @@ async function animate(now){
 }
 async function poll(){
   if(polling||busy)return;polling=true;
+  const refreshUpdatedPrint=()=>refresh(true);
   try{
     const response=await fetch('/api/revision?'+new URLSearchParams({fingerprint:state?.fingerprint??''}));if(!response.ok)throw new Error('Reconnecting to your print…');
     const next=await response.json();if(movieController||busy)return;
@@ -873,15 +750,12 @@ async function poll(){
     // viewer connection instead of repeatedly posting with the previous token.
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
-    if(state&&!reconnecting&&next.reviewUpdate&&next.presentationFingerprint===state.presentationFingerprint){
-      Object.assign(state,next.reviewUpdate,{fingerprint:next.fingerprint,tour:next.tour});render();
-    }
-    else if(!state||reconnecting||next.fingerprint!==state.fingerprint||needsTourToolpath(state))await working('Loading and checking the updated print…',()=>refresh(true));
-    else if(next.tour&&JSON.stringify(next.tour)!==JSON.stringify(state.tour)){
-      // Lesson gates, guidance and start-layer choices do not change the source.
-      // Updating them must not stop playback, fade the preview or rebuild scenes.
-      state.tour=next.tour;render();
-    }
+    const tourChanged=Boolean(next.tour&&JSON.stringify(next.tour)!==JSON.stringify(state?.tour));
+    const metadataOnly=Boolean(state&&!reconnecting&&next.presentationFingerprint===state.presentationFingerprint
+      &&(next.fingerprint!==state.fingerprint||tourChanged));
+    if(metadataOnly)await refreshUpdatedPrint();
+    else if(!state||reconnecting||next.fingerprint!==state.fingerprint||tourChanged||needsTourToolpath(state))
+      await working('Loading and checking the updated print…',refreshUpdatedPrint);
     reconnecting=false;
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
@@ -917,9 +791,10 @@ function connectStudioUpdates(){
   document.addEventListener('visibilitychange',studioVisible);
   return setInterval(poll,15_000);
 }
-function disposeStudioSession(){machineSession?.dispose();}
+function disposeStudioSession(){machineSession?.dispose();viewer.dispose();}
 function restoreStudioSession(event){
-  if(event.persisted)working('Restoring your print…',()=>refresh(false,true)).catch(error=>message(error.message,true));
+  const reloadRestoredPrint=()=>refresh(false,true);
+  if(event.persisted)working('Restoring your print…',reloadRestoredPrint).catch(error=>message(error.message,true));
 }
 function connectStudioSession(){
   window.addEventListener('pagehide',disposeStudioSession);

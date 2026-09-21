@@ -7,6 +7,7 @@ import {once} from 'node:events';
 import {createTour,tourExample,referenceAdapter} from '../../studio/tour.mjs';
 import {surfaceDrapePlan} from '../../examples/prints/surface-drape/recipe.mjs';
 import {adjustBundle,loadBundle,generateBundle,approve} from '../print/bundle.mjs';
+import * as shellAdapter from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 async function library(t){const dir=await mkdtemp(join(tmpdir(),'saam-tour-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:100}));return dir;}
@@ -17,6 +18,24 @@ async function ready(tour,dir){
   return tour.acknowledgeView(dir,{revision:state.revision,exportHash:state.exportHash,stage},state);
 }
 async function editFin(copy){const {plan}=await loadBundle(copy,{program:false});plan.geometry.parts[1].geometry.heightMm+=1;await adjustBundle(copy,{geometry:plan.geometry});}
+
+test('tour reference adapter has the complete shell surface and explicit guarded delegates',async t=>{
+  const root=await library(t),tour=createTour(root),{directory}=await tour.action('fresh'),calls=[];
+  const live={...shellAdapter,
+    async approve(...args){calls.push(['approve',...args]);return 'approved';},
+    async generateBundle(...args){calls.push(['generateBundle',...args]);return 'generated';},
+    async deliver(...args){calls.push(['deliver',...args]);return 'delivered';}
+  },adapter=referenceAdapter(live);
+  assert.deepEqual(Object.keys(adapter),Object.keys(shellAdapter));
+  for(const name of Object.keys(shellAdapter).filter(name=>!['approve','bundleFingerprint','bundleFingerprints','deliver','generateBundle','loadBundle'].includes(name)))
+    assert.strictEqual(adapter[name],live[name],name);
+  assert.equal(adapter.approve.length,1);assert.equal(adapter.generateBundle.length,1);assert.equal(adapter.deliver.length,1);
+  await assert.rejects(adapter.approve(directory,{actor:'Reviewer'},'extra'),/Exit the tour/);
+  await assert.rejects(adapter.deliver(directory,'extra'),/Exit the tour/);
+  assert.deepEqual(calls,[]);
+  assert.equal(await adapter.generateBundle(directory,{development:true},'extra'),'generated');
+  assert.deepEqual(calls,[['generateBundle',directory,{development:true},'extra']]);
+});
 
 test('lesson changes invalidate teaching while an individual edit cancellation leaves the tour active',async t=>{
   const root=await library(t),tour=createTour(root),requests=createAgentRequests(root);
@@ -197,7 +216,7 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal(state.toolpathApproved,false);
   assert.equal(state.tour.step,3,'selection advances straight to the optional import lesson');
   const preparation=await(await fetch(url+'/api/preparation')).json();
-  assert.equal(preparation.planHash,state.planHash);assert.ok(['preparing','ready'].includes(preparation.status));
+  assert.equal(preparation.generationHash,state.generationHash);assert.ok(['preparing','ready'].includes(preparation.status));
   assert.ok(preparation.progress.stage,'step 4 starts preparation while geometry remains visible');
   assert.equal((await post('tour',{action:'step',step:4,revision:state.revision,geometryHash:state.geometryHash})).status,200);
   state=await(await fetch(url+'/api/state')).json();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
@@ -206,7 +225,7 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal(metadata.fingerprint,state.fingerprint,'start-layer metadata does not invalidate source or scenes');
   assert.equal(metadata.tour.startAt.layer,8);
   assert.equal(state.toolpathApproved,false,'preparation does not confirm the final settings');
-  assert.equal((await post('generate',{planHash:'stale',development:false})).status,400);
+  assert.equal((await post('generate',{generationHash:'stale',development:false})).status,400);
   assert.equal((await post('tour',{action:'step',step:5})).status,400);
   assert.equal((await post('approve',{actor:'SYNTHETIC tour test',revision:state.revision})).status,400,'tour export remains the toolpath approval action');
   assert.equal((await post('tour',{action:'exit'})).status,200);

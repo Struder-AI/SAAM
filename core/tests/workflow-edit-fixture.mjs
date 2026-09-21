@@ -18,7 +18,7 @@ export async function editFixture(factory=createBundleWorkflow){
   plan.geometry={shape:'fixture',width:2,height:3};
   plan.process.pattern={motif:'plain',density:1};
   await api.initBundle(directory,plan);
-  const review={schema:'saam-review/1',approvals:{toolpath:{hash:'synthetic'}},history:[{event:'synthetic-review'}],generation:{planHash:'synthetic'}};
+  const review={schema:'saam-review/1',approvals:{toolpath:{hash:'synthetic'}},history:[{event:'synthetic-review'}],generation:{generationHash:'synthetic'}};
   await writeFile(join(directory,'review.json'),JSON.stringify(review));
   const state=await api.loadBundle(directory,{program:false});events.length=0;
   return {directory,api,state,events,adapter,read:name=>readFile(join(directory,name),'utf8'),

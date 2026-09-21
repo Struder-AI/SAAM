@@ -239,10 +239,10 @@
             "core/geom/mesh.mjs::createMeshSectionQuery::trianglesAt",
             "core/geom/mesh.mjs::createMeshSectionQuery::trianglesAt::visit",
             "core/geom/mesh.mjs::createMeshSectionQuery::contoursAt",
-            "core/geom/mesh.mjs::createMeshSectionQuery::<return@172:10>",
+            "core/geom/mesh.mjs::createMeshSectionQuery::sectionAt",
             "core/geom/mesh.mjs::sectionMesh",
-            "core/geom/mesh.mjs::sectionMesh::<callable@176:25>",
-            "core/geom/mesh.mjs::sectionMesh::<callable@176:78>",
+            "core/geom/mesh.mjs::sectionMesh::nearVertex",
+            "core/geom/mesh.mjs::sectionMesh::trianglesAt",
             "core/geom/mesh.mjs::meshContourEdges",
             "core/geom/mesh.mjs::cutMesh",
             "core/geom/mesh.mjs::meshTopAt"
@@ -253,11 +253,10 @@
           "label": "triangleIntersection",
           "members": [
             "core/geom/mesh.mjs::sub",
-            "core/geom/mesh.mjs::cross",
             "core/geom/mesh.mjs::dot",
             "core/geom/mesh.mjs::edgeKey",
             "core/geom/mesh.mjs::rejectIntersections",
-            "core/geom/mesh.mjs::rejectIntersections::<callable@90:24>",
+            "core/geom/mesh.mjs::rejectIntersections::inspectCandidate",
             "core/geom/mesh.mjs::separatedTriangles",
             "core/geom/mesh.mjs::separatedTriangles::normal"
           ]
@@ -276,7 +275,7 @@
             "core/geom/shell.mjs::shellBounds",
             "core/geom/shell.mjs::boundaryCurve",
             "core/geom/shell.mjs::boundaryCurve::at",
-            "core/geom/shell.mjs::boundaryCurve::<return@56:10>",
+            "core/geom/shell.mjs::boundaryCurve::pointAt",
             "core/geom/shell.mjs::verifyClosure",
             "core/geom/shell.mjs::endpointsMatch",
             "core/geom/shell.mjs::sameCurve",
@@ -313,10 +312,7 @@
             "core/geom/section.mjs::edgesSimple",
             "core/geom/section.mjs::cellCounts",
             "core/geom/section.mjs::spanIndexOf",
-            "core/geom/section.mjs::cellSegments",
-            "core/geom/section.mjs::cellSegments::<callable@154:9>",
-            "core/geom/section.mjs::cellSegments::<callable@155:9>",
-            "core/geom/section.mjs::cellSegments::<callable@156:24>"
+            "core/geom/section.mjs::cellSegments"
           ]
         },
         {
@@ -330,8 +326,7 @@
             "core/geom/section.mjs::refine",
             "core/geom/section.mjs::withPoint",
             "core/geom/section.mjs::split",
-            "core/geom/section.mjs::contourPointNear",
-            "core/geom/section.mjs::contourPointNear::<callable@252:26>"
+            "core/geom/section.mjs::contourPointNear"
           ]
         }
       ]
@@ -344,9 +339,9 @@
           "label": "facetedShells",
           "members": [
             "core/geom/shapes.mjs::boxShell",
-            "core/geom/shapes.mjs::boxShell::<callable@32:70>",
+            "core/geom/shapes.mjs::boxShell::heightAt",
             "core/geom/shapes.mjs::wedgeShell",
-            "core/geom/shapes.mjs::wedgeShell::<callable@38:82>",
+            "core/geom/shapes.mjs::wedgeShell::heightAt",
             "core/geom/shapes.mjs::prismShell"
           ]
         },

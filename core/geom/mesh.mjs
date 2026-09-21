@@ -1,5 +1,5 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
-import { requireThat } from './tolerance.mjs';
+import { requireThat, cross } from './tolerance.mjs';
 import { orientLoops } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
@@ -8,7 +8,6 @@ import {meshTopology,meshEdgeMap} from './mesh-topology.mjs';
 import {triangleBVH} from './triangle-bvh.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
-const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const dot = (a,b) => a.reduce((s,v,i)=>s+v*b[i],0);
 const edgeKey = (a,b) => a<b ? `${a}:${b}` : `${b}:${a}`;
 
@@ -87,10 +86,11 @@ function retainValidatedMesh(identity,derived){
 function rejectIntersections(vertices,triangles,normals){
   const tree=triangleBVH(vertices,triangles);
   for(let i=0;i<triangles.length;i++){const ta=triangles[i],pa=ta.map(v=>vertices[v]),min=[0,1,2].map(k=>Math.min(pa[0][k],pa[1][k],pa[2][k])),max=[0,1,2].map(k=>Math.max(pa[0][k],pa[1][k],pa[2][k]));
-    tree.query(min,max,j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
+    const inspectCandidate=j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
       const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-1e-9||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+1e-9))return;
       if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
-    });
+    };
+    tree.query(min,max,inspectCandidate);
   }
 }
 
@@ -125,10 +125,14 @@ export function translateMesh(mesh,dx,dy,dz=0) {
 // A Z-bound hierarchy stores each triangle once, including tall triangles that
 // would occupy many bins in a uniform layer index.
 export function createMeshSectionQuery(mesh) {
-  const heights=mesh.vertices.map(p=>p[2]).sort((a,b)=>a-b);
-  const ranges=mesh.triangles.map((t,i)=>({i,
-    min:Math.min(...t.map(v=>mesh.vertices[v][2])),
-    max:Math.max(...t.map(v=>mesh.vertices[v][2]))}));
+  // A prepared query owns the geometry behind its indices. Public meshes remain
+  // mutable, but later caller edits cannot mix changed faces with this tree.
+  const fixedMesh={vertices:mesh.vertices.map(p=>[...p]),triangles:mesh.triangles.map(t=>[...t]),
+    bounds:{min:[...mesh.bounds.min],max:[...mesh.bounds.max]}};
+  const heights=fixedMesh.vertices.map(p=>p[2]).sort((a,b)=>a-b);
+  const ranges=fixedMesh.triangles.map((t,i)=>({i,
+    min:Math.min(...t.map(v=>fixedMesh.vertices[v][2])),
+    max:Math.max(...t.map(v=>fixedMesh.vertices[v][2]))}));
   function build(items) {
     let min=Infinity,max=-Infinity;
     for(const item of items){min=Math.min(min,item.min);max=Math.max(max,item.max);}
@@ -153,7 +157,7 @@ export function createMeshSectionQuery(mesh) {
     }
     visit(tree);
     // Preserve the original edge overwrite and contour traversal order exactly.
-    return found.sort((a,b)=>a-b).map(i=>mesh.triangles[i]);
+    return found.sort((a,b)=>a-b).map(i=>fixedMesh.triangles[i]);
   };
   // Between consecutive vertex heights the intersected edges and their
   // connectivity are fixed. Reuse that topology, not sampled coordinates.
@@ -163,17 +167,20 @@ export function createMeshSectionQuery(mesh) {
     let lo=0,hi=heights.length;
     while(lo<hi){const mid=(lo+hi)>>1;if(heights[mid]<cut)lo=mid+1;else hi=mid;}
     if(!bands.has(lo)){
-      const contours=meshContourEdges(mesh,cut,trianglesAt(cut));
+      const contours=meshContourEdges(fixedMesh,cut,trianglesAt(cut));
       if(bands.size>=8)bands.delete(bands.keys().next().value);
       bands.set(lo,contours);
     }
     return bands.get(lo);
   };
-  return z=>cutMesh(mesh,z,nearVertex,trianglesAt,contoursAt);
+  const sectionAt=z=>cutMesh(fixedMesh,z,nearVertex,trianglesAt,contoursAt);
+  return sectionAt;
 }
 
 export function sectionMesh(mesh,z) {
-  return cutMesh(mesh,z,cut=>mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10),()=>mesh.triangles);
+  const nearVertex=cut=>mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10);
+  const trianglesAt=()=>mesh.triangles;
+  return cutMesh(mesh,z,nearVertex,trianglesAt);
 }
 
 function meshContourEdges(mesh,cut,triangles){

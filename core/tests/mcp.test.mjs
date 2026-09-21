@@ -7,7 +7,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { bundleFor } from '../../studio/server.mjs';
+import { bundleFor } from '../../studio/adapter-resolution.mjs';
 import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';

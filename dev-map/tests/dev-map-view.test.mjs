@@ -2,7 +2,7 @@
 // page that exists, a breadcrumb that reaches 0, and a page that says so when its source moved.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile,readdir} from 'node:fs/promises';
+import {mkdtemp,rm,readFile,writeFile,readdir,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 import {createContext,runInContext} from 'node:vm';
@@ -33,10 +33,11 @@ export function main(input){
 }
 `};
 
-const built=async(t,source=sources)=>{
+const built=async(t,source=sources,flows=null)=>{
   const repo=await mkdtemp(resolve(tmpdir(),'saam-view-'));
   t.after(()=>rm(repo,{recursive:true,force:true}));
   const held={...source},read=file=>held[file];
+  if(flows){await mkdir(resolve(repo,'dev-map'));await writeFile(resolve(repo,'dev-map/flows.json'),JSON.stringify({schema:1,flows}));}
   await generate({repo,files:Object.keys(held),readSource:read});
   const out=resolve(repo,'out');
   const result=await buildGeneratedView({repo,out,readSource:read});
@@ -50,6 +51,40 @@ const drawings=async out=>{
   }
   return pages;
 };
+
+test('region drawings expose diagnostic totals and links to affected immediate groups',async t=>{
+  const fixture=await built(t,{'core/example.mjs':`export function work(x){return x;} export function main(input){input.work(input);return missing(input.secret+1);}`},
+    [{path:'core',groups:[{id:'work',members:['core/example.mjs::main']}]}]);
+  const {pages}=await viewModel({repo:fixture.repo,readSource:fixture.read});
+  const region=pages.find(p=>p.kind==='region'),group=region.components.find(c=>c.kind==='group');
+  const svg=(await drawings(fixture.out)).get(region.index);
+  for(const category of ['uncertainty','unresolved']) {
+    const summary=region[`${category}Summary`];
+    assert.ok(summary?.count>0,`${category}: ${JSON.stringify(region)}`);
+    assert.ok(svg.includes(`${category} (${summary.count})`));
+    for(const source of summary.sources){
+      assert.ok(svg.includes(`${source.index} · ${source.count}`));
+      assert.deepEqual(Object.keys(source),['index','count']);
+    }
+  }
+  assert.ok(svg.includes(`data-go="${group.index}"`));
+  assert.ok(!svg.includes('input.secret+1'));
+});
+
+test('closure capture diagnostics draw every binding with the original finding count',async t=>{
+  const fixture=await built(t,{'core/state.mjs':`export function factory(){let alpha=0,beta=0,gamma=0;function write(){alpha++;beta++;gamma++;}function read(){return [alpha,beta,gamma];}return {write,read};}`});
+  const {pages}=await viewModel({repo:fixture.repo,readSource:fixture.read}),page=pages.find(p=>p.path==='core/state.mjs::factory');
+  const captureGroups=page.uncertainty.filter(u=>u.kind==='closure-capture'&&u.bindings);
+  assert.equal(captureGroups.length,2);
+  const count=page.uncertainty.reduce((sum,u)=>sum+(u.count??1),0),svg=(await drawings(fixture.out)).get(page.index);
+  assert.ok(svg.includes(`uncertainty (${count})`));
+  assert.ok(svg.includes('read-write: alpha, beta, gamma'));
+  assert.ok(svg.includes('read: alpha, beta, gamma'));
+  for(const label of ['write','read']){
+    const closure=pages.find(p=>p.path===`core/state.mjs::factory::${label}`);
+    assert.ok(svg.includes(`closure-capture ${closure.index}`));
+  }
+});
 
 test('repeated stages draw separate instances that open the same source declaration',async t=>{
   const {out,repo,read}=await built(t,{'core/stages.mjs':'export const move=x=>x; export function main(input){const up=move(input),across=move(up),down=move(across);return down;}'});
@@ -466,6 +501,29 @@ export const outside=x=>main(x);`});
   assert.ok(!svg.includes(`class="fm-go fm-caller-reference" data-go="${first.index}"`));
   const html=await readFile(resolve(fixture.out,'index.html'),'utf8');
   assert.ok(!html.includes('JSON.stringify(value,null,2)'),'source pane does not append raw metadata');
+});
+
+test('busy component callers draw one canonical summary and its code pane retains linked full evidence',async t=>{
+  const callers=Array.from({length:6},(_,i)=>`export const caller${i}=x=>leaf(x);`).join('\n');
+  const fixture=await built(t,{'core/many-callers.mjs':`export const leaf=x=>x;\n${callers}\nexport function main(x){return x?leaf(x):x;}`});
+  const {pages}=await stored(fixture.repo),byName=name=>[...pages.values()].find(p=>p.path===`core/many-callers.mjs::${name}`);
+  const main=byName('main'),leaf=byName('leaf');
+  const svg=(await drawings(fixture.out)).get(main.index);
+  assert.ok(svg.includes(`6 callers → ${leaf.index}`));
+  assert.equal((svg.match(/class="fm-go fm-caller-reference"/g)||[]).length,1);
+  assert.ok(svg.includes(`data-go="${leaf.index}"`));
+  const html=await readFile(resolve(fixture.out,'index.html'),'utf8');
+  assert.ok(html.includes('callerEvidence(page)'));
+  assert.ok(html.includes("e.target.closest('#codepane [data-go]')"));
+  const meta=await pageIndex(fixture.out);
+  assert.equal(meta[leaf.index].metadata.calledFrom.length,7);
+  assert.ok(meta[leaf.index].metadata.calledFrom.every(row=>row.index&&meta[row.index]));
+  const app=viewerRuntime(html,fixture.held,'#'+main.index);
+  app.click({dataset:{go:leaf.index},closest(selector){return selector==='[data-go]'?this:null;}});
+  const pane=app.elements.get('codepane');
+  assert.ok(pane.classList.contains('on'));
+  assert.ok(pane.innerHTML.includes('called from · 7'));
+  for(const row of meta[leaf.index].metadata.calledFrom)assert.ok(pane.innerHTML.includes(`data-go="${row.index}"`));
 });
 
 test('on-page call evidence draws red connecting arrows and a port for the page owner',async t=>{

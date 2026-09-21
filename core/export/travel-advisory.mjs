@@ -43,6 +43,5 @@ export function shortTravelAdvisory(moves) {
 }
 
 export function withTravelAdvisory(program){
-  program.summary={...program.summary,shortTravel:shortTravelAdvisory(program.moves)};
-  return program;
+  return {...program,summary:{...program.summary,shortTravel:shortTravelAdvisory(program.moves)}};
 }

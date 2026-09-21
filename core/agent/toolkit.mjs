@@ -138,7 +138,7 @@ function printSummary(state, {includeGeometry = false, programChecked = true} = 
     machineConfiguration: state.machineConfiguration ?? null, limitations: state.limitations};
 }
 async function readPrint(directory, options = {}) {
-  const {bundleFor, readStableBundle} = await import('../../studio/server.mjs');
+  const {bundleFor,readStableBundle} = await import('../../studio/adapter-resolution.mjs');
   const bundle = await bundleFor(directory);
   const {state} = await readStableBundle(bundle, directory, {program: options.programChecked === false ? false : 'source'});
   return printSummary(state, options);
@@ -229,7 +229,7 @@ async function preparePreviewPrint(options,tour){
 }
 
 async function readPreviewPrint(directory){
-  const {bundleFor}=await import('../../studio/server.mjs');
+  const {bundleFor}=await import('../../studio/adapter-resolution.mjs');
   // First-screen startup needs geometry, never slicing or program interpretation.
   const initial=await (await bundleFor(directory)).loadBundle(directory,{program:false});
   return {print:printSummary(initial,{programChecked:false}),sourceUnits:initial.plan.geometry.source};
@@ -358,7 +358,7 @@ export async function beginWork({target, library, instruction, requestId, includ
   try {
     partial.print = await readPrint(directory, {includeGeometry, programChecked:false});
     const {createTour} = await import('../../studio/tour.mjs');
-    const tour = await createTour(libraryRoot).info();
+    const tour = await createTour(libraryRoot,{ownerId,agentRequests:requests}).info();
     partial.tour = tour.directory === directory ? tour : null;
     return partial;
   } catch (error) {
@@ -383,9 +383,8 @@ export async function waitForRequests({library, after = [], waitMs = 25000, clai
   let result;
   if(studio&&!providedRequests){
     const polled=await pollStudio({studio,ownerId,waitMs,instance:studioInstanceId,after});
-    const queued=polled.requests.filter(request=>!after.includes(request.id));
-    const store=claim&&queued.length?createAgentRequests(libraryPath(library),{ownerId}):null;
-    result={requests:store?await Promise.all(queued.map(request=>store.update(request.id,{status:'working'}))):queued,events:polled.events,generation:polled.generation};
+    const store=createAgentRequests(libraryPath(library),{ownerId});
+    result={requests:await store.selectQueued(polled.requests,{after,claim,studioInstanceId}),events:polled.events,generation:polled.generation};
   } else {
     result = await (providedRequests??createAgentRequests(libraryPath(library),{ownerId})).wait({after, waitMs, claim,studioInstanceId});
     if(server)result.generation=[server.generationStatus()].filter(Boolean);

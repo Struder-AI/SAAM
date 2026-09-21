@@ -38,9 +38,9 @@ test('public CLI creates and generates a native-patch wave bundle, MCP reads its
   assert.equal(state.review.generation.mode,'development');
   assert.ok(recipeRows(state.plan).some(([label])=>label.includes('Wave slice')));
   await assert.rejects(deliver(dir),/approval/);
-  const previous=state.planHash;
+  const previous=state.generationHash;
   await adjustBundle(dir,{skills:{'wave-overhangs':{lineSpacingMm:0.25}}});
-  assert.notEqual((await loadBundle(dir,{program:false})).planHash,previous);
+  assert.notEqual((await loadBundle(dir,{program:false})).generationHash,previous);
   const manual=await readGuidance(resolve('.'),'skills/wave-overhangs/SKILL.md');
   assert.ok(JSON.stringify(manual).includes('lineSpacingMm'));
 });

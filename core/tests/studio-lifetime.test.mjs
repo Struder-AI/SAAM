@@ -17,11 +17,13 @@ async function fixture(t,options={}){
   const url=`http://127.0.0.1:${server.address().port}`;
   const html=await(await fetch(url)).text();
   const token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const viewers=new Set();
   async function connect(){
     const controller=new AbortController();t.after(()=>controller.abort());
     const response=await fetch(url+'/api/viewer?token='+token,{signal:controller.signal});
     assert.equal(response.status,200);
-    return ()=>controller.abort();
+    viewers.add(response);
+    return ()=>{viewers.delete(response);controller.abort();};
   }
   return {server,url,token,connect};
 }

@@ -4,6 +4,7 @@ import {structuralOverview} from './overview.mjs';
 import {invocationInstances} from './instances.mjs';
 const referenceFlags = ['unknown', 'positionUnknown', 'executionUnknown', 'possibleTarget', 'usesUnknown',
   'optional', 'omitted', 'defaulted', 'spread', 'rest'];
+const dataPath=/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/;
 function callerReferences(references) {
   return references.map(ref=>{
     const location=ref.index!==undefined&&ref.index!==null&&ref.index!==''?{index:ref.index}:Object.fromEntries(
@@ -13,9 +14,15 @@ function callerReferences(references) {
     return {...location,...flags,...Object.fromEntries(['sites','flagCounts'].filter(key=>ref[key]!==undefined).map(key=>[key,ref[key]]))};
   });
 }
-const callerFields=value=>({...value,
-  ...(value.callerReferences?{callerReferences:callerReferences(value.callerReferences)}:{}),
-  ...(value.calledFrom?{calledFrom:callerReferences(value.calledFrom)}:{})});
+const callerFields=(value,summarize=false)=>{
+  const {callerReferences:storedReferences,...base}=value;
+  const references=storedReferences?callerReferences(storedReferences):null;
+  return {...base,
+    ...(references?(summarize&&references.length>5
+      ? {callerSummary:{count:references.length,index:value.index}}
+      : {callerReferences:references}):{}),
+    ...(value.calledFrom?{calledFrom:callerReferences(value.calledFrom)}:{})};
+};
 function boundaryReferences(references) {
   const callers = new Map();
   for (const ref of references) {
@@ -38,13 +45,71 @@ function boundaryReferences(references) {
       ...Object.fromEntries(Object.keys(flagCounts).map(flag => [flag, true]))};
   });
 }
+function uncertaintyRows(rows) {
+  const grouped=new Map();
+  for(const row of rows) {
+    if(row.kind!=='closure-capture'||!row.closure||!row.binding||!row.access||row.bindings) {
+      grouped.set(Symbol(),[row]);continue;
+    }
+    const {binding,access,...shared}=row;
+    const key=JSON.stringify(Object.fromEntries(Object.entries(shared).sort(([a],[b])=>a.localeCompare(b))));
+    const held=grouped.get(key)??[];held.push(row);grouped.set(key,held);
+  }
+  return [...grouped.values()].map(group=>{
+    if(group.length===1)return group[0];
+    const {binding,access,...shared}=group[0],bindings={};
+    for(const row of group)(bindings[row.access]??=[]).push(row.binding);
+    return {...shared,count:group.length,bindings};
+  });
+}
+function overviewDiagnostics(page) {
+  if(!['region','file','group'].includes(page.kind))return page;
+  const shown={...page};
+  const destinations=new Map();
+  for(const child of page.children??[]) {
+    const path=child.path??child.file;
+    if(path&&child.index!==page.index)destinations.set(path,child.index);
+  }
+  for(const component of page.components??[]) {
+    if(component.index===page.index)continue;
+    const file=component.file??page.file;
+    const path=component.path??(component.label&&file?`${file}::${component.label}`:file);
+    if(path)destinations.set(path,component.index);
+    for(const member of component.members??[])destinations.set(member,component.index);
+  }
+  for(const field of ['uncertainty','unresolved']) {
+    const rows=page[field];
+    if(!rows?.length||page[`${field}Summary`])continue;
+    const sources=new Map(),local=[];
+    for(const row of rows) {
+      const index=destinations.get(row.path)??destinations.get(row.file),count=row.count??1;
+      // Findings without a child destination remain explicit on their owning
+      // page. Never invent a drill-down or conceal local/module evidence.
+      if(!index){local.push(row);continue;}
+      let held=sources.get(index);
+      if(!held){held={index,count:0};sources.set(index,held);}
+      held.count+=count;
+    }
+    if(!sources.size)continue;
+    if(local.length)shown[field]=local;else delete shown[field];
+    shown[`${field}Summary`]={count:[...sources.values()].reduce((n,row)=>n+row.count,0),
+      sources:[...sources.values()],details:page.index};
+  }
+  return shown;
+}
 export function presentationPage(page) {
-  page = invocationInstances(structuralOverview(page));
+  page = overviewDiagnostics(invocationInstances(structuralOverview(page)));
   // Class pages show relationships between members/groups, not execution instances.
   // Multiple underlying member pairs can become the same visible relationship.
-  if(page.kind==='class'&&!page.relationshipSummary) {
+  if((page.kind==='class'||page.stateful)&&!page.relationshipSummary) {
     const grouped=new Map();
     for(const w of page.wires??[]) {
+      // Closure factories contain actual invocations as well as owned-state
+      // relationships. Only the latter can collapse after authored grouping.
+      if(page.kind!=='class'&&(!['state','capture'].includes(w.kind)||w.provenance==='state-thread')) {
+        grouped.set(Symbol(),w);
+        continue;
+      }
       const {edgeId,count,...wire}=w;
       const key=JSON.stringify(wire),held=grouped.get(key);
       if(held)held.count+=count??1;
@@ -55,29 +120,45 @@ export function presentationPage(page) {
   }
   // Module call-site evidence is available in --details; unresolved rows and
   // the external count already summarize it at the same level as declarations.
-  const {moduleCallSites,...visible} = page;
+  const {moduleCallSites,children,files,members,codeTargets,...visible} = page;
+  if(Array.isArray(files))visible.fileCount=files.length;
+  else if(files!==undefined)visible.files=files;
+  // Keep the address of each visible box, without also emitting the inventory
+  // of descendants hidden behind it. Source expansion uses the stored packet.
+  const childByIndex=new Map((children??[]).map(child=>[child.index,child]));
+  for(const field of ['components','regions'])if(visible[field])visible[field]=visible[field].map(item=>{
+    const child=childByIndex.get(item.index);
+    const navigation=Object.fromEntries(['index','path','file','label','lines','nodes','destination']
+      .filter(key=>child?.[key]!==undefined).map(key=>[key,child[key]]));
+    return {...navigation,...item};
+  });
+  if(visible.composition){const {groups,...composition}=visible.composition;visible.composition=composition;}
   // Assertion invocations carry their condition wires on the graph. Predicate
   // text and error prose remain in the rich packet and matching source.
   if (page.requires) visible.requires = page.requires.filter(requirement =>
     !page.components?.some(c => c.shape === 'assertion' && c.index === requirement.index));
   page = callerFields(visible);
   const component = c => {
-    c = callerFields(c);
+    c = callerFields(c,true);
+    // The group's own page owns its membership. An enclosing page needs only
+    // its address, label and count; raw membership remains in --details.
+    if(c.kind==='group'){const {members,files,...group}=c;return group;}
     if (c.captures) c = {...c, captures: c.captures.map(({name,access,reference,valueUnknown,lifetimeUnknown,mutationUnknown}) =>
       ({name,access,...(reference?{reference:true}:{}),...(valueUnknown?{valueUnknown:true}:{}),...(lifetimeUnknown?{lifetimeUnknown:true}:{}),
         ...(mutationUnknown?{mutationUnknown:true}:{})}))};
-    if (c.reference === 'callable' || c.kind === 'group') return c;
+    if (c.reference === 'callable') return c;
     const calls = (page.callBindings ?? []).filter(call => c.id
       ? call.instance === c.id : call.callee === (c.path ?? `${c.file}::${c.label}`));
     return {...c, ...Object.fromEntries(['possibleTarget', 'executionUnknown']
       .filter(key => calls.some(call => call[key])).map(key => [key, true]))};
   };
   const boundary = (port, output = false) => {
-    const {position, pattern, default: fallback, rest, producers, ...shown} = port;
+    const {position, pattern, default: fallback, rest, producers, returnCall, ...shown} = port;
     const directReturn = output && page.callBindings?.some(call => call.result?.kind === 'return' &&
       call.resultUses?.some(use => use.kind === 'return' && use.port === port.port));
-    const returnedCall = directReturn && /^(?:await\s+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\(/.exec(port.name ?? '');
-    if (returnedCall) shown.name = `${returnedCall[1]} result`;
+    const returnedCall=output&&(returnCall??(directReturn?/^(?:await\s+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\(/.exec(port.name??'')?.[1]:null));
+    if (returnedCall) shown.name = `${returnedCall} result`;
+    else if(output&&port.name?.endsWith('…'))shown.name='return value';
     if (output && port.fields) shown.name = `{${[...port.fields, ...(port.spread || port.computedKeys ? ['…'] : [])].join(', ')}}`;
     if (output && (port.kind === 'throw' || port.role === 'throw')) {
       const errorCall = /^(?:new\s+)?([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\(/.exec(port.name ?? '');
@@ -109,14 +190,20 @@ export function presentationPage(page) {
         ...(term.source?{file:term.source.file,line:term.source.line,endLine:term.source.endLine??term.source.line,column:term.source.column}:{})}))}:{})};
   };
   return {...page,
+    ...(page.uncertainty ? {uncertainty: uncertaintyRows(page.uncertainty)} : {}),
     ...(page.components ? {components: page.components.map(component)} : {}),
-    ...(page.children ? {children: page.children.map(callerFields)} : {}),
-    ...(page.regions ? {regions: page.regions.map(callerFields)} : {}),
+    ...(page.regions ? {regions: page.regions.map(region => callerFields(region))} : {}),
     ...(page.inputs ? {inputs: page.inputs.map(port => boundary(port))} : {}),
     ...(page.outputs ? {outputs: page.outputs.map(port => boundary(port, true))} : {}),
     ...(page.operators ? {operators: page.operators.map(operator)} : {}),
-    ...(page.wires ? {wires: page.wires.map(({expression,...wire})=>
-      wire.kind === 'gate' && wire.label && !/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/.test(wire.label)
-        ? {...wire,label:'condition'} : wire)} : {}),
+      ...(page.wires ? {wires: page.wires.map(({expression,...wire})=>{
+        const returned=wire.kind==='return'&&wire.fromPort==='result'
+          ? page.outputs?.find(port=>port.port===wire.to):null;
+        if(returned?.returnCall)return {...wire,label:`${returned.returnCall} result`};
+        if(!wire.label||dataPath.test(wire.label))return wire;
+      if(wire.kind==='gate'||wire.toPort==='control')return {...wire,label:'condition'};
+      if(wire.fromPort==='selected')return {...wire,label:'selected result'};
+      return wire;
+    })} : {}),
     ...(page.gates ? {gates: page.gates.map(gate)} : {})};
 }

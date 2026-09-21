@@ -131,8 +131,8 @@ an empty caller list is not proof that unscanned or dynamic callers do not exist
 Makers need no maps. The [map guide](dev-map/README.md) owns the commands, the
 fields each kind of page carries, and the fact rows.
 
-Indexes are regenerated and may change. Use one for talking about a page — say
-the index and the name, as in `6.3.1 composeResults` — and never write one into
+Indexes are regenerated and may change. Use just the index when talking about
+the current map, as in `6.3.1`, and never use one as a durable reference in
 a document, a comment or code. The declaration path is the durable name.
 
 Map pages carry no prose. What a page cannot say belongs where it is already

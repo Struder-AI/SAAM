@@ -157,6 +157,13 @@ function thrown(n,text) {
   }
   return src(text,n);
 }
+const directReturnCall=n=>{
+  while(['AwaitExpression','ChainExpression'].includes(n?.type))n=n.argument??n.expression;
+  if(n?.type!=='CallExpression')return null;
+  const name=callee=>{if(callee.type==='Identifier')return callee.name;if(callee.type!=='MemberExpression'||callee.computed)return null;
+    const owner=name(callee.object);return owner?`${owner}.${callee.property.name}`:null;};
+  return name(n.callee);
+};
 
 // The `this.` fields a span reads and writes, taken from the span's own AST.
 function thisFields(ast,start,end) {
@@ -1004,8 +1011,6 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       const bodyAlive=statement(n.body,loop);if(bodyAlive&&n.update)evaluate(n.update,loop);
       if(n.type==='DoWhileStatement')evaluate(n.test,loop);
       if([...candidates].some(([b])=>!(loop.get(b)?.length)||loop.get(b).some(p=>p.unknown))) {
-        // A dynamically unknown next value cannot certify feedback. Drop the attempted
-        // iteration projection and reevaluate its local reads with unknown carried bindings.
         operators.splice(beforeOperators);operatorWires.splice(beforeWires);candidates.clear();
         for(const b of changed){loop.set(b,[]);uncertain('loop-data-flow',n,{binding:bindingName.get(b)??b});}
         const alive=statement(n.body,loop);if(alive&&n.update)evaluate(n.update,loop);
@@ -1037,8 +1042,6 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     } else if(n.type==='ReturnStatement'||n.type==='ThrowStatement') {
       evaluate(n.argument,env);return false;
     } else if(n.type==='SwitchStatement'||n.type==='TryStatement') {
-      // Fallthrough and exceptional transfer need a full CFG. Preserve local calls,
-      // but do not certify a reaching value across those control boundaries.
       uncertain(n.type==='SwitchStatement'?'switch-control-flow':'exceptional-control-flow',n);
       const changed=written(n),inner=new Map(env);
       for(const b of changed)inner.set(b,[]);
@@ -1059,7 +1062,6 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   for(const [path,rows] of closureCaptures)for(const row of rows.values())if(row.valueUnknown||row.mutationUnknown)
     uncertain('closure-capture',childFunctions.get(path),{closure:path,binding:row.name,access:row.access,
       ...(row.valueUnknown?{valueUnknown:true}:{}),...(row.lifetimeUnknown?{lifetimeUnknown:true}:{}),...(row.mutationUnknown?{mutationUnknown:true}:{})});
-
   const wires=[],seen=new Set();
   const wire=w=>{if(!w.from||!w.to)return;
     const k=`${w.from}\n${w.to}\n${w.label}\n${w.kind}\n${w.fromPort??''}\n${w.toPort??''}\n${JSON.stringify(w.gate??null)}\n${w.sourceSite?.start??''}:${w.sourceSite?.end??''}\n${w.targetSite?.start??''}:${w.targetSite?.end??''}`;if(seen.has(k))return;seen.add(k);
@@ -1140,6 +1142,25 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   // is written under. Exits that leave the same thing are one port.
   // Exits that leave the same thing under the same test are one port; a second test is a
   // second way out and keeps its own port, so no guard is dropped.
+  const staticObjectKeys=value=>{
+    if(value?.type==='ConditionalExpression'){
+      const left=staticObjectKeys(value.consequent),right=staticObjectKeys(value.alternate);
+      return left&&right?new Set([...left,...right]):null;
+    }
+    if(value?.type!=='ObjectExpression')return null;
+    const keys=new Set();
+    for(const property of value.properties){
+      if(property.type==='SpreadElement'){
+        const nested=staticObjectKeys(property.argument);if(!nested)return null;
+        for(const key of nested)keys.add(key);
+        continue;
+      }
+      const key=!property.computed?property.key.name??property.key.value:property.key.type==='Literal'?property.key.value:null;
+      if(property.type!=='Property'||property.kind!=='init'||key===null||key===undefined)return null;
+      keys.add(String(key));
+    }
+    return keys;
+  };
   const returnValues=(value,prefix='')=>{
     if(value?.type!=='ObjectExpression')return producers(value).map(p=>({...p,...(prefix?{label:prefix,expression:expression(value)}:{})}));
     const fields=new Map(),unknown=[];
@@ -1160,8 +1181,10 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     const k=`${e.kind}\n${e.name}\n${e.gate?.text??''}`;
     (merged.get(k)??merged.set(k,[]).get(k)).push(e);
   }
-  const outputs=[...merged.values()].map((list,i)=>
-    ({port:`out${i+1}`,name:list[0].name,kind:list[0].kind,lines:list.map(e=>e.node.loc.start.line),
+  const outputs=[...merged.values()].map((list,i)=>{
+    const returnCalls=[...new Set(list.map(e=>directReturnCall(e.value)).filter(Boolean))];
+    return ({port:`out${i+1}`,name:list[0].name,kind:list[0].kind,lines:list.map(e=>e.node.loc.start.line),
+      ...(returnCalls.length===1&&list.every(e=>directReturnCall(e.value)===returnCalls[0])?{returnCall:returnCalls[0]}:{}),
       ...(list[0].value?.type==='ObjectExpression'?{
         fields:list[0].value.properties.filter(p=>p.type==='Property'&&!p.computed).map(p=>String(p.key.name??p.key.value)),
         ...(list[0].value.properties.some(p=>p.type==='SpreadElement')?{spread:true}:{}),
@@ -1169,7 +1192,8 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         source:{file:node.file,line:list[0].value.loc.start.line,endLine:list[0].value.loc.end.line}
       }:{}),
       ...(list[0].gate?{gate:guarded(list[0].gate)}:{}),
-      provenance:list[0].kind==='throw'?'ast-throw':'ast-return'}));
+      provenance:list[0].kind==='throw'?'ast-throw':'ast-return'});
+  });
   // Source-order state only reaches an exit that actually names that same receiver.
   threaded.sort((a,b)=>a.start-b.start);
   [...merged.values()].forEach((list,i)=>{for(const e of list) {
@@ -1236,6 +1260,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     ...(gateOf(site)?{gate:gateOf(site)}:{}),
     ...(site.node.optional?{optional:true}:{}),...(site.inner?{executionUnknown:true}:{}),
     ...(site.relation.possible?{possibleTarget:true}:{}),
+    ...(site.relation.selections&&Object.keys(site.relation.selections).length?{selections:{...site.relation.selections}}:{}),
     ...(callableValues(site)?{callable:{...valueDescription(site.node.callee),expression:expression(site.node.callee),
       producers:callableValues(site).filter(p=>p.end).map(p=>({endpoint:p.end,...(p.port?{port:p.port}:{}),
         ...(p.label?{label:p.label}:{}),...(p.site?{site:p.site}:{})}))}}:{}),
@@ -1247,6 +1272,21 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     result:resultAt(site.node),resultUses:[]}))).sort((a,b)=>a.start-b.start||a.callee.localeCompare(b.callee));
   const callBySite=new Map(callBindings.map(call=>[`${call.file}:${call.start}:${call.end}:${call.callee}`,call]));
   const producingCall=p=>p.site&&callBySite.get(`${p.site.file}:${p.site.start}:${p.site.end}:${p.endpoint}`);
+  // Receiver alternatives selected by the same lookup are correlated: a value made by
+  // one choice cannot reach the consumer belonging to a different choice. Separate
+  // lookups have different selection identities and remain conservative.
+  const compatibleSelections=(left,right)=>!left||!right||!Object.keys(left).some(key=>
+    Object.hasOwn(right,key)&&left[key]!==right[key]);
+  for(const use of callBindings)for(const arg of use.arguments)
+    arg.producers=arg.producers.filter(p=>{
+      const producer=producingCall(p);return !producer||compatibleSelections(producer.selections,use.selections);
+    });
+  const compatibleDefUse=w=>{
+    if(w.provenance!=='ast-def-use')return true;
+    const producer=producingCall({endpoint:w.from,site:w.sourceSite});
+    const consumer=producingCall({endpoint:w.to,site:w.targetSite});
+    return !producer||!consumer||compatibleSelections(producer.selections,consumer.selections);
+  };
   for(const use of callBindings)for(const p of use.callable?.producers??[]) {
     const call=producingCall(p);if(!call)continue;
     call.resultUses.push({kind:'callable',callee:use.callee,label:use.callable.expression,
@@ -1282,7 +1322,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     components:drawn,
     callBindings,
     operators:liveOperators.map(({key,...op})=>op),
-    wires:wires.filter(live),
+    wires:wires.filter(w=>live(w)&&compatibleDefUse(w)),
     external:unlinked.filter(u=>u.state==='external'),
     unresolved:unlinked.filter(u=>u.state==='unresolved'),uncertainty};
 }
@@ -1314,7 +1354,7 @@ export function flowPacket(context,target,{evidence=false}={}) {
     ...(repeated.has(w.to)&&w.targetSite?{targetSite:w.targetSite}:{}),
     ...(w.fromPort?{fromPort:w.fromPort}:{}),...(w.toPort?{toPort:w.toPort}:{}),...(w.expression?{expression:w.expression}:{}),
     ...(w.positionUnknown?{positionUnknown:true}:{}),...(w.spread?{spread:true}:{}),
-    ...(['ast-choice','ast-iteration','ast-normal-backedge','ast-invocation','ast-collection','ast-update','ast-closure-value','ast-closure-capture'].includes(w.provenance)?{provenance:w.provenance}:{}),
+    ...(['ast-choice','ast-iteration','ast-normal-backedge','ast-invocation','ast-collection','ast-update','ast-closure-value','ast-closure-capture','ast-closure-binding'].includes(w.provenance)?{provenance:w.provenance}:{}),
     ...(w.gate?{gate:gateIndex(w.gate)}:{}),...(w.provenance==='state-thread'?{provenance:'state-thread',order:'source'}:{})});
   const packet={flow:true,generated:true,index:page.node.handle,path:page.node.path,
     ...(page.stateful?{stateful:true}:{}),

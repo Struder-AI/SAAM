@@ -18,6 +18,24 @@ test('tour UI teaches toolpath changes without suggesting geometry',async()=>{
   assert.doesNotMatch(css,/#tour-next\.tour-choice\{background:/,'Continue retains the primary orange button style');
 });
 
+test('active tour rendering preserves the selected inspection note',async t=>{
+  const saved={document:globalThis.document,setInterval:globalThis.setInterval};
+  t.after(()=>Object.assign(globalThis,saved));
+  const elements=new Map(),inspectionNote='Development inspection only';
+  const element=id=>{
+    if(!elements.has(id))elements.set(id,{textContent:id==='review-note'?inspectionNote:'',parentElement:{dataset:{}},querySelectorAll:()=>[],classList:{add(){},remove(){},toggle(){}}});
+    return elements.get(id);
+  };
+  globalThis.document={getElementById:element,querySelectorAll:()=>[],addEventListener(){}};
+  globalThis.setInterval=()=>0;
+  const state={localPrintDirectory:'part',printId:'part',inspection:{note:inspectionNote},program:{},review:{generation:{mode:'production'}},
+    tour:{active:true,directory:'part',step:TOUR_LESSONS.export,canNext:true,gates:{}}};
+  const ui=createTourUI({state:()=>state,isBusy:()=>false,setTab(){},seek:()=>({layer:1})});
+  ui.render(state);await Promise.resolve();
+  assert.equal(element('review-note').textContent,inspectionNote);
+  assert.equal(element('tour-lesson').hidden,false,'the rest of active tour presentation still renders');
+});
+
 for(const lesson of [4,5,6,7])test('toolpath lesson '+lesson+' never pauses for geometry confirmation',async t=>{
   const saved={document:globalThis.document,setInterval:globalThis.setInterval};
   t.after(()=>Object.assign(globalThis,saved));

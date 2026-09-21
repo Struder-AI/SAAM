@@ -45,7 +45,7 @@ export const help = {
   },
   developmentAreas: Object.keys(developmentAreas),
   notes: ['--area takes a map region path or index (read-map 0 lists them), or one of the areas above.',
-    'Map indexes are regenerated and may change. Say the index and the name when talking about a page; write the declaration path when something must keep pointing at it.',
+    'Map indexes are regenerated and may change. Use just the index when talking about the current map; write the declaration path when something must keep pointing at it.',
     '--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
     'Relaunching a Studio with --agent-owner ID, the agentOwnerId from an earlier studio-ready line, resumes that owner so its in-flight requests stay visible. The relaunch always gets a new Studio instance.',
     '--area and --after may repeat where accepted. Skill manuals are individual follow-up reads.',

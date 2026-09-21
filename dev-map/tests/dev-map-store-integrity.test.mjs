@@ -53,6 +53,44 @@ export function use(value){const bucket=new Bucket();bucket.add(value);return bu
   }
 });
 
+test('same-named instance and static methods keep distinct stored identities, callers and source',async t=>{
+  const file='core/both.mjs',instance=`${file}::Both::ping`,staticPath=`${file}::Both::@static/ping`;
+  const reservedInstance=`${file}::Both::@name/%40static%2Fping`;
+  const f=await fixture(t,{[file]:`export class Both {
+ping(){return 'instance';}
+static ping(){return 'static';}
+'@static/ping'(){return 'quoted instance';}
+instanceCaller(){return this.ping();}
+static staticCaller(){return this.ping();}
+}
+export function use(){const both=new Both();return [both.ping(),Both.ping(),both['@static/ping'](),both.instanceCaller(),Both.staticCaller()];}`});
+  await f.put('dev-map/flows.json',JSON.stringify({schema:1,flows:[{path:`${file}::Both`,groups:[
+    {id:'instance-side',members:[instance]},
+    {id:'static-side',members:[staticPath]}
+  ]}]}));
+  await f.run();
+  const instancePage=await f.page(instance),staticPage=await f.page(staticPath),reservedPage=await f.page(reservedInstance),use=await f.page(`${file}::use`);
+  const instanceCaller=await f.page(`${file}::Both::instanceCaller`),staticCaller=await f.page(`${file}::Both::@static/staticCaller`);
+  assert.notEqual(instancePage.index,staticPage.index);
+  assert.notEqual(reservedPage.index,staticPage.index);
+  assert.match((await readCode(instance,{repo:f.repo})).source,/^\d+\tping\(\)/m);
+  assert.match((await readCode(staticPath,{repo:f.repo})).source,/^\d+\tstatic ping\(\)/m);
+  assert.ok(instancePage.calledFrom.some(r=>r.index===use.index));
+  assert.ok(instancePage.calledFrom.some(r=>r.index===instanceCaller.index));
+  assert.ok(!instancePage.calledFrom.some(r=>r.index===staticCaller.index));
+  assert.ok(staticPage.calledFrom.some(r=>r.index===use.index));
+  assert.ok(staticPage.calledFrom.some(r=>r.index===staticCaller.index));
+  assert.ok(!staticPage.calledFrom.some(r=>r.index===instanceCaller.index));
+  const held=await f.index();
+  assert.equal(held.byPath[instance],instancePage.index);
+  assert.equal(held.byPath[staticPath],staticPage.index);
+  assert.equal(held.byPath[reservedInstance],reservedPage.index);
+  const instanceGroup=await f.page(`${file}::Both::@group/instance-side`),staticGroup=await f.page(`${file}::Both::@group/static-side`);
+  assert.notEqual(instanceGroup.index,staticGroup.index);
+  assert.ok(instanceGroup.components.some(c=>c.index===instancePage.index));
+  assert.ok(staticGroup.components.some(c=>c.index===staticPage.index));
+});
+
 test('an on-page caller of the page owner connects to its boundary instead of an external reference',async t=>{
   const f=await fixture(t,{'core/cycle.mjs':`export const leaf=x=>x;
 export function first(x){return second(x)+leaf(x);}

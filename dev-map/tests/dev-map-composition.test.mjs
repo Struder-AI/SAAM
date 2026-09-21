@@ -15,6 +15,15 @@ const packet={index:'1.1.1',path,file,kind:'function',components:[component('a',
 const config={schema:1,flows:[{path,groups:[{id:'prepare',members:[`${file}::a`,`${file}::b`]}]}]};
 const run=(cfg=config)=>composePages(new Map([[path,packet]]),cfg,{});
 
+test('authored group references cannot bind to anonymous source positions',()=>{
+  const anonymous=`${path}::<return@12:3>`;
+  const anonymousPacket={...packet,components:[{...component('callback','1.1.2'),path:anonymous}]};
+  assert.throws(()=>composePages(new Map([[path,anonymousPacket]]),
+    {schema:1,flows:[{path,groups:[{id:'stage',members:[anonymous]}]}]},{}),/give the stage a code binding name/);
+  assert.throws(()=>composePages(new Map([[anonymous,packet]]),
+    {schema:1,flows:[{path:anonymous,groups:[{id:'stage',members:[`${file}::a`]}]}]},{}),/Source-position composition reference/);
+});
+
 test('grouping preserves canonical declarations, ungrouped nodes, named crossing edges and gates',()=>{
   const result=run(),root=result.pages.get(path),child=[...result.groupPages.values()][0];
   assert.deepEqual(root.components.map(c=>c.index),['1.1.1.0.1','1.1.4']);

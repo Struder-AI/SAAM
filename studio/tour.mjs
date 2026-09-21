@@ -22,14 +22,38 @@ export function referenceAdapter(live){
     const [{source,presentation},example]=await Promise.all([live.bundleFingerprints(directory,options),tourExample(directory)]);
     return {source:source+Boolean(example),presentation};
   };
-  return {...live,bundleFingerprints,async loadBundle(directory,options={}){
-    const example=await tourExample(directory),state=await live.loadBundle(directory,options);
-    return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
-  },async bundleFingerprint(directory,options){return (await bundleFingerprints(directory,options)).source;},
-  ...Object.fromEntries(['approve','generateBundle','deliver'].map(method=>[method,async(directory,...args)=>{
-    if(await tourExample(directory)&&method!=='generateBundle')throw Error('Exit the tour before confirming a real print.');
-    return live[method](directory,...args);
-  }]))};
+  return {
+    EXPORT_NAME:live.EXPORT_NAME,
+    EXPORT_PATH:live.EXPORT_PATH,
+    LIMITATIONS:live.LIMITATIONS,
+    adjustBundle:live.adjustBundle,
+    async approve(directory,...args){
+      if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
+      return live.approve(directory,...args);
+    },
+    async bundleFingerprint(directory,options){return (await bundleFingerprints(directory,options)).source;},
+    bundleFingerprints,
+    changeMachine:live.changeMachine,
+    checkPathBundle:live.checkPathBundle,
+    defaultSetupFile:live.defaultSetupFile,
+    async deliver(directory,...args){
+      if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
+      return live.deliver(directory,...args);
+    },
+    async generateBundle(directory,...args){
+      await tourExample(directory);
+      return live.generateBundle(directory,...args);
+    },
+    initBundle:live.initBundle,
+    async loadBundle(directory,options={}){
+      const example=await tourExample(directory),state=await live.loadBundle(directory,options);
+      return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
+    },
+    proposedPlan:live.proposedPlan,
+    rememberSetup:live.rememberSetup,
+    root:live.root,
+    updatePlan:live.updatePlan
+  };
 }
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
 export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentRequests}={}){

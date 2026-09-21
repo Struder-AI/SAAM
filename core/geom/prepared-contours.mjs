@@ -102,5 +102,5 @@ export function prepareContourFamily({curveAt,startMm,endMm,stepMm,toleranceMm,o
     const at=u=>point(selected,u),breakpoints=()=>nodes??=[...new Set(selected.corners.flatMap(c=>c.breakpoints().map(n=>n.u)))].sort((a,b)=>a-b).map(u=>({u,p:at(u)}));
     return {at,breakpoints,knots:()=>breakpoints().slice(0,-1).map(n=>n.u)};
   }
-  return {at:(u,z,offset=0)=>point(select(z,offset),u),curveAt:preparedCurveAt,report};
+  return {at:(u,z,offset=0)=>point(select(z,offset),u),curveAt:preparedCurveAt,report:()=>({...report})};
 }

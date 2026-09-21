@@ -1,10 +1,9 @@
 // Bounded directional unfolding of a closed contour. Radius and traversal order
 // are retained; weighted isotonic regression regularizes only polar angle.
 // A fixed arc-length quadrature gives section vertex splits no new fit weight.
-import {requireThat} from './tolerance.mjs';
+import {requireThat,distance2} from './tolerance.mjs';
 import {prepareSleeveContact} from './sleeve-contact.mjs';
 const TAU=2*Math.PI;
-const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 
 export function regularizeDirectionalContour(curve,anchor,{toleranceMm,samples=8192,logRadiusSlopeTarget=256}={}){
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isInteger(samples)&&samples>=32,
@@ -27,7 +26,7 @@ function sampleDirectionalContour(curve,samples,toleranceMm){
   for(const {u,p} of curve.breakpoints()){
     const scaled=Math.min(samples,u*samples),i=Math.min(samples-1,Math.floor(scaled)),t=scaled-i;
     const a=points[i],b=points[(i+1)%samples],q=a.map((v,k)=>v+t*(b[k]-v));
-    samplingErrorMm=Math.max(samplingErrorMm,distance(p,q));
+    samplingErrorMm=Math.max(samplingErrorMm,distance2(p,q));
   }
   requireThat(samplingErrorMm<toleranceMm,
     `Directional contour fixed sampling error ${samplingErrorMm.toFixed(6)} mm exceeds detail tolerance ${toleranceMm} mm; increase its fixed sample count.`);
@@ -35,7 +34,7 @@ function sampleDirectionalContour(curve,samples,toleranceMm){
 }
 
 function unwrapDirectionalProfile(points,anchor){
-  const samples=points.length,radii=points.map(p=>distance(p,anchor));
+  const samples=points.length,radii=points.map(p=>distance2(p,anchor));
   requireThat(radii.every(r=>r>1e-8),'Directional contour touches its fitted center.');
   const theta=points.map(p=>Math.atan2(p[1]-anchor[1],p[0]-anchor[0])),angles=[theta[0]];
   let turn=0;
@@ -90,7 +89,7 @@ function fitDirectionalAngles({radii,angles},{prefix,available}){
 function reconstructDirectionalContour(points,radii,adjusted,anchor){
   let angularAdjustmentMm=0,movedVertices=0;
   const loop=points.map((p,i)=>{
-    const q=[anchor[0]+radii[i]*Math.cos(adjusted[i]),anchor[1]+radii[i]*Math.sin(adjusted[i])],d=distance(p,q);
+    const q=[anchor[0]+radii[i]*Math.cos(adjusted[i]),anchor[1]+radii[i]*Math.sin(adjusted[i])],d=distance2(p,q);
     angularAdjustmentMm=Math.max(angularAdjustmentMm,d);if(d>1e-9)movedVertices++;return q;
   });
   return {loop,angularAdjustmentMm,movedVertices};
@@ -119,5 +118,5 @@ export function prepareRegularizedSleeveContact({curveAt,anchorAt,side='inside',
     for(const [key,source] of [['maxSamplingErrorMm','samplingErrorMm'],['maxAngularAdjustmentMm','angularAdjustmentMm'],['maxCorrespondenceErrorMm','correspondenceErrorMm']])report[key]=Math.max(report[key],result.report[source]);
     return [result.loop];
   }});
-  return {at:contact.at,report:()=>({...contact.report,...report})};
+  return {at:contact.at,report:()=>({...contact.report(),...report})};
 }

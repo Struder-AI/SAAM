@@ -25,7 +25,7 @@ export function startupHarness(source,{loadError}={}){
     createTourUI(options){trace.push(['tour-ui']);controls.tour=options;return {load:async()=>{trace.push(['tour-load']);if(loadError)throw Error(loadError);},activity:active=>trace.push(['activity',active])};},
     working(label,action){trace.push(['working',label]);const task=action();pending.push(task.catch(()=>{}));return task;},
     refresh:async(...args)=>{trace.push(['refresh',...args]);},message:(...args)=>trace.push(['message',...args]),
-    saveView:()=>trace.push(['save-view']),machineSession:{dispose:()=>trace.push(['dispose'])},
+    saveView:()=>trace.push(['save-view']),machineSession:{dispose:()=>trace.push(['dispose'])},viewer:{dispose(){}},
     poll:()=>trace.push(['poll']),pollPreparation:()=>trace.push(['poll-preparation']),
     setInterval(fn,ms){trace.push(['interval',ms]);timers.set(++timerId,{fn,ms,interval:true});return timerId;},
     setTimeout(fn,ms){trace.push(['timeout',ms]);timers.set(++timerId,{fn,ms});return timerId;},

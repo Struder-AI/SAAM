@@ -76,11 +76,11 @@ function assertConvex(packet,groups) {
   if(packet.structural||packet.kind==='class')return;
   const expanded=invocationInstances(packet),outgoing=new Map();
   for(const wire of expanded.wires??[]) {
-    // Capturing or passing a function value does not execute that function. These
-    // reference edges can cross closure groups in both directions without creating
-    // execution feedback. Keep them in the composition and its boundary evidence;
-    // only the execution-convexity walk excludes them.
-    if(wire.kind==='capture'||wire.provenance==='ast-closure-value')continue;
+    // Capturing or passing a function value does not execute that function, and a
+    // shared-state dependency does not establish which accessor runs first. These
+    // edges can cross closure groups in both directions without creating execution
+    // feedback. Keep them and their boundary evidence; exclude only from this walk.
+    if(wire.kind==='capture'||wire.kind==='state'||wire.provenance==='ast-closure-value')continue;
     if(!outgoing.has(wire.from))outgoing.set(wire.from,[]);
     outgoing.get(wire.from).push(wire.to);
   }
@@ -104,6 +104,11 @@ export function composePages(pages,config,context) {
   const result=new Map(pages),groupPages=new Map(),seen=new Set();
   for(const spec of config.flows) {
     allowed(spec,['path','groups','source'],'flow');
+    const requireStableReference=ref=>{
+      if(/<(?:callback|callable|return)@\d+:\d+>/.test(ref))
+        throw Error(`Source-position composition reference ${ref}: give the stage a code binding name before authoring its grouping.`);
+    };
+    requireStableReference(spec.path);
     if(seen.has(spec.path))throw Error(`Duplicate composition ${spec.path}.`);seen.add(spec.path);
     const original=pages.get(spec.path);if(!original)throw Error(`Unknown composition page ${spec.path}.`);
     if(!Array.isArray(spec.groups)||!spec.groups.length)throw Error(`Composition ${spec.path} has no groups.`);
@@ -120,6 +125,7 @@ export function composePages(pages,config,context) {
       if(!Array.isArray(g.members)||!g.members.length)throw Error(`Empty group ${g.id}.`);
       const members=[];
       for(const ref of g.members) {
+        requireStableReference(ref);
         const matching=byIdentity.has(ref)?[byIdentity.get(ref)]:packet.components.filter(c=>c.file===ref);
         if(!matching.length)throw Error(`Unknown composition member ${ref} in ${spec.path}.`);
         for(const c of matching) {

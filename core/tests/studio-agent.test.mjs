@@ -8,7 +8,8 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {createAgentRequests} from '../../studio/agent-requests.mjs';
 import {createTour} from '../../studio/tour.mjs';
-import {createStudio,bundleFor,sourceSkewNotice,annotateSourceSkew} from '../../studio/server.mjs';
+import {createStudio,sourceSkewNotice,annotateSourceSkew} from '../../studio/server.mjs';
+import {bundleFor} from '../../studio/adapter-resolution.mjs';
 import {loadBundle,adjustBundle,generateBundle,approve} from '../print/bundle.mjs';
 import {printName,downloadName} from '../../studio/print-name.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
@@ -36,7 +37,7 @@ test('tour geometry recovery preserves the lesson and generates without a geomet
   state=await get();assert.equal(state.toolpathApproved,false);assert.equal(state.tour.step,5);assert.equal(state.localPrintDirectory,directory);
   assert.equal((await post('approve',{actor:'SYNTHETIC',revision:state.revision})).status,400);
   state=await get();assert.equal(state.tour.step,5);assert.equal(state.toolpathApproved,false);
-  const generated=await post('generate',{planHash:state.planHash});assert.equal(generated.status,200,await generated.text());
+  const generated=await post('generate',{generationHash:state.generationHash});assert.equal(generated.status,200,await generated.text());
   state=await get();assert.ok(state.program);assert.equal(state.tour.step,5);assert.equal(state.toolpathApproved,false);
   const displayed=await post('view-ready',{stage:'toolpath',revision:state.revision,exportHash:state.exportHash});
   assert.equal(displayed.status,200);
@@ -152,14 +153,15 @@ test('connection closure is scoped to owned unfinished requests, including claim
 });
 
 test('indicator shows italic-message content only when no overlapping request remains, and times out offline',async()=>{
-  const {agentIndicator}=await import('../../studio/agent-ui.mjs');
+  const {summarizeWork}=await import('../../studio/agent-ui.mjs');
   const working={ownerId:'one',status:'working',updatedAt:1,expiresAt:600001};
-  assert.deepEqual(agentIndicator([working],{now:100}),{active:true,message:''});
-  assert.deepEqual(agentIndicator([working],{now:600002}),{active:false,message:'(lost contact)'});
+  assert.deepEqual(summarizeWork([working],{now:100}),{active:true,message:'',stage:'all'});
+  assert.deepEqual(summarizeWork([working],{now:600002}),{active:false,message:'(lost contact)',stage:null});
   const closedOwners=new Set(['one']);
-  assert.deepEqual(agentIndicator([working],{now:100,closedOwners}),{active:false,message:'(connection closed)'});
-  assert.deepEqual(agentIndicator([working,{...working,ownerId:'two'}],{now:100,closedOwners}),{active:true,message:''});
-  assert.deepEqual(agentIndicator([{...working,status:'failed',connectionClosed:true,updatedAt:2},{...working,status:'completed',updatedAt:3}],{now:100}),{active:false,message:''});
+  assert.deepEqual(summarizeWork([working],{now:100,closedOwners}),{active:false,message:'(connection closed)',stage:null});
+  assert.deepEqual(summarizeWork([working,{...working,ownerId:'two'}],{now:100,closedOwners}),{active:true,message:'',stage:'all'});
+  assert.deepEqual(summarizeWork([{...working,status:'failed',connectionClosed:true,updatedAt:2},{...working,status:'completed',updatedAt:2}],{now:100}),
+    {active:false,message:'',stage:null},'equal timestamps preserve the later record as the latest status');
 });
 
 test('STL units are inferred without a dialog and can be corrected without losing mesh edits',async t=>{
@@ -206,7 +208,7 @@ test('Studio records person-driven actions as owner-scoped events: held ones wai
   const viewer=await fetch(url+'/api/viewer?token='+token),reader=viewer.body.getReader();await reader.read();
   assert.ok(server.studioEvents.peek().some(e=>e.kind==='viewer-opened'&&e.viewers===1));
   let state=await(await fetch(url+'/api/state')).json();
-  const generated=await post('generate',{planHash:state.planHash});assert.equal(generated.status,200,await generated.text());
+  const generated=await post('generate',{generationHash:state.generationHash});assert.equal(generated.status,200,await generated.text());
   assert.deepEqual(pushed,[],'calculation start and finish are held, not pushed');
   assert.deepEqual(kinds(),['viewer-opened','generation-started','generation-finished']);
   const started=server.studioEvents.peek()[1];assert.equal(started.trigger,'generate');assert.equal(started.studioInstanceId,instanceId);assert.equal(started.printId,'tour/handle');

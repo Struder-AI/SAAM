@@ -60,7 +60,8 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   let lastYield=performance.now(),visited=0,beads=0;
   const due=()=>performance.now()-lastYield>=8;
   const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
-  const read=moves.reader?.(['extruding','from','to','phase','layer','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo'])??(i=>moves[i]);
+  const indexedMove=i=>moves[i];
+  const read=moves.reader?.(['extruding','from','to','phase','layer','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo'])??indexedMove;
   for(let i=0;i<moves.length;i++){
     if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
     const move=read(i);if(!move.extruding)continue;

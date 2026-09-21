@@ -45,7 +45,8 @@ export function validateSetup(plan,machine,{required=false}={}) {
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
   if(plan.output==='griffin-gcode')requireThat(/^[a-f0-9-]{36}$/i.test(s.materialGuid),'A material GUID is required for Griffin.');
   else requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
-  // A colour only labels the job in the printer's own software; it is optional.
+  // Spool identity is a mapping hint, not a guarantee of physical AMS selection.
+  // The Bambu exporter separately records logical filament and requested tray.
   requireThat(s.filamentColor==null||/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Filament color must be a six-digit hex color such as #28A090.');
   feederSelector(plan,machine);
   if(machine.id==='dobot-mg400'){
@@ -61,6 +62,8 @@ export function lineWidthLimits(plan,machine){
 
 // Optional spool choice from the profile's declared feeder units. No request
 // keeps the first filament path, which a printer without a feeder also uses.
+// This flattens physical tray intent only. It must never be emitted as a
+// logical filament ID. Printer/job dispatch owns that mapping; see bambu.md.
 export function feederSelector(plan,machine){
   const request=plan.setup.ams,feeder=machine.ams;
   if(request==null)return 0;

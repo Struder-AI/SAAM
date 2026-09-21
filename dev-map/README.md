@@ -7,7 +7,8 @@ All active developer-map tooling and inputs live in this folder:
 - `flows.json`, `flows/`, `facts.tsv`: authored grouping and external facts.
 - `tests/`: map regression tests (`npm run test:maps` from the repository root).
 - `store/`, `view/`: generated snapshots and the stable human viewer; git-ignored.
-- `audit/`: local working checks and behavioral baselines still in use; git-ignored.
+- Disposable checks and behavioral baselines belong in the operating system's
+  temporary directory; keep durable regressions in tests and decisions at their owners.
 
 Historical comparisons and superseded review artifacts live in
 [`dev-map-OLD/`](../dev-map-OLD/README.md). Maker and builder documentation maps
@@ -62,6 +63,9 @@ Known callers elsewhere use red vertical arrows with individually clickable
 addresses. Callers represented on the current page connect to their targets
 with arrows labeled `calls`; those arrows do not claim returned-data flow or
 execution order. Components carry off-page relationships in `callerReferences`,
+or `callerSummary` with a count and canonical index when more than five callers
+would repeat beside a component. Open that index for the complete caller list,
+including when its destination is code. The page's own callers remain explicit,
 and `callerWires` holds the connections within the page. The compact response
 omits `calledFrom` entries already represented by those relations; the detailed
 packet retains all canonical incoming-call evidence. Class membership is not a call.
@@ -86,6 +90,25 @@ distinct invocation instances. `argN` identifies the Nth source argument; at and
 after a spread, `positionUnknown` marks that the expanded callee position is not
 known. Constants and untraced arguments retain slot markers. Expressions, producer
 traces, result-use lists and byte offsets are available with `--details`, without rescanning.
+Repeated `closure-capture` findings with identical source and limits share one
+row: `bindings` lists every captured name by access mode and `count` retains the
+number of findings. Other findings remain separate; sum `count ?? 1` when counting
+default diagnostic rows. `--details` retains the original individual findings.
+Region, file and group overviews use `uncertaintySummary` and `unresolvedSummary`:
+counts by immediate child address. Finding kinds, flags and evidence stay at
+their owning level. Open the child to continue the drill-down, or use `--details` for every
+original row. Findings without a child destination remain explicit on their owning
+page; the total is the summary count plus those local rows. A group box exposes
+its address, label and member count. Each page exposes its visible boxes and
+connections, not the inventories of descendants inside those boxes. Full member,
+file and source-target lists remain in `--details`; code reads still expand the
+stored source targets. Visible boxes retain their addresses for drill-down. The
+drawing and CLI use the same information level.
+When assessing read cost, measure repeated descendant detail across nesting
+separately from the identities, addresses and boundary connections needed to
+understand each page. Compare equivalent read routes and report serialized bytes;
+smaller responses alone do not establish less semantic redundancy. Summary
+counts at different levels overlap and must not be added as unique findings.
 `--code` returns source and edit-safety metadata without the graph body; automatic
 terminal reads also retain their input/output boundary references. `--details`
 can be combined with `--code`. The underlying store and graph relationships are unchanged
@@ -158,9 +181,15 @@ gives `calledFrom`, couplings, unresolved sites and flow uncertainty. These are
 static evidence; do not infer absence of callers from an unsupported or
 unscanned boundary.
 
-Indexes are regenerated and may change. Use one for talking about a page — the
-index and the name together, as in `6.3.1 planComposition` — and never write one
-into a document, a comment or code. The declaration path is the durable name.
+Indexes are regenerated and may change. Use just the index when talking about
+the current map, as in `6.3.1`. Use the declaration path for durable references
+in documents, comments or code.
+
+Static class methods use `file.mjs::Class::@static/method`; instance methods use
+`file.mjs::Class::method`. Static names are URI-encoded. Reserved-looking instance
+names beginning with `@` use `@name/` followed by the URI-encoded name, so quoted
+method keys cannot collide with generated static identities. These addresses do
+not require renaming the source methods.
 
 ## What each page carries
 
@@ -234,6 +263,19 @@ declaration page and lists groups with `id`, optional `label`, and `members`.
 A member is a generated declaration path, or a file path selecting its
 declarations for a region/file composition. Unlisted entities remain visible.
 
+Use named declarations for durable membership. Their paths survive line shifts
+and body edits; renaming or moving a declaration may require a grouping update.
+Conceptually meaningful callbacks and returned functions should have ordinary
+code binding names. Small implementation callbacks may remain anonymous, but
+their generated source-position identities are snapshot addresses, not durable
+group references. Do not repair such a reference merely by substituting a new
+line number: verify its role and give the stage a stable code name when needed.
+Generation rejects authored references to anonymous source-position paths.
+No map-specific source annotation or globally unique function name is required.
+Function-valued parameter defaults use the generated path `OWNER::@default/NAME`,
+where `NAME` is the local parameter binding. This identity survives line shifts;
+it does not claim that calls through the parameter necessarily use its default.
+
 ```json
 {
   "schema": 1,
@@ -306,6 +348,10 @@ shared named-field dependencies. These are state dependencies, not execution
 ordering. Static and instance fields stay separate. Indirect receiver effects
 and dynamic field names remain explicit analysis limits; a method call through
 a stored object is not automatically certified as a field mutation or a pure read.
+Closure factories likewise expose source-proven shared mutable bindings as owned
+state. Repeated state and capture relationships between the same visible groups
+are consolidated with counts; distinct fields, directions, invocations and ordered
+state transitions remain separate. Detailed evidence remains in `--details`.
 An assertion does not imply an invented success edge or prove exception ordering.
 An external call alone is not evidence of purity.
 The `external` count means call sites without mapped targets under scanner
