@@ -8,10 +8,23 @@ comparison evidence, never package/header/thumbnail templates to copy into a job
 
 Output remains experimental. A consistent archive proves neither firmware
 compatibility nor that the requested AMS tray is physically connected or loaded.
+An explicitly correct USB mapping screen has still produced a wrong physical
+feed in testing. Screen confirmation is necessary review evidence, not physical
+acceptance. Verify the actual loaded filament and selected nozzle.
 The outstanding reference and hardware checks are tracked in
 [BR-055](../../build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
 
 ## Maker setup
+
+The current user's installation is a test case, not a shared machine default:
+H2D left 0.4 mm fed by an external spool, right 0.8 mm fed by a four-slot AMS.
+The development goal covers every feed combination supported by each machine.
+Keep logical filaments, nozzle assignments, installed diameters, feed devices,
+their connections and physical slot choices independent. Discover or ask for
+installation facts for each job; never infer them from this example or its colours.
+Machine capabilities constrain valid combinations; an unimplemented adapter must
+report its limit instead of silently routing through a different source. Physical
+dispatch remains delegated to the printer; declared capacities are described below.
 
 Before generation, establish the selected nozzle, **both installed diameters** on
 H2D, plate, PLA identity/colour, temperatures and intended spool. Profile defaults
@@ -28,12 +41,12 @@ Example: H2D right 0.8 mm, left 0.4 mm, textured plate, one brown PLA filament:
   "nozzleMm": 0.8,
   "material": "PLA",
   "filamentColor": "#8B5A2B",
-  "ams": {"unit": 1, "slot": 4},
+  "ams": null,
   "bambu": {
     "plate": "textured_plate",
     "otherNozzleMm": 0.4,
     "amsConnections": [{"unit": 1, "tool": 1}],
-    "filaments": [{"id": "GFA01", "colour": "#8B5A2B"}],
+    "filaments": [{"id": "GFA01", "colour": "#8B5A2B", "tool": 1, "source": {"type": "auto"}}],
     "filament": 0,
     "startup": {
       "bedLeveling": "printer",
@@ -71,6 +84,23 @@ two must remain `printer`. These switches control their named conditional blocks
 not all probing, homing or mechanical checks. Tool-offset calibration can heat
 both H2D nozzles. Do not promise an unused nozzle remains cold.
 
+For repeat tests on an already calibrated, unchanged installation, set
+`setup.bambu.fast_start: true` on either H2D or X1 Carbon. This reusable option
+defaults to false and appears in Studio's recipe review and the job manifest.
+It sets the supported leveling/flow/plate/tool-offset flags to off, omits startup
+music and vibration tests, and omits the selected model's optional camera/lidar
+checks. An explicit `startup` choice of `on` conflicts with fast start and is
+rejected; set `fast_start: false` when those checks are wanted. Printer-mode
+choices do not override fast start. Calibration blocks can remain in the text
+behind disabled firmware flags; their presence is not an instruction to run them.
+
+Fast start retains homing/Z registration, saved compensation, bed/nozzle heating
+and waits, filament loading, cleaning, priming and the explicit body handoff.
+Use full startup after changes that require calibration, rather than treating
+fast start as a cold-machine commissioning sequence. It never removes necessary
+temperature waits to make a stalled print appear to proceed. Service durations
+are not simulated; no measured startup-time saving is claimed yet.
+
 Use normal `adjust` / `adjust_print`, regenerate, and review the new artifact.
 [Remember setup](../print/USAGE.md#remember-machine-setup) after the installation
 facts are correct. Never repair a mismatch by editing a delivered G-code comment,
@@ -100,17 +130,103 @@ several logical PLA entries and print one; an entry is not a claim that a
 corresponding physical AMS tray exists. Duplicate colours are valid and do not
 establish physical slot identity.
 
+Each explicit filament entry may include `tool` (the logical nozzle index).
+For example, `[{"id":"GFA00","colour":"#00AE42","tool":1},
+{"id":"GFA00","colour":"#FFFF00","tool":0}]` keeps the green and yellow
+entries on different nozzles across every generated mapping. An omitted `tool`
+uses `setup.tool` for compatibility with existing single-tool jobs. The selected
+entry must agree with `setup.tool`; contradictory declarations are rejected.
+Assign `composition.regions[].filament` to use a logical filament for that
+region. An omitted assignment uses `bambu.filament`, which is the startup
+selection. H2D can use both nozzles with different installed diameters in one
+program. X1 supports regional PLA changes through its single 0.4 mm nozzle and
+AMS, with a bounded rear-chute flush. Same-nozzle changes on H2D remain unsupported.
+
+The normal source is `{ "type": "auto" }`: supply material preset ID and colour
+and let the printer propose a physical feed match. Do not ask for a slot just
+because the print uses an AMS. `{ "type": "external" }` records external-spool
+intent. An optional `{ "type": "ams", "unit": 1, "slot": 4 }` requests a
+particular four-slot unit/tray. `{ "type": "ams-ht", "unit": 1 }` requests
+one single-slot AMS HT device without inventing a four-slot tray index.
+These remain dispatch intentions; the archive
+does not itself guarantee the printer's physical mapping. `setup.ams` is the
+legacy request for the startup filament only; use null for automatic selection.
+An explicit source and a non-null legacy request must agree.
+In particular, `source: external` currently reaches SAAM's manifest/review only;
+there is no implemented printer-consumed field that forces the USB screen to
+preselect external. Do not promise automatic external selection from this value.
+Zero AMS connection counts describe topology, not that filament's launch route.
+`default_ams_type` is Studio's load/unload timing enum, not a feed selector.
+
+### A mixed-nozzle recipe
+
+For the reported left 0.4 / right 0.8 installation, set the startup setup to
+left 0.4, 215 C, `ams: null`, and `otherNozzleMm: 0.8`. The base process must
+match that initial filament. Merge this logical list into `setup.bambu`:
+
+```json
+{
+  "filament": 0,
+  "amsConnections": [{"unit": 1, "tool": 1}],
+  "filaments": [
+    {"id": "GFA00", "colour": "#FFFF00", "tool": 0, "source": {"type": "external"}},
+    {"id": "GFA00", "colour": "#00AE42", "tool": 1, "source": {"type": "auto"},
+     "nozzleC": 225,
+     "process": {"lineWidthMm": 0.8, "firstLayerMm": 0.3, "layerMm": 0.3}}
+  ]
+}
+```
+
+These colours, temperatures and process values are examples to review, not
+observed spool inventory or material recommendations. Assign the left part's
+region `filament: 0`, the right part's `filament: 1`. The ordinary assembly and
+region fields remain required. A filament's optional process overrides are
+`firstLayerMm`, `layerMm`, `lineWidthMm`, `planarSpeedMmS`, `skinSpeedMmS`,
+`firstLayerSpeedMmS`, `maxFlowMm3S`, `retractMm`, and `retractSpeedMmS`.
+The startup entry's explicit overrides must equal the base setup/process;
+contradictions fail rather than silently choosing one declaration. Each region
+can further override its documented layer/bead settings. Nozzle diameter stays
+an installation setting, not a region override. Review both filaments and the
+region assignments in Studio. Source playback labels the active nozzle and
+uses its filament colour and commanded bead width.
+
+The composer retracts the outgoing nozzle, lifts at least 3 mm above deposited
+material and moves into the common nozzle area before requesting a change.
+Each nozzle keeps its own retraction state. The authored tower-free service
+recipe loads the incoming logical filament, waits for its print temperature,
+restores body acceleration/fan/modes and returns to the checked handoff position.
+Layer identities, nozzle records, material quantities and usage sequence come
+from actual actions. The two nozzle grids need not share layer height or width.
+There is no prime tower. One logical filament per used nozzle is supported;
+switching materials inside one nozzle needs a separate flushing contract and
+is rejected. Firmware service moves, purged material, heating time, automatic
+standby cooling and power-loss recovery are not modeled or physically validated.
+Do not infer recovery support or a cold parked nozzle from this implementation.
+
 `bambu.amsConnections` is null when connectivity is unknown, or the installation's
-list of `{unit, tool}` connections. For the user-reported H2D, unit 1 connects to
+list of `{unit, tool}` connections for four-slot AMS/AMS 2 Pro units, or
+`{type: "ams-ht", unit, tool}` for single-slot HT units. The two device types
+have separate one-based unit-number spaces; these are installation labels, not
+firmware tray IDs. For the user-reported H2D, four-slot unit 1 connects to
 tool 1 (right). A requested AMS unit that cannot feed the selected nozzle is
 rejected when connections are declared. This prevents treating an attached AMS
 as available to both nozzles. An empty list means no AMS units are connected.
-The two current profiles describe four-slot units. Their connection counts
-generate `extruder_ams_count` per logical nozzle (`1#0|4#0` for none,
-`1#0|4#1` for one), matching the supplied right-connected H2D reference.
+Connection counts generate `extruder_ams_count` per logical nozzle:
+`1#<HT count>|4#<four-slot count>`. `1#0|4#1` matches the supplied right-connected
+H2D reference. A device cannot be assigned to both nozzles simultaneously.
 The field describes counts, not unit IDs or a firmware routing command.
 Unknown connectivity omits this field; an empty list declares zero counts.
-Single-slot AMS devices and other topologies need an extended contract.
+H2D capacity is four four-slot units and eight HT units, independently assigned
+to either nozzle, following the manufacturer's
+[H2D capacity specification](https://eu.store.bambulab.com/products/h2d).
+The X1 adapter allows up to four connected devices total, including up to four
+HT units; the manufacturer's [AMS HT FAQ](https://asia.store.bambulab.com/collections/bambu-lab-ams/products/ams-ht)
+confirms four HT connections. Mixed X1 topologies beyond that conservative
+four-device total are not established here. Metadata count serialization follows
+[Studio's count parser/writer](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/PrintConfig.cpp).
+These are software capacity/metadata contracts, not physical tests of all units.
+An HT used only as a dryer through its manual bypass is an external feed for
+this purpose. Do not declare it as an automatically connected HT feed.
 
 `setup.ams` is validated against the profile's unit/slot capacity and recorded in
 `Metadata/saam-job.json` and the interpreted program's job summary. **It does not
@@ -118,7 +234,8 @@ force a tray through G-code.** SAAM has no implemented printer-dispatch mapping
 adapter. Confirm the job filament-to-tray mapping on the printer before starting;
 if the intended mapping cannot be selected, stop and record that failure. Colour
 and material are matching hints, not proof of the selected spool. External-spool
-selection and H2D AMS-to-nozzle connectivity are not implemented contracts.
+intent and declared AMS-to-nozzle connections are validated and reviewable;
+forcing those physical routes through a dispatch adapter is not implemented.
 
 The old shared H2D profile's four remembered tray colours have been removed.
 The exporter no longer invents inventory entries to reach a requested tray,
@@ -146,27 +263,54 @@ Numbers with different meanings are intentionally not unified.
 | Aspect / authoritative input | All generated repetitions and handling |
 |---|---|
 | Selected diameter: `setup.nozzleMm` | CONFIG/project `printer_settings_id` and `nozzle_diameter`; plate JSON `nozzle_diameter`; slice `nozzle_diameters`, filament `nozzle_diameter`, nozzle `nozzle_diameter`; H2D both `M620.10 H`, `M1015.4 H`; SAAM job summary. Fixed 0.4 command literals were replaced. |
-| Other installed diameter: `bambu.otherNozzleMm` | Other element of CONFIG/project `nozzle_diameter`, slice `nozzle_diameters`, job summary. Never independently defaulted inside each writer. |
-| Nozzle side: `setup.tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_map_2`, `filament_nozzle_map`, `physical_extruder_map`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. No profile settings spread can overwrite them. |
+| Other installed diameter: `bambu.otherNozzleMm` | Other element of CONFIG/project `nozzle_diameter`, slice `nozzle_diameters`, job summary; when used, its own filament/nozzle records and changeover H values. Never independently defaulted inside each writer. |
+| Nozzle side: `setup.tool`, each `bambu.filaments[].tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_map_2`, `filament_nozzle_map`, `physical_extruder_map`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. The selected filament must agree with setup.tool. No profile settings spread can overwrite them. |
 | Nozzle type / volume: supported standard hardened contract | CONFIG/project `nozzle_type`, `nozzle_volume_type`; model `filament_volume_maps`; slice `extruder_type`, `nozzle_volume_type`, filament/nozzle `volume_type`. Cardinality follows actual tools or declared filaments. X1 no longer inherits a two-nozzle type list. |
-| Logical filament: `bambu.filament` | Both H2D load triplets (one on X1); H2D `M620.6 I`; plate `filament_ids` and `first_extruder` (zero-based); slice filament `id` (one-based), `layer_filament_lists` (zero-based); sequence `sequence` (one-based); job summary. The fixed sequence `[1]` and detector `I0` are removed. |
-| Logical list: `bambu.filaments` | CONFIG/project filament IDs, colours, self indices, types, temperatures, diameter, density, flow ratio and maps; model/slice map cardinality. Only the used filament appears as a consumed slice filament and in plate colours. `limit_filament_maps` remains the reference's zero restriction values; it is not a used-filament bit mask. |
-| Physical tray intent: `setup.ams` | SAAM job manifest and review summary only. It never manufactures logical entries or changes logical G-code selectors. Dispatch mapping / physical confirmation remains separate. |
+| Logical filament: `bambu.filament` and interpreted usage | Both H2D load triplets (one on X1); H2D `M620.6 I`; header `filament` (comma-separated one-based IDs, **never a count**); plate `filament_ids` and `first_extruder` (zero-based); slice filament `id` (one-based), `layer_filament_lists` (zero-based); sequence `sequence` (one-based); job summary. |
+| Logical list: `bambu.filaments` | CONFIG/project filament IDs, colours, self indices, types, temperatures, diameter, density, flow ratio and maps; model/slice map cardinality. Only actually consumed filaments appear in consumed slice records and plate colours. `limit_filament_maps` remains the reference's zero restriction values; it is not a used-filament bit mask. |
+| Feed intent: `filaments[].source`, legacy `setup.ams` | SAAM job manifest and review summary only: auto/external or an optional AMS unit/slot. It never manufactures logical entries or changes logical G-code selectors. Dispatch mapping / physical confirmation remains separate. |
 | Material / colour | CONFIG/project `filament_type`, `filament_ids`, `filament_colour`; slice `type`, `tray_info_idx`, `color`; plate `filament_colors`; fixed PLA firmware `set_filament_type` stages. UNKNOWN is an intentional transient loading state. Non-PLA output is rejected. |
 | Filament diameter / density | Header filament diameter, CONFIG/project filament diameter/density, interpreted extrusion conversion, slice used weight and plate weight. Output constrains 1.75 mm PLA; service feed conversion retains the vendor recipe's 2.4053 constant. |
 | Plate: `bambu.plate` | CONFIG/project `curr_bed_type`; plate JSON `bed_type`; H2D object-detection branch `M972 S26` versus `S36 … X1`; final `G29.1` correction; job summary. Initial `G29.1 Z0` resets previous trim. Textured correction is H2D −0.02 / X1 −0.04 mm; smooth stays zero. |
 | Bed temperature: `setup.bedC` | All startup `M140`/`M190` working temperatures, body prelude wait, CONFIG/project selected plate temperature and initial-layer temperature. Shutdown and early heater-off `S0` are deliberate stages, not mismatches. |
-| Print temperature: `setup.nozzleC` | Startup `M104`/`M109`, H2D `M620.10 P`, wipe `G150 T`, tool-offset `M620.17 S` and `G383* T`, body prelude, CONFIG/project nozzle/initial-layer temperatures. X1 wipe temperature is nozzle minus 20 C. Body process overrides remain explicit later changes. |
+| Print temperature: `setup.nozzleC`, optional `filaments[].nozzleC` | Startup uses the initial selection in `M104`/`M109`, H2D `M620.10 P`, wipe `G150 T` and initial tool-offset `G383* T/L`. Both `M620.17 T/S/L` branches derive each physical extruder's first actually used logical filament and its temperature from the ordered path, with declared filament 0 as the vendor fallback for an unused nozzle. Physical T0 is right, T1 left on H2D; these are not nozzle-group indices. Each body segment/changeover uses its own filament target; CONFIG/project temperature arrays follow the same selections. X1 wipe temperature is nozzle minus 20 C. Body process overrides remain explicit later changes. |
 | Flush / purge / calibration recipe: pinned output constraints | H2D `M620.10 F/T`, `M620.11 F`, extrusion/prime feeds and `M983.3 F`; X1 `M620.1 F/T` and purge `M109`. H2D uses 25 mm³/s service flow and 240 C flush; X1 21 mm³/s, 240 C feeder flush and a distinct 250 C hot purge stage. These are not the conservative print-body flow limit. |
 | Calibration constants that look like nozzle sizes | `M983.3 A0.4`, motor-current `M17 Z0.4`, relative Z moves and prime-line heights stay protocol/recipe constants. They must not follow nozzle diameter. |
 | Chamber / air handling | `buildVolumeC` must be zero; CONFIG/project chamber temperatures and service `M141`/`M191` preserve no chamber heating. PLA fans, anti-jam thresholds and air-handling macros remain pinned model-specific recipe stages. X1 bed must remain 46–70 C for its supported fan branch. |
-| Calibration / detection policy | One `bambu.startup` policy generates initial flag assignments; later `judge_flag`/`M622`/`M623` blocks consume them. `printer` emits no assignment. Mechanical tests and unconditional checks remain; no blanket fast-start option exists. |
+| Calibration / detection policy | `bambu.fast_start` and `bambu.startup` resolve together. Fast mode emits supported flags off and omits machine-owned `fullStartOnly` blocks; explicit `on` conflicts fail. Full mode retains the complete sequence and `printer` emits no flag assignment. The same fast-mode value drives code, job manifest and review summary. |
 | Probe footprint: placed geometry bounds | H2D both G29 branch rectangles, X1 G29 rectangle, plate bounding boxes and SAAM context. Service-area moves are not object bounds. |
 | Motion / extrusion handoff | End of startup and body prelude explicitly establish G90/G21/M83/G92; initial position is checked against machine startup position. These necessary repeats express the same supported modal state. Bambu bodies remain relative extrusion. |
 | Shutdown clearance: path maximum + geometry + model limits | Repeated H2D end lifts and park positions; X1 lift, park and settle; envelope summary. No descent below the completed path; rejection if the required clearance exceeds limits. |
 | Unloading / heater shutdown | H2D 65535 and 65279 paired M620/T/M621 operations and heaters T0/T1 off; X1 255 triplet and single heater off. These are firmware sentinels and all-tool shutdown, never the selected logical filament. |
 | Object / layer identity and counts | Header layer total, CONFIG/project nominal layer heights, slice layer ranges, plate object ID/height, fresh SAAM object names. No reference object's geometry, filename or totals are copied. |
-| Print totals / packaging integrity | Header interpreted filament/volume, slice consumed filament/weight/prediction, regenerated thumbnails, code MD5 and ZIP CRCs. These cover print body only, not firmware service material/time. SAAM release metadata is distinct from the loader's required Bambu client-version field. |
+| Mixed-nozzle scalar defaults | CONFIG/project printer preset name and nominal layer heights, plate scalar nozzle/layer height describe the startup/default process. Per-nozzle arrays, consumed filament records, source moves and layer-use lists describe both actual processes. A scalar must not be copied over those arrays. |
+| Print totals / packaging integrity | Header ID list, per-used-filament length/volume/weight/diameter/density arrays in ascending logical-ID order, slice consumed filament/weight/prediction, regenerated thumbnails, code MD5 and ZIP CRCs. These cover print body only, not firmware service material/time. SAAM release metadata is distinct from the loader's required Bambu client-version field. |
+
+### Additional repetitions during H2D tool changes
+
+These repetitions are emitted by the authored H2D changeover recipe. The
+equal-diameter reference must not obscure which side owns each value:
+
+| Repetition | Authoritative source |
+|---|---|
+| `M620.10 A0 H/F/T/P` | Outgoing nozzle diameter, outgoing filament's service flow/flush temperature and outgoing print temperature. At initial startup both descriptors describe the initially selected nozzle. |
+| `M620.10 A1 H/F/T/P` | Incoming nozzle diameter, incoming filament's service flow/flush temperature and incoming print temperature. A0 and A1 **must differ** when the installed diameters differ. |
+| `M620 S`, ordinary `T`, `M621 S`, `M620.6 I` | Incoming logical filament index; derive its nozzle from the job mapping, not the same integer. Service/unload T sentinels remain separate. |
+| `M620.11 I` in outgoing cut/retraction descriptors | Outgoing logical filament index. Its hotend selector and retraction parameters are separate facts; they are not the incoming selector or a physical tray number. |
+| `M1015.4 H` after switching | Incoming nozzle diameter. Detector enable policy also depends on material. |
+| `M620.10 R` and repeated `M983.3 R` | Incoming extruder's current retraction state. The reference first activation uses R0 and later returns R2; neither is a universal constant. `M983.3 A0.4` remains a calibration constant. |
+| Cooling/preheat and `M620.15 C` | Current/incoming thermal state and selected preparation policy. The installed template subtracts `filament_cooling_before_tower` from the new temperature; the tower reference contains C220 then C210 despite both print targets being 220. Do not inherit that subtraction for a tower-free job. |
+| Sequence, per-layer filament lists, consumed material and nozzle records | Actual ordered tool/filament use in the interpreted program, including both nozzle diameters independently. Counts must not come from number of declared filaments alone. |
+| Service clearance and return position | Current deposited height, machine/tool limits and the planned next action. Tower-associated approach, prime and return positions are not a reusable generic switch path. |
+| `M620.10 R`, `M983.3 R`, body recovery | Interpreted incoming nozzle withdrawal debt: zero before its first use, then its own configured retract amount. Outgoing debt must equal the outgoing retract setting before changing. |
+| Changeover `M983.3 F` | Incoming filament's configured `maxFlowMm3S / 2.4`, a conservative calibration rate; startup retains the separate pinned 25 mm³/s service recipe. Neither calibration A0.4 nor these phase-specific rates are nozzle diameter overrides. |
+| `M620.11 B` and `M620 Q` | Previous logical hotend state (-1 on first change, then outgoing tool 0/1), and ordered change count plus initial load. These are not physical heater selectors. |
+| `M204`, fan and modal restoration | Pinned service/body acceleration, interpreted fan state and explicit G90/G21/M83/G92 plus the incoming temperature wait. Acceleration returns to the same profile value used by startup. |
+
+The user explicitly excluded prime-tower implementation from this work. Keep
+tower geometry, extrusion and tower-specific cooling/return policy out of the
+new writer. The subsequent tower-free reference below isolates those differences;
+it does not establish physical priming quality or clearance on the actual printer.
 
 ## The program carries its own configuration
 
@@ -188,7 +332,8 @@ The same-file review/delivery lifecycle remains unchanged.
 
 ## H2D output contract
 
-`h2d-saam-startup-v4`: one standard hardened 0.4, 0.6 or 0.8 mm nozzle;
+`h2d-saam-startup-v8`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
+including unequal diameters;
 1.75 mm PLA; Textured or Smooth PEI; no chamber heating. Startup establishes
 [100,100,20]. Shutdown clears geometry by 10 mm and parks at or below 320 mm.
 Firmware service flow is independent of print-body flow and can reach 25 mm³/s.
@@ -207,10 +352,11 @@ mixed-nozzle/AMS configuration. See the
 
 ## X1 Carbon output contract
 
-`x1c-saam-startup-v2`: one standard hardened 0.4 mm nozzle; 1.75 mm PLA;
-Textured or Smooth PEI; bed 46–70 C; no chamber heating. It retains homing,
-wiping, front-edge purge/calibration lines, mechanical checks and first-layer
-scan registration. Shutdown clears by 0.5 mm, parks up to 250 mm and settles
+`x1c-saam-startup-v5`: one standard hardened 0.4 mm nozzle; 1.75 mm PLA;
+Textured or Smooth PEI; bed 46–70 C; no chamber heating. Full startup retains
+homing, wiping, front-edge purge/calibration lines, mechanical checks and
+first-layer scan registration. Fast mode omits optional checks as described
+above, retaining homing, wiping and priming. Shutdown clears by 0.5 mm, parks up to 250 mm and settles
 without descending below clearance. Other nozzle sizes/materials are not output
 contracts even if the machine could physically support them.
 
@@ -219,6 +365,31 @@ separately. The earlier loader failure with a SAAM-formatted client version and
 the manual-AMS-mapping warning are recorded in the
 [devlog](../../DEVLOG.md#2026-09-18--x1-carbon-output-through-the-shared-bambu-exporter).
 Changing a mapping-mode string has not been proven to resolve the warning.
+
+### X1 colour changes through one nozzle
+
+The X1 profile supports regional PLA colour changes using distinct logical
+filaments assigned to physical tool `0`. For exactly two changes, use three
+successive height bands; interleaved objects can require repeated changes.
+These changes require AMS feeds. Automatic material/colour matching remains
+available, and the user confirms the actual slots on the printer. Explicit
+external-spool changes are rejected.
+
+The `x1c-saam-startup-v5` recipe lifts above the printed part by 3 mm, selects
+the next logical filament through the remapped `M620`/`T`/`M621` sequence,
+and flushes 300 mm³ into the rear chute at the profile's PLA service temperature
+and flow rate. It restores the incoming print temperature, primes 2 mm of
+filament, retracts by the incoming process setting, wipes and returns at
+clearance. The planner and independent interpreter both reset retraction debt
+to that incoming setting. The flush volume is a bounded test policy, not a
+guarantee of colour purity. No prime tower is generated.
+
+Regional filament use supplies the package metadata, selection sequence and
+body playback from the same plan. Service time and purge/prime material are
+additional to the displayed body estimates; the review states this explicitly.
+The installed Bambu Studio X1 change template dated 2025-10-31 supplies reference
+evidence for the service route and commands. Physical verification of this
+authored recipe remains pending.
 
 ## Evidence and verification tools
 
@@ -232,6 +403,12 @@ node scripts/bambu-audit.mjs path/to/reference.gcode.3mf path/to/saam.gcode.3mf
 The report includes archive SHA-256, relevant project/config fields, duplicate
 configuration keys, numbered
 startup/service commands, plate metadata, slice/model metadata and sequence.
+It also reports paired material loads, observed nozzle transitions, outgoing and
+incoming flush descriptors, feeder/detection selectors, retraction/cooling facts,
+tower feature markers and mismatches against resolved slice declarations.
+Its checks cover those selected fields only. Saved project preferences are not
+compared as though they were another resolved slice. Firmware branches are not
+executed, and a report with no issues is not full archive or hardware validation.
 It reports observed facts; it does not claim a firmware protocol or physical
 safety verdict. Raw vendor G-code without an archive is not accepted by this tool.
 
@@ -246,13 +423,40 @@ saved project preferences (left/automatic) differ from the resolved slice
 (right/manual); those are legitimate stages, not settings to copy over our job.
 Its 30 mm³/s service recipe also differs from SAAM's pinned 25 mm³/s recipe.
 
-Using both different-diameter nozzles within one job is an explicit requirement,
-not a Bambu Studio limitation to inherit. It is not yet implemented by the
-single-tool path contract. It requires per-operation tool/process selection,
-validated changeover/retraction/temperature state and clearance, per-tool
-extrusion interpretation, and layer/filament usage generated from actual actions.
-A both-nozzle reference has been requested for changeover protocol facts; no
-unequal-nozzle prohibition should be introduced.
+Using both different-diameter nozzles within one job is implemented through
+regional filament/process selection, bounded changeover/retraction/temperature
+state and clearance, per-tool extrusion interpretation, and layer/filament usage
+generated from actual actions. Physical acceptance remains outstanding.
+The supplied `twistedbox.2color.gcode.3mf` (SHA-256
+`ddbea3c405b12328990c1aa6f45c106b8e6899a5807d7cc7947c23caa2835a63`)
+contains 124 observed nozzle changes, 126 material-load blocks (including the two
+startup selections), and 372 prime-tower feature sections. Green logical filament
+0 maps to right nozzle 1; yellow filament 1 maps to left nozzle 0. Its resolved
+maps are `2,1` / `1,0`, its 125-entry use sequence begins with right, and its
+declared diameters are 0.4/0.4. Those declarations do not change the reported
+0.4/0.8 installation. Fact-only fixtures preserve this evidence without using
+the reference header, geometry or tower as an output template.
+
+The installed H2D `change_filament_gcode` template independently identifies
+`current_nozzle_id` for A0 and `next_nozzle_id` for A1. This establishes how to
+derive unequal H values; the equal-H example alone cannot demonstrate that.
+The user confirmed left external/right AMS for this machine right now and
+explicitly required configurable feed combinations across machines. No fixed
+feed arrangement or unequal-nozzle prohibition should be introduced.
+
+The user then replaced that same desktop filename with a tower-disabled export,
+SHA-256 `f6bad52dc858c7a06ebdbace77b40706d8ea8d1f9afbfac26dd4e4678d03bf86`.
+It preserves the 124 transitions and nozzle/filament mappings, sets
+`enable_prime_tower = 0`, has no tower feature sections or plate tower object,
+and uses C220 throughout M620.15 instead of the tower variant's later C210.
+The tower-specific Y320/X approach is absent; Y295/Y265 service moves remain.
+Do not infer that every park/wipe move belonged to the removed tower. Outgoing
+M620.11 B begins at -1 and subsequently follows known 0/1 hotend state, while
+incoming T H remains -1. This is another state-dependent field derived by the writer,
+not permission to replace all B/H selectors with the heater ID. Blank
+`;prime_tower_interface` comments persist even with the tower disabled; they
+do not mean tower extrusion occurred. Both observations are recorded by hash in
+`core/tests/fixtures/bambu-h2d-dual-reference-facts.json`, since the path was reused.
 
 The implementation was cross-referenced against installed Bambu Studio H2D and
 X1 template expressions (including H/nozzle, fixed A0.4, plate branches and
@@ -271,3 +475,35 @@ controls, contradictory setup, override rejection, archive tampering and normal
 Studio review/delivery. Round-trip checks alone are insufficient: assertions also
 inspect actual emitted commands and every relevant independent archive surface.
 Firmware service moves are not simulated; playback and timing cover the body.
+
+### Diagnosing a stop or an elevated first layer
+
+Inspect the exact delivered archive, including modal feed rates, speed overrides,
+temperature waits and nozzle-change service boundaries. `F` is mm/min; divide by
+60 for mm/s. Body timing excludes firmware loading, synchronization, calibration
+and thermal waits. A normal body estimate cannot rule out a blocked service call.
+Capture actual/target temperatures and the pad/nozzle in use at the stop.
+
+Current profiles require `G1` for body travel as well as deposition, including the
+explicit descent from startup and every changeover clearance. This matches the
+supplied H2D Studio body convention; it is not evidence that the firmware rejects
+`G0`. The separated-pad test with G1 still ran the centre/left pad using the right nozzle above the plate and stopped after one layer; this change did not resolve the failure. Other output dialects retain
+their existing travel command. Do not invent a Z offset to compensate for an
+unexplained elevated layer after a correct purge line.
+
+Keep `H-1` on static-mapping material selectors. Studio's
+[`NOZZLE_ID_FOR_GCODE` rule](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/GCode.cpp)
+uses -1 when dynamic mapping is off; replacing it with a heater or tray index is
+not an established fix. Studio also passes separate runtime AMS/nozzle mappings
+through [PrintJob](https://github.com/bambulab/BambuStudio/blob/master/src/slic3r/GUI/Jobs/PrintJob.cpp).
+USB launch constructs that dispatch on the printer. Its behavior still needs
+verification independently of consistent archive declarations.
+
+The supplied left-only Studio archive `leftnozzle.gcode.3mf` (SHA-256
+`2e476df9cccd6e1b94433c9ddfc91295db9b00b9054206cfd7c4dc6c55a55be7`)
+declares maps 1,1 / 0,0, uses only logical filament 0 on left nozzle group 0,
+and declares equal 0.4/0.4 diameters despite the reported 0.4/0.8 installation.
+Its initial M104 T1, G151 P1 and both remapped T0 H-1 selections agree with
+SAAM's intended left startup. This confirms those expressions but does not
+establish execution: the reference has not yet been reported printed from USB.
+Both current SAAM diagnostics still physically selected the right nozzle.

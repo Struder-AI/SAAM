@@ -61,6 +61,12 @@ the reviewed bytes. This transition does not approve settings or toolpath.
 Stale source falls back to generation. A plan changed during generation cannot
 receive the earlier candidate.
 
+`prepareGeneration` owns the computation boundary and returns one checked,
+in-memory candidate with its `generationHash` and manifest revision.
+`commitGeneration` reloads the manifest, requires those identities to remain
+current, and persists that exact candidate. Callers do not recompute a production
+candidate after preparation.
+
 Geometry-only bundle reads and their change fingerprints omit export bytes.
 Fingerprint snapshots reuse content digests while file identity, size, modification
 and change times match; this is change detection, not approval evidence. Review,
@@ -143,18 +149,23 @@ The shared workflow stores one directory per print:
 
 ```text
 Prints/<name>/
-  plan.json
-  machine.json
-  geometry/model.mesh.json
-  geometry/model.json
-  exports/griffin-gcode/part.gcode
-  checks.json
-  review.json
+  plan.json                         # atomic plan + bundle manifest
+  geometry/<geometry-sha>.3dm       # or .mesh.json
+  exports/<output>/<export-sha>-<name>
   delivery/part.gcode
 ```
 
-`delivery/` exists only after approval and delivery. The lifecycle and SAAMpath formats are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
+`plan.json` retains the recipe fields at top level and owns one `bundle` envelope
+containing the locked machine, review/check evidence and content-addressed
+geometry/program references. It is the only mutable commit point. Referenced
+artifacts are immutable; `delivery/` exists only after approval and delivery.
+Opening the previous parallel-file layout migrates it once and removes its
+`machine.json`, `review.json`, `checks.json`, mutable export and geometry
+sidecars. The lifecycle and SAAMpath formats are shared; the shell plan/geometry
+schemas are in [Formats](#formats) below:
 
+- `saam-print-bundle/2`: the reserved `bundle` envelope in `plan.json`; it owns
+  the locked machine, review lifecycle and immutable geometry/program references.
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
   and the declared firmware startup contract. Output options carry program
   header, start and end templates; these are part of the locked machine snapshot.
@@ -163,11 +174,12 @@ Prints/<name>/
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
   the move without determining its geometry. New bundles do not serialize this
   representation.
-- `saam-review/1`: the exact-version final approval record, history, generation/export hashes
-  and a small generation summary for display (never playback geometry).
-  `saam-checks/1` records software checks and limitations.
+- `saam-review/1`: the manifest's exact-version final approval record, history,
+  generation/export hashes and a small generation summary for display (never
+  playback geometry). Its generation record owns `saam-checks/1` software
+  checks and limitations.
 
-`loadBundle` reads current review records, native geometry bytes and any imported
+`loadBundle` reads the current manifest, referenced native geometry bytes and any imported
 STL source on each load. It checks the source digest and plan/geometry agreement.
 Within one adapter instance, unchanged native bytes plus geometry descriptor
 reuse geometry validity; unchanged plan plus machine content reuse plan validity.

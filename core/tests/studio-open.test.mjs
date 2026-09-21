@@ -24,24 +24,30 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
     await writeFile(join(library,id,'plan.json'),JSON.stringify({schema:'scratch-test/1'}));
     await writeFile(join(library,id,'machine.json'),JSON.stringify({name:'Synthetic scratch machine'}));
   }
-  const supplied=new Map();
+  const supplied=new Map();let bundleLoads=0;
   const resolver=async dir=>{
     assert.equal(JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).schema,'scratch-test/1');
     const state=Object.freeze({kind:'shell',marker:dir,code:'adapter-only',dir,review:Object.freeze({approvals:Object.freeze({})})});
     supplied.set(dir,state);
-    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>state};
+    return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>{bundleLoads++;return state;}};
   };
   const server=createStudio(join(library,'first'),{libraryRoot:library,resolveBundle:resolver});
   await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`;
   const html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
-  const refreshModule=await fetch(origin+'/refresh-plan.mjs');
-  assert.equal(refreshModule.status,200);assert.match(refreshModule.headers.get('content-type'),/javascript/);
-  assert.equal(await refreshModule.text(),await readFile(new URL('../../studio/refresh-plan.mjs',import.meta.url),'utf8'));
-  const first=await(await fetch(origin+'/api/state')).json();
+  for(const file of ['refresh-plan.mjs','viewer-renderer.mjs','studio-state.mjs','studio-controls.mjs']){
+    const module=await fetch(origin+'/'+file);
+    assert.equal(module.status,200,file);assert.match(module.headers.get('content-type'),/javascript/,file);
+    assert.equal(await module.text(),await readFile(new URL('../../studio/'+file,import.meta.url),'utf8'),file);
+  }
+  const firstResponse=await fetch(origin+'/api/state'),first=await firstResponse.json(),firstTag=firstResponse.headers.get('etag');
+  assert.match(firstTag,/^W\/"[A-Za-z0-9_-]+"$/);
   assert.equal(first.marker,join(library,'first'));assert.equal(first.code,undefined);assert.equal(first.dir,undefined);
   assert.equal(first.printName,'first');assert.equal(first.downloadName,'first');assert.equal(first.work.snapshot.studioInstanceId,first.instanceId);
   assert.equal(supplied.get(join(library,'first')).code,'adapter-only');assert.equal(supplied.get(join(library,'first')).tour,undefined);
+  const loaded=bundleLoads,unchanged=await fetch(origin+'/api/state',{headers:{'If-None-Match':'"different", '+firstTag.slice(2)}});
+  assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
+  assert.equal(bundleLoads,loaded,'an unchanged conditional state read does not load the bundle');
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
   const response=await fetch(origin+'/api/open',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({path:join(library,'second','plan.json')})});
   assert.equal(response.status,200);
@@ -64,7 +70,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
     {closed:false,points:[[0,0],[10,0]]},{closed:false,points:[[11,0],[20,0]]}]}]});
   await shell.initBundle(ready,gapped,{machineId:'bambu-h2d'});
   await shell.generateBundle(ready);
-  const original=await readFile(join(ready,'review.json'));
+  const original=await readFile(join(ready,'plan.json'));
   const server=createStudio(geometry,{libraryRoot:library});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const get=async()=>await(await fetch(origin+'/api/state')).json();
@@ -72,7 +78,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
   const first=await get();assert.equal(first.toolpathApproved,false);assert.equal(first.program,undefined);
   assert.equal((await post('open',{path:ready},false)).status,403);
-  const archive=join(ready,'exports/bambu-gcode/part.gcode.3mf');
+  const archive=join(ready,(await shell.loadBundle(ready)).review.generation.file);
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
   state=await get();assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
@@ -94,7 +100,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   await requests.update(pending.requests[0].id,{status:'completed'});
   await post('view-ready',shown);
   assert.equal((await requests.wait({waitMs:0})).requests.length,0,'acknowledged export is not requeued');
-  assert.deepEqual(await readFile(join(ready,'review.json')),original);
+  assert.deepEqual(await readFile(join(ready,'plan.json')),original);
   assert.equal((await post('generate',{development:true,printId:first.printId})).status,400,'an old tab cannot mutate a newly opened print');
   assert.equal((await post('open',{path:join(library,'missing')})).status,400);
   assert.equal((await get()).printId,state.printId,'failed opening retains the current print');
@@ -109,20 +115,19 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
 test('background preparation leaves review writable and persists only a currently approved generation',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-studio-preparation-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   await shell.initBundle(dir,boxPlan());
-  const initial=await shell.loadBundle(dir,{program:false}),original=await readFile(join(dir,'review.json'));
+  const initial=await shell.loadBundle(dir,{program:false}),original=await readFile(join(dir,'plan.json'));
   const worker=new Worker(new URL('../../studio/generation-worker.mjs',import.meta.url),{workerData:{directory:dir,generationHash:initial.generationHash}});
   t.after(()=>worker.terminate());
   const [prepared]=await once(worker,'message');assert.equal(prepared.type,'prepared');assert.equal(prepared.error,undefined);
-  assert.deepEqual(await readFile(join(dir,'review.json')),original);
-  await assert.rejects(readFile(join(dir,'exports/griffin-gcode/part.gcode')),{code:'ENOENT'});
+  assert.deepEqual(await readFile(join(dir,'plan.json')),original);
   const request=async()=>{const reply=once(worker,'message');worker.postMessage({type:'generate'});return (await reply)[0];};
   const generated=await request();assert.equal(generated.error,undefined);assert.equal(generated.checks.mode,'production');
   assert.ok(generated.source.metadata);assert.equal(generated.source.metadata.moves,undefined);assert.equal(generated.source.metadata.events,undefined);
   assert.equal((await shell.loadBundle(dir)).toolpathApproved,false);
-  const exportBefore=await readFile(join(dir,'exports/griffin-gcode/part.gcode'));
+  const generatedState=await shell.loadBundle(dir),exportFile=join(dir,generatedState.review.generation.file),exportBefore=await readFile(exportFile);
   const plan=JSON.parse(await readFile(join(dir,'plan.json'),'utf8'));plan.process.layerMm=.1;await writeFile(join(dir,'plan.json'),JSON.stringify(plan));
-  assert.match((await request()).error,/prepared print changed/);
-  assert.deepEqual(await readFile(join(dir,'exports/griffin-gcode/part.gcode')),exportBefore);
+  assert.match((await request()).error,/print changed during generation/);
+  assert.deepEqual(await readFile(exportFile),exportBefore);
 });
 
 test('final approval rejects a saved export whose bytes changed',async t=>{
@@ -131,7 +136,7 @@ test('final approval rejects a saved export whose bytes changed',async t=>{
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const state=await(await fetch(origin+'/api/state')).json();assert.ok(state.program);
-  const file=join(dir,'exports/griffin-gcode/part.gcode');await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
+  const file=join(dir,(await shell.loadBundle(dir)).review.generation.file);await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
   const response=await fetch(origin+'/api/approve',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({actor:'SYNTHETIC stale export test',revision:state.revision})});
   assert.equal(response.status,400);assert.match((await response.json()).error,/files changed/);
   const current=await(await fetch(origin+'/api/state')).json();assert.match(current.programError,/files changed/);assert.equal(current.exportHash,undefined);

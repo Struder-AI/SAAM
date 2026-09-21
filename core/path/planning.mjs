@@ -5,18 +5,42 @@ import {requireThat,distance,TOLERANCE} from '../geom/tolerance.mjs';
 import {combRoute,combSegment} from './comb.mjs';
 import {uprightPose,validatePose,samePose,bedPoint} from './pose.mjs';
 import {requireProcessControl} from './process-controls.mjs';
+import {sameNozzleMaterialChanges} from '../machine/rules.mjs';
 
 export const MINIMUM_MOVE_MM=1e-4,NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
 
-export function createPlanningState({start,process,machine,generatorVersion,motion=null,motionBounds,retracted=false}) {
+export function createPlanningState({start,process,machine,generatorVersion,motion=null,motionBounds,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
-  return {start:[...start],position:[...start],process,machine,generatorVersion,motion,
+  return {start:[...start],position:[...start],process,machine,generatorVersion,motion,selection,selections,defaultFilament:selection?.filament,toolRetractions:{},
     pose:motion?structuredClone(motion.initialPose):null,retracted,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
     ...(motionBounds?{motionBounds}:{}),stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
 
 export function planningResult(state,actions={chunks:[]},decisions={}) {
   return {...decisions,state,actions};
+}
+
+export function planSelection(state,filament){
+  if(!state.selections)return planningResult(state);
+  const incoming=state.selections[filament??state.selection.filament];
+  requireThat(incoming,'Operation selects an undeclared filament.');
+  if(incoming.filament===state.selection.filament)return planningResult(state);
+  const sameNozzle=sameNozzleMaterialChanges(state.machine)&&incoming.tool===state.selection.tool;
+  requireThat(sameNozzle||state.machine.id==='bambu-h2d'&&incoming.tool!==state.selection.tool,'This machine does not implement this material change.');
+  const lift=state.machine.outputs.find(o=>o.id==='bambu-gcode').constraints.toolChangeLiftMm;
+  requireThat(Number.isFinite(lift)&&lift>0,'Machine has no tool-change clearance contract.');
+  const retracted=planRetraction(state),z=Math.max(state.position[2],state.depositedMaxZ+lift);
+  const lo=state.motionBounds.min.map((v,i)=>Math.max(v,incoming.bounds.min[i]));
+  const hi=state.motionBounds.max.map((v,i)=>Math.min(v,incoming.bounds.max[i]));
+  requireThat(lo.every((v,i)=>v<=hi[i])&&z<=hi[2],'Tool change exceeds common nozzle clearance bounds.');
+  const lifted=planMove(retracted.state,[state.position[0],state.position[1],z],state.process.zSpeedMmS);
+  const point=[Math.max(lo[0],Math.min(hi[0],state.position[0])),Math.max(lo[1],Math.min(hi[1],state.position[1])),z];
+  const approached=planMove(lifted.state,point,state.process.travelSpeedMmS);
+  const toolRetractions={...state.toolRetractions,[state.selection.tool]:retracted.state.retracted};
+  const changed=appendAction({...approached.state,selection:incoming,process:incoming.process,motionBounds:incoming.bounds,
+    toolRetractions,retracted:sameNozzle?incoming.process.retractMm>0:toolRetractions[incoming.tool]??false,moveRun:null},
+    {kind:'toolChange',filament:incoming.filament,tool:incoming.tool,phase:state.phase,layer:state.layer,operation:state.operationId});
+  return planningResult(changed.state,{chunks:[retracted.actions,lifted.actions,approached.actions,changed.actions]});
 }
 
 // Local emission storage for ONE planning stage, never shared planning state.

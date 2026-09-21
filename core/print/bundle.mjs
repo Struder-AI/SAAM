@@ -24,7 +24,7 @@ const limitationsFor = (plan, machine) => {
 };
 
 
-export const {root, defaultSetupFile, EXPORT_NAME, EXPORT_PATH, proposedPlan, initBundle, loadBundle, bundleFingerprint, bundleFingerprints, rememberSetup, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine}=createBundleWorkflow({
+export const {root, EXPORT_NAME, atomicManifest, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, bundleFingerprint, bundleFingerprints, rememberSetup, prepareGeneration, commitGeneration, checkPathBundle, adjustBundle, updatePlan, generateBundle, approve, deliver, changeMachine}=createBundleWorkflow({
   kind:'shell',defaults,validatePlan,geometryTemplate,createGeometry,verifyGeometry,
   generatePath:async(plan,machine,options)=>generatePath(plan,machine,await rhino(),options),
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',machineFile:'machines/ultimaker-s5.json',

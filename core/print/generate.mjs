@@ -9,10 +9,12 @@
 import { makeShell, assertClosed } from '../geom/shell.mjs';
 import { boxShell, wedgeShell, splineTopShell, splineSideShell, verticalSplineSideShell, shellFromSurfaces } from '../geom/shapes.mjs';
 import {planToolpath} from '../path/toolpath.mjs';
+import {filamentSelection} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import { fullFillResult } from '../../skills/full-fill/scripts/fill.mjs';
 import { drapedSkinResult, surveySurface, machineMaxAngle, DRAPED_SKIN_DEFAULTS } from '../../skills/draped-skin/scripts/drape.mjs';
 import { validatePlan, VERSION } from './plan.mjs';
+import {bridgingResult} from '../../skills/bridging/scripts/bridge.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {makeMesh,translateMesh} from '../geom/mesh.mjs';
 import {toolBounds,startupPosition,startupRetracted} from '../machine/profile.mjs';
@@ -128,7 +130,8 @@ export function preparePathGeometry(plan,machine,rhino) {
     translateShell(buildShell(rhino,part.geometry),plan.placement.xMm+part.xMm,plan.placement.yMm+part.yMm,part.zMm)])) : null;
   const weldSites=preparePlasticWeld({plan,placed,componentShells});
   const bounds=toolBounds(machine,plan.setup.tool);
-  requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=bounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=bounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
+  const geometryBounds=plan.composition.regions.some(r=>r.filament!==undefined)?machine.bounds:bounds;
+  requireThat(machine.motionChecks==='deferred'||placed.bounds.min.every((v,i)=>v>=geometryBounds.min[i]-1e-8)&&placed.bounds.max.every((v,i)=>v<=geometryBounds.max[i]+1e-8),'Placed geometry exceeds selected tool bounds.');
   const skin = plan.skills['draped-skin'];
   const vase=plan.skills['vase-wall'];
   requireThat(plan.composition.regions.length||!vase.enabled||!skin.enabled||(componentShells&&vase.part!==skin.part),'Vase wall and draped skin overlap on the same component.');
@@ -237,6 +240,10 @@ export function generateModelResults(plan,machine,rhino,{placed,componentShells,
     results.push(published);summary.drapedSkin=published.report;
   }
   }
+  if(plan.skills.bridging.enabled){
+    const bridge=bridgingResult({plan,modelResults:results,bounds:machine.motionChecks==='deferred'?null:bounds});
+    results.push(bridge);summary.bridging=bridge.report;
+  }
   return {results,summary,survey,...(regionShells?{regionShells}:{})};
 }
 
@@ -324,7 +331,10 @@ export function generatePath(plan, machine, rhino, {onProgress} = {}) {
   const primed=addPrimeResult(plan,machine,complemented);
   const {placed,bounds}=prepared,{results,survey,prime}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
+  const assigned=[...new Set([plan.setup.bambu?.filament,...plan.composition.regions.map(r=>r.filament)].filter(v=>v!==undefined))];
+  const selections=plan.composition.regions.some(r=>r.filament!==undefined)?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,machine,i)])):null;
   return planToolpath({start:startupPosition(machine,plan),process,machine,generatorVersion:VERSION,
+    selection:selections?.[plan.setup.bambu.filament]??null,selections,
     motion:plan.setup.denso??null,motionBounds:bounds,retracted:startupRetracted(machine,plan)},results,
   {geometryBounds:placed.bounds,rules:plan.composition,prime:!prime,summary,onProgress});
 }

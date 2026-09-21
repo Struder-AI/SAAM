@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdir,readFile,rm,writeFile} from 'node:fs/promises';
+import {access,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {applyPlanPatch,editedPlanReview} from '../print/workflow.mjs';
 import {editFixture} from './workflow-edit-fixture.mjs';
@@ -28,9 +28,9 @@ test('patch and review transitions preserve frozen prior records and locked repl
 });
 
 test('frozen submitted plans and patches update without modifying caller state; no-op preserves review',async t=>{
-  const f=await fixture(t),before=await f.read('review.json');
+  const f=await fixture(t),before=await f.read('plan.json');
   const noop=await f.api.updatePlan(f.directory,freeze(f.state.plan),f.state.revision);
-  assert.equal(noop.revision,f.state.revision);assert.equal(await f.read('review.json'),before);
+  assert.equal(noop.revision,f.state.revision);assert.equal(await f.read('plan.json'),before);
   const candidate=structuredClone(f.state.plan);candidate.process.planarSpeedMmS=17;freeze(candidate);
   const updated=await f.api.updatePlan(f.directory,candidate,f.state.revision);
   assert.equal(updated.plan.process.planarSpeedMmS,17);assert.equal(f.state.review.history.length,1);
@@ -41,33 +41,23 @@ test('frozen submitted plans and patches update without modifying caller state; 
 });
 
 test('stale, invalid and unbuildable changes leave persisted plan and review untouched',async t=>{
-  const f=await fixture(t),plan=await f.read('plan.json'),review=await f.read('review.json');
+  const f=await fixture(t),manifest=await f.read('plan.json');
   await assert.rejects(f.api.adjustBundle(f.directory,{unknown:1},{expectedRevision:'stale'}),/review is stale/);
   assert.deepEqual(f.events,[]);
   await assert.rejects(f.api.adjustBundle(f.directory,{process:{planarSpeedMmS:0}}),/invalid speed/);
   f.failGeometry=true;
   await assert.rejects(f.api.adjustBundle(f.directory,{geometry:{height:9}}),/geometry failed/);
-  assert.equal(await f.read('plan.json'),plan);assert.equal(await f.read('review.json'),review);
+  assert.equal(await f.read('plan.json'),manifest);
 });
 
-test('geometry write failure happens after plan commit and before review save; reload repairs it',async t=>{
-  // Blocking the descriptor lets initial reads succeed, but fails the second geometry write.
-  let blocked=false;
-  // Adapter callbacks are captured at construction: use a separate fixture with an intercepted creator.
-  const {createBundleWorkflow}=await import('../print/workflow.mjs');
-  const g=await editFixture(adapter=>createBundleWorkflow({...adapter,async createGeometry(parameters){
-    const result=await adapter.createGeometry(parameters);
-    if(blocked){await rm(join(g.directory,'geometry/model.json'));await mkdir(join(g.directory,'geometry/model.json'));}
-    return result;
-  }}));t.after(g.cleanup);
-  const before=await g.read('review.json'),original=await g.read('geometry/model.json');blocked=true;
-  await assert.rejects(g.api.adjustBundle(g.directory,{geometry:{height:9}}));
-  assert.equal(JSON.parse(await g.read('plan.json')).geometry.height,9);
-  assert.equal(await g.read('review.json'),before);
-  assert.equal(JSON.parse(await g.read('geometry/model.mesh.json')).height,9);
-  blocked=false;await rm(join(g.directory,'geometry/model.json'),{recursive:true});
-  await writeFile(join(g.directory,'geometry/model.json'),original);
-  assert.equal((await g.api.loadBundle(g.directory,{program:false})).geometry.parameters.height,9);
+test('a geometry edit writes an immutable artifact before one manifest commit',async t=>{
+  const f=await fixture(t),before=JSON.parse(await f.read('plan.json')),oldFile=before.bundle.geometry.file;
+  const updated=await f.api.adjustBundle(f.directory,{geometry:{height:9}});
+  const after=JSON.parse(await f.read('plan.json'));
+  assert.equal(after.geometry.height,9);assert.equal(after.bundle.geometry.descriptor.parameters.height,9);
+  assert.notEqual(after.bundle.geometry.file,oldFile);assert.equal(updated.geometry.parameters.height,9);
+  await access(join(f.directory,oldFile));await access(join(f.directory,after.bundle.geometry.file));
+  await assert.rejects(access(join(f.directory,'review.json')),{code:'ENOENT'});
 });
 
 test('edit graph connects patch, validated plan and new review to persistence',async()=>{

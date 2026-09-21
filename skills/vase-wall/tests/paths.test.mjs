@@ -14,7 +14,7 @@ import {contourPath} from '../../../core/geom/contour-path.mjs';
 import {distance} from '../../../core/geom/tolerance.mjs';
 import {syntheticDobotSetup} from '../../../core/tests/fixtures/dobot.mjs';
 import {exportProgram,interpretProgram} from '../../../core/export/registry.mjs';
-import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle,EXPORT_PATH} from '../../../core/print/bundle.mjs';
+import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle} from '../../../core/print/bundle.mjs';
 import {skillSettingsRows} from '../../../studio/settings.mjs';
 import {loopDemoPlan,loopHost} from '../scripts/loop-demo.mjs';
 
@@ -189,7 +189,7 @@ test('mapped pattern edits use ordinary reviews and exact-byte delivery',async t
   const dir=await mkdtemp(join(tmpdir(),'saam-synthetic-sleeve-'));t.after(()=>rm(dir,{recursive:true,force:true,maxRetries:3,retryDelay:100}));
   await initBundle(dir,recipe());const actor='SYNTHETIC SLEEVE TEST — not a human approval';
   await generateBundle(dir);let state=await loadBundle(dir);assert.equal(state.programError,undefined);
-  await approve(dir,{actor,revision:state.revision});assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,EXPORT_PATH)));
+  await approve(dir,{actor,revision:state.revision});assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,'exports',state.plan.output,state.exportName)));
   const pattern=structuredClone(state.plan.skills['vase-wall'].pattern);pattern.repeats=3;
   await adjustBundle(dir,{skills:{'vase-wall':{pattern}}});state=await loadBundle(dir,{program:false});
   assert.equal(state.toolpathApproved,false);

@@ -73,9 +73,9 @@ demonstrate the failure they protect against without requiring an extra checklis
 
 ## Test registry
 
-The dev-map suites cover the generated map itself:
-[flow generation and stored pages](./dev-map-flow.test.mjs) and
-[page views and reads](./dev-map-view.test.mjs).
+The dev-map suites under `dev-map/tests/` cover scanner relationships, including
+[flow generation and stored pages](../../dev-map/tests/dev-map-flow.test.mjs) and
+[page views and reads](../../dev-map/tests/dev-map-view.test.mjs).
 [Context maps](./context-map.test.mjs) and the onboarding cases in
 [agent toolkit](./agent-toolkit.test.mjs) check role-specific reads.
 Select these when changing map tooling or context delivery; ordinary changes to

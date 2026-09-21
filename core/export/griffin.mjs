@@ -44,9 +44,10 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
 }
 
 // The same volumetric SAAMpath actions and rounding rules feed every dialect.
-export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
+export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='G0'}={}) {
   validatePath(path);
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
+  requireThat(['G0','G1'].includes(travelCommand),'Unsupported travel command.');
   const relativeE=extrusionMode==='relative';
   let residualE=0;
   const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2;
@@ -94,7 +95,7 @@ export function exportMotion(path,plan,{extrusionMode='absolute'}={}) {
         motion('G1',target,nextE,feed);
         if(!relativeE)writtenE=nextE;
       }
-      else motion('G0',target,undefined,a.speedMmS*60);
+      else motion(travelCommand,target,undefined,a.speedMmS*60);
       writtenPosition=target;
     } else if(a.kind==='extrude') {
       const filamentMm=a.volumeMm3/area;
@@ -134,6 +135,17 @@ export const interpretGriffin=(text,plan,machine,options={})=>interpretGcode(tex
 // It still requires explicit units, modes, tool and temperature waits. This is
 // the same modal engine as Griffin, without inventing a Griffin header.
 export const interpretMotion=(text,plan,machine,{extrusionMode='absolute',...options}={})=>interpretGcode(text,plan,machine,true,extrusionMode,options);
+// A checked dialect may interleave its own firmware service blocks with motion.
+// It supplies their validated handoff state, never unchecked G-code annotations.
+export function interpretMotionChunk(text,plan,machine,{position,debt=0,fan=0,startupRecoveryPending=false},moves=[]){
+  const initial=initializeGcodeInterpretation(plan,machine,true,'relative');
+  requireThat(Array.isArray(position)&&position.length===3&&position.every((v,i)=>Number.isFinite(v)&&v>=initial.context.bounds.min[i]&&v<=initial.context.bounds.max[i]),'Invalid motion handoff position.');
+  requireThat(Number.isFinite(debt)&&debt>=0&&debt<=initial.context.maxWithdrawalMm,'Invalid motion handoff retraction.');
+  initial.state={...initial.state,pos:[...position],debt,fan,startupRecoveryPending};
+  const interpreted=interpretGcodeLines(text,initial,moves),s=interpreted.state;
+  requireThat(s.metric&&s.absolute===true&&s.absE===false&&s.hot&&s.bedReady&&s.nozzle===plan.setup.nozzleC&&s.bed===plan.setup.bedC,'Invalid motion segment handoff state.');
+  return {...gcodeProgram(s,interpreted.source,initial.context,moves,interpreted.events),state:s};
+}
 function interpretGcode(text,plan,machine,bodyOnly=false,extrusionMode='absolute',{moves=[]}={}) {
   const initial=initializeGcodeInterpretation(plan,machine,bodyOnly,extrusionMode);
   const interpreted=interpretGcodeLines(text,initial,moves);
@@ -337,6 +349,7 @@ export function validatePath(path) {
     else if(a.kind==='retract'||a.kind==='recover') requireThat(Number.isFinite(a.filamentMm)&&a.filamentMm>=0&&Number.isFinite(a.speedMmS)&&a.speedMmS>0, 'Invalid filament action.');
     else if(a.kind==='extrude')requireThat(Number.isFinite(a.volumeMm3)&&a.volumeMm3>0&&Number.isFinite(a.flowMm3S)&&a.flowMm3S>0,'Invalid stationary deposition.');
     else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
+    else if(a.kind==='toolChange')requireThat(Number.isInteger(a.filament)&&a.filament>=0&&Number.isInteger(a.tool)&&a.tool>=0,'Invalid material selection.');
     else if(a.kind==='fan') number(a.percent,0,100,'Fan');
     else if(a.kind==='dwell') requireThat(Number.isFinite(a.seconds)&&a.seconds>=0,'Dwell outside limits.');
     else throw new Error('Unsupported SAAMpath action: '+a.kind);

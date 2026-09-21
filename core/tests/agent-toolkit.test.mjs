@@ -153,11 +153,12 @@ test('create-preview reuses isolated setup and opening preserves approved export
   await shell.generateBundle(target);
   state = await shell.loadBundle(target);
   await shell.approve(target, {revision: state.revision, actor: 'SYNTHETIC TEST ONLY'});
-  const saved = await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name))));
+  state=await shell.loadBundle(target);const savedFiles=['plan.json',state.review.generation.file];
+  const saved = await Promise.all(savedFiles.map(name => readFile(join(target, name))));
   const reopened = await f.open({command: 'open-print', target: join(target, 'plan.json')});
   assert.equal(reopened.result.print.toolpathApproved, true);
   assert.equal(reopened.result.print.generation.current, true);
-  assert.deepEqual(await Promise.all(['plan.json', 'review.json', 'exports/griffin-gcode/part.gcode'].map(name => readFile(join(target, name)))), saved);
+  assert.deepEqual(await Promise.all(savedFiles.map(name => readFile(join(target, name)))), saved);
   await assert.rejects(f.open({command: 'create-preview', target, kind: 'shell'}), /already exists/);
 });
 

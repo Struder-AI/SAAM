@@ -94,6 +94,7 @@
               "id": "process",
               "label": "processTransitions",
               "members": [
+                "core/path/planning.mjs::planSelection",
                 "core/path/planning.mjs::planRetraction",
                 "core/path/planning.mjs::planRecovery",
                 "core/path/planning.mjs::planFan",
@@ -217,7 +218,8 @@
           "id": "process",
           "label": "processTransitions",
           "members": [
-            "core/path/planning.mjs::planRetraction",
+            "core/path/planning.mjs::planSelection",
+                "core/path/planning.mjs::planRetraction",
             "core/path/planning.mjs::planRecovery",
             "core/path/planning.mjs::planFan",
             "core/path/planning.mjs::planNozzle",

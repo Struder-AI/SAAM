@@ -16,23 +16,25 @@ test('a restarted server changes its public instance identity and rejects the ol
   server.listen(0,'127.0.0.1');await once(server,'listening');
   const port=server.address().port,url='http://127.0.0.1:'+port;
   const html=await(await freshFetch(url)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
-  const state=await(await freshFetch(url+'/api/state')).json(),first=await(await freshFetch(url+'/api/revision')).json();
-  assert.equal(first.instanceId,state.instanceId);
+  const firstResponse=await freshFetch(url+'/api/state'),state=await firstResponse.json(),first=state.instanceId;
   await server.shutdown();
   server=createStudio(directory,{libraryRoot:root});server.listen(port,'127.0.0.1');await once(server,'listening');
-  const next=await(await freshFetch(url+'/api/revision')).json();assert.notEqual(next.instanceId,first.instanceId);
+  const nextResponse=await freshFetch(url+'/api/state',{headers:{'If-None-Match':firstResponse.headers.get('etag')}}),next=await nextResponse.json();
+  assert.equal(nextResponse.status,200);assert.notEqual(next.instanceId,first);
   assert.equal((await freshFetch(url+'/api/view-ready',{method:'POST',headers:{Origin:url,'X-SAAM-Token':token,'Content-Type':'application/json'},body:'{}'})).status,403);
 });
 
 test('the actual browser poll reloads a restarted session before sending acknowledgements',async()=>{
   const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
   const poll=app.slice(app.indexOf('async function poll(){'),app.indexOf('\nfunction seekTourLayer('));
-  let reloads=0,refreshes=0;
-  const context=vm.createContext({URLSearchParams,polling:false,busy:false,reconnecting:false,movieController:null,
-    state:{instanceId:'old',fingerprint:'before'},fetch:async()=>({ok:true,json:async()=>({instanceId:'new',fingerprint:'after'})}),
-    window:{location:{reload:()=>reloads++}},message(){},$:()=>({}),working:async(_label,task)=>task(),refresh:async()=>refreshes++});
+  let reloads=0,refreshes=0;const requests=[];
+  const context=vm.createContext({polling:false,busy:false,reconnecting:false,movieController:null,stateTag:'W/"before"',
+    state:{instanceId:'old',fingerprint:'before'},fetch:async(...args)=>{requests.push(args);return {status:200,ok:true,headers:{get:()=> 'W/"after"'},json:async()=>({instanceId:'new',fingerprint:'after'})};},
+    needsTourToolpath:()=>false,window:{location:{reload:()=>reloads++}},message(){},$:()=>({}),working:async(_label,task)=>task(),
+    refresh:async(_follow,_reopen,next,tag)=>{refreshes++;context.state=next;context.stateTag=tag;}});
   await vm.runInContext(poll+'\npoll()',context);
   assert.equal(reloads,1);assert.equal(refreshes,0);
+  assert.equal(requests[0][0],'/api/state');assert.equal(requests[0][1].headers['If-None-Match'],'W/"before"');
   context.state.instanceId='new';await vm.runInContext('poll()',context);
   assert.equal(reloads,1);assert.equal(refreshes,1);
 });
@@ -41,11 +43,11 @@ test('tour metadata updates preserve playback and source; a newly published edit
   const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
   const poll=app.slice(app.indexOf('async function poll(){'),app.indexOf('\nfunction seekTourLayer('));
   let loads=0,renders=0,needsGeneration=false;
-  const next={instanceId:'same',fingerprint:'same',tour:{step:4,canNext:true,startAt:{layer:8}}};
-  const context=vm.createContext({URLSearchParams,polling:false,busy:false,reconnecting:false,movieController:null,playing:true,
-    state:{instanceId:'same',fingerprint:'same',tour:{step:4,canNext:false,startAt:{layer:12}}},
-    fetch:async()=>({ok:true,json:async()=>next}),message(){},render(){renders++;},needsTourToolpath:()=>needsGeneration,
-    working:async(_label,task)=>{context.playing=false;return task();},refresh:async()=>{loads++;context.state.tour=next.tour;renders++;}});
+  const next={instanceId:'same',fingerprint:'same',presentationFingerprint:'same-source',tour:{step:4,canNext:true,startAt:{layer:8}}};
+  const context=vm.createContext({polling:false,busy:false,reconnecting:false,movieController:null,playing:true,stateTag:'W/"before"',
+    state:{instanceId:'same',fingerprint:'same',presentationFingerprint:'same-source',tour:{step:4,canNext:false,startAt:{layer:12}}},
+    fetch:async()=>({status:200,ok:true,headers:{get:()=> 'W/"after"'},json:async()=>next}),message(){},render(){renders++;},needsTourToolpath:()=>needsGeneration,
+    working:async(_label,task)=>{context.playing=false;return task();},refresh:async(_follow,_reopen,fetched,tag)=>{loads++;context.state={...fetched};context.stateTag=tag;renders++;}});
   await vm.runInContext(poll+'\npoll()',context);
   assert.equal(loads,1);assert.equal(renders,1);assert.equal(context.playing,true);
   assert.equal(context.state.tour.startAt.layer,8);

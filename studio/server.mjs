@@ -64,7 +64,7 @@ const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mj
   'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
-  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
+  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs','core/export/bambu-change.mjs','core/export/bambu-x1-change.mjs','core/machine/filaments.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs','core/path/process-controls.mjs']);
 
 // A selected plan, export or delivery file reopens its owning print bundle.
@@ -77,14 +77,14 @@ export async function printDirectory(input,resolveBundle=bundleFor) {
     try{await resolveBundle(dir);return dir;}catch(error){if(error.code!=='ENOENT')throw error;}
     const parent=dirname(dir);if(parent===dir)break;dir=parent;
   }
-  throw new Error('No SAAM print bundle found. Open the saved print folder containing plan.json, geometry and machine.json. Standalone G-code/3MF import is not supported.');
+  throw new Error('No SAAM print bundle found. Open the saved print folder containing plan.json and its referenced artifacts. Standalone G-code/3MF import is not supported.');
 }
 export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
   const prints=[];
   async function walk(dir,depth){
     let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return;throw error;}
     if(entries.some(e=>e.name==='plan.json'&&e.isFile())){
-      try{const plan=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),machine=JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
+      try{const document=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),{bundle,...plan}=document,machine=bundle?.machine??JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
         if(supportsBundleSchema(plan.schema)||await resolveBundle(dir))prints.push({path:dir,name:await printName(dir,plan),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
       }catch{/* One damaged bundle must not hide the other prints. */}
       return;
@@ -103,9 +103,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const tour=createTour(libraryRoot,{ownerId:sessionOwnerId,studioId:instanceId,agentRequests:requests});
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
-  const metadata=state=>({revision:state.revision,review:{...state.review,history:undefined},
-    toolpathApproved:state.toolpathApproved,tourExample:state.tourExample??null,
-    programError:state.programError??null,exportHash:state.exportHash??null});
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex'),viewPerformance=[];
   // Studio observations for the owning agent: person-driven actions, worker
@@ -130,6 +127,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
   let preparation,generationFailure,generationCancelled,importProgress,generationRun=null,closed=false;
+  const stateTag=(fingerprint,guide,failure=generationFailure,cancelled=generationCancelled)=>
+    'W/"'+createHash('sha256').update(JSON.stringify([instanceId,fingerprint,guide,failure,cancelled])).digest('base64url')+'"';
+  const matchesStateTag=(header,tag)=>typeof header==='string'&&header.split(',').some(value=>{
+    const candidate=value.trim();return candidate==='*'||candidate.replace(/^W\//,'')===tag.replace(/^W\//,'');
+  });
   const discardPreparation=(error=new Error('The prepared print changed.'))=>{
     const previous=preparation;preparation=null;
     return previous?.dispose(error);
@@ -235,6 +237,20 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     }catch(error){await publishGenerationFailure(error,snapshot,trigger);}
     finally{generationRun=null;}
   };
+  const approvePrint=async(current,{actor,revision},progress)=>{
+    const state=await current.approve(dir,{actor,revision,program:'source'});
+    const {history:_history,...review}=state.review,{source,presentation}=await current.bundleFingerprints(dir,{program:!geometryOnly(progress)});
+    note('approved',{revision:state.revision});
+    return {state,response:{revision:state.revision,review,toolpathApproved:state.toolpathApproved,
+      programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,
+      presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}};
+  };
+  const deliverPrint=async(current,{requestedName,tour=false}={})=>{
+    const file=await current.deliver(dir),fallback=basename(file),name=requestedDownloadName(requestedName,await printName(dir),fallback);
+    const bytes=await readFile(file),exportHash=createHash('sha256').update(bytes).digest('hex');
+    note('export-delivered',{tour,name,exportHash});
+    return {file,name,bytes,exportHash,contentType:fallback.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':fallback.endsWith('.zip')?'application/zip':'text/plain'};
+  };
   const openPrint=async input=>{
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
     await readStableBundle(adapter,next,{program:false});
@@ -273,7 +289,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -315,6 +331,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       const bundle=await opened;
       if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
       if(req.method==='GET'&&url.pathname==='/api/state') {
+        const condition=req.headers['if-none-match'];
+        if(condition){
+          const guide=await tour.info(),current=await bundle.bundleFingerprints(readDir,{program:!geometryOnly(guide)});
+          const tag=stateTag(viewFingerprint(readId,current.source,guide),guide);
+          if(matchesStateTag(condition,tag)&&readDir===dir){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
+        }
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
         const {state,fingerprint,presentationFingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
         if(readDir!==dir)throw new Error('The print is being updated.');
@@ -323,6 +345,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
           printName:name,fingerprint:viewFingerprint(readId,fingerprint,guide),presentationFingerprint:presentation,
           generationFailure:failure,generationCancelled:cancelled,now:Date.now()});
+        res.setHeader('ETag',stateTag(assembled.response.fingerprint,guide,failure,cancelled));
         send(assembled.response);
         // Speculate only on the tour's explicitly selected, confirmed part.
         // Ordinary edits use explicit generation; starting a second worker here
@@ -344,29 +367,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           });
         }
         res.end();return;
-      }
-      if(req.method==='GET'&&url.pathname==='/api/revision'){
-        const guide=await tour.info();
-        const options={program:!geometryOnly(guide)},current=await bundle.bundleFingerprints(readDir,options),raw=current.source;
-        const fingerprint=viewFingerprint(readId,raw,guide),presentationFingerprint=viewFingerprint(readId,current.presentation,guide);
-        let reviewUpdate;
-        if(url.searchParams.has('fingerprint')&&url.searchParams.get('fingerprint')!==fingerprint){
-          const {state,fingerprint:checked}=await readStableBundle(bundle,readDir,{program:options.program?'source':false});
-          if(checked!==raw||readDir!==dir)throw Error('The print is being updated.');
-          reviewUpdate=metadata(state);
-        }
-        send({instanceId,fingerprint,presentationFingerprint,reviewUpdate,tour:guide});return;
-      }
-      if(req.method==='GET'&&url.pathname==='/api/gcode') {
-        const fingerprint=await bundle.bundleFingerprint(readDir);
-        const state=await bundle.loadBundle(readDir,{program:'source'});
-        if(readDir!==dir)throw new Error('The open print changed. Reload before continuing.');
-        if(fingerprint!==await bundle.bundleFingerprint(readDir))throw new Error('The print is being updated.');
-        for(const [name,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]]){
-          if(url.searchParams.has(name)&&url.searchParams.get(name)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
-        }
-        if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
-        res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end(state.code);return;
       }
       if(req.method!=='POST'||!url.pathname.startsWith('/api/')){send({error:'Not found'},404);return;}
       if(url.pathname==='/api/agent-open'){
@@ -440,10 +440,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             state=await current.loadBundle(dir,{program:'source'});
             if(state.review.generation?.mode!=='production'){await generate(current,false,'tour-export');state=await current.loadBundle(dir,{program:'source'});}
             if(state.exportHash!==shownHash)throw Error('The regenerated toolpath changed. Review it, then confirm export again.');
-            if(!state.toolpathApproved)state=await current.approve(dir,{actor:'Local user — tour export',revision:state.revision,program:'source'});
-            const file=await current.deliver(dir),name=requestedDownloadName(data.name,await printName(dir),basename(file)),bytes=await readFile(file);
+            if(!state.toolpathApproved)state=(await approvePrint(current,{actor:'Local user — tour export',revision:state.revision},progress)).state;
+            const {file,name,bytes}=await deliverPrint(current,{requestedName:data.name,tour:true});
             await tour.downloaded(state.exportHash);
-            note('export-delivered',{tour:true,name,exportHash:state.exportHash,revision:state.revision});
             if(data.downloadLink===true){send(stageDownload(file,name,bytes));return;}
             res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name)}`});res.end(bytes);return;
           }finally{await tour.restoreReference(dir);}
@@ -489,25 +488,16 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan'){await current.updatePlan(dir,data.plan,data.revision);note('plan-updated',{revision:data.revision??null});}
         else if(url.pathname==='/api/approve'){
-          const state=await current.approve(dir,{actor:data.actor,revision:data.revision,program:'source'});
-          const {revision,review,toolpathApproved}=metadata(state);
-          note('approved',{revision});
-          const {source,presentation}=await current.bundleFingerprints(dir,{program:!geometryOnly(progress)});
-          send({ok:true,approval:{revision,review,toolpathApproved,
-            programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,
-            presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}});return;
+          const approved=await approvePrint(current,data,progress);send({ok:true,approval:approved.response});return;
         }
         else if(url.pathname==='/api/generate'){
           if(data.generationHash&&(await current.loadBundle(dir,{program:false})).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
           await generate(current,data.development===true);
         }
         else if(url.pathname==='/api/deliver') {
-          const file=await current.deliver(dir),name=basename(file);
-          const selectedName=requestedDownloadName(data.name,await printName(dir),name),delivered=await readFile(file);
-          note('export-delivered',{tour:false,name:selectedName,exportHash:createHash('sha256').update(delivered).digest('hex')});
-          if(data.downloadLink===true){send(stageDownload(file,selectedName,delivered));return;}
-          const contentType=name.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':name.endsWith('.zip')?'application/zip':'text/plain';
-          res.writeHead(200,{'Content-Type':contentType,'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(selectedName)}`});res.end(delivered);return;
+          const delivered=await deliverPrint(current,{requestedName:data.name});
+          if(data.downloadLink===true){send(stageDownload(delivered.file,delivered.name,delivered.bytes));return;}
+          res.writeHead(200,{'Content-Type':delivered.contentType,'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(delivered.name)}`});res.end(delivered.bytes);return;
         } else throw new Error('Unknown operation.');
         send({ok:true});
       });

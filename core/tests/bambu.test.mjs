@@ -87,7 +87,7 @@ test('H2D needs no colour or AMS choice, and rejects only a malformed one',async
   // No AMS request uses one logical filament and the declared default colour.
   assert.match(entries.get('Metadata/slice_info.config').toString(),new RegExp('color="'+machine.outputs[0].defaultFilamentColor+'"'));
   assert.equal(code.split('\n').filter(l=>l==='M620 S0A H-1').length,2,'no request keeps the first filament path');
-  for(const ams of [{unit:3,slot:1},{unit:1,slot:5},{unit:1,slot:0},{unit:1.5,slot:1},4]){
+  for(const ams of [{unit:machine.ams.units+1,slot:1},{unit:1,slot:5},{unit:1,slot:0},{unit:1.5,slot:1},4]){
     const bad=structuredClone(plan);bad.setup.ams=ams;assert.throws(()=>exportProgram(path,bad,machine,release),/AMS choice/);
   }
   const miscoloured=structuredClone(plan);miscoloured.setup.filamentColor='teal';
@@ -109,7 +109,7 @@ test('H2D rejects altered firmware, metadata, print commands, cold state, tool e
   assert.throws(()=>interpretProgram(changeCode('M104 S215 T1','M104 S215 T0'),plan,machine),/firmware envelope/);
   assert.throws(()=>interpretProgram(changeCode(';SAAM_BODY_BEGIN\n',';SAAM_BODY_BEGIN\nM999\n'),plan,machine),/modal\/temperature/);
   assert.throws(()=>interpretProgram(changeCode(';SAAM_BODY_END\n','M999\n;SAAM_BODY_END\n'),plan,machine),/Unsupported command/);
-  assert.throws(()=>interpretProgram(changeCode(';SAAM_BODY_END\n','G0 X340 Y100 Z20 F600\n;SAAM_BODY_END\n'),plan,machine),/selected tool bounds/);
+  assert.throws(()=>interpretProgram(changeCode(';SAAM_BODY_END\n','G1 X340 Y100 Z20 F600\n;SAAM_BODY_END\n'),plan,machine),/selected tool bounds/);
   assert.throws(()=>interpretProgram(changeCode('M190 S60\nM109 S215\n','M140 S60\nM104 S215\n'),plan,machine),/modal\/temperature/);
   for(const name of ['Metadata/slice_info.config','Metadata/plate_1.gcode.md5','Metadata/plate_1.png']){
     const entries=unpackZip(bytes);entries.set(name,Buffer.from('wrong'));assert.throws(()=>interpretProgram(packZip(entries),plan,machine),/metadata, checksum or thumbnail/);
@@ -159,7 +159,7 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const path=generatePath(plan,machine,await rhino()),{bytes,program}=exportAndInterpretProgram(path,plan,machine,release);
   assert.deepEqual(bytes,exportProgram(path,plan,machine,release),'archive bytes are deterministic');
   const cold=interpretProgram(bytes,plan,machine),moves=path.actions.filter(a=>a.kind==='move');
-  assert.equal(cold.envelope.contract,'x1c-saam-startup-v2');assert.equal(cold.moves.length,moves.length);assert.equal(program.moves.length,moves.length);
+  assert.equal(cold.envelope.contract,'x1c-saam-startup-v5');assert.equal(cold.moves.length,moves.length);assert.equal(program.moves.length,moves.length);
   moves.forEach((m,i)=>m.to.forEach((v,k)=>assert.ok(Math.abs(v-cold.moves[i].to[k])<6e-6)));
   const entries=unpackZip(bytes),code=entries.get(GCODE).toString(),[start,rest]=code.split(';SAAM_BODY_BEGIN\n'),end=rest.split(';SAAM_BODY_END\n')[1];
   const bounds=path.summary.boundsMm,top=bounds.max[2];
@@ -222,6 +222,10 @@ test('logical filament selection reaches both load blocks, detection and every p
   const code=z.get(GCODE).toString(),slice=z.get('Metadata/slice_info.config').toString();
   for(const command of ['M620 S2A H-1','T2 H-1','M621 S2A'])assert.equal(code.split('\n').filter(l=>l===command).length,2);
   assert.match(code,/^M620\.6 I2 H-1 W1$/m);assert.doesNotMatch(code,/^M620 S7A|^T7 H/m);
+  assert.match(code,/^M620\.17 T0 S215 L2$/m,'Calibration uses the first printed filament, not an unused earlier declaration on the same nozzle');
+  assert.match(code,/^M620\.17 T1 S215 L0$/m,'Unused nozzle follows the explicit declared-filament-zero fallback');
+  assert.match(code,/^G383 O1 T215 L2$/m);
+  assert.match(code,/^G383\.3 T215 L2$/m);
   assert.match(slice,/<filament id="3" .*color="#AABBCC"/);
   assert.match(slice,/filament_list="2"/);
   const plate=JSON.parse(z.get('Metadata/plate_1.json'));assert.deepEqual(plate.filament_ids,[2]);assert.equal(plate.first_extruder,2);
@@ -292,6 +296,28 @@ test('declared AMS connectivity cannot silently feed the other H2D nozzle',()=>{
   assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/unique/);
 });
 
+test('declared logical filaments preserve independent nozzle assignments on every output surface',async()=>{
+  const facts=JSON.parse(await readFile(new URL('./fixtures/bambu-h2d-dual-reference-facts.json',import.meta.url),'utf8'));
+  for(const tool of [0,1]){
+    const {plan,machine}=fixture(tool,tool===0?0.4:0.8);
+    plan.setup.bambu.otherNozzleMm=tool===0?0.8:0.4;
+    plan.setup.bambu.filaments=[{id:'GFA00',colour:'#00AE42',tool:1},{id:'GFA00',colour:'#FFFF00',tool:0}];
+    plan.setup.bambu.filament=1-tool;
+    const path=generatePath(plan,machine,await rhino()),bytes=exportProgram(path,plan,machine,release),z=unpackZip(bytes);
+    const settings=JSON.parse(z.get('Metadata/project_settings.config')),code=z.get(GCODE).toString();
+    for(const key of ['filament_map','filament_map_2','filament_nozzle_map']){
+      assert.equal(settings[key].join(','),facts.sliceConfig[key]);
+      assert.match(code,new RegExp('; '+key+' = '+facts.sliceConfig[key]+'\\n'));
+    }
+    assert.deepEqual(settings.nozzle_diameter,['0.4','0.8']);
+    for(const name of ['Metadata/model_settings.config','Metadata/slice_info.config'])assert.match(z.get(name).toString(),/key="filament_maps" value="2 1"/);
+    assert.deepEqual(JSON.parse(z.get('Metadata/filament_sequence.json')).plate_1,{nozzle_sequence:[tool],sequence:[2-tool]},'declaring both nozzles does not claim both are used');
+    assert.equal(interpretProgram(bytes,plan,machine).envelope.job.tool,tool);
+    plan.setup.bambu.filament=tool;
+    assert.throws(()=>exportProgram(path,plan,machine,release),/nozzle disagrees/);
+  }
+});
+
 test('ZIP format rejects unsafe names, damaged directories and unreferenced bytes',()=>{
   for(const name of ['../file','/file','a//b','a/./b','a\\b'])assert.throws(()=>packZip(new Map([[name,'x']])),/name/);
   const bytes=packZip(new Map([['test','content']]));assert.equal(unpackZip(bytes).get('test').toString(),'content');
@@ -306,11 +332,10 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);
   assert.equal(state.exportName,'part.gcode.3mf');assert.equal(state.outputAvailability,null);
   state=await approve(dir,{actor,revision:state.revision});assert.equal(state.toolpathApproved,true);
-  const exportFile=join(dir,'exports/bambu-gcode/part.gcode.3mf'),bytes=await readFile(exportFile);
+  const exportFile=join(dir,state.review.generation.file),bytes=await readFile(exportFile);
   const server=createStudio(dir);await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
   const view=await(await fetch(origin+'/api/state')).json();assert.equal(view.exportName,'part.gcode.3mf');assert.equal(view.code,undefined);assert.equal(view.program.code,undefined);
-  assert.equal(await(await fetch(origin+'/api/gcode')).text(),unpackZip(bytes).get(GCODE).toString());
   const response=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:'{}'});
   assert.equal(response.status,200);assert.match(response.headers.get('content-disposition'),new RegExp(view.downloadName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   assert.deepEqual(Buffer.from(await response.arrayBuffer()),bytes);assert.deepEqual(await readFile(join(dir,'delivery/part.gcode.3mf')),bytes);
@@ -319,4 +344,46 @@ test('H2D Studio reviews extracted G-code and delivers the exact approved archiv
   await writeFile(exportFile,bytes);
   await adjustBundle(dir,{process:{planarSpeedMmS:18}});state=await loadBundle(dir);
   assert.equal(state.toolpathApproved,false);
+});
+
+
+test('fast_start skips optional checks, keeps startup handoff and rejects contradictory requests on both Bambu profiles',async()=>{
+  for(const id of ['bambu-h2d','bambu-x1-carbon']){
+    const machine=loadMachine(id),plan=defaults(machine);plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;
+    const path=generatePath(plan,machine,await rhino());
+    const full=unpackZip(exportProgram(path,plan,machine,release)).get(GCODE).toString().split(';SAAM_BODY_BEGIN')[0];
+    assert.match(full,/M970\.3/);assert.match(full,/M1006 S1/);
+    plan.setup.bambu.fast_start=true;
+    const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes),start=entries.get(GCODE).toString().split(';SAAM_BODY_BEGIN')[0];
+    assert.doesNotMatch(start,/^M970|^M974|^M1006|^M977|^M976|^M972/m);
+    assert.match(start,/M1002 set_flag g29_before_print_flag=0/);
+    assert.match(start,/M1002 set_flag extrude_cali_flag=0/);
+    assert.match(start,/M190 S60/);assert.match(start,/M109 S215/);
+    assert.match(start,/^G28(?: |\.)/m,'homing is retained');
+    assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
+    if(id==='bambu-h2d'){
+      assert.match(start,/G383 O0 M2 T140/);assert.match(start,/G1 X290 E10/);
+      assert.match(start,/M1002 set_flag auto_cali_toolhead_offset_flag=0/);
+      assert.match(start,/M1002 set_flag build_plate_detect_flag=0/);
+      assert.match(start,/M1012\.5 N1 R1/,'saved offset restoration remains');
+    }else{
+      assert.match(start,/G28 Z P0 T300/);assert.match(start,/G0 X239 E15/);
+      assert.doesNotMatch(start,/M18 E/,'fast mode avoids lidar preparation that disables the extruder');
+    }
+    assert.equal(interpretProgram(bytes,plan,machine).envelope.job.fast_start,true);
+    assert.equal(JSON.parse(entries.get('Metadata/saam-job.json')).fast_start,true);
+    plan.setup.bambu.startup.bedLeveling='on';assert.throws(()=>exportProgram(path,plan,machine,release),/fast_start conflicts/);
+    plan.setup.bambu.startup.bedLeveling='printer';plan.setup.bambu.fast_start='true';assert.throws(()=>exportProgram(path,plan,machine,release),/fast_start must be boolean/);
+  }
+});
+
+test('single used filament with a nonzero logical ID remains that ID in the USB header',async()=>{
+  const {machine,plan}=fixture(1,0.8);
+  plan.setup.bambu.filaments=[{id:'GFA00',colour:'#808080',tool:0},{id:'GFA00',colour:'#0000FF',tool:1}];
+  plan.setup.bambu.filament=1;
+  const path=generatePath(plan,machine,await rhino()),bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
+  assert.match(entries.get(GCODE).toString(),/^; filament: 2$/m);
+  assert.match(entries.get('Metadata/slice_info.config').toString(),/<filament id="2"/);
+  assert.deepEqual(JSON.parse(entries.get('Metadata/plate_1.json')).filament_ids,[1]);
+  assert.equal(interpretProgram(bytes,plan,machine).filamentUsage[0].filament,1);
 });

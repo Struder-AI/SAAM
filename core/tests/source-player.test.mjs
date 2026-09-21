@@ -29,7 +29,7 @@ for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])test(`${id}: Studio p
   assert.equal(state.code,undefined);assert.equal(state.toolpathApproved,false);
   assert.ok(stateText.length<100000,'state must stay small instead of embedding the motion list');
   const sources=await fetchSources(state,fetcher);
-  const bytes=await readFile(join(dir,'exports',plan.output,state.exportName));
+  const bytes=await readFile(join(dir,expected.review.generation.file));
   if(id==='ultimaker-s5')assert.equal(sources.program,bytes.toString());
   else{
     const entries=unpackZip(bytes);
@@ -52,6 +52,7 @@ for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])test(`${id}: Studio p
   await assert.rejects(()=>fetchSources({...state,printId:'changed'},fetcher),/changed/);
   await assert.rejects(()=>fetchSources({...state,program:{sources:state.program.sources.map(s=>({...s,sha256:'wrong'}))}},fetcher),/changed/);
   assert.equal((await fetcher('/api/program?file=unrelated.lua')).status,404,'no per-file program route remains');
+  assert.equal((await fetcher('/api/gcode')).status,404,'no legacy single-source route remains');
   for(const file of ['/studio/source-worker.mjs','/studio/source-player.mjs','/studio/move-store.mjs','/core/export/griffin.mjs','/core/machine/rules.mjs','/core/machine/rigid.mjs'])assert.equal((await fetcher(file)).status,200);
   assert.notEqual((await fetcher('/core/print/workflow.mjs')).status,200,'only browser dependencies are served');
   if(id==='dobot-mg400'){

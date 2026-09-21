@@ -120,7 +120,7 @@ test('spline cladding uses shared checked export, cold reopening and approval in
   assert.ok(state.program.moves.some(m=>m.extruding&&m.phase==='cladding-axial'));
   assert.ok(state.program.moves.some(m=>m.extruding&&m.phase==='cladding-hoop'));
   await assert.rejects(()=>deliver(dir),/approv/);
-  const bytes=await readFile(join(dir,'exports/denso-pacscript/part.zip'));assert.ok(unpackZip(bytes).has('main.pcs'));
+  const bytes=await readFile(join(dir,state.review.generation.file));assert.ok(unpackZip(bytes).has('main.pcs'));
   await adjustBundle(dir,{skills:{'pipe-cladding':{enabled:false,surface:null}}});
   await adjustBundle(dir,{skills:{'pipe-cladding':{enabled:true,surface:p.skills['pipe-cladding'].surface}}});
   await adjustBundle(dir,{skills:{'pipe-cladding':{normalMm:.21}}});

@@ -5,7 +5,7 @@ import {studioControls} from '../../studio/studio-controls.mjs';
 
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
 const snapshot=(patch={})=>({printId:'part',generationHash:'plan',exportHash:'export',review:{generation:{mode:'production'}},program:{summary:{server:true},previewMaterial:{beads:[1]}},...patch});
-const context=(patch={})=>({previous:null,follow:false,stalePresentation:null,playbackCache:null,pathMoves:null,materialMoves:null,
+const context=(patch={})=>({previous:null,follow:false,presentation:null,pathMoves:null,materialMoves:null,
   decode:async()=>({moves:[1],summary:{decoded:true}}),bind:async()=>{},...patch});
 
 test('state adoption never mutates frozen responses across decode, cache reuse and failure',async()=>{
@@ -16,19 +16,20 @@ test('state adoption never mutates frozen responses across decode, cache reuse a
   assert.equal(decoded.state.program.previewMaterial,fresh.program.previewMaterial);
 
   const cachedProgram=freeze({moves:[2],summary:{cached:true}}),cached=freeze(snapshot()),calls=[];
-  const reused=await prepareStudioState(cached,context({playbackCache:{printId:'part',generationHash:'plan',exportHash:'export',program:cachedProgram},
+  const reused=await prepareStudioState(cached,context({presentation:{identity:{printId:'part',generationHash:'plan',exportHash:'export'},program:cachedProgram},
     bind:async value=>calls.push(value)}));
   assert.equal(calls[0],cached,'metadata binds before an adopted proxy store replaces the program');
   assert.equal(reused.state.program,cachedProgram);assert.equal(cached.program.previewMaterial.beads[0],1);
 
   const broken=freeze(snapshot({toolpathApproved:true})),failed=await prepareStudioState(broken,context({decode:async()=>{throw Error('bad source');}}));
   assert.equal(failed.state.program,undefined);assert.equal(failed.state.programError,'bad source');assert.equal(failed.state.toolpathApproved,false);
-  assert.ok(failed.presentation.action==='clear');assert.ok(broken.program);
+  assert.equal(failed.presentation.effects.program,'clear');assert.ok(broken.program);
 
   const previous=freeze(snapshot()),pending=freeze(snapshot({generationHash:'edited',program:undefined}));
-  const retained=await prepareStudioState(pending,context({previous,follow:true}));
-  assert.equal(retained.state,pending);assert.equal(retained.presentation.action,'retain-replacement');
-  assert.equal(retained.presentation.stalePresentation,previous);
+  const retained=await prepareStudioState(pending,context({previous,follow:true,presentation:{
+    identity:{printId:'part',generationHash:'plan',exportHash:'export'},presentedState:previous,program:previous.program}}));
+  assert.equal(retained.state,pending);assert.equal(retained.presentation.effects.program,'retain');
+  assert.equal(retained.presentation.model.presentedState,previous);
 
   const consumed=withoutPreviewMaterial(decoded.state);
   assert.notEqual(consumed,decoded.state);assert.notEqual(consumed.program,decoded.state.program);

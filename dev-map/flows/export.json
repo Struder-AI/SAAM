@@ -18,6 +18,9 @@
             "core/export/griffin.mjs",
             "core/export/bambu.mjs",
             "core/export/bambu-job.mjs",
+            "core/export/bambu-body.mjs",
+            "core/export/bambu-change.mjs",
+            "core/export/bambu-x1-change.mjs",
             "core/export/bambu-player.mjs",
             "core/export/gcode-lines.mjs"
           ],
@@ -49,6 +52,7 @@
                   "members": [
                     "core/export/griffin.mjs::interpretGriffin",
                     "core/export/griffin.mjs::interpretMotion",
+                    "core/export/griffin.mjs::interpretMotionChunk",
                     "core/export/griffin.mjs::interpretGcode",
                     "core/export/griffin.mjs::initializeGcodeInterpretation",
                     "core/export/griffin.mjs::interpretGcodeLines",
@@ -68,6 +72,9 @@
               "members": [
                 "core/export/bambu.mjs",
                 "core/export/bambu-job.mjs",
+            "core/export/bambu-body.mjs",
+            "core/export/bambu-change.mjs",
+            "core/export/bambu-x1-change.mjs",
                 "core/export/bambu-player.mjs"
               ],
               "groups": [

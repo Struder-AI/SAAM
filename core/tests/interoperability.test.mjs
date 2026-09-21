@@ -73,7 +73,7 @@ test('H2D setup and development output use the shared bundle without creating ap
   await generateBundle(dir,{development:true});
   const generated=await loadBundle(dir);assert.equal(generated.programError,undefined);
   assert.equal(generated.exportName,'part.gcode.3mf');assert.equal(generated.toolpathApproved,false);
-  assert.equal(JSON.parse(await readFile(join(dir,'review.json'),'utf8')).generation.mode,'development');
+  assert.equal(generated.review.generation.mode,'development');
   const other=join(root,'next');await initBundle(other,undefined,{machineId:machine.id,setupFile});
   assert.equal((await loadBundle(other)).plan.setup.filamentMm,1.75);
 });

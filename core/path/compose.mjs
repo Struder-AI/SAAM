@@ -3,18 +3,23 @@
 import { requireThat, distance } from '../geom/tolerance.mjs';
 import { orderStrokes, orderScanlineCells } from './builder.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planConnection,planTravel,planMove,
-  planExtrusion,planDwell,planLayerCooling} from './planning.mjs';
+  planExtrusion,planDwell,planLayerCooling,planSelection} from './planning.mjs';
 
 // Schedule once, then advance explicit motion state through operations. Layer and
 // obstacle ledgers are local scheduling work, never shared builder state.
 export function planComposition(initialState,skillResults,rules={},onProgress) {
-  const operations=scheduleOperations(skillResults,rules),remaining=new Map(),elapsed=new Map(),deposited=[],actions=new ActionAccumulator();
+  const operations=scheduleOperations(skillResults,rules).map(op=>initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)
+    ?{...op,layerId:'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5))}:op);
+  const remaining=new Map(),elapsed=new Map(),deposited=[],actions=new ActionAccumulator();
   let state=initialState,completed=0;
+  // Independent nozzle grids can have the same local layer index at different
+  // heights. Preserve the shared physical layer identity in emitted actions.
+  const layerIndices=initialState.selections?new Map([...new Set(operations.map(op=>op.layerId))].map((id,i)=>[id,i])):null;
   onProgress?.({stage:'Planning print moves',completed,total:operations.length});
   for(const op of operations)remaining.set(op.layerId,(remaining.get(op.layerId)??0)+1);
   for(const op of operations){
     const lastInLayer=remaining.get(op.layerId)===1;
-    const planned=planOperation(state,op,{deposited,layerSeconds:elapsed.get(op.layerId)??0,finishLayer:lastInLayer&&!op.continuous});
+    const planned=planOperation(state,layerIndices?{...op,layer:layerIndices.get(op.layerId)}:op,{deposited,layerSeconds:elapsed.get(op.layerId)??0,finishLayer:lastInLayer&&!op.continuous});
     state=planned.state;actions.add(planned.actions);
     deposited.push(op.travelPolicy);elapsed.set(op.layerId,planned.operationSeconds);
     remaining.set(op.layerId,remaining.get(op.layerId)-1);
@@ -26,10 +31,11 @@ export function planComposition(initialState,skillResults,rules={},onProgress) {
 
 export function planOperation(initialState,op,{deposited=[],layerSeconds=0,finishLayer=false}={}) {
   const contextual=planContext({...initialState,layerSeconds},op.phase,op.layer,op.id);
-  const prepared=planOperationStart(contextual.state,op);
+  const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
+  const prepared=planOperationStart(selected.state,op);
   const strokes=op.order==='nearest'?orderStrokes(op.strokes,prepared.state.position)
     :op.order==='nearest-cells'?orderScanlineCells(op.strokes,prepared.state.position):op.strokes;
-  const actions=new ActionAccumulator();actions.add(prepared.actions);
+  const actions=new ActionAccumulator();actions.add(selected.actions);actions.add(prepared.actions);
   const policy=operationTravelPolicy(op.travelPolicy,deposited);
   let state=prepared.state;
   for(const stroke of strokes){

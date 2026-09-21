@@ -14,6 +14,7 @@ import {drapedSkinResult,surveySurface,machineMaxAngle,bodyTopAt} from '../../sk
 import {spacingFactor} from '../path/spacing.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
 import {selectionsOverlap} from '../geom/selections.mjs';
+import {filamentPlan} from '../machine/filaments.mjs';
 
 const has=(record,name)=>Object.hasOwn(record.assignment.skills,name);
 const planar=record=>has(record,'full-fill')||has(record,'planar-infill');
@@ -148,10 +149,10 @@ function publishSurface(record,results) {
     sourceOperationIds:[...ids(results),...(shell.processReservations??[]).map(r=>r.completion).filter(c=>c&&c.z>start+1e-8&&c.z<=end+1e-8).map(c=>c.operationId)],kind,sourceRegionId:record.assignment.id};
 }
 
-export function prepareRegionRecords(plan,placed,componentShells) {
+export function prepareRegionRecords(plan,placed,componentShells,machine) {
   const records=plan.composition.regions.map(assignment=>{
     const shell=componentShells?componentShells.get(assignment.part):placed;
-    const localPlan=structuredClone(plan);localPlan.composition.regions=[];
+    const localPlan=structuredClone(assignment.filament===undefined?plan:filamentPlan(plan,machine,assignment.filament));localPlan.composition.regions=[];
     // A region with process overrides owns its own layer grid from its start Z.
     const ownsGrid=Object.hasOwn(assignment,'process');
     if(ownsGrid)Object.assign(localPlan.process,assignment.process);
@@ -267,7 +268,7 @@ export function generateAssignedRegion(prepared,{plan,machine,records,byId,order
   });
   const prerequisiteIds=[...ids(predecessors.flatMap(p=>p.results)),...(lowerSurface?.sourceOperationIds??[])];
   record.results=publishedResults.map(result=>({...result,operations:result.operations.map(op=>({...op,
-    regionId:assignment.id,after:[...new Set([...(op.after??[]),...prerequisiteIds])]}))}));
+    regionId:assignment.id,...(assignment.filament===undefined?{}:{filament:assignment.filament}),after:[...new Set([...(op.after??[]),...prerequisiteIds])]}))}));
   record.surface=publishSurface(record,record.results);
   const summary={id:assignment.id,part:assignment.part,zStartMm:assignment.zStartMm,zEndMm:assignment.zEndMm,startMm:start,endMm:end,
     skills:Object.keys(assignment.skills),process:assignment.process??null,lowerSurfaceFrom:assignment.lowerSurfaceFrom,
@@ -291,7 +292,7 @@ export function summarizeRegionResults(results,records,summaries) {
 }
 
 export function generateRegionResults({plan,machine,placed,componentShells,selections,onProgress}) {
-  const prepared=prepareRegionRecords(plan,placed,componentShells);
+  const prepared=prepareRegionRecords(plan,placed,componentShells,machine);
   // Compute the shared lattice before dependency validation, retaining validation order.
   const records=prepared;
   const planarZ=[...new Set(records.filter(planar).flatMap(record=>{

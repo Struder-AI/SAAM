@@ -8,7 +8,7 @@ const source=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf
 const count=(h,name)=>h.trace.filter(event=>event[0]===name).length;
 const timeouts=h=>[...h.timers.values()].filter(timer=>!timer.interval);
 
-test('startup preserves registration order and starts exactly one preparation and revision heartbeat',async()=>{
+test('startup preserves registration order and starts exactly one preparation and state heartbeat',async()=>{
   const h=startupHarness(source);await h.settle();
   assert.deepEqual(h.trace,[
     ['agent-ui'],['listen','window','pagehide'],['interval',250],

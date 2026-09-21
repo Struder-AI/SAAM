@@ -131,8 +131,11 @@ saved IDs, `get_print` reads state and recipe settings, and
 on `get_print` when you need the complete editable recipe; the default omits
 geometry and reports `planComplete:false`.
 CLI `adjust` returns a compact checked summary and revision instead of echoing
-the entire geometry-bearing plan. The complete editable recipe remains in
-`plan.json`.
+the entire geometry-bearing plan. The editable recipe is the top-level portion
+of `plan.json`; its reserved `bundle` envelope is lifecycle metadata, not recipe
+input. Do not copy `bundle` into an adjustment patch. Initialization accepts a
+saved manifest as a recipe source by stripping that envelope and starting with
+fresh review state.
 
 ## Adjust the recipe
 
@@ -247,7 +250,21 @@ questions and required calibration.
 
 Bambu agents must read [maker setup and the startup inventory](../export/bambu.md#maker-setup)
 before selecting output. The recipe records the actual other H2D nozzle diameter,
-plate and startup choices in `setup.bambu`. Logical filament IDs and physical AMS
-tray requests are distinct; confirm the printer's tray mapping before printing.
+plate and startup choices in `setup.bambu`. For repeated tests on an unchanged,
+already calibrated H2D or X1, set `setup.bambu.fast_start: true` to omit optional
+calibration, scans, music and vibration tests while retaining homing, heating,
+loading, cleaning and priming. It defaults to false; explicit calibration `on`
+conflicts with fast start. Assign a region's `filament` to use
+the matching `setup.bambu.filaments` entry: its nozzle, temperature and optional
+process settings. H2D supports unequal diameters in one tower-free program.
+For an X1 colour-change test, assign successive height regions to distinct PLA
+filaments on tool 0. The X1 adapter flushes into the rear chute; no tower is added.
+Review the separate service purge allowance and verify actual feed changes on the
+machine; software playback is not physical routing evidence.
+
+Supply material identity and colour for normal automatic AMS matching; a physical
+slot request is optional. External/auto/requested AMS source and declared device
+connections stay separate from logical filament/nozzle IDs. Review the printer's
+proposed mapping before printing; the exporter does not force physical routing.
 Reference slicer presets may declare equal diameters even when the installed
 hardware differs. Do not copy those declarations over the actual setup.

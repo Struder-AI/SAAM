@@ -249,7 +249,8 @@
                   "members": [
                     "studio/server.mjs::createStudio::geometryOnly",
                     "studio/server.mjs::createStudio::viewFingerprint",
-                    "studio/server.mjs::createStudio::metadata",
+                    "studio/server.mjs::createStudio::stateTag",
+                    "studio/server.mjs::createStudio::matchesStateTag",
                     "studio/server.mjs::createStudio::note",
                     "studio/server.mjs::createStudio::stageDownload",
                     "studio/server.mjs::createStudio::printId",
@@ -989,7 +990,8 @@
           "members": [
             "studio/server.mjs::createStudio::geometryOnly",
             "studio/server.mjs::createStudio::viewFingerprint",
-            "studio/server.mjs::createStudio::metadata",
+            "studio/server.mjs::createStudio::stateTag",
+            "studio/server.mjs::createStudio::matchesStateTag",
             "studio/server.mjs::createStudio::note",
             "studio/server.mjs::createStudio::stageDownload",
             "studio/server.mjs::createStudio::printId",

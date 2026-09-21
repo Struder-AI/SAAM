@@ -1,33 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {planProgramPresentation,planRefreshNavigation} from '../../studio/refresh-plan.mjs';
+import {planPresentation,planRefreshNavigation} from '../../studio/refresh-plan.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
 
 const freeze=value=>{if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;};
 const state=(patch={})=>({printId:'part',generationHash:'plan',exportHash:'export',geometryHash:'shape',geometry:{geometryVersion:1,labels:['face']},...patch});
 const view=(patch={})=>({follow:false,tab:'geometry',seconds:7,duration:20,selected:'face',hasSelectedEdge:false,...patch});
 
-test('program decisions distinguish decoded replacement, stale chat presentation and retained tour source',()=>{
+test('one presentation model distinguishes replacement, retained chat and retained tour source',()=>{
   const moves=freeze([{from:[0,0,0],to:[1,0,0]}]),program=freeze({moves}),previous=freeze(state({program}));
-  const cache=freeze({printId:'part',generationHash:'plan',exportHash:'export',program});
-  const snapshot=freeze({previous,follow:true,stalePresentation:null,playbackCache:cache,pathMoves:moves,materialMoves:moves});
-  const before=JSON.stringify(snapshot),same=planProgramPresentation(previous,snapshot);
-  assert.equal(same.action,'replace');assert.equal(same.playbackCache.program,program);
-  assert.equal(same.buildPath,false);assert.equal(same.buildMaterial,false);assert.equal(same.stalePresentation,null);
-  const changed=freeze(state({program:{moves:[]}})),replacement=planProgramPresentation(changed,snapshot);
-  assert.equal(replacement.buildPath,true);assert.equal(replacement.buildMaterial,true);
-  const pending=freeze(state({generationHash:'new-plan'})),held=planProgramPresentation(pending,snapshot);
-  assert.equal(held.action,'retain-replacement');assert.equal(held.stalePresentation,previous);assert.equal(held.playbackCache,cache);
-  const continued=planProgramPresentation(pending,{...snapshot,previous:pending,stalePresentation:previous});
-  assert.equal(continued.action,'retain-replacement');assert.equal(continued.stalePresentation,previous);
+  const model=freeze({identity:{printId:'part',geometryHash:'shape',generationHash:'plan',exportHash:'export'},presentedState:previous,program,retained:false});
+  const context=freeze({follow:true,pathMoves:moves,materialMoves:moves});
+  const before=JSON.stringify({model,context}),same=planPresentation(model,previous,context);
+  assert.equal(same.effects.program,'replace');assert.equal(same.model.program,program);
+  assert.equal(same.effects.buildPath,false);assert.equal(same.effects.buildMaterial,false);assert.equal(same.model.retained,false);
+  const changed=freeze(state({program:{moves:[]}})),replacement=planPresentation(model,changed,context);
+  assert.equal(replacement.effects.buildPath,true);assert.equal(replacement.effects.buildMaterial,true);
+  const pending=freeze(state({generationHash:'new-plan'})),held=planPresentation(model,pending,context);
+  assert.equal(held.effects.program,'retain');assert.equal(held.model.presentedState,previous);assert.equal(held.model.program,program);assert.equal(held.model.reason,'replacement');
+  const continued=planPresentation(held.model,pending,context);
+  assert.equal(continued.effects.program,'retain');assert.equal(continued.model.presentedState,previous);
   const tour=freeze(state({tour:{active:true,step:L.import}}));
-  const retained=planProgramPresentation(tour,{...snapshot,follow:false});
-  assert.equal(retained.action,'retain-tour');assert.equal(retained.playbackCache,cache);
+  const retained=planPresentation(model,tour,{...context,follow:false});
+  assert.equal(retained.effects.program,'retain');assert.equal(retained.model.reason,'tour');
   for(const next of [state(),state({printId:'other',tour:tour.tour}),state({generationHash:'other',tour:tour.tour}),state({tour:{active:true,step:L.playback}})]){
-    const cleared=planProgramPresentation(freeze(next),{...snapshot,follow:false});
-    assert.equal(cleared.action,'clear');assert.equal(cleared.stalePresentation,null);assert.equal(cleared.playbackCache,null);
+    const cleared=planPresentation(model,freeze(next),{...context,follow:false});
+    assert.equal(cleared.effects.program,'clear');assert.equal(cleared.model.program,null);assert.equal(cleared.model.presentedState.printId,next.printId);
   }
-  assert.equal(JSON.stringify(snapshot),before,'decision stages never mutate their input snapshot or retained program');
+  assert.equal(JSON.stringify({model,context}),before,'decision stages never mutate their input model or retained program');
 });
 
 test('navigation decisions preserve playback until source changes and choose the changed review stage',()=>{

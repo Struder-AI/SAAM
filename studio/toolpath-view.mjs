@@ -37,13 +37,14 @@ function mixColor(from,to,t){
   return '#'+[1,3,5].map(i=>Math.round(parseInt(from.slice(i,i+2),16)*(1-t)+parseInt(to.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
 }
 export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
+  lineWidthMm=move.lineWidthMm??lineWidthMm;
   const active=!!current&&move.layer===current.layer&&move.phase===current.phase;
   const skin=move.phase===skinPhase||move.phase==='wave-overhangs'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const baseline=Math.max(0.5,Math.min(1,previousLayerOpacity));
   const opacity=active?1:baseline+(1-baseline)*(emphasis??0);
   const strength=(opacity-0.5)*2;
   const axial=move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
-  const foreground=move.extruding?(axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue):'#657fa3';
+  const foreground=move.extruding?(move.filamentColor??(axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue)):'#657fa3';
   const pale=move.extruding?(axial?mixColor(foreground,'#f3f1eb',.55):skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#b9d6ed'):'#aeb8c5';
   // Inset only the current layer's display strokes to reveal adjacent tracks.
   // This is a model-space gap, not a fixed-pixel minimum or a print change.
@@ -123,6 +124,7 @@ function entries(view,group,reduced) {
   for(let first=group.first;first<=group.last;){
     let last=first;
     while(last<group.last&&moves[last+1].extruding===moves[first].extruding&&moves[last+1].operation===moves[first].operation
+      &&moves[last+1].tool===moves[first].tool&&moves[last+1].filament===moves[first].filament
       &&same(moves[last].to,moves[last+1].from))last++;
     for(const edge of simplify(moves,first,last))out.push(edge);first=last+1;
   }

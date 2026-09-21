@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {onboarding, developmentAreas, root} from '../agent/toolkit.mjs';
+import {SKILL_IDS} from '../../skills/catalog.mjs';
 
 const map = name => readFile(resolve(root, name), 'utf8');
 const nodes = html => new Map([...html.matchAll(/data-id="([^"]+)" href="([^"]+)"/g)]
@@ -50,4 +51,22 @@ test('both maps carry a node for every area contract, and no dead links', async 
       });
     }
   }
+});
+
+test('context maps defer to the complete skill digest instead of copying its registry',async()=>{
+  const digest=await readFile(resolve(root,'skills/README.md'),'utf8');
+  for(const id of SKILL_IDS)assert.match(digest,new RegExp(`\\[${id.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')}\\]\\(${id.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\$&')}\\/SKILL\\.md\\)`),`${id} is missing from the authoritative digest`);
+  for(const name of ['maker-context-map.html','builder-context-map.html']){
+    const html=await map(name),targets=[...nodes(html).values()];
+    assert.ok(targets.includes('skills/README.md'),`${name} needs the authoritative skill digest`);
+    assert.equal(targets.some(target=>/^skills\/[^/]+\/SKILL\.md$/.test(target)),false,
+      `${name} must not copy the skill registry`);
+  }
+});
+
+test('context maps name executable entries and the current shared Bambu contract',async()=>{
+  const maker=await map('maker-context-map.html'),builder=await map('builder-context-map.html');
+  assert.doesNotMatch(builder,/0_system/);
+  assert.match(builder,/read-map 0/);
+  for(const html of [maker,builder])assert.match(html,/Bambu H2D \+ X1 \/ 3MF/);
 });

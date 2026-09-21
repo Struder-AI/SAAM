@@ -15,6 +15,7 @@ import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {LINE_NETWORK_DEFAULTS} from '../../skills/line-network/scripts/network.mjs';
+import {BRIDGING_DEFAULTS,validateBridging} from '../../skills/bridging/scripts/bridge.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
 import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
 import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
@@ -30,6 +31,7 @@ import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
+import {filamentPlan} from '../machine/filaments.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -73,6 +75,7 @@ export function defaults(machine=loadMachine()) {
       'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'line-network': structuredClone(LINE_NETWORK_DEFAULTS),
+      bridging: structuredClone(BRIDGING_DEFAULTS),
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
       'draped-skin': { enabled: machine.capabilities.includes('nonplanar'), part: null, ...DRAPED_SKIN_DEFAULTS }
@@ -301,6 +304,8 @@ export function validatePlanWalls(plan) {
 }
 
 export function validatePlanSelections(plan,machine) {
+  validateBridging(plan.skills.bridging);
+  if(plan.skills.bridging.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'bridging');
   const {geometry,placement,skills}=plan;
   const regional=plan.composition.regions.length>0;
   const fill=skills['full-fill'],skin=skills['draped-skin'],normal=skills['planar-infill'],network=skills['line-network'],vase=skills['vase-wall'],lip=skills['thick-lip'];
@@ -331,7 +336,8 @@ export function validatePlanSelections(plan,machine) {
       ids.add(part.id);
       requireThat(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
       number(part.xMm,-200,200,'Component X');number(part.yMm,-200,200,'Component Y');number(part.zMm,0,200,'Component Z');
-      const child=structuredClone(plan);child.geometry=part.geometry;
+      const assigned=plan.composition.regions.find(r=>r.part===part.id&&r.filament!==undefined);
+      const child=structuredClone(assigned?filamentPlan(plan,machine,assigned.filament):plan);child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
       child.skills['full-fill'].parts=[];child.skills['draped-skin'].part=null;
       child.skills['planar-infill'].parts=[];
@@ -413,8 +419,8 @@ export function validatePlanRegions(plan,machine) {
   const normal=skills['planar-infill'];
   const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {
-    // process is the one optional assignment field: present only to override layer/bead settings.
-    requireThat(region&&Object.keys(region).filter(key=>key!=='process').sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
+    // Optional process overrides layer/bead settings; filament selects a Bambu material/nozzle.
+    requireThat(region&&Object.keys(region).filter(key=>!['process','filament'].includes(key)).sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
     const part=selections.get(region.part);
     requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
@@ -424,7 +430,7 @@ export function validatePlanRegions(plan,machine) {
     requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm),'Region end must exceed its start or be null.');
     requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
     requireThat(region.skills&&typeof region.skills==='object'&&!Array.isArray(region.skills)&&Object.keys(region.skills).length>0,'A region needs selected skills.');
-    const child=structuredClone(plan);child.composition.regions=[];
+    const child=structuredClone(region.filament===undefined?plan:filamentPlan(plan,machine,region.filament));child.composition.regions=[];
     if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
     for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
     if(Object.hasOwn(region,'process')){
@@ -434,7 +440,7 @@ export function validatePlanRegions(plan,machine) {
       Object.assign(child.process,region.process);
     }
     for(const [name,overrides] of Object.entries(region.skills)) {
-      requireThat(!['supports','rimming-planar','rimming-normal','pipe-cladding','wave-overhangs','plastic-weld'].includes(name),'Assign supports, exterior cladding, wave slices and plastic welds through their global skill settings, outside part material regions.');
+      requireThat(!['supports','rimming-planar','rimming-normal','pipe-cladding','wave-overhangs','plastic-weld','bridging'].includes(name),'Assign supports, exterior cladding, wave slices, plastic welds and bridging through their global skill settings, outside part material regions.');
       const settings=child.skills[name];
       requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
       requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');

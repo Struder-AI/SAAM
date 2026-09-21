@@ -131,7 +131,7 @@ test('RC8 uses the public bundle, exact browser source and cold reopen without r
   const files=await fetchSources(remote,fetcher),decoded=decodeSource(files,remote.plan,remote.machine);
   assert.deepEqual([...decoded.moves],state.program.moves);
   for(const name of ['/core/export/denso-player.mjs','/core/path/pose.mjs','/core/machine/denso.mjs'])assert.equal((await fetcher(name)).status,200);
-  const bytes=await readFile(join(dir,'exports/denso-pacscript/part.zip'));
+  const bytes=await readFile(join(dir,state.review.generation.file));
   for(const [name,source] of Object.entries(files))assert.equal(source,unpackZip(bytes).get(name).toString());
   const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.exportHash);`;
   assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.exportHash);

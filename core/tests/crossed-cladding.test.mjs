@@ -88,7 +88,7 @@ test('checked robot output preserves both winding directions, review invalidatio
     assert.ok(moves.some(m=>sign*(m.rotaryToDeg-m.rotaryFromDeg)>0));
   }
   await approve(dir,{revision:state.revision,actor:'SYNTHETIC CROSSED-HELIX TEST ONLY'});
-  assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,'exports/denso-pacscript/part.zip')));
+  assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,state.review.generation.file)));
 });
 
 test('both helical phases retain radial bead frames and distinct preview colors',()=>{

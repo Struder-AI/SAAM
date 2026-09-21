@@ -62,7 +62,7 @@ async function fixture(t){
   const url='http://127.0.0.1:'+server.address().port,token=/name="saam-token" content="([^"]+)"/.exec(await(await fetch(url)).text())[1];
   const get=async path=>await(await fetch(url+'/api/'+path)).json();
   const post=(path,data,auth=token)=>fetch(url+'/api/'+path,{method:'POST',headers:{Origin:url,'X-SAAM-Token':auth,'Content-Type':'application/json'},body:JSON.stringify(data)});
-  return {root,dir,server,get,post};
+  return {root,dir,server,url,get,post};
 }
 
 test('Studio cancellation bypasses the generation queue, stops its worker and permits retry without a repair request',async t=>{
@@ -75,7 +75,7 @@ test('Studio cancellation bypasses the generation queue, stops its worker and pe
   const cancelled=await post('cancel-generation',{printId:state.printId,generationHash:state.generationHash});
   assert.equal(cancelled.status,200);assert.equal((await cancelled.json()).cancelled,true);
   const original=await generating;assert.equal((await original.json()).code,'GENERATION_CANCELLED');
-  assert.equal(JSON.parse(await readFile(resolve(dir,'review.json'),'utf8')).generation,null,'cancelled calculations write no generation record');
+  assert.equal((await bundle.loadBundle(dir,{program:false})).review.generation,null,'cancelled calculations write no generation record');
   assert.equal((await get('state')).generationCancelled,true);
   assert.equal((await createAgentRequests(root).wait({waitMs:0})).requests.length,0,'cancellation does not ask the agent to repair a generator failure');
   const retry=await post('generate',{printId:state.printId,development:true});assert.equal(retry.status,200,await retry.text());
@@ -83,10 +83,10 @@ test('Studio cancellation bypasses the generation queue, stops its worker and pe
 });
 
 test('cancellation before commit preserves files; cancellation after commit begins lets the checked result finish',async t=>{
-  const {dir}=await fixture(t),control=generationControl(),review=await readFile(resolve(dir,'review.json'),'utf8');
+  const {dir}=await fixture(t),control=generationControl(),manifest=await readFile(resolve(dir,'plan.json'),'utf8');
   assert.equal(control.cancel(),true);
   await assert.rejects(bundle.generateBundle(dir,{development:true,beforeCommit:control.beforeCommit}),{code:'GENERATION_CANCELLED'});
-  assert.equal(await readFile(resolve(dir,'review.json'),'utf8'),review);
+  assert.equal(await readFile(resolve(dir,'plan.json'),'utf8'),manifest);
   const finishing=generationControl();let attempted=false;
   await bundle.generateBundle(dir,{development:true,beforeCommit:finishing.beforeCommit,onProgress(progress){
     if(progress.stage==='Saving your toolpath'){attempted=true;assert.equal(finishing.cancel(),false);}
@@ -94,16 +94,18 @@ test('cancellation before commit preserves files; cancellation after commit begi
   assert.ok(attempted);assert.ok((await bundle.loadBundle(dir,{program:'source'})).program);
 });
 
-test('approval and delivery history update review metadata while keeping the displayed source identity',async t=>{
-  const {dir,get}=await fixture(t);
-  await bundle.generateBundle(dir);const shown=await get('state');
+test('conditional state returns approval metadata while keeping the displayed source identity',async t=>{
+  const {dir,url}=await fixture(t);
+  await bundle.generateBundle(dir);
+  const shownResponse=await fetch(url+'/api/state'),shown=await shownResponse.json(),shownTag=shownResponse.headers.get('etag');
+  assert.ok(shownTag);
   await bundle.approve(dir,{actor:'SYNTHETIC metadata fixture',revision:shown.revision,program:'source'});
   await bundle.deliver(dir);
-  const changed=await get('revision?'+new URLSearchParams({fingerprint:shown.fingerprint}));
-  assert.equal(changed.presentationFingerprint,shown.presentationFingerprint);assert.equal(changed.reviewUpdate.exportHash,shown.exportHash);
-  assert.equal(changed.reviewUpdate.toolpathApproved,true);assert.notEqual(changed.reviewUpdate.revision,shown.revision);
-  assert.equal(changed.reviewUpdate.review.history,undefined,'compact control updates omit accumulated audit history');
+  const changedResponse=await fetch(url+'/api/state',{headers:{'If-None-Match':shownTag}}),changed=await changedResponse.json();
+  assert.equal(changedResponse.status,200);assert.equal(changed.presentationFingerprint,shown.presentationFingerprint);
+  assert.equal(changed.exportHash,shown.exportHash);assert.equal(changed.toolpathApproved,true);assert.notEqual(changed.revision,shown.revision);
   const latest=await bundle.loadBundle(dir,{program:false});await bundle.adjustBundle(dir,{process:{planarSpeedMmS:30}},{expectedRevision:latest.revision});
-  const edited=await get('revision?'+new URLSearchParams({fingerprint:changed.fingerprint}));
+  const editedResponse=await fetch(url+'/api/state',{headers:{'If-None-Match':changedResponse.headers.get('etag')}}),edited=await editedResponse.json();
+  assert.equal(editedResponse.status,200);
   assert.notEqual(edited.presentationFingerprint,changed.presentationFingerprint,'a real edit still changes scene/source identity');
 });

@@ -20,11 +20,11 @@ export async function tourExample(directory){const marker=await optional(resolve
 export function referenceAdapter(live){
   const bundleFingerprints=async(directory,options)=>{
     const [{source,presentation},example]=await Promise.all([live.bundleFingerprints(directory,options),tourExample(directory)]);
-    return {source:source+Boolean(example),presentation};
+    return {source:example?`${source}:tour:${example.id}`:source,presentation};
   };
   return {
     EXPORT_NAME:live.EXPORT_NAME,
-    EXPORT_PATH:live.EXPORT_PATH,
+    atomicManifest:live.atomicManifest,
     LIMITATIONS:live.LIMITATIONS,
     adjustBundle:live.adjustBundle,
     async approve(directory,...args){
@@ -35,7 +35,8 @@ export function referenceAdapter(live){
     bundleFingerprints,
     changeMachine:live.changeMachine,
     checkPathBundle:live.checkPathBundle,
-    defaultSetupFile:live.defaultSetupFile,
+    prepareGeneration:live.prepareGeneration,
+    commitGeneration:live.commitGeneration,
     async deliver(directory,...args){
       if(await tourExample(directory))throw Error('Exit the tour before confirming a real print.');
       return live.deliver(directory,...args);
@@ -48,6 +49,11 @@ export function referenceAdapter(live){
     async loadBundle(directory,options={}){
       const example=await tourExample(directory),state=await live.loadBundle(directory,options);
       return example?{...state,tourExample:example,localPrintDirectory:directory}:state;
+    },
+    async loadBundleSnapshot(directory,options={}){
+      const result=await live.loadBundleSnapshot(directory,options),example=await tourExample(directory);
+      return example?{...result,state:{...result.state,tourExample:example,localPrintDirectory:directory},
+        fingerprint:`${result.fingerprint}:tour:${example.id}`}:result;
     },
     proposedPlan:live.proposedPlan,
     rememberSetup:live.rememberSetup,
@@ -84,8 +90,8 @@ export function createTour(libraryRoot,{now=Date.now,ownerId,studioId,agentReque
   }
   async function signature(data){
     if(!data.selected)return null;
-    const dir=await confined(data.selected),plan=await json(resolve(dir,'plan.json'));
-    return hash(canonical([L.geometry,L.roof].includes(data.step)?plan.geometry:{plan,machine:await json(resolve(dir,'machine.json'))}));
+    const dir=await confined(data.selected),document=await json(resolve(dir,'plan.json')),{bundle,...plan}=document;
+    return hash(canonical([L.geometry,L.roof].includes(data.step)?plan.geometry:{plan,machine:bundle.machine}));
   }
   async function editLessonBaseline(data){
     const printId=requests.printId(await confined(data.selected));

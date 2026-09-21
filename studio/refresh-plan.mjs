@@ -1,14 +1,20 @@
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
 
-export function planProgramPresentation(next,{previous,follow,stalePresentation,playbackCache,pathMoves,materialMoves}){
-  if(next.program)return {action:'replace',stalePresentation:null,
-    playbackCache:{printId:next.printId,generationHash:next.generationHash,exportHash:next.exportHash,program:next.program},
-    buildPath:pathMoves!==next.program.moves,buildMaterial:materialMoves!==next.program.moves};
-  const replacing=follow&&previous?.printId===next.printId&&Boolean(previous.program||stalePresentation?.program);
-  if(replacing)return {action:'retain-replacement',stalePresentation:previous.program?previous:stalePresentation,playbackCache,buildPath:false,buildMaterial:false};
-  const tourRetains=next.tour?.active&&next.tour.step<L.playback&&playbackCache?.printId===next.printId&&playbackCache.generationHash===next.generationHash;
-  if(tourRetains)return {action:'retain-tour',stalePresentation,playbackCache,buildPath:false,buildMaterial:false};
-  return {action:'clear',stalePresentation:null,playbackCache:null,buildPath:false,buildMaterial:false};
+export const presentationIdentity=state=>({printId:state.printId,geometryHash:state.geometryHash,
+  generationHash:state.generationHash,exportHash:state.exportHash??null});
+
+export function planPresentation(previous,next,{follow,pathMoves,materialMoves}){
+  const identity=presentationIdentity(next);
+  if(next.program)return {model:{identity,presentedState:next,program:next.program,retained:false},
+    effects:{program:'replace',buildPath:pathMoves!==next.program.moves,buildMaterial:materialMoves!==next.program.moves}};
+  const samePrint=previous?.identity.printId===identity.printId,hasProgram=Boolean(previous?.program);
+  const replacing=follow&&samePrint&&hasProgram;
+  const tourRetains=next.tour?.active&&next.tour.step<L.playback&&samePrint&&hasProgram
+    &&previous.identity.generationHash===identity.generationHash;
+  if(replacing||tourRetains)return {model:{identity:previous.identity,presentedState:previous.presentedState,program:previous.program,
+    retained:true,reason:replacing?'replacement':'tour'},effects:{program:'retain',buildPath:false,buildMaterial:false}};
+  return {model:{identity,presentedState:next,program:null,retained:false},
+    effects:{program:'clear',buildPath:false,buildMaterial:false}};
 }
 
 export function planRefreshNavigation(previous,next,{follow,tab,seconds,duration,selected,hasSelectedEdge,tourInitialTab}){

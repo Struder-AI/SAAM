@@ -428,7 +428,7 @@ export async function inspectFailure({target, library, requestId, includeGeometr
     // Preserve the validation failure and inspect the recipe even when it cannot load.
     result.validationError = error.message;
     try {
-      const plan = await json(resolve(directory, 'plan.json'));
+      const document=await json(resolve(directory,'plan.json')),{bundle:_bundle,...plan}=document;
       skills = Object.keys(plan.skills ?? {});
       result.unvalidatedRecipe = {...plan};
       if (!includeGeometry) delete result.unvalidatedRecipe.geometry;

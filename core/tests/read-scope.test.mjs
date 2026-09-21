@@ -56,13 +56,14 @@ test('discovery, edit dispatch and geometry reads omit unrelated exports and man
   assert.ok(records.some(r=>r.id===request.id),'one malformed record cannot hide valid work');
   await requests.update(request.id,{status:'cancelled'});
   // Source integrity remains a review boundary even after a warm metadata read.
-  await fs.appendFile(resolve(dir,'exports/griffin-gcode/part.gcode'),'\n; altered');
+  const current=await bundle.loadBundle(dir);await fs.appendFile(resolve(dir,current.review.generation.file),'\n; altered');
   const checked=await call('get_print',{printId:'part'});assert.match(checked.programError,/files changed/);
   const studio=createStudio(dir,{libraryRoot:root,localExtension:{}});
   await new Promise(done=>studio.listen(0,'127.0.0.1',done));t.after(()=>studio.shutdown());
   const url='http://127.0.0.1:'+studio.address().port;
-  const state=await(await fetch(url+'/api/state')).json(),revision=await(await fetch(url+'/api/revision')).json();
-  assert.equal(state.fingerprint,revision.fingerprint,'state and revision use the same read scope');
+  const stateResponse=await fetch(url+'/api/state'),state=await stateResponse.json();assert.ok(state.fingerprint);
+  const unchanged=await fetch(url+'/api/state',{headers:{'If-None-Match':stateResponse.headers.get('etag')}});
+  assert.equal(unchanged.status,304,'the full response and conditional check use the same read scope');
 });
 
 test('machine-study geometry omits motion and warm revision polls detect source edits without rereading unchanged bytes',async t=>{

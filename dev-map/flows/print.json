@@ -24,7 +24,6 @@
                 "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
                 "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
                 "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
-                "core/print/workflow.mjs::createBundleWorkflow::machineChangeTransition",
                 "core/print/workflow.mjs::machineChangedReview"
               ]
             },
@@ -32,7 +31,6 @@
               "id": "bundle-identity",
               "label": "bundle identity",
               "members": [
-                "core/print/workflow.mjs::nativeFile",
                 "core/print/workflow.mjs::originalSource",
                 "core/print/workflow.mjs::createBundleWorkflow::initBundle",
                 "core/print/workflow.mjs::createBundleWorkflow::saveGeometry",
@@ -41,7 +39,6 @@
                 "core/print/workflow.mjs::createBundleWorkflow::describeBundle",
                 "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
                 "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints",
-                "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints::snapshot",
                 "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprint",
                 "core/print/workflow.mjs::migratedIdentity",
                 "core/print/workflow.mjs::migrateReview",
@@ -57,7 +54,6 @@
                 "core/print/workflow.mjs::createBundleWorkflow::validatePlanUpdate",
                 "core/print/workflow.mjs::createBundleWorkflow::persistPlanUpdate",
                 "core/print/workflow.mjs::applyPlanPatch",
-                "core/print/workflow.mjs::mergePlanPatch",
                 "core/print/workflow.mjs::editedPlanReview",
                 "core/print/workflow.mjs::invalidateReview"
               ]
@@ -68,11 +64,9 @@
               "members": [
                 "core/print/workflow.mjs::programCacheEntry",
                 "core/print/workflow.mjs::createBundleWorkflow::exportName",
-                "core/print/workflow.mjs::createBundleWorkflow::exportPath",
                 "core/print/workflow.mjs::createBundleWorkflow::programKey",
                 "core/print/workflow.mjs::createBundleWorkflow::restoreBundleProgram",
                 "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle",
-                "core/print/workflow.mjs::createBundleWorkflow::prepareProgram",
                 "core/print/workflow.mjs::createBundleWorkflow::generateBundle",
                 "core/print/workflow.mjs::createBundleWorkflow::currentGenerationCandidate",
                 "core/print/workflow.mjs::createBundleWorkflow::promoteReviewedGeneration",
@@ -266,7 +260,6 @@
             "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
             "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
             "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
-            "core/print/workflow.mjs::createBundleWorkflow::machineChangeTransition",
             "core/print/workflow.mjs::machineChangedReview"
           ]
         },
@@ -274,7 +267,6 @@
           "id": "bundle-identity",
           "label": "bundle identity",
           "members": [
-            "core/print/workflow.mjs::nativeFile",
             "core/print/workflow.mjs::originalSource",
             "core/print/workflow.mjs::createBundleWorkflow::initBundle",
             "core/print/workflow.mjs::createBundleWorkflow::saveGeometry",
@@ -283,7 +275,6 @@
             "core/print/workflow.mjs::createBundleWorkflow::describeBundle",
             "core/print/workflow.mjs::createBundleWorkflow::loadBundle",
             "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints",
-            "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprints::snapshot",
             "core/print/workflow.mjs::createBundleWorkflow::bundleFingerprint",
             "core/print/workflow.mjs::migratedIdentity",
             "core/print/workflow.mjs::migrateReview",
@@ -299,7 +290,6 @@
             "core/print/workflow.mjs::createBundleWorkflow::validatePlanUpdate",
             "core/print/workflow.mjs::createBundleWorkflow::persistPlanUpdate",
             "core/print/workflow.mjs::applyPlanPatch",
-            "core/print/workflow.mjs::mergePlanPatch",
             "core/print/workflow.mjs::editedPlanReview",
             "core/print/workflow.mjs::invalidateReview"
           ]
@@ -310,11 +300,9 @@
           "members": [
             "core/print/workflow.mjs::programCacheEntry",
             "core/print/workflow.mjs::createBundleWorkflow::exportName",
-            "core/print/workflow.mjs::createBundleWorkflow::exportPath",
             "core/print/workflow.mjs::createBundleWorkflow::programKey",
             "core/print/workflow.mjs::createBundleWorkflow::restoreBundleProgram",
             "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle",
-            "core/print/workflow.mjs::createBundleWorkflow::prepareProgram",
             "core/print/workflow.mjs::createBundleWorkflow::generateBundle",
             "core/print/workflow.mjs::createBundleWorkflow::currentGenerationCandidate",
             "core/print/workflow.mjs::createBundleWorkflow::promoteReviewedGeneration",
@@ -344,8 +332,7 @@
             "core/print/workflow.mjs::createBundleWorkflow::fitLineWidthToSetup",
             "core/print/workflow.mjs::createBundleWorkflow::rememberedSetup",
             "core/print/workflow.mjs::createBundleWorkflow::rememberSetup",
-            "core/print/workflow.mjs::createBundleWorkflow::changeMachine",
-            "core/print/workflow.mjs::createBundleWorkflow::machineChangeTransition"
+            "core/print/workflow.mjs::createBundleWorkflow::changeMachine"
           ]
         },
         {
@@ -377,11 +364,9 @@
           "label": "checked output",
           "members": [
             "core/print/workflow.mjs::createBundleWorkflow::exportName",
-            "core/print/workflow.mjs::createBundleWorkflow::exportPath",
             "core/print/workflow.mjs::createBundleWorkflow::programKey",
             "core/print/workflow.mjs::createBundleWorkflow::restoreBundleProgram",
             "core/print/workflow.mjs::createBundleWorkflow::checkPathBundle",
-            "core/print/workflow.mjs::createBundleWorkflow::prepareProgram",
             "core/print/workflow.mjs::createBundleWorkflow::generateBundle",
             "core/print/workflow.mjs::createBundleWorkflow::currentGenerationCandidate",
             "core/print/workflow.mjs::createBundleWorkflow::promoteReviewedGeneration",

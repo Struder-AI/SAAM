@@ -1,4 +1,5 @@
 import {planarWallTolerance} from '../core/machine/rules.mjs';
+import {filamentPlan} from '../core/machine/filaments.mjs';
 // Human-readable review of the same locked recipe used by every adapter.
 const supportSkills=['supports','rimming-planar','rimming-normal'];
 const globalSkills=[...supportSkills,'pipe-cladding','wave-overhangs'];
@@ -137,6 +138,19 @@ export function regionRows(plan){
 }
 export function recipeRows(plan,machine){
   const composition=plan.composition,regions=composition?.regions??[],rows=[];
+  if(plan.setup.bambu){
+    rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
+    const used=[...new Set([plan.setup.bambu.filament,...regions.map(r=>r.filament)].filter(i=>i!==undefined))];
+    const change=machine.outputs.find(o=>o.id===plan.output)?.constraints;
+    if(used.length>1&&change?.materialChangeMode==='single-nozzle-ams')rows.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
+    for(const id of used){
+      const selected=filamentPlan(plan,machine,id),s=selected.setup,p=selected.process,entry=plan.setup.bambu.filaments?.[id];
+      const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:s.ams?`Requested AMS ${s.ams.unit}, slot ${s.ams.slot}`:'Automatic material/colour matching';
+      rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===s.tool).label} · ${s.nozzleMm} mm nozzle · ${s.material} ${entry?.colour??s.filamentColor??''} · ${s.nozzleC}°C · ${source}`],
+        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers · ${p.maxFlowMm3S} mm³/s maximum flow`]);
+    }
+    for(const region of regions)rows.push([region.id+' · Filament',String((region.filament??plan.setup.bambu.filament)+1)]);
+  }
   rows.push(['Machine · Planar wall tolerance',planarWallTolerance(machine)+' mm']);
   if(composition){
     rows.push(['Layer batching',composition.batchLayers+' layer(s) per component'],

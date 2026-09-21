@@ -1,0 +1,84 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {auditBambu} from '../../scripts/bambu-audit.mjs';
+import {packZip} from '../export/zip.mjs';
+
+// Authored protocol observations, deliberately NOT a printable program. Filament
+// indices differ from nozzle indices; diameters differ so copying H is detected.
+const code=`; CONFIG_BLOCK_START
+; filament_map = 2,1
+; nozzle_diameter = 0.4,0.8
+; CONFIG_BLOCK_END
+M620.10 A0 H0.8
+M620.10 A1 H0.8
+M620 S0A H-1
+T0 H-1
+M621 S0A
+M1015.4 S1 K1 H0.8
+M620.6 I0 H-1 W1
+; FEATURE: Prime tower
+; NOZZLE_CHANGE_START OF0 NF1 ON1 NN0
+M620 S1A H-1
+M620.10 A0 H0.8
+M620.10 A1 H0.4
+M620.11 P0 I0 B-1 E0
+T1 H-1
+M620.10 R0
+M983.3 F10.4167 A0.4 R0
+M621 S1A
+M1015.4 S1 K1 H0.4
+M620.6 I1 H-1 W1
+M620 S0A H-1
+M620.10 A0 H0.4
+M620.10 A1 H0.8
+M620.11 P0 I1 B-1 E0
+T0 H-1
+M621 S0A
+M1015.4 S1 K1 H0.8
+M620.6 I0 H-1 W1
+M620 S65535
+T65535
+M621 S65535
+`;
+function audit(text=code){return auditBambu(packZip(new Map([
+  ['Metadata/plate_1.gcode',text],
+  ['Metadata/project_settings.config',JSON.stringify({filament_map:['1','1'],nozzle_diameter:['0.4','0.4']})],
+]))).plates[0].changes;}
+
+test('USB header declares one-based filament identities rather than a count',()=>{
+  assert.ok(audit('; HEADER_BLOCK_START\n; filament: 2\n; HEADER_BLOCK_END\n'+code).issues.some(i=>/Header filament IDs/.test(i.message)));
+  assert.deepEqual(audit('; HEADER_BLOCK_START\n; filament: 1,2\n; HEADER_BLOCK_END\n'+code).issues,[]);
+});
+
+test('Bambu reference audit distinguishes outgoing/incoming mixed nozzles and saved project preferences',()=>{
+  const report=audit();assert.deepEqual(report.issues,[]);
+  assert.equal(report.nozzleChanges,2);assert.equal(report.materialLoads.length,3);
+  assert.equal(report.towerSections,1);assert.equal(report.nozzleChangeMarkers.length,1);
+  const [startup,left,right]=report.materialLoads;
+  assert.deepEqual(startup.flush.map(f=>f.nozzleMm),[0.8,0.8]);
+  assert.deepEqual(left.flush.map(f=>[f.filament,f.tool,f.nozzleMm]),[[0,1,0.8],[1,0,0.4]]);
+  assert.deepEqual(right.flush.map(f=>[f.filament,f.tool,f.nozzleMm]),[[1,0,0.4],[0,1,0.8]]);
+  assert.equal(left.outgoing[0].filament,0);assert.equal(left.detectors.at(-1).filament,1);
+  assert.equal(left.retraction.length,2,'calibration A0.4 is not a nozzle diameter');
+});
+
+test('Bambu reference audit catches unsynchronized H, load selectors and outgoing feeder state',()=>{
+  for(const [before,after,message] of [
+    ['M620.10 A0 H0.8','M620.10 A0 H0.4',/outgoing nozzle 1/],
+    ['M620.10 A1 H0.4','M620.10 A1 H0.8',/incoming nozzle 0/],
+    ['M1015.4 S1 K1 H0.4','M1015.4 S1 K1 H0.8',/detector diameter/],
+    ['M620.11 P0 I0','M620.11 P0 I1',/Outgoing feeder/],
+    ['T1 H-1','T0 H-1',/T selection/],
+    ['M621 S1A','M621 S0A',/M621 completion/],
+    ['M620.6 I1','M620.6 I0',/AMS detector/],
+    ['M621 S1A','',/preceding M621|no M621 completion/],
+  ])assert.ok(audit(code.replace(before,after)).issues.some(i=>message.test(i.message)),`${before} -> ${after}`);
+});
+
+test('offset calibration distinguishes physical heater from logical filament and checks its temperature',()=>{
+  const sample=code.replace('; nozzle_diameter = 0.4,0.8','; nozzle_diameter = 0.4,0.8\n; physical_extruder_map = 1,0\n; nozzle_temperature_initial_layer = 225,215')+
+    'M620.17 T0 S225 L0\nM620.17 T1 S215 L1\n';
+  assert.deepEqual(audit(sample).issues,[]);
+  assert.ok(audit(sample.replace('M620.17 T1 S215 L1','M620.17 T1 S225 L0')).issues.some(i=>/physical extruder/.test(i.message)));
+  assert.ok(audit(sample.replace('M620.17 T1 S215 L1','M620.17 T1 S225 L1')).issues.some(i=>/temperature/.test(i.message)));
+});

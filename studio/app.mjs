@@ -23,7 +23,7 @@ function initializeAgentInterface(){return createAgentUI({onActivity:active=>tou
   state.work.requests=requests;
   if(needsTourToolpath(state))scheduleChange();
 },onPresentation:()=>{if(!busy)void acknowledgeDisplayedView().catch(error=>message(error.message,true));},getStage:()=>tab});}
-let state,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,generating=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
+let state,stateTag=null,tab='geometry',selected=null,yaw=-0.78,tilt=0.62,zoom=1,playing=false,frame=0,busy=false,generating=false,fitBounds=null,seconds=0,lastFrame=0,polling=false,reconnecting=false;
 const canvas=$('#canvas');
 let drag=null,moved=false;
 let pan=[0,0];
@@ -35,7 +35,7 @@ const pinnedQuality=/^[0-2]$/.test(new URLSearchParams(location.search).get('mot
 const layerFade=createLayerFade();
 let movieController=null,movieUrl=null;
 let machineSession=null,playbackEpoch=0,requestingPose=null;
-let playbackCache=null,stalePresentation=null;
+let activePresentation=null;
 let exportNameState=null;
 let manualValues=null,manualJog=null,manualDescriptor=null;
 const cameras=machineCameras();
@@ -128,7 +128,6 @@ function requestDraw(){
   viewer.requestDraw(readViewerSnapshot,applyViewerAnnotations);
 }
 function clearProgramView(){
-  playbackCache=null;stalePresentation=null;
   clearManual();
   if(cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));
   cameras.reset();
@@ -136,10 +135,10 @@ function clearProgramView(){
   machineSession?.dispose();machineSession=null;
 }
 const message=(text,error=false)=>{$('#message').textContent=text;$('#message').classList.toggle('error',error);};
-const presentedState=()=>state?.program?state:stalePresentation;
+const presentedState=()=>activePresentation?.presentedState??state;
 // A toolpath is being (re)generated and a faded preview is on offer, so the
 // geometry action should return to it rather than start a fresh calculation.
-const generationPending=()=>generating||agentUI.generating()||(!state?.program&&Boolean(stalePresentation?.program));
+const generationPending=()=>generating||agentUI.generating()||Boolean(activePresentation?.retained&&activePresentation.program);
 // The toolpath pane never goes empty. Without a current program it shows a faded
 // placeholder — the previous toolpath when one is retained, otherwise the part
 // being sliced — through first generation, regeneration, reload and failure.
@@ -333,19 +332,23 @@ $('#cancel-generation').onclick=async()=>{
     else if(result.committing)message('The calculation finished; saving its checked file.');
   }catch(error){message(error.message,true);}finally{$('#cancel-generation').disabled=false;}
 };
-async function refresh(follow=false,reopen=false) {
-  const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
-  const fetched=await response.json(),loaded=state?.printId===fetched.printId?state:null,previous=!reopen?loaded:null;
+async function refresh(follow=false,reopen=false,fetchedState=null,fetchedTag=null) {
+  let fetched=fetchedState;
+  if(!fetched){
+    const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
+    fetchedTag=response.headers?.get?.('etag')??null;fetched=await response.json();
+  }
+  const loaded=state?.printId===fetched.printId?state:null,previous=!reopen?loaded:null;
   agentUI.received(fetched.work);
   const presentationChanged=!previous||previous.generationHash!==fetched.generationHash||previous.exportHash!==fetched.exportHash
     ||previous.geometry.geometryVersion!==fetched.geometry.geometryVersion;
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
-  const adopted=await prepareStudioState(fetched,{previous,follow,stalePresentation,playbackCache,
+  const adopted=await prepareStudioState(fetched,{previous,follow,presentation:activePresentation,
     pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
-  state=adopted.state;
+  state=adopted.state;stateTag=fetchedTag;
   // Metadata can change while the exact same source/move buffers are reused.
   $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
   document.title='SAAM Studio · '+state.printName;
@@ -375,14 +378,15 @@ async function refresh(follow=false,reopen=false) {
   }
 }
 async function applyProgramPresentation(decision,next){
-  if(decision.action==='clear')clearProgramView();
-  else stalePresentation=decision.stalePresentation;
+  if(decision.effects.program==='clear')clearProgramView();
   let publication=null;
-  if(decision.buildPath||decision.buildMaterial){
+  if(decision.effects.buildPath||decision.effects.buildMaterial){
     publication=await viewer.publishProgram({moves:next.program.moves,plan:next.plan,geometry:next.geometry,previewMaterial:next.program.previewMaterial,
-      buildPath:decision.buildPath,buildMaterial:decision.buildMaterial,onProgress:progress=>activity('Preparing material view…',progress)});}
+      buildPath:decision.effects.buildPath,buildMaterial:decision.effects.buildMaterial,onProgress:progress=>activity('Preparing material view…',progress)});}
   const state=publication?.previewMaterialConsumed?withoutPreviewMaterial(next):next;
-  if(decision.action!=='clear')playbackCache=publication?.previewMaterialConsumed?{...decision.playbackCache,program:state.program}:decision.playbackCache;
+  activePresentation={...decision.model,
+    presentedState:decision.model.presentedState===next?state:decision.model.presentedState,
+    program:decision.model.presentedState===next?state.program:decision.model.program};
   return {duration:duration(),state};
 }
 function applyRefreshNavigation(decision){
@@ -474,7 +478,7 @@ function render() {
     samples.append(button);
   }
   $('#skin-label').textContent=hasSkill(state.plan,'pipe-cladding')?(state.plan.skills['pipe-cladding'].pattern==='crossed-helices'?'Crossed helices':'Circumferential'):hasSkill(state.plan,'wave-overhangs')?'Wave fronts':hasSkill(state.plan,'vase-wall')?'Skin / paths':view().skinLabel;
-  const reviewed=$('#reviewed-download'),controls=studioControls(state,{tab,busy,generating,pending:generationPending(),staleProgram:Boolean(stalePresentation?.program),
+  const reviewed=$('#reviewed-download'),controls=studioControls(state,{tab,busy,generating,pending:generationPending(),staleProgram:Boolean(activePresentation?.retained&&activePresentation.program),
     tourActive:Boolean(tourUI?.active()),exported:exportedThisSession.has(exportKey()),currentExportKey:exportKey(),inspection:state.inspection,
     machineView:cameras.mode==='machine',reviewedExportKey:reviewed?.dataset.exportKey});
   exportNameInput.disabled=controls.exportName.disabled;$('#export-name-row').hidden=controls.exportName.hidden;
@@ -742,20 +746,21 @@ async function animate(now){
 }
 async function poll(){
   if(polling||busy)return;polling=true;
-  const refreshUpdatedPrint=()=>refresh(true);
   try{
-    const response=await fetch('/api/revision?'+new URLSearchParams({fingerprint:state?.fingerprint??''}));if(!response.ok)throw new Error('Reconnecting to your print…');
-    const next=await response.json();if(movieController||busy)return;
+    const needsFullState=!state||reconnecting||needsTourToolpath(state);
+    const options=!needsFullState&&stateTag?{headers:{'If-None-Match':stateTag}}:undefined;
+    const response=await fetch('/api/state',options);
+    if(response.status===304){reconnecting=false;return;}
+    if(!response.ok)throw new Error('Reconnecting to your print…');
+    const nextTag=response.headers?.get?.('etag')??null,next=await response.json();if(movieController||busy)return;
     // Restarted servers have new session credentials. Reload the page and its
     // viewer connection instead of repeatedly posting with the previous token.
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
-    const tourChanged=Boolean(next.tour&&JSON.stringify(next.tour)!==JSON.stringify(state?.tour));
-    const metadataOnly=Boolean(state&&!reconnecting&&next.presentationFingerprint===state.presentationFingerprint
-      &&(next.fingerprint!==state.fingerprint||tourChanged));
+    const refreshUpdatedPrint=()=>refresh(true,false,next,nextTag);
+    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint);
     if(metadataOnly)await refreshUpdatedPrint();
-    else if(!state||reconnecting||next.fingerprint!==state.fingerprint||tourChanged||needsTourToolpath(state))
-      await working('Loading and checking the updated print…',refreshUpdatedPrint);
+    else await working('Loading and checking the updated print…',refreshUpdatedPrint);
     reconnecting=false;
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
@@ -777,8 +782,8 @@ function createStudioTour(){
 async function loadStudio(){await tourUI.load();await refresh();}
 let changeTimer;
 function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
-// Pushed changes drive revision checks. Request activity only changes the
-// revision response through tour gating. A dropped or reopened viewer stream,
+// Pushed changes drive conditional state checks. Request activity only changes
+// the state identity through tour gating. A dropped or reopened viewer stream,
 // a page becoming visible and a slow heartbeat cover what pushes cannot.
 function studioChanged(event){
   const {kinds}=event.detail;

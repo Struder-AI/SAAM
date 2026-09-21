@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
 import {needsTourToolpath} from '../../studio/tour-ui.mjs';
 import {TOUR_LESSONS as L} from '../../studio/tour-catalog.mjs';
-import {planProgramPresentation,planRefreshNavigation} from '../../studio/refresh-plan.mjs';
+import {planPresentation,planRefreshNavigation} from '../../studio/refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from '../../studio/studio-state.mjs';
 
 const app=await readFile(new URL('../../studio/app.mjs',import.meta.url),'utf8');
@@ -19,8 +19,8 @@ function harness(){
   const effects={manual:0,fade:0};
   const noop=()=>{},element=id=>{if(!nodes.has(id))nodes.set(id,{replaceChildren(){}});return nodes.get(id);};
   let next,context;
-  context=vm.createContext({state:undefined,playbackCache:null,stalePresentation:null,pathView:null,materialScene:null,materialRenderer:null,
-    machineSession:null,geometryScene:null,geometryRenderer:null,selected:null,tab:'geometry',seconds:0,L,needsTourToolpath,planProgramPresentation,planRefreshNavigation,prepareStudioState,withoutPreviewMaterial,
+  context=vm.createContext({state:undefined,activePresentation:null,pathView:null,materialScene:null,materialRenderer:null,
+    machineSession:null,geometryScene:null,geometryRenderer:null,selected:null,tab:'geometry',seconds:0,L,needsTourToolpath,planPresentation,planRefreshNavigation,prepareStudioState,withoutPreviewMaterial,
     document:{},$:element,fetch:async()=>({ok:true,json:async()=>structuredClone(next)}),
     agentUI:{received:noop},view:()=>({skinLabel:'Test'}),cameras:{mode:'ghost',reset:noop},layerFade:{reset:()=>effects.fade++},
     stop:noop,clearManual:()=>effects.manual++,restoreView:noop,render:noop,acknowledgeDisplayedView:async()=>{},
@@ -84,11 +84,11 @@ test('a plan edit preserves stale playback until its replacement is ready',async
   let release;context.generationGate=new Promise(resolve=>{release=resolve;});
   const replacing=load(snapshot({generationHash:'edited-plan',program:undefined,tour:{active:true,step:L.settings}}),{follow:true});
   await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(context.state.program,undefined);assert.ok(context.stalePresentation?.program);
+  assert.equal(context.state.program,undefined);assert.ok(context.activePresentation?.retained&&context.activePresentation.program);
   assert.equal(context.pathView,path);assert.equal(context.materialScene,material);
   assert.equal(counts.dispose,0);
   release();await replacing;
-  assert.equal(context.stalePresentation,null);
+  assert.equal(context.activePresentation.retained,false);
   assert.equal(counts.decode,2);assert.equal(counts.material,2);assert.equal(counts.bind,0);
 });
 
@@ -97,8 +97,8 @@ test('successful preview adoption drops only the adopted state and cache envelop
   await load(fetched);
   assert.equal(fetched.program.previewMaterial,preview);
   assert.equal(context.state.program.previewMaterial,undefined);
-  assert.equal(context.playbackCache.program,context.state.program);
-  assert.equal(context.playbackCache.program.moves,context.state.program.moves);
+  assert.equal(context.activePresentation.program,context.state.program);
+  assert.equal(context.activePresentation.program.moves,context.state.program.moves);
 });
 
 test('metadata-only refresh preserves manual controls and layer fade',async()=>{

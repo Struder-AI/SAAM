@@ -18,25 +18,20 @@ export function createProgressReporter(port,control,enabled) {
 
 export async function prepareGeneration(bundle,{directory,generationHash,onProgress}) {
   try {
-    const expected=await readExpectedBundle(bundle,directory,generationHash);
-    await bundle.checkPathBundle(expected.directory,{onProgress});
-    return {notification:{type:'prepared'},error:null};
+    const candidate=await bundle.prepareGeneration(directory,{onProgress});
+    if(candidate.generationHash!==generationHash)throw new Error('The prepared print changed. Reload before generating.');
+    return {notification:{type:'prepared'},candidate,error:null};
   } catch(error) {
     return {notification:{type:'prepared',error:error.message},error};
   }
 }
 
-export async function readExpectedBundle(bundle,directory,generationHash) {
-  const state=await bundle.loadBundle(directory,{program:false});
-  if(state.generationHash!==generationHash)throw new Error('The prepared print changed. Reload before generating.');
-  return {directory,generationHash:state.generationHash};
-}
-
-export async function runPreparedGeneration(bundle,expected,preparation,message,{control,onProgress}) {
+export async function runPreparedGeneration(bundle,preparation,message,{directory,control,onProgress}) {
   if(preparation.error)throw preparation.error;
   control.check();
-  const checks=await bundle.generateBundle(expected.directory,{development:message.development===true,onProgress,beforeCommit:control.beforeCommit});
-  return {directory:expected.directory,checks};
+  const checks=await bundle.commitGeneration(directory,preparation.candidate,
+    {development:message.development===true,onProgress,beforeCommit:control.beforeCommit});
+  return {directory,checks};
 }
 
 export async function loadGeneratedResponse(bundle,generation) {
@@ -50,8 +45,7 @@ export async function generateMessage(message,ready,bundle,settings) {
   if(message.type!=='generate')return undefined;
   try {
     const preparation=await ready;
-    const expected=await readExpectedBundle(bundle,settings.directory,settings.generationHash);
-    const generation=await runPreparedGeneration(bundle,expected,preparation,message,settings);
+    const generation=await runPreparedGeneration(bundle,preparation,message,settings);
     return await loadGeneratedResponse(bundle,generation);
   } catch(error) {
     return {type:'generated',error:error.message,code:error.code};

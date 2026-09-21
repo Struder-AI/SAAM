@@ -31,18 +31,28 @@ test('inspection presentation skips normal row construction and render assigns s
     assert.equal(render.split(`$('#${target}')`).length-1,count,`${target} is updated only by its effective presentation`);
 });
 
-test('compact review updates adopt through refresh without entering the busy lifecycle',async()=>{
+test('review-only state updates adopt through refresh without entering the busy lifecycle',async()=>{
   let reloads=0,renders=0,work=0;
   const state={fingerprint:'old-review',presentationFingerprint:'same-source',instanceId:'studio',seconds:12,tour:{active:false}};
-  const context=vm.createContext({state,polling:false,busy:false,reconnecting:false,movieController:null,URLSearchParams,
-    fetch:async()=>({ok:true,json:async()=>({instanceId:'studio',fingerprint:'new-review',presentationFingerprint:'same-source',
-      reviewUpdate:{revision:'approved',toolpathApproved:true},tour:{active:false}})}),
-    needsTourToolpath:()=>false,render:()=>renders++,working:async(_text,action)=>{work++;return action();},refresh:()=>{reloads++;Object.assign(state,{revision:'approved',toolpathApproved:true,fingerprint:'new-review'});renders++;},
+  const next={instanceId:'studio',fingerprint:'new-review',presentationFingerprint:'same-source',revision:'approved',toolpathApproved:true,tour:{active:false}};
+  const context=vm.createContext({state,stateTag:'W/"old"',polling:false,busy:false,reconnecting:false,movieController:null,
+    fetch:async()=>({status:200,ok:true,headers:{get:()=> 'W/"new"'},json:async()=>next}),
+    needsTourToolpath:()=>false,render:()=>renders++,working:async(_text,action)=>{work++;return action();},refresh:(_follow,_reopen,fetched,tag)=>{reloads++;Object.assign(state,fetched);context.stateTag=tag;renders++;},
     message(){},agentUI:{settled(){}},$:()=>({}),window:{location:{reload(){throw Error('Unexpected reload');}}}});
   vm.runInContext(section('async function poll(){','\nfunction seekTourLayer('),context);
   await context.poll();
   assert.equal(reloads,1);assert.equal(renders,1);assert.equal(work,0);assert.equal(state.seconds,12);
   assert.equal(state.toolpathApproved,true);assert.equal(state.revision,'approved');assert.equal(state.fingerprint,'new-review');
+});
+
+test('unchanged conditional state poll parses no body and performs no refresh',async()=>{
+  let parsed=0,refreshed=0,work=0;
+  const context=vm.createContext({state:{instanceId:'studio'},stateTag:'W/"same"',polling:false,busy:false,reconnecting:false,movieController:null,
+    fetch:async()=>({status:304,ok:false,json:async()=>{parsed++;}}),needsTourToolpath:()=>false,
+    refresh:async()=>{refreshed++;},working:async()=>{work++;},message(){},agentUI:{settled(){}},$:()=>({}),window:{location:{reload(){}}}});
+  vm.runInContext(section('async function poll(){','\nfunction seekTourLayer('),context);
+  await context.poll();
+  assert.equal(parsed,0);assert.equal(refreshed,0);assert.equal(work,0);assert.equal(context.reconnecting,false);
 });
 
 test('one pure classifier defines geometry and toolpath presentation readiness',()=>{
@@ -202,7 +212,7 @@ function placeholderContext({program=null,stale=null,tab='toolpath'}={}){
     classList:{names:new Set(),toggle(name,on){if(on)this.names.add(name);else this.names.delete(name);}}};
   const state={printId:'part',geometry:placeholderGeometry,plan:{placement:{xMm:0,yMm:0},process:{lineWidthMm:.42},setup:{}},
     ...(program?{program}:{})};
-  const context=vm.createContext({state,tab,stalePresentation:stale,generating:false,agentUI:{generating:()=>false},
+  const context=vm.createContext({state,tab,activePresentation:stale?{presentedState:stale,program:stale.program,retained:true}:null,generating:false,agentUI:{generating:()=>false},
     canvas,ctx,seconds:0,playing:false,movieController:null,layerFade:{frame:()=>({weights:new Map(),fading:false}),reset(){}},
     devicePixelRatio:1,performance,redrawFrame:0,cancelAnimationFrame(){},requestAnimationFrame:()=>1,
     motionQuality:null,lastMotion:0,lastMovingFrame:0,redrawRequested:0,settleTimer:0,playing:false,drag:null,lastWheel:0,viewPerformance:{frame(){},flush(){}},

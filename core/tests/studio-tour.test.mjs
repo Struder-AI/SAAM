@@ -26,8 +26,8 @@ test('tour reference adapter has the complete shell surface and explicit guarded
     async generateBundle(...args){calls.push(['generateBundle',...args]);return 'generated';},
     async deliver(...args){calls.push(['deliver',...args]);return 'delivered';}
   },adapter=referenceAdapter(live);
-  assert.deepEqual(Object.keys(adapter),Object.keys(shellAdapter));
-  for(const name of Object.keys(shellAdapter).filter(name=>!['approve','bundleFingerprint','bundleFingerprints','deliver','generateBundle','loadBundle'].includes(name)))
+  assert.deepEqual(Object.keys(adapter).sort(),Object.keys(shellAdapter).sort());
+  for(const name of Object.keys(shellAdapter).filter(name=>!['approve','bundleFingerprint','bundleFingerprints','deliver','generateBundle','loadBundle','loadBundleSnapshot'].includes(name)))
     assert.strictEqual(adapter[name],live[name],name);
   assert.equal(adapter.approve.length,1);assert.equal(adapter.generateBundle.length,1);assert.equal(adapter.deliver.length,1);
   await assert.rejects(adapter.approve(directory,{actor:'Reviewer'},'extra'),/Exit the tour/);
@@ -168,10 +168,10 @@ test('the first Play unlocks fallback playback without an agent-selected layer',
 });
 test('exit ends the run; restarting begins lesson one and preserves earlier print copies',async t=>{
   const dir=await library(t),tour=createTour(dir),{directory:first}=await tour.action('fresh');
-  const starterSource=await readFile(join(first,'plan.json'),'utf8');
+  const starterPlan=(await loadBundle(first,{program:false})).plan;
   await editFin(first);await ready(tour,first);
   const {directory:roof}=await tour.action('step',1);
-  const roofSource=await readFile(join(roof,'plan.json'),'utf8');
+  const roofPlan=(await loadBundle(roof,{program:false})).plan;
   await adjustBundle(roof,{process:{planarSpeedMmS:30}});
   const editedRoof=await readFile(join(roof,'plan.json'),'utf8');
   await tour.setStartAt({layer:12});
@@ -184,8 +184,8 @@ test('exit ends the run; restarting begins lesson one and preserves earlier prin
   assert.equal((await tour.info()).startAt,null,'a previous model’s playback layer is not inherited');
   const progress=await tour.info(),newRoof=join(dir,'tour',progress.copies['surface-drape']);
   assert.notEqual(newRoof,roof);
-  assert.equal(await readFile(join(second,'plan.json'),'utf8'),starterSource,'new starter uses the bundled recipe');
-  assert.equal(await readFile(join(newRoof,'plan.json'),'utf8'),roofSource,'new roof uses the bundled recipe');
+  assert.deepEqual((await loadBundle(second,{program:false})).plan,starterPlan,'new starter uses the bundled recipe');
+  assert.deepEqual((await loadBundle(newRoof,{program:false})).plan,roofPlan,'new roof uses the bundled recipe');
   assert.equal(await readFile(join(roof,'plan.json'),'utf8'),editedRoof,'earlier roof edits stay saved');
   const roofState=await referenceAdapter({loadBundle}).loadBundle(newRoof,{program:false});
   assert.deepEqual(roofState.plan.geometry,surfaceDrapePlan().geometry,'the current roof shape is preserved');
@@ -219,9 +219,10 @@ test('Studio file selection prepares geometry; completing the STL introduction l
   assert.equal(preparation.generationHash,state.generationHash);assert.ok(['preparing','ready'].includes(preparation.status));
   assert.ok(preparation.progress.stage,'step 4 starts preparation while geometry remains visible');
   assert.equal((await post('tour',{action:'step',step:4,revision:state.revision,geometryHash:state.geometryHash})).status,200);
-  state=await(await fetch(url+'/api/state')).json();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
+  const playbackResponse=await fetch(url+'/api/state');state=await playbackResponse.json();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
   await tour.setStartAt({layer:8});
-  const metadata=await(await fetch(url+'/api/revision')).json();
+  const metadataResponse=await fetch(url+'/api/state',{headers:{'If-None-Match':playbackResponse.headers.get('etag')}}),metadata=await metadataResponse.json();
+  assert.equal(metadataResponse.status,200,'tour-only changes return the current full state');
   assert.equal(metadata.fingerprint,state.fingerprint,'start-layer metadata does not invalidate source or scenes');
   assert.equal(metadata.tour.startAt.layer,8);
   assert.equal(state.toolpathApproved,false,'preparation does not confirm the final settings');

@@ -14,7 +14,10 @@ export function workSnapshot({plan,machine,review}){
 }
 async function snapshot(directory){
   try{
-    const [plan,machine,review]=await Promise.all(['plan.json','machine.json','review.json'].map(async name=>JSON.parse(await readFile(resolve(directory,name),'utf8'))));
+    const document=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));
+    const {bundle,...plan}=document;
+    const [machine,review]=bundle?[bundle.machine,bundle.review]:await Promise.all(['machine.json','review.json']
+      .map(async name=>JSON.parse(await readFile(resolve(directory,name),'utf8'))));
     return workSnapshot({plan,machine,review});
   }catch(error){if(error.code==='ENOENT')return null;throw error;}
 }

@@ -174,5 +174,5 @@ test('spacing is reviewable, invalidates only the process, and survives checked 
   assert.ok(!recipeRows(p,machine).some(([key])=>key.includes('Line spacing')),'normal recipes need no extra review row');
   await generateBundle(dir);state=await loadBundle(dir);assert.ok(!state.programError);
   await approve(dir,{revision:state.revision,actor:'SYNTHETIC SPACING TEST ONLY'});
-  assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,'exports/griffin-gcode/part.gcode')));
+  state=await loadBundle(dir);assert.deepEqual(await readFile(await deliver(dir)),await readFile(join(dir,state.review.generation.file)));
 });

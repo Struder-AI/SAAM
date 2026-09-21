@@ -1,11 +1,12 @@
-import {planProgramPresentation} from './refresh-plan.mjs';
+import {planPresentation} from './refresh-plan.mjs';
 
-async function adoptProgramState(next,{playbackCache,decode,bind}){
+async function adoptProgramState(next,{presentation,decode,bind}){
   if(!next.program)return next;
-  const reusable=playbackCache?.printId===next.printId&&playbackCache.exportHash===next.exportHash&&playbackCache.generationHash===next.generationHash;
+  const reusable=presentation?.identity.printId===next.printId&&presentation.identity.exportHash===next.exportHash
+    &&presentation.identity.generationHash===next.generationHash&&presentation.program;
   if(reusable){
     await bind?.(next);
-    return {...next,program:playbackCache.program};
+    return {...next,program:presentation.program};
   }
   try{
     const decoded=await decode(next);
@@ -18,8 +19,7 @@ async function adoptProgramState(next,{playbackCache,decode,bind}){
 
 export async function prepareStudioState(next,context){
   const state=await adoptProgramState(next,context);
-  const presentation=planProgramPresentation(state,context);
-  return {state,presentation};
+  return {state,presentation:planPresentation(context.presentation,state,context)};
 }
 
 export function withoutPreviewMaterial(state){

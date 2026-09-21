@@ -124,8 +124,8 @@ test('native mesh uses the shared approvals and exact-byte delivery workflow',as
   assert.equal(state.programError,undefined);
   state=await approve(dir,{actor:'SYNTHETIC MESH TEST',revision:state.revision});
   assert.equal(await readFile(await deliver(dir),'utf8'),state.code);
-  await writeFile(join(dir,'geometry/model.mesh.json'),'{}');
-  await assert.rejects(loadBundle(dir),/Geometry file changed/);
+  state=await loadBundle(dir,{program:false});await writeFile(join(dir,state.geometryArtifact.file),'{}');
+  await assert.rejects(loadBundle(dir),/geometry artifact changed/i);
 });
 
 test('holes, disconnected islands and mixed spline/mesh assemblies use the shared geometry boundary',async t=>{

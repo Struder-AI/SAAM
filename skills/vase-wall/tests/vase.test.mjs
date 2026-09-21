@@ -10,7 +10,7 @@ import {loadMachine} from '../../../core/machine/profile.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
 import {pointSegmentDistance,loopArea,dedupe} from '../../../core/region/region2d.mjs';
 import {boxMesh,ringMesh} from '../../../core/tests/fixtures/mesh.mjs';
-import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle,EXPORT_PATH} from '../../../core/print/bundle.mjs';
+import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle} from '../../../core/print/bundle.mjs';
 import {syntheticDobotSetup} from '../../../core/tests/fixtures/dobot.mjs';
 import {exportProgram,interpretProgram} from '../../../core/export/registry.mjs';
 import {offsetRegion} from '../../../core/region/offset.mjs';
@@ -354,7 +354,7 @@ test('vase native spline and mesh bundles reopen, review and deliver exact S5 by
     await generateBundle(dir);
     let state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.skills,['vase-wall']);
     await approve(dir,{actor,revision:state.revision});
-    const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),await readFile(join(dir,EXPORT_PATH)));
+    const delivered=await deliver(dir);assert.deepEqual(await readFile(delivered),await readFile(join(dir,'exports',state.plan.output,state.exportName)));
     state=await loadBundle(dir);assert.equal(state.toolpathApproved,true);
     await adjustBundle(dir,{skills:{'vase-wall':{zEndMm:0.8}}});
     state=await loadBundle(dir,{program:false});assert.equal(state.toolpathApproved,false);

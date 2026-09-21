@@ -120,7 +120,7 @@ Keep the rules in the trusted project and use the repository root as instructed.
 More restrictive client or administrator policies can still block or prompt.
 No global approval mode or full-access setting is changed.
 
-State and revision responses carry a server instance identity. When a server is
+State responses carry a server instance identity. When a server is
 restarted, the browser reloads to obtain its new session token and reconnect its
 viewer before posting acknowledgements. Old credentials remain invalid. Update
 errors retain their concrete reason instead of an indefinite generic reconnect
@@ -147,14 +147,15 @@ scrubbing and travel visibility as viewer controls. Layer height means deposited
 layer thickness, not a separate height setting.
 
 The agent applies patches with the `adjust` command of
-`core/print/cli.mjs`. Studio checks the bundle fingerprint (`/api/revision`)
-when the viewer stream pushes a print or tour change, or a request change during
-an active tour (request activity gates the tour's Next), and reloads changed data
-automatically, keeping the view when nothing changes and returning to the
-affected approval step after edits. A viewer-stream error or reopen, the page
-becoming visible and a 15-second heartbeat also check it; these cover missed
-pushes, an unavailable watcher, request expiry and a restarted server. There is
-no fixed short-interval revision poll.
+`core/print/cli.mjs`. Studio conditionally reads `/api/state` when the viewer
+stream pushes a print or tour change, or a request change during an active tour
+(request activity gates the tour's Next). An unchanged fingerprint and tour view
+returns no state body; a change returns the current checked state in that same
+request. Studio keeps the view when nothing changes and returns to the affected
+approval step after edits. A viewer-stream error or reopen, the page becoming
+visible and a 15-second heartbeat also check it; these cover missed pushes, an
+unavailable watcher, request expiry and a restarted server. There is no fixed
+short-interval state poll.
 Geometry and settings edits invalidate the single settings/toolpath confirmation.
 A server running old imported
 code must be restarted after runtime changes. Each agent owns its Studio instances;
@@ -330,7 +331,10 @@ do not yet share a cross-process cancellation owner.
 
 State and approval responses report `toolpathApproved` as the only approval state.
 `/api/approve` takes the reviewer and revision; an active tour rejects it and
-`/api/deliver` in favor of its combined confirm-and-export route.
+`/api/deliver` in favor of its combined confirm-and-export route. That route
+applies tour teaching and restoration policy around the same generation,
+approval and delivery operations used by ordinary Studio; it is not a second
+manufacturing lifecycle.
 
 Review metadata has its own update path. Approval, delivery history and generation
 mode changes update controls after fresh validation without replacing unchanged
@@ -590,24 +594,27 @@ Verification: [Studio kinematics](../core/tests/studio-kinematics.test.mjs),
 
 ### Preparation, generation and cancellation
 
-[`server.mjs`](./server.mjs) owns the preparation worker and its target
-directory and plan hash. Preparation checks a candidate in memory. Only an explicit
-`generate` message permits persistence. The worker reads the plan hash before
-preparation and again before generation; the lifecycle checks identity at commit.
-An obsolete or discarded worker cannot donate checked source through an old
-attachment. Preparation errors remain generation errors for that candidate.
+[`server.mjs`](./server.mjs) owns the preparation worker and its target directory
+and `generationHash`. The worker invokes the shared lifecycle's
+[`prepareGeneration` and `commitGeneration`](../core/print/README.md#generation-and-review):
+it retains the prepared candidate in memory, and only an explicit `generate`
+message permits its commit. Studio does not implement a second computation or
+persistence path. An obsolete or discarded worker cannot donate checked source
+through an old attachment. Preparation errors remain generation errors for that
+candidate.
 
 [`generationControl`](../core/print/generation-control.mjs) uses a shared atomic
 integer: 0 is working, 1 is cancelled and 2 is committing. Cancellation and
 `beforeCommit` compete to change 0. If cancellation wins, commit throws
 `GENERATION_CANCELLED`. Once commit wins, cancellation returns false and the short
-write sequence finishes. This is not a multi-file transaction. The cancellation
-API checks the current print and requested plan hash; UI progress also checks its
-captured target before updating controls.
+write sequence finishes: immutable output is written first, then the one mutable
+manifest is atomically replaced. The cancellation API checks the current print
+and requested `generationHash`; UI progress also checks its captured target
+before updating controls.
 
 [`attachCheckedProgramWorker`](../core/print/program-handoff.mjs) accepts only
 an actual server-created Node Worker. Successful generated messages must match
-the expected plan hash and the check record's plan/export hashes. The handoff
+the expected `generationHash` and the check record's generation/export hashes. The handoff
 retains metadata and source strings, excludes moves/events, and returns defensive
 copies. It is process-local reuse of an owning check, not an API for trusting a
 caller's assertion of validity.

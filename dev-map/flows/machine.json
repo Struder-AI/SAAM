@@ -10,6 +10,7 @@
           "members": [
             "core/machine/profile.mjs",
             "core/machine/rules.mjs",
+            "core/machine/filaments.mjs",
             "core/machine/denso.mjs"
           ],
           "groups": [

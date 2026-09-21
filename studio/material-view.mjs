@@ -4,7 +4,7 @@ import {add,subtract,scale,dot,cross,length,normalize} from '../core/geom/tolera
 import {createMachineLayer} from './machine-view.mjs';
 import {CURRENT_LAYER_GAP_MM,layerKey,toolpathStyle} from './toolpath-view.mjs';
 
-export const materialKey=move=>layerKey(move)+'\0'+(move.operation??'');
+export const materialKey=move=>layerKey(move)+'\0'+(move.operation??'')+(move.filament===undefined?'':'\0'+move.filament);
 const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 
 export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=false}={}){
@@ -35,6 +35,7 @@ export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=fa
   if(!(height>0))return null;
   const originalLength=length(subtract(move.to,move.from));
   const area=originalLength>1e-9?(move.commandedVolumeMm3??move.volumeMm3)/originalLength:NaN;
+  if(!clad&&Number.isFinite(move.lineWidthMm)&&move.lineWidthMm>0&&Number.isFinite(area)&&area>0)height=area/move.lineWidthMm;
   const width=Number.isFinite(area)&&area>0?area/height:p.lineWidthMm;
   const displayWidth=gap?Math.max(width-CURRENT_LAYER_GAP_MM,width*.5):width;
   function end(point){
@@ -61,7 +62,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   const due=()=>performance.now()-lastYield>=8;
   const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
   const indexedMove=i=>moves[i];
-  const read=moves.reader?.(['extruding','from','to','phase','layer','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo'])??indexedMove;
+  const read=moves.reader?.(['extruding','from','to','phase','layer','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??indexedMove;
   for(let i=0;i<moves.length;i++){
     if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
     const move=read(i);if(!move.extruding)continue;

@@ -19,11 +19,13 @@ export async function bundleFor(directory) {
   const adapter=await load();return plan.schema==='saam-shell-plan/1'?referenceAdapter(adapter):adapter;
 }
 
-// A CLI update replaces several bundle files. Retry only reads caught between
-// those replacements; persistent corruption still fails the normal validation.
-// One fingerprint pass on each side of the load yields both the source and
-// presentation fingerprints; presentation derives from files source covers.
+// Production print manifests commit atomically and refer only to immutable
+// artifacts. Machine studies retain their legacy multi-file reader until that
+// separate format is retired.
 export async function readStableBundle(adapter,directory,options){
+  if(adapter.atomicManifest){
+    return adapter.loadBundleSnapshot(directory,options);
+  }
   for(let attempt=0;;attempt++){
     let before;
     try{

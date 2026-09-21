@@ -1,121 +1,84 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {writeFile,mkdir,rm,readFile} from 'node:fs/promises';
+import {access,readFile,writeFile} from 'node:fs/promises';
 import {writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {generationFixture} from './workflow-generation-fixture.mjs';
 import {loadFlow,flowPacket} from '../../dev-map/lib/flow.mjs';
-async function fixture(t){const f=await generationFixture();t.after(f.cleanup);return f;}
 
-test('prepared calculations commit once and reviewed promotion checks bytes without regenerating',async t=>{
-  const f=await fixture(t);
-  await f.api.checkPathBundle(f.directory,f.options);
-  assert.deepEqual(f.events,['Preparing geometry','generate','Writing and checking machine commands']);
-  let dispatches=0;
-  const dispatchComputation=options=>{dispatches++;return f.api.generateBundle(f.directory,options);};
-  const checks=await f.api.generateBundle(f.directory,{...f.options,development:true,dispatchComputation});
-  assert.equal(f.generateCount,1);
-  assert.equal(dispatches,1);
-  assert.deepEqual(f.events.slice(3),['commit','Saving your toolpath']);
-  const source=await f.read('exports/griffin-gcode/part.gcode');
-  f.events.length=0;
-  const production=await f.api.generateBundle(f.directory,{...f.options,dispatchComputation});
-  assert.deepEqual(production,{...checks,mode:'production'});
-  assert.deepEqual(f.events,['commit']);assert.equal(f.generateCount,1);
-  assert.equal(await f.read('exports/griffin-gcode/part.gcode'),source);
-  const review=JSON.parse(await f.read('review.json')),reviewText=await f.read('review.json'),checksText=await f.read('checks.json');
-  assert.deepEqual(review.approvals,{});assert.deepEqual(review.history.map(h=>h.event),['generated','generation-reused']);
-  f.events.length=0;
-  assert.deepEqual(await f.api.generateBundle(f.directory,f.options),production);
-  assert.deepEqual(await f.api.generateBundle(f.directory,{...f.options,development:true,dispatchComputation}),production,'production cannot be downgraded');
-  assert.equal(dispatches,1,'reuse and promotion never dispatch computation');
-  assert.deepEqual(f.events,[]);assert.equal(f.generateCount,1);
-  assert.equal(await f.read('review.json'),reviewText);assert.equal(await f.read('checks.json'),checksText);
-  assert.equal(await f.read('exports/griffin-gcode/part.gcode'),source);
+async function fixture(t){const value=await generationFixture();t.after(value.cleanup);return value;}
+const manifest=async f=>JSON.parse(await f.read('plan.json'));
+const generationFile=async f=>join(f.directory,(await manifest(f)).bundle.review.generation.file);
+
+test('one prepared candidate commits once and promotes without regeneration',async t=>{
+  const f=await fixture(t),candidate=await f.api.prepareGeneration(f.directory,f.options);
+  assert.equal(f.generateCount,1);assert.deepEqual(f.events,['Preparing geometry','generate','Writing and checking machine commands']);
+  const checks=await f.api.commitGeneration(f.directory,candidate,{...f.options,development:true});
+  assert.equal(f.generateCount,1);assert.deepEqual(f.events.slice(3),['commit','Saving your toolpath']);
+  const file=await generationFile(f),source=await readFile(file,'utf8');f.events.length=0;
+  const production=await f.api.generateBundle(f.directory,f.options);
+  assert.deepEqual(production,{...checks,mode:'production'});assert.deepEqual(f.events,['commit']);assert.equal(f.generateCount,1);
+  assert.equal(await readFile(file,'utf8'),source);
+  const saved=await manifest(f);assert.deepEqual(saved.bundle.review.history.map(event=>event.event),['generated','generation-reused']);
+  assert.equal(saved.bundle.review.generation.checks.mode,'production');
 });
 
-test('cancelled commit preserves files and prepared candidate, while failed generation clears the candidate',async t=>{
-  const f=await fixture(t),original=await f.read('review.json');
-  await assert.rejects(f.api.generateBundle(f.directory,{...f.options,development:true,beforeCommit(){throw Error('stop commit');}}),/stop commit/);
-  assert.equal(await f.read('review.json'),original);
-  await assert.rejects(f.read('checks.json'),{code:'ENOENT'});
-  await f.api.generateBundle(f.directory,{development:true});assert.equal(f.generateCount,1);
-  await writeFile(join(f.directory,'exports/griffin-gcode/part.gcode'),'changed');
-  f.generateHook=()=>{throw Error('generation failed');};
-  await assert.rejects(f.api.generateBundle(f.directory,{development:true}),/generation failed/);
-  f.generateHook=null;
-  await f.api.generateBundle(f.directory,{development:true});assert.equal(f.generateCount,3);
+test('cancelled commit writes nothing and the explicit candidate remains reusable',async t=>{
+  const f=await fixture(t),before=await f.read('plan.json'),candidate=await f.api.prepareGeneration(f.directory,f.options);
+  await assert.rejects(f.api.commitGeneration(f.directory,candidate,{development:true,beforeCommit(){throw Error('stop commit');}}),/stop commit/);
+  assert.equal(await f.read('plan.json'),before);assert.equal(f.generateCount,1);
+  await f.api.commitGeneration(f.directory,candidate,{development:true});assert.equal(f.generateCount,1);
 });
 
-test('saved-check mismatch fails before commit while changed export falls back to generation',async t=>{
-  const f=await fixture(t);
-  const checks=await f.api.generateBundle(f.directory,{development:true});
-  await writeFile(join(f.directory,'checks.json'),JSON.stringify({...checks,generationHash:'wrong'}));
-  const review=await f.read('review.json');f.events.length=0;
-  await assert.rejects(f.api.generateBundle(f.directory,f.options),/Saved checks do not match/);
-  assert.deepEqual(f.events,[]);assert.equal(f.generateCount,1);
-  assert.equal(await f.read('review.json'),review);
-  await writeFile(join(f.directory,'exports/griffin-gcode/part.gcode'),'changed');f.events.length=0;
-  const fallback=await f.api.generateBundle(f.directory,f.options);
-  assert.equal(fallback.mode,'production');assert.equal(f.generateCount,2);
-  assert.deepEqual(f.events,['Preparing geometry','generate','Writing and checking machine commands','commit','Saving your toolpath']);
+test('corrupt saved evidence fails while corrupt program bytes regenerate',async t=>{
+  const f=await fixture(t);await f.api.generateBundle(f.directory,{development:true});
+  let saved=await manifest(f);saved.bundle.review.generation.checks.generationHash='wrong';await writeFile(join(f.directory,'plan.json'),JSON.stringify(saved));
+  await assert.rejects(f.api.generateBundle(f.directory),/Saved checks do not match/);assert.equal(f.generateCount,1);
+  saved.bundle.review.generation.checks.generationHash=saved.bundle.review.generation.generationHash;await writeFile(join(f.directory,'plan.json'),JSON.stringify(saved));
+  await writeFile(join(f.directory,saved.bundle.review.generation.file),'changed');
+  const regenerated=await f.api.generateBundle(f.directory);assert.equal(regenerated.mode,'production');assert.equal(f.generateCount,2);
 });
 
-test('changed plan during generation is rejected before commit',async t=>{
-  const f=await fixture(t),before=await f.read('review.json');
-  f.generateHook=async()=>{
-    const plan=JSON.parse(await f.read('plan.json'));plan.placement.xMm++;
-    await writeFile(join(f.directory,'plan.json'),JSON.stringify(plan));
-  };
+test('changed manifest during calculation is rejected before commit',async t=>{
+  const f=await fixture(t),before=await f.read('plan.json');
+  f.generateHook=async()=>{const saved=JSON.parse(await f.read('plan.json'));saved.placement.xMm++;await writeFile(join(f.directory,'plan.json'),JSON.stringify(saved));};
   await assert.rejects(f.api.generateBundle(f.directory,f.options),/print changed during generation/);
-  assert.ok(!f.events.includes('commit'));assert.equal(await f.read('review.json'),before);
-  await assert.rejects(f.read('checks.json'),{code:'ENOENT'});
+  assert.ok(!f.events.includes('commit'));const after=await manifest(f);assert.equal(after.bundle.review.generation,null);
+  assert.notEqual(await f.read('plan.json'),before);
 });
 
-test('promotion rejects review or export changes made at its commit boundary',async t=>{
-  await t.test('review revision',async()=>{
-    const f=await generationFixture();t.after(f.cleanup);
-    await f.api.generateBundle(f.directory,{development:true});
-    const review=JSON.parse(await f.read('review.json'));
+test('promotion rejects manifest or artifact changes at its commit boundary',async t=>{
+  await t.test('manifest revision',async()=>{
+    const f=await generationFixture();t.after(f.cleanup);await f.api.generateBundle(f.directory,{development:true});
+    const saved=await manifest(f);
     await assert.rejects(f.api.generateBundle(f.directory,{beforeCommit(){
-      writeFileSync(join(f.directory,'review.json'),JSON.stringify({...review,history:[...review.history,{event:'concurrent-review'}]}));
+      writeFileSync(join(f.directory,'plan.json'),JSON.stringify({...saved,bundle:{...saved.bundle,review:{...saved.bundle.review,
+        history:[...saved.bundle.review.history,{event:'concurrent-review'}]}}}));
     }}),/changed before promotion/);
-    const after=JSON.parse(await f.read('review.json'));
-    assert.equal(after.history.at(-1).event,'concurrent-review');
-    assert.equal((JSON.parse(await f.read('checks.json'))).mode,'development');
+    assert.equal((await manifest(f)).bundle.review.history.at(-1).event,'concurrent-review');
   });
-  await t.test('export identity',async()=>{
-    const f=await generationFixture();t.after(f.cleanup);
-    await f.api.generateBundle(f.directory,{development:true});
-    const review=await f.read('review.json');
-    await assert.rejects(f.api.generateBundle(f.directory,{beforeCommit(){
-      writeFileSync(join(f.directory,'exports/griffin-gcode/part.gcode'),'changed during promotion');
-    }}),/changed before promotion/);
-    assert.equal(await f.read('review.json'),review);
-    assert.equal((JSON.parse(await f.read('checks.json'))).mode,'development');
+  await t.test('artifact identity',async()=>{
+    const f=await generationFixture();t.after(f.cleanup);await f.api.generateBundle(f.directory,{development:true});
+    const before=await f.read('plan.json'),file=await generationFile(f);
+    await assert.rejects(f.api.generateBundle(f.directory,{beforeCommit(){writeFileSync(file,'changed during promotion');}}),/changed before promotion/);
+    assert.equal(await f.read('plan.json'),before);
   });
 });
 
-test('failed persistence leaves review untouched and keeps checked candidate for retry',async t=>{
-  const f=await fixture(t),review=await f.read('review.json');
-  const checksPath=join(f.directory,'checks.json');await mkdir(checksPath);
-  await assert.rejects(f.api.generateBundle(f.directory,{...f.options,development:true}));
-  assert.equal(f.generateCount,1);assert.equal(await f.read('review.json'),review);
-  assert.match(await f.read('exports/griffin-gcode/part.gcode'),/START_OF_HEADER/);
-  await rm(checksPath,{recursive:true});f.events.length=0;
-  await f.api.generateBundle(f.directory,{...f.options,development:true});
-  assert.equal(f.generateCount,1);assert.deepEqual(f.events,['commit','Saving your toolpath']);
-});
-
-test('generated workflow links candidate verification and checked output to persistence',async()=>{
+test('generated workflow exposes compute and commit as explicit graph stages',async()=>{
   const file='core/print/workflow.mjs',source=await readFile(new URL('../print/workflow.mjs',import.meta.url),'utf8');
   const context=await loadFlow({repo:'',files:[file],readSource:()=>source});
   const page=flowPacket(context,`${file}::createBundleWorkflow::generateBundle`);
-  const index=name=>page.components.find(c=>c.label===`createBundleWorkflow::${name}`)?.index;
-  const candidate=index('currentGenerationCandidate'),promote=index('promoteReviewedGeneration');
-  const prepared=index('prepareProgram'),checks=index('generationChecks'),persist=index('persistGeneratedProgram');
-  assert.ok(candidate&&promote&&prepared&&checks&&persist);
-  for(const [from,to,label] of [[candidate,promote,'confirmed'],[prepared,checks,'prepared'],[prepared,persist,'prepared'],[checks,persist,'checks']])
-    assert.ok(page.wires.some(w=>w.from===from&&w.to===to&&w.label===label),`${label}: ${from} -> ${to}`);
-  assert.ok(page.wires.some(w=>w.from===persist&&w.kind==='return'&&w.label==='committed.checks'));
+  const index=name=>page.components.find(component=>component.label===`createBundleWorkflow::${name}`)?.index;
+  const candidate=index('currentGenerationCandidate'),prepare=index('prepareGeneration'),commit=index('commitGeneration');
+  assert.ok(candidate&&prepare&&commit);
+  assert.ok(page.wires.some(wire=>wire.from===prepare&&wire.to===commit&&wire.label==='prepared'));
+});
+
+test('manifest owns checks and references immutable output',async t=>{
+  const f=await fixture(t);await f.api.generateBundle(f.directory,{development:true});const saved=await manifest(f);
+  assert.equal(saved.bundle.review.generation.checks.schema,'saam-checks/1');
+  assert.match(saved.bundle.review.generation.file,/^exports\/griffin-gcode\/[a-f0-9]{64}-part\.gcode$/);
+  await access(join(f.directory,saved.bundle.review.generation.file));
+  for(const name of ['checks.json','review.json','machine.json'])await assert.rejects(access(join(f.directory,name)),{code:'ENOENT'});
 });

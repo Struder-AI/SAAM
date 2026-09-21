@@ -2,16 +2,18 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 13,
+  "revision": 18,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
-    "units": 2,
-    "slotsPerUnit": 4
+    "units": 4,
+    "slotsPerUnit": 4,
+    "htUnits": 8,
+    "maxDevices": 12
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Mixed-diameter dual-tool printing remains under development.",
+    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Tower-free mixed-diameter dual-nozzle output is implemented but awaits physical acceptance; same-nozzle material switching is unsupported.",
     "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
   ],
   "capabilities": [
@@ -84,8 +86,14 @@
         0.6
       ],
       "experimentalPlanar": {
-        "layerHeightMm": [0.08, 1.0],
-        "lineWidthMm": [0.3, 2.0]
+        "layerHeightMm": [
+          0.08,
+          1
+        ],
+        "lineWidthMm": [
+          0.3,
+          2
+        ]
       },
       "physicalExtruder": 1
     },
@@ -123,8 +131,14 @@
         0.6
       ],
       "experimentalPlanar": {
-        "layerHeightMm": [0.08, 1.0],
-        "lineWidthMm": [0.3, 2.0]
+        "layerHeightMm": [
+          0.08,
+          1
+        ],
+        "lineWidthMm": [
+          0.3,
+          2
+        ]
       },
       "physicalExtruder": 0
     }
@@ -169,7 +183,8 @@
         "flowCalibration": "printer",
         "plateDetection": "printer",
         "toolOffsetCalibration": "printer"
-      }
+      },
+      "fast_start": false
     }
   },
   "defaultProcess": {
@@ -190,7 +205,7 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "h2d-saam-startup-v4",
+        "contract": "h2d-saam-startup-v8",
         "start": [
           "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
@@ -204,15 +219,19 @@
           "M960 S10 P1",
           "M17",
           "M400 S1",
-          "M1006 S1",
-          "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
-          "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
-          "M1006 A61 B9 L99 C61 D9 M99 E61 F9 N99",
-          "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
-          "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
-          "M1006 A61 B18 L99 C61 D18 M99 E61 F18 N99",
-          "M1006 W",
-          "M204 S10000",
+          {
+            "fullStartOnly": [
+              "M1006 S1",
+              "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
+              "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
+              "M1006 A61 B9 L99 C61 D9 M99 E61 F9 N99",
+              "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
+              "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
+              "M1006 A61 B18 L99 C61 D18 M99 E61 F18 N99",
+              "M1006 W"
+            ]
+          },
+          "M204 S{bodyAcceleration}",
           "M630 S0 P0",
           "G90",
           "M17 D",
@@ -244,21 +263,29 @@
           "M1002 set_filament_type:PLA",
           "M104 S140 A",
           "M140 S{bedC}",
-          "M982.2 S1",
-          "M1002 gcode_claim_action : 74",
-          "{plateDetection}",
-          "M972 S35 P0 C0",
-          "M972 S41 P0 T5000",
-          "M400",
-          "M1002 judge_flag build_plate_detect_flag",
-          "M622 S1",
-          "M972 S19 P0 C0",
-          "M972 S31 P0 T5000",
-          "M972 S34 P0 T5000",
-          "M623",
-          "M1002 gcode_claim_action : 72",
-          "T1001",
-          "M972 S14 P0 T5000",
+          {
+            "fullStartOnly": [
+              "M982.2 S1",
+              "M1002 gcode_claim_action : 74",
+              "{plateDetection}",
+              "M972 S35 P0 C0",
+              "M972 S41 P0 T5000",
+              "M400",
+              "M1002 judge_flag build_plate_detect_flag",
+              "M622 S1",
+              "M972 S19 P0 C0",
+              "M972 S31 P0 T5000",
+              "M972 S34 P0 T5000",
+              "M623"
+            ]
+          },
+          {
+            "fullStartOnly": [
+              "M1002 gcode_claim_action : 72",
+              "T1001",
+              "M972 S14 P0 T5000"
+            ]
+          },
           "M104 S{nozzleC} T{physicalTool}",
           "G151 P{physicalTool} M",
           "M400",
@@ -370,18 +397,22 @@
           "G28.140 S0",
           "M141 S0",
           "M104 S{nozzleC} A",
-          "M1002 gcode_claim_action : 3",
-          "G90",
-          "G1 Z5 F1200",
-          "G1 X187 Y160 F20000",
-          "T1000",
-          "M400 P200",
-          "M970.3 Q1 A5 K0 O1",
-          "M974 Q1 S2 P0",
-          "M970.3 Q0 A5 K0 O1",
-          "M974 Q0 S2 P0",
-          "M970.2 Q2 K0 W38 Z0.01",
-          "M974 Q2 S2 P0",
+          {
+            "fullStartOnly": [
+              "M1002 gcode_claim_action : 3",
+              "G90",
+              "G1 Z5 F1200",
+              "G1 X187 Y160 F20000",
+              "T1000",
+              "M400 P200",
+              "M970.3 Q1 A5 K0 O1",
+              "M974 Q1 S2 P0",
+              "M970.3 Q0 A5 K0 O1",
+              "M974 Q0 S2 P0",
+              "M970.2 Q2 K0 W38 Z0.01",
+              "M974 Q2 S2 P0"
+            ]
+          },
           "M975 S1",
           "M400",
           "G150.3",
@@ -394,19 +425,19 @@
           "M622 J1",
           "M1002 gcode_claim_action : 39",
           "M141 S0",
-          "M620.17 T0 S{nozzleC} L0",
-          "M620.17 T1 S{nozzleC} L0",
+          "M620.17 T0 S{calibrationTemperatureZero} L{calibrationFilamentZero}",
+          "M620.17 T1 S{calibrationTemperatureOne} L{calibrationFilamentOne}",
           "M620 D-1",
-          "G383 O1 T{nozzleC} L0",
+          "G383 O1 T{nozzleC} L{filamentTool}",
           "M141 S0",
           "M623",
           "M622 J2",
           "M1002 gcode_claim_action : 39",
           "M141 S0",
-          "M620.17 T0 S{nozzleC} L0",
-          "M620.17 T1 S{nozzleC} L0",
+          "M620.17 T0 S{calibrationTemperatureZero} L{calibrationFilamentZero}",
+          "M620.17 T1 S{calibrationTemperatureOne} L{calibrationFilamentOne}",
           "M620 D-1",
-          "G383.3 T{nozzleC} L0",
+          "G383.3 T{nozzleC} L{filamentTool}",
           "M141 S0",
           "M623",
           "M400",
@@ -568,9 +599,16 @@
       },
       "constraints": {
         "material": "PLA",
-        "nozzleMm": [0.4, 0.6, 0.8],
+        "nozzleMm": [
+          0.4,
+          0.6,
+          0.8
+        ],
         "filamentMm": 1.75,
-        "plates": ["textured_plate", "hot_plate"],
+        "plates": [
+          "textured_plate",
+          "hot_plate"
+        ],
         "chamberC": 0,
         "startupFlushC": 240,
         "startupPurgeFlowMm3S": 25,
@@ -578,7 +616,11 @@
         "parkLimitMm": 320,
         "parkRiseMm": 100,
         "parkHeightFactor": 0.5,
-        "parkSettleMm": 0
+        "parkSettleMm": 0,
+        "toolChangeLiftMm": 3,
+        "toolChangeAcceleration": 9000,
+        "bodyAcceleration": 10000,
+        "bodyTravelCommand": "G1"
       },
       "package": {
         "printerModelId": "O1D",
@@ -591,7 +633,7 @@
   "startup": {
     "protocol": "bambu-h2d-reference-envelope-without-initial-homing",
     "zAfterStartupMm": 20,
-    "validation": "SAAM bounded H2D startup, cross-referenced to Bambu Studio 02.08.02.61. The inherited early H10 homing/wipe omission remains; later bed leveling, Z/XY calibration and priming remain. Nozzle, plate and logical filament parameters derive from the resolved job. Explicit origin [100,100,20]. Service routines are not simulated. Supported flag choices are explicit; cold-start and physical acceptance remain open."
+    "validation": "SAAM bounded H2D startup, cross-referenced to Bambu Studio 02.08.02.61. The inherited early H10 homing/wipe omission remains; later bed leveling, Z/XY calibration and priming remain. Nozzle, plate and logical filament parameters derive from the resolved job. Explicit origin [100,100,20]. Service routines are not simulated. Supported flag choices are explicit; cold-start and physical acceptance remain open. fast_start reuses saved calibration and omits optional vision/music/vibration checks; homing, wipe, prime and temperature waits remain. Physical acceptance pending."
   },
   "nonplanar": {
     "maxAngleDeg": 15,
