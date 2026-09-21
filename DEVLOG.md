@@ -5701,6 +5701,7 @@ junction. All flight performance remains unvalidated.
   response about 16 MB even though the source interpreters consume only output, setup, process, and line-network tool
   declarations. The browser worker failed while receiving that unnecessary mesh payload.
 - Change: `playbackPlan` builds the bounded source-replay contract and strips geometry, composition, strokes, and other
-  skill data before the worker message. H2D multi-nozzle tool declarations remain available to strict source checks.
+  skill data before the worker message. H2D multi-nozzle tool declarations remain available to strict source checks;
+  the app imports it through Studio's explicit `/studio/` browser-dependency route.
 - Evidence: the focused source-player, playback-cache, and kinematics suites pass (18/18), including a regression with
   large synthetic geometry and line-network strokes. Browser verification against the dice bundle follows separately.

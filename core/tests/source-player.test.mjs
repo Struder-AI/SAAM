@@ -73,6 +73,7 @@ for(const id of ['ultimaker-s5','bambu-h2d','dobot-mg400'])test(`${id}: Studio p
   await assert.rejects(()=>fetchSources({...state,program:{sources:state.program.sources.map(s=>({...s,sha256:'wrong'}))}},fetcher),/changed/);
   assert.equal((await fetcher('/api/program?file=unrelated.lua')).status,404,'no per-file program route remains');
   for(const file of ['/studio/source-worker.mjs','/studio/source-player.mjs','/studio/move-store.mjs','/core/export/griffin.mjs','/core/machine/rules.mjs'])assert.equal((await fetcher(file)).status,200);
+  assert.match(await(await fetcher('/app.mjs')).text(),/from '\.\/studio\/source-player\.mjs'/,'the app imports playback helpers through a served route');
   assert.notEqual((await fetcher('/core/print/workflow.mjs')).status,200,'only browser dependencies are served');
   if(id==='dobot-mg400'){
     // Execute changed Lua helper arithmetic. Do not derive motion from annotations.
