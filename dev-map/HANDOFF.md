@@ -188,6 +188,20 @@ a policy assembled by spread; `this` inside object-literal methods; `now()`
 whose only known value is a parameter default; callbacks supplied only by
 unscanned callers (`onGeometry` in `runRepairJob`).
 
+11. **The viewer's code pane.** Built 2026-09-22: a code destination's
+   panel draws its whole compact read beside the source; `check --viewer`
+   measures it item by item (12,649 of 12,649). Left on map pages: per-site
+   `calls` evidence the drawing states only as stubs (4,488 items), and the
+   containment descriptors (`boundary`, `composition`, `structural`,
+   `relationshipSummary`).
+12. **Expression operators.** The 5600 value-origin rows (`argument-origin`,
+   `return-origin`, `branch-result`, `branch-data-join`, `iteration-source`,
+   `iteration-input`, `collection-input`) are expressions the tracer does
+   not decompose and platform calls it does not draw as producers. Draw an
+   `expression` operator wired from each identifier it reads, a join
+   operator for `?:`/`&&`/`||`/`??` and branch-assigned bindings, and
+   platform calls as producer boxes. Awaiting the owner's go.
+
 ## How the work was run
 
 - The owner assigns the number of concurrent workers per chat; each worker is
@@ -209,20 +223,6 @@ unscanned callers (`onGeometry` in `runRepairJob`).
 - Another session was editing the Bambu H2D exporter throughout; its files
   were never touched by map workers and `check` reported them stale whenever
   they moved. Expect the same.
-
-11. **The viewer's code pane.** Built 2026-09-22: a code destination's
-   panel draws its whole compact read beside the source; `check --viewer`
-   measures it item by item (12,649 of 12,649). Left on map pages: per-site
-   `calls` evidence the drawing states only as stubs (4,488 items), and the
-   containment descriptors (`boundary`, `composition`, `structural`,
-   `relationshipSummary`).
-12. **Expression operators.** The 5600 value-origin rows (`argument-origin`,
-   `return-origin`, `branch-result`, `branch-data-join`, `iteration-source`,
-   `iteration-input`, `collection-input`) are expressions the tracer does
-   not decompose and platform calls it does not draw as producers. Draw an
-   `expression` operator wired from each identifier it reads, a join
-   operator for `?:`/`&&`/`||`/`??` and branch-assigned bindings, and
-   platform calls as producer boxes. Awaiting the owner's go.
 
 ## Open questions for the owner
 
