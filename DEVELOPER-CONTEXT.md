@@ -12,7 +12,9 @@ around the code.
 
 Walk the map from `0`. `0` is the regions and `N` a region; every map numbers
 its own nodes under itself (`N.2`, then `N.2.1`, down to leaves). A declaration's
-map shows its callees, callers, `couplings` and `unresolved` sites. A node drawn
+map shows its callees, callers, `couplings` and `unresolved` sites. A region,
+file or group map attaches each drawn node's own findings to that node's box,
+and names where its code leaves the mapped scope. A node drawn
 away from its home map keeps its home index and names that map as `home`. Read a page, read its source with `--code`,
 make the edit, `regenerate` the region, read again.
 
@@ -20,7 +22,8 @@ Reads use compact JSON: `range` is `[firstLine,lastLine]` inclusive; nested
 locations inherit `file`; empty arrays are omitted. Caller relations appear once
 in `callerReferences`, `callerWires`, or residual `calledFrom`. High-reuse
 components show `callerSummary`: a count and the canonical index with the full
-caller list. `--details`
+caller list. A declaration's active callers outside the mapped scope are rows
+there too, by path and file; the rest are counted in `outsideCallers`. `--details`
 returns the full stored evidence without scanning. `--code` omits the graph body.
 Condition gates show a short identity and branch; their complete predicates live
 under the source click and in `--details`, rather than on the drawing.

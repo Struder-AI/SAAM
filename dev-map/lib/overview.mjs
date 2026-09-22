@@ -1,4 +1,4 @@
-import {outsideRootOf} from './scope.mjs';
+import {outsideRootOf,isMapped} from './scope.mjs';
 
 // Generated overview anchors follow the enclosing graph's actual containment.
 // Exact call sites remain on the stored wires; only inventory views summarize them.
@@ -23,9 +23,11 @@ export function attachOverviewAnchors(pages, index) {
         const file=target.file&&pages.get(index.get(target.file));
         return describe(file??target);
       }
-      // Source outside the mapped roots has no invented navigable address.
+      // Source outside the mapped roots has no invented navigable address. `outside` separates
+      // that from a mapped path this drawing simply has no box for: only the former is a scope
+      // edge, and only the former is drawn as an arrow ending in a name.
       const path=port.path??port.name??port.outside;
-      if(path)return {name:outsideRootOf(path),unmapped:true};
+      if(path)return {name:outsideRootOf(path),unmapped:true,...(isMapped(path)?{}:{outside:true})};
       return null;
     };
     for(const port of [...(page.inputs??[]),...(page.outputs??[])]) {

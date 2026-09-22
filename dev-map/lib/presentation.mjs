@@ -3,7 +3,7 @@
 import {structuralOverview} from './overview.mjs';
 import {invocationInstances} from './instances.mjs';
 const referenceFlags = ['unknown', 'positionUnknown', 'executionUnknown', 'possibleTarget', 'usesUnknown',
-  'optional', 'omitted', 'defaulted', 'spread', 'rest'];
+  'optional', 'omitted', 'defaulted', 'spread', 'rest', 'unmapped'];
 const dataPath=/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/;
 function callerReferences(references) {
   return references.map(ref=>{
@@ -62,54 +62,8 @@ function uncertaintyRows(rows) {
     return {...shared,count:group.length,bindings};
   });
 }
-function overviewDiagnostics(page) {
-  if(!['region','file','group'].includes(page.kind))return page;
-  const shown={...page};
-  const destinations=new Map();
-  for(const child of page.children??[]) {
-    const path=child.path??child.file;
-    if(path&&child.index!==page.index)destinations.set(path,child.index);
-  }
-  for(const component of page.components??[]) {
-    if(component.index===page.index)continue;
-    const file=component.file??page.file;
-    const path=component.path??(component.label&&file?`${file}::${component.label}`:file);
-    if(path)destinations.set(path,component.index);
-    for(const member of component.members??[])destinations.set(member,component.index);
-  }
-  // A finding inside a nested declaration is summarized under the box that holds it; the row
-  // itself stays whole on that declaration's own page.
-  const destinationOf=path=>{
-    let at=path;
-    while(at&&!destinations.has(at)) {
-      const cut=at.lastIndexOf('::');
-      if(cut<0)return undefined;
-      at=at.slice(0,cut);
-    }
-    return destinations.get(at);
-  };
-  for(const field of ['uncertainty','unresolved']) {
-    const rows=page[field];
-    if(!rows?.length||page[`${field}Summary`])continue;
-    const sources=new Map(),local=[];
-    for(const row of rows) {
-      const index=destinationOf(row.path)??destinations.get(row.file),count=row.count??1;
-      // Findings without a child destination remain explicit on their owning
-      // page. Never invent a drill-down or conceal local/module evidence.
-      if(!index){local.push(row);continue;}
-      let held=sources.get(index);
-      if(!held){held={index,count:0};sources.set(index,held);}
-      held.count+=count;
-    }
-    if(!sources.size)continue;
-    if(local.length)shown[field]=local;else delete shown[field];
-    shown[`${field}Summary`]={count:[...sources.values()].reduce((n,row)=>n+row.count,0),
-      sources:[...sources.values()],details:page.index};
-  }
-  return shown;
-}
 export function presentationPage(page) {
-  page = overviewDiagnostics(invocationInstances(structuralOverview(page)));
+  page = invocationInstances(structuralOverview(page));
   // Class pages show relationships between members/groups, not execution instances.
   // Multiple underlying member pairs can become the same visible relationship.
   if((page.kind==='class'||page.stateful)&&!page.relationshipSummary) {
@@ -150,6 +104,9 @@ export function presentationPage(page) {
     !page.components?.some(c => c.shape === 'assertion' && c.index === requirement.index));
   page = callerFields(visible);
   const component = c => {
+    // A box carries the finding rows of the node it draws, reduced exactly as that node's own
+    // page reduces them.
+    if (c.uncertainty) c = {...c, uncertainty: uncertaintyRows(c.uncertainty)};
     c = callerFields(c,true);
     // The group's own page owns its membership. An enclosing page needs only
     // its address, label and count; raw membership remains in --details.

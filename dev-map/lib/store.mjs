@@ -9,7 +9,7 @@ import {loadFlow,flowPacket} from './flow.mjs';
 import {model,numberRegion} from './regions.mjs';
 import {readFacts,bindFacts} from './facts.mjs';
 import {sourceFiles} from './graph.mjs';
-import {scanRoots,outsideRootOf} from './scope.mjs';
+import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
 import {readCompositions,compositionFiles,composePages} from './composition.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {attachOverviewAnchors} from './overview.mjs';
@@ -121,6 +121,17 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     const labels=[...new Set(packet.wires.filter(w=>w.to===c.index&&w.label).map(w=>w.label))].sort(order);
     list.push({index:packet.index,...(labels.length?{labels}:{})});
   }
+  // Calls into mapped code from source the map does not cover. An active caller — code that runs
+  // while a person makes a part or operates Studio — becomes a row on the callee's page carrying
+  // its own declaration path; every other outside caller is one count per caller directory, so
+  // the page still says how much test, demo and benchmark code depends on it.
+  const outsideFrom=new Map();
+  for(const c of m.calls) {
+    if(c.from||!c.fromFile||isMapped(c.fromFile))continue;
+    const list=outsideFrom.get(c.to.path)??outsideFrom.set(c.to.path,[]).get(c.to.path);
+    const path=c.fromPath??c.fromFile;
+    if(!list.some(row=>row.path===path))list.push({path,file:c.fromFile});
+  }
   const coupled=new Map();
   for(const c of m.couplings) {
     const add=(node,other,direction)=>{
@@ -133,8 +144,18 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     add(c.from,c.to,'out');add(c.to,c.from,'in');
   }
   const leafOf=path=>packets.has(path)&&destinationFor(packets.get(path))==='code';
+  const dirOf=file=>file.slice(0,file.lastIndexOf('/'));
   for(const packet of packets.values()) {
     packet.calledFrom=(from.get(packet.path)??[]).sort((a,b)=>byIndex(a.index,b.index));
+    const active=[],counted={};
+    for(const row of outsideFrom.get(packet.path)??[]) {
+      if(activeCallers(row.file))active.push({path:row.path,file:row.file,unmapped:true});
+      else counted[dirOf(row.file)]=(counted[dirOf(row.file)]??0)+1;
+    }
+    if(active.length)packet.outsideCallerReferences=active.sort((a,b)=>order(a.path,b.path));
+    else delete packet.outsideCallerReferences;
+    if(Object.keys(counted).length)packet.outsideCallers=Object.fromEntries(Object.entries(counted).sort(([a],[b])=>order(a,b)));
+    else delete packet.outsideCallers;
     packet.couplings=coupled.get(packet.path)??[];
     for(const c of packet.components){if(leafOf(`${c.file}::${c.label}`))c.leaf=true;else delete c.leaf;}
   }
@@ -232,7 +253,11 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     };
     // Own-page incoming callers stay at the boundary. A caller already drawn on this page
     // connects to that boundary instead of being repeated as an off-page red address.
-    page.callerReferences=(page.calledFrom??[]).filter(ref=>!shown.has(ref.index)).map(describe);
+    // Callers outside the mapped scope have no index and no box; the active ones are rows here,
+    // beside the mapped ones, so a declaration page states every consequence of editing it.
+    page.callerReferences=[...(page.calledFrom??[]).filter(ref=>!shown.has(ref.index)).map(describe),
+      ...(page.outsideCallerReferences??[])];
+    delete page.outsideCallerReferences;
     delete page.callerBoundary;
     for(const ref of page.calledFrom??[])if(shown.has(ref.index)) {
       const id=`page:${page.index}`;
@@ -253,6 +278,38 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
       if(references.size)component.callerReferences=[...references.values()];else delete component.callerReferences;
     }
     page.callerWires=callerWires;
+  }
+
+  // Findings follow the node. A containment map draws a node; that node's own rows are attached
+  // to its box, exactly as the node's own page shows them, and nothing is rolled up into a count
+  // by kind. A group or file box is not a node: it carries the number of findings inside it, for
+  // navigation, and nothing else.
+  const packetsByFile=new Map(),packetsUnder=new Map();
+  for(const packet of packets.values()) {
+    (packetsByFile.get(packet.file)??packetsByFile.set(packet.file,[]).get(packet.file)).push(packet);
+    // A declaration written inside another is homed on that declaration's page, so its findings
+    // are inside any group that holds the holder; the count a group box carries says so.
+    for(let at=packet.path;at.includes('::');at=at.slice(0,at.lastIndexOf('::')))
+      (packetsUnder.get(at)??packetsUnder.set(at,[]).get(at)).push(packet);
+  }
+  const rowCount=pages=>pages.reduce((n,p)=>n+[...(p.uncertainty??[]),...(p.unresolved??[])]
+    .reduce((rows,row)=>rows+(row.count??1),0),0);
+  for(const page of destinations.values()) {
+    if(!['region','file'].includes(page.kind)&&!(page.kind==='group'&&page.structural))continue;
+    for(const component of [...(page.components??[]),...(page.unreached?.nodes??[])]) {
+      const path=component.path??(component.file&&component.label?`${component.file}::${component.label}`:null);
+      const node=path&&packets.get(path);
+      if(node) {
+        for(const field of ['uncertainty','unresolved']) {
+          if(node[field]?.length)component[field]=node[field];else delete component[field];
+        }
+        continue;
+      }
+      const held=component.kind==='group'?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[])
+        :packetsByFile.get(component.file)??[];
+      const count=rowCount(held);
+      if(count)component.findings=count;else delete component.findings;
+    }
   }
 
   attachOverviewAnchors(destinations,index);
@@ -399,22 +456,30 @@ function rootPage(m,lines) {
     const to=m.regionOf.get(c.to.file);if(!to)continue;
     if(c.atModule||!c.from) {
       const port=c.atModule?'module':(c.fromFile?outsideRootOf(c.fromFile):'unmapped');
-      ports.set(port,port);add(port,to.index,c.atModule?'module':'call',null);
+      ports.set(port,{port,mechanism:port});add(port,to.index,c.atModule?'module':'call',null);
     } else {
       const fromRegion=m.regionOf.get(c.from.file);
-      if(!fromRegion){const outside=outsideRootOf(c.fromFile);ports.set(outside,outside);add(outside,to.index,'call',null);}
+      if(!fromRegion){const outside=outsideRootOf(c.fromFile);ports.set(outside,{port:outside,mechanism:outside});add(outside,to.index,'call',null);}
       else if(fromRegion!==to)add(fromRegion.index,to.index,c.relation.kind,c.label||null);
     }
+  }
+  // Where the mapped code reaches out of the map: one wire per region to each scanned root it
+  // calls into. The target names a root, not a box; nothing on page 0 stands for outside code.
+  for(const c of m.outsideCalls) {
+    const from=m.regionOf.get(c.from?.file??c.fromFile);if(!from)continue;
+    const port=`out:${c.root}`;
+    ports.set(port,{port,mechanism:c.root,direction:'out',outside:true});
+    add(from.index,port,'call',null);
   }
   for(const c of m.couplings) {
     const from=c.fromFile&&m.regionOf.get(c.fromFile),to=c.toFile&&m.regionOf.get(c.toFile);
     if(!to)continue;
-    if(!from){ports.set(c.kind,c.kind);add(c.kind,to.index,c.kind,c.label);}
+    if(!from){ports.set(c.kind,{port:c.kind,mechanism:c.kind});add(c.kind,to.index,c.kind,c.label);}
     else if(from!==to)add(from.index,to.index,c.kind,c.label);
   }
   return {flow:true,generated:true,index:'0',kind:'root',
     regions:components,
-    ports:[...ports.keys()].sort(order).map(port=>({port,mechanism:port})),
+    ports:[...ports.values()].sort((a,b)=>order(a.port,b.port)),
     wires:[...wires.values()].sort((a,b)=>order(a.from,b.from)||order(a.to,b.to))
       .map(w=>({from:w.from,to:w.to,kinds:w.kinds,count:w.count,...(w.count===1&&w.labels.size===1?{label:[...w.labels][0]}:{})})),
     children:components.map(c=>({index:c.index,path:c.path,files:c.files,lines:c.lines,nodes:c.nodes}))};
@@ -427,20 +492,31 @@ const links=()=>{
     const key=`${from}\n${to}`,w=wires.get(key)??wires.set(key,{from,to,kinds:{},count:0,labels:new Set()}).get(key);
     w.kinds[kind]=(w.kinds[kind]??0)+1;w.count++;if(label)w.labels.add(label);
   };
-  const port=(name,to,kind,label)=>{ports.set(name,name);add(name,to,kind,label);};
-  const drawn=()=>({ports:[...ports.keys()].sort(order).map(p=>({port:p,mechanism:p})),
+  const port=(name,to,kind,label)=>{ports.set(name,{port:name,mechanism:name});add(name,to,kind,label);};
+  // A call that leaves the mapped scope: the port names the scanned root it reaches, and the wire
+  // runs out of the box. There is no box for outside code on this page.
+  const portOut=(root,from,kind,label)=>{
+    if(from===undefined)return;
+    const name=`out:${root}`;
+    ports.set(name,{port:name,mechanism:root,direction:'out',outside:true});add(from,name,kind,label);
+  };
+  const drawn=()=>({ports:[...ports.values()].sort((a,b)=>order(a.port,b.port)),
     wires:[...wires.values()].sort((a,b)=>order(a.from,b.from)||order(a.to,b.to))
       .map(w=>({from:w.from,to:w.to,kinds:w.kinds,count:w.count,...(w.count===1&&w.labels.size===1?{label:[...w.labels][0]}:{})}))});
-  return {add,port,drawn};
+  return {add,port,portOut,drawn};
 };
 
 // A region page: the files it holds as components, the links between those files as wires, and
 // every way into the region from outside it as a port. A file is a bounded unit of code, so the
 // summary a region owes is which of its files reach which.
+// `platform` is a call site with no target in any scanned root — a library, runtime or DOM
+// operation. `outside` is a call site whose target is scanned source the map does not cover.
 function moduleDiagnostics(m,files) {
+  const held=new Set(files);
   const sites=files.flatMap(file=>(m.moduleCallSites?.get(file)??[]).map(({state,...site})=>({...site,file,module:true,state})));
   return {unresolved:sites.filter(s=>s.state==='unresolved').map(({state,...s})=>s),
-    external:sites.filter(s=>s.state==='external').length,
+    platform:sites.filter(s=>s.state==='external').length,
+    outside:m.outsideCalls.filter(c=>held.has(c.fromFile)).length,
     moduleCallSites:sites};
 }
 function regionPage(m,r,numbered,index,packets,lines,expanded=new Set()) {
@@ -454,8 +530,12 @@ function regionPage(m,r,numbered,index,packets,lines,expanded=new Set()) {
   // A declaration standing in for its file takes its file's place at both ends of a link;
   // a nested declaration is drawn with the top-level declaration that holds it.
   const box=n=>expanded.has(n.file)?index.get(outermost(n).path):at.get(n.file);
-  const {add,port,drawn}=links();
+  const {add,port,portOut,drawn}=links();
   for(const n of m.inRegion.get(r.index))for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,box(n),mechanism,label);
+  for(const c of m.outsideCalls) {
+    if(m.regionOf.get(c.fromFile)!==r)continue;
+    portOut(c.root,c.from?box(c.from):at.get(c.fromFile),'call',null);
+  }
   for(const c of m.calls) {
     if(!c.from||m.regionOf.get(c.from.file)!==r||m.regionOf.get(c.to.file)!==r)continue;
     add(box(c.from),box(c.to),c.relation.kind,c.label||null);
@@ -487,9 +567,13 @@ function filePage(m,r,f,numbered,index,packets,lines,expanded=new Set()) {
   const unreached=f.unreached?f.unreached.children.map(b=>box(b.node)):[];
   const shown=new Set(components.map(c=>c.index));
   const boxOf=n=>index.get(outermost(n).path);
-  const {add,port,drawn}=links();
+  const {add,port,portOut,drawn}=links();
   for(const n of m.inRegion.get(r.index))if(n.file===f.file)
     for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,boxOf(n),mechanism,label);
+  for(const c of m.outsideCalls) {
+    if(c.fromFile!==f.file||!c.from)continue;
+    const holder=boxOf(c.from);if(shown.has(holder))portOut(c.root,holder,'call',null);
+  }
   for(const c of m.calls) {
     if(!c.from)continue;
     const to=boxOf(c.to);if(!shown.has(to))continue;
@@ -609,7 +693,8 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
   const totals={regions:held.regions.length,files:Object.keys(held.files).length,pages:nodes.length,
     linked:nodes.reduce((n,p)=>n+p.components.length,0),
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
-    external:nodes.reduce((n,p)=>n+(p.external??0),0)};
+    outside:nodes.reduce((n,p)=>n+(p.outside??0),0),
+    platform:nodes.reduce((n,p)=>n+(p.platform??0),0)};
   const unreached=Object.values(held.filePages??{}).flatMap(p=>(p.unreached?.nodes??[])
     .map(n=>({index:n.index,path:`${n.file}::${n.label}`,lines:n.lines})));
   return {dir,missing:false,generated:held.generated,

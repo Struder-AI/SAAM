@@ -63,12 +63,19 @@ The left-hand viewer index lists graph pages only; terminal code addresses remai
 available on their parent boxes and through direct address lookup.
 The source pane displays code. Code-opening boxes have a distinct color.
 Known callers elsewhere use red vertical arrows with individually clickable
-addresses. Callers represented on the current page connect to their targets
+addresses. A call that leaves the mapped scope uses the same headless arrow: it
+leaves the box and ends in the name of the scanned root it reaches, pointing at
+no node. Callers represented on the current page connect to their targets
 with arrows labeled `calls`; those arrows do not claim returned-data flow or
 execution order. Components carry off-page relationships in `callerReferences`,
 or `callerSummary` with a count and canonical index when more than five callers
 would repeat beside a component. Open that index for the complete caller list,
-including when its destination is code. The page's own callers remain explicit,
+including when its destination is code. A declaration page's own
+`callerReferences` also holds its active callers outside the mapped scope, each
+with the caller's declaration path and file, `unmapped: true` and no index;
+every other outside caller is one count per caller directory in
+`outsideCallers`. A code read of a collapsed declaration carries the same rows.
+The page's own callers remain explicit,
 and `callerWires` holds the connections within the page. The compact response
 omits `calledFrom` entries already represented by those relations; the detailed
 packet retains all canonical incoming-call evidence. Class membership is not a call.
@@ -97,11 +104,12 @@ Repeated `closure-capture` findings with identical source and limits share one
 row: `bindings` lists every captured name by access mode and `count` retains the
 number of findings. Other findings remain separate; sum `count ?? 1` when counting
 default diagnostic rows. `--details` retains the original individual findings.
-Region, file and group overviews use `uncertaintySummary` and `unresolvedSummary`:
-counts by immediate child address. Finding kinds, flags and evidence stay at
-their owning level. Open the child to continue the drill-down, or use `--details` for every
-original row. Findings without a child destination remain explicit on their owning
-page; the total is the summary count plus those local rows. A group box exposes
+A finding belongs to the node it is about. Region, file and group overviews
+attach each drawn node's own rows to that node's box, exactly as the node's own
+page shows them; a group or file box, which is no node, carries `findings`, the
+number of findings inside it, and nothing else. Rows the page owns itself, such
+as module-level evidence, stay in its own `uncertainty` and `unresolved`.
+A group box exposes
 its address, label and member count. Each page exposes its visible boxes and
 connections, not the inventories of descendants inside those boxes. Full member,
 file and source-target lists remain in `--details`; code reads still expand the
@@ -110,8 +118,8 @@ drawing and CLI use the same information level.
 When assessing read cost, measure repeated descendant detail across nesting
 separately from the identities, addresses and boundary connections needed to
 understand each page. Compare equivalent read routes and report serialized bytes;
-smaller responses alone do not establish less semantic redundancy. Summary
-counts at different levels overlap and must not be added as unique findings.
+smaller responses alone do not establish less semantic redundancy. A finding row
+drawn on several maps is one finding, not one per map.
 `--code` returns source and edit-safety metadata without the graph body; automatic
 terminal reads also retain their input/output boundary references. `--details`
 can be combined with `--code`. The underlying store and graph relationships are unchanged
@@ -134,10 +142,11 @@ the drawing as current. The graph and its matching source remain readable when
 stale or when live freshness is unavailable. `--once` writes one status check.
 
 Calls resolved to source outside the mapped roots, such as skill functions, are
-green invocation boxes. Their argument/result wires are generated, their target
-metadata gives the external source declaration, and their click opens the
-matching caller invocation. They have no invented canonical map index. Unknown
-targets and unknown argument origins remain distinct analysis limits.
+green invocation boxes naming the target declaration. Their argument/result wires
+are generated, and their click opens the matching caller invocation. They have no
+invented canonical map index. Root, region and group pages carry the same calls
+as `out:` ports with wires and counts. Unknown targets and unknown argument
+origins remain distinct analysis limits.
 
 Named nested functions may appear as function values as well as invocations.
 Callable-value wires into a returned record do not execute the function.
@@ -219,11 +228,14 @@ the store was written. The fields below describe the rich stored packet returned
 by `--details`; the default response applies the compact conventions above.
 
 - **`0` (root)** — `regions` (index, path, files, lines, nodes, entry points),
-  `ports` (every way into the regions from outside them), `wires` between
-  regions with their kinds and counts, `children`.
+  `ports` (every way into the regions from outside them, and one `out:` port per
+  scanned root the regions call into), `wires` between regions, and from a region
+  to such a port, with their kinds and counts, `children`.
 - **region** — `path`, `files`, `lines`, `nodes`, `components` (its authored
   groups; or, when the region has no grouping, one per file, replaced by the file's
   own declarations where the file has no page), `ports`, `wires`, `children`.
+  Outgoing `out:` ports name the scanned roots its code reaches, like the
+  incoming ones; group pages carry the same ports for the calls that cross them.
 - **file** — published only under a region with no grouping, and only when its
   drawing shows two connected boxes. `file`, `region`, `lines`, `nodes`,
   `components` (the file's top-level declarations),
@@ -231,8 +243,8 @@ by `--details`; the default response applies the compact conventions above.
 - **node** (function, method, handler, class) — `path`, `file`, `line`,
   `endLine`, `lines`, `kind`, `inputs`, `outputs`, `components` (what it calls,
   in call order), `wires`, `gates`, `requires` (assertions it makes),
-  `formulas`, `calledFrom`, `couplings`, `unresolved`, `external`, `uncertainty`
-  where needed, and `leaf` when its destination is code.
+  `formulas`, `calledFrom`, `couplings`, `unresolved`, `outside`, `platform`,
+  `uncertainty` where needed, and `leaf` when its destination is code.
 - **operators** — source-derived choices and supported loop-carried values.
   Choices expose control, alternatives and the selected value. Iterations expose
   initial/current/next/final state, including the zero-iteration path, and
@@ -389,10 +401,12 @@ are consolidated with counts; distinct fields, directions, invocations and order
 state transitions remain separate. Detailed evidence remains in `--details`.
 An assertion does not imply an invented success edge or prove exception ordering.
 An external call alone is not evidence of purity.
-The `external` count means call sites without mapped targets under scanner
-rules; it does not mean user actions or calls across an application boundary.
-It includes platform/library operations. It also covers a `super` call whose
-extended class is outside the scan. Unresolved parameter calls are a separate
+Every page splits its call sites without a mapped target in two. `outside`
+counts the sites whose target is scanned source the map does not cover, and each
+such site names that target. `platform` counts the sites with no target in any
+scanned root — a library, runtime or DOM operation, and a `super` call whose
+extended class is outside the scan. Neither means a user action or a call across
+an application boundary. Unresolved parameter calls are a separate
 category; such a row lists the known callables its callers supply as
 `candidates`. A local collection of callables filled by a registration function
 in the same closure and iterated at the call site is reported as
@@ -431,8 +445,8 @@ named by line.
 
 `node dev-map/cli.mjs check` exits non-zero when the store is missing, when
 the store is stale (naming the index to regenerate), when a page is unplaced, or
-when a fact row is malformed. It reports the repository's `linked`, `unresolved`
-and `external` totals, the `unreached` declarations, the `unplaced` pages — authored
+when a fact row is malformed. It reports the repository's `linked`, `unresolved`,
+`outside` and `platform` totals, the `unreached` declarations, the `unplaced` pages — authored
 grouping that no map shows — and any orphan facts. `--json` returns the same as data.
 
 ## Scope
@@ -444,6 +458,11 @@ only so the calls they make into the mapped roots are seen and appear as ports.
 they are outside callers too, never a region, a page or an index. The agent CLI
 toolkit, `core/agent`, is one: the map covers core and Studio product code, and
 the toolkit is scanned only so its calls into that code appear as ports.
+`activeCallers` decides which outside files are drawn as caller rows on a
+declaration page: a caller is active when it runs while a person makes a part or
+operates Studio — a catalogued skill's implementation scripts, the MCP adapter
+and the agent CLI toolkit. Everything else scanned stays scanned and counted at
+the root, and a declaration page names it only as a count.
 `scope.mjs` also holds the serving aliases whose import specifier is not the path
 on disk. Regions, files, entries, numbering and every box follow from the code.
 

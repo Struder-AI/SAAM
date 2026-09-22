@@ -175,7 +175,7 @@ rescans everything; with a region or page index it regenerates that region — a
 read the affected pages again. A read of a page whose source has moved since the
 store was written says so in its `stale` field and names the index to
 regenerate; `node dev-map/cli.mjs check` reports the same for the whole
-store, together with the repository's unresolved, external and linked totals and
+store, together with the repository's unresolved, outside, platform and linked totals and
 any fact row that names a declaration the map no longer holds.
 
 ## Context ownership

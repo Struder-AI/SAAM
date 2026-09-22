@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-09-21 — Dev map: active outside callers, scope-edge arrows, findings on the boxes that draw them
+
+- `dev-map/lib/scope.mjs` gains `activeCallers`: catalogued skill
+  implementations (`skills/<id>/scripts/*.mjs`, no demo or example files),
+  `adapters/mcp/src`, `core/agent` and `scripts/agent-toolkit.mjs`. A caller is
+  active when it runs while a person makes a part or operates Studio. Active
+  outside callers are listed on declaration pages and code reads by
+  declaration path with `unmapped: true`; inactive ones (skill tests and
+  demos, benchmarks, the Bambu audit) are counted per directory in
+  `outsideCallers` and still counted at the root.
+- Calls leaving the mapped roots are drawn at every level: `out:<root>` ports
+  and wires on root, region, file and group pages (root: core/print → skills
+  ×47), outside invocation boxes on function pages name their target path,
+  and `external` is replaced by `outside` (47) and `platform` (5807).
+- The rolled-up `uncertaintySummary`/`unresolvedSummary` are gone. A
+  containment map carries each drawn declaration box's own finding rows,
+  identical to the node's page, and one integer on a group or file box.
+  Declaration pages are unchanged: 13 829 finding rows before and after.
+- Verified after `regenerate 0`: 143 declaration pages list an outside
+  caller (411 rows), 96 inactive callers counted, 16 structural pages draw an
+  outgoing outside port; `core/geom/query.mjs::topAt` lists four skill
+  callers beside five mapped ones; `8.2` boxes carry the same rows as their
+  own pages. `check`: 1620 pages, 3550 linked, 1079 unresolved, no unplaced
+  or orphan facts. The store reports stale on `core/export/bambu-project.mjs`,
+  which another session is editing at the time of writing.
+
 ## 2026-09-21 — Code shape, second pass: dead accessors, parameter mutation, callable closure state
 
 - Deleted `LuaRuntime::getGlobal/setGlobal/hasGlobal` (no caller anywhere;

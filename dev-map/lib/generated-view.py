@@ -257,6 +257,25 @@ def build_page(packet, ctx):
     if packet.get("stateful"):
         page.key_line += " · stateful boundary"
     kind, drawn, dropped = packet["kind"], set(), ctx["dropped"]
+    # A call that leaves the mapped scope ends in the name of the scanned root it reaches, not in
+    # a box: nothing on this page stands for outside code. The port and its wires come off the
+    # drawing and become an arrow out of the calling box carrying that name and its count.
+    headless, outward = {}, {}
+    for p in list(packet.get("ports", [])) + list(packet.get("outputs", [])):
+        if p.get("outside") and (p.get("direction") == "out" or p.get("role") == "outgoing-relation"):
+            headless[p["port"]] = p.get("mechanism") or p.get("name") or p["port"]
+    if headless:
+        kept = []
+        for w in packet["wires"]:
+            name = headless.get(w.get("to"))
+            if name is None:
+                kept.append(w)
+                continue
+            count = w.get("count", 1)
+            outward.setdefault(w["from"], []).append(f'→ {name}' + (f' ×{count}' if count > 1 else ""))
+        packet = {**packet, "wires": kept,
+                  "ports": [p for p in packet.get("ports", []) if p["port"] not in headless],
+                  "outputs": [p for p in packet.get("outputs", []) if p["port"] not in headless]}
     def references(rows):
         found = {}
         for row in rows:
@@ -362,6 +381,21 @@ def build_page(packet, ctx):
             dropped.append((page.key, w["from"], w["to"]))
             continue
         page.e(w["from"], w["to"], "calls", "caller", rank=False)
+    for nid, labels in outward.items():
+        node = page.index.get(nid)
+        if node is None:
+            dropped.append((page.key, nid, "outside"))
+            continue
+        node.co = tuple(node.co) + tuple(labels)
+    # The findings of the node a box draws are listed below; the box says how many there are.
+    for c in list(packet.get("components", [])) + (packet.get("unreached") or {}).get("nodes", []):
+        node = page.index.get(c.get("id", c["index"]))
+        if node is None:
+            continue
+        count = c.get("findings", sum(r.get("count", 1) for r in c.get("uncertainty", []))
+                      + len(c.get("unresolved", [])))
+        if count:
+            node.note = (node.note + "\n" if node.note else "") + f'{count} findings'
     lists(packet, page, pages)
     return page.layout()
 
@@ -555,37 +589,42 @@ def lists(packet, page, pages):
         page.row("head", "declaration calls — invocation not established")
         for relation in packet["declarationReferences"]:
             page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"])
-    for category in ("unresolved", "uncertainty"):
-        summary = packet.get(category + "Summary")
-        if not summary:
-            continue
-        count = summary["count"] + sum(row.get("count", 1) for row in packet.get(category, []))
-        page.row("head", f'{category} ({count})')
-        for source in summary["sources"]:
-            target = source.get("index") or next((index for index, meta in pages.items()
-                           if meta.get("d") == source.get("path")), "")
-            identity = target or source.get("path", "unknown source")
-            page.row("warn", f'{identity} · {source["count"]}', target)
-    if packet.get("unresolved"):
-        if not packet.get("unresolvedSummary"):
-            page.row("head", f'unresolved ({len(packet["unresolved"])})')
-        for u in packet["unresolved"]:
+    def unresolved_rows(rows, go=""):
+        for u in rows:
             location = (u.get("file", "") + ":" if u.get("file") else "") + str(u["line"])
-            page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}')
-    if packet.get("uncertainty"):
-        if not packet.get("uncertaintySummary"):
-            page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})')
-        for u in packet["uncertainty"]:
+            page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}', go)
+
+    def uncertainty_rows(rows, go=""):
+        for u in rows:
             if u.get("kind") == "closure-capture" and u.get("bindings"):
                 target = next((index for index, meta in pages.items() if meta.get("d") == u["closure"]), "")
                 identity = target or u["closure"]
                 limits = ", ".join(k for k, v in u.items() if k.endswith("Unknown") and v)
-                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}', target)
+                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}', target or go)
                 for access, bindings in u["bindings"].items():
                     for line in textwrap.wrap(f'{access}: ' + ", ".join(bindings), width=120):
-                        page.row("warn", line, target)
+                        page.row("warn", line, target or go)
             else:
-                page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()))
+                page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()), go)
+
+    emit = {"unresolved": unresolved_rows, "uncertainty": uncertainty_rows}
+    if packet.get("unresolved"):
+        page.row("head", f'unresolved ({len(packet["unresolved"])})')
+        unresolved_rows(packet["unresolved"])
+    if packet.get("uncertainty"):
+        page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})')
+        uncertainty_rows(packet["uncertainty"])
+    # A finding belongs to the node it is about, so every page that draws that node shows its
+    # rows under that box. A group or file box is not a node and carries its count alone.
+    for category in ("unresolved", "uncertainty"):
+        for c in list(packet.get("components", [])) + (packet.get("unreached") or {}).get("nodes", []):
+            rows = c.get(category)
+            if not rows:
+                continue
+            name = c.get("label") or c.get("path") or c.get("file") or c["index"]
+            page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {c["index"]} {name}',
+                     c["index"] if c["index"] in pages else "")
+            emit[category](rows, c["index"] if c["index"] in pages else "")
     if packet.get("analysisContext"):
         context = packet["analysisContext"]
         page.row("head", "analysis context")
@@ -595,9 +634,16 @@ def lists(packet, page, pages):
         page.row("head", f'consumedBy ({len(packet["consumedBy"])})')
         for c in packet["consumedBy"]:
             page.row("item", "  ".join(f'{k}: {v}' for k, v in c.items()), c.get("index") or "")
-    if packet.get("external"):
-        page.row("head", f'external ({packet["external"]})')
-        page.row("item", f'{packet["external"]} call sites without mapped targets')
+    if packet.get("outsideCallers"):
+        page.row("head", f'outside callers ({sum(packet["outsideCallers"].values())}) — not active while making a part')
+        for where, count in packet["outsideCallers"].items():
+            page.row("item", f'{where} · {count}')
+    if packet.get("outside"):
+        page.row("head", f'outside ({packet["outside"]})')
+        page.row("item", f'{packet["outside"]} call sites reaching scanned source the map does not cover')
+    if packet.get("platform"):
+        page.row("head", f'platform ({packet["platform"]})')
+        page.row("item", f'{packet["platform"]} call sites with no target in any scanned root')
 
 
 # ---- the viewer ---------------------------------------------------------------------------
@@ -670,7 +716,8 @@ LEGEND = [
                 "callers outside mapped roots. consumedBy — observed consumers of return values. "
                 "couplings — links that are not calls. uncertainty — unsupported control or data analysis. "
                 "unresolved — a call site whose callee the scanner cannot name, with the rule that "
-                "stopped it. external — call sites without mapped targets; this does not establish "
+                "stopped it. outside — call sites reaching scanned source the map does not cover; "
+                "platform — call sites with no target in any scanned root. Neither establishes "
                 "their runtime origin or a user/agent boundary."),
     ("h", None, "Stale"),
     ("p", None, "A red frame and a red band mean a file behind the page has changed since the "
@@ -890,9 +937,12 @@ function need(then){if(SRC)return then();
   s.onload=()=>then();s.onerror=()=>{SRC={};then();};document.head.appendChild(s);}
 function closeCode(){sourceVersion++;codePane.classList.remove('on');codePane.innerHTML='';}
 function dismissCode(){closeCode();}
-function callerEvidence(page){const rows=page?.metadata?.calledFrom||[];if(!rows.length)return '';
+function callerEvidence(page){const rows=page?.metadata?.callerReferences||page?.metadata?.calledFrom||[];
+  const counted=page?.metadata?.outsideCallers||{};
+  if(!rows.length&&!Object.keys(counted).length)return '';
   let body='';for(const row of rows){const label=row.index||row.path||row.file||'external caller';
-    body+=`<div>${row.index&&PAGES[row.index]?`<a data-go="${esc(row.index)}">${esc(label)}</a>`:`<span>${esc(label)}</span>`}</div>`;}
+    body+=`<div>${row.index&&PAGES[row.index]?`<a data-go="${esc(row.index)}">${esc(label)}</a>`:`<span>${esc(label)}${row.unmapped?' · outside the map':''}</span>`}</div>`;}
+  for(const where in counted)body+=`<div><span>${esc(where)} · ${counted[where]} · not active while making a part</span></div>`;
   return `<details open><summary>called from · ${rows.length}</summary><div class="caller-evidence">${body}</div></details>`;}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
@@ -1092,7 +1142,8 @@ def build(model, out):
         if source_span:
             ref = f'{source_span["file"]}:{source_span["line"]}-{source_span["endLine"]}'
         metadata = {key: p[key] for key in ("inputs", "outputs", "requires", "formulas", "gates", "calledFrom",
-                    "consumedBy", "couplings", "unresolved", "uncertainty", "external", "facts") if key in p}
+                    "consumedBy", "couplings", "unresolved", "uncertainty", "outside", "platform",
+                    "outsideCallers", "callerReferences", "facts") if key in p}
         if stale:
             metadata["stale"] = stale
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,

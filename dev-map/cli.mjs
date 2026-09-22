@@ -77,7 +77,7 @@ if(options.json)console.log(JSON.stringify(result,null,1));
 else if(status.missing)console.log(`No stored map at ${status.dir}. Run: ${regenerate}`);
 else {
   console.log(`Stored ${status.generated}: ${status.totals.regions} regions, ${status.totals.files} files, ${status.totals.pages} pages.`);
-  console.log(`Links: ${status.totals.linked} linked, ${status.totals.unresolved} unresolved, ${status.totals.external} external.`);
+  console.log(`Links: ${status.totals.linked} linked, ${status.totals.unresolved} unresolved, ${status.totals.outside} outside, ${status.totals.platform} platform.`);
   if(status.stale) {
     console.log(`Stale: ${status.stale.reason}. ${status.stale.files.length} source files; ${status.stale.inputs?.length??0} generator/configuration inputs changed.`);
     for(const file of [...status.stale.files,...status.stale.inputs??[]])console.log(`  ${file}`);

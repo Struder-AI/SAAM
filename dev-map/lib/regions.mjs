@@ -29,12 +29,22 @@ export function model(graph,projection) {
   const fileOf=id=>node(id)?.file??byId.get(id)?.file??moduleFile(id);
   const domNodes=new Set(graph.declarations.filter(domHandler).map(d=>d.anchor).filter(Boolean));
 
-  const calls=[],couplings=[];
+  const calls=[],couplings=[],outsideCalls=[];
   for(const r of graph.relations) {
     const at=r.evidence?.[0]??null;
     if(['call','construct'].includes(r.kind)) {
-      const to=node(r.to);if(!to)continue;
-      calls.push({from:node(r.from),fromFile:fileOf(r.from),atModule:atModule(r.from),to,start:at?.start??0,
+      const to=node(r.to);
+      if(!to) {
+        // A call that leaves the mapped roots for scanned source. It has no map address, but the
+        // declaration it reaches is named, so every level can draw where its code goes outside.
+        const target=byId.get(r.to),fromFile=fileOf(r.from);
+        if(target&&target.anchor&&!isMapped(target.file)&&fromFile&&isMapped(fromFile))
+          outsideCalls.push({from:node(r.from),fromFile,atModule:atModule(r.from),root:outsideRootOf(target.file),
+            to:{path:target.anchor,file:target.file,label:target.name},start:at?.start??0,line:at?.line??null});
+        continue;
+      }
+      calls.push({from:node(r.from),fromFile:fileOf(r.from),fromPath:byId.get(r.from)?.anchor??null,
+        atModule:atModule(r.from),to,start:at?.start??0,
         line:at?.line??null,label:names(r,byId).join(', '),relation:r});
     } else if(COUPLINGS.has(r.kind)||r.kind==='worker-handoff') {
       const kind=r.kind==='worker-handoff'?'worker-message':r.kind;
@@ -85,7 +95,7 @@ export function model(graph,projection) {
     const rows=moduleCallSites.get(file)??moduleCallSites.set(file,[]).get(file);
     rows.push({state,call:site.text,line:site.line,column:site.column,start:site.start,end:site.end,rule:record.rule??record.reason});
   }
-  return {regions,regionOf,nodes,inRegion,calls,couplings,reached,hasCaller,callees,moduleCallSites,
+  return {regions,regionOf,nodes,inRegion,calls,outsideCalls,couplings,reached,hasCaller,callees,moduleCallSites,
     fileLines:new Map(graph.files.map(f=>[f.file,f.lines])),
     entries:index=>inRegion.get(index).filter(n=>reached.has(n.path)||!hasCaller.has(n.path))};
 }

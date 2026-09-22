@@ -11,7 +11,7 @@ import {packZip,unpackZip,crc32} from './zip.mjs';
 import {requireThat} from '../geom/tolerance.mjs';
 import {validateSetup,toolBounds,startupPosition} from '../machine/profile.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
-import {serializeBambuProject} from './bambu-project.mjs';
+import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';
 const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
 const fmt=(n,d=5)=>Number(n.toFixed(d));
 const json=value=>JSON.stringify(value)+'\n';
@@ -20,7 +20,7 @@ const meta=values=>Object.entries(values).map(([k,v])=>`    <metadata key="${k}"
 const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.gcode';
 // Updated only after reviewing changes to the firmware service contract.
 const ENVELOPE_HASHES={
-  "h2d-saam-startup-v12": "9ed2f343095f6cf0331ad6359fee1cc637bb7a707f9cea3da538a33fa70779f9",
+  "h2d-saam-startup-v13": "9ed2f343095f6cf0331ad6359fee1cc637bb7a707f9cea3da538a33fa70779f9",
   "x1c-saam-startup-v5": "1efa6f410cdd5628d11cda4dc8732cf7555921f4e409c9246ea74e1d3911067e"
 };
 function configuration(plan,machine){
@@ -129,7 +129,7 @@ export function exportAndInterpretBambu(path,plan,machine,release){
   requireThat(JSON.stringify(program.filamentSequence)===JSON.stringify(filamentSequence),'Bambu interpreted filament order differs from startup calibration.');
   const c=contextFor(path,plan,machine,release),s=sections(c,job,output);
   const code=header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
-  const bytes=packZip(packageEntries(code,c,program,plan,output,job));
+  const bytes=packZip(packageEntries(code,c,program,plan,output,job,s));
   return {bytes,program:completeProgram(program,code,c,s,job)};
 }
 export function interpretBambu(bytes,plan,machine){
@@ -141,7 +141,7 @@ export function interpretBambu(bytes,plan,machine){
   const body=code.slice(begin+BEGIN.length,end),program=interpretBody(body,plan,machine);
   const job=resolveBambuJob(plan,machine,output,{filamentSequence:program.filamentSequence}),s=sections(c,job,output);
   requireThat(code===header(c,program,job)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n','Bambu program differs from its declared firmware envelope.');
-  const expected=packageEntries(code,c,program,plan,output,job);
+  const expected=packageEntries(code,c,program,plan,output,job,s);
   requireThat(entries.size===expected.size&&[...expected].every(([name,value])=>entries.get(name)?.equals(Buffer.from(value))),'Bambu package metadata, checksum or thumbnail differs from the program.');
   return completeProgram(program,code,c,s,job);
 }
@@ -170,7 +170,7 @@ function completeProgram(program,code,c,s,job){
   return program;
 }
 
-function packageEntries(code,c,program,plan,output,job){
+function packageEntries(code,c,program,plan,output,job,s){
   const {tool,map,nozzle,nozzles,color,used,count:declared,declaredMaps,limitMaps:usedFlags,settings,toolZeros}=job;
   const usedTray=job.filaments[used],volume=program.volumeMm3,filament=program.summary.filamentMm,weight=volume/1000*job.density;
   const usage=program.filamentUsage.slice().sort((a,b)=>a.filament-b.filament),area=Math.PI*(job.filamentMm/2)**2;
@@ -194,7 +194,7 @@ function packageEntries(code,c,program,plan,output,job){
     ['Metadata/model_settings.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <plate>\n${meta({plater_id:1,plater_name:'SAAM',locked:false,filament_map_mode:settings.filament_map_mode,filament_maps:declaredMaps,filament_volume_maps:Array.from({length:declared},()=>0).join(' '),gcode_file:GCODE,thumbnail_file:'Metadata/plate_1.png',thumbnail_no_light_file:'Metadata/plate_no_light_1.png',top_file:'Metadata/top_1.png',pick_file:'Metadata/pick_1.png',pattern_bbox_file:'Metadata/plate_1.json'})}\n  </plate>\n</config>\n`],
     ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <header>\n    <header_item key="X-BBL-Client-Type" value="slicer"/>\n    <header_item key="X-BBL-Client-Version" value="${xml(output.package.clientVersion)}"/>\n  </header>\n  <plate>\n${meta({index:1,extruder_type:toolZeros,nozzle_volume_type:toolZeros,printer_model_id:output.package.printerModelId,nozzle_diameters:nozzles.join(','),timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:declaredMaps,limit_filament_maps:usedFlags})}\n    <object identify_id="1" name="SAAM part" skipped="false" />\n${filamentXml}\n${nozzleXml}\n    <layer_filament_lists>\n${layerXml}\n    </layer_filament_lists>\n  </plate>\n</config>\n`],
     ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:program.filamentSequence.map(i=>Number(settings.filament_map[i])-1),sequence:program.filamentSequence.map(i=>i+1)}})],
-    ['Metadata/project_settings.config',output.package.projectSchema?serializeBambuProject(job.projectSettings):json(job.projectSettings)]
+    ['Metadata/project_settings.config',output.package.projectSchema?serializeBambuProject(materializeBambuProject(job.projectSettings,s)):json(job.projectSettings)]
   ]);
   const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){

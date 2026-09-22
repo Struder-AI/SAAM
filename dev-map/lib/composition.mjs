@@ -68,13 +68,23 @@ function structural(page,{model,index,packets}) {
     {file:c.fromFile,line:c.line,start:c.start});
   for(const c of model.couplings)add(c.from?.path??c.fromFile??'<external>',c.to?.path??c.toFile??'<external>',c.kind,c.label,
     {file:c.fromFile,line:c.line});
-  // Findings of a nested declaration belong to this scope too; they summarize under the
-  // top-level declaration that holds them and stay complete on that declaration's own page.
+  // Where this scope's code reaches out of the map. The port names the scanned root, not a box:
+  // outside code has no address here, and the wire ends in that name.
+  for(const c of model.outsideCalls) {
+    if(!inside.has(c.fromFile))continue;
+    const from=index.get(held.get(c.from?.path)??c.from?.path??c.fromFile);
+    if(!shown.has(from))continue;
+    const key=`out:${c.root}`;
+    if(!outputs.some(p=>p.port===key))outputs.push({port:key,name:c.root,unmapped:true,outside:true});
+    wires.push({from,to:key,kind:'call',evidence:{file:c.fromFile,line:c.line,start:c.start}});
+  }
+  // A finding belongs to the node it is about. It is drawn on that node's box here, and the
+  // rows themselves stay whole on the node's own page; nothing is rolled up into a count.
   const memberPackets=[...held.keys()].map(path=>packets.get(path)).filter(Boolean);
   return {...page,components,inputs,outputs,wires,gates:[],ports:[],requires:[],formulas:[],calledFrom:[],couplings:[],
-    unresolved:[...(page.unresolved??[]),...memberPackets.flatMap(p=>(p.unresolved??[]).map(u=>({...u,file:p.file,path:p.path})))],
-    uncertainty:[...(page.uncertainty??[]),...memberPackets.flatMap(p=>(p.uncertainty??[]).map(u=>({...u,file:p.file,path:p.path})))],
-    external:(page.external??0)+memberPackets.reduce((n,p)=>n+(p.external??0),0),files,structural:true};
+    unresolved:page.unresolved??[],...(page.uncertainty?{uncertainty:page.uncertainty}:{}),
+    platform:(page.platform??0)+memberPackets.reduce((n,p)=>n+(p.platform??0),0),
+    outside:page.outside??memberPackets.reduce((n,p)=>n+(p.outside??0),0),files,structural:true};
 }
 
 function contextLines(model,file) { return model.fileLines?.get(file)??1; }
@@ -184,11 +194,9 @@ export function composePages(pages,config,context) {
       }
       const files=[...new Set(g.members.map(c=>c.file))];
       const memberPaths=new Set(g.members.map(identity));
-      const memberRecords=field=>packet.structural?(packet[field]??[]).filter(item=>memberPaths.has(item.path)):[];
-      const uncertainty=memberRecords('uncertainty'),unresolved=memberRecords('unresolved');
-      // Structural diagnostics belong to the declaration that produced them. Local-flow
-      // uncertainty belongs to the caller's analysis; a subgroup links that context once,
-      // rather than copying every caller warning into every child as if it owned them.
+      // Structural diagnostics belong to the declaration that produced them, and are drawn on
+      // that declaration's box. Local-flow uncertainty belongs to the caller's analysis; a
+      // subgroup links that context once, rather than copying every caller warning into it.
       const contextual=field=>packet.structural?(packet[field]??[]).filter(item=>!item.path).length:(packet[field]??[]).length;
       const analysisContext={index:packet.index,path:spec.path,uncertainty:contextual('uncertainty'),unresolved:contextual('unresolved')};
       groupPages.set(g.index,{flow:true,generated:true,index:g.index,path:g.path,kind:'group',label:g.label,
@@ -196,10 +204,9 @@ export function composePages(pages,config,context) {
         components:g.members,inputs,outputs,wires,gates:packet.gates??[],requires:[],formulas:[],calledFrom:[],couplings:[],
         ...(packet.stateFields?{stateFields:packet.stateFields.filter(f=>wires.some(w=>w.stateField===f.id))}:{}),
         ...(packet.invocationSites?{invocationSites:true,callBindings:(packet.callBindings??[]).filter(call=>memberPaths.has(call.callee))}:{}),
-        unresolved,external:0,boundary,children:g.members.map(c=>({index:c.index,path:identity(c),label:c.label})),
+        unresolved:[],platform:0,outside:0,boundary,children:g.members.map(c=>({index:c.index,path:identity(c),label:c.label})),
         composition:{source:spec.source??'dev-map/flows.json',authored:['grouping','labels'],relations:'generated'},
         ...(packet.structural?{structural:true}:{}),
-        ...(uncertainty.length?{uncertainty}:{}),
         ...(analysisContext.uncertainty||analysisContext.unresolved?{analysisContext}:{}),
         ...(packet.file?{file:packet.file,line:packet.line,endLine:packet.endLine,lines:packet.lines}:{})});
       if(g.groups) {

@@ -1402,7 +1402,10 @@ export function flowPacket(context,target,{evidence=false}={}) {
     wires:page.wires.map(wire),
     gates,
     calledFrom:[],couplings:[],
-    unresolved:page.unresolved.map(site),external:page.external.length,
+    // A call site with no target in any scanned root is a platform operation; one whose target is
+    // scanned source the map does not cover is an outside call, and its box names that target.
+    unresolved:page.unresolved.map(site),platform:page.external.length,
+    outside:(page.operators??[]).filter(op=>op.scope==='outside').length,
     ...(page.uncertainty?.length?{uncertainty:page.uncertainty}:{}),
     ...(evidence?{externalSites:page.external.map(site)}:{})};
   // `gates` is filled while the rows above are built; it is placed after them for reading order.

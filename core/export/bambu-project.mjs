@@ -6,7 +6,7 @@ import {requireThat} from '../geom/tolerance.mjs';
 // preferences are not evidence for changing this job's resolved routing.
 export function resolveBambuProject(plan,machine,output,settings,selections){
   if(output.package.projectSchema===undefined&&machine.id!=='bambu-h2d')return settings;
-  requireThat(machine.id==='bambu-h2d'&&output.package.projectSchema==='h2d-full-project-v1','Unknown Bambu project schema.');
+  requireThat(machine.id==='bambu-h2d'&&output.package.projectSchema==='h2d-full-project-v2','Unknown Bambu project schema.');
   const s=plan.setup,k=output.constraints,filaments=settings.filament_ids.length;
   const repeat=(value,count)=>Array.from({length:count},()=>String(value));
   const p={...fields.scalar,...structuredClone(fields.lists)};
@@ -57,6 +57,15 @@ export function resolveBambuProject(plan,machine,output,settings,selections){
   // array length never determines a role (two colours can equal two tools).
   for(const [key,values]of Object.entries(p))requireThat(typeof values==='string'||Array.isArray(values)&&values.every(v=>typeof v==='string'),`Invalid project field ${key}.`);
   return Object.fromEntries(Object.entries(p).sort(([a],[b])=>a.localeCompare(b,'en')));
+}
+
+// The printer's USB loader also consumes stored G-code fields. Clearing that
+// family broke AMS-13 despite an unchanged, physically successful executable.
+// Store our rendered sections, never a second template or a reference blob.
+export function materializeBambuProject(project,sections){
+  requireThat(typeof sections?.start==='string'&&sections.start.length>0
+    &&typeof sections?.end==='string'&&sections.end.length>0,'Missing rendered Bambu project sections.');
+  return {...project,machine_start_gcode:sections.start,machine_end_gcode:sections.end};
 }
 
 export function serializeBambuProject(project){
