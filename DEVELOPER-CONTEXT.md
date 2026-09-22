@@ -2,111 +2,125 @@
 
 ## Orientation
 
-This is the whole of a developer's orientation. The account of core and Studio
-is the **dev map**: code entities and relationships are generated from source,
-while authored grouping makes useful flow pages. There is no component prose
-manual in the developer's orientation. The component manuals
-under `core/` and `studio/` are maker and builder documentation; read one only
-when a person asks about the behaviour it describes, never to find your way
-around the code.
+A developer's orientation is the **dev map** and this file, nothing else. The
+component manuals under `core/` and `studio/` are maker and builder
+documentation; read one only when a person asks about the behaviour it
+describes, never to find your way around the code.
 
-Walk the map from `0`. `0` is the regions and `N` a region; every map numbers
-its own nodes under itself (`N.2`, then `N.2.1`, down to leaves). A declaration's
-map shows its callees, callers, `couplings` and `unresolved` sites. A region,
-file or group map attaches each drawn node's own findings to that node's box,
-and names where its code leaves the mapped scope. A node drawn
-away from its home map keeps its home index and names that map as `home`. Read a page, read its source with `--code`,
-make the edit, `regenerate` the region, read again.
+### What the map is for
 
-Reads use compact JSON: `range` is `[firstLine,lastLine]` inclusive; nested
-locations inherit `file`; empty arrays are omitted. Caller relations appear once
-in `callerReferences`, `callerWires`, or residual `calledFrom`. High-reuse
-components show `callerSummary`: a count and the canonical index with the full
-caller list. A declaration's active callers outside the mapped scope are rows
-there too, by path and file; the rest are counted in `outsideCallers`. `--details`
-returns the full stored evidence without scanning. `--code` omits the graph body.
-Condition gates show a short identity and branch; their complete predicates live
-under the source click and in `--details`, rather than on the drawing.
+The map is a visual knowledge graph of core and Studio, generated from source.
+It exists so that a reviewer moves through the code an order of magnitude
+faster with several times the confidence, and so that an agent gets an
+orientation it can trust, because a person can trace the same path. The
+standard it is held to: for any code you are about to edit, the map tells you
+where it is, what it does with what, and every consequence of changing it,
+without a separate trace and without anything extra in your head. It contains
+exactly everything, and nothing more. Map compatibility is worth adjusting how
+the code is written, within the rules under [Code shape](#code-shape).
 
-```sh
-node scripts/agent-toolkit.mjs read-map 0
-node scripts/agent-toolkit.mjs read-map studio
-node scripts/agent-toolkit.mjs read-map studio/source-player.mjs
-node scripts/agent-toolkit.mjs read-map studio/source-player.mjs --code
-node scripts/agent-toolkit.mjs regenerate 9
-```
+### Scope
 
-A read comes out of the stored map and never parses source into a new graph;
-`regenerate [INDEX]` explicitly scans. Reads check input fingerprints and expose
-staleness; follow the returned regeneration instruction. The separate
-`flow-evidence` command explicitly rescans for an audit, and first onboarding
-generates a store when none exists. Indexes are
-regenerated and may change: use the index when talking about the current map,
-and write the **declaration path** (`file.mjs::name`) when something must
-keep pointing at it. Reuse context already read.
+- Mapped: core and Studio product code. The agent CLI toolkit, `core/agent`, is
+  scanned as an outside caller and never mapped. The Lua interpreter stays in
+  scope; its library table, like every named table of functions, is drawn as
+  registry entries.
+- Scanned, not mapped: skills, adapters, scripts. A caller is **active** when it
+  runs while a person makes a part or operates Studio: a catalogued skill's
+  implementation scripts, the MCP adapter, the agent toolkit and its CLI entry.
+  Active callers are drawn on the declaration pages they call; everything else
+  scanned (skill tests and demos, benchmarks, audits) is counted, never drawn.
+- The scope edge is drawn both ways: outside callers as ports and caller rows,
+  and every call that leaves the map as a headless arrow naming its target, at
+  every level. Calls with no target in any scanned root are `platform`.
 
-**Text search for orientation is discouraged.** Searching finds names; the walk
-is what shows who calls and consumes the code you are about to change.
+All of this is authored in one place, `dev-map/lib/scope.mjs`.
 
-Flow membership and group labels are authored in `dev-map/flows.json` and
-`dev-map/flows/*.json`; nodes, wires,
-conditions and boundary connections remain generated. Necessary external facts
-are recorded with provenance in [dev-map/facts.tsv](dev-map/facts.tsv) and displayed on
-their owning pages. `dev-map/lib/scope.mjs` holds the authored scan scope:
-which roots are mapped and which are scanned only so
-their calls into the mapped roots are seen. The map covers core and Studio
-product code; the agent CLI toolkit, `core/agent`, is scanned as an outside
-caller and is not mapped. The [map guide](dev-map/README.md) owns
-the commands and the fields each page carries; `node dev-map/cli.mjs build`
-draws the same stored map for a person.
+### The tree
+
+- The walk is `0`, a region, then flow pages down to a leaf, then `--code`, the
+  edit, `regenerate`, and the page again. Each map numbers the nodes it homes
+  under its own index. Where the code lives does not enter into it: the tree is
+  functional, never a file tree.
+- A region page shows its flow roots, the declarations nothing in the region
+  calls, optionally clustered by authored groups. Everything else is homed by
+  the first flow page that reaches it. A declaration written inside another is
+  homed by its holder; a class is its construction and its members. A node
+  drawn anywhere else is a repeat carrying `home`, and the home node lists its
+  repeats as `alsoOn`.
+- An address is a map only when it would draw at least two called declarations
+  with a wire between them; otherwise it opens as code with the same callers,
+  couplings and findings beside it. No page draws a single box, and no box
+  floats: a call is connected to the function that makes it even when its
+  arguments could not be traced.
+- From every map it is clear which child to open next. A node is repeated on a
+  map only where it gives context in that view; nothing is read twice
+  otherwise. There is no cap on page size or depth; a good map decides.
+
+### Findings
+
+Findings are the scanner's honesty, never hidden. A finding about a node is
+shown on every map that draws that node: a structural map carries each drawn
+declaration's own rows, and a group box carries one count. Most rows are
+analysis limits (destructuring, loop values, callbacks the tracer does not
+enter, untyped receivers) and are generator work; a few are the code's shape,
+handled below. Do not turn a finding into an invented wire, and do not infer
+that no caller exists from an unscanned or dynamic boundary.
 
 ### Code shape
 
-The map is only as good as the code's shape, so shape the code for it:
+Three rules, strongly preferred; the restricted form needs the owner's explicit
+permission for a compelling case:
 
-- Write graph-visible stages as functions of explicit inputs to named outputs.
-  A stage does not mutate its caller's planning state. Local working arrays and
-  internal mutation are allowed; expose the resulting state and actions at the
-  boundary. Avoid copying an accumulated toolpath on every move.
-- Keep owned caches and UI controllers behind explicit stateful boundaries.
-  The Lua interpreter also retains its private variables, tables, scopes and
-  call stack across execution steps. This approved runtime exception does not
-  permit ordinary planning stages to mutate caller-owned inputs.
-- Give conceptual handlers and stages code binding names so authored grouping
-  survives line edits. Small implementation callbacks may remain anonymous;
-  authored membership must not depend on their source-position identities.
-- A declaration written inside another is shown on that declaration's page, and
-  is never authored into a group elsewhere. A stage that belongs beside its
-  siblings on a region map has to be a top-level declaration of its file.
-- A class is its construction and its members: the constructor is part of the
-  class node, and only what a caller can reach on its own — the class and its
-  static and instance methods — is a node.
-- Separate uses of the same implementation remain distinct generated stage
-  instances. Replacing an entity requires rewiring all consumers and removing
-  the superseded entity; do not retain compatibility wrappers or parallel paths.
-- Keep page context at its level: short caller references lead to surrounding
-  maps, and source holds implementation detail. A dense page is an upper bound,
-  not a goal; private bookkeeping should not dominate conceptual stages.
-- Distinguish hidden coupling in code from unsupported extraction and scanner
-  defects. Do not turn uncertainty into an invented wire or use an external fact
-  to assert a code relationship the scanner has not established.
+1. No callable and no state in a reassigned binding. Owned state lives in an
+   explicit record or behind an explicit stateful boundary; a callback chosen
+   once is a `const` or a named function.
+2. No callee chosen by an expression.
+3. A stage does not mutate caller-owned state. It returns its result. The
+   exception is an explicit stateful controller (a UI controller, a session,
+   the tour, the Lua runtime) operating on state it owns.
 
-Review code and maps in small sections before applying an approach more widely.
-Before proposing a page for human review, inspect both its drawing and its exact
-default CLI read. Provide the verified current link and open that CLI response in
-the person's sidebar when the client supports it.
+A rewrite counts as a code-shape fix only when it preserves behaviour and,
+after regeneration, the map draws what was hidden. Anything the scanner cannot
+follow by syntax (`super`, destructuring, loop variables, nested-call
+arguments, `Promise.all`, instance receivers, passed callbacks) is generator
+work, never code churn. Reading a map does not by itself authorise a rewrite.
+
+Also: give conceptual stages and callbacks code names, so grouping survives
+line edits; when code replaces an entity, rewire every consumer and remove the
+old one, with no compatibility wrapper or parallel path.
+
+### Working the map
+
+```sh
+node scripts/agent-toolkit.mjs read-map 0
+node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition
+node scripts/agent-toolkit.mjs read-map 6.3.1 --code
+node scripts/agent-toolkit.mjs regenerate 6
+node dev-map/cli.mjs check
+```
+
+Reads come from the stored map and never scan; `regenerate` scans, and a read
+whose inputs have moved says `stale` and names the index to regenerate. Use the
+index when talking about the current map and the declaration path
+(`file.mjs::name`) when something must keep pointing at it. **Text search for
+orientation is discouraged**: it finds names; the walk shows who calls and
+consumes what you are about to change. The authored inputs are grouping in
+`dev-map/flows/*.json` (declaration members only, clustering flow roots),
+external facts in `dev-map/facts.tsv`, and the scope. The
+[map guide](dev-map/README.md) owns the commands, page fields and authoring
+mechanics; [dev-map/HANDOFF.md](dev-map/HANDOFF.md) owns the state of the map
+work and what remains.
 
 ### What keeps its own owner
 
 Repository policy, setup, contribution procedures, decisions and historical
-evidence retain their existing owners. Skills,
-[client adapters](adapters/mcp/DEVELOP.md) and the [agent CLI toolkit](core/agent/README.md)
-are outside the mapped scope, keep
-their own authoring references, and appear in the map as external callers.
-[CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md) owns checkpoint and remote
-contribution rules; read it only immediately before committing or publishing.
-Source remains authoritative for implementation; software checks do not
-establish physical results.
+evidence keep their owners. Skills, [client adapters](adapters/mcp/DEVELOP.md)
+and the [agent CLI toolkit](core/agent/README.md) are outside the mapped scope
+and keep their own references. [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md)
+owns checkpoint and publication rules; read it immediately before committing.
+Source is authoritative for implementation; software checks do not establish
+physical results.
 
 ## Status note
 

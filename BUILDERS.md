@@ -115,68 +115,46 @@ conveniently to source using ordinary repository tools.
 
 ## Maps and local documentation
 
-The dev map generates code entities and relationships from source. Authored
-flow grouping in `dev-map/flows.json` chooses which generated entities are shown
-together and names the groups; it cannot invent implementation nodes or wires.
-The scan scope lives in `dev-map/lib/scope.mjs`, and external facts in
-`dev-map/facts.tsv`. The map covers core and Studio product code; the
-[agent CLI toolkit](core/agent/README.md) is scanned as an outside caller and is
-not mapped, so it has no region or pages. The same generated pages serve the CLI
-and human viewer.
+The dev map is the generated account of core and Studio structure. Its intent,
+scope and reading rules are owned by [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md);
+the commands, page fields and authoring mechanics by the
+[map guide](dev-map/README.md). Developers orient by walking it from `0`;
+builders may walk the region they are changing alongside its prose manual;
+makers need no maps. Read a page with
+`node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION` and its source with
+`--code`. **Text search for orientation is discouraged**: it finds names, while
+the walk exposes the relationships around what you are about to change. Use
+the index when talking about the current map and the declaration path as the
+durable name in a document, comment or code.
 
-**Developers orient by walking the map from `0`; builders may walk the region
-they are changing alongside its prose manual.** Page `0` is the regions and `N`
-a region. Every map numbers its own nodes under itself (`N.2`, then `N.2.1`,
-down to leaves); a declaration's map shows what it calls, what reaches it and
-what it is coupled to, and a declaration written inside another is shown on the
-page of the declaration that holds it. A node drawn away from its home map keeps
-its home index and names that map as `home`. An address whose drawing would not
-show two connected boxes opens code instead of a map, with the same callers,
-couplings, boxes and findings beside it. Read a page with `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`
-and its source with `--code`. **Text search across the repository is discouraged
-for orientation**: it finds names, while the walk exposes relationships around
-the thing you are about to change. Inspect unresolved calls and flow uncertainty;
-an empty caller list is not proof that unscanned or dynamic callers do not exist.
-Makers need no maps. The [map guide](dev-map/README.md) owns the commands, the
-fields each kind of page carries, and the fact rows.
-
-Indexes are regenerated and may change. Use just the index when talking about
-the current map, as in `6.3.1`, and never use one as a durable reference in
-a document, a comment or code. The declaration path is the durable name.
-
-Map pages carry no prose. What a page cannot say belongs where it is already
-owned: a measurement in [DEVLOG.md](DEVLOG.md), an agreed direction in
+Map pages carry no prose. What a page cannot say belongs where it is owned: a
+measurement in [DEVLOG.md](DEVLOG.md), an agreed direction in
 [DECISIONS.md](DECISIONS.md), a user-facing limit in the manual that owns the
-behavior, and a measurement, vendor behavior or recorded decision that the code
-itself cannot state in `dev-map/facts.tsv`.
+behaviour, and a measurement, vendor behaviour or recorded decision the code
+cannot state in `dev-map/facts.tsv`.
 
 ### Supporting text and comments
 
-The map explains structure; it does not establish behavior. Trace actual control
-and data paths in source, including conditional paths and state, and account for
-callers the scan could not resolve. A resolved wire is evidence of a call site,
-not proof of a payload, a precondition or an execution order.
-
-**Assume the relevant pages have already been read when writing a docstring or
-code comment.** Add one only for specific local value, such as a subtle
-precondition, unit convention, external behavior or non-obvious constraint at
-the point of use. Do not repeat what the map shows or what the code plainly says.
-There is no blanket ban on rationale, docstrings or prose and no required quota.
-
-Reading the map can reveal poor boundaries or hidden dependencies. Record the
-concrete finding and handle it within the authorized scope; reading a map does
-not itself authorize refactoring code to make the picture cleaner.
+The map explains structure; it does not establish behaviour. A resolved wire
+is evidence of a call site, not proof of a payload, a precondition or an
+execution order, and an empty caller list is not proof that unscanned or
+dynamic callers do not exist. **Assume the relevant pages have been read when
+writing a docstring or comment**: add one only for local value such as a
+subtle precondition, a unit convention or an external constraint, never to
+repeat what the map or the code plainly shows. Reading the map can reveal poor
+boundaries; record the finding and handle it within the authorised scope.
+Reading a map does not itself authorise refactoring code to make the picture
+cleaner; the code-shape rules in the developer context say when a rewrite is
+warranted.
 
 ### Keeping maps current
 
-Nothing is kept current by hand: regenerate. After changing core or Studio, run
-`node scripts/agent-toolkit.mjs regenerate [INDEX]` — with no index, or `0`, it
-rescans everything; with a region or page index it regenerates that region — and
-read the affected pages again. A read of a page whose source has moved since the
-store was written says so in its `stale` field and names the index to
-regenerate; `node dev-map/cli.mjs check` reports the same for the whole
-store, together with the repository's unresolved, outside, platform and linked totals and
-any fact row that names a declaration the map no longer holds.
+Nothing is kept current by hand. After changing core or Studio, run
+`node scripts/agent-toolkit.mjs regenerate [INDEX]` and read the affected pages
+again; a read of a page whose inputs moved says `stale` and names the index to
+regenerate, and `node dev-map/cli.mjs check` reports the same for the whole
+store. Renaming or removing a declaration that authored grouping names means
+editing that membership; generation fails until it is.
 
 ## Context ownership
 

@@ -83,16 +83,16 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Remaining: Let the toolkit launch path bind a requested port (or reuse the previous instance's port when relaunching with `--agent-owner`), and fail clearly, naming the process holding it, when the port is busy. Document it where agents already read Studio restart guidance. Keep one Studio per agent by default.
 - Completion: An agent stops its own Studio and relaunches on the same URL, and the person's open tab reconnects with the print and pending requests intact. A busy port gives an actionable error and never silently picks another. Covered by a test.
 
-### BR-052 — Eliminate unresolved and uncertain map relationships
+### BR-052 — Complete the dev map against the 2026-09-21 intent
 
-- Status: open
-- Contributor: Current requester; account attribution unconfirmed.
-- Authorization: human requested — apply the reviewed Grasshopper-style code-and-map standard throughout core and Studio. After the September 19 checkpoint the same user explicitly prioritized eliminating unresolved and uncertain relationships through scanner improvements, sensible authored relationships or clearer code shapes; shortening diagnostic lists is not completion.
-- Session: Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`; exact chat title unavailable.
-- Source: Same task: "Let's apply this to the whole core/studio codebase now" and "don't stop the team until the whole core/studio codebase is mapped", followed by the wrap-up instruction above. The user approved authored grouping, generated relationships and private Lua interpreter state behind an explicit stateful boundary. See [D-036](DECISIONS.md#d-036--explicit-planning-stages-and-state-in-the-path-planning-pilot) and the [checkpoint](DEVLOG.md#2026-09-19--developer-map-wrap-up-checkpoint).
-- Context: All eligible core/Studio files are inventoried and grouped; many planning, geometry, worker and UI flows have been rewritten and verified. Inventory coverage does not certify conceptual completeness or arbitrary callback/state analysis. See the [checkpoint](DEVLOG.md#2026-09-19--developer-map-wrap-up-checkpoint).
-- Remaining: Eliminate the underlying unresolved and uncertain relationships across eligible core/Studio code without requiring each developer to reconstruct missing relationships from source.
-- Completion: Eligible core/Studio maps expose their supported relationships without unresolved or uncertain edges, with remaining deliberate dynamic boundaries explicitly owned and explained.
+- Status: in progress
+- Contributor: Project owner (remettub), attribution from the 2026-09-21 review session.
+- Authorization: human requested — apply the reviewed Grasshopper-style code-and-map standard throughout core and Studio, eliminating unresolved and uncertain relationships through scanner improvements, sensible authored relationships or clearer code shapes; shortening diagnostic lists is not completion. On 2026-09-21 the owner settled the intent recorded in [D-038](DECISIONS.md#d-038--dev-map-intent-functional-tree-complete-leaf-context-findings-kept-code-shape-rules) and approved the remaining generator items listed in the handoff.
+- Session: Origin: Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`. Follow-up: the 2026-09-21 dev-map review session (title unavailable).
+- Source: Origin: "Let's apply this to the whole core/studio codebase now" and "don't stop the team until the whole core/studio codebase is mapped". Follow-up: the owner's point-by-point approvals summarised in [dev-map/HANDOFF.md](dev-map/HANDOFF.md).
+- Context: The 2026-09-21 DEVLOG entries record what landed: scope, collapse rule, nested homing, constructor fold, scanner resolution, active outside callers, scope-edge arrows, findings on drawn boxes, registry entries, two code-shape passes. The functional-tree reshape was in flight at the last checkpoint.
+- Remaining: In the order given in [dev-map/HANDOFF.md](dev-map/HANDOFF.md#what-remains-in-order): the invocation edge; callback targets as references; closure-owned state on member pages; entering array-method callbacks; loop accumulation; a ruling on repeated assertion boxes; thoughtful root clustering; the two code-shape sites awaiting the owner; review of the remaining islands.
+- Completion: Every declaration page shows its callers, callees, state and consequences without a separate trace; no page draws one box or a floating box; findings remain visible at their nodes; the remaining unresolved rows are the accepted scanner limits listed in the handoff.
 
 ### BR-051 — Complete output for the three new printer profiles
 

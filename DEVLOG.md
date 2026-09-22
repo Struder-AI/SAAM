@@ -1,5 +1,23 @@
 # Development log
 
+## 2026-09-21 — Dev-map documentation consolidated; handoff written
+
+- DEVELOPER-CONTEXT.md now owns the map's intent: purpose, scope and active
+  callers, the functional tree, page principles, findings policy, the three
+  code-shape rules and the rewrite criterion, all as settled with the owner
+  today (recorded as D-038). dev-map/README.md is reduced to mechanics:
+  commands, addresses, page fields, staleness, authoring, checking, viewer.
+  The AGENTS.md "Dev maps" section and the BUILDERS.md map contract are
+  pointers with the reading rules only. BR-052 restated against the new
+  intent with the remaining queue.
+- New dev-map/HANDOFF.md: the owner's standard in their words, the concrete
+  rulings behind each change, the code-shape criterion per pattern, what has
+  landed by commit, what is in flight, the remaining work in order with
+  rationale, how the work was run, and the open questions.
+- Line counts: AGENTS 202 → 190, BUILDERS 421 → 399, DEVELOPER-CONTEXT
+  113 → 127, dev-map/README 473 → 178; the four owners 1209 → 894, or 1087
+  with the new handoff. Developer and builder onboarding still resolve.
+
 ## 2026-09-21 — Dev map: name-keyed function tables become registry entries
 
 - `couplings.mjs` recognises a named table of functions — a `const` object
