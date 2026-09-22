@@ -140,15 +140,15 @@ Two consequences of the tree to look at before settling:
 0. **Leaves drawn on the map above.** Built 2026-09-22: the walk never
    descends into a code destination; a leaf's callees are drawn on its home
    map wired from its box (`inlined`, `via`); a leaf root's chain is on the
-   region page. Left: a map calling the same leaf twice hangs the chain off
-   the first instance; only leaf data wires with both ends in the chain are
-   carried.
+   region page, with their rows. Left: a map calling the same leaf twice
+   hangs the chain off the first instance; only leaf data wires with both
+   ends in the chain are carried.
 1. **The invocation edge.** Built 2026-09-21 (`lib/invocation.mjs`): every
    drawn box is wired to its function in call order, untraced argument slots
    are marked stubs with a reason, and a held or referenced declaration gets a
-   `declaration` or `reference` edge. Floating boxes 1434 to 0. Left open:
-   `--details` does not carry the wires (that read is in `core/agent`), and
-   `literal` stubs (1778 of 3994) mark constants rather than tracing gaps.
+   `declaration` or `reference` edge. Floating boxes 1434 to 0; `--details`
+   carries them since 2026-09-22. Left open: `literal` stubs (1778 of 3994)
+   mark constants rather than tracing gaps.
 2. **Callback targets as references, not boxes.** Built 2026-09-21:
    `parameterTargets` rows on the callee's port, boxes on the caller's page.
    Left: 9 boxes where the callable is destructured from a parameter record;
@@ -167,9 +167,9 @@ Two consequences of the tree to look at before settling:
    and `get(k).push` collections; multi-path backedges; generators; finding
    rows naming operators the liveness pass drops (557).
 6. **Finding rows on function pages.** Built 2026-09-22: `findings` on
-   every drawn box, `nodeFindings` sections once per node. Left: chain boxes
-   on region pages carry no rows (containment pass runs before
-   `drawChains`); rows carry no `file`; `createStudio` shows 527 rows.
+   every drawn box, `nodeFindings` sections once per node; chain boxes and
+   `file` on rows followed on 2026-09-22. Left: `createStudio` shows 527
+   rows.
 7. **Repeated invocations of one declaration.** Ruled 2026-09-21: kept.
    Every source call is its own box, assertions included.
 8. **Thoughtful root clustering.** After the tree reshape lands, the region
@@ -213,7 +213,6 @@ unscanned callers (`onGeometry` in `runRepairJob`).
 ## Open questions for the owner
 
 - Should `literal` argument stubs be drawn, or only genuine tracing gaps?
-- Should `--details` carry the invocation wires (a `core/agent` change)?
 - A 17-step call chain is a 17-step index; does a very deep chain want a
   different presentation, or is that clustering's job?
 - Interpreter-style methods (`LuaRuntime::execStatement`: one switch over

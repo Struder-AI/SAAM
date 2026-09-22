@@ -268,20 +268,24 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   const heldRows=component=>rowCount(component.kind==='group'
     ?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[])
     :packetsByFile.get(component.file)??[]);
-  for(const page of destinations.values()) {
-    if(page.kind!=='region'&&!(page.kind==='group'&&page.structural))continue;
-    for(const component of page.components??[]) {
-      const node=nodeOf(component);
-      if(node) {
-        for(const field of ['uncertainty','unresolved']) {
-          if(node[field]?.length)component[field]=node[field];else delete component[field];
+  // This runs after the chains are drawn, so a box a leaf brought onto a region or group page
+  // carries the rows of the node it draws like every other box on that page.
+  const attachContainmentFindings=pages=>{
+    for(const page of pages) {
+      if(page.kind!=='region'&&!(page.kind==='group'&&page.structural))continue;
+      for(const component of page.components??[]) {
+        const node=nodeOf(component);
+        if(node) {
+          for(const field of ['uncertainty','unresolved']) {
+            if(node[field]?.length)component[field]=node[field];else delete component[field];
+          }
+          continue;
         }
-        continue;
+        const count=heldRows(component);
+        if(count)component.findings=count;else delete component.findings;
       }
-      const count=heldRows(component);
-      if(count)component.findings=count;else delete component.findings;
     }
-  }
+  };
   // A function, method, handler or class page is a drawing too, so the same rule holds there: the
   // box says how many findings the declaration it draws has, and the rows are listed once per
   // node below the drawing however many boxes repeat that node. The page's own rows stay where
@@ -309,6 +313,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     .sort((a,b)=>order(a[0],b[0])));
   const {tree,chains}=treeNumbering(destinations);
   drawChains(destinations,chains);
+  attachContainmentFindings(destinations.values());
   attachNodeFindings(destinations.values());
   const placed=new Set([...destinations].filter(([at])=>tree.has(at)).map(([,page])=>page));
   const unplaced=[...destinations.values()].filter(page=>!placed.has(page)).map(page=>page.path??page.file).sort(order);

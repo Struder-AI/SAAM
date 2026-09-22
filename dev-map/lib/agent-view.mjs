@@ -1,6 +1,59 @@
-// Compact encoding of the viewer's information level. --details retains the
-// original packet; this module neither scans nor changes graph relationships.
+// Compact encoding of the viewer's information level. --details is the same page with the
+// stored evidence kept beside it; this module neither scans nor changes graph relationships.
 import {presentationPage} from './presentation.mjs';
+
+// What identifies the same thing in the stored packet and in the presented page. A presented
+// component is one invocation of a stored box, so several presented items share one stored one.
+const identityOf=item=>item&&typeof item==='object'&&!Array.isArray(item)
+  ?['index','port'].map(key=>item[key]).find(value=>typeof value==='string'):undefined;
+// Fields presentation drops entries from, or aggregates: the stored list is the longer one and
+// it says everything the presented one says, so the reading keeps it.
+const stored=new Set(['requires','references']);
+// Finding rows are regrouped and relocated without losing a row, and they carry no identity of
+// their own, so the presented rows are taken whole rather than paired off against the stored.
+const presented=new Set(['uncertainty','unresolved','nodeFindings']);
+function withEvidence(evidence,shown,again=false) {
+  if(Array.isArray(shown)) {
+    if(!Array.isArray(evidence))return shown;
+    // The presented list is the stored one in place when it keeps every stored item. A shorter
+    // one is a second drawing of the same graph — an overview page collapses its ports and
+    // wires into relationships — and then both lists are kept, the drawing first.
+    const aligned=shown.length>=evidence.length;
+    const known=new Map(),used=new Set(),taken=new Set();
+    evidence.forEach((item,i)=>{const id=identityOf(item);if(id!==undefined&&!known.has(id))known.set(id,i);});
+    const paired=shown.map((item,i)=>{
+      const id=identityOf(item);
+      // Without an identity the two lists are the same list in the same order; with one that
+      // the stored packet does not carry, the presented item stands alone.
+      const at=id===undefined?(aligned?i:-1):known.get(id)??-1;
+      const repeat=id!==undefined&&taken.has(id);
+      if(id!==undefined)taken.add(id);
+      if(at<0||at>=evidence.length)return item;
+      used.add(at);
+      return withEvidence(evidence[at],item,repeat);
+    });
+    // Nothing stored is dropped: what no presented item carried is kept behind the drawing.
+    const kept=evidence.filter((item,i)=>!used.has(i));
+    return kept.length?[...paired,...kept]:paired;
+  }
+  if(!shown||typeof shown!=='object'||!evidence||typeof evidence!=='object'||Array.isArray(evidence))return shown;
+  const merged={...evidence};
+  for(const [key,value] of Object.entries(shown))
+    merged[key]=stored.has(key)&&key in evidence?evidence[key]
+      :presented.has(key)?value:withEvidence(evidence[key],value);
+  // A caller list belongs to the declaration, not to each invocation of it: it is carried once,
+  // by the first box the declaration is drawn as, and every later instance of that box counts
+  // its callers as the drawing does.
+  if(again&&merged.callerSummary&&!shown.callerReferences)delete merged.callerReferences;
+  return merged;
+}
+
+// The details read: the page as the map presents it — invocation wires, state nodes, parameter
+// targets, finding rows and counts, the boxes a leaf drew here — over the stored packet it was
+// made from, so the expressions, producer traces and byte offsets are still under it.
+export function detailedPage(page) {
+  return withEvidence(page,presentationPage(page));
+}
 export function compactPage(page, {code = false} = {}) {
   page = presentationPage(page);
   const sourceOnly = code || page.destination === 'code';

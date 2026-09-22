@@ -78,10 +78,11 @@ export async function readSkill(id, {maker = false, builder = false, developer =
 // The read never scans. --code returns source; --details retains scanner evidence.
 export async function readMaps(keys, options = {}) {
   const {readGenerated, readCode} = await import('../../dev-map/lib/store.mjs');
-  const {compactPage} = await import('../../dev-map/lib/agent-view.mjs');
+  const {compactPage, detailedPage} = await import('../../dev-map/lib/agent-view.mjs');
+  // --details is the same page the map draws, with the stored evidence kept under it.
   return Promise.all(keys.map(async key => {
     const page = await (options.code ? readCode(key) : readGenerated(key));
-    return options.details ? page : compactPage(page, options);
+    return options.details ? detailedPage(page) : compactPage(page, options);
   }));
 }
 

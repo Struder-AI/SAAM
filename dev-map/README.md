@@ -30,9 +30,9 @@ its durable path: a region (`core/path`), a declaration
 (`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`); file
 paths are not addresses. `--code` returns a declaration's source span, a group's
 member spans, or every file of a region (`0 --code` is refused); `--details` the
-full stored evidence: expressions, producer traces, byte offsets. Responses are
-otherwise compact JSON: `range` is `[first,last]` inclusive, nested locations
-inherit `file`, empty arrays omitted.
+same page with the stored evidence under it: expressions, producer traces, byte
+offsets. Responses are otherwise compact JSON: `range` is `[first,last]`
+inclusive, nested locations inherit `file`, empty arrays omitted.
 
 `regenerate` is the only command that scans. With no argument or `0` it
 refreshes everything; with an index it refreshes that region and the references
@@ -121,10 +121,10 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   member sharing it. A code read adds `source`, `sourceKind`, `sourceSha256`,
   its callees and its invocation wires.
 
-Findings follow the node: every box carries its declaration's row count as
-`findings`, a group box the count inside it; a containment map attaches the rows
-to the box, and a node page lists them once per node under `nodeFindings`, an
-`index`/`path` section each in drawing order, never the page's own rows.
+Findings follow the node: every box, inlined ones included, carries its row
+count as `findings`, a group box the count inside it; a containment map puts the
+rows on the box, a node page lists them under `nodeFindings`, an `index`/`path`
+section per node in drawing order, never its own; each row names its `file`.
 
 Couplings are `file`, `http-route`, `worker-message`, `event-listener` and
 `registry-entry`, name-keyed dispatch: each entry of a named table of functions

@@ -645,13 +645,19 @@ def lists(packet, page, pages):
         page.row("head", "declaration calls — invocation not established")
         for relation in packet["declarationReferences"]:
             page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"])
+    # A row carries the file it is about, because a section lists the rows of a node this page
+    # only draws. The drawing names that file where it is not the file the page is about.
+    own_file = packet.get("file")
+
     def unresolved_rows(rows, go=""):
         for u in rows:
-            location = (u.get("file", "") + ":" if u.get("file") else "") + str(u["line"])
+            elsewhere = u.get("file") and u.get("file") != own_file
+            location = (u["file"] + ":" if elsewhere else "") + str(u["line"])
             page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}', go)
 
     def uncertainty_rows(rows, go=""):
         for u in rows:
+            u = {k: v for k, v in u.items() if k != "file" or v != own_file}
             if u.get("kind") == "closure-capture" and u.get("bindings"):
                 target = next((index for index, meta in pages.items() if meta.get("d") == u["closure"]), "")
                 identity = target or u["closure"]

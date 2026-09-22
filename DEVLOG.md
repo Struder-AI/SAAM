@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-22 — Dev map: chain boxes carry rows, rows carry files, `--details` is a superset
+
+- The containment findings pass (`store.mjs::attachContainmentFindings`) now
+  runs after `drawChains`, so a leaf's chain boxes on region and group pages
+  carry their rows like every other box: 39 of 65 chain boxes gained 338
+  rows, 15 containment pages changed in `components` only, 43 byte-identical.
+- Every finding row is stamped with its node's file at presentation
+  (`presentation.mjs::located`); the compact read elides it where it only
+  repeats the file in scope, so a `nodeFindings` row from another file is
+  self-contained and box rows inherit the box's file. Compact reads 10.31 →
+  10.59 MB.
+- `read-map --details` returns `agent-view.mjs::detailedPage`, the presented
+  page laid over the stored packet: invocation wires, `state`,
+  `parameterTargets`, `findings`, `nodeFindings`, `inlined`/`via` plus the
+  raw `flow`, `callBindings`, expressions and producers. Nothing stored is
+  dropped; a caller list is carried by the first instance of a box only;
+  overview pages carry both the drawn and the stored wire lists. Two lines
+  in `core/agent/toolkit.mjs::readMaps`. Details reads 1.11× the store.
+- Verified on the main store: region `8` chain boxes 17, 14 with rows;
+  `validatePath --details` 11 invocation wires, 11 boxes with counts, 3
+  sections, `flow` and `callBindings` present; `initializeAgentInterface`
+  cross-file section rows all carry `file`; `check` 3553 / 1080 / 47 / 5798,
+  clean; distinct rows 12187, floating boxes 0, depth 13, every declaration
+  homed once.
+
 ## 2026-09-22 — Dev map: loop accumulators carried to the output
 
 - Queue item 5, `flow.mjs` only. A binding declared before a loop and
