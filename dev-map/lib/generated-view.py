@@ -672,15 +672,22 @@ def lists(packet, page, pages):
         uncertainty_rows(packet["uncertainty"])
     # A finding belongs to the node it is about, so every page that draws that node shows its
     # rows under that box. A group or file box is not a node and carries its count alone.
+    def section(index, name, category, rows):
+        go = index if index in pages else ""
+        page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {index} {name}', go)
+        emit[category](rows, go)
+
     for category in ("unresolved", "uncertainty"):
         for c in packet.get("components", []):
-            rows = c.get(category)
-            if not rows:
-                continue
-            name = c.get("label") or c.get("path") or c.get("file") or c["index"]
-            page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {c["index"]} {name}',
-                     c["index"] if c["index"] in pages else "")
-            emit[category](rows, c["index"] if c["index"] in pages else "")
+            if c.get(category):
+                section(c["index"], c.get("label") or c.get("path") or c.get("file") or c["index"],
+                        category, c[category])
+    # A node page draws the same declaration once per call site; its rows are listed once, in
+    # drawing order, under the node they are about.
+    for node in packet.get("nodeFindings", []):
+        for category in ("unresolved", "uncertainty"):
+            if node.get(category):
+                section(node["index"], node["path"].split("::", 1)[-1], category, node[category])
     if packet.get("analysisContext"):
         context = packet["analysisContext"]
         page.row("head", "analysis context")

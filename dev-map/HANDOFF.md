@@ -165,9 +165,10 @@ Two consequences of the tree to look at before settling:
 5. **Loop accumulation.** Accumulators in loops (`samples`, `inside`,
    `maxSlope` in `sampleTopSurface`) are marked as findings rather than
    carried to the output. Carrying them closes the last gap on small flow pages.
-6. **Finding rows on function pages.** Extend the containment-map behaviour:
-   a function page lists, once per node, the rows of every node it draws,
-   sectioned by node below the drawing, with the count on the box.
+6. **Finding rows on function pages.** Built 2026-09-22: `findings` on
+   every drawn box, `nodeFindings` sections once per node. Left: chain boxes
+   on region pages carry no rows (containment pass runs before
+   `drawChains`); rows carry no `file`; `createStudio` shows 527 rows.
 7. **Repeated invocations of one declaration.** Ruled 2026-09-21: kept.
    Every source call is its own box, assertions included.
 8. **Thoughtful root clustering.** After the tree reshape lands, the region

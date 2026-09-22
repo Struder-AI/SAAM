@@ -261,23 +261,45 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   }
   const rowCount=pages=>pages.reduce((n,p)=>n+[...(p.uncertainty??[]),...(p.unresolved??[])]
     .reduce((rows,row)=>rows+(row.count??1),0),0);
+  const nodeOf=component=>{
+    const path=component.path??(component.file&&component.label?`${component.file}::${component.label}`:null);
+    return path?packets.get(path)??null:null;
+  };
+  const heldRows=component=>rowCount(component.kind==='group'
+    ?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[])
+    :packetsByFile.get(component.file)??[]);
   for(const page of destinations.values()) {
     if(page.kind!=='region'&&!(page.kind==='group'&&page.structural))continue;
     for(const component of page.components??[]) {
-      const path=component.path??(component.file&&component.label?`${component.file}::${component.label}`:null);
-      const node=path&&packets.get(path);
+      const node=nodeOf(component);
       if(node) {
         for(const field of ['uncertainty','unresolved']) {
           if(node[field]?.length)component[field]=node[field];else delete component[field];
         }
         continue;
       }
-      const held=component.kind==='group'?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[])
-        :packetsByFile.get(component.file)??[];
-      const count=rowCount(held);
+      const count=heldRows(component);
       if(count)component.findings=count;else delete component.findings;
     }
   }
+  // A function, method, handler or class page is a drawing too, so the same rule holds there: the
+  // box says how many findings the declaration it draws has, and the rows are listed once per
+  // node below the drawing however many boxes repeat that node. The page's own rows stay where
+  // they are and are never repeated into that list. This runs after the chains are drawn, so a
+  // box a leaf brought onto the map carries its count like every other box.
+  const attachNodeFindings=pages=>{
+    for(const page of pages) {
+      if(['root','region','group'].includes(page.kind)||page.destination!=='graph')continue;
+      const sections=new Map();
+      for(const component of page.components??[]) {
+        const node=nodeOf(component),count=node?rowCount([node]):heldRows(component);
+        if(count)component.findings=count;else delete component.findings;
+        if(node&&count&&node.path!==page.path&&!sections.has(node.path))sections.set(node.path,{index:component.index,path:node.path,
+          ...Object.fromEntries(['uncertainty','unresolved'].filter(field=>node[field]?.length).map(field=>[field,node[field]]))});
+      }
+      if(sections.size)page.nodeFindings=[...sections.values()];else delete page.nodeFindings;
+    }
+  };
 
   attachOverviewAnchors(destinations,index);
 
@@ -287,6 +309,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     .sort((a,b)=>order(a[0],b[0])));
   const {tree,chains}=treeNumbering(destinations);
   drawChains(destinations,chains);
+  attachNodeFindings(destinations.values());
   const placed=new Set([...destinations].filter(([at])=>tree.has(at)).map(([,page])=>page));
   const unplaced=[...destinations.values()].filter(page=>!placed.has(page)).map(page=>page.path??page.file).sort(order);
   renumber([...placed],tree);

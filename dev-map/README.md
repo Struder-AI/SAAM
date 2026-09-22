@@ -26,13 +26,13 @@ node dev-map/cli.mjs watch-freshness [--once]
 ```
 
 `read-map` returns one stored page and never scans. Its argument is an index or
-the durable path that index is for: a region (`core/path`), a declaration
+its durable path: a region (`core/path`), a declaration
 (`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`); file
-paths are not addresses. `--code` returns the source span of a declaration, the
-member spans of a group, or every file of a region (`0 --code` is refused);
-`--details` the full stored evidence, including expressions, producer traces and
-byte offsets. Otherwise responses are compact JSON: `range` is `[first,last]`
-inclusive, nested locations inherit `file`, empty arrays are omitted.
+paths are not addresses. `--code` returns a declaration's source span, a group's
+member spans, or every file of a region (`0 --code` is refused); `--details` the
+full stored evidence: expressions, producer traces, byte offsets. Responses are
+otherwise compact JSON: `range` is `[first,last]` inclusive, nested locations
+inherit `file`, empty arrays omitted.
 
 `regenerate` is the only command that scans. With no argument or `0` it
 refreshes everything; with an index it refreshes that region and the references
@@ -60,15 +60,13 @@ on any other map, including a callee in another region, is a repeat: it keeps
 its index and carries `home`, and the home node carries `alsoOn`. Indexes are
 regenerated and may change; the declaration path is the durable name. Static
 methods are `file.mjs::Class::@static/method` (URI-encoded), instance methods
-`file.mjs::Class::method`, function-valued parameter defaults
-`OWNER::@default/NAME`, and anonymous callbacks a snapshot source-position
-identity that authoring must not reference.
+`file.mjs::Class::method`, parameter defaults `OWNER::@default/NAME`, and
+anonymous callbacks a snapshot position that authoring must not reference.
 
 An address is a map when its drawing would show at least two called declarations
 with a data wire between them; otherwise `destination` is `code` and the read
-returns source together with the callers, couplings, boxes and findings the page
-would have carried. Neither operators nor the boxes a leaf brings make a map:
-the rule reads the page's own calls.
+returns source with what the page would have carried. Neither operators nor the
+boxes a leaf brings make a map: the rule reads the page's own calls.
 
 Repeated invocations of one declaration are distinct instances, each with an
 `id` for its local wires and the shared `index`; a call inside a loop is one
@@ -88,9 +86,7 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   and the chain of any leaf among them), input and output ports including `in:`
   and `out:` for every scanned root, `wires` labelled `calls` with counts,
   contracted onto the root whose flow owns each endpoint. These are containment
-  maps: a `calls` arrow is a call site, not execution order or dataflow. Each
-  drawn declaration box carries its own `uncertainty` and `unresolved` rows, a
-  group box one `findings` count.
+  maps: a `calls` arrow is a call site, not execution order or dataflow.
 - **node** (function, method, handler, class): `path`, `file`, `range`, `inputs`
   (`parameterTargets` on a port this page calls: each callable a caller passes,
   by `index`, `path` and `from`; its box is on that caller's page), `outputs`
@@ -124,6 +120,11 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   member sharing it. A code read adds `source`, `sourceKind`, `sourceSha256`,
   its callees and its invocation wires.
 
+Findings follow the node: every box carries its declaration's row count as
+`findings`, a group box the count inside it; a containment map attaches the rows
+to the box, and a node page lists them once per node under `nodeFindings`, an
+`index`/`path` section each in drawing order, never the page's own rows.
+
 Couplings are `file`, `http-route`, `worker-message`, `event-listener` and
 `registry-entry`, name-keyed dispatch: each entry of a named table of functions
 is reached by key from the declaration that names the table, computed keys and
@@ -134,12 +135,11 @@ names) and `unresolved-local-value`.
 
 ## Staleness
 
-Every read hashes the recorded inputs: mapped and scanned source, generator
-modules, the lockfile, facts and grouping. Any change produces `stale` with the
-reason and the regeneration instruction; the viewer marks stale pages. Each
-mapped file's source is stored beside its graph, so code reads return the
-snapshot that produced the page, and a missing one reports `sourceUnavailable`
-rather than old line numbers over changed source.
+Reads hash the recorded inputs: mapped and scanned source, generator modules,
+the lockfile, facts and grouping. Any change produces `stale` with the reason
+and how to regenerate; the viewer marks stale pages. Each mapped file's source
+is stored beside its graph, so a code read returns the snapshot that produced
+the page, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 ## Authoring
 

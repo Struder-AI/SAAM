@@ -164,6 +164,9 @@ export function presentationPage(page) {
   const invocations = invocationWires(page);
   return {...page,
     ...(page.uncertainty ? {uncertainty: uncertaintyRows(page.uncertainty)} : {}),
+    // One section per node this page draws, reduced exactly as that node's own page reduces it.
+    ...(page.nodeFindings ? {nodeFindings: page.nodeFindings.map(section =>
+      section.uncertainty ? {...section, uncertainty: uncertaintyRows(section.uncertainty)} : section)} : {}),
     ...(page.components ? {components: page.components.map(component)} : {}),
     ...(page.regions ? {regions: page.regions.map(region => callerFields(region))} : {}),
     ...(page.inputs ? {inputs: page.inputs.map(port => boundary(port))} : {}),

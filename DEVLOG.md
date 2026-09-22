@@ -1,5 +1,32 @@
 # Development log
 
+## 2026-09-22 — Dev map: finding rows follow their node onto function pages
+
+- Queue item 6. On every graph page of a function, method, handler or class,
+  each drawn declaration box carries `findings`, the count of that
+  declaration's own `uncertainty` and `unresolved` rows (a group box keeps
+  its group count), and the page carries `nodeFindings`: one section per
+  distinct drawn node in drawing order, never the page's own path, after the
+  page's own rows. `store.mjs::attachNodeFindings` runs after `drawChains`
+  so inlined chain boxes are included, and before `renumber`;
+  `presentation.mjs` reduces the rows the way the node's own page does so
+  box count and rows agree; the viewer shows the count on the box and
+  clickable section heads below the drawing. Root, region and group pages
+  are byte-identical.
+- Verified on the main store: 678 node pages carry counts, 677 have
+  sections (`LuaRuntime` draws only group boxes); distinct finding rows
+  12813 unchanged, shown rows sum to 20579; `check` 3553 / 1080 / 47 / 5798,
+  clean; floating boxes 0, depth 13, every declaration homed once. Pages
+  read: `validatePath` (eight `requireThat` boxes each `findings: 2`, one
+  section), `LuaRuntime::execStatement` (46 boxes, 10 sections, 72 rows
+  once), `initializeAgentInterface` (inlined chain boxes carry counts),
+  region `7` unchanged. Size: compact reads 8.41 → 10.31 MB, viewer 32.4 →
+  40.0 MB; `createStudio` is the one page over 300 rows (527 over 73
+  nodes, compact read 222 KB), for the owner to look at.
+- Left: inlined chain boxes on region pages carry no rows because the
+  containment pass runs before `drawChains`; finding rows carry no `file`
+  of their own (the section's `path` names it).
+
 ## 2026-09-22 — Dev map: what is not a map is drawn on the map above it
 
 - Queue item 0, the owner's ruling of 2026-09-21. The homing walk
