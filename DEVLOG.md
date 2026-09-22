@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-22 — Dev map viewer: a code destination shows its whole context beside the source
+
+- `generated-view.py::code_pane` draws the compact read of a code page as
+  a panel under its source, in the map ledger's order and words: inputs
+  with their call sites, outputs with the return expression, callees as
+  clickable rows with call order and stub or literal slots, operators,
+  invocation and state wires naming both ends, gates, state nodes with
+  their owner linked, callers including active outside ones, then the
+  ledger (facts, requires, couplings, parameter targets, unresolved,
+  uncertainty, per-node sections, outside and platform counts) produced by
+  the map's own `lists()` through a `RowSink`, so headings and markers are
+  the same code. One `view/svg/<index>.ctx.js` sidecar per code page,
+  fetched like a drawing; the shell's page metadata is gone (2.2 → 0.9 MB).
+  A Context button folds the panel; stale and `sourceUnavailable` are warn
+  rows at the top.
+- `coverage.mjs::coverCode` now measures the panel item by item like a map
+  page: code destinations 3,355 of 4,590 fields reaching the shell → 12,649
+  of 12,649 items drawn, 0 pages with a gap; map pages unchanged at 83,559
+  of 89,246. `check --viewer` runs in about 7 s. Store byte-identical,
+  compact read untouched, `check` 3691 / 1084 / 47 / 5833, no dropped wires.
+  Screenshots in the session scratchpad (`code-page-before/after.png`).
+- This checkpoint is narrowed to `dev-map/`: another session is mid-edit on
+  the Denso VS068 profile (machine JSON renamed, kinematics, rules, tests)
+  in the same checkout and its work is left uncommitted for it.
+
 ## 2026-09-22 — Dev map: `check --viewer` measures what the drawing does not carry
 
 - `dev-map/coverage.mjs` (outside `lib/`, which is hashed as a generation

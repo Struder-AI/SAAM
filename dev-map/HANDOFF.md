@@ -210,11 +210,12 @@ unscanned callers (`onGeometry` in `runRepairJob`).
   were never touched by map workers and `check` reported them stale whenever
   they moved. Expect the same.
 
-11. **The viewer's code pane.** `check --viewer` (2026-09-22) shows a leaf
-   that opens as code draws only its caller lists, while its compact read
-   carries inputs, outputs, couplings, state, invocation and state wires,
-   findings, gates and facts. The human standing on a leaf sees less than
-   the agent does. Draw the code read's context beside the source.
+11. **The viewer's code pane.** Built 2026-09-22: a code destination's
+   panel draws its whole compact read beside the source; `check --viewer`
+   measures it item by item (12,649 of 12,649). Left on map pages: per-site
+   `calls` evidence the drawing states only as stubs (4,488 items), and the
+   containment descriptors (`boundary`, `composition`, `structural`,
+   `relationshipSummary`).
 12. **Expression operators.** The 5600 value-origin rows (`argument-origin`,
    `return-origin`, `branch-result`, `branch-data-join`, `iteration-source`,
    `iteration-input`, `collection-input`) are expressions the tracer does

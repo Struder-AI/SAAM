@@ -184,10 +184,10 @@ opt-in because it reads a view `build` drew; an address scopes it;
 
 ## The viewer
 
-`view/index.html` draws the stored pages in place, following a declaration
-across renumbering; its index lists map pages only. Code boxes have their own
-colour, calls leaving it are red headless arrows, repeats link `home`. Below 50%
-a box is its name alone; a minimap says where you are; hover lights a box, its
-wires and far ends and dims the rest; `x` pins, `]` `[` walk the ends, `\`
-returns, Escape closes pane/focus, Back walks maps; a wire too long to see whole
-is two ends that name and open each other; `generated-map` serves 8765.
+`view/index.html` draws the stored pages in place, following declarations across
+renumbering; its index lists map pages only. A code destination opens its source
+beside a panel of what its compact read carries — ports, callees, state, wires,
+callers, ledger — in the map's sections, each row marked for `check --viewer` and
+opening what it names. Code boxes have their own colour, calls out are red
+headless arrows, repeats link `home`; below 50% a box is its name alone, hover
+lights and dims, the minimap and hint bar orient you; `generated-map` serves 8765.
