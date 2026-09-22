@@ -1,5 +1,61 @@
 # Development log
 
+## 2026-09-22 — Dev map: an invocation wire carries its call site's condition
+
+- A `call-site` invocation wire carries `gate` (an index into the page's
+  `gates`) when every site of its box stands under one condition, or
+  `siteGates: [{order, gate}]` when they differ (`invocation.mjs`); the
+  compact read keeps a `gates` table a wire references (`agent-view.mjs`).
+  2357 of 6031 wires carry a gate on 569 pages. The drawing prints the
+  caption on the wire only where the target box does not already state
+  it: `presentation.mjs` splits a multi-site box into one instance per
+  site and each instance box already carries its caption, so today 0
+  wires draw one and the graph SVG is byte-identical; the code panel
+  carries `data-gate` and the caption on the wire row, since it has no
+  box. `coverage.mjs` accepts either surface for `wires.gate`.
+- Found on the way: the only call gates no surface shows are two guarded
+  calls on `dobot-lua-subset.mjs::parse` whose callees are contracted into
+  the authored `@group/cursor` box, which by rule gets no call wire; the
+  caption is drawn on the instance boxes inside that group's page. Left
+  as is: an authored cluster is not a call box.
+- `check --viewer` 85,848 of 85,848 map items and 12,842 of 12,842 code
+  items, 0 gaps; `check` 3689 / 1084 / 47 / 5837 (moved earlier with the
+  concurrent Denso edits); store byte-identical apart from generator
+  hashes; no dropped wires.
+
+## 2026-09-22 — Correct DENSO target to VS-068A4; preserve USB evidence
+
+- User corrected the robot model to VS-068A4. Replaced the mistaken experimental
+  VP-6242 profile with denso-vs068a4-rc8 revision 3, including registry, setup
+  checks, interpreter identity, examples, Studio labels and documentation.
+  Saved jobs are not silently migrated or reapproved. Robot labels now use the
+  supplied machine snapshot.
+- Updated nominal FK/IK geometry to VS-068 centerlines (395 mm shoulder height,
+  30 mm shoulder offset, 340 mm links, 20 mm elbow offset, 80 mm flange), including
+  presentation reach bounds and the rotating shoulder offset. Supplied WINCAPS
+  model pivots corroborate the dimensions. No encoder/FIG mapping, installed tool
+  or rotary calibration was inferred.
+- Inspected the supplied STRUDER11 project: VS068A4/RC8 metadata, a small WPJ
+  descriptor, companion databases and source/attribute files. User reports
+  STRUDER1_1 and STRUDER1_2 load on the controller; no physical motion or printing
+  result was inferred. Additional supplied arc/spiral sources remain unverified.
+- Copied all 66 files and 12 directories to an ignored local snapshot, including
+  both demonstrated programs. Source-before/copy/source-after SHA-256 inventories
+  matched. This task made no USB writes. Rechecked the local snapshot hashes at
+  completion; new demo files are separate.
+- Recorded the [native-project/USB assessment](core/export/denso-usb-assessment.md):
+  recommend template-based, program-only delivery before a complete project writer.
+  Current SAAM output remains its experimental source ZIP. Prepared a separate
+  local STRUDER_LINE1 P1/P2 Move L candidate and operator notes, without compiling,
+  transferring or running it. It tests controller interpolation, not generated
+  intermediate points or extrusion.
+- Validation: 25 tests in denso.test.mjs and mcp.test.mjs passed; the targeted
+  public-CLI unresolved-robot-setup check passed. On-demand geometry checks matched
+  WINCAPS joint/flange reference positions and rotated shoulder offset; four seeded
+  FK/IK and presentation cases passed (maximum TCP residual 0.0000084 mm).
+  Studio snapshot labels checked. Full development map regenerated, no stale pages
+  or fact errors. These are software/model checks, not hardware commissioning.
+
 ## 2026-09-22 — Dev map: the compact read carries nothing the drawing does not
 
 - `compactPage` no longer carries per-call-site `calls` and the

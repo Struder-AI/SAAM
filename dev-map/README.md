@@ -99,15 +99,15 @@ moved, `facts` when a fact row names it, `home`/`alsoOn` on components as above.
   `positionUnknown` after a spread; one `invocation` wire per box, so none
   floats: `from`, the function itself (`"self"`) or the leaf whose chain drew
   it, the call's `order`, `provenance` (`call-site`, `declaration`/`reference`
-  for a box held or named, not called, `operation` for a `keptFor` operator) and
+  for a box held or named, not called, `operation` for a `keptFor` operator),
+  the `gate` its sites stand under, or `siteGates` where they differ, and
   `stubs`, the slots with no data wire, each a `slot` and either a `literal`,
   the constant written there, cut past 40 characters (a number or boolean as
   itself), or a `reason`, a gap `argument-origin` carries; the rule counts data
-  wires but not a `keptFor` operator's), `gates` (each enclosing condition an
-  item here names; the call sites behind an invocation wire are `--details`),
-  `requires`, `couplings`, `callerReferences` (mapped callers by index; active
-  outside callers by path with `unmapped: true`; `callerSummary` with a count
-  and canonical index above five), `outsideCallers` (counts per inactive
+  wires, not a `keptFor` operator's), `gates` (each condition an item names, by
+  number), `requires`, `couplings`, `callerReferences` (mapped callers by index;
+  active outside callers by path with `unmapped: true`; `callerSummary` with a
+  count and canonical index above five), `outsideCallers` (counts per inactive
   directory), `outside` and `platform` (call sites without a mapped target),
   `unresolved` (rows with a `rule`, and `candidates` where callers supply known
   callables), `uncertainty` (rows with a `kind`; repeated `closure-capture` rows

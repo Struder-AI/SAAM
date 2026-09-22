@@ -1,6 +1,7 @@
 // The invocation edge. A call box stands for a call the function makes, so it is attached to
 // the function that makes it: one `invocation` wire per box, in call order, carrying the
-// argument slots no data wire reaches as stubs: a constant carries its value, a gap its reason.
+// condition the call site stands under and the argument slots no data wire reaches as stubs: a
+// constant carries its value, a gap its reason.
 // A data wire says a value moves from one port to another; an invocation wire says this
 // function invokes this box as its Nth call, and carries no value the rule can count. It is
 // derived from the call site, never authored, and it is no part of the map-or-code rule:
@@ -130,9 +131,18 @@ export function invocationWires(page) {
       if(slots.has(slot)||stubs.has(slot))continue;
       stubs.set(slot,stubOf(slot,argument,names));
     }
+    // Every enclosing condition of a call is part of the context the call site stands in, and a
+    // condition that guards nothing but calls is written nowhere else on the page. The wire the
+    // box collapses its sites into carries it: `gate` where every site stands under the same
+    // one, `siteGates` — the call's own number and its gate — where they differ or only some of
+    // the sites are guarded. Both are numbers into the page's own `gates`.
+    const guards=calls.map(call=>({order:order.get(call),gate:call.gate}))
+      .filter(site=>site.gate!==undefined&&site.gate!==null).sort((a,b)=>a.order-b.order);
+    const same=guards.length===calls.length&&new Set(guards.map(site=>site.gate)).size===1;
     called.push({kind:'invocation',from:'self',to:box,provenance:'call-site',
       order:Math.min(...calls.map(call=>order.get(call))),
       ...(calls.length>1?{sites:calls.length}:{}),
+      ...(guards.length?same?{gate:guards[0].gate}:{siteGates:guards}:{}),
       ...(stubs.size?{stubs:[...stubs.values()]}:{})});
   }
   // A chain wire reads after the call it hangs from, however deep the chain runs.

@@ -478,7 +478,19 @@ def stub_note(rows):
     return "\n".join(lines)
 
 
-def invocation_label(w):
+def gate_runs(w, caption):
+    """The conditions the call sites behind one wire stand under, each said once, with the call
+    numbers that share it. A wire whose sites all stand under the same condition carries it
+    whole; one whose sites differ carries them per site, and they are gathered back here."""
+    runs = {}
+    for site in w.get("siteGates", []):
+        text = caption(site["gate"])
+        if text:
+            runs.setdefault(text, []).append(site["order"])
+    return [(text, orders) for text, orders in runs.items()]
+
+
+def invocation_label(w, caption=None):
     if w.get("provenance") == "declaration":
         return "declares"
     if w.get("provenance") == "reference":
@@ -486,10 +498,25 @@ def invocation_label(w):
     # An operation this body performs whose result nothing here takes: no call number to state.
     if w.get("provenance") == "operation":
         return "performs"
-    return f'call {w["order"]}' + (f' ×{w["sites"]}' if w.get("sites") else "")
+    head = f'call {w["order"]}' + (f' ×{w["sites"]}' if w.get("sites") else "")
+    if caption is None:
+        return head
+    # A call reached only under a test says so on its own wire, in the wording every other
+    # drawing of that condition uses — unless the box it arrives at already states it, and then
+    # the caller passes no caption for it. Conditions wrap onto further lines, four of them, so
+    # a wire states the guards a reader can act on rather than the whole table.
+    if w.get("gate") is not None:
+        text = caption(w["gate"])
+        return f'{head} [{text}]' if text else head
+    runs = gate_runs(w, caption)
+    lines = [head] + [f'call {", ".join(str(o) for o in orders)} [{text}]'
+                      for text, orders in runs[:4]]
+    if len(runs) > 4:
+        lines.append(f'+{len(runs) - 4}')
+    return "\n".join(lines)
 
 
-def invocation_edge(page, w, drawn, dropped):
+def invocation_edge(page, w, drawn, dropped, caption=None):
     """The call, drawn from whatever makes it: the page's own function, or a leaf it homes."""
     source = w["from"]
     if w["to"] not in drawn or (source != "self" and source not in drawn):
@@ -499,7 +526,7 @@ def invocation_edge(page, w, drawn, dropped):
     # still states the call without ordering the drawing, which is what `rank=False` says.
     if w.get("order") is not None:
         page.index[w["to"]].seq = w["order"]
-    page.e(source, w["to"], invocation_label(w), "invocation", rank=False)
+    page.e(source, w["to"], invocation_label(w, caption), "invocation", rank=False)
 
 
 def gate_caption(gates, number):
@@ -525,6 +552,15 @@ def node_page(packet, page, unit, port, drawn, dropped):
     gates = packet["gates"]
     def gate_name(number):
         return gate_caption(gates, number)
+    def safe_gate_name(number):
+        return gate_caption(gates, number) if number is not None and number < len(gates) else ""
+    # A condition is said once where it is read. The box a call arrives at states its own gate,
+    # so the wire into it stays quiet and says the condition only where the box does not: a box
+    # with no gate of its own, or one whose collapsed sites stand under conditions it cannot
+    # state as a single one.
+    def wire_caption(w):
+        stated = box_gates.get(w["to"], "")
+        return lambda number: "" if safe_gate_name(number) == stated else safe_gate_name(number)
     for p in packet["inputs"]:
         node = port(p["port"], p["name"], go=p.get("index") or "")
         port_context(node, p, page.context_pages)
@@ -545,6 +581,8 @@ def node_page(packet, page, unit, port, drawn, dropped):
         me.go = ""
         # The body is where the order starts, so it stands left of everything it calls.
         me.seq = 0
+    box_gates = {c.get("id", c["index"]): gate_name(c["gate"])
+                 for c in packet["components"] if c.get("gate") is not None}
     for c in packet["components"]:
         if c.get("kind") == "group":
             unit(c["index"], c["label"], f'{c["count"]} declarations · authored grouping',
@@ -683,7 +721,7 @@ def node_page(packet, page, unit, port, drawn, dropped):
     # Last, so a box is placed by the values that reach it and not by the call that makes it:
     # the invocation edge states the call, it does not order the drawing.
     for w in invocations:
-        invocation_edge(page, w, drawn, dropped)
+        invocation_edge(page, w, drawn, dropped, wire_caption(w))
 
 
 def value_text(value):
@@ -1025,7 +1063,12 @@ def code_pane(packet, pages):
     for w in drawn:
         name = {w["from"]: body} if w["from"] == "self" else {}
         name[w["to"]] = body if w["to"] == "self" else w["to"]
-        note = " · ".join(x for x in [w.get("label", ""), w.get("access", ""), w.get("provenance", ""),
+        # The condition the call site stands under. The read carries the number, so the row
+        # carries it too, and the caption beside it is the one the map draws on the wire.
+        numbers = [w["gate"]] if w.get("gate") is not None else [
+            site["gate"] for site in w.get("siteGates", [])]
+        guards = " · ".join(x for x in dict.fromkeys(caption(n) for n in numbers) if x)
+        note = " · ".join(x for x in [guards, w.get("label", ""), w.get("access", ""), w.get("provenance", ""),
                                       w.get("stub", ""),
                                       stubs_said(w["stubs"]) if w.get("stubs") else "",
                                       " ".join(x for x in [w.get("fromPort", ""), "→" if w.get("toPort") else "",
@@ -1034,7 +1077,8 @@ def code_pane(packet, pages):
         rows.append(row("fm-wire", [(f'{name.get(w["from"], w["from"])} → ', w["from"]),
                                     (name.get(w["to"], w["to"]), w["to"]),
                                     (f'  · {label}', ""), (f'  · {note}' if note else "", "")],
-                        ends=(w["from"], w["to"]), note=note))
+                        ends=(w["from"], w["to"]), note=note,
+                        gate=",".join(str(n) for n in numbers) if numbers else None))
     section(f'wires ({len(drawn)}) — invocation and state', rows, "wires")
 
     rows = [row("fm-row", [(f'g{i + 1} · {gate_caption(gates, i)}', ""),

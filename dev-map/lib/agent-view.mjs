@@ -123,12 +123,15 @@ export function compactPage(page, {code = false} = {}) {
     packet[inventory] = (page[inventory] ?? []).map(item => ({...children.get(item.index), ...item}));
     packet.children = (page.children ?? []).filter(child => !packet[inventory].some(item => item.index === child.index));
   }
-  // A gate is a lookup table: every other field points at one by number. Where the only items
-  // that pointed at it were the call sites this read no longer carries, the entry is left
-  // dangling, so a table nothing on the page indexes is dropped whole. Numbering is never
-  // rewritten — a surviving reference means the whole table stays.
+  // A gate is a lookup table: every other field points at one by number. An invocation wire
+  // points at the gate of the call site it stands for — whole, or one per site where the sites
+  // differ — so a table the calls reach is a table this read still indexes. Only one nothing on
+  // the page indexes at all is dropped whole. Numbering is never rewritten — a surviving
+  // reference means the whole table stays.
+  const indexed = item => item.gate !== undefined && item.gate !== null
+    || (item.siteGates ?? []).some(site => site.gate !== undefined && site.gate !== null);
   if (packet.gates?.length && !['components', 'operators', 'wires', 'inputs', 'outputs', 'ports']
-    .some(field => (packet[field] ?? []).some(item => item.gate !== undefined && item.gate !== null)))
+    .some(field => (packet[field] ?? []).some(indexed)))
     delete packet.gates;
   return clean(packet, undefined, true);
 }
