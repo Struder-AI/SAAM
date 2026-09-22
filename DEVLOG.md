@@ -1,5 +1,32 @@
 # Development log
 
+## 2026-09-22 — Dev map: `check --viewer` measures what the drawing does not carry
+
+- `dev-map/coverage.mjs` (outside `lib/`, which is hashed as a generation
+  input) computes the compact read of every page, enumerates its items and
+  asks the built drawing for each: a box by `data-id`, a wire by both
+  endpoints after the drawing's own rewrites, a ledger row by a new
+  `data-row="field#ordinal"` marker, a note by its text. `node dev-map/cli.mjs
+  check --viewer [ADDRESS…]` reports the gaps by field and page; opt-in
+  because it needs `build`'s 46 MB of output, which plain `check` must not
+  require. Runs in about 12 s on the whole store.
+- Drawing gaps closed on the way: operator gate captions (516 items on 178
+  pages), `keptFor` (342), 18 gates referenced only by operators, and three
+  pages whose empty caller list hid `calledFrom`. Map-page coverage 92.6 %
+  → 93.6 % of 89,245 items. Remaining on map pages, all design questions:
+  per-site `calls` evidence (4,488 items: argument counts and flags the
+  compact read carries but the drawing states only as stubs), `boundary`,
+  `composition`, `structural` and `relationshipSummary` descriptors on
+  containment pages, `stateFields` on four group pages, three gates nothing
+  references.
+- The largest divergence is the code destination: the viewer's code pane
+  renders only the caller lists, while the compact read of the same page
+  carries inputs, outputs, couplings, findings, state, invocation and state
+  wires, gates and facts (73 % of 4,590 items reach the shell, and the pane
+  shows a fraction of those). Queued as the next viewer task.
+- `check` 3691 / 1084 / 47 / 5833, clean; the JSON agents read is
+  byte-identical; `build` and `regenerate` exit 0 with no dropped wires.
+
 ## 2026-09-22 — Dev map: finding rows keep their operator drawn; nested record members
 
 - Every finding row that names an operator (`iteration-control`,

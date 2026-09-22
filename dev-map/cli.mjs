@@ -63,7 +63,8 @@ if(command==='build') {
   process.exit(0);
 }
 
-const {values:options}=parseArgs({args,options:{json:{type:'boolean'}}});
+const {values:options,positionals:only}=parseArgs({args,allowPositionals:true,
+  options:{json:{type:'boolean'},viewer:{type:'boolean'}}});
 const {storeStatus}=await import('./lib/store.mjs');
 const {regenerate}=await import('./lib/generated-view.mjs');
 const status=await storeStatus({repo:root});
@@ -73,6 +74,14 @@ const result={store:status.dir,generated:status.generated??null,missing:status.m
   orphanFacts:status.orphanFacts,factErrors:status.facts.errors};
 const failed=status.missing||!!status.stale||status.facts.errors.length>0||(status.unplaced?.length??0)>0;
 
+// The owner reads the drawing and an agent reads the compact page, and the intent is that they
+// say the same thing. This asks the built drawing, item by item, whether it carried what the
+// read presents. It is opt-in: it needs a view `build` has drawn, which `check` otherwise never
+// touches, and it reads every sidecar drawing in it.
+if(options.viewer&&!status.missing) {
+  const {viewerCoverage}=await import('./coverage.mjs');
+  result.viewer=await viewerCoverage({repo:root,only});
+}
 if(options.json)console.log(JSON.stringify(result,null,1));
 else if(status.missing)console.log(`No stored map at ${status.dir}. Run: ${regenerate}`);
 else {
@@ -94,6 +103,17 @@ else {
   if(status.facts.errors.length) {
     console.log(`Malformed facts: ${status.facts.errors.length}`);
     for(const error of status.facts.errors)console.log(`  dev-map/facts.tsv:${error.line}: ${error.reason}\n    ${error.row}`);
+  }
+  if(result.viewer?.undrawnView)console.log(`No drawing at ${result.viewer.undrawnView}. Run: node dev-map/cli.mjs build`);
+  else if(result.viewer) {
+    const {graph,code,drawing,shell,undrawn}=result.viewer;
+    console.log(`Viewer coverage: ${graph.drawn}/${graph.presented} presented items drawn on ${drawing.length?graph.pages:0} of the map pages with a gap; ${code.drawn}/${code.presented} carried beside the source of ${code.pages} code destinations.`);
+    for(const [where,table] of [['drawing',drawing],['code destination',shell]]) {
+      const short=table.filter(row=>row.drawn<row.presented);
+      console.log(`Not on the ${where}: ${short.length}`);
+      for(const row of short)console.log(`  ${row.field}\t${row.presented-row.drawn} of ${row.presented}\t${row.gapPages} pages\t${row.examples.join(' ')}`);
+    }
+    if(undrawn.length)console.log(`No drawing built for ${undrawn.length} map pages: ${undrawn.slice(0,5).join(' ')}. Run: node dev-map/cli.mjs build`);
   }
 }
 if(failed)process.exit(1);

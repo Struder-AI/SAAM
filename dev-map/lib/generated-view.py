@@ -55,12 +55,14 @@ class MapPage(Page):
     def __init__(self, stale, **kw):
         super().__init__(**kw)
         self.stale = stale
-        self.lists = []                 # (style, text, index-to-open)
+        self.lists = []                 # (style, text, index-to-open, presented-item marker)
         self.list_cols, self.list_x = [], []
         self.caller_refs = []
 
-    def row(self, style, text, go=""):
-        self.lists.append((style, clip(text), go))
+    def row(self, style, text, go="", mark=""):
+        """One ledger row. `mark` names the presented item this row is drawn for, so a check
+        can ask the drawing which of them it carried instead of matching its prose."""
+        self.lists.append((style, clip(text), go, mark))
 
     def layout(self):
         super().layout()
@@ -82,7 +84,7 @@ class MapPage(Page):
             # is then fitted alongside, so the map above it shrinks to nothing; in columns
             # the block is about as wide as the map and about as tall.
             rows = len(self.lists)
-            mean = sum(tw(t, FS_NOTE) for _s, t, _g in self.lists) / rows + LIST_GAP
+            mean = sum(tw(t, FS_NOTE) for _s, t, _g, _m in self.lists) / rows + LIST_GAP
             # However many columns leave the whole page -- map and ledger together -- closest
             # to the shape a map is read in. One column while the ledger is short, because a
             # short list reads as a list; more as it grows past the drawing it belongs to.
@@ -101,7 +103,7 @@ class MapPage(Page):
             x = MARGIN_L
             for col in self.list_cols:
                 self.list_x.append(x)
-                x += max(tw(t, FS_NOTE) for _s, t, _g in col) + LIST_GAP
+                x += max(tw(t, FS_NOTE) for _s, t, _g, _m in col) + LIST_GAP
             self.W = max(self.W, x + MARGIN_L)
         if self.stale:
             self.W = max(self.W, 2 * MARGIN_L + tw(self.stale_text(), 11.5))
@@ -132,7 +134,7 @@ class MapPage(Page):
                 continue
             head, rows, step = section[0], section[1:], max(1, want - 1)
             for k in range(0, len(rows), step):
-                pieces.append([(head[0], head[1] + (" (cont.)" if k else ""), head[2])]
+                pieces.append([(head[0], head[1] + (" (cont.)" if k else ""), head[2], head[3])]
                               + rows[k:k + step])
         cols, col = [], []
         for section in pieces:
@@ -157,10 +159,11 @@ class MapPage(Page):
                      f'stroke="#cbd5e1" stroke-width="1"/>')
         for left, col in zip(self.list_x, self.list_cols):
             y = top
-            for style, text, go in col:
+            for style, text, go, mark in col:
                 x = left + (0 if style == "head" else 14)
+                carries = f' data-row="{escape(mark, QUOTE)}"' if mark else ""
                 if go:
-                    o.append(f'<g class="fm-go" data-go="{escape(go, QUOTE)}">'
+                    o.append(f'<g class="fm-go" data-go="{escape(go, QUOTE)}"{carries}>'
                              f'<rect x="{x - 4:.1f}" y="{y - 10:.1f}" width="{tw(text, FS_NOTE) + 9:.1f}" '
                              f'height="{ROW:.1f}" rx="3" fill="#0ea5e9" fill-opacity="0.004"/>'
                              f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="#0369a1">'
@@ -169,7 +172,7 @@ class MapPage(Page):
                     fill = {"head": "#0f172a", "warn": "#9f1239"}.get(style, "#475569")
                     weight = ' font-weight="700"' if style == "head" else ""
                     o.append(f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="{fill}"'
-                             f'{weight}>{escape(text)}</text>')
+                             f'{weight}{carries}>{escape(text)}</text>')
                 y += ROW
         if self.caller_refs:
             x, y = MARGIN_L + 5, self.caller_y
@@ -185,7 +188,8 @@ class MapPage(Page):
                         tx += tw(" · ", FS_NOTE)
                     if target:
                         o.append(f'<g class="fm-go fm-caller-reference" data-go="{escape(target, QUOTE)}"><rect x="{tx - 2}" y="{ty - 10}" width="{tw(label, FS_NOTE) + 4}" height="13" fill="#0369a1" fill-opacity="0.004"/>')
-                    o.append(f'<text x="{tx}" y="{ty}" font-size="{FS_NOTE}" fill="#0369a1">{escape(label)}</text>')
+                    o.append(f'<text x="{tx}" y="{ty}" font-size="{FS_NOTE}" fill="#0369a1" '
+                             f'data-row="callerReferences#{escape(label, QUOTE)}">{escape(label)}</text>')
                     if target:
                         o.append('</g>')
                     tx += tw(label, FS_NOTE)
@@ -343,7 +347,9 @@ def build_page(packet, ctx):
             label = row.get("index") or row.get("path") or row.get("file") or "external"
             found[label] = row.get("index") if row.get("index") in pages else ""
         return list(found.items())
-    page.caller_refs = references(packet.get("callerReferences", packet.get("calledFrom", [])))
+    # Mapped callers when there are any, the observed call sites otherwise: an empty caller list
+    # is not an answer, and the read falls back the same way.
+    page.caller_refs = references(packet.get("callerReferences") or packet.get("calledFrom", []))
 
     def unit(index, label, note, foot, style, ref=None, path=None, target=None):
         address = target or index
@@ -577,16 +583,28 @@ def node_page(packet, page, unit, port, drawn, dropped):
                     {"iteration": "loop", "choice": "choose", "invocation": "call"}.get(op["kind"], op["kind"]))
         title = identity + " · " + operation if identity else operation
         uncertainty_label = "argument origin unknown" if op.get("scope") == "outside" and op.get("argumentUnknown") and not op.get("targetUnknown") else "unresolved"
-        note = " · ".join(text for condition, text in ((unresolved, uncertainty_label), (op.get("possibleTarget"), "possible target")) if condition)
+        # An operation reached only under a test says so, on its first line and opening the
+        # condition's own source, exactly as a call box does.
+        note = [gate_name(op["gate"])] if op.get("gate") is not None else []
+        # An operator no call takes the result of is on the page because a finding names it.
+        flags = " · ".join(text for condition, text in ((unresolved, uncertainty_label),
+                           (op.get("possibleTarget"), "possible target"),
+                           (op.get("keptFor"), f'kept for {op.get("keptFor")}')) if condition)
+        if flags:
+            note.append(flags)
         # An operator kept because a finding names it carries the inputs it could not source as
         # stub rows, the way a call box carries its untraced argument slots.
         rows = stubs.get(op["id"], [])
         if rows:
-            note = (note + "\n" if note else "") + stub_note(rows)
-        unit(op["id"], title, note,
+            note.append(stub_note(rows))
+        node = unit(op["id"], title, "\n".join(note),
              f'{op["file"]}:{op["line"]}-{op["endLine"]}',
              "outside" if op.get("scope") == "outside" else {"choice": "choice", "invocation": "invocation"}.get(op["kind"], "state"),
              ref=f'{op["file"]}:{op["line"]}-{op["endLine"]}')
+        if op.get("gate") is not None:
+            gate = gates[op["gate"]]
+            if gate.get("file") and gate.get("line"):
+                node.gate_ref = f'{gate["file"]}:{gate["line"]}-{gate.get("endLine", gate["line"])}'
     for p in packet.get("ports", []):
         port(p["index"], p["label"], go=p["index"])
     for p in packet["outputs"]:
@@ -667,113 +685,123 @@ def lists(packet, page, pages):
     """What the stored packet holds beside its boxes and wires, printed as data."""
     # The one authored thing on any page: a row of dev-map/facts.tsv about this declaration or file.
     if packet.get("facts"):
-        page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv')
-        for f in packet["facts"]:
+        page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv', "", "facts")
+        for i, f in enumerate(packet["facts"]):
             # A file's row carried by the region it is part of names that file.
             about = f'{f["file"]}  ' if f.get("file") else ""
-            page.row("item", f'{about}{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]')
+            page.row("item", f'{about}{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]', "", f'facts#{i}')
     if packet.get("requires"):
-        page.row("head", f'requires ({len(packet["requires"])})')
-        for item in packet["requires"]:
+        page.row("head", f'requires ({len(packet["requires"])})', "", "requires")
+        for i, item in enumerate(packet["requires"]):
             text = f'{item["line"]}: {item["text"]}'
             if item.get("message"):
                 text += "  |  " + item["message"]
-            page.row("item", text + f'  → {item["index"]} {item["by"]}', item.get("index", ""))
+            page.row("item", text + f'  → {item["index"]} {item["by"]}', item.get("index", ""), f'requires#{i}')
     if packet.get("formulas"):
-        page.row("head", f'formulas ({len(packet["formulas"])})')
-        for f in packet["formulas"]:
+        page.row("head", f'formulas ({len(packet["formulas"])})', "", "formulas")
+        for i, f in enumerate(packet["formulas"]):
             page.row("item", f'{f["index"]} {f["label"]}  {f["file"]}  lines '
-                             + ", ".join(str(n) for n in f["lines"]), f["index"])
+                             + ", ".join(str(n) for n in f["lines"]), f["index"], f'formulas#{i}')
     if packet.get("couplings"):
-        page.row("head", f'couplings ({len(packet["couplings"])})')
-        for c in packet["couplings"]:
+        page.row("head", f'couplings ({len(packet["couplings"])})', "", "couplings")
+        for i, c in enumerate(packet["couplings"]):
             end = c.get("index") or c.get("path") or c.get("file") or ""
             page.row("item", f'{c["kind"]} {c["direction"]} {c.get("label", "")}  → {end}'
                              + (f'  {c["path"]}' if c.get("index") and c.get("path") else ""),
-                     c["index"] if c.get("index") in pages else "")
+                     c["index"] if c.get("index") in pages else "", f'couplings#{i}')
     # A callable a caller passes into a parameter this page invokes. Its box is on the caller's
     # page, where it is written and wired into the argument slot; here it is one row, so a page
     # that only invokes its callback stays code rather than a wall of other people's lambdas.
     targets = [(port, row) for port in packet.get("inputs", []) for row in port.get("parameterTargets", [])]
     if targets:
-        page.row("head", f'parameter targets ({len(targets)}) — passed in by callers, drawn on the caller page')
-        for port, row in targets:
+        page.row("head", f'parameter targets ({len(targets)}) — passed in by callers, drawn on the caller page',
+                 "", "parameterTargets")
+        for i, (port, row) in enumerate(targets):
             supplier = row.get("from") or row.get("fromPath") or row.get("fromFile") or "caller"
             page.row("item", f'{port["port"]} {port["name"]}  →  {row["index"]} {row["path"]}'
                              + f'  · from {supplier}' + ("  · possible target" if row.get("possible") else ""),
-                     row["index"] if row["index"] in pages else "")
+                     row["index"] if row["index"] in pages else "", f'parameterTargets#{i}')
     if packet.get("declarationReferences"):
-        page.row("head", "declaration calls — invocation not established")
-        for relation in packet["declarationReferences"]:
-            page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"])
+        page.row("head", "declaration calls — invocation not established", "", "declarationReferences")
+        for i, relation in enumerate(packet["declarationReferences"]):
+            page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"],
+                     f'declarationReferences#{i}')
     # A row carries the file it is about, because a section lists the rows of a node this page
     # only draws. The drawing names that file where it is not the file the page is about.
     own_file = packet.get("file")
 
-    def unresolved_rows(rows, go=""):
-        for u in rows:
+    def unresolved_rows(rows, go="", mark=""):
+        for i, u in enumerate(rows):
             elsewhere = u.get("file") and u.get("file") != own_file
             location = (u["file"] + ":" if elsewhere else "") + str(u["line"])
-            page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}', go)
+            page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}', go, f'{mark}#{i}' if mark else "")
 
-    def uncertainty_rows(rows, go=""):
-        for u in rows:
+    def uncertainty_rows(rows, go="", mark=""):
+        for i, u in enumerate(rows):
+            item = f'{mark}#{i}' if mark else ""
             u = {k: v for k, v in u.items() if k != "file" or v != own_file}
             if u.get("kind") == "closure-capture" and u.get("bindings"):
                 target = next((index for index, meta in pages.items() if meta.get("d") == u["closure"]), "")
                 identity = target or u["closure"]
                 limits = ", ".join(k for k, v in u.items() if k.endswith("Unknown") and v)
-                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}', target or go)
+                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}',
+                         target or go, item)
                 for access, bindings in u["bindings"].items():
                     for line in textwrap.wrap(f'{access}: ' + ", ".join(bindings), width=120):
-                        page.row("warn", line, target or go)
+                        page.row("warn", line, target or go, item)
             else:
-                page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()), go)
+                page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()), go, item)
 
     emit = {"unresolved": unresolved_rows, "uncertainty": uncertainty_rows}
     if packet.get("unresolved"):
-        page.row("head", f'unresolved ({len(packet["unresolved"])})')
-        unresolved_rows(packet["unresolved"])
+        page.row("head", f'unresolved ({len(packet["unresolved"])})', "", "unresolved")
+        unresolved_rows(packet["unresolved"], mark="unresolved")
     if packet.get("uncertainty"):
-        page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})')
-        uncertainty_rows(packet["uncertainty"])
+        page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})',
+                 "", "uncertainty")
+        uncertainty_rows(packet["uncertainty"], mark="uncertainty")
     # A finding belongs to the node it is about, so every page that draws that node shows its
     # rows under that box. A group or file box is not a node and carries its count alone.
-    def section(index, name, category, rows):
+    def section(index, name, category, rows, mark):
         go = index if index in pages else ""
-        page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {index} {name}', go)
-        emit[category](rows, go)
+        page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {index} {name}', go, mark)
+        emit[category](rows, go, mark)
 
     for category in ("unresolved", "uncertainty"):
         for c in packet.get("components", []):
             if c.get(category):
                 section(c["index"], c.get("label") or c.get("path") or c.get("file") or c["index"],
-                        category, c[category])
+                        category, c[category], f'components#{c["index"]}#{category}')
     # A node page draws the same declaration once per call site; its rows are listed once, in
     # drawing order, under the node they are about.
     for node in packet.get("nodeFindings", []):
         for category in ("unresolved", "uncertainty"):
             if node.get(category):
-                section(node["index"], node["path"].split("::", 1)[-1], category, node[category])
+                section(node["index"], node["path"].split("::", 1)[-1], category, node[category],
+                        f'nodeFindings#{node["index"]}#{category}')
     if packet.get("analysisContext"):
         context = packet["analysisContext"]
-        page.row("head", "analysis context")
+        page.row("head", "analysis context", "", "analysisContext")
         page.row("item", f'{context["index"]} {context["path"]}  uncertainty: {context["uncertainty"]}  '
-                         f'unresolved: {context["unresolved"]}', context["index"])
+                         f'unresolved: {context["unresolved"]}', context["index"], "analysisContext#0")
     if packet.get("consumedBy"):
-        page.row("head", f'consumedBy ({len(packet["consumedBy"])})')
-        for c in packet["consumedBy"]:
-            page.row("item", "  ".join(f'{k}: {v}' for k, v in c.items()), c.get("index") or "")
+        page.row("head", f'consumedBy ({len(packet["consumedBy"])})', "", "consumedBy")
+        for i, c in enumerate(packet["consumedBy"]):
+            page.row("item", "  ".join(f'{k}: {v}' for k, v in c.items()), c.get("index") or "",
+                     f'consumedBy#{i}')
     if packet.get("outsideCallers"):
-        page.row("head", f'outside callers ({sum(packet["outsideCallers"].values())}) — not active while making a part')
+        page.row("head", f'outside callers ({sum(packet["outsideCallers"].values())}) — not active while making a part',
+                 "", "outsideCallers")
         for where, count in packet["outsideCallers"].items():
-            page.row("item", f'{where} · {count}')
+            page.row("item", f'{where} · {count}', "", f'outsideCallers#{where}')
     if packet.get("outside"):
-        page.row("head", f'outside ({packet["outside"]})')
-        page.row("item", f'{packet["outside"]} call sites reaching scanned source the map does not cover')
+        page.row("head", f'outside ({packet["outside"]})', "", "outside")
+        page.row("item", f'{packet["outside"]} call sites reaching scanned source the map does not cover',
+                 "", "outside#0")
     if packet.get("platform"):
-        page.row("head", f'platform ({packet["platform"]})')
-        page.row("item", f'{packet["platform"]} call sites with no target in any scanned root')
+        page.row("head", f'platform ({packet["platform"]})', "", "platform")
+        page.row("item", f'{packet["platform"]} call sites with no target in any scanned root',
+                 "", "platform#0")
 
 
 # ---- the viewer ---------------------------------------------------------------------------

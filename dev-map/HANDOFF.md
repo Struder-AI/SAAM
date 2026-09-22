@@ -210,7 +210,29 @@ unscanned callers (`onGeometry` in `runRepairJob`).
   were never touched by map workers and `check` reported them stale whenever
   they moved. Expect the same.
 
+11. **The viewer's code pane.** `check --viewer` (2026-09-22) shows a leaf
+   that opens as code draws only its caller lists, while its compact read
+   carries inputs, outputs, couplings, state, invocation and state wires,
+   findings, gates and facts. The human standing on a leaf sees less than
+   the agent does. Draw the code read's context beside the source.
+12. **Expression operators.** The 5600 value-origin rows (`argument-origin`,
+   `return-origin`, `branch-result`, `branch-data-join`, `iteration-source`,
+   `iteration-input`, `collection-input`) are expressions the tracer does
+   not decompose and platform calls it does not draw as producers. Draw an
+   `expression` operator wired from each identifier it reads, a join
+   operator for `?:`/`&&`/`||`/`??` and branch-assigned bindings, and
+   platform calls as producer boxes. Awaiting the owner's go.
+
 ## Open questions for the owner
+
+- The map-or-code rule as implemented tests a data wire on either of two
+  called declarations; the guide says between them. Strictly read, 264 of
+  about 700 function maps would become code (`validatePath` among them).
+  Recommendation: keep the code, fix the wording.
+- Three finding kinds the map now draws: `closure-capture` (701, state
+  wires), `loop-exception-path` (393, accumulator ports),
+  `member-receiver-unresolved` on known platform receivers (most of 975,
+  the `platform` count). Rule them no longer a problem?
 
 - The viewer now lays a function page out left to right with semantic zoom
   and focus (2026-09-22); small pages spread wider than they need

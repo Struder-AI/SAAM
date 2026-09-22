@@ -1,11 +1,11 @@
 # The dev map
 
 Intent, scope and the reading rules are owned by
-[DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md); the state of the map work and
-what remains by [HANDOFF.md](HANDOFF.md). This guide owns the commands, the
-addresses, what each page carries and the authoring mechanics. Generation
-derives code entities, relationships, gates, couplings and source locations;
-authoring arranges them into pages and can add no call, wire or prose.
+[DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), the state of the work by
+[HANDOFF.md](HANDOFF.md). This guide owns the commands, the addresses, what each
+page carries and the authoring mechanics. Generation derives code entities,
+relationships, gates, couplings and source locations; authoring arranges them
+into pages and can add no call, wire or prose.
 
 - `lib/`: source scanning, graph composition, stored pages and rendering;
   `lib/destination.mjs` is the one map-or-code rule.
@@ -15,20 +15,19 @@ authoring arranges them into pages and can add no call, wire or prose.
 ## Commands
 
 ```sh
-node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION [--code] [--details]
+node scripts/agent-toolkit.mjs read-map ADDRESS [--code] [--details]
 node scripts/agent-toolkit.mjs regenerate [INDEX]
-node dev-map/cli.mjs check [--json] | build | flow-evidence INDEX|DECLARATION
+node dev-map/cli.mjs check [--json] [--viewer [ADDRESS…]] | build | flow-evidence ADDRESS
 node dev-map/cli.mjs watch-freshness [--once]
 ```
 
-`read-map` returns one stored page and never scans. Its argument is an index or
-a durable path: a region (`core/path`), a declaration
-(`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`); not
-a file path. `--code` returns a declaration's source span, a group's member
-spans, or a region's files (`0 --code` is refused); `--details` the same page
-with its evidence: expressions, traces, byte offsets. Responses are compact
-JSON: `range` is `[first,last]` inclusive, nested locations inherit `file`,
-empty arrays omitted.
+An ADDRESS is an index or a durable path: a region (`core/path`), a declaration
+(`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`),
+never a file path. `read-map` returns one stored page and never scans; `--code`
+returns a declaration's source span, a group's member spans or a region's files
+(`0 --code` is refused), `--details` the page with its evidence: expressions,
+traces, byte offsets. Responses are compact JSON: `range` is `[first,last]`
+inclusive, nested locations inherit `file`, empty arrays omitted.
 
 `regenerate` is the only command that scans, and it redraws the viewer. No
 argument or `0` refreshes everything; with an index, that region and the
@@ -36,8 +35,7 @@ references its changed addresses affect, widening to the whole map when an
 inventory change, a removed declaration or an old schema requires it, and saying
 so. `flow-evidence` re-derives one page from source, to audit the generator;
 `build` redraws `view/index.html` from the store, no scan (needs Python 3; set
-`PYTHON` otherwise); `watch-freshness` keeps the viewer's live status
-current.
+`PYTHON` otherwise); `watch-freshness` keeps the viewer's live status current.
 
 ## Addresses
 
@@ -130,20 +128,19 @@ section per node in drawing order, never its own; each row names its `file`.
 
 Couplings are `file`, `http-route`, `worker-message`, `event-listener` (a
 callable handed to a registration or held by an `on<event>` property) and
-`registry-entry`, name-keyed dispatch: each entry of a named table of functions
-is reached by key from the declaration naming the table, computed keys and
-spreads being an analysis limit. Unresolved rules include
-`member-receiver-unresolved`, `parameter-target`, `registered-subscriber` (a
-callee iterated from a collection a registration fills, named in the row) and
-`unresolved-local-value`.
+`registry-entry`, name-keyed dispatch: each entry of a named function table
+reached by key from the declaration naming it, computed keys and spreads being
+an analysis limit. Unresolved rules: `member-receiver-unresolved`, `parameter-
+target`, `registered-subscriber` (a callee iterated from a collection a
+registration fills, named in the row) and `unresolved-local-value`.
 
 ## Staleness
 
 Reads hash the recorded inputs: mapped and scanned source, generator modules,
-the lockfile, facts and grouping. Any change produces `stale` with the reason
-and how to regenerate; the viewer marks stale pages. Each mapped file's source
-is stored beside its graph, so a code read returns the snapshot that produced
-the page, a missing one reporting `sourceUnavailable`, not wrong line numbers.
+the lockfile, facts and grouping. Any change produces `stale` with the reason and
+how to regenerate; the viewer marks stale pages. Each mapped file's source is
+stored beside its graph, so a code read returns the snapshot that made the page,
+a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 ## Authoring
 
@@ -163,10 +160,9 @@ duplicate members fail generation, so a rename means editing its membership.
 
 **External facts**, `facts.tsv`: tab-separated `declaration kind fact source
 date`, for what the code cannot state. `kind` is `measurement`, `vendor` or
-`decision` (whose `source` is a DECISIONS.md heading anchor); `date` is ISO. A
-row attaches to its page as `facts`; one naming a declaration the map no longer
-holds is reported as `orphanFacts`, never dropped; a malformed row fails
-`check`.
+`decision` (`source` a DECISIONS.md heading anchor); `date` is ISO. A row
+attaches to its page as `facts`; one naming a declaration the map no longer
+holds is `orphanFacts`, never dropped; a malformed row fails `check`.
 
 **Scope**, `lib/scope.mjs`: `mappedRoots` become regions; `outsideRoots` are
 scanned only so their calls into the map are seen; `unmappedDirs` are outside
@@ -180,7 +176,11 @@ served paths that are not the path on disk.
 regenerate), an authored page is unplaced, or a fact row is malformed. It
 reports `linked`, `unresolved`, `outside` and `platform` totals, `stranded`
 declarations (no root of their region reaches them; they keep their region-page
-box), `unplaced` pages and orphan facts; `--json` the same as data.
+box), `unplaced` pages and orphan facts; `--json` the same as data. `--viewer`
+adds coverage: page by page, whether the built drawing carries what the compact
+read presents, naming the fields nothing stands for. It only reports, and is
+opt-in because it reads a view `build` drew; an address scopes it;
+`coverage.mjs` states how each item is matched.
 
 ## The viewer
 
