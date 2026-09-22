@@ -192,18 +192,18 @@ function ownedBindings(fnNode,keyOf) {
 // How a body uses a binding it does not declare. Assigning the binding and mutating the object
 // it holds are both writes of that state; everything else is a read. The walk stops where the
 // map does: a declaration written inside this one has its own page and its own state wires.
+const accessOf=(n,parents)=>{
+  let top=n,above=parents.get(n);
+  while(above?.type==='MemberExpression'&&above.object===top){top=above;above=parents.get(top);}
+  if(above?.type==='AssignmentExpression'&&above.left===top)return top===n&&above.operator==='='?'write':'read-write';
+  if(above?.type==='UpdateExpression'&&above.argument===top)return 'read-write';
+  if(above?.type==='UnaryExpression'&&above.operator==='delete')return 'write';
+  if(top!==n&&!top.computed&&above?.type==='CallExpression'&&above.callee===top
+    &&MUTATING_MEMBERS.has(top.property?.name))return 'write';
+  return 'read';
+};
 function stateUses(body,keyOf,owned,stop) {
   const uses=new Map();
-  const accessOf=(n,parents)=>{
-    let top=n,above=parents.get(n);
-    while(above?.type==='MemberExpression'&&above.object===top){top=above;above=parents.get(top);}
-    if(above?.type==='AssignmentExpression'&&above.left===top)return top===n&&above.operator==='='?'write':'read-write';
-    if(above?.type==='UpdateExpression'&&above.argument===top)return 'read-write';
-    if(above?.type==='UnaryExpression'&&above.operator==='delete')return 'write';
-    if(top!==n&&!top.computed&&above?.type==='CallExpression'&&above.callee===top
-      &&MUTATING_MEMBERS.has(top.property?.name))return 'write';
-    return 'read';
-  };
   const parents=new Map();
   (function references(n,parent=null){
     if(n!==body&&stop.has(n.start))return;
@@ -223,6 +223,67 @@ function stateUses(body,keyOf,owned,stop) {
   return uses;
 }
 const childStops=node=>new Set(node.children.map(c=>c.start));
+
+// A class instance is state the same way a factory's bindings are, so its fields are the same
+// nodes: `this.x` is the binding, the class is the holder, and every member that touches the
+// field is wired to it. The field a name refers to, when the source says which one.
+const thisField=n=>{
+  if(n?.type!=='MemberExpression'||n.object.type!=='ThisExpression')return null;
+  if(n.property.type==='PrivateIdentifier')return `#${n.property.name}`;
+  return n.computed?n.property.type==='Literal'?String(n.property.value):null:n.property.name;
+};
+// How a body uses the fields of the instance it is a member of, read exactly as a closure
+// binding is read: assigning the field or mutating what it holds is a write, everything else a
+// read. A member of the class is a declaration the map already draws, never state. A nested
+// `function` has a `this` of its own and is not this instance; an arrow shares it. `this` on
+// its own — aliased or passed out — is never guessed at: what reaches the field through it is
+// a write with no traced producer, which is drawn as a stub.
+function instanceFieldUses(body,stop,members=new Set()) {
+  const uses=new Map(),parents=new Map();
+  (function references(n,parent=null,owns=true) {
+    if(n!==body&&stop.has(n.start))return;
+    parents.set(n,parent);
+    if(n!==body&&functions.has(n.type)&&n.type!=='ArrowFunctionExpression')owns=false;
+    const field=owns?thisField(n):null;
+    if(field&&!members.has(field)) {
+      const access=accessOf(n,parents),row=uses.get(field)??uses.set(field,{name:field,access:null,sites:[]}).get(field);
+      row.access=row.access&&row.access!==access?'read-write':access;
+      row.sites.push({node:n,access});
+    }
+    for(const c of kids(n))references(c,n,owns);
+  })(body);
+  return uses;
+}
+// Where a class names a field: its declaration in the class body, or the write its construction
+// makes, which is where a reader looks for what the field holds. The class body also says which
+// names are its methods, `#` included, which the member paths drop and which are never fields.
+function fieldSites(ast,span,file) {
+  const found=new Map(),methods=new Set();
+  const site=n=>({file,line:n.loc.start.line,endLine:n.loc.end.line,column:n.loc.start.column+1,start:n.start,end:n.end});
+  const initial=init=>!init?'undeclared-value':init.type==='NewExpression'?'constructed-value'
+    :['Literal','ArrayExpression','ObjectExpression','TemplateLiteral'].includes(init.type)?'literal'
+    :init.type==='CallExpression'?'nested-call':'computed-expression';
+  const keep=(name,receiver,node,init)=>{if(name&&!found.has(name))found.set(name,{receiver,source:site(node),initial:initial(init)});};
+  (function classes(n) {
+    if(!span||n.end<span.start||n.start>span.end)return;
+    if(['ClassDeclaration','ClassExpression'].includes(n.type)&&n.start>=span.start&&n.end<=span.end) {
+      // A declaration in the class body names the field; failing that, the construction does.
+      const named=m=>m.computed&&m.key.type!=='Literal'?null
+        :m.key.type==='PrivateIdentifier'?`#${m.key.name}`:String(m.key.name??m.key.value);
+      for(const member of n.body.body)
+        if(member.type==='PropertyDefinition')keep(named(member),member.static?'static':'instance',member,member.value);
+        else if(member.type==='MethodDefinition'&&member.kind!=='constructor'&&named(member))methods.add(named(member));
+      for(const member of n.body.body)
+        if(member.type==='MethodDefinition'&&member.kind==='constructor')(function writes(x) {
+          if(x.type==='AssignmentExpression'&&x.operator==='=')keep(thisField(x.left),'instance',x.left,x.right);
+          for(const c of kids(x))writes(c);
+        })(member.value);
+      return;
+    }
+    for(const c of kids(n))classes(c);
+  })(ast);
+  return {fields:found,methods};
+}
 
 // The `this.` fields a span reads and writes, taken from the span's own AST.
 function thisFields(ast,start,end) {
@@ -266,7 +327,7 @@ function thisFields(ast,start,end) {
 
 // A class page: its members as boxes, the calls and shared fields between them as wires, and
 // every caller outside the class as a port.
-function classPage(node,{graph,projection},ast,head,built=null) {
+function classPage(node,{graph,projection},ast,head,built=null,initWires=null) {
   const members=node.children;
   const inside=new Set();
   (function mark(n){inside.add(n.path);for(const c of n.children)mark(c);})(node);
@@ -326,19 +387,53 @@ function classPage(node,{graph,projection},ast,head,built=null) {
     wire({from:from.handle,to:target.path,label:r.kind==='construct'?'construct':'call',kind:'call',callKind:r.kind,...(r.possible?{possibleTarget:true}:{}),
       ...(at?{source:{file:at.file,line:at.line,endLine:at.endLine,column:at.column,start:at.start,end:at.end}}:{}),provenance:'ast-call-site'});
   }
+  // A field one member writes and another reads is a field of this class, however it is drawn.
+  const usedFields=new Set();
   for(const a of members)for(const b of members) {
     if(a===b)continue;
     if(fields.get(a.path).receiver!==fields.get(b.path).receiver)continue;
     for(const field of fields.get(a.path).written)
       if(fields.get(b.path).read.has(field)||fields.get(b.path).written.has(field))
-        wire({from:a.path,to:b.path,label:field,kind:'state',stateField:fieldId(fields.get(a.path).receiver,field),provenance:'ast-this-field'});
+        usedFields.add(fieldId(fields.get(a.path).receiver,field));
   }
-  const usedFields=new Set(wires.map(w=>w.stateField).filter(Boolean));
+  // The fields themselves are the nodes: one per field the members keep between calls, wired
+  // from what construction put there and to and from every member that touches it. This is the
+  // closure's state node, with the class as its holder, so the reader learns one thing.
+  const {fields:declared,methods}=fieldSites(ast,declaration,node.file);
+  const memberNames=new Set([...members.map(m=>m.path.slice(m.path.lastIndexOf('::')+2)),...methods]);
+  const held=new Map();
+  for(const m of members) {
+    const span=spans.get(m.path),body=span?functionAt(ast,span.start,span.end):null;
+    if(!body)continue;
+    for(const [field,row] of instanceFieldUses(body,childStops(m),memberNames)) {
+      const receiver=fields.get(m.path).receiver,id=fieldId(receiver,field);
+      const row0=held.get(id)??held.set(id,{id,field,receiver,access:null,members:[]}).get(id);
+      row0.access=row0.access&&row0.access!==row.access?'read-write':row.access;
+      row0.members.push({path:m.path,access:row.access});
+    }
+  }
+  const state=[];
+  for(const row of held.values()) {
+    const source=(declared.get(row.field)??candidates.get(row.id))?.source;
+    state.push({id:`sf${state.length+1}`,kind:'state',name:row.field,owner:node.path,ownerIndex:node.handle,
+      binding:row.receiver==='static'?'static-field':'field',access:row.access,file:node.file,
+      ...(source?{line:source.line,endLine:source.endLine,column:source.column}:{line:node.line,endLine:node.line,column:1})});
+    const to=state[state.length-1].id,label=row.field,state0={kind:'state',stateField:row.id,provenance:'owned-state'};
+    usedFields.add(row.id);
+    for(const w of initWires?.get(row.field)??[])wire({...state0,...w,to,label,access:'write'});
+    if(!initWires?.get(row.field)?.length)
+      wire({...state0,from:'self',to,label,access:'write',stub:declared.get(row.field)?.initial??'untraced'});
+    for(const m of row.members) {
+      if(m.access!=='write')wire({...state0,from:to,to:m.path,label,access:'read'});
+      if(m.access!=='read')wire({...state0,from:m.path,to,label,access:'write'});
+    }
+  }
   const stateFields=[...candidates.values()].filter(f=>usedFields.has(f.id)).map(({priority,...field})=>field);
   return {flow:true,generated:true,authored:[],node:head(node),inputs:[],outputs:[],requires:[],formulas:[],
     components:members.map((child,i)=>({...head(child),order:i+1,calls:0,links:['ast-member'],provenance:'ast-member',sites:[]})),
     ports:[...ports.values()].sort((a,b)=>a.index<b.index?-1:a.index>b.index?1:0),
-    wires,external:[],unresolved:[],...(stateFields.length?{stateFields}:{}),...(stateful?{stateful:true}:{}),...(uncertainty.length?{uncertainty}:{} )};
+    wires,external:[],unresolved:[],...(state.length?{state}:{}),
+    ...(stateFields.length?{stateFields}:{}),...(stateful?{stateful:true}:{}),...(uncertainty.length?{uncertainty}:{} )};
 }
 
 export function flowPage({graph,projection,sources,asts,shapes},target) {
@@ -1574,7 +1669,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   // that reads or writes them, and again on each member's page against the calls and operators
   // that use them there. A state node is not a called declaration — it is no part of the
   // map-or-code rule — and it never floats: every one of them is placed by its own wires.
-  const state=[],stateWires=[],stateBindings=new Set(),stateKey=new Map(),stateSeen=new Set();
+  const state=[],stateWires=[],stateBindings=new Set(),stateKey=new Map(),stateSeen=new Set(),fieldInit=new Map();
   const stateNode=(holder,b,info,access)=>{
     const k=`${holder.path}\n${b}`,held=stateKey.get(k);
     if(held){if(held.access!==access)held.access='read-write';return held;}
@@ -1586,9 +1681,11 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     const k=JSON.stringify([w.from,w.to,w.toPort??'',w.fromPort??'',w.access,w.stub??'',
       w.sourceSite?.start??'',w.targetSite?.start??'']);
     if(stateSeen.has(k))return;
-    stateSeen.add(k);stateWires.push({kind:'state',provenance:'closure-state',...w});
+    stateSeen.add(k);stateWires.push({kind:'state',provenance:'owned-state',...w});
   };
-  const ownedHere=ownedBindings(fn,key);
+  // A class page's members are not written inside its constructor, so the bindings this body
+  // declares are its own locals and no member shares them; its state is the instance's fields.
+  const ownedHere=built?new Map():ownedBindings(fn,key);
   if(ownedHere.size&&node.children.length) {
     const shared=new Map();
     for(const child of node.children) {
@@ -1620,7 +1717,9 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     const scope=scopeTree(outer),keyOf=n=>scope.binding(n)?.id??null;
     holders.push({node:a,keyOf,owned:ownedBindings(outer,keyOf)});
   }
-  if(holders.length) {
+  // The class this body is a member of owns its `this.` fields the way a factory owns a binding.
+  const ownerClass=node.parent?.kind==='class'?node.parent:null;
+  if(holders.length||ownerClass||built) {
     const siteByNode=new Map();
     for(const c of order)for(const s of c.sites)if(!siteByNode.has(s.node))siteByNode.set(s.node,{path:c.node.path,site:s});
     const opByNode=new Map();
@@ -1669,11 +1768,43 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         if(site.access!=='read')for(const w of producerWires(site.node,held,row.name))stateWire(w);
       }
     }
+    // The instance's own fields, read and written here. They are the class's state nodes: the
+    // member page draws each one against the calls and operators that use it, exactly as it
+    // draws a binding its holder owns.
+    if(ownerClass) {
+      const span=byAnchor(graph).get(ownerClass.path);
+      const {fields:declared,methods}=span&&span.file===node.file?fieldSites(ast,span,ownerClass.file):{fields:new Map(),methods:new Set()};
+      const receiver=thisFields(ast,declaration.start,declaration.end).receiver;
+      const memberNames=new Set([...ownerClass.children.map(c=>c.path.slice(c.path.lastIndexOf('::')+2)),...methods]);
+      for(const [field,row] of instanceFieldUses(fn,stop,memberNames)) {
+        const at=declared.get(field)?.source,first=row.sites[0].node;
+        const held=stateNode(ownerClass,`field:${receiver}:${field}`,
+          {name:field,binding:receiver==='static'?'static-field':'field',
+            source:at??{line:first.loc.start.line,endLine:first.loc.end.line,column:first.loc.start.column+1}},row.access);
+        const of=`field:${receiver}:${field}`;
+        for(const site of row.sites) {
+          if(site.access!=='write')stateWire({from:held.id,...consumerOf(site.node),label:field,access:'read',stateField:of});
+          if(site.access!=='read')for(const w of producerWires(site.node,held,field))stateWire({...w,stateField:of});
+        }
+      }
+    }
+    // What construction puts in a field is that field's initialisation, traced like any other
+    // value, so the class page wires the state node from the producer rather than from a stub.
+    if(built)(function inits(n) {
+      if(n!==fn&&stop.has(n.start))return;
+      const field=n.type==='AssignmentExpression'&&n.operator==='='?thisField(n.left):null;
+      if(field&&!fieldInit.has(field)) {
+        const found=producers(n.right).filter(p=>p.end);
+        if(found.length)fieldInit.set(field,found.map(p=>({from:p.end,...(p.port?{fromPort:p.port}:{}),...(p.site?{sourceSite:p.site}:{})})));
+      }
+      for(const c of kids(n))inits(c);
+    })(fn);
   }
   // Local bookkeeping whose only consumer is owned state is still a step of this flow: the
   // liveness walk above stopped at the drawn boxes, so it is rerun once the state wires exist.
-  if(stateWires.some(w=>operatorIds.has(w.from)&&!needed.has(w.from))) {
-    for(const w of stateWires)if(operatorIds.has(w.from))needed.add(w.from);
+  const stateEnds=[...stateWires,...[...fieldInit.values()].flat()];
+  if(stateEnds.some(w=>operatorIds.has(w.from)&&!needed.has(w.from))) {
+    for(const w of stateEnds)if(operatorIds.has(w.from))needed.add(w.from);
     for(let changed=true;changed;) {
       changed=false;
       for(const w of wires)if(needed.has(w.to)&&operatorIds.has(w.from)&&!needed.has(w.from)) {
@@ -1776,12 +1907,13 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   if(!built)return page;
   // The class page is this construction flow plus the class itself: its members as boxes, the
   // fields they share, and each member's callers outside the class.
-  const shared=classPage(node,{graph,projection,asts},ast,head,built);
+  const shared=classPage(node,{graph,projection,asts},ast,head,built,fieldInit);
   const enclosed=path=>{const d=byAnchor(graph).get(path);return d&&d.start>=built.start&&d.end<=built.end;};
   const member=c=>c.calls===0&&!enclosed(c.path)
     ?{...c,links:['ast-member'],provenance:'ast-member',closure:undefined,captures:undefined}:c;
   return {...page,components:page.components.map(member),ports:shared.ports,
     wires:[...page.wires,...shared.wires],
+    ...(page.state?.length||shared.state?.length?{state:[...(page.state??[]),...(shared.state??[])]}:{}),
     ...(shared.stateFields?{stateFields:shared.stateFields}:{}),
     ...(shared.stateful?{stateful:true}:{}),
     uncertainty:[...uncertainty,...shared.uncertainty??[]]};
@@ -1816,7 +1948,7 @@ export function flowPacket(context,target,{evidence=false}={}) {
     ...(w.fromPort?{fromPort:w.fromPort}:{}),...(w.toPort?{toPort:w.toPort}:{}),...(w.expression?{expression:w.expression}:{}),
     ...(w.positionUnknown?{positionUnknown:true}:{}),...(w.spread?{spread:true}:{}),
     ...(w.access?{access:w.access}:{}),...(w.stub?{stub:w.stub}:{}),
-    ...(['ast-choice','ast-iteration','ast-normal-backedge','ast-invocation','ast-collection','ast-update','ast-closure-value','ast-closure-capture','ast-closure-binding','closure-state'].includes(w.provenance)?{provenance:w.provenance}:{}),
+    ...(['ast-choice','ast-iteration','ast-normal-backedge','ast-invocation','ast-collection','ast-update','ast-closure-value','ast-closure-capture','ast-closure-binding','owned-state'].includes(w.provenance)?{provenance:w.provenance}:{}),
     ...(w.gate?{gate:gateIndex(w.gate)}:{}),...(w.provenance==='state-thread'?{provenance:'state-thread',order:'source'}:{})});
   const packet={flow:true,generated:true,index:page.node.handle,path:page.node.path,
     ...(page.stateful?{stateful:true}:{}),

@@ -156,8 +156,9 @@ Two consequences of the tree to look at before settling:
    file; `linked` now counts the rows.
 3. **Closure-owned state on member pages.** Built 2026-09-22: `state` nodes
    with read and write wires on member and holder pages; capture text off
-   the reference box. Left: class instance state (`this.x`) is still only
-   the class page's field hubs; captures inside anonymous nested callbacks.
+   the reference box; class fields followed on 2026-09-22 as the same node
+   kind. Left: captures inside anonymous nested callbacks; the compact read
+   of a code page drops `state` (fixed key list in `agent-view.mjs`).
 4. **Enter array-method callbacks.** Built 2026-09-21: iteration methods
    are stages with the item as input (`shapes.mjs::iterationMethods`); 645
    callbacks entered. Not in the table: `Array.from(x, fn)`, `flat()`. A

@@ -25,7 +25,7 @@ export function invocationInstances(page) {
     instances.set(component.index,copies);components.push(...copies);
   }
   if(!instances.size)return page;
-  // A closure-state edge with no site of its own is about the declaration, not one invocation of
+  // An owned-state edge with no site of its own is about the declaration, not one invocation of
   // it: every call of that member reads or writes the state the holder owns.
   const missing=[],references=new Set(),endpoint=(at,site,direction,port,declaration=false)=>{
     if(!instances.has(at))return at;
@@ -53,8 +53,8 @@ export function invocationInstances(page) {
     return id;
   };
   const wires=(page.wires??[]).map(({sourceSite,targetSite,...wire})=>({...wire,
-    from:endpoint(wire.from,sourceSite,'from',wire.fromPort,wire.provenance==='closure-state'),
-    to:endpoint(wire.to,targetSite,'to',wire.toPort,wire.provenance==='closure-state')}));
+    from:endpoint(wire.from,sourceSite,'from',wire.fromPort,wire.provenance==='owned-state'),
+    to:endpoint(wire.to,targetSite,'to',wire.toPort,wire.provenance==='owned-state')}));
   // Caller overlays describe declaration dependencies, not invocation dataflow.
   // Keep the canonical addresses when no unique invocation can be established.
   const callerWires=[],declarationReferences=[];

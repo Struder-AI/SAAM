@@ -1,5 +1,33 @@
 # Development log
 
+## 2026-09-22 — Dev map: class instance fields as state nodes
+
+- A class's `this.` fields are `state` nodes with `binding: "field"`
+  (`static-field` implemented, unexercised: the scope has no static field),
+  one convention with closure-owned bindings: on each method page a node per
+  field read or written, wired into the consuming port or from the producer,
+  from `self` with a stub where only the write is known; on the class page
+  one node per field wired from the constructor's producer or its stub and
+  to and from every member touching it. The old member-to-member field hubs
+  are gone; `stateFields` stays and names exactly the drawn fields. Wire
+  provenance renamed `closure-state` → `owned-state` everywhere. Private
+  methods were briefly drawn as fields (`#name` never matched the member
+  path); fixed, 21 spurious nodes removed. `this` aliased into a returned
+  object literal (`LuaRuntime::makeClosure`) is not followed, per the
+  accepted-limits list.
+- Verified on the main store: 45 method pages draw 110 field nodes, 7 class
+  pages 43; state read wires 1916 → 2124, write 1396 → 1530; closure state
+  unchanged; distinct finding rows 12187 unchanged by kind; `check` 3553 /
+  1080 / 47 / 5798, clean; floating boxes 0, depth 13, every declaration
+  homed once. Pages read: `LuaRuntime` (6 fields, 23 wires),
+  `LuaRuntime::execStatement` (`file` read into three `LuaSubsetError`
+  arguments), `LuaRuntime::invoke` (no fields, correctly), `SegmentIndex`
+  (4 fields, 19 wires), `PreparedGenerationJob::fail` (`#failure` written
+  from a traced producer). The drawings carry the "owned by" state boxes.
+- Gap found: the compact read of a code-destination page keeps a fixed key
+  list and drops `state`, so 28 of the 45 member pages with field state, and
+  263 of 565 with closure state, show it only in source. Queued.
+
 ## 2026-09-22 — Dev map: chain boxes carry rows, rows carry files, `--details` is a superset
 
 - The containment findings pass (`store.mjs::attachContainmentFindings`) now

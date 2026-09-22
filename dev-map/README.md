@@ -111,15 +111,15 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   directory), `outside` and `platform` (call sites without a mapped target),
   `unresolved` (rows with a `rule`, and `candidates` where callers supply known
   callables), `uncertainty` (rows with a `kind`; repeated `closure-capture` rows
-  share one with `count`), `stateFields` on a class, and `state`, the
-  `let`/`const` bindings the holder owns and this page uses: each is `name`,
-  `owner`, `ownerIndex`, `binding` kind, `access` and site, drawn but never
-  called, so no part of the map-or-code rule. Its `state` wires carry
-  `provenance: "closure-state"`, leaving the node for a read and entering it
-  for a write, from `self` with a `stub` where the write has no traced
-  producer; the holder wires each binding to its initialisation and to every
-  member sharing it. A code read adds `source`, `sourceKind`, `sourceSha256`,
-  its callees and its invocation wires.
+  share one with `count`), `stateFields` on a class, and `state`, what the
+  holder owns and this page uses: a factory's `let`/`const` bindings and a
+  class's `this.` fields (`field`, `static-field`), each `name`, `owner`,
+  `ownerIndex`, `binding` kind, `access` and site, drawn but never called and
+  no part of the map-or-code rule. Its wires carry `owned-state` provenance,
+  leaving the node for a read and entering it for a write, from `self` with a
+  `stub` where the write has no traced producer; the holder wires each one to
+  its initialisation and to every member touching it. A code read adds
+  `source`, `sourceKind`, `sourceSha256`, its callees and its invocation wires.
 
 Findings follow the node: every box, inlined ones included, carries its row
 count as `findings`, a group box the count inside it; a containment map puts the

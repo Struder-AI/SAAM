@@ -546,26 +546,15 @@ def node_page(packet, page, unit, port, drawn, dropped):
             caller = c.get("index") or c.get("path") or c.get("file") or "external"
             port("from:" + caller, caller, go=c.get("index") or "")
             page.e("from:" + caller, subject, ", ".join(c.get("labels", [])), "data")
-    # A state wire that is not a thread is a `this.` field two members share, and the store holds
-    # one such wire per writer-reader pair: the field itself becomes the box, so each member is
-    # drawn once against it instead of once per partner. A thread carries its own order and is
-    # left alone.
-    shared = {}
-    fields = {field["id"]: field for field in packet.get("stateFields", [])}
-    # A closure-state wire names this body as one of its ends; the box for it is `subject`.
-    body = [w if w.get("provenance") != "closure-state" else
+    # An owned-state wire names this body as one of its ends; the box for it is `subject`.
+    body = [w if w.get("provenance") != "owned-state" else
             {**w, "from": subject if w["from"] == "self" else w["from"],
              "to": subject if w["to"] == "self" else w["to"]}
             for w in packet["wires"] if w["kind"] != "invocation"]
     for w in value_bundles(body):
-        if w.get("provenance") == "closure-state":
+        if w.get("provenance") == "owned-state":
             wire(page, w, " · ".join(x for x in (w.get("label", ""), w.get("stub", "")) if x),
                  "state", drawn, dropped)
-        elif w["kind"] == "state" and w.get("provenance") != "state-thread":
-            ends = shared.setdefault(w.get("stateField", w.get("label", "")), ([], []))
-            for side, end in ((0, w["from"]), (1, w["to"])):
-                if end not in ends[side]:
-                    ends[side].append(end)
         else:
             gate = gate_name(w["gate"]) if w.get("gate") is not None else ""
             def value_label(value):
@@ -574,28 +563,6 @@ def node_page(packet, page, unit, port, drawn, dropped):
                 return " ".join(x for x in [value.get("label", ""), f'({roles})' if roles else "", flags, f'[{gate}]' if gate else ""] if x)
             label = "\n".join(value_label(value) for value in w.get("argumentValues", [w]))
             wire(page, w, label, "gate" if gate else WIRE.get(w["kind"], "data"), drawn, dropped)
-    for field in sorted(shared):
-        writers, readers = shared[field]
-        if not all(end in drawn for end in writers + readers):
-            dropped.append((page.key, field, "field"))
-            continue
-        definition = fields.get(field, {})
-        hub_id = definition.get("id", "field:" + field)
-        name = definition.get("name", field)
-        if definition.get("receiver") == "static":
-            name = "static " + name
-        source = definition.get("source")
-        ref = f'{source["file"]}:{source["line"]}-{source["endLine"]}' if source else None
-        hub = page.n(hub_id, name, kind="state", anchor=ref)
-        if ref:
-            hub.anchor_ref = ref
-            hub.source_path, hub.source_line = source["file"], str(source["line"])
-        hub.go = ""
-        drawn.add(hub_id)
-        for end in writers:
-            page.e(end, hub_id, "", "state")
-        for end in readers:
-            page.e(hub_id, end, "", "state")
     # Last, so a box is placed by the values that reach it and not by the call that makes it:
     # the invocation edge states the call, it does not order the drawing.
     for w in invocations:
@@ -746,9 +713,10 @@ LEGEND = [
                      "invocation edge, so no box floats; stub rows on a box name the argument "
                      "slots the tracer could not source."),
     ("b", "state", "local loop, update or collection state, with initial/current/next/final roles on its wires. "
-                   "A class field instead connects the members that write and read it. A small named "
-                   "state box is a binding the enclosing declaration owns: its note says the binding "
-                   "kind, the access and which declaration owns it, and clicking it opens that owner."),
+                   "A small named state box is owned state: a binding the enclosing declaration "
+                   "owns, or a `this.` field of the class this member belongs to. Its note says "
+                   "the binding kind, the access and which declaration owns it, and clicking it "
+                   "opens that owner."),
     ("h", None, "Ports"),
     ("b", "port", "in: a parameter, or a way in from outside this page — another file, another "
                   "region, an outside caller, or a caller of this function. Out: a return, named "
@@ -772,11 +740,11 @@ LEGEND = [
                      "not an invocation or an execution-order constraint. Mutable or untraced captures "
                      "retain their analysis limits."),
     ("w", "state", "state-thread: the same receiver at successive call sites, in source order. On "
-                   "a class page: a field one member writes and another reads. closure-state: the "
-                   "arrow points out of a state box for a read and into it for a write, so the "
-                   "holder page says which members share which binding and a member page says what "
+                   "owned-state: a binding a factory owns or a field a class owns is a box; the "
+                   "arrow points out of it for a read and into it for a write, so the holder or "
+                   "class page says which members share which state and a member page says what "
                    "it reads and writes. A write whose value the tracer could not follow leaves "
-                   "this function's own box and names the gap beside the binding."),
+                   "this function's own box and names the gap beside the name."),
     ("w", "gate", "ast-guard: the call is reached only under a test. The label names the condition "
                   "and branch; the full predicate remains under source and CLI --details."),
     ("w", "io", "ast-return / ast-throw: what leaves through a return or a throw."),
