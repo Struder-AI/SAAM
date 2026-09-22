@@ -9,7 +9,7 @@ import {loadFlow,flowPacket} from './flow.mjs';
 import {model,numberRegion} from './regions.mjs';
 import {readFacts,bindFacts} from './facts.mjs';
 import {sourceFiles} from './graph.mjs';
-import {scanRoots} from './scope.mjs';
+import {scanRoots,outsideRootOf} from './scope.mjs';
 import {readCompositions,compositionFiles,composePages} from './composition.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {attachOverviewAnchors} from './overview.mjs';
@@ -368,11 +368,11 @@ function rootPage(m,lines) {
   for(const c of m.calls) {
     const to=m.regionOf.get(c.to.file);if(!to)continue;
     if(c.atModule||!c.from) {
-      const port=c.atModule?'module':(c.fromFile?.split('/')[0]??'unmapped');
+      const port=c.atModule?'module':(c.fromFile?outsideRootOf(c.fromFile):'unmapped');
       ports.set(port,port);add(port,to.index,c.atModule?'module':'call',null);
     } else {
       const fromRegion=m.regionOf.get(c.from.file);
-      if(!fromRegion){ports.set(c.fromFile.split('/')[0],c.fromFile.split('/')[0]);add(c.fromFile.split('/')[0],to.index,'call',null);}
+      if(!fromRegion){const outside=outsideRootOf(c.fromFile);ports.set(outside,outside);add(outside,to.index,'call',null);}
       else if(fromRegion!==to)add(fromRegion.index,to.index,c.relation.kind,c.label||null);
     }
   }

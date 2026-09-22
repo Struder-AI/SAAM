@@ -119,7 +119,10 @@ The dev map generates code entities and relationships from source. Authored
 flow grouping in `dev-map/flows.json` chooses which generated entities are shown
 together and names the groups; it cannot invent implementation nodes or wires.
 The scan scope lives in `dev-map/lib/scope.mjs`, and external facts in
-`dev-map/facts.tsv`. The same generated pages serve the CLI and human viewer.
+`dev-map/facts.tsv`. The map covers core and Studio product code; the
+[agent CLI toolkit](core/agent/README.md) is scanned as an outside caller and is
+not mapped, so it has no region or pages. The same generated pages serve the CLI
+and human viewer.
 
 **Developers orient by walking the map from `0`; builders may walk the region
 they are changing alongside its prose manual.** Page `0` is the regions and `N`

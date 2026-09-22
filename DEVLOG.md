@@ -1,5 +1,99 @@
 # Development log
 
+## 2026-09-21 — Agent CLI toolkit moved outside the dev-map scope
+
+- Decision (project owner, this session): the dev map covers core and Studio
+  product code only. The agent CLI toolkit, `core/agent`, is not in scope.
+- `dev-map/lib/scope.mjs` gains `unmappedDirs=['core/agent']` and
+  `outsideRootOf`; `isMapped` excludes those directories. Region discovery,
+  port naming on root/region/group pages and overview anchors use them, so
+  `core/agent` is scanned as an outside caller like `scripts` and `adapters`:
+  never a region, page or index. `dev-map/flows/agent.json` deleted; the
+  toolkit manual moved to `outsideAreas` in `core/agent/toolkit.mjs` so
+  `--area core/agent` still returns it without a map target. Scope statements
+  updated in AGENTS.md, BUILDERS.md, DEVELOPER-CONTEXT.md, dev-map/README.md
+  and core/agent/README.md.
+- Verified after `regenerate 0`: 8 regions; `check` exits 0 with 149 files,
+  1617 pages, 3521 linked, 1091 unresolved, 5794 external, no unreached,
+  orphan facts or stale pages; root shows `core/agent` → core/print 4 calls and
+  → studio 33 calls, and its two http-routes under an `http-route` port.
+- Observed limit, not fixed: receiver-value linking in `graph.mjs accountCalls`
+  runs only for mapped callers, so 7 of the toolkit's 40 former call edges into
+  studio (resolved through returned records) are no longer drawn. The same
+  limit applies to skills, adapters and scripts today.
+- Map audit findings from the same session (measured on the stored map before
+  this change): 157 one-box passthrough pages; 862 of 1833 authored members are
+  nested helpers listed beside their parents; 543 boxes with no wire (455 call
+  boxes on function pages whose arguments and results the tracer did not
+  source, 88 home nodes on structural pages); all 5035 resolved calls carry a
+  reciprocal caller entry; 127 unresolved member-call sites name a mapped
+  declaration and 442 sites call through a function parameter; every one of the
+  1633 scanned declarations is published. Follow-up generator work is pending
+  the owner's go.
+
+## 2026-09-21 — AMS-09 switches colours; reusable H2D project writer awaits acceptance
+
+- User reports AMS-09 changed colours. Its executable commands and every entry
+  except project_settings.config were byte-identical to the failed AMS-08 ALT.
+  It declares 0.8/0.8. This proves the project-entry replacement is sufficient
+  for that job; no individual key or serialization requirement is isolated.
+- At the user's request, AMS-10 changes only left-diameter declarations to 0.4
+  across CONFIG, project JSON, slice metadata and SAAM summary, plus checksum.
+  Executable commands are identical to AMS-09. D:/AMS-10-L04-R08.gcode.3mf was
+  copied and SHA-256 verified as
+  `188b78db273366b7d5bf40cc22d91eb7e774cebdd6570a6bb815401661ac956b`.
+  Its physical result is pending. It uses only the right nozzle.
+- H2D v12 adds an authored project writer and explicitly scoped compatibility
+  defaults cross-referenced to Studio 02.08.02.61. Runtime has no reference-file
+  dependency. Canonical job values determine all repeated installation/material
+  fields; no vendor executable template, object or spare filament is retained.
+  Standard-only variants and actual filament cardinality are explicit. The
+  resolved slice keeps map_2; the saved project omits that slice-only field.
+  This is a broader compatibility representation, not a proven minimal schema.
+- Maker guidance now includes same-nozzle A/B/A setup, automatic colour matching,
+  fresh-profile generation, review, fast start and physical observation. Shared
+  print usage links it, so the maker onboarding route includes this guidance.
+  Copying the successful diagnostic's foreign project entry is not the workflow.
+- AMS-11 is a fresh v12 development bundle with two blue/orange logical filaments
+  and 580 generated project fields. Its executable is byte-identical to AMS-09;
+  it deliberately preserves that control's 0.8/0.8 declarations. SHA-256:
+  `d01b4347c811e477123052d7e08b6068af9256d1ecfd422f4447b99e90bbf8d1`.
+  Software generation checks pass; human review and physical test remain pending.
+- Targeted Bambu tests pass (30), including both nozzles, mixed diameters, AMS
+  changes, one/two/three-filament project cardinalities, source decoding, package
+  tampering and review/delivery. These do not prove firmware routing. Next:
+  obtain AMS-10's mixed-declaration result, verify the reusable writer, then
+  resume physical dual-nozzle work. X1 AMS acceptance is still open.
+
+## 2026-09-21 — Both AMS-08 variants fail colour switching; working reference confirmed
+
+- User reports both AMS-08 variants complete entirely orange with no colour
+  switch, while twocolor.twistedbox.gcode.3mf physically prints two colours.
+  First-layer height was not explicitly restated. B-1 and the equal-diameter
+  ALT did not resolve the failure. The investigation had continued command
+  changes without closing the isolated project-representation difference.
+- Created AMS-09-PROJECT-CONTROL from failed AMS-08-ALT-L08-R08, changing
+  exactly Metadata/project_settings.config to the working reference entry's
+  exact bytes. All G-code, CONFIG comments, MD5, thumbnails, slice/model
+  metadata and sequence entries are byte-identical to failed ALT-08. Both
+  declare 0.8/0.8. The body requests two changes, with fast start and no tower.
+- Local diagnostic only, not a production template. It retains reference
+  project preferences (green/yellow, unused third filament, Auto For Flush,
+  stored tower/template settings). The slice/body still uses SAAM's two
+  blue/orange filaments on the right. User maps first used filament to blue,
+  second to orange. No reference executable/tower commands were inserted.
+  The normal strict SAAM importer intentionally rejects this foreign entry.
+- SHA-256 f18304938c88ccd63644038b3b56769812824675b22b83bd2504f12bbab83e98.
+  Copied it and AMS-09-README.txt to D: with hash verification; result pending.
+  Changed-field lists and byte assertions are recorded in the local diagnostic
+  bundle Prints/bambu-h2d-ams-project-isolation-fast-09/comparison.json.
+- A pass establishes the complete reference project representation suffices
+  with this short SAAM executable. Narrow field presence, values and serialization
+  next while holding G-code fixed. A failure means this entry alone is
+  insufficient for this job; examine other package/startup differences against
+  the working reference. Neither outcome alone identifies a required key.
+  Round-trip consistency does not verify firmware ingestion or execution.
+
 ## 2026-09-21 — Dev-map indexes are places in the map tree
 
 - Owner's model: an index names a node's home position in the map tree, not a

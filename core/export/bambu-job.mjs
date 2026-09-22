@@ -3,6 +3,7 @@
 import {requireThat} from '../geom/tolerance.mjs';
 import {feederSelector,toolFor} from '../machine/rules.mjs';
 import {filamentPlan,validateBambuConnections} from '../machine/filaments.mjs';
+import {resolveBambuProject} from './bambu-project.mjs';
 
 const PLATES={
   textured_plate:{name:'Textured PEI Plate',temperatureKey:'textured_plate_temp',h2dZ:-0.02,x1Z:-0.04,detection:'M972 S26 P0 C0'},
@@ -111,6 +112,7 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
   return {tool,map,physicalTool,fastStart,nozzle:s.nozzleMm,nozzles,plate:{id:b.plate,...plate},
     materialChange:k.materialChangeMode==='single-nozzle-ams'?{mode:k.materialChangeMode,flushMm3:k.materialChangeFlushMm3}:null,
     filaments:filaments.map(f=>({...f})),selections,used,count,color:filaments[used].colour,material:s.material,
-    filamentMm:s.filamentMm,density,volumeType,nozzleType,requestedTray,amsConnections:connections===null?null:connections.map(c=>({...c})),settings,values,
+    filamentMm:s.filamentMm,density,volumeType,nozzleType,requestedTray,amsConnections:connections===null?null:connections.map(c=>({...c})),settings,
+    projectSettings:resolveBambuProject(plan,machine,output,settings,selections),values,
     declaredMaps:settings.filament_map.join(' '),limitMaps:perFilament(0).join(' '),toolZeros:perTool(0).join(' ')};
 }

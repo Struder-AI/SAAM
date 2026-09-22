@@ -47,7 +47,11 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
     assert.equal(program.envelope.simulation,'not simulated');
     assert.ok(program.envelope.endClearanceZ>=path.summary.boundsMm.max[2]+10);
     assert.ok(program.moves.every(m=>/^G[01] /.test(code.split('\n')[m.line-1])),'line numbers refer to actual packaged code');
-    assert.ok(!code.includes('wedge.stl')&&!entries.get('Metadata/project_settings.config').toString().includes('machine_start_gcode'),'reference object/settings are not reused');
+    assert.ok(!code.includes('wedge.stl'),'reference objects are not reused');
+    const project=JSON.parse(entries.get('Metadata/project_settings.config'));
+    for(const [key,value]of Object.entries(project).filter(([key])=>key.endsWith('_gcode'))){
+      assert.ok((Array.isArray(value)?value:[value]).every(v=>v===''),`${key} must not embed executable templates`);
+    }
   }
 });
 test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either tool',async()=>{
@@ -232,7 +236,9 @@ test('logical filament selection reaches both load blocks, detection and every p
   assert.match(slice,/filament_list="2"/);
   const plate=JSON.parse(z.get('Metadata/plate_1.json'));assert.deepEqual(plate.filament_ids,[2]);assert.equal(plate.first_extruder,2);
   const seq=JSON.parse(z.get('Metadata/filament_sequence.json')).plate_1;assert.deepEqual(seq.sequence,[3]);assert.deepEqual(seq.nozzle_sequence,[1]);
-  const p=JSON.parse(z.get('Metadata/project_settings.config'));assert.deepEqual(p.filament_map,['2','2','2']);assert.deepEqual(p.filament_map_2,['1','1','1']);
+  const p=JSON.parse(z.get('Metadata/project_settings.config'));assert.deepEqual(p.filament_map,['2','2','2']);
+  assert.equal(p.filament_map_2,undefined,'map_2 is a resolved slice field');
+  assert.match(code,/; filament_map_2 = 1,1,1\n/);
   assert.ok(code.includes('; filament_colour = #111111;#222222;#AABBCC'));
   assert.match(z.get('Metadata/model_settings.config').toString(),/key="filament_maps" value="2 2 2"/);
   assert.equal(JSON.parse(z.get('Metadata/saam-job.json')).requestedTray.index,7);
@@ -308,7 +314,8 @@ test('declared logical filaments preserve independent nozzle assignments on ever
     const path=generatePath(plan,machine,await rhino()),bytes=exportProgram(path,plan,machine,release),z=unpackZip(bytes);
     const settings=JSON.parse(z.get('Metadata/project_settings.config')),code=z.get(GCODE).toString();
     for(const key of ['filament_map','filament_map_2','filament_nozzle_map']){
-      assert.equal(settings[key].join(','),facts.sliceConfig[key]);
+      if(key==='filament_map_2')assert.equal(settings[key],undefined);
+      else assert.equal(settings[key].join(','),facts.sliceConfig[key]);
       assert.match(code,new RegExp('; '+key+' = '+facts.sliceConfig[key]+'\\n'));
     }
     assert.deepEqual(settings.nozzle_diameter,['0.4','0.8']);

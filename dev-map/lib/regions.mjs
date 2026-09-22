@@ -1,7 +1,8 @@
-// Regions are the directories under core/ and studio/ that directly hold source files, numbered
-// in sorted path order. Declarations have canonical addresses under their own source file.
+// Regions are the mapped directories under core/ and studio/ that directly hold source files,
+// numbered in sorted path order; a directory the scope excludes is scanned but is no region.
+// Declarations have canonical addresses under their own source file.
 // Composition can place contextual appearances elsewhere without changing this source identity.
-import {mappedRoots as ROOTS} from './scope.mjs';
+import {isMapped,outsideRootOf} from './scope.mjs';
 const dirname=f=>f.slice(0,f.lastIndexOf('/'));
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry','event-listener']);
@@ -9,7 +10,7 @@ const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry','
 const domHandler=d=>d.kind==='handler'&&/^on[a-z]/.test(d.name);
 
 export function regionsOf(graph) {
-  const files=graph.files.map(f=>f.file).filter(f=>ROOTS.includes(f.split('/')[0])).sort(order);
+  const files=graph.files.map(f=>f.file).filter(isMapped).sort(order);
   return [...new Set(files.map(dirname))].sort(order).map((path,i)=>
     ({index:String(i+1),path,files:files.filter(f=>dirname(f)===path)}));
 }
@@ -51,10 +52,10 @@ export function model(graph,projection) {
     hasCaller.add(c.to.path);
     const home=regionOf.get(c.to.file);
     if(c.atModule)note(c.to,'module',c.fromFile);
-    else if(!c.from)note(c.to,c.fromFile?.split('/')[0]??'unmapped-caller',c.fromFile);
+    else if(!c.from)note(c.to,c.fromFile?outsideRootOf(c.fromFile):'unmapped-caller',c.fromFile);
     else {
       const from=regionOf.get(c.from.file);
-      if(!from)note(c.to,c.fromFile.split('/')[0],c.fromFile);
+      if(!from)note(c.to,outsideRootOf(c.fromFile),c.fromFile);
       else if(from!==home)note(c.to,`region:${from.index}`,c.from.path);
     }
   }

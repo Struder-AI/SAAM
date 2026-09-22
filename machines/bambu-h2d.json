@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 21,
+  "revision": 22,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -205,7 +205,7 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "h2d-saam-startup-v11",
+        "contract": "h2d-saam-startup-v12",
         "start": [
           "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
@@ -642,6 +642,7 @@
       "package": {
         "printerModelId": "O1D",
         "clientVersion": "02.08.02.61",
+        "projectSchema": "h2d-full-project-v1",
         "projectSettings": {}
       },
       "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested; service motion, mixed-nozzle jobs and physical AMS mapping require reference and hardware acceptance."

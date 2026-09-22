@@ -9,18 +9,19 @@ import {SKILL_IDS} from '../../skills/catalog.mjs';
 import {lifecycleReview} from '../print/review-state.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-// Areas outside the map: skills, adapters, setup and the tests are not core/Studio regions, so
-// they have their own guidance instead of a region page. Every other `--area` value is a map
-// target — a region path like `core/path`, or its index.
+// Areas outside the map: skills, adapters, setup, the tests and this toolkit are not core/Studio
+// regions, so they have their own guidance instead of a region page. Every other `--area` value
+// is a map target — a region path like `core/path`, or its index.
 export const outsideAreas = {
   mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
-  skills: ['skills/AUTHORING.md'], setup: ['SETUP.md']
+  skills: ['skills/AUTHORING.md'], setup: ['SETUP.md'],
+  'core/agent': ['core/agent/README.md']
 };
 // One prose manual per component, beside the code it describes. A builder gets the manual for the
 // area it names; a developer gets none of them, because the map and DEVELOPER-CONTEXT are the
 // developer's whole orientation.
 export const componentManuals = {
-  core: ['core/README.md'], 'core/agent': ['core/agent/README.md'],
+  core: ['core/README.md'],
   'core/export': ['core/export/README.md'], 'core/geom': ['core/geom/README.md'],
   'core/machine': ['core/machine/README.md', 'machines/README.md'],
   'core/path': ['core/path/README.md'], 'core/print': ['core/print/README.md'],

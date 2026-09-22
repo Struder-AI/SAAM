@@ -257,7 +257,13 @@ calibration, scans, music and vibration tests while retaining homing, heating,
 loading, cleaning and priming. It defaults to false; explicit calibration `on`
 conflicts with fast start. Assign a region's `filament` to use
 the matching `setup.bambu.filaments` entry: its nozzle, temperature and optional
-process settings. H2D supports unequal diameters in one tower-free program.
+process settings. H2D can generate unequal-diameter, tower-free programs;
+physical dual-nozzle acceptance remains outstanding.
+For H2D AMS colours, follow [the two-colour workflow](../export/bambu.md#making-an-h2d-two-colour-print):
+declare two filaments on the same nozzle and assign regions to indices 0, 1, 0.
+AMS-09 physically changed colours using SAAM commands and a reference project
+entry. The reusable v12 project writer still needs a generated-file acceptance
+print; do not copy that diagnostic's foreign project entry into new jobs.
 For an X1 colour-change test, assign successive height regions to distinct PLA
 filaments on tool 0. The X1 adapter flushes into the rear chute; no tower is added.
 Review the separate service purge allowance and verify actual feed changes on the

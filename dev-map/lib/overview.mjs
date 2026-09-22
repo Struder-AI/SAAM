@@ -1,3 +1,5 @@
+import {outsideRootOf} from './scope.mjs';
+
 // Generated overview anchors follow the enclosing graph's actual containment.
 // Exact call sites remain on the stored wires; only inventory views summarize them.
 export function attachOverviewAnchors(pages, index) {
@@ -23,7 +25,7 @@ export function attachOverviewAnchors(pages, index) {
       }
       // Source outside the mapped roots has no invented navigable address.
       const path=port.path??port.name??port.outside;
-      if(path)return {name:path.split('/')[0],unmapped:true};
+      if(path)return {name:outsideRootOf(path),unmapped:true};
       return null;
     };
     for(const port of [...(page.inputs??[]),...(page.outputs??[])]) {

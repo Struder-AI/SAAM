@@ -409,8 +409,12 @@ same as data.
 `dev-map/lib/scope.mjs` holds the whole authored scope: `mappedRoots` are
 the top-level directories that become regions, and `outsideRoots` are scanned
 only so the calls they make into the mapped roots are seen and appear as ports.
-It also holds the serving aliases whose import specifier is not the path on
-disk. Regions, files, entries, numbering and every box follow from the code.
+`unmappedDirs` are directories inside a mapped root that the map does not cover;
+they are outside callers too, never a region, a page or an index. The agent CLI
+toolkit, `core/agent`, is one: the map covers core and Studio product code, and
+the toolkit is scanned only so its calls into that code appear as ports.
+`scope.mjs` also holds the serving aliases whose import specifier is not the path
+on disk. Regions, files, entries, numbering and every box follow from the code.
 
 ## Tests
 

@@ -257,6 +257,8 @@ confirmation or hardware action.
 
 ## Implementation and verification
 
-The toolkit implementation lives under `core/agent/`; walk `read-map core/agent`
-for its structure, and see the [test registry](../tests/README.md#test-registry)
+The toolkit implementation lives under `core/agent/`. It is not on the dev map,
+which covers core and Studio product code; the toolkit is scanned only so its
+calls into that code appear as incoming ports, so this manual and the source are
+its account of structure. See the [test registry](../tests/README.md#test-registry)
 for its coverage.

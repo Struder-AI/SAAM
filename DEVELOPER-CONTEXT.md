@@ -51,7 +51,9 @@ conditions and boundary connections remain generated. Necessary external facts
 are recorded with provenance in [dev-map/facts.tsv](dev-map/facts.tsv) and displayed on
 their owning pages. `dev-map/lib/scope.mjs` holds the authored scan scope:
 which roots are mapped and which are scanned only so
-their calls into the mapped roots are seen. The [map guide](dev-map/README.md) owns
+their calls into the mapped roots are seen. The map covers core and Studio
+product code; the agent CLI toolkit, `core/agent`, is scanned as an outside
+caller and is not mapped. The [map guide](dev-map/README.md) owns
 the commands and the fields each page carries; `node dev-map/cli.mjs build`
 draws the same stored map for a person.
 
@@ -88,8 +90,9 @@ the person's sidebar when the client supports it.
 ### What keeps its own owner
 
 Repository policy, setup, contribution procedures, decisions and historical
-evidence retain their existing owners. Skills and
-[client adapters](adapters/mcp/DEVELOP.md) are outside the mapped roots, keep
+evidence retain their existing owners. Skills,
+[client adapters](adapters/mcp/DEVELOP.md) and the [agent CLI toolkit](core/agent/README.md)
+are outside the mapped scope, keep
 their own authoring references, and appear in the map as external callers.
 [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md) owns checkpoint and remote
 contribution rules; read it only immediately before committing or publishing.

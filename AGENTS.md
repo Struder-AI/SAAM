@@ -89,7 +89,10 @@ branch per account and reuse it across tasks. Publishing itself follows
 
 The dev map derives code entities and relationships from source; authored flow
 grouping arranges them into explanatory pages. It is the account of core and Studio
-*structure*. A developer orients by walking it from page `0` and reads no prose
+*structure*. It covers core and Studio product code only: the [agent CLI toolkit](core/agent/README.md)
+is scanned as an outside caller, so its calls into the mapped code appear as
+incoming ports, and it has no region, pages or indexes of its own.
+A developer orients by walking it from page `0` and reads no prose
 manual for orientation; a builder may walk the region it is touching alongside
 [BUILDERS.md](BUILDERS.md) and that component's manual. Makers operating
 existing tools need none of it. `0` is the regions and `N` a region. Every

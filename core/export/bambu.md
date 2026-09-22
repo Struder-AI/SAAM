@@ -32,8 +32,12 @@ failed. Subsequent physical controls isolate project JSON: full project settings
 with the minimal 40-entry G-code CONFIG print correctly; full G-code CONFIG with
 minimal project settings fails. Correct G-code comments cannot compensate for
 this project-settings omission. No individual key or firmware entry-count
-requirement is established. The next diagnostic tests project metadata additions
-directly on the mixed-nozzle SAAM job; multi-nozzle acceptance remains open.
+requirement is established. AMS-09 subsequently changed colours successfully
+with SAAM's same-nozzle commands and the complete reference project entry.
+It declared 0.8/0.8. AMS-10 retains its executable commands and changes only
+left-diameter declarations to 0.4; its physical result is pending. The authored
+v12 project writer also needs physical acceptance; multi-nozzle acceptance
+remains open.
 The outstanding reference and hardware checks are tracked in
 [BR-055](../../build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
 
@@ -164,7 +168,8 @@ region. An omitted assignment uses `bambu.filament`, which is the startup
 selection. H2D can use both nozzles with different installed diameters in one
 program. X1 supports regional PLA changes through its single 0.4 mm nozzle and
 AMS, with a bounded rear-chute flush. H2D also implements same-nozzle PLA changes
-through AMS; its service recipe and project metadata still await hardware acceptance.
+through AMS. AMS-09 physically verified those same-nozzle commands with the
+reference project entry; the reusable v12 project writer awaits acceptance.
 
 The normal source is `{ "type": "auto" }`: supply material preset ID and colour
 and let the printer propose a physical feed match. Do not ask for a slot just
@@ -281,14 +286,20 @@ physical assignment result, not another spelling of the selected nozzle.
 
 This inventory covers both implemented Bambu exporters (which share one writer),
 the complete service start/end arrays and every generated package entry. The
-CONFIG_BLOCK and project JSON are generated from the **same settings object**.
+CONFIG_BLOCK and project JSON derive job fields from the **same resolved job**.
+H2D project JSON additionally expands explicit compatibility-field scopes through
+[the project writer](bambu-project.mjs); its field vocabulary/defaults are
+cross-referenced to Studio 02.08.02.61. It contains no executable templates or
+reference part data. Arrays follow declared filaments, physical tools or supported
+variants; the reference's unused filament and High Flow variants are not retained.
+`filament_map_2` belongs to the resolved slice CONFIG, not the saved H2D project.
 Numbers with different meanings are intentionally not unified.
 
 | Aspect / authoritative input | All generated repetitions and handling |
 |---|---|
 | Selected diameter: `setup.nozzleMm` | CONFIG/project `printer_settings_id` and `nozzle_diameter`; plate JSON `nozzle_diameter`; slice `nozzle_diameters`, filament `nozzle_diameter`, nozzle `nozzle_diameter`; H2D both `M620.10 H`, `M1015.4 H`; SAAM job summary. Fixed 0.4 command literals were replaced. |
 | Other installed diameter: `bambu.otherNozzleMm` | Other element of CONFIG/project `nozzle_diameter`, slice `nozzle_diameters`, job summary; when used, its own filament/nozzle records and changeover H values. Never independently defaulted inside each writer. |
-| Nozzle side: `setup.tool`, each `bambu.filaments[].tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_map_2`, `filament_nozzle_map`, `physical_extruder_map`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. The selected filament must agree with setup.tool. No profile settings spread can overwrite them. |
+| Nozzle side: `setup.tool`, each `bambu.filaments[].tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_nozzle_map`, `physical_extruder_map`; slice CONFIG `filament_map_2`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. The selected filament must agree with setup.tool. No profile settings spread can overwrite them. |
 | Nozzle type / volume: supported standard hardened contract | CONFIG/project `nozzle_type`, `nozzle_volume_type`; model `filament_volume_maps`; slice `extruder_type`, `nozzle_volume_type`, filament/nozzle `volume_type`. Cardinality follows actual tools or declared filaments. X1 no longer inherits a two-nozzle type list. |
 | Logical filament: `bambu.filament` and interpreted usage | Both H2D load triplets (one on X1); H2D `M620.6 I`; header `filament` (comma-separated one-based IDs, **never a count**); plate `filament_ids` and `first_extruder` (zero-based); slice filament `id` (one-based), `layer_filament_lists` (zero-based); sequence `sequence` (one-based); job summary. |
 | Logical list: `bambu.filaments` | CONFIG/project filament IDs, colours, self indices, types, temperatures, diameter, density, flow ratio and maps; model/slice map cardinality. Only actually consumed filaments appear in consumed slice records and plate colours. `limit_filament_maps` remains the reference's zero restriction values; it is not a used-filament bit mask. |
@@ -336,12 +347,43 @@ tower geometry, extrusion and tower-specific cooling/return policy out of the
 new writer. The subsequent tower-free reference below isolates those differences;
 it does not establish physical priming quality or clearance on the actual printer.
 
+## Making an H2D two-colour print
+
+1. Establish the actual installed diameters, selected nozzle, plate, PLA identities
+   and colours. Set `setup.tool`, `nozzleMm`, matching `core`, temperature and
+   `bambu.otherNozzleMm`; do not substitute equal diameters to match a reference.
+2. Declare two `setup.bambu.filaments` entries with the **same tool**, their actual
+   material IDs/colours and `source: {"type":"auto"}`. Leave `setup.ams` null for
+   automatic matching. Declare known AMS connections independently. A colour is
+   not a slot number; `GFA00` is PLA Basic, not an arbitrary PLA identity.
+3. Set startup `bambu.filament: 0`, and assign regions to filament indices
+   `0, 1, 0` for colour A → B → A. Use the existing region/path workflow for the
+   desired part. The return to A reuses its entry. Both colour-change feeds must
+   be AMS feeds; external-spool automatic colour changes are rejected.
+4. Generate with the current machine profile through normal print tools. Existing
+   bundles pin their profiles: create a fresh bundle or explicitly update the
+   profile through the supported workflow when testing this exporter revision.
+   Review geometry, first-layer Z, colours and both change boundaries in Studio.
+   For repeat tests on calibrated hardware, `bambu.fast_start: true` is available.
+   No prime tower is generated.
+5. Deliver the reviewed archive unchanged. Confirm the printer's material/colour
+   mapping, then observe actual A → B → A switching and first-layer contact.
+   An on-screen mapping alone does not prove physical switching. Record the
+   exact archive hash and observation before reporting hardware acceptance.
+
+Do not transplant a Studio project entry or hand-edit exported metadata. The
+exporter derives job declarations from the plan and rejects package overrides.
+The successful AMS-09 control is evidence for the service commands; it is not
+a reusable maker file. Until the v12 generated-project test passes, tell the
+person that new colour jobs remain experimental. Dual-nozzle H2D and X1 AMS
+acceptance remain separate outstanding work.
+
 ## The program carries its own configuration
 
 The G-code contains a CONFIG_BLOCK as well as project JSON. A comment block is
 not harmless decoration: printer validation may consume it. Most arrays use
 commas; colour, IDs, type and extruder AMS count use semicolons. The writer has
-one serializer, not independent header and archive settings builders.
+one canonical job, with format-specific CONFIG and project serializers.
 
 Machine `package.projectSettings` must be empty; it cannot override generated job
 fields. Shared profiles carry no installation-specific AMS inventory
@@ -356,7 +398,7 @@ The same-file review/delivery lifecycle remains unchanged.
 
 ## H2D output contract
 
-`h2d-saam-startup-v11`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
+`h2d-saam-startup-v12`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
 including unequal diameters;
 1.75 mm PLA; Textured or Smooth PEI; no chamber heating. Startup establishes
 [100,100,20]. Shutdown clears geometry by 10 mm and parks at or below 320 mm.
@@ -394,12 +436,16 @@ filament's retraction debt afresh after each material change, including reuse
 of a previously selected logical filament. Dual-nozzle changes retain zero
 colour-flush length and do not increment the same-nozzle flush count.
 
-Do not interpret software acceptance as hardware success. The controlled
-reference tests isolate an omitted project-settings dependency, still unresolved;
-the three-field project identity addition failed on the dual diagnostic. The
-next hardware target is same-nozzle blue/orange/blue on the right 0.8 mm nozzle,
-using the dedicated Studio same-nozzle reference below. The B-selector change
-has not been shown to explain earlier wrong-height/initial-nozzle failures.
+Revision v12 adds the authored H2D project writer. Canonical job values override
+compatibility defaults, including colours, material identities, connections,
+temperatures, plate, both diameters and all nozzle assignments. It emits only
+Standard variants, disables tower fields and leaves all executable-template
+fields empty. JSON uses four-space indentation and CRLF, matching the successful
+control's representation. X1 retains its existing project format. These changes
+are covered by software checks; an export generated by v12 still needs a
+physical colour-change test. No individual missing field or formatting rule has
+been proven responsible. The executable startup/change service is unchanged
+from v11; the B-selector change alone did not fix the failure.
 
 The supplied `twocolor.twistedbox.gcode.3mf` (SHA-256
 `c0905ff8957f685282ba66d0795765a016d2c95246ad99183989a6600fdf5127`)
@@ -412,6 +458,16 @@ blob becomes an exporter template. Its first flush length is 112.253 mm;
 SAAM independently requests 300 mm³, or 124.72551 mm of 1.75 mm filament.
 The reference's thermal sync uses 240→220 C (10 and 5.55556); the 225 C test
 uses 7.5 and 4.16667. Those command observations are not physical acceptance.
+
+Hardware status: the Studio reference prints both colours; both SAAM AMS-08
+diameter variants completed entirely in orange. AMS-09 then changed colours
+successfully after replacing only the failed ALT's project_settings.config with
+the reference entry, keeping every other entry and executable command fixed.
+That diagnostic's foreign configuration does not pass the strict importer and
+must not become a maker template. It establishes a sufficient project
+representation for that job, not a particular missing key; field values and
+serialization also differ. AMS-10 tests mixed installed-diameter declarations
+with those same working commands. Neither test exercises both nozzles.
 
 Both supported profiles declare `single_extruder_multi_material=1` and
 `printer_technology=FFF` in CONFIG and project JSON from the same resolved job.
@@ -594,5 +650,6 @@ declares maps 1,1 / 0,0, uses only logical filament 0 on left nozzle group 0,
 and declares equal 0.4/0.4 diameters despite the reported 0.4/0.8 installation.
 Its initial M104 T1, G151 P1 and both remapped T0 H-1 selections agree with
 SAAM's intended left startup. This confirms those expressions but does not
-establish execution: the reference has not yet been reported printed from USB.
-Both current SAAM diagnostics still physically selected the right nozzle.
+establish general execution. The user subsequently confirmed the left reference
+prints correctly; the failing SAAM dual diagnostics still selected the right
+nozzle. Preserve that distinction when investigating the next dual-nozzle test.
