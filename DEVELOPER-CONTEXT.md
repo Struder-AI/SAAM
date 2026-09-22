@@ -10,9 +10,10 @@ under `core/` and `studio/` are maker and builder documentation; read one only
 when a person asks about the behaviour it describes, never to find your way
 around the code.
 
-Walk the map from `0`. `0` is the regions, `N` a region and its files, `N.F` a
-file and its declarations, `N.F.D` a declaration with its callees, callers,
-`couplings` and `unresolved` sites. Read a page, read its source with `--code`,
+Walk the map from `0`. `0` is the regions and `N` a region; every map numbers
+its own nodes under itself (`N.2`, then `N.2.1`, down to leaves). A declaration's
+map shows its callees, callers, `couplings` and `unresolved` sites. A node drawn
+away from its home map keeps its home index and names that map as `home`. Read a page, read its source with `--code`,
 make the edit, `regenerate` the region, read again.
 
 Reads use compact JSON: `range` is `[firstLine,lastLine]` inclusive; nested

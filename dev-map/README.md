@@ -5,7 +5,6 @@ All active developer-map tooling and inputs live in this folder:
 - `cli.mjs`: generation, drawing, checking and live freshness commands.
 - `lib/`: source scanning, graph composition, stored pages and rendering.
 - `flows.json`, `flows/`, `facts.tsv`: authored grouping and external facts.
-- `tests/`: map regression tests (`npm run test:maps` from the repository root).
 - `store/`, `view/`: generated snapshots and the stable human viewer; git-ignored.
 - Disposable checks and behavioral baselines belong in the operating system's
   temporary directory; keep durable regressions in tests and decisions at their owners.
@@ -169,12 +168,23 @@ The store is `dev-map/store/`; both it and the viewer are ignored by Git.
 
 ## The walk
 
-`0` → region `N` → file `N.F` → declaration `N.F.D` → `--code` → edit →
-`regenerate [INDEX]` → read again. Every declaration belongs to its own file,
-irrespective of which caller reaches it first. Flow pages can show contextual
-groups and appearances of declarations from other files. Those appearances
-retain the declaration's canonical address; a group opens its generated child
-page and has its own durable group path.
+`0` → region `N` → its maps `N.1`, `N.2`, … → down to a leaf → `--code` → edit →
+`regenerate [INDEX]` → read again. An index is a place in the map tree: each map
+numbers the nodes whose home it is, 1…n, under its own index. Where the code lives
+does not enter into it.
+
+A node's home is the first map that shows it, walking every containment map
+(root, region, group) before any call-flow map. Authored grouping therefore
+places every declaration it claims; a declaration's call-flow map homes only its
+own groups. Every other appearance is a repeat: it keeps the home index and
+carries `home` (the map it lives on), and the home node carries `alsoOn` (the
+maps that repeat it). The viewer draws both as red links. A page that no map
+shows, such as a file page under a grouped region or a group authored for one,
+is not published; `regenerate` lists it under `unplaced`.
+
+Generation numbers declarations by source position internally
+(region.file.declaration, groups after `.0.`); those addresses serve scoped
+reuse only and are never published.
 
 Prefer the walk over text search when orienting. Search finds names; the walk
 gives `calledFrom`, couplings, unresolved sites and flow uncertainty. These are
@@ -200,11 +210,11 @@ by `--details`; the default response applies the compact conventions above.
 - **`0` (root)** — `regions` (index, path, files, lines, nodes, entry points),
   `ports` (every way into the regions from outside them), `wires` between
   regions with their kinds and counts, `children`.
-- **region** — `path`, `files`, `lines`, `nodes`, `components` (one per file,
-  with its node and entry-point counts), `ports`,
-  `wires` between the region's files, `children`.
-- **file** — `file`, `region`, `lines`, `nodes`, `components` (the file's
-  declarations),
+- **region** — `path`, `files`, `lines`, `nodes`, `components` (its authored
+  groups, or one per file when the region has no grouping), `ports`,
+  `wires`, `children`.
+- **file** — published only under a region with no grouping. `file`, `region`,
+  `lines`, `nodes`, `components` (the file's declarations),
   `ports` (other files, other regions, outside callers), `wires`, `children`.
 - **node** (function, method, handler, class) — `path`, `file`, `line`,
   `endLine`, `lines`, `kind`, `inputs`, `outputs`, `components` (what it calls,
@@ -226,10 +236,12 @@ by `--details`; the default response applies the compact conventions above.
   the next state; optional invocations preserve the skipped-update branch.
   Aliases, escaped or captured collections, unknown receivers and custom
   accumulator effects remain outside this supported local-state analysis.
-- **group** — its authored membership and label, canonical member components,
+- **group** — its authored membership and label, member components,
   generated input/output boundary ports, wires and edge evidence. `structural`
   pages show calls/couplings; these must not be mistaken for execution order.
 - **any node or file page** — `facts`, only when a row names it.
+- **any component** — `home` when it is drawn away from its home map, `alsoOn`
+  on the home node when other maps repeat it.
 
 A single-span `--code` read answers with `file`, `range` and numbered `source`,
 plus identity, provenance and edit-safety metadata. Region and group reads return
@@ -402,6 +414,6 @@ disk. Regions, files, entries, numbering and every box follow from the code.
 
 ## Tests
 
-```sh
-npm run test:maps
-```
+The map analyzers have no stored tests: their oracle is JavaScript semantics,
+which an agent re-derives from the scanner source at the time of need. Check a
+change by regenerating the map and reading the affected pages.

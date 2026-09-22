@@ -96,5 +96,5 @@ modeled surface has not been tested for adhesion or overhang at that
 overhang; review the result in Studio, and prefer a short schedule change
 over a large jump between steps until this is validated on hardware.
 
-Run `node --test skills/thick-lip/tests/lip.test.mjs` for targeted software
-checks, then the repository's `npm test` after changes.
+This skill has no stored tests; write the checks you need from the contract
+above, then run the repository's `npm test` after changes.

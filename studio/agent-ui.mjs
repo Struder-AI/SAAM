@@ -59,10 +59,14 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
   // viewer stream, the page becoming visible and a slow heartbeat recover a
   // push that was missed. Reading every render turned an idle page into a
   // continuous request poll.
-  addEventListener('saam-studio-change',event=>{if(event.detail.kinds.includes('requests'))void refresh();});
-  addEventListener('saam-viewer-connection',()=>{void refresh();});
+  let fallback=setInterval(()=>{void refresh();},15_000);
+  addEventListener('saam-studio-update',event=>{if(event.detail.kind==='state'&&event.detail.kinds.includes('requests'))void refresh();});
+  addEventListener('saam-viewer-connection',event=>{
+    if(event.detail.open){clearInterval(fallback);fallback=null;void refresh();}
+    else if(!fallback)fallback=setInterval(()=>{void refresh();},15_000);
+  });
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
-  void refresh();setInterval(render,750);setInterval(()=>{void refresh();},15_000);
+  void refresh();setInterval(render,750);
   function present(work){if(!work)return;view={...view,printId:work.printId,snapshot:work.snapshot,ready:true,errorAt:null,awaitingConfirmation:work.awaitingConfirmation===true};render();}
   return {refresh,reflectFade,
     generating(){return summarizeWork(requests,{closedOwners,view}).stage==='toolpath';},

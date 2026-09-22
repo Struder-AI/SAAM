@@ -19,7 +19,7 @@ const meta=values=>Object.entries(values).map(([k,v])=>`    <metadata key="${k}"
 const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.gcode';
 // Updated only after reviewing changes to the firmware service contract.
 const ENVELOPE_HASHES={
-  "h2d-saam-startup-v8": "9780a4df93765718dacb82ffb2fea6b9f8bfc933b28ed8359fe2281611dc468c",
+  "h2d-saam-startup-v11": "9ed2f343095f6cf0331ad6359fee1cc637bb7a707f9cea3da538a33fa70779f9",
   "x1c-saam-startup-v5": "1efa6f410cdd5628d11cda4dc8732cf7555921f4e409c9246ea74e1d3911067e"
 };
 function configuration(plan,machine){
@@ -161,9 +161,10 @@ function completeProgram(program,code,c,s,job){
     logicalFilament:job.used,filamentColor:job.color,requestedTray:tray,amsConnections:job.amsConnections,
     filamentUsage:program.filamentUsage,filamentSequence:program.filamentSequence,
     feeds:job.filaments.map((f,i)=>({filament:i,tool:job.selections[i].setup.tool,material:job.material,colour:f.colour,source:f.source??(job.selections[i].setup.ams?{type:'ams',...job.selections[i].setup.ams}:{type:'auto'})}))};
-  if(job.materialChange&&program.filamentSequence.length>1)program.envelope.job.materialChanges={...job.materialChange,count:program.filamentSequence.length-1};
+  const materialChangeCount=program.filamentSequence.slice(1).filter((id,i)=>job.selections[id].setup.tool===job.selections[program.filamentSequence[i]].setup.tool).length;
+  if(job.materialChange&&materialChangeCount)program.envelope.job.materialChanges={...job.materialChange,count:materialChangeCount};
   program.summary.startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+program.envelope.notice+' '+mapping;
-  if(program.envelope.job.materialChanges)program.summary.startup+=` Each AMS change purges ${job.materialChange.flushMm3} mm³ into the chute plus 2 mm of filament for priming; this service material/time is additional to the part totals.`;
+  if(program.envelope.job.materialChanges)program.summary.startup+=` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`;
   program.summary.clearance='Deposited-height travel checked; physical head clearance is not modeled.';
   return program;
 }

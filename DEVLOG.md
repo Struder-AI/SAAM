@@ -1,5 +1,366 @@
 # Development log
 
+## 2026-09-21 — Same-nozzle reference received; AMS main/ALT pair on USB
+
+- Inspected user-supplied twocolor.twistedbox.gcode.3mf, SHA-256
+  c0905ff8957f685282ba66d0795765a016d2c95246ad99183989a6600fdf5127:
+  62 material changes, all through right nozzle 1. All outgoing descriptors
+  retain B-1, including returns to filament 0. The prior SAAM colour candidate
+  changed B to 1 after its first change. v11 now keeps remapped B-1 for
+  same-nozzle changes and derives the reference thermal-sync form from owned
+  temperature/rate settings. Cross-nozzle behaviour remains unchanged.
+- The supplied reference uses green/yellow and declares 0.8/0.8, with a tower
+  and an unused third filament. SAAM retains user-requested blue/orange, two
+  logical filaments, right-only deposition and no tower. No vendor header or
+  project-settings blob is copied into either generated file.
+- Prepared main and user-requested ALT in Prints/bambu-h2d-ams-pair-fast-08.
+  Main AMS-08-L04-R08.gcode.3mf declares left 0.4/right 0.8; SHA-256
+  1207e944e38dc860edd5f512a9f14457fd6f466bac56a0262e202f851dc25d2f.
+  ALT AMS-08-ALT-L08-R08.gcode.3mf declares left 0.8/right 0.8; SHA-256
+  995ae7697a7c697e5901844570c345e3b55d7fafb0b63332ab80b5fa87c8327a.
+  Executable bytes and decoded moves are identical across the pair. Both print
+  six 0.3 mm layers, two each blue/orange/blue, centred 24×16×1.8 mm. Estimated
+  body time is 3.1 minutes, excluding startup and AMS operations.
+- Copied both files and AMS-08-README.txt to the user's D: USB with exact
+  SHA-256 read-back verification. User starts prints; no manufacturing approval
+  or hardware execution was synthesized by the agent. Physical results pending.
+- 28 focused checks pass, including two changes on one nozzle, both outgoing
+  selectors, purge units, thermal sync, ALT executable equality, package
+  round-trip and existing dual diameter/feed tests. The minimum project record
+  is unchanged; omitted project-settings dependency remains unresolved.
+  B-1 is a reference-alignment change, not a proven cause of earlier failures:
+  wrong nozzle/Z occurred before the first colour change, when B was already -1.
+
+## 2026-09-21 — Shift the next hardware test to H2D same-nozzle AMS colours
+
+- User reports dual-project-identity-fast-06 failed: nothing adhered to the bed
+  and dribbling material was seen at the right nozzle. The print was not watched;
+  elevated Z and right-only execution are suspected, not directly confirmed in
+  this run. Adding project name/from/version alone has not repaired the dual job.
+- User explicitly shifts the immediate investigation to same-nozzle colours;
+  dual-nozzle support remains an outstanding goal. Confirmed test colours are
+  blue and orange (correcting the earlier brown description). Planned sequence
+  is blue → orange → blue on the right 0.8 mm nozzle, with fast startup and no
+  prime tower. No AMS slot numbers requested.
+- H2D v10 implements the same-nozzle branch in the shared regional change
+  writer, using one 300 mm³ profile purge policy converted to filament length
+  for both M620.10 descriptors. H2D firmware owns flushing; no duplicate explicit
+  E flush is emitted. Existing dual-nozzle changes retain L0. Summary counts
+  now count only same-nozzle changes as colour flushing. External-spool material
+  changes are rejected. Installed H2D template dated 20260528 and upstream
+  GCode.cpp provide command/unit evidence, not physical validation.
+- Ten focused tests pass: H2D colour changes and rejection, existing dual
+  diameter/feed cases, and X1 colour changes. New coverage verifies right-only
+  body motion, 0.3 mm initial deposition, blue/orange/blue layer assignment,
+  repeated logical-filament selection, descriptor volume and tamper rejection.
+- Requested a dedicated Studio same-nozzle reference; existing two-colour
+  twisted-box export changes nozzles and cannot establish same-nozzle behaviour.
+  No new hardware success is claimed; unresolved project ingestion remains a
+  material limitation before the next test is released.
+
+## 2026-09-21 — Project JSON isolated; return to actual mixed-nozzle testing
+
+- User reports full-gcode-config-fast-04 fails with the same wrong right nozzle
+  and elevated Z, while full-project-config-fast-04 passes. Full project JSON
+  suffices with the minimal 40-entry G-code CONFIG; restoring only full G-code
+  CONFIG does not repair minimal project JSON. This identifies the project-file
+  reduction as the relevant configuration difference in the controlled reference
+  experiment. No individual omitted field or firmware parsing mechanism is proven.
+- User challenged the continuing single-nozzle tests and reiterated the goals:
+  working dual nozzles first, AMS colours second. The prepared three-field
+  single-left identity probe is superseded without hardware testing. The next
+  experiment directly uses the SAAM-authored mixed-diameter fast-05 job.
+- Prepared Prints/bambu-h2d-dual-project-identity-fast-06. It adds only project
+  name=project_settings, from=project and version=02.08.02.61; version is taken
+  from the archive's existing X-BBL-Client-Version. Every G-code byte and every
+  other ZIP entry is identical to failed fast-05. SHA-256:
+  383e099acb335aaf9537ef86f8d5c812a766181423f93fb678f3422ff033c7b7.
+- Expected physical sequence: left 0.4 / centre pad, right 0.8 / pad 60 mm to
+  the right, left, right, left. Left uses external PLA at 215 C; right uses blue
+  PLA through AMS at 225 C. Fast startup and no tower remain. Verify actual
+  nozzle changes and correct-height deposition, not just cleaning visits.
+- This is a clearly labeled diagnostic mutation, not a normal regenerated
+  delivery: the shared interpreter/exporter is unchanged and does not accept
+  the added project fields yet. If successful, implement this authored metadata
+  in the canonical exporter and regenerate; if unsuccessful, broaden project
+  repair on the dual job rather than extending the single-left test sequence.
+  No reference header was copied into this SAAM-authored diagnostic. USB D: was
+  disconnected when prepared; copy/hash verification remains pending.
+
+## 2026-09-21 — Alphabetical minimal configuration fails; isolate configuration source
+
+- User reports left-config-order-fast-03 uses the right nozzle at elevated
+  height. Both reduced configurations fail, while the complete configuration
+  succeeds with identical executable commands. Alphabetical order alone is
+  insufficient. Missing information or a larger-configuration requirement is
+  implicated; no particular field or count threshold is established.
+- Prepared two complementary controls in Prints/bambu-h2d-config-surface-fast-04.
+  First test left-full-gcode-config-fast-04: full 569-entry G-code CONFIG with
+  minimal 39-entry project JSON (SHA-256
+  d87f2d6ffa61970897402ae3b415a32da33651248ea853eb8506ee89ee9ee66e).
+  If it fails, test left-full-project-config-fast-04: minimal 40-entry G-code
+  CONFIG with full 580-entry project JSON (SHA-256
+  4041bf7a6c95ee9469f2058a24842a07d1fc2ddaf6289848f85b67216dbdda50).
+- The first differs from the physically successful fast control only in its
+  project-settings ZIP entry. The second differs from the failed order probe
+  only in that entry. Every executable byte, startup reduction, setting value
+  retained on each surface, nozzle declaration and part motion is preserved.
+  A pass identifies a sufficient configuration source for this reference; if
+  both fail, investigate their interaction. These remain single-left reference
+  diagnostics, with physical results pending and no production-header adoption.
+
+## 2026-09-21 — Fast reference control passes: configuration differences isolated
+
+- User reports left-reference-fast-control-02 prints correctly. Its executable
+  G-code is byte-identical to failed left-minimal-config-fast-02, which printed
+  using the right nozzle at elevated height. Both use the same shortened
+  startup, temperatures, homing, selection and part motions. The changed
+  configuration surfaces therefore distinguish the physical outcomes in this
+  controlled comparison; startup reduction does not explain that difference.
+- Still unresolved: omitted fields versus ordering, and G-code CONFIG versus
+  project JSON. Do not identify a specific setting or firmware parsing mechanism
+  as the cause yet. The prepared alphabetical-order probe changes no setting
+  values, counts or executable commands and is the next test. Shared exporter
+  changes and mixed-diameter acceptance follow the discriminating result.
+
+## 2026-09-21 — Reduced configuration reproduces wrong nozzle and elevated printing
+
+- User reports left-minimal-config-fast-02 prints with the right nozzle at the
+  wrong height, reproducing both H2D failures while using the reference's
+  executable commands with shortened startup. Its matching full-configuration
+  fast control has not yet been reported; common startup changes remain a
+  confounder until that result. Do not declare a specific missing key proven.
+- Prepared left-config-order-fast-03 as the next discriminating probe if the
+  full-configuration control passes. It alphabetizes exactly the same 40 CONFIG
+  and 39 project entries. No value, entry count, executable command, temperature,
+  nozzle map or Z move changes. This separates field order from field omission
+  without introducing speculative settings. It remains a local reference
+  diagnostic, not an exporter fix or dual-nozzle acceptance.
+- Order probe SHA-256:
+  8e9fd31cf5ebdc73871495008f4f36eff1f57f6492cb75b93309339a4e342da1.
+  Archive round-trip checks verify the changed-entry set and byte-identical
+  executable against failed minimal-config-fast-02. Physical result pending.
+
+## 2026-09-21 — Packaging and producer controls pass; reduced-configuration probe
+
+- User reports both leftnozzle-repack-control-01 and leftnozzle-origin-probe-01
+  print correctly, with slow startup the only issue. This is physical H2D
+  evidence against ZIP packaging or those two producer-identification fields
+  alone explaining fast-05. It does not establish X1 or mixed-nozzle acceptance.
+  Exact hashes and the user report are in the controls' comparison.json.
+- Prepared Prints/bambu-h2d-left-config-probe-fast-02. The probe retains reference
+  values but reduces/reorders CONFIG/project fields to the keys SAAM emits:
+  CONFIG 569 to 40, project 580 to 39. The companion control keeps all reference
+  settings. Both have byte-identical executable G-code: reference commands with
+  optional leveling/flow/plate/tool-offset flags off and music/vibration removed.
+  Homing, nozzle-type selection, saved compensation, heating, cleaning and Z
+  registration remain. Body and shutdown are unchanged from the reference.
+- Test the reduced-config probe first; if it succeeds, the second print is
+  unnecessary. If it fails and the fast reference control succeeds, field
+  omission/order is implicated. If both fail, the common startup reduction is
+  a confounder. Both retain the reference's declared 0.4/0.4 and single-left path;
+  they do not test mixed diameters. First-layer observation suffices. Results
+  remain pending. No reference header or geometry entered the shared exporter.
+- Probe SHA-256:
+  68449ae70a29ff0ceef7e4dee404157720fc4d78230bfd40d81a178625670df8.
+  Fast reference control SHA-256:
+  f56dbda516e11f07829b1e7b95ee079451f1451c2556cd35fac6ea734e5861ce.
+  Archive checks confirm only G-code/dependent MD5 change in the control, with
+  project settings additionally reduced in the probe; retained values match.
+
+## 2026-09-21 — Stored test suite cut to the tests that cannot be regenerated
+
+- Premise agreed with the owner: "does this work?" can be answered by tests an
+  agent writes on demand from the code. A stored test earns its place only when
+  its oracle cannot be regenerated by that reasoning at the time of need.
+- Four keep criteria: (1) the oracle lives outside the repository — machine,
+  firmware, controller or upstream reference; (2) a safety invariant with no
+  local trigger — approval invalidation, stale views, byte-identical delivery,
+  manifest honesty, cancellation boundaries, lifetime and shutdown isolation;
+  (3) an expensively discovered defect on its minimal fixture; (4) the MCP
+  adapter surface, kept whole. Everything else is written on demand.
+- Before: 200 `*.test.mjs` files, 20,928 lines, 1,182 cases. After: 42 files,
+  4,152 lines (19.8%), 192 cases. Lines by criterion: 1,428 external oracle;
+  1,169 safety invariants; 718 observed defects; 837 MCP. Five files were kept
+  only for their criterion-3 case and trimmed to it (`studio-material`,
+  `vase-wall/vase`, `vase-wall/paths`, `text/text`, `wave-overhangs/wave`).
+- Removed: all of `dev-map/tests/` (analyzer oracle is JS semantics), every
+  `*-stages.test.mjs` refactor characterization, Studio UI/presentation suites,
+  analytical geometry/path/region suites, agent-surface tests other than MCP,
+  and source-text regex tests. `package.json` drops the `dev-map/tests` glob
+  and `test:maps`; `core/tests/README.md` now states the four criteria and
+  lists only surviving files.
+- Recovery needs no backup: every deleted file is at `git show f7ec6f6:<path>`
+  (test files carrying another session's uncommitted edits recover to their
+  last committed state).
+- Verification: `node scripts/check-repo.mjs` passes after repairing the doc
+  links this cut broke. `npm test` is 193/194 with one failure that is not from
+  this change: `skills/gridfinity/tests/access.test.mjs` expects
+  `toolpathApproved === false` while the new `core/print/review-state.mjs`
+  projection returns `null` for an unchecked program.
+
+## 2026-09-21 — Fast-05 fails; distinguish file recognition from firmware execution
+
+- User reports fast-05 still starts and prints with the right nozzle at elevated
+  height. Restoring early homing and adding two configuration declarations did
+  not fix those symptoms. The working leftnozzle archive remains the positive
+  physical control; do not ask the user to identify it again. Its SHA-256 is
+  2e476df9cccd6e1b94433c9ddfc91295db9b00b9054206cfd7c4dc6c55a55be7.
+- Both the working control and failed SAAM output enable M620 remapping, select
+  logical filament 0 using M620/T0 H-1/M621, and command a 0.2 mm first deposition
+  height. These encoded values do not establish the firmware's physical nozzle
+  selection or coordinate state. A numeric first-layer-height typo is not shown.
+- Official Studio desktop source gates embedded G-code configuration loading on
+  producer recognition. ConfigBase::load_from_gcode_file then requires a
+  `; BambuStudio` line prefix and at least 80 recognized configuration pairs.
+  The working control has that marker on line 2 and 569 total pairs. Fast-05 has
+  no such marker and 40 pairs. This establishes a desktop-reader compatibility
+  gap, not that printer firmware applies the same gate or deliberately rejects
+  SAAM. Adding the marker alone would not satisfy the desktop configuration
+  loader. No borrowed header or false Studio authorship was added.
+- The read-only Bambu audit now reports these necessary desktop-reader conditions
+  separately from selected-field consistency. Unknown keys still count toward
+  the reported total, so reaching 80 is explicitly not sufficient. Five audit
+  tests pass, including the distinction between the count and schema acceptance.
+- Installed Studio 02.08.02.61 CLI --help works, but attempted --info imports
+  yielded no diagnostic output; an explicit process wait reported exit -6 for
+  fast-05. No successful import or rejection reason was obtained. These attempts
+  did not start a print or change either tested archive.
+- A first-person H2C report (bambuddy issue 2800) links incorrect dispatch nozzle
+  mapping to elevated printing and reports a hardware-tested correction. It is
+  supporting evidence for investigating routing and Z together, not an H2D
+  protocol or a fix to copy. H2D USB dispatch remains unobserved.
+- Prepared two local reference controls in
+  Prints/bambu-h2d-leftnozzle-origin-probe-01. Test the repack control first
+  (SHA-256 fa835bca4c716bab35c6ce9a3243eebb9f4c921236ddb72661b377b66629df83):
+  every one of its 17 entries is byte-identical to the working reference, using
+  SAAM's ZIP writer. Only if that works, test the origin probe
+  (SHA-256 a011ab35caa6184c292af7de1a1b757153898d7c04cfe3974a8c1c643d55b903):
+  the G-code producer comment and 3MF Application identity change, plus the
+  dependent MD5. Configuration and executable bytes remain identical. This
+  staged comparison separates packaging from the identification fields as a
+  group. Both retain the reference's full startup and need only first-layer
+  observation; physical results are pending. These are diagnostic reference
+  copies, not SAAM-generated geometry or borrowed exporter headers.
+
+## 2026-09-21 — Corrected interpretation of homing evidence and fast-05
+
+- User challenged the claim that missing homing explains the elevated part:
+  SAAM has printed correctly on this H2D many times, and full-04's front purge
+  was at the correct height. The agent's earlier explanation overstated the
+  evidence. Full-04 lacks an early X/Z block, not all homing or Z calibration;
+  it retains later conditional G28 R, G383/G39.1 operations, compensation and
+  front-purge registration. The early omission was already documented as H10.
+- No exact previously successful SAAM archive has yet been correlated and
+  compared with full-04 to identify the regression. Successful older prints
+  must not be discounted because that artifact-level comparison is missing.
+- Fast-05 changes three groups relative to full-04: fast-start policy, restored
+  early homing, and added CONFIG/project declarations. Its body and shutdown
+  are unchanged. It is not a single-variable causal experiment; a successful
+  result would validate that combination only. Neither homing restoration nor
+  multi-material metadata has been proven to fix the physical routing/height.
+- Export, audit and playback checks establish encoded intentions and consistency,
+  not the printer's actual active nozzle, coordinate transforms or AMS routing.
+  The height/routing root cause remains unknown. A wrong active nozzle/offset
+  state is a hypothesis connecting the two symptoms, not a measured finding.
+
+## 2026-09-21 — H2D fast-05 restores initial homing after full-04 retest
+
+- After repairing the pinched left-feed PTFE tube, user reports full-04 now
+  completes its motions without freezing, but prints both pads using the right
+  nozzle at elevated height. It visits the cleaning station at changes without
+  switching nozzles. Initial left-feed suggestion remains a one-slot AMS; user
+  manually selects external. The obstruction explains the change in stalling
+  behavior, but routing and height failures remain.
+- User requested another H2D test with fast start. H2D v9/revision 19 restores
+  initial X home, wipe/park and the M1009-bracketed Z home before initial load,
+  matching the working left-only Studio reference's essential homing sequence.
+  The earlier H10 omission had persisted even in full-04. Fast mode now retains
+  this sequence while omitting optional calibration/vision/vibration blocks.
+  No arbitrary numerical Z compensation or forced physical T index was added.
+- Both Bambu outputs now declare single_extruder_multi_material=1 and
+  printer_technology=FFF from the resolved job into CONFIG and project JSON.
+  The installed common profile and H2D reference supply evidence for these
+  declarations; whether they correct firmware routing is not yet established.
+- Generated Prints/bambu-h2d-mixed-nozzle-fast-05, SHA-256
+  99148aefa414cd763c5d3087173002271c9fd194ca7a1cdc9480c6029df57863.
+  Its complete print body is byte-identical to full-04: centre left 0.4,
+  offset right 0.8/blue, four switches, no tower. Startup is fast with restored
+  initial homing. Audit reports no selected-field inconsistencies. 31 targeted
+  Bambu/dual/X1/audit tests pass, including homing-before-load in full/fast modes.
+- Studio server opened at http://127.0.0.1:56084; browser navigation was denied.
+  Human review/export and physical acceptance are pending. Do not report either
+  the nozzle selection or actual print height fixed without the hardware result.
+
+## 2026-09-21 — Left-only Studio control succeeds; left feed obstruction corrected
+
+- User reports the untouched leftnozzle.gcode.3mf prints correctly on H2D
+  (reference SHA-256
+  2e476df9cccd6e1b94433c9ddfc91295db9b00b9054206cfd7c4dc6c55a55be7).
+  They found and corrected a pinched PTFE tube that prevented filament from
+  advancing through the left external feed. They report that the printer had
+  consequently treated the left external spool as unloaded. This physical
+  obstruction is a confounding factor in the earlier H2D failures; it does not
+  yet establish which routing, height or freeze symptoms it explains.
+- User is repeating the unchanged full-04 archive after the repair (SHA-256
+  a8623e7bcbbf4776b8319e32d596aafe92e796883abd2e8dc219e32c00dd60e5).
+  Result pending. Preserve the executable and settings for this comparison.
+- X1 is no longer available. Continue hardware testing on H2D: first verify
+  left/right mixed-diameter execution and resumption after switches; then
+  verify AMS colour changes. H2D same-nozzle colour changes still need an
+  implemented service contract and verification. The failed X1 result remains
+  unresolved; H2D success would not count as X1 physical acceptance.
+
+## 2026-09-21 — Inclined bridge follow-up and transverse second course
+
+- Nave requested two-loop supports, 4 mm rise, +/-Y spans, increased bridge flow,
+  uphill/downhill one-way end-attachment comparisons, and a matched singleton
+  second layer along +/-X. Subsequent corrections set low rims to 2 mm and all
+  non-circular spans to 24 mm; circular spans retain 12 mm.
+- Bridging now accepts an optional one-way end-attachment record for independent
+  overlap, speed, press, jog and flow. A later course can explicitly name an
+  earlier bridge as nominal strand support. Attachment checks interpolate its
+  actual 3D segments; they do not promote gaps into a filled supporting sheet.
+  Existing wall producers and shared composition/export remain unchanged.
+- Local Array 02 contains 16 specimens, 17 bridge courses, including 100/120%
+  references and one second-layer specimen. Export checks verify 1,160 wall
+  circuits, 1,170 straight spans, direction/flow, matched first layers, directed
+  returns and continuous paths. Whole-stack excursion is at most 4.16667 mm.
+  Six bridge and twelve lifecycle tests pass. Preview motion estimate 71.6 min;
+  no Array 02 physical results yet. R001 photos and operator findings are retained
+  separately in the local print-test program.
+
+## 2026-09-21 — X1 AMS failure; H2D dual-nozzle work remains first priority
+
+- User physically tested the approved X1 fast-01 archive (SHA-256
+  09b38dfef9515d83292b9e0d45f5dc7cd6bb169c96be9ec6069e04d2809524b8).
+  The printer said: "The current model does not support AMS manual mapping.
+  Please arrange the AMS filaments from left to right in the order of model
+  filaments". After the user arranged them, the part printed entirely grey
+  without the requested colour changes. Whether service visits occurred and the
+  launch method are not yet confirmed. This is a failed AMS acceptance test,
+  not successful three-colour printing.
+- User observed some startup vibration, then explicitly deprioritized that
+  observation. Priority is H2D mixed-diameter dual-nozzle execution, followed by
+  AMS colour changes on either/both machines. No vibration-related executable
+  changes were made in response.
+- Read back the exact approved files. X1 contains M620 S1A / T1 / M621 S1A
+  and then M620 S2A / T2 / M621 S2A; explicit M970/M974 tests are absent.
+  H2D full-04 contains G1 Z0.2 before the centre pad and its first change is to
+  logical filament 1. These are source observations, not proof of firmware
+  execution. Right target 215 C still supports the first filament being routed
+  to the wrong nozzle; it does not identify the cause.
+- The installed Bambu common profile and supplied H2D reference declare
+  single_extruder_multi_material=1 and printer_technology=FFF. SAAM currently
+  omits these fields and machine_start_gcode configuration text. Their absence
+  is a compatibility hypothesis, not a demonstrated firmware requirement or
+  proven explanation. Do not add guessed routing overrides or misattribute
+  SAAM output to Bambu Studio to mask the failure.
+- Requested the untouched leftnozzle.gcode.3mf USB first-layer control with
+  left external selected. Requested an X1 three-colour Studio reference for
+  secondary comparison; it is not a prerequisite for continuing H2D work.
+  Preserve failed artifacts and approval hashes for controlled comparisons.
+
 ## 2026-09-21 — X1 three-colour AMS test and H2D full-start failure
 
 - User requested a second machine test: X1 Carbon, 0.4 nozzle, fast startup,
@@ -6730,3 +7091,165 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - `node scripts/check-repo.mjs` passed across 76 documents and 1,085 local links.
   Fifteen focused context-map, manifest, generation-worker and presentation tests
   passed. This is software/documentation evidence only.
+
+## 2026-09-21 — Job-scoped checked-output handoff
+
+- Replaced Studio's process-global worker attachment and checked-source slot with
+  a handoff owned by each prepared generation job. The handoff owns the worker
+  message subscription, supplies the job an opaque, single-use ticket alongside
+  the successful message, and removes the subscription when disposed. Pending
+  sources are keyed by generation/export identity, capped at 32 entries and
+  expire after one minute, so concurrent jobs remain independent without
+  retaining abandoned source indefinitely.
+- The handoff rejects stale, disposed, cancelled, mismatched and forged results,
+  strips motion arrays and returns defensive metadata/source copies. Workflow
+  reuse still follows a reread and hash of the current output bytes; cold and
+  full-motion loads continue through the interpreter.
+- Forty-five focused handoff, worker/job, Studio opening, read-scope and workflow
+  tests passed, including concurrent tickets and saved-output tamper rejection.
+  This is software evidence only.
+
+## 2026-09-21 — Coherent Studio operation snapshots
+
+- Conditional state reads now use one stable bundle snapshot for both their ETag
+  decision and response instead of discarding a first lifecycle read on cache
+  misses. The tag includes the request, import-repair, tour, generation-failure
+  and cancellation metadata returned by the route.
+- Machine-source reads use one source-bearing snapshot for request identity and
+  streaming instead of a fingerprint/read/fingerprint sequence. Atomic manifests
+  therefore use one lifecycle read per state or source GET; machine-study keeps
+  its existing legacy stability retries. Geometry-only state still omits export
+  bytes, and source state still omits full motion.
+- Thirty-four focused read-scope, source-player, state metadata, Studio opening,
+  tour and reconnect tests passed. Instrumentation covered conditional hits and
+  misses, source success and stale-byte rejection at one snapshot each. This is
+  software evidence only.
+
+## 2026-09-21 — Ordered Studio updates and explicit refresh stages
+
+- The existing viewer stream now carries ordered state and preparation updates.
+  Connected clients coalesce state triggers into one conditional read and apply
+  identity-scoped progress without a full-state read. State and progress polling
+  run only as a disconnect fallback; late subscription and reconnect recover
+  current progress and state, while visibility recovery checks state changes.
+- Refresh now has explicit load/adopt, presentation and tour-generation stages.
+  Tour generation adopts and presents its result directly instead of recursively
+  entering refresh. Disposal clears queued refresh and fallback work.
+- Viewer progress uses the Studio instance and hashed viewer print identity;
+  agent generation events retain their request-derived print identity. The
+  server and UI share the same cancellation-capable preparation status, including
+  commit-phase cancellation semantics.
+- Sixteen focused scheduler/lifetime tests and 53 Studio integration tests passed.
+  An actual SSE generation test verified the payload consumed by the UI and the
+  separate agent identity. This is software evidence only.
+
+## 2026-09-21 — Shared lifecycle review decisions
+
+- Kept current-byte validation, generation identity and exact approval hashes in
+  the bundle workflow. Added a pure projection for the smaller decisions that
+  Studio controls, toolkit summaries and MCP summaries had derived separately:
+  checked currency, production readiness, effective toolpath approval and next
+  review action.
+- Geometry-only reads now consistently report output currency and approval as
+  unknown instead of inferring either from the manifest. UI labels, output
+  availability, calculation/cancellation activity and request presentation keep
+  their existing owners.
+- A focused matrix covers no output, unavailable output, development and
+  production generation, approved output, changed bytes and unchecked reads.
+  Cross-consumer assertions confirm Studio, toolkit and MCP use the same derived
+  decisions; existing workflow tests retain exact-hash and promotion coverage.
+
+## 2026-09-21 — Shared incremental STL decoding
+
+- Replaced the independent buffer and file STL parsers with one incremental
+  decoder for binary records and ASCII tokens. Complete buffers and 64 KiB file
+  streams now share recognition, grammar, unit scaling, finite checks, exact
+  vertex indexing and capacity enforcement. File I/O still owns hashing,
+  progress, cancellation and changed-length detection without retaining another
+  full source or text copy.
+- Standardized ASCII on the existing streaming line-oriented grammar. Leading
+  whitespace, CRLF, split UTF-8 header text and closing solid names remain
+  accepted. The buffer-only acceptance of a same-line `solid ... endsolid` file
+  was removed because it cannot contain standard facet records.
+- Eighteen focused large-mesh, repair and decoder tests passed, covering varied
+  one-byte through record-sized chunks, malformed/truncated/extra data and
+  trailing lines, nonfinite scaling, progress, cancellation and capacity failure.
+
+## 2026-09-21 — Output contract ownership assessment
+
+- Reviewed exporter selection, locked machine output declarations, lifecycle
+  filenames, Studio source playback and delivery MIME handling. The production
+  exporter registry already solely owns exporter/interpreter implementation
+  dispatch. Locked `outputs[]` entries separately and legitimately own each
+  machine's enabled outputs, extension, constraints and optional MIME metadata;
+  workflow consumes those declarations without inferring a machine from a name.
+- Studio's source-player switch is a browser boundary over streamed text/source
+  maps and browser move storage, not a second production exporter. Merging it
+  into the Node registry would add Node/browser coupling or another catalog.
+  Delivery's small extension-to-MIME mapping and compound-extension naming are
+  presentation concerns; moving them would require another bundle read or a
+  breaking change to the path-returning delivery API.
+- No implementation changed. Bambu resolution/settings and concurrent work were
+  left untouched. Existing output bytes, interpreter behavior, filenames,
+  availability and content types therefore remain the evidence for this review.
+
+## 2026-09-21 — Explicit legacy print-bundle migration
+
+- A bounded read-only inventory of repository `Prints/` and `examples/` found
+  130 ordinary bundles: 6 current `saam-print-bundle/2` manifests and 124 legacy
+  split-file bundles. It found no machine-study bundles or unclassified plans.
+  None of the inventoried bundles was converted or deleted.
+- Ordinary legacy reads and fingerprints are now effect-free and return the
+  exact explicit CLI migration command. `cli.mjs migrate` preflights legacy
+  plan, machine, review, geometry/source and program bytes, stages missing
+  immutable artifacts, rechecks captured presence and bytes before atomically
+  replacing `plan.json`, then reloads the manifest for verification. It retains every legacy
+  sidecar and unknown file and reports all created, updated, removed and retained
+  paths; current bundles are idempotent no-ops.
+- Valid current legacy programs retain their exact approval identity. Stale
+  programs remain retained and explicitly unapproved; corrupt bytes and malformed
+  inputs fail before the manifest commit. Eight focused tests cover effect-free
+  reads, explicit reports, current no-op/CLI access, malformed and corrupt input,
+  concurrent input changes including absent files appearing, stale approval, and
+  fresh-process reopen with current-byte invalidation. Compatibility remains
+  until supported/distributed split-file inventory reaches zero and its migration
+  window is closed in a documented release.
+
+## 2026-09-21 — BR-057 recommendation queue completed
+
+- Authorization: the current requester asked to "Quickly regen our dev maps now"
+  and to "Synthesize both sets of recommendations into a task queue, organized by
+  priority/value, and assign them one at a time to a single worker agent (sol)."
+  Contributor account and exact originating task title are unconfirmed. One Sol
+  worker implemented the queue sequentially under parent review.
+- Completed six retained tasks: job-scoped checked-output handoff, coherent
+  Studio snapshots, ordered updates and explicit refresh stages, shared lifecycle
+  review decisions, incremental STL decoding, and explicit legacy migration.
+  Their behavior and focused verification are recorded in the entries above.
+- Dropped output-catalog consolidation after finding distinct legitimate owners;
+  also omitted already-shared generation, cosmetic extractions and speculative
+  wholesale configuration/schema changes. The final migration checks passed 8/8,
+  including fresh-process reopen. Maps were regenerated and relevant pages reread
+  without orphan or fact errors. Concurrent test reductions were preserved.
+- Removed BR-057 from outstanding work. BR-050's broader cross-process and
+  performance audit remains separate; the migration currentness check is not a
+  cross-process lock or compare-and-swap. No inventoried user bundle was migrated,
+  no hardware execution was performed, and no changes were published.
+
+## 2026-09-21 — S5 bridge interpolation trial and narrower array
+
+- Nave reports that physical inclined extrusion spans change Z too early in both
+  directions. The previous export commanded each free span with one coordinated
+  G1; software straightness did not establish physical axis coordination.
+- Added optional bridging `maxSegmentMm`, using collinear XYZ samples and distinct
+  segment metadata to retain commanded intervals through path compaction. Array 02
+  uses 0.5 mm maximum intervals with constant speed and volume per length, no
+  inserted pauses, and no added travel in continuous courses. Physical mitigation
+  remains unvalidated; a one-line S5 note is now in builder guidance.
+- Halved rectangular X widths to 13.8 mm while retaining 24 mm first-layer Y spans;
+  transverse second-layer spans now measure 12 mm. Circular supports are unchanged,
+  with bridges only over their left 180 degrees. Preserved previous array inputs.
+- Export audit passed for 624 spans, all intermediate XYZ endpoints and lengths,
+  flow, matching first layers, attachment controls, and 1,160 standard wall loops.
+  Generated estimate: 46.4 minutes. Exact program identity and compact report are
+  in PT-001 Array 02; physical success is still to be assessed.

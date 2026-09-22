@@ -1,10 +1,13 @@
+import {lifecycleReview} from '../core/print/review-state.mjs';
+
 export function studioControls(state,ui){
   const {tab,busy,generating,staleProgram,tourActive,exported,currentExportKey,inspection,machineView}=ui;
-  const programReady=Boolean(state.program&&!state.programError);
-  const productionReady=programReady&&state.review.generation?.mode==='production';
+  const review=lifecycleReview(state);
+  const programReady=review.current===true;
+  const productionReady=review.productionReady;
   const pending=Boolean(ui.pending);
   const toolpathViewable=Boolean(state.program||staleProgram||pending);
-  const approved=productionReady&&Boolean(state.toolpathApproved);
+  const approved=review.toolpathApproved===true;
   const confirmLabel=tab==='geometry'
     ? tourActive?(productionReady?'View toolpath':'Generate toolpath'):'Next'
     : !productionReady?'Generate toolpath':approved?(exported?'Export again':'Export print file'):'Confirm settings & export';
@@ -18,7 +21,7 @@ export function studioControls(state,ui){
     exportName:{hidden:tab!=='toolpath'||!state.program||Boolean(inspection),disabled:busy},
     playback:{hidden:tab!=='toolpath'||!state.program,playDisabled:busy||!programReady},
     selection:{hidden:tab==='toolpath'},canvas:{label:canvasLabel,stale:tab==='toolpath'&&!state.program&&Boolean(staleProgram)},
-    tabs:{geometry:{disabled:busy&&!generating},toolpath:{disabled:(busy&&!generating)||!toolpathViewable,done:Boolean(state.toolpathApproved)}},
+    tabs:{geometry:{disabled:busy&&!generating},toolpath:{disabled:(busy&&!generating)||!toolpathViewable,done:approved}},
     reviewedDownload:{hidden:ui.reviewedExportKey!==currentExportKey},fitProgram:{hidden:Boolean(machineView)}
   };
 }

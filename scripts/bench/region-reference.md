@@ -14,7 +14,7 @@ and refinement of nested regions on a doubly curved quadratic surface. These
 are software tests, not universal correctness or physical print validation.
 
 ```sh
-node --test core/tests/offset.test.mjs core/tests/surface-offset.test.mjs
+node --test core/tests/offset-junctions.test.mjs core/tests/offset-remnants.test.mjs
 node scripts/bench/offsets.mjs > .local/offset-timings.json
 ```
 

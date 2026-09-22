@@ -11,6 +11,29 @@ compatibility nor that the requested AMS tray is physically connected or loaded.
 An explicitly correct USB mapping screen has still produced a wrong physical
 feed in testing. Screen confirmation is necessary review evidence, not physical
 acceptance. Verify the actual loaded filament and selected nozzle.
+The X1 three-colour test also failed: the printer rejected manual AMS mapping
+and printed all bands in grey despite two material-change command blocks.
+Neither multi-nozzle H2D execution nor X1 AMS changes have physical acceptance.
+The H2D investigation also found a pinched left-feed PTFE tube. The untouched
+Studio left-only reference prints correctly. After that repair, full-04 completes
+its motions but still prints entirely with the right nozzle at elevated height.
+Fast-05, including restored early homing, has the same physical failure. Neither
+the missing early homing block nor the obstruction explains all observations.
+The working left-only reference also prints correctly when repacked by SAAM and
+when its G-code producer marker and 3MF Application identity are replaced.
+Those container/identification changes alone do not explain the H2D failure.
+In a subsequent controlled pair, the full reference configuration printed
+correctly while reducing/reordering CONFIG and project fields to SAAM's current
+field set reproduced the wrong right nozzle and elevated height. The two files
+had byte-identical executable commands and the same shortened startup. This
+isolates the changed configuration surfaces in that comparison; the responsible
+field remains unresolved. Alphabetizing the same reduced configuration also
+failed. Subsequent physical controls isolate project JSON: full project settings
+with the minimal 40-entry G-code CONFIG print correctly; full G-code CONFIG with
+minimal project settings fails. Correct G-code comments cannot compensate for
+this project-settings omission. No individual key or firmware entry-count
+requirement is established. The next diagnostic tests project metadata additions
+directly on the mixed-nozzle SAAM job; multi-nozzle acceptance remains open.
 The outstanding reference and hardware checks are tracked in
 [BR-055](../../build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
 
@@ -140,7 +163,8 @@ Assign `composition.regions[].filament` to use a logical filament for that
 region. An omitted assignment uses `bambu.filament`, which is the startup
 selection. H2D can use both nozzles with different installed diameters in one
 program. X1 supports regional PLA changes through its single 0.4 mm nozzle and
-AMS, with a bounded rear-chute flush. Same-nozzle changes on H2D remain unsupported.
+AMS, with a bounded rear-chute flush. H2D also implements same-nozzle PLA changes
+through AMS; its service recipe and project metadata still await hardware acceptance.
 
 The normal source is `{ "type": "auto" }`: supply material preset ID and colour
 and let the printer propose a physical feed match. Do not ask for a slot just
@@ -304,7 +328,7 @@ equal-diameter reference must not obscure which side owns each value:
 | Service clearance and return position | Current deposited height, machine/tool limits and the planned next action. Tower-associated approach, prime and return positions are not a reusable generic switch path. |
 | `M620.10 R`, `M983.3 R`, body recovery | Interpreted incoming nozzle withdrawal debt: zero before its first use, then its own configured retract amount. Outgoing debt must equal the outgoing retract setting before changing. |
 | Changeover `M983.3 F` | Incoming filament's configured `maxFlowMm3S / 2.4`, a conservative calibration rate; startup retains the separate pinned 25 mm³/s service recipe. Neither calibration A0.4 nor these phase-specific rates are nozzle diameter overrides. |
-| `M620.11 B` and `M620 Q` | Previous logical hotend state (-1 on first change, then outgoing tool 0/1), and ordered change count plus initial load. These are not physical heater selectors. |
+| `M620.11 B` and `M620 Q` | Same-nozzle colour changes retain remapped B-1 for all outgoing descriptors. Cross-nozzle changes use previous logical hotend state (-1 on first change, then outgoing tool 0/1). Q is ordered change count plus initial load. These are not physical heater selectors. |
 | `M204`, fan and modal restoration | Pinned service/body acceleration, interpreted fan state and explicit G90/G21/M83/G92 plus the incoming temperature wait. Acceleration returns to the same profile value used by startup. |
 
 The user explicitly excluded prime-tower implementation from this work. Keep
@@ -332,18 +356,68 @@ The same-file review/delivery lifecycle remains unchanged.
 
 ## H2D output contract
 
-`h2d-saam-startup-v8`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
+`h2d-saam-startup-v11`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
 including unequal diameters;
 1.75 mm PLA; Textured or Smooth PEI; no chamber heating. Startup establishes
 [100,100,20]. Shutdown clears geometry by 10 mm and parks at or below 320 mm.
 Firmware service flow is independent of print-body flow and can reach 25 mm³/s.
 
-This revision fixes parameter synchronization and introduces explicit plate and
-startup flag choices. It retains the preceding sequence's deliberate omission
-of the early H10 homing/wipe block. It does **not** establish that omitting that
-block is valid from every cold-start machine state. Cold-start homing, service
-clearance and both-nozzle calibration require physical acceptance. Do not remove
-more homing or pretend playback verifies those moves.
+Revision v9 restored initial X homing, wipe/park and Z registration before
+the first remapped material load, including in fast mode. These operations were
+absent from full-04 as well as the preceding fast tests. The working Studio
+left-only reference provides the command/order evidence. Later bed leveling
+and front-edge purge registration do not replace this initial sequence in the
+authored contract. Service clearance and both-nozzle calibration still require
+physical acceptance; playback does not verify firmware service motions.
+
+Revision v10 adds tower-free same-nozzle PLA material changes. Assign distinct
+logical filaments to the same `tool` and assign them to successive regions.
+For blue → orange → blue, declare two filaments and use regional indices 0, 1,
+0; do not declare a third filament for the return to blue. Both sources must
+use AMS (automatic matching is supported); automatic external-spool changes
+are rejected. This capability works through the common regional planner,
+exporter and source player on either H2D nozzle, with machine-area checks.
+
+The H2D recipe requests the profile's `materialChangeFlushMm3` (300 mm³) once
+per same-nozzle change. Divide this by the filament cross-sectional area to
+derive the identical `M620.10 A0/A1 L` filament lengths. Both are descriptors
+of one firmware flush, not two purge extrusions. The installed H2D change
+template and upstream [GCode.cpp](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/GCode.cpp)
+establish the length units. No additional explicit G1 E flush is emitted.
+`SYNC T` follows the descriptor length; v11 adds thermal timing derived from
+the flush/print temperature difference and the profile's 2 C/s cooling and
+3.6 C/s heating rates, cross-referenced to the same-nozzle export. An explicit
+incoming-temperature wait precedes resuming body moves. Chute flush quantity is an experimental fixed
+PLA policy, not guaranteed colour purity. Firmware priming and service time
+are excluded from body totals. The planner/player establish the incoming
+filament's retraction debt afresh after each material change, including reuse
+of a previously selected logical filament. Dual-nozzle changes retain zero
+colour-flush length and do not increment the same-nozzle flush count.
+
+Do not interpret software acceptance as hardware success. The controlled
+reference tests isolate an omitted project-settings dependency, still unresolved;
+the three-field project identity addition failed on the dual diagnostic. The
+next hardware target is same-nozzle blue/orange/blue on the right 0.8 mm nozzle,
+using the dedicated Studio same-nozzle reference below. The B-selector change
+has not been shown to explain earlier wrong-height/initial-nozzle failures.
+
+The supplied `twocolor.twistedbox.gcode.3mf` (SHA-256
+`c0905ff8957f685282ba66d0795765a016d2c95246ad99183989a6600fdf5127`)
+contains 62 same-nozzle changes through right nozzle 1, all retaining outgoing
+`M620.11 B-1` as well as incoming `T H-1`. v11 uses that remapped outgoing
+selector for each same-nozzle change, including returning to a used filament.
+The reference has a tower and green/yellow declarations; neither its tower
+nor its colours, unused third filament, 0.8/0.8 declarations, header or project
+blob becomes an exporter template. Its first flush length is 112.253 mm;
+SAAM independently requests 300 mm³, or 124.72551 mm of 1.75 mm filament.
+The reference's thermal sync uses 240→220 C (10 and 5.55556); the 225 C test
+uses 7.5 and 4.16667. Those command observations are not physical acceptance.
+
+Both supported profiles declare `single_extruder_multi_material=1` and
+`printer_technology=FFF` in CONFIG and project JSON from the same resolved job.
+These installed-profile declarations apply even with an external feed or one
+used filament. Their effect on the observed runtime routing failure remains
+unverified; they do not choose a physical AMS slot.
 
 Earlier user-reported successful left-nozzle PLA output is historical evidence
 for that earlier program, not physical validation of this revision or every
@@ -389,7 +463,9 @@ body playback from the same plan. Service time and purge/prime material are
 additional to the displayed body estimates; the review states this explicitly.
 The installed Bambu Studio X1 change template dated 2025-10-31 supplies reference
 evidence for the service route and commands. Physical verification of this
-authored recipe remains pending.
+authored recipe failed the first three-colour test; its firmware routing remains
+under investigation. Software interpretation of both changes is not evidence
+that the printer executes them.
 
 ## Evidence and verification tools
 
@@ -411,6 +487,19 @@ compared as though they were another resolved slice. Firmware branches are not
 executed, and a report with no issues is not full archive or hardware validation.
 It reports observed facts; it does not claim a firmware protocol or physical
 safety verdict. Raw vendor G-code without an archive is not accepted by this tool.
+
+`studioReader` reports necessary conditions from Studio's desktop G-code reader:
+a `; BambuStudio` prefix and at least 80 recognized configuration entries. The
+reported entry count includes unknown keys, so passing these checks is not
+schema acceptance. Fast-05 lacks the prefix and has only 40 entries; the working
+left-only reference has the prefix and 569 entries. Firmware handling of the
+entry-count difference remains unknown. A physical H2D control with the producer
+marker removed and Application identity replaced printed correctly; the desktop
+producer gate is not a demonstrated firmware gate. Do not equate consistent declarations with
+successful ingestion, add arbitrary entries to meet a count, or claim that a
+producer marker alone fixes physical routing. The owning source is Studio's
+[configuration loader](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Config.cpp)
+and [G-code processor](https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/GCode/GCodeProcessor.cpp).
 
 The supplied `twistedbox.gcode.3mf` (SHA-256
 `3a0cf2396c1f05862945ca740bd2e3f8cd7545d9947a3bf68a28adab97fc2459`)

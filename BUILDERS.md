@@ -105,6 +105,8 @@ direction, and evidence to evaluate a proposed change. Keep assumptions and
 unresolved questions explicit. Software tests, benchmarks, vendor-tool results
 and physical prints establish different things; report the scope actually checked.
 
+Ultimaker S5: Nave reports early Z movement instead of coordinated XYZ interpolation on inclined `G1` extrusion spans; use explicit short collinear segments and physically verify the result.
+
 Leave the next developer a concise account they can reason from. Document the
 contracts, assumptions and algorithms that source alone does not convey. Distill
 exploratory conversation into precise current guidance, stated once at its owner.
@@ -120,10 +122,11 @@ The scan scope lives in `dev-map/lib/scope.mjs`, and external facts in
 `dev-map/facts.tsv`. The same generated pages serve the CLI and human viewer.
 
 **Developers orient by walking the map from `0`; builders may walk the region
-they are changing alongside its prose manual.** Page `0` is the regions; `N` is
-a region and its files; `N.F` is a file and its declarations;
-`N.F.D` is one declaration, what it calls, what reaches it and what it is coupled
-to. Read a page with `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`
+they are changing alongside its prose manual.** Page `0` is the regions and `N`
+a region. Every map numbers its own nodes under itself (`N.2`, then `N.2.1`,
+down to leaves); a declaration's map shows what it calls, what reaches it and
+what it is coupled to. A node drawn away from its home map keeps its home index
+and names that map as `home`. Read a page with `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`
 and its source with `--code`. **Text search across the repository is discouraged
 for orientation**: it finds names, while the walk exposes relationships around
 the thing you are about to change. Inspect unresolved calls and flow uncertainty;

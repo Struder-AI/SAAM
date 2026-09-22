@@ -63,6 +63,7 @@ const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mj
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
   'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
+  'core/print/review-state.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
   'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs','core/export/bambu-change.mjs','core/export/bambu-x1-change.mjs','core/machine/filaments.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs','core/path/process-controls.mjs']);
@@ -118,7 +119,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const key=randomBytes(24).toString('hex'),exportHash=createHash('sha256').update(bytes).digest('hex'),expiresAt=now+10*60*1000;
     downloadLinks.set(key,{file,name,exportHash,expiresAt});return {url:'/api/download/'+key,name,exportHash,expiresAt};
   };
-  const printId=()=>createHash('sha256').update(dir).digest('hex');
+  const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
+  const printId=()=>printIdFor(dir);
   // Resolved on the first request; the no-op catch keeps an unopened print
   // from raising an unhandled rejection before a request reports it.
   const attached=tour.attachStudio(dir);
@@ -127,8 +129,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
   let preparation,generationFailure,generationCancelled,importProgress,generationRun=null,closed=false;
-  const stateTag=(fingerprint,guide,failure=generationFailure,cancelled=generationCancelled)=>
-    'W/"'+createHash('sha256').update(JSON.stringify([instanceId,fingerprint,guide,failure,cancelled])).digest('base64url')+'"';
+  const stateTag=(fingerprint,guide,failure=generationFailure,cancelled=generationCancelled,records=[],importRepair=null)=>
+    'W/"'+createHash('sha256').update(JSON.stringify([instanceId,fingerprint,guide,failure,cancelled,records,importRepair])).digest('base64url')+'"';
   const matchesStateTag=(header,tag)=>typeof header==='string'&&header.split(',').some(value=>{
     const candidate=value.trim();return candidate==='*'||candidate.replace(/^W\//,'')===tag.replace(/^W\//,'');
   });
@@ -164,19 +166,23 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     discardPreparation();
     return preparation=new PreparedGenerationJob({key:decision.key,directory:readDir,generationHash:state.generationHash,
       createWorker:cancellation=>new Worker(new URL('./generation-worker.mjs',import.meta.url),
-        {workerData:{directory:readDir,generationHash:state.generationHash,progress:true,cancellation}})});
+        {workerData:{directory:readDir,generationHash:state.generationHash,progress:true,cancellation}}),onUpdate:()=>publishProgress()});
   };
   // Only a real calculation is an event; a mode transition of a valid saved
   // program starts nothing the person or agent would wait on.
-  const generationStatus=()=>{
+  const preparationStatus=()=>{
+    if(importProgress)return {...importProgress,cancellable:false};
     const job=preparation,run=generationRun;
-    if(!run&&!(job&&['preparing','generating'].includes(job.status)))return null;
     const progress=job?.progress??null,percent=progress?.total>0?Math.floor(100*progress.completed/progress.total):null;
-    const directory=run?.directory??job.directory;
-    return {studioInstanceId:instanceId,printId:requests.printId(directory,{optional:true}),directory,generationHash:run?.generationHash??job.generationHash,
-      status:run?(job?.status==='preparing'?'preparing':'generating'):'preparing',requested:Boolean(run),trigger:run?.trigger??null,
-      startedAt:run?.startedAt??null,elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
+    const directory=run?.directory??job?.directory??dir;
+    return {studioInstanceId:instanceId,printId:printIdFor(directory),directory,generationHash:run?.generationHash??job?.generationHash??null,
+      status:run?(job?.status==='preparing'?'preparing':'generating'):(job?.status??'idle'),cancellable:Boolean(job?.cancellable),error:job?.error??null,
+      requested:Boolean(run),trigger:run?.trigger??null,startedAt:run?.startedAt??null,
+      elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
+  const activePreparationStatus=()=>{const status=preparationStatus();return status.requested||['preparing','generating'].includes(status.status)?status:null;};
+  const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:requests.printId(status.directory,{optional:true})}:null;};
+  const publishProgress=(status=activePreparationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
   const readGeneration=async current=>{
     generationCancelled=null;
     const directory=dir,state=await current.loadBundle(directory,{program:false});
@@ -187,6 +193,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     if(generationRun)return;
     generationRun={directory:snapshot.directory,generationHash:snapshot.state.generationHash,trigger,development,startedAt:Date.now()};
     note('generation-started',{generationHash:snapshot.state.generationHash,development,trigger});
+    publishProgress();
   };
   const executeGeneration=async(current,snapshot,development,trigger)=>{
     const {directory:generationDir,state}=snapshot;
@@ -198,11 +205,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       // is already useful and need not be recomputed on the first Continue.
       if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===executionState.generationHash))await discardPreparation();
       const job=prepare(executionState,executionDir,{computationRequired:true});
-      if(!job)return current.generateBundle(executionDir,{development,onProgress:progress=>{if(progress.stage==='Preparing geometry')markCalculation();}});
+      if(!job)return execution.runLocally();
       if(job.status==='preparing')markCalculation();
-      const checks=await job.generate(development);
+      const checked=await job.generate(development);
       if(preparation===job)preparation=null;
-      return checks;
+      return checked;
     }
     const checks=await current.generateBundle(dir,{development,
       dispatchComputation:resolveBundle===bundleFor?dispatchComputation:undefined,
@@ -235,7 +242,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       const outcome=await executeGeneration(current,snapshot,development,trigger);
       await publishGeneration(outcome,development,trigger);
     }catch(error){await publishGenerationFailure(error,snapshot,trigger);}
-    finally{generationRun=null;}
+    finally{
+      const finished=generationRun;generationRun=null;
+      publishProgress(finished?{studioInstanceId:instanceId,printId:printIdFor(finished.directory),
+        directory:finished.directory,generationHash:finished.generationHash,status:'idle',cancellable:false,progress:null}:null);
+    }
   };
   const approvePrint=async(current,{actor,revision},progress)=>{
     const state=await current.approve(dir,{actor,revision,program:'source'});
@@ -316,9 +327,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           ...(url.searchParams.has('history')?{recent:events.history()}:{})});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
-        if(importProgress){send(importProgress);return;}
-        const job=preparation;
-        send({printId:printId(),generationHash:job?.generationHash??null,cancellable:Boolean(job?.cancellable),status:job?.status??'idle',progress:job?.progress??null,error:job?.error??null});return;
+        send(preparationStatus());return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
         const p=await tour.info(),prints=p.active
@@ -332,20 +341,19 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];
-        if(condition){
-          const guide=await tour.info(),current=await bundle.bundleFingerprints(readDir,{program:!geometryOnly(guide)});
-          const tag=stateTag(viewFingerprint(readId,current.source,guide),guide);
-          if(matchesStateTag(condition,tag)&&readDir===dir){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
-        }
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
         const {state,fingerprint,presentationFingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
         if(readDir!==dir)throw new Error('The print is being updated.');
-        const importRepair=await loadStudioImportRepair(readDir),failure=generationFailure,cancelled=generationCancelled;
+        const responseFingerprint=viewFingerprint(readId,fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
+        const importRepair=await loadStudioImportRepair(readDir);
+        if(readDir!==dir)throw new Error('The print is being updated.');
+        const tag=stateTag(responseFingerprint,guide,failure,cancelled,records,importRepair);
+        if(condition&&matchesStateTag(condition,tag)){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
         const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
         const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
-          printName:name,fingerprint:viewFingerprint(readId,fingerprint,guide),presentationFingerprint:presentation,
+          printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
           generationFailure:failure,generationCancelled:cancelled,now:Date.now()});
-        res.setHeader('ETag',stateTag(assembled.response.fingerprint,guide,failure,cancelled));
+        res.setHeader('ETag',tag);
         send(assembled.response);
         // Speculate only on the tour's explicitly selected, confirmed part.
         // Ordinary edits use explicit generation; starting a second worker here
@@ -354,8 +362,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){
-        const fingerprint=await bundle.bundleFingerprint(readDir),state=await bundle.loadBundle(readDir,{program:'source',allSources:true});
-        if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
+        const {state}=await readStableBundle(bundle,readDir,{program:'source',allSources:true});
+        if(readDir!==dir)throw new Error('The print is being updated.');
         for(const [key,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]])
           if(url.searchParams.get(key)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
         if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
@@ -396,13 +404,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           if(progress.active)throw Error('Import STL is available after you finish or exit the tour.');
           await discardPreparation();
           const state=await current.loadBundle(dir,{program:false});
-          importProgress={printId:printId(),generationHash:null,status:'importing',progress:{stage:'Checking your STL'}};
+          importProgress={studioInstanceId:instanceId,printId:printId(),generationHash:null,status:'importing',progress:{stage:'Checking your STL'}};publishProgress(importProgress);
           note('import-started',{name:data.name??null,units:data.units??null});
           let imported;
           try{imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId:state.machine.id,
-            onProgress:value=>{importProgress.progress=value;}});}
+            onProgress:value=>{importProgress.progress=value;publishProgress(importProgress);}});}
           catch(error){note('import-failed',{name:data.name??null,error:error.message});throw error;}
-          finally{importProgress=null;}
+          finally{const finished=importProgress;importProgress=null;publishProgress({...finished,status:'idle',progress:null,cancellable:false});}
           await openPrint(imported.directory);
           note('import-completed',{name:await printName(dir),units:data.units??null});
           send({ok:true});return;
@@ -507,7 +515,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   // Local adapters reopen through the same serialized and validated operation
   // as the picker, including when the person changed this viewer's print.
   server.openPrint=input=>{
-    const run=queue.then(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-change',{kinds:['print']});});
+    const run=queue.then(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-update',{kind:'state',kinds:['print']});});
     queue=run.catch(()=>{});return run;
   };
   server.setStartAt=startAt=>tour.setStartAt(startAt);
@@ -518,12 +526,12 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     if(record.source==='studio'&&record.status==='queued'&&record.studioInstanceId===instanceId&&!queuedNoted.has(record.id)){
       queuedNoted.add(record.id);note('request-queued',{requestId:record.id,requestKind:record.kind,instruction:record.instruction,scope:record.scope??null,printId:record.printId});
     }
-    if((!record.studioInstanceId||record.studioInstanceId===instanceId)&&record.printId===requests.printId(dir,{optional:true}))lifetime.notify('studio-change',{kinds:['requests'],instanceId});
+    if((!record.studioInstanceId||record.studioInstanceId===instanceId)&&record.printId===requests.printId(dir,{optional:true}))lifetime.notify('studio-update',{kind:'state',kinds:['requests'],instanceId});
   });
   let checkingGeneration=false;
   const stopWatching=watchStudioChanges(libraryRoot,kinds=>{
     const external=kinds.filter(kind=>kind!=='requests');
-    if(external.length)lifetime.notify('studio-change',{kinds:external});
+    if(external.length)lifetime.notify('studio-update',{kind:'state',kinds:external});
     const job=preparation;
     if(kinds.includes('print')&&job?.cancellable&&!checkingGeneration){
       checkingGeneration=true;

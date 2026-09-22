@@ -92,9 +92,12 @@ grouping arranges them into explanatory pages. It is the account of core and Stu
 *structure*. A developer orients by walking it from page `0` and reads no prose
 manual for orientation; a builder may walk the region it is touching alongside
 [BUILDERS.md](BUILDERS.md) and that component's manual. Makers operating
-existing tools need none of it. `0` is the regions, `N` a region and its files,
-`N.F` a file and its declarations, `N.F.D` a declaration with what it calls,
-what calls it and what it is coupled to.
+existing tools need none of it. `0` is the regions and `N` a region. Every
+map numbers its own nodes under itself: `N.2` is the second node on map `N`, and
+if it is a map too, its nodes are `N.2.1`, `N.2.2` and so on, down to leaves. A
+declaration's map shows what it calls, what calls it and what it is coupled to.
+A node drawn away from its home map keeps its home index and names that map as
+`home`; the home node lists the maps that repeat it as `alsoOn`.
 
 ```sh
 node scripts/agent-toolkit.mjs read-map 0

@@ -40,6 +40,9 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
     assert.equal(module.status,200,file);assert.match(module.headers.get('content-type'),/javascript/,file);
     assert.equal(await module.text(),await readFile(new URL('../../studio/'+file,import.meta.url),'utf8'),file);
   }
+  const reviewModule=await fetch(origin+'/core/print/review-state.mjs');
+  assert.equal(reviewModule.status,200);assert.match(reviewModule.headers.get('content-type'),/javascript/);
+  assert.equal(await reviewModule.text(),await readFile(new URL('../print/review-state.mjs',import.meta.url),'utf8'));
   const firstResponse=await fetch(origin+'/api/state'),first=await firstResponse.json(),firstTag=firstResponse.headers.get('etag');
   assert.match(firstTag,/^W\/"[A-Za-z0-9_-]+"$/);
   assert.equal(first.marker,join(library,'first'));assert.equal(first.code,undefined);assert.equal(first.dir,undefined);
@@ -47,7 +50,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   assert.equal(supplied.get(join(library,'first')).code,'adapter-only');assert.equal(supplied.get(join(library,'first')).tour,undefined);
   const loaded=bundleLoads,unchanged=await fetch(origin+'/api/state',{headers:{'If-None-Match':'"different", '+firstTag.slice(2)}});
   assert.equal(unchanged.status,304);assert.equal(await unchanged.text(),'');
-  assert.equal(bundleLoads,loaded,'an unchanged conditional state read does not load the bundle');
+  assert.equal(bundleLoads,loaded+1,'a conditional state read uses one coherent legacy snapshot');
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
   const response=await fetch(origin+'/api/open',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},body:JSON.stringify({path:join(library,'second','plan.json')})});
   assert.equal(response.status,200);

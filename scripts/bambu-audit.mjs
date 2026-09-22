@@ -92,11 +92,11 @@ export function auditBambu(bytes){
   const project=JSON.parse(entries.get('Metadata/project_settings.config')?.toString()??'{}');
   for(const [name,bytes] of entries){
     if(!/^Metadata\/plate_\d+\.gcode$/.test(name))continue;
-    const code=bytes.toString(),lines=code.split(/\r?\n/),config={},configOccurrences={};let inside=false;
+    const code=bytes.toString(),lines=code.split(/\r?\n/),config={},configOccurrences={};let inside=false,configPairCount=0;
     for(const line of lines){
       if(line==='; CONFIG_BLOCK_START')inside=true;
       else if(line==='; CONFIG_BLOCK_END')inside=false;
-      else if(inside){const match=line.match(/^;\s*([^=]+?)\s*=\s*(.*)$/);if(match&&keys.test(match[1])){
+      else if(inside){const match=line.match(/^;\s*([^=]+?)\s*=\s*(.*)$/);if(match)configPairCount++;if(match&&keys.test(match[1])){
         config[match[1]]=match[2];(configOccurrences[match[1]]??=[]).push(match[2]);
       }}
     }
@@ -109,7 +109,14 @@ export function auditBambu(bytes){
       if(filamentIds.some(id=>!Number.isInteger(id)||id<1)||new Set(filamentIds).size!==filamentIds.length||selected.some(id=>!filamentIds.includes(id)))
         changes.issues.push({line:lines.findIndex(l=>/^; filament:/.test(l))+1,message:'Header filament IDs omit a selected logical filament or contain invalid/duplicate IDs; this field is an ID list, not a count.'});
     }
-    reports.push({gcode:name,headerFilamentIds:filamentIds,config,duplicateConfigKeys:Object.fromEntries(Object.entries(configOccurrences).filter(([,values])=>values.length>1)),
+    // Studio's desktop ConfigBase reader requires this prefix and at least 80
+    // recognized configuration pairs. Total pairs are only an upper bound:
+    // unknown keys are ignored. This is NOT a printer-firmware compatibility test.
+    const markerLine=lines.findIndex(l=>/^\s*(?:N\d+\s+)?; BambuStudio/.test(l));
+    const studioReader={formatMarkerLine:markerLine<0?null:markerLine+1,configPairCount,
+      minimumRecognizedPairs:80,necessaryConditionsMet:markerLine>=0&&configPairCount>=80,
+      scope:'Necessary desktop Studio G-code configuration-reader conditions only; no firmware verdict, schema validation or proof of accepted mapping.'};
+    reports.push({gcode:name,headerFilamentIds:filamentIds,studioReader,config,duplicateConfigKeys:Object.fromEntries(Object.entries(configOccurrences).filter(([,values])=>values.length>1)),
       commands:lines.flatMap((text,i)=>commands.test(text.trim())?[{line:i+1,text:text.trim()}]:[]),
       plate:JSON.parse(entries.get(stem+'.json')?.toString()??'null'),changes});
   }

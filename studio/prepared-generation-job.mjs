@@ -1,31 +1,29 @@
 import {Worker} from 'node:worker_threads';
-import {attachCheckedProgramWorker} from '../core/print/program-handoff.mjs';
+import {createCheckedProgramHandoff} from '../core/print/program-handoff.mjs';
 import {generationControl} from '../core/print/generation-control.mjs';
 
 const asError=value=>value instanceof Error?value:new Error(String(value));
 
 export class PreparedGenerationJob {
-  #detachSource;
+  #checkedProgram;
   #failure=null;
   #pending=null;
   #termination=null;
-  #onMessage;
   #onError;
   #onExit;
 
-  constructor({key,directory,generationHash,createWorker,attachSource=attachCheckedProgramWorker,createControl=generationControl}){
+  constructor({key,directory,generationHash,createWorker,createHandoff=createCheckedProgramHandoff,createControl=generationControl,onUpdate=()=>{}}){
     this.key=key;this.directory=directory;this.generationHash=generationHash;
     this.status='preparing';this.progress={stage:'Preparing geometry'};
     this.control=createControl();this.worker=null;this.started=false;
+    this.onUpdate=onUpdate;
     try{
       this.worker=createWorker(this.control.buffer);
       this.started=true;
-      if(!(this.worker instanceof Worker)&&attachSource===attachCheckedProgramWorker)throw new TypeError('Expected the Studio generation worker.');
-      this.#detachSource=attachSource(this.worker,generationHash);
-      this.#onMessage=message=>this.#receive(message);
+      if(!(this.worker instanceof Worker)&&createHandoff===createCheckedProgramHandoff)throw new TypeError('Expected the Studio generation worker.');
+      this.#checkedProgram=createHandoff(this.worker,generationHash,(message,checkedProgram)=>this.#receive(message,checkedProgram));
       this.#onError=error=>{this.#fail(error,true);};
       this.#onExit=code=>{if(code&&this.worker)this.#fail(new Error('Toolpath preparation stopped unexpectedly.'),true);};
-      this.worker.on('message',this.#onMessage);
       this.worker.on('error',this.#onError);
       this.worker.on('exit',this.#onExit);
       this.worker.unref();
@@ -54,17 +52,17 @@ export class PreparedGenerationJob {
   dispose(error=new Error('The prepared print changed.')){
     if(this.status==='disposed')return this.#termination??Promise.resolve();
     this.status='disposed';
-    this.#stopListening();this.#detach();
+    this.#stopListening();this.#disposeHandoff();
     const pending=this.#pending;this.#pending=null;pending?.reject(error);
     return this.#terminate();
   }
 
-  #receive(message){
+  #receive(message,checkedProgram){
     if(this.status==='disposed')return;
-    if(message.type==='progress'){this.progress=message.progress;return;}
+    if(message.type==='progress'){this.progress=message.progress;this.onUpdate();return;}
     if(message.type==='prepared'){
       if(message.error)this.#fail(new Error(message.error));
-      else if(this.status==='preparing')this.status='ready';
+      else if(this.status==='preparing'){this.status='ready';this.onUpdate();}
       return;
     }
     if(message.type!=='generated'||this.status!=='generating')return;
@@ -72,22 +70,22 @@ export class PreparedGenerationJob {
       const error=Object.assign(new Error(message.error),{code:message.code});
       this.#fail(error);return;
     }
+    if(!checkedProgram){this.#fail(new Error('The generation worker returned unchecked machine source.'));return;}
     const pending=this.#pending;this.#pending=null;
-    Promise.resolve(this.dispose()).then(()=>pending?.resolve(message.checks),error=>pending?.reject(error));
+    Promise.resolve(this.dispose()).then(()=>pending?.resolve({checks:message.checks,checkedProgram}),error=>pending?.reject(error));
   }
 
   #fail(value,terminate=false){
     if(this.status==='disposed')return;
-    const error=asError(value);this.#failure=error;this.status='failed';this.#detach();
+    const error=asError(value);this.#failure=error;this.status='failed';this.#disposeHandoff();this.onUpdate();
     const pending=this.#pending;this.#pending=null;pending?.reject(error);
     if(terminate){this.#stopListening();void this.#terminate().catch(()=>{});}
   }
 
-  #detach(){const detach=this.#detachSource;this.#detachSource=null;detach?.();}
+  #disposeHandoff(){const handoff=this.#checkedProgram;this.#checkedProgram=null;handoff?.dispose();}
 
   #stopListening(){
     if(!this.worker)return;
-    if(this.#onMessage)this.worker.off('message',this.#onMessage);
     if(this.#onError)this.worker.off('error',this.#onError);
     if(this.#onExit)this.worker.off('exit',this.#onExit);
   }

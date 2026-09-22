@@ -13,6 +13,7 @@ import {scanRoots} from './scope.mjs';
 import {readCompositions,compositionFiles,composePages} from './composition.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {attachOverviewAnchors} from './overview.mjs';
+import {treeNumbering,renumber,markRepeats} from './tree.mjs';
 
 export const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
 export const storeDir=repo=>resolve(repo,'dev-map/store');
@@ -46,7 +47,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   // reuse old addresses when that inventory changes, or when its provenance predates this schema.
   const requestedRegion=region;
   let widened=null;
-  if(region&&(!held||held.schema<3||JSON.stringify(held.regions.map(r=>r.path))!==JSON.stringify(m.regions.map(r=>r.path)))) {
+  if(region&&(!held||held.schema<4||JSON.stringify(held.regions.map(r=>r.path))!==JSON.stringify(m.regions.map(r=>r.path)))) {
     widened='region-inventory-or-store-schema';region=null;
   }
   if(region&&!m.regions.some(r=>r.index===region))throw Error(`Unknown region ${region}; regions are ${m.regions.map(r=>r.index).join(', ')}.`);
@@ -58,7 +59,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   if(region) {
     const scanned=new Map(graph.files.map(f=>[f.file,f.sha256]));
     const structuralChanged=(config.flows??[]).some(spec=>{
-      const at=held.byPath[spec.path],page=held.sourceRegionPages?.[at]??held.regionPages[at]??held.sourceFilePages?.[at]??held.filePages[at];
+      const at=held.sourceByPath[spec.path],page=held.sourceRegionPages?.[at]??held.regionPages[at]??held.sourceFilePages?.[at]??held.filePages[at];
       if(!page)return false;
       const contained=page.kind==='region'?[...page.files,...(m.regions.find(r=>r.path===spec.path)?.files??[])]:[page.file];
       return contained.some(file=>held.files[file]?.region!==region&&m.regionOf.get(file)?.index!==region&&held.fingerprint.sources[file]!==scanned.get(file));
@@ -69,7 +70,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
 
   // Numbering. A scoped run keeps every index the store already holds outside the region.
   const index=new Map();
-  if(region&&held)for(const [path,at] of Object.entries(held.byPath))if(at.split('.')[0]!==region)index.set(path,at);
+  if(region&&held)for(const [path,at] of Object.entries(held.sourceByPath))if(at.split('.')[0]!==region)index.set(path,at);
   const trees=new Map(),entries=new Map();
   for(const r of scoped) {
     const numbered=numberRegion(m,r);
@@ -225,6 +226,21 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   }
 
   attachOverviewAnchors(destinations,index);
+
+  // Publish tree indexes. Source addresses stay behind only for scoped reuse; a page that no
+  // map shows is not published.
+  const sourceByPath=Object.fromEntries([...index,...Object.values(groupPages).map(p=>[p.path,p.index])]
+    .sort((a,b)=>order(a[0],b[0])));
+  const tree=treeNumbering(destinations);
+  const placed=new Set([...destinations].filter(([at])=>tree.has(at)).map(([,page])=>page));
+  const unplaced=[...destinations.values()].filter(page=>!placed.has(page)).map(page=>page.path??page.file).sort(order);
+  renumber([...placed],tree);
+  for(const [path,page] of packets)if(!placed.has(page))packets.delete(path);
+  const publish=pages=>Object.fromEntries([...pages].filter(page=>placed.has(page))
+    .map(page=>[page.index,page]).sort((a,b)=>byIndex(a[0],b[0])));
+  const publishedRegions=publish(regionPages.values()),publishedFiles=publish(filePages.values()),
+    publishedGroups=publish(Object.values(groupPages));
+  markRepeats(new Map([...placed].map(page=>[page.index,page])));
   const records=new Map();
   const recordFiles=new Map(graph.files.filter(f=>mine.has(f.file)).map(f=>[f.file,f]));
   for(const record of oldRecords.values())if(!mine.has(record.file))recordFiles.set(record.file,record);
@@ -245,7 +261,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   }
   const fingerprint={sources:Object.fromEntries(Object.entries(sourceHashes).sort(([a],[b])=>order(a,b))),inventory:files?'explicit':'disk',
     inputs:region?held.fingerprint.inputs:generationInputs};
-  const stored={schema:3,generated:new Date().toISOString().slice(0,10),fingerprint,
+  const stored={schema:4,generated:new Date().toISOString().slice(0,10),fingerprint,
     regions:m.regions.map(r=>({index:r.index,path:r.path,files:r.files})),
     files:Object.fromEntries([...records.values()].map(r=>[r.file,{sha256:r.sha256,lines:r.lines,region:r.region}])),
     records:Object.fromEntries([...records.keys()].map(f=>[f,`${slug(f)}.json`])),
@@ -253,12 +269,12 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     // A page is reachable by the durable name of what it is about: a declaration path, a file
     // path, or — for a region — the directory the region is.
     byPath:Object.fromEntries([...[...packets.values()].map(p=>[p.path,p.index]),
-      ...[...filePages.values()].map(p=>[p.file,p.index]),
-      ...Object.values(groupPages).map(p=>[p.path,p.index]),
+      ...Object.values(publishedFiles).map(p=>[p.file,p.index]),
+      ...Object.values(publishedGroups).map(p=>[p.path,p.index]),
       ...m.regions.map(r=>[r.path,r.index])].sort((a,b)=>order(a[0],b[0]))),
-    root,regionPages:Object.fromEntries([...regionPages].sort((a,b)=>byIndex(a[0],b[0]))),
-    filePages:Object.fromEntries([...filePages].sort((a,b)=>byIndex(a[0],b[0]))),
-    sourceRegionPages,sourceFilePages,groupPages,
+    sourceByPath,
+    root,regionPages:publishedRegions,filePages:publishedFiles,
+    sourceRegionPages,sourceFilePages,groupPages:publishedGroups,
     orphanFacts:orphans,factErrors:facts.errors};
   await clock('write',async()=>{
     if(!region)await rm(resolve(dir,'files'),{recursive:true,force:true});
@@ -267,6 +283,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     await write(resolve(dir,'index.json'),stored);
   });
   return {timings,regions:m.regions.length,pages:packets.size,files:records.size,scope:region??'0',
+    ...(unplaced.length?{unplaced}:{}),
     ...(widened?{requestedScope:requestedRegion,widened}:{}),
     facts:facts.rows.length-orphans.length,orphanFacts:orphans,factErrors:facts.errors};
 }
@@ -274,7 +291,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
 // Only address-bearing fields are rewritten: a numeric data label is not a map address. Keep
 // a durable declaration identity while changing every endpoint that refers to its old address.
 function remapReferences(page,held,index,projection,refreshedFiles) {
-  const paths=new Map(Object.entries(held.byPath).map(([path,at])=>[at,path]));
+  const paths=new Map(Object.entries(held.sourceByPath).map(([path,at])=>[at,path]));
   const address=value=>{
     if(typeof value!=='string')return value;
     const prefix=/^(file:|region:)/.exec(value)?.[0]??'';

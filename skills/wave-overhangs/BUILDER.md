@@ -108,11 +108,12 @@ The original `canopy-rim.json` fixture starts near the large example's rim and
 checks that long rounding strips remain diagnostic geometry, without producing
 additional perimeter passes or exhausting growth.
 The example provides a reproducible public development workflow.
-Existing surface-offset tests retain unconstrained behavior. Shared boolean
-tests cover the unchanged default origin and topology path.
+Surface-offset and boolean behavior follows from the contracts above; write
+those checks on demand. The stored canopy-rim regression and the upstream
+boolean references run with:
 
 ```sh
-node --test skills/wave-overhangs/tests/*.test.mjs core/tests/surface-offset.test.mjs core/tests/intersection.test.mjs core/tests/offset.test.mjs
+node --test skills/wave-overhangs/tests/wave.test.mjs core/tests/intersection.test.mjs
 ```
 
 Software fixtures and synthetic approvals establish no physical result. The

@@ -6,8 +6,7 @@
   "description": "SAAM development: composable printing skills with full-fill and draped-skin shell slicing across shared machine output.",
   "scripts": {
     "setup:check": "node scripts/setup-check.mjs",
-    "test": "node --test core/tests/*.test.mjs dev-map/tests/*.test.mjs skills/*/tests/*.test.mjs",
-    "test:maps": "node --test dev-map/tests/*.test.mjs",
+    "test": "node --test core/tests/*.test.mjs skills/*/tests/*.test.mjs",
     "test:stress": "node --test --test-concurrency=1 core/tests/stress/*.test.mjs",
     "studio": "node studio/server.mjs",
     "agent": "node scripts/agent-toolkit.mjs",

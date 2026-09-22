@@ -91,7 +91,8 @@ test('MCP follows tour chat gates while production generation remains available 
   await tour.action('exit');
   const current=await call('get_print',{printId:'tour/handle'});
   const changed=await call('change_machine',{printId:'tour/handle',machineId:'bambu-h2d',expectedRevision:current.revision});
-  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.toolpathApproved,false);
+  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.toolpathApproved,null,
+    'a geometry-only mutation does not claim current output approval state');
 });
 
 

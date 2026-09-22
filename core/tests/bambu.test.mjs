@@ -135,11 +135,13 @@ test('H2D fresh export carries the same checked program as cold archive interpre
   assert.throws(()=>interpretProgram(bytes,changed,machine),'fresh export does not whitelist changed settings');
 });
 
-test('H2D removes only initial homing H10 and accepts only its reviewed startup',async()=>{
+test('H2D restores initial XY/Z registration before loading and accepts only its reviewed startup',async()=>{
   const {machine,plan}=fixture(),path=generatePath(plan,machine,await rhino());
   const current=exportProgram(path,plan,machine,release),code=unpackZip(current).get(GCODE).toString();
   const start=code.split(';SAAM_BODY_BEGIN\n')[0];
-  assert.doesNotMatch(start,/^G28 X T300$|^G28 Z P0 T250$|^M972 S24 P0 T2000$|^G380 S2 Z30 F1200$|^M1009 Q1 L[01]$/m);
+  assert.match(start,/G28 X T300\nG150\.1 F18000\nG150\.3 F18000/);
+  assert.match(start,/M1009 Q1 L1\nG91\nG380 S2 Z30 F1200\nG90\nG1 X175 Y160 F30000\nG28 Z P0 T250\nM1009 Q1 L0/);
+  assert.ok(start.indexOf('G28 Z P0 T250')<start.indexOf('M620 S0A'),'register Z before the first remapped load');
   assert.match(start,/M982\.2 S1\nM1002 gcode_claim_action : 74\nM972 S26 P0 C0\nM972 S35 P0 C0\nM972 S41 P0 T5000\nM400\n/,'neighboring detection remains in order');
   assert.match(start,/G29 A1 O /,'later bed leveling remains');
   assert.match(start,/G383 O0 M2 T140/,'later Z calibration remains');
@@ -362,6 +364,8 @@ test('fast_start skips optional checks, keeps startup handoff and rejects contra
     assert.match(start,/^G28(?: |\.)/m,'homing is retained');
     assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
     if(id==='bambu-h2d'){
+      assert.match(start,/G28 X T300/);assert.match(start,/G28 Z P0 T250/,'fast start must retain initial Z registration');
+      assert.ok(start.indexOf('G28 Z P0 T250')<start.indexOf('M620 S0A'));
       assert.match(start,/G383 O0 M2 T140/);assert.match(start,/G1 X290 E10/);
       assert.match(start,/M1002 set_flag auto_cali_toolhead_offset_flag=0/);
       assert.match(start,/M1002 set_flag build_plate_detect_flag=0/);
@@ -372,6 +376,9 @@ test('fast_start skips optional checks, keeps startup handoff and rejects contra
     }
     assert.equal(interpretProgram(bytes,plan,machine).envelope.job.fast_start,true);
     assert.equal(JSON.parse(entries.get('Metadata/saam-job.json')).fast_start,true);
+    const project=JSON.parse(entries.get('Metadata/project_settings.config'));
+    assert.equal(project.single_extruder_multi_material,'1');
+    assert.match(start,/^; single_extruder_multi_material = 1$/m);
     plan.setup.bambu.startup.bedLeveling='on';assert.throws(()=>exportProgram(path,plan,machine,release),/fast_start conflicts/);
     plan.setup.bambu.startup.bedLeveling='printer';plan.setup.bambu.fast_start='true';assert.throws(()=>exportProgram(path,plan,machine,release),/fast_start must be boolean/);
   }

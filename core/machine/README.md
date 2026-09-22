@@ -83,8 +83,8 @@ the [production output contract](../export/denso.md) remains unchanged.
 
 ## Verification
 
-[machine-presentation.test.mjs](../tests/machine-presentation.test.mjs) includes
-DENSO drawing reference poses, frame alignment and shared provider behavior.
-[machine-study.test.mjs](../tests/machine-study.test.mjs) exercises
-the real study adapters, source identity, refusal of manufacturing operations,
-all registered providers, and deterministic source playback.
+Presentation poses, frame alignment, provider conformance and study-adapter
+behavior have no stored tests: their expected values follow from the model and
+the contracts above, so write the checks you need on demand. The external
+controller facts they build on stay covered by [denso.test.mjs](../tests/denso.test.mjs)
+and [dobot.test.mjs](../tests/dobot.test.mjs).

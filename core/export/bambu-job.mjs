@@ -81,6 +81,9 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
   if(connections!==null)requireThat(machine.ams.slotsPerUnit===4,'Only four-slot Bambu AMS connection metadata is supported.');
   const amsCounts=connections===null?{}:{extruder_ams_count:machine.tools.map(t=>`1#${connections.filter(c=>c.tool===t.index&&c.type==='ams-ht').length}|4#${connections.filter(c=>c.tool===t.index&&(c.type??'ams')==='ams').length}`)};
   const settings={...amsCounts,default_ams_type:'-1',printer_model:machine.name,printer_settings_id:`${machine.name} ${s.nozzleMm} nozzle`,
+    // Both supported Bambu profiles use logical multi-material tool selection,
+    // including jobs with an external feed or only one used filament.
+    single_extruder_multi_material:'1',printer_technology:'FFF',
     gcode_flavor:'marlin',curr_bed_type:plate.name,physical_extruder_map:machine.tools.map(t=>String(t.physicalExtruder)),
     filament_map:filamentTools.map(t=>String(t+1)),filament_map_2:filamentTools.map(String),filament_map_mode:machine.tools.length===2?'Manual':'Auto For Flush',
     // These are resolved slice values, not the unsliced project's preferences.

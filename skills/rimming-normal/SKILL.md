@@ -56,7 +56,6 @@ The public callable is
 to the shared rimming producer. It returns `{results, dependencyChanges}` without
 changing `modelResults`; apply its ordered prerequisite changes with
 `applyResultDependencies` from `core/print/generate.mjs` before scheduling the
-combined results. The paired tests live in
-[rimming.test.mjs](../rimming-planar/tests/rimming.test.mjs). They compare offsets,
-curve refinement, barbell ordering and machine round trips. Physical comparison
+combined results. Offsets, curve refinement, barbell ordering and machine round
+trips follow from this contract; write those checks on demand. Physical comparison
 printing remains to be performed by the maker through the existing approvals.

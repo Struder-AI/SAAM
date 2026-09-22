@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
 import {readGuidance} from './manuals.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
+import {lifecycleReview} from '../print/review-state.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // Areas outside the map: skills, adapters, setup and the tests are not core/Studio regions, so
@@ -114,7 +115,7 @@ export async function onboarding({role, areas = []}) {
   return {role, environment, ...context, maps,
     nextStep: role === 'maker' ? 'Reuse the returned context and choose individual skill manuals when an edit needs them.'
       : role === 'builder' ? 'Reuse the returned context. The component manual for the area you are changing owns its behaviour, contracts and limits; read the one for the code you touch. The map owns structure: walk the returned region page for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
-      : 'Reuse the returned context. Walk the map from the returned page: a region page names its files, a file page its entry points, an entry point what it calls. Read a page with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a page, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The component manuals are maker and builder documentation; the map and DEVELOPER-CONTEXT.md are your orientation.'};
+      : 'Reuse the returned context. Walk the map from the returned page: every map numbers its own nodes under itself, down to leaves; a declaration’s map shows what it calls, and a node drawn away from its home map names it as home. Read a page with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a page, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The component manuals are maker and builder documentation; the map and DEVELOPER-CONTEXT.md are your orientation.'};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }
@@ -123,16 +124,17 @@ function relativePrint(library, directory) {
   if (!id || id === '..' || id.startsWith('../') || isAbsolute(id)) throw Error('Choose a print inside the selected --library directory.');
   return id;
 }
-function printSummary(state, {includeGeometry = false, programChecked = true} = {}) {
+export function printSummary(state, {includeGeometry = false, programChecked = true} = {}) {
   const plan = structuredClone(state.plan);
   if (!includeGeometry) delete plan.geometry;
+  const lifecycle=lifecycleReview(state,{programChecked});
   return {directory: state.dir, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     plan, planComplete: includeGeometry,
     geometry: {boundsMm: state.geometry?.boundsMm, nativeFile: state.geometry?.nativeFile},
     machine: {id: state.machine.id, name: state.machine.name}, skills: state.skills,
-    toolpathApproved: programChecked ? state.toolpathApproved : null,
+    toolpathApproved: lifecycle.toolpathApproved,
     generation: {record: state.review.generation, programChecked,
-      current: programChecked ? Boolean(state.program) && !state.programError : null,
+      current: lifecycle.current,
       programError: state.programError ?? null, summary: state.program?.summary ?? null},
     outputAvailability: state.outputAvailability ?? null,
     machineConfiguration: state.machineConfiguration ?? null, limitations: state.limitations};

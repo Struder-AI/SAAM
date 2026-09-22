@@ -23,6 +23,7 @@ import { applyText } from '../../../core/print/text.mjs';
 import { applyHeatSet } from '../../../core/print/heat-set.mjs';
 import { INSERT_CATALOG } from '../../../skills/heat-set-inserts/scripts/catalog.mjs';
 import {loadLocalExtension} from '../../../core/local-extension.mjs';
+import {lifecycleReview} from '../../../core/print/review-state.mjs';
 import { readGuidance } from './manuals.mjs';
 import { SKILL_IDS, skillMetadata } from '../../../skills/catalog.mjs';
 
@@ -66,19 +67,21 @@ async function rejectLinks(path) {
   if (info.isDirectory()) for (const entry of await readdir(path)) await rejectLinks(resolve(path, entry));
 }
 
-function summary(printId, state) {
+export function summary(printId, state) {
   const programChecked=state.programChecked!==false;
+  const lifecycle=lifecycleReview(state,{programChecked});
   return {
     printId, kind: state.kind, revision: state.revision, geometryHash:state.geometryHash,
     machineId: state.machine.id, output: state.plan.output, skills: state.skills,
-    toolpathApproved: programChecked?state.toolpathApproved:state.review.approvals.toolpath?null:false,
+    toolpathApproved: lifecycle.toolpathApproved,
     programChecked,
-    generation: state.review.generation ? { mode: state.review.generation.mode, current: programChecked ? !!state.program && !state.programError : null } : null,
+    generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, exportHash: state.exportHash ?? null,
     shortTravel: state.program?.summary?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: !programChecked ? 'Open Studio or check_print to check the current export.'
-      : !state.program || state.programError ? 'Generate the toolpath from the complete settings.' : !state.toolpathApproved ? 'Review settings and the exact toolpath together in Studio.' : 'Deliver the reviewed export.'
+    nextStep: lifecycle.action==='check'?'Open Studio or check_print to check the current export.'
+      : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
+      : lifecycle.action==='review'?'Review settings and the exact toolpath together in Studio.':'Deliver the reviewed export.'
   };
 }
 

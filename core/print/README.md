@@ -29,6 +29,16 @@ given for; `toolpathApproved` is the one derived boolean. Any recorded change
 (plan, machine, upgrade or regeneration) empties `review.approvals`. Generation is available for inspection;
 production delivery still requires the exact current final confirmation.
 
+`review-state.mjs` projects that already-checked state into the small set of
+cross-interface review decisions: whether program currency was checked, whether
+the current program is production-ready, whether its exact toolpath is approved,
+and whether the next action is check, generate, review or deliver. Studio, the
+agent toolkit and MCP share this projection while retaining their own labels and
+response shapes. An output-skipping read reports currency and approval as
+unknown; the projection never infers approval from the saved manifest alone.
+Transient calculation, cancellation, request and presentation state remains with
+Studio and does not affect persisted validity.
+
 `generationHash` identifies the combined plan, machine and geometry inputs; it
 is not a plan-only hash. State, checks, review records and worker/cache contracts
 use this name. Legacy `planHash` and `previousPlanHash` fields in saved reviews
@@ -159,10 +169,16 @@ Prints/<name>/
 containing the locked machine, review/check evidence and content-addressed
 geometry/program references. It is the only mutable commit point. Referenced
 artifacts are immutable; `delivery/` exists only after approval and delivery.
-Opening the previous parallel-file layout migrates it once and removes its
-`machine.json`, `review.json`, `checks.json`, mutable export and geometry
-sidecars. The lifecycle and SAAMpath formats are shared; the shell plan/geometry
-schemas are in [Formats](#formats) below:
+Ordinary reads of the previous parallel-file layout are effect-free and return
+an actionable migration-required error. Run
+`node core/print/cli.mjs migrate Prints/<name>` explicitly to preflight and
+convert one bundle. Migration atomically replaces only `plan.json`, retains the
+legacy sidecars and unknown files, and reports every created, updated, removed
+and retained path. Current-format bundles return a no-op report. Compatibility
+remains while supported or distributed print roots contain split-file bundles;
+it can be removed after a bounded inventory reaches zero and the migration
+window is closed in a documented release. The lifecycle and SAAMpath formats
+are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
 
 - `saam-print-bundle/2`: the reserved `bundle` envelope in `plan.json`; it owns
   the locked machine, review lifecycle and immutable geometry/program references.

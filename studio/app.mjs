@@ -9,6 +9,7 @@ import {createViewerRenderer} from './viewer-renderer.mjs';
 import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
+import {viewerConnected} from './viewer-session.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
 const exportedThisSession=new Set();
@@ -317,13 +318,17 @@ async function pollPreparation(){
   try{
     const response=await fetch('/api/preparation');if(!response.ok)return;
     const job=await response.json();
-    if(generationTarget!==target||job.printId!==target.printId||target.generationHash&&job.generationHash!==target.generationHash)return;
-    target.generationHash??=job.generationHash;$('#cancel-generation').hidden=!job.cancellable;
-    if(job.progress&&['preparing','generating','importing'].includes(job.status))activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
+    applyProgress(job,target);
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
-function startPreparationPolling(){return setInterval(pollPreparation,250);}
-startPreparationPolling();
+function applyProgress(job,target=generationTarget){
+  if(!target||generationTarget!==target||!job||job.studioInstanceId&&job.studioInstanceId!==state?.instanceId
+    ||job.printId!==target.printId||target.generationHash&&job.generationHash!==target.generationHash)return;
+  target.generationHash??=job.generationHash;
+  $('#cancel-generation').hidden=!job.cancellable;
+  if(job.progress&&['preparing','generating','importing'].includes(job.status))
+    activity(job.progress.stage,job.progress.total>0?job.progress.completed/job.progress.total:null);
+}
 $('#cancel-generation').onclick=async()=>{
   const target=generationTarget;if(!target)return;
   $('#cancel-generation').disabled=true;
@@ -332,7 +337,7 @@ $('#cancel-generation').onclick=async()=>{
     else if(result.committing)message('The calculation finished; saving its checked file.');
   }catch(error){message(error.message,true);}finally{$('#cancel-generation').disabled=false;}
 };
-async function refresh(follow=false,reopen=false,fetchedState=null,fetchedTag=null) {
+async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=null,fetchedTag=null) {
   let fetched=fetchedState;
   if(!fetched){
     const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
@@ -349,6 +354,9 @@ async function refresh(follow=false,reopen=false,fetchedState=null,fetchedTag=nu
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   state=adopted.state;stateTag=fetchedTag;
+  return {adopted,loaded,previous,presentationChanged,follow};
+}
+async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
   // Metadata can change while the exact same source/move buffers are reused.
   $('#kind-label').textContent=(state.review.generation?.mode==='development'?'Development preview · ':'')+state.machine.name;
   document.title='SAAM Studio · '+state.printName;
@@ -371,11 +379,20 @@ async function refresh(follow=false,reopen=false,fetchedState=null,fetchedTag=nu
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
   await acknowledgeDisplayedView();
+}
+async function ensureTourGeneration(follow=false){
   if(needsTourToolpath(state)){
     activity('Preparing your toolpath…');
-    try{await api('generate',{development:false,generationHash:state.generationHash});return refresh(follow);}
+    try{
+      await api('generate',{development:false,generationHash:state.generationHash});
+      await presentStudioState(await loadAndAdoptStudioState(follow));
+    }
     catch(error){state.generationError=error.message;message(error.message,true);render();}
   }
+}
+async function refresh(follow=false,reopen=false,fetchedState=null,fetchedTag=null) {
+  await presentStudioState(await loadAndAdoptStudioState(follow,reopen,fetchedState,fetchedTag));
+  await ensureTourGeneration(follow);
 }
 async function applyProgramPresentation(decision,next){
   if(decision.effects.program==='clear')clearProgramView();
@@ -780,23 +797,44 @@ function createStudioTour(){
   return createTourUI({post:api,refresh,working,setTab,isBusy:()=>busy,state:()=>state,seek:seekTourLayer});
 }
 async function loadStudio(){await tourUI.load();await refresh();}
-let changeTimer;
-function scheduleChange(){clearTimeout(changeTimer);changeTimer=setTimeout(()=>{if(busy||polling)scheduleChange();else void poll();},75);}
+let changeTimer,stateFallbackTimer,progressFallbackTimer;
+function scheduleChange(){
+  if(changeTimer)clearTimeout(changeTimer);
+  changeTimer=setTimeout(()=>{
+    changeTimer=null;
+    if(busy||polling)scheduleChange();
+    else void poll();
+  },75);
+}
 // Pushed changes drive conditional state checks. Request activity only changes
 // the state identity through tour gating. A dropped or reopened viewer stream,
 // a page becoming visible and a slow heartbeat cover what pushes cannot.
-function studioChanged(event){
-  const {kinds}=event.detail;
+function studioUpdate(event){
+  if(event.detail.kind==='progress'){applyProgress(event.detail.status);return;}
+  const {kinds=[]}=event.detail;
   if(kinds.includes('print')||kinds.includes('tour')||kinds.includes('requests')&&state?.tour?.active)scheduleChange();
 }
 function studioVisible(){if(document.visibilityState==='visible')scheduleChange();}
-function connectStudioUpdates(){
-  window.addEventListener('saam-studio-change',studioChanged);
-  window.addEventListener('saam-viewer-connection',scheduleChange);
-  document.addEventListener('visibilitychange',studioVisible);
-  return setInterval(poll,15_000);
+function stopFallbackPolling(){clearInterval(stateFallbackTimer);clearInterval(progressFallbackTimer);stateFallbackTimer=progressFallbackTimer=null;}
+function startFallbackPolling(){
+  if(stateFallbackTimer)return;
+  stateFallbackTimer=setInterval(poll,15_000);progressFallbackTimer=setInterval(pollPreparation,1000);
 }
-function disposeStudioSession(){machineSession?.dispose();viewer.dispose();}
+function studioConnection(event){
+  if(event.detail.open){stopFallbackPolling();void pollPreparation();}
+  else startFallbackPolling();
+  scheduleChange();
+}
+function connectStudioUpdates(){
+  window.addEventListener('saam-studio-update',studioUpdate);
+  window.addEventListener('saam-viewer-connection',studioConnection);
+  document.addEventListener('visibilitychange',studioVisible);
+  if(viewerConnected())studioConnection({detail:{open:true}});else startFallbackPolling();
+}
+function disposeStudioSession(){
+  if(changeTimer){clearTimeout(changeTimer);changeTimer=null;}
+  stopFallbackPolling();machineSession?.dispose();viewer.dispose();
+}
 function restoreStudioSession(event){
   const reloadRestoredPrint=()=>refresh(false,true);
   if(event.persisted)working('Restoring your print…',reloadRestoredPrint).catch(error=>message(error.message,true));

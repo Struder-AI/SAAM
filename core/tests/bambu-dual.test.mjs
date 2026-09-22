@@ -102,7 +102,7 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
   assert.throws(()=>generatePath(plan,machine,{}),/Placement X/);
 });
 
-test('unsupported same-nozzle changes and unsafe handoffs fail before packaging',async()=>{
+test('unsafe handoffs and automatic external-spool changes fail before packaging',async()=>{
   const {plan,machine}=mixedNozzleFixture(),r=await rhino();
   const path=generatePath(plan,machine,r),first=path.actions.findIndex(a=>a.kind==='toolChange');
   const bad=structuredClone(path);bad.actions[first].tool=0;
@@ -111,7 +111,8 @@ test('unsupported same-nozzle changes and unsafe handoffs fail before packaging'
   unret.actions.splice(i,1);
   assert.throws(()=>exportProgram(unret,plan,machine,release),/retract|withdrawal|recover/i);
   plan.setup.bambu.filaments[1].tool=0;
-  assert.throws(()=>generatePath(plan,machine,r),/does not implement this material change/);
+  const same=generatePath(plan,machine,r);
+  assert.throws(()=>exportProgram(same,plan,machine,release),/require AMS feeds/);
 });
 
 test('every supported H2D diameter pair keeps each change descriptor on its own nozzle',async()=>{

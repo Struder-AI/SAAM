@@ -96,7 +96,8 @@ function names(r,byId) {
 }
 
 // Canonical identity follows source containment, never whichever caller reaches a node first.
-// Contextual flow appearances point back to these region.file.declaration addresses.
+// These region.file.declaration addresses are internal: published indexes are the map tree's
+// (tree.mjs), and these serve scoped reuse only.
 export function numberRegion(m,region) {
   const index=new Map();
   const files=region.files.map((file,i)=>({file,index:`${region.index}.${i+1}`,entries:[],unreached:null}));

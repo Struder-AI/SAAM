@@ -147,15 +147,24 @@ scrubbing and travel visibility as viewer controls. Layer height means deposited
 layer thickness, not a separate height setting.
 
 The agent applies patches with the `adjust` command of
-`core/print/cli.mjs`. Studio conditionally reads `/api/state` when the viewer
-stream pushes a print or tour change, or a request change during an active tour
-(request activity gates the tour's Next). An unchanged fingerprint and tour view
+`core/print/cli.mjs`. Studio's viewer stream carries ordered state and progress
+updates. State updates coalesce into one conditional `/api/state` read; progress
+updates change the current job controls directly and do not fetch full state.
+Progress is accepted only for the current Studio instance, print and generation.
+The client also conditionally reads state when the stream pushes a print or tour
+change, or a request change during an active tour (request activity gates the
+tour's Next). An unchanged fingerprint and tour view
 returns no state body; a change returns the current checked state in that same
-request. Studio keeps the view when nothing changes and returns to the affected
-approval step after edits. A viewer-stream error or reopen, the page becoming
-visible and a 15-second heartbeat also check it; these cover missed pushes, an
-unavailable watcher, request expiry and a restarted server. There is no fixed
-short-interval state poll.
+request. Each state request uses one coherent bundle snapshot for conditional
+identity and, on a miss, its response. The tag also covers request, import-repair,
+tour, generation-failure and cancellation metadata returned with that snapshot.
+Machine-source requests use one source-bearing snapshot for identity validation
+and streaming. Studio keeps the view when nothing changes and returns to the affected
+approval step after edits. While the stream is open there is no state or progress
+poll. A viewer-stream error starts fallback polling; reconnection recovers current
+job progress and state, while the page becoming visible checks for missed state
+changes. The fallback state heartbeat is 15 seconds. Page disposal cancels
+queued refresh work as well as polling and the stream.
 Geometry and settings edits invalidate the single settings/toolpath confirmation.
 A server running old imported
 code must be restarted after runtime changes. Each agent owns its Studio instances;
@@ -588,9 +597,7 @@ without making decoded source motion unavailable. Do not equate display availabi
 model availability and approval. Inspect the worker handler as well as the RPC
 factory when adding a message; generated worker arrows do not verify this protocol.
 
-Verification: [Studio kinematics](../core/tests/studio-kinematics.test.mjs),
-[playback cache](../core/tests/studio-playback-cache.test.mjs), and
-[view readiness](../core/tests/studio-view-readiness.test.mjs).
+Verification: written on demand from this protocol; no stored tests.
 
 ### Preparation, generation and cancellation
 
@@ -612,14 +619,19 @@ manifest is atomically replaced. The cancellation API checks the current print
 and requested `generationHash`; UI progress also checks its captured target
 before updating controls.
 
-[`attachCheckedProgramWorker`](../core/print/program-handoff.mjs) accepts only
-an actual server-created Node Worker. Successful generated messages must match
-the expected `generationHash` and the check record's generation/export hashes. The handoff
-retains metadata and source strings, excludes moves/events, and returns defensive
-copies. It is process-local reuse of an owning check, not an API for trusting a
-caller's assertion of validity.
+[`createCheckedProgramHandoff`](../core/print/program-handoff.mjs) accepts only
+the Node Worker created for that prepared job. The handoff owns the worker
+message subscription and forwards each message to the job
+with a successful-result ticket only when its expected `generationHash` and the
+check record's generation/export hashes agree. No capture API accepts a caller's
+payload. Concurrent jobs retain independent, opaque, single-use tickets;
+disposing or cancelling a job removes its subscription. The workflow retains
+metadata and source strings, excludes moves/events, returns defensive copies and
+still rereads and hashes the current output bytes before reuse. Unclaimed source
+entries expire after one minute and the oldest is evicted above 32 entries.
 
-Verification: [generation control](../core/tests/studio-generation-control.test.mjs) and
+Verification: [program handoff](../core/tests/program-handoff.test.mjs),
+[generation control](../core/tests/studio-generation-control.test.mjs) and
 [workflow](../core/tests/workflow.test.mjs).
 
 ### Request completion and display
@@ -645,9 +657,7 @@ read. The queue is not persisted: it lives and dies with the owning session.
 [Studio coordination](#studio-event-queue) owns the kinds and their
 delivery class.
 
-Verification: [request coordination](../core/tests/studio-work.test.mjs),
-[readiness](../core/tests/studio-view-readiness.test.mjs), and
-[activity display](../core/tests/studio-spinner.test.mjs).
+Verification: written on demand from this queue contract; no stored tests.
 
 ### Playback storage and movie resources
 
@@ -665,8 +675,8 @@ does not set video time. The draw callback receives explicit time/canvas state;
 it must not advance live playback. This WebM writer handles one VP8/VP9 track,
 without audio. [Rendering](RENDERING.md) owns bead appearance and line fallbacks.
 
-Verification: [source player and compact moves](../core/tests/source-player.test.mjs) and
-[movie export](../core/tests/studio-movie.test.mjs).
+Verification: written on demand from the storage and encoder contracts above;
+no stored tests.
 
 ### Serving, page assets and lifetime
 
@@ -687,7 +697,5 @@ current state. `browser.mjs` is the host-specific opener; its failure is distinc
 from server startup failure. `machine-study.mjs` supplies explicitly scoped study
 inputs through the existing source presentation boundary.
 
-Verification: [lifetime](../core/tests/studio-lifetime.test.mjs),
-[reconnect](../core/tests/studio-reconnect.test.mjs),
-[settings](../core/tests/studio-settings.test.mjs), and
-[tour UI](../core/tests/studio-tour-ui.test.mjs).
+Verification: [lifetime](../core/tests/studio-lifetime.test.mjs). Reconnect,
+settings and tour UI are written on demand; no stored tests.

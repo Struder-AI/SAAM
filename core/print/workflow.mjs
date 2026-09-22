@@ -1,5 +1,5 @@
 // One print lifecycle for every geometry/generator adapter.
-import { readFile, mkdir, rename, access, rm,copyFile } from 'node:fs/promises';
+import { readFile, mkdir, rename, access, rm,copyFile,readdir } from 'node:fs/promises';
 import {hashFile} from '../geom/stl-file.mjs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,7 @@ import { exportAndInterpretProgram, interpretProgram, outputAdapter } from '../e
 import { loadMachine, validateDobotConfiguration, lineWidthLimits } from '../machine/profile.mjs';
 import { requireThat } from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
-import {checkedSourceFor} from './program-handoff.mjs';
+import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
 import {replaceFile} from '../file-write.mjs';
 import {resolveInitialPlan,resolveMachinePlan,resolvePlanPatch} from './resolve-plan.mjs';
 
@@ -93,6 +93,7 @@ export function createBundleWorkflow(adapter) {
   // actual file bytes, not mtimes or editable review claims. Approval state is
   // always read afresh; callers receive copies so they cannot alter this cache.
   let verifiedProgram;
+  const pendingCheckedPrograms=createPendingCheckedProgramStore();
   let inputCache={};
   const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
 async function proposedPlan(machineId, { setupFile } = {}) {
@@ -155,26 +156,84 @@ async function rememberedSetup(setupFile, machine) {
   return Object.fromEntries(Object.entries(saved.setup ?? {}).filter(([key]) => Object.hasOwn(known, key)));
 }
 
-async function optionalJson(file){try{return await json(file);}catch(error){if(error.code==='ENOENT')return null;throw error;}}
+async function bundleFiles(dir,at=dir){
+  const files=[];
+  for(const entry of await readdir(at,{withFileTypes:true})){
+    const path=resolve(at,entry.name);
+    if(entry.isDirectory())files.push(...await bundleFiles(dir,path));
+    else files.push(path.slice(dir.length+1).replaceAll('\\','/'));
+  }
+  return files.sort();
+}
 
-async function migrateLegacyBundle(dir,document){
-  const [machine,storedReview,descriptor,legacyChecks]=await Promise.all([
-    json(resolve(dir,'machine.json')),json(resolve(dir,'review.json')),json(resolve(dir,'geometry/model.json')),optionalJson(resolve(dir,'checks.json'))]);
+async function prepareLegacyMigration(dir,document,planText){
+  const inputNames=['plan.json','machine.json','review.json','geometry/model.json'],inputBytes=await Promise.all(inputNames.slice(1).map(name=>readFile(resolve(dir,name))));
+  const checksBytes=await readFile(resolve(dir,'checks.json')).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+  const machine=JSON.parse(inputBytes[0]),storedReview=JSON.parse(inputBytes[1]),descriptor=JSON.parse(inputBytes[2]),legacyChecks=checksBytes?JSON.parse(checksBytes):null;
+  const inputs=new Map([['plan.json',Buffer.from(planText)],...inputNames.slice(1).map((name,index)=>[name,inputBytes[index]])]);
+  if(checksBytes)inputs.set('checks.json',checksBytes);
+  else inputs.set('checks.json',null);
   const review=migrateReview(storedReview),legacyFile=nativeSuffix(descriptor)==='.3dm'?'geometry/model.3dm':'geometry/model.mesh.json';
   const bytes=await readFile(resolve(dir,legacyFile)),geometryHash=hash({file:hash(bytes),descriptor});
+  inputs.set(legacyFile,bytes);
   const geometry={hash:geometryHash,file:`geometry/${geometryHash}${nativeSuffix(descriptor)}`,descriptor};
-  await save(resolve(dir,geometry.file),bytes);
+  const artifacts=new Map([[geometry.file,bytes]]);let programBytes=null;
   if(review.generation){
     const oldProgram=resolve(dir,legacyExportPath(document,machine)),code=await readFile(oldProgram),exportHash=hash(code);
+    inputs.set(legacyExportPath(document,machine),code);programBytes=code;
     requireThat(exportHash===review.generation.exportHash,'Legacy generated files changed; regenerate before migration.');
-    const file=exportArtifactPath(document,machine,exportHash);await save(resolve(dir,file),code);
+    const file=exportArtifactPath(document,machine,exportHash);artifacts.set(file,code);
     review.generation={...review.generation,file,checks:legacyChecks?migrateChecks(legacyChecks):null};
   }
   const state={plan:document,machine,review,geometry};
-  await saveManifest(dir,state);
-  await Promise.all(['machine.json','review.json','checks.json','geometry/model.json',legacyFile,legacyExportPath(document,machine)]
-    .map(name=>rm(resolve(dir,name),{force:true})));
-  return state;
+  const manifest=manifestDocument(state),preflight=await validateBundleInput({dir,planText:JSON.stringify(manifest),...state,bytes},{});
+  if(preflight.error)throw preflight.error;
+  const source=originalSource(document.geometry);
+  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(hash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
+  const programStatus=!review.generation?'none':review.generation.generationHash===preflight.identity.generationHash?'current':'stale';
+  if(programStatus==='current')interpretProgram(programBytes,document,machine);
+  return {state,manifest,artifacts,planText,inputs,programStatus};
+}
+
+async function requireLegacyCurrent(dir,inputs){
+  for(const [name,expected] of inputs){
+    const actual=await readFile(resolve(dir,name)).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+    requireThat(expected===null?actual===null:actual?.equals(expected),`Legacy bundle changed during migration: ${name}. Run migration again.`);
+  }
+}
+
+async function migrateBundle(directory,{beforeCommit}={}){
+  const dir=resolve(directory),planFile=resolve(dir,'plan.json'),planText=await readFile(planFile,'utf8'),document=JSON.parse(planText);
+  const before=await bundleFiles(dir);
+  if(document.bundle?.schema===BUNDLE_SCHEMA)return {status:'current',directory:dir,created:[],updated:[],removed:[],retained:before};
+  const prepared=await prepareLegacyMigration(dir,document,planText),created=[],retained=new Set(before);
+  await requireLegacyCurrent(dir,prepared.inputs);
+  for(const [name,bytes] of prepared.artifacts){
+    try{
+      const existing=await readFile(resolve(dir,name));
+      requireThat(existing.equals(bytes),`Migration target already exists with different bytes: ${name}.`);
+    }catch(error){if(error.code!=='ENOENT')throw error;created.push(name);}
+  }
+  let manifestCommitted=false;
+  const manifestBytes=Buffer.from(`${JSON.stringify(prepared.manifest,null,2)}\n`);
+  try{
+    for(const name of created)await save(resolve(dir,name),prepared.artifacts.get(name));
+    await beforeCommit?.();
+    await requireLegacyCurrent(dir,prepared.inputs);
+    await save(planFile,prepared.manifest);manifestCommitted=true;
+    const state=await loadBundle(dir,{program:'source'});
+    return {status:'migrated',directory:dir,created,updated:['plan.json'],removed:[],retained:[...retained].filter(name=>name!=='plan.json'),
+      legacyProgram:prepared.programStatus,
+      verification:{geometryHash:state.geometryHash,exportHash:state.exportHash??null,toolpathApproved:state.toolpathApproved,programError:state.programError??null}};
+  }catch(error){
+    if(manifestCommitted){
+      const current=await readFile(planFile).catch(()=>null);
+      if(current?.equals(manifestBytes))await save(planFile,planText).catch(()=>{});
+    }
+    const planUnchanged=await readFile(planFile).then(actual=>actual.equals(Buffer.from(planText)),()=>false);
+    if(planUnchanged)await Promise.all(created.map(name=>rm(resolve(dir,name),{force:true})));
+    throw error;
+  }
 }
 
 async function readBundleInput(directory) {
@@ -185,7 +244,7 @@ async function readBundleInput(directory) {
     if(review.generation?.checks)review.generation={...review.generation,checks:migrateChecks(review.generation.checks)};
     state={plan,machine:bundle.machine,review,geometry:bundle.geometry};
   }else{
-    state=await migrateLegacyBundle(dir,document);planText=await readFile(resolve(dir,'plan.json'),'utf8');
+    throw Error(`Legacy split-file bundle requires explicit migration. Run: node core/print/cli.mjs migrate ${JSON.stringify(dir)}`);
   }
   requireThat(state.geometry&&/^[a-f0-9]{64}$/.test(state.geometry.hash)
     &&new RegExp(`^geometry/${state.geometry.hash.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\.(?:3dm|mesh\\.json)$`).test(state.geometry.file),
@@ -273,9 +332,9 @@ async function restoreBundleProgram(input,program,allSources,previousProgram) {
       if(cachedProgram?.key!==key||(program!=='source'&&!cachedProgram.program)) {
         // Reopen the saved machine program. Interpretation checks the actual
         // commands; reopening never invokes a slicing skill or exporter. Source
-        // requests can reuse our worker's checked result after the current-byte
+        // requests can reuse their job's checked result after the current-byte
         // hash above matches. Full-motion and cold callers still interpret.
-        const source=program==='source'?checkedSourceFor(generationHash,exportHash):null;
+        const source=program==='source'?pendingCheckedPrograms.take(key):null;
         if(source)cachedProgram={key,...source,program:null};
         else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine),code);
       }
@@ -423,7 +482,17 @@ async function generateBundle(directory, { development = false, onProgress, befo
     'The reviewed export changed before promotion. Generate it again.');
     return promoteReviewedGeneration(state.dir,confirmed);
   }
-  if(dispatchComputation)return dispatchComputation({directory,state,development,onProgress,beforeCommit});
+  if(dispatchComputation){
+    let localChecks;
+    const runLocally=async()=>localChecks=await generateBundle(directory,{development,onProgress,beforeCommit});
+    const computed=await dispatchComputation({directory,state,development,onProgress,beforeCommit,runLocally});
+    if(computed===localChecks&&localChecks)return localChecks;
+    const checks=computed?.checks,source=consumeCheckedProgram(computed?.checkedProgram,
+      checks?.generationHash,checks?.exportHash);
+    requireThat(checks&&source,'The generation worker returned unchecked machine source.');
+    pendingCheckedPrograms.retain(programKey(checks.generationHash,checks.exportHash),source);
+    return checks;
+  }
   const prepared=await prepareGeneration(directory,{onProgress});
   return commitGeneration(directory,prepared,{development,onProgress,beforeCommit});
 }
@@ -544,5 +613,5 @@ async function changeMachine(directory,machineId,{expectedRevision,setupFile}={}
 }
 
 return {root,EXPORT_NAME,atomicManifest:true,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,bundleFingerprint,bundleFingerprints,rememberSetup,
-  prepareGeneration,commitGeneration,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};
+  migrateBundle,prepareGeneration,commitGeneration,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,changeMachine};
 }

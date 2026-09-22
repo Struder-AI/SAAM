@@ -153,7 +153,9 @@ bundles continue using `geometry/model.3dm`.
 STL import accepts ASCII and binary with explicit mm/inch units, indexes exact
 shared vertices, records translation onto the bed, and retains `geometry/source.stl`
 and its hash. File changes invalidate review. STL does not supply semantic CAD
-faces, so Studio selects the imported component as a whole.
+faces, so Studio selects the imported component as a whole. ASCII STL uses the
+line-oriented format: the `solid` header ends before facet records, and `endsolid`
+closes the file. Leading whitespace, CRLF and a closing solid name are accepted.
 
 `core/geom/mesh.mjs` rejects invalid indices/nonfinite coordinates, degenerate or
 duplicate triangles, open edges, inconsistent winding, nonmanifold vertices and
@@ -563,8 +565,12 @@ needs review, and successful processing creates no manufacturing approval.
 
 ### Memory, files and progress
 
-[File decoding](./stl-file.mjs) reads ASCII and binary STL in 64 KiB blocks, computes
-the source hash while reading and indexes facets immediately. The public import
+[File decoding](./stl-file.mjs) reads ASCII and binary STL in 64 KiB blocks and
+drives the same incremental parser as complete-buffer decoding. Format validation,
+unit scaling, finite-coordinate checks, exact indexing and capacity checks therefore
+have one owner. The wrapper computes the source hash and reports progress while
+reading; the parser retains only indexed geometry, an 84-byte format prefix and
+the current record/token remainder. The public import
 and repair file entries accept paths so callers need not allocate the entire
 source buffer. Output STL is written in bounded text chunks. Native temporary
 files are private to each request and deleted on success, failure or cancellation;

@@ -198,6 +198,7 @@ extra approval.
 
 | Operation | CLI suffix after `node core/print/cli.mjs` | MCP tool | Result |
 |---|---|---|---|
+| Migrate a legacy split bundle | `migrate Prints/my-part` | — | Explicitly preflights and converts `plan.json` to the current manifest; retains legacy and unknown files and reports all file effects. Current bundles are no-ops. |
 | Read checked state | `check Prints/my-part` | `check_print` | Checks saved inputs and any stored export; reports approval state without generation. |
 | Investigate path feasibility | `check-path Prints/my-part` | `check_path` | Runs shared generation and machine checks without approval or persisted output. Use when feasibility needs investigation; it is not a mandatory extra step. |
 | Generate for review | `generate Prints/my-part` | `generate_print` | Creates and checks the export for combined settings/toolpath review; geometry review is advisory. |

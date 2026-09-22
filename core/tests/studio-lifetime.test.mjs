@@ -96,7 +96,7 @@ test('shutdown drains accepted work before completing',async t=>{
 test('page lifecycle opens independently, closes on pagehide and reconnects on history restore',async()=>{
   const events={},streams=[],dispatched=[];
   const source=await readFile(new URL('../../studio/viewer-session.mjs',import.meta.url),'utf8');
-  runInNewContext(source,{
+  runInNewContext(source.replace('export const viewerConnected','const viewerConnected'),{
     document:{querySelector:()=>({content:'test-token'})},
     EventSource:class{constructor(url){this.url=url;this.events={};streams.push(this);}addEventListener(name,handler){this.events[name]=handler;}close(){this.closed=true;}},
     CustomEvent:class{constructor(type,options){this.type=type;this.detail=options.detail;}},
@@ -106,10 +106,11 @@ test('page lifecycle opens independently, closes on pagehide and reconnects on h
   assert.equal(streams.length,1);assert.equal(streams[0].url,'/api/viewer?token=test-token');
   streams[0].events['agent-connection-closed']({data:JSON.stringify({ownerId:'test-owner'})});
   assert.equal(dispatched[0].type,'saam-agent-connection-closed');assert.equal(dispatched[0].detail.ownerId,'test-owner');
-  // The first open needs no conditional state check; a dropped or reopened stream does.
-  streams[0].events.open();assert.equal(dispatched.length,1);
+  // Every open establishes connected delivery and triggers one recovery check.
+  streams[0].events.open();assert.equal(dispatched.length,2);
   streams[0].events.error();streams[0].events.open();
-  assert.deepEqual(dispatched.slice(1).map(event=>[event.type,event.detail.open]),[['saam-viewer-connection',false],['saam-viewer-connection',true]]);
+  assert.deepEqual(dispatched.slice(1).map(event=>[event.type,event.detail.open]),
+    [['saam-viewer-connection',true],['saam-viewer-connection',false],['saam-viewer-connection',true]]);
   events.pagehide();assert.equal(streams[0].closed,true);
   events.pageshow({persisted:true});assert.equal(streams.length,2);
   streams[1].events.open();assert.equal(dispatched.at(-1).detail.open,true,'a restored page checks what it missed');

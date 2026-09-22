@@ -133,7 +133,9 @@ export function composePages(pages,config,context) {
           claimed.add(c.index);members.push(c);
         }
       }
-      const at=`${packet.index}.0.${i+1}`,path=`${spec.path}::@group/${g.id}`;
+      // Internal address: one `.0.` separates authored groups from the source page they
+      // group, and a subgroup nests past it. Published indexes are the map tree's (tree.mjs).
+      const at=`${packet.index}${packet.kind==='group'?'':'.0'}.${i+1}`,path=`${spec.path}::@group/${g.id}`;
       groups.push({index:at,path,label:g.label??g.id,members,...(g.groups?{groups:g.groups}:{})});
     }
     assertConvex(packet,groups);

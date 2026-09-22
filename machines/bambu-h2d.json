@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 18,
+  "revision": 21,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -13,7 +13,7 @@
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Tower-free mixed-diameter dual-nozzle output is implemented but awaits physical acceptance; same-nozzle material switching is unsupported.",
+    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Tower-free mixed-diameter dual-nozzle output is implemented but awaits physical acceptance; same-nozzle PLA AMS switching is implemented with a firmware chute flush and awaits reference/hardware acceptance.",
     "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
   ],
   "capabilities": [
@@ -205,7 +205,7 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "h2d-saam-startup-v8",
+        "contract": "h2d-saam-startup-v11",
         "start": [
           "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
@@ -263,6 +263,19 @@
           "M1002 set_filament_type:PLA",
           "M104 S140 A",
           "M140 S{bedC}",
+          "M1002 gcode_claim_action : 13",
+          "G28 X T300",
+          "G150.1 F18000",
+          "G150.3 F18000",
+          "M400 P200",
+          "M1009 Q1 L1",
+          "G91",
+          "G380 S2 Z30 F1200",
+          "G90",
+          "G1 X175 Y160 F30000",
+          "G28 Z P0 T250",
+          "M1009 Q1 L0",
+          "M400",
           {
             "fullStartOnly": [
               "M982.2 S1",
@@ -618,6 +631,10 @@
         "parkHeightFactor": 0.5,
         "parkSettleMm": 0,
         "toolChangeLiftMm": 3,
+        "materialChangeMode": "single-nozzle-ams",
+        "materialChangeFlushMm3": 300,
+        "hotendCoolingRateCPerS": 2,
+        "hotendHeatingRateCPerS": 3.6,
         "toolChangeAcceleration": 9000,
         "bodyAcceleration": 10000,
         "bodyTravelCommand": "G1"
@@ -631,9 +648,9 @@
     }
   ],
   "startup": {
-    "protocol": "bambu-h2d-reference-envelope-without-initial-homing",
+    "protocol": "bambu-h2d-reference-envelope",
     "zAfterStartupMm": 20,
-    "validation": "SAAM bounded H2D startup, cross-referenced to Bambu Studio 02.08.02.61. The inherited early H10 homing/wipe omission remains; later bed leveling, Z/XY calibration and priming remain. Nozzle, plate and logical filament parameters derive from the resolved job. Explicit origin [100,100,20]. Service routines are not simulated. Supported flag choices are explicit; cold-start and physical acceptance remain open. fast_start reuses saved calibration and omits optional vision/music/vibration checks; homing, wipe, prime and temperature waits remain. Physical acceptance pending."
+    "validation": "SAAM bounded H2D startup with initial XY/Z registration restored before filament loading in full and fast modes. Optional calibration, vision and vibration checks are omitted in fast mode; homing, saved compensation, wiping, priming and temperature waits remain. Nozzle, plate and logical filament settings derive from the resolved job. Service motion is not simulated; physical height and nozzle-routing acceptance remain pending."
   },
   "nonplanar": {
     "maxAngleDeg": 15,

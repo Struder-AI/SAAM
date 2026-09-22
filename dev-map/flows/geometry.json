@@ -219,11 +219,6 @@
             "core/geom/mesh.mjs::validateMeshGeometry",
             "core/geom/mesh.mjs::retainValidatedMesh",
             "core/geom/mesh.mjs::decodeSTL",
-            "core/geom/mesh.mjs::decodeSTL::addFacet",
-            "core/geom/mesh.mjs::decodeSTL::read",
-            "core/geom/mesh.mjs::decodeSTL::take",
-            "core/geom/mesh.mjs::decodeSTL::word",
-            "core/geom/mesh.mjs::decodeSTL::number",
             "core/geom/mesh.mjs::parseSTL"
           ]
         },

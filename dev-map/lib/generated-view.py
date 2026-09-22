@@ -282,10 +282,20 @@ def build_page(packet, ctx):
         if summary:
             target = summary.get("index", "")
             callers = [(f'{summary["count"]} callers → {target}', target if target in pages else "")]
-        if callers:
-            node.co = tuple(label for label, _target in callers)
-            node.co_targets = dict(callers)
-            node.co_role = "calledFrom"
+        # A node drawn away from its home map links to that map; its home box links back to
+        # every map that repeats it.
+        repeats = []
+        if component and component.get("home"):
+            repeats.append(("home " + component["home"], component["home"] if component["home"] in pages else ""))
+        others = component.get("alsoOn", []) if component else []
+        if len(others) > 5:
+            repeats.append((f'also on {len(others)} maps', ""))
+        else:
+            repeats += [("also on " + other, other if other in pages else "") for other in others]
+        if callers or repeats:
+            node.co = tuple(label for label, _target in callers + repeats)
+            node.co_targets = dict(callers + repeats)
+            node.co_role = "calledFrom" if callers else ""
         drawn.add(index)
         return node
 

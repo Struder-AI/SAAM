@@ -6,6 +6,7 @@ import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
 import {meshTopology,meshEdgeMap} from './mesh-topology.mjs';
 import {triangleBVH} from './triangle-bvh.mjs';
+import {decodeSTLBuffer} from './stl-decoder.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
 const dot = (a,b) => a.reduce((s,v,i)=>s+v*b[i],0);
@@ -251,29 +252,12 @@ export function meshTopAt(mesh,x,y) {
 // STL has no units. Exact duplicate coordinates are indexed without moving them.
 // Decoding is also used by explicit repair. Ordinary import still validates below.
 export function decodeSTL(bytes,{units,scale=1}={}) {
-  requireThat(['mm','inch'].includes(units)&&Number.isFinite(scale)&&scale>0,'STL import needs explicit mm/inch units and positive scale.');
-  const buffer=Buffer.isBuffer(bytes)?bytes:Buffer.from(bytes),factor=scale*(units==='inch'?25.4:1),vertices=[],triangles=[],lookup=new Map();
-  const addFacet=facet=>triangles.push(facet.map(p=>{requireMeshInput(p.every(Number.isFinite),'Nonfinite STL coordinate.');const key=p.join(',');if(!lookup.has(key)){lookup.set(key,vertices.length);vertices.push(p);}return lookup.get(key);}));
-  const count=buffer.length>=84?buffer.readUInt32LE(80):0;
-  if(count>0&&84+50*count===buffer.length){
-    checkMeshCapacity(count*3,count);
-    for(let i=0;i<count;i++)addFacet(Array.from({length:3},(_,v)=>Array.from({length:3},(_,k)=>buffer.readFloatLE(84+i*50+12+v*12+k*4)*factor)));
-  } else {
-    const text=buffer.toString('utf8').trim();
-    requireMeshInput(/^solid(?:\s|$)/i.test(text)&&/endsolid[^\r\n]*$/i.test(text),'Invalid or truncated STL.');
-    const start=/^solid[^\r\n]*(?:\r?\n|$)/i.exec(text)[0].length,end=/endsolid[^\r\n]*$/i.exec(text).index,scanner=/\S+/g;scanner.lastIndex=start;
-    const read=()=>{const m=scanner.exec(text);return m&&m.index<end?m[0]:undefined;};
-    let token=read();const take=()=>{const value=token;token=read();return value;};
-    const word=w=>requireMeshInput(take()?.toLowerCase()===w,'Malformed ASCII STL.');
-    const number=()=>{const v=Number(take());requireMeshInput(Number.isFinite(v),'Nonfinite STL coordinate.');return v;};
-    while(token!==undefined){
-      word('facet');word('normal');number();number();number();word('outer');word('loop');
-      addFacet(Array.from({length:3},()=>{word('vertex');return [number()*factor,number()*factor,number()*factor];}));
-      word('endloop');word('endfacet');
-    }
+  try{return decodeSTLBuffer(bytes,{units,scale});}
+  catch(error){
+    if(!error.code&&error.name==='Error'&&!error.message.startsWith('STL import needs')&&!error.message.includes('capacity'))
+      throw meshInputError(error.message);
+    throw error;
   }
-  checkMeshCapacity(vertices.length,triangles.length);
-  return {vertices,triangles};
 }
 
 export function parseSTL(bytes,options) {

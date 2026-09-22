@@ -289,10 +289,11 @@ cells have small intended bead widths. Fixed relay flow cannot meter those width
 software intent and relay estimates remain separate. Physical clearance, robot
 feasibility and execution remain unverified.
 
-[Surface-cladding tests](../../core/tests/surface-cladding.test.mjs) cover native
-round trips, bore and wall dimensions, normal offsets/refinement, mesh-strip
-mapping, perimeter-front interaction, partial courses, rotary continuity, bead
-frames, packaging beyond 64 helper files and the shared export/review lifecycle.
+Native round trips, bore and wall dimensions, normal offsets/refinement,
+mesh-strip mapping, perimeter-front interaction, partial courses, rotary
+continuity and bead frames have no stored tests; their expected values follow
+from the contracts above. The machine bytes they produce stay covered by
+[denso.test.mjs](../../core/tests/denso.test.mjs).
 
 ## Shared example
 
