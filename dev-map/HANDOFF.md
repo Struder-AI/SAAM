@@ -154,11 +154,10 @@ Two consequences of the tree to look at before settling:
    Left: 9 boxes where the callable is destructured from a parameter record;
    a supplier with no page (ambiguous `onclick` anchors) falls back to the
    file; `linked` now counts the rows.
-3. **Closure-owned state on member pages.** A closure factory's state is
-   drawn on the factory page only, so a member such as `accept` shows none of
-   the four maps it mutates. Draw the owned state as state nodes with read and
-   write wires on the members. This is what makes Studio's controllers and
-   sessions readable.
+3. **Closure-owned state on member pages.** Built 2026-09-22: `state` nodes
+   with read and write wires on member and holder pages; capture text off
+   the reference box. Left: class instance state (`this.x`) is still only
+   the class page's field hubs; captures inside anonymous nested callbacks.
 4. **Enter array-method callbacks.** Built 2026-09-21: iteration methods
    are stages with the item as input (`shapes.mjs::iterationMethods`); 645
    callbacks entered. Not in the table: `Array.from(x, fn)`, `flat()`. A

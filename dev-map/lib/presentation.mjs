@@ -112,9 +112,10 @@ export function presentationPage(page) {
     // The group's own page owns its membership. An enclosing page needs only
     // its address, label and count; raw membership remains in --details.
     if(c.kind==='group'){const {members,files,...group}=c;return group;}
-    if (c.captures) c = {...c, captures: c.captures.map(({name,access,reference,valueUnknown,lifetimeUnknown,mutationUnknown}) =>
-      ({name,access,...(reference?{reference:true}:{}),...(valueUnknown?{valueUnknown:true}:{}),...(lifetimeUnknown?{lifetimeUnknown:true}:{}),
-        ...(mutationUnknown?{mutationUnknown:true}:{})}))};
+    // What a closure captures is drawn: the holder's own bindings are state nodes wired to this
+    // box, and the analysis limits on them are finding rows. The box says it is a function
+    // value; it does not also recite the capture list as text.
+    if (c.captures) {const {captures, ...box} = c; c = box;}
     if (c.reference === 'callable') return c;
     const calls = (page.callBindings ?? []).filter(call => c.id
       ? call.instance === c.id : call.callee === (c.path ?? `${c.file}::${c.label}`));

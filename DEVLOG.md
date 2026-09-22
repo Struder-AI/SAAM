@@ -1,5 +1,36 @@
 # Development log
 
+## 2026-09-22 — Dev map: closure-owned state as state nodes with read and write wires
+
+- Queue item 3. A binding a factory declares and its nested members capture
+  is a `state` node: on the member page (`name`, `owner`, `ownerIndex`,
+  `binding`, `access`, declaration site) with read wires from the node into
+  the consuming instance or operator port and write wires from the producer
+  into the node, or from `self` with a stub reason (`collection-mutation`,
+  `member-write`, `update`, `deleted-member`, `untraced`) when only the
+  write is known; on the holder page once, wired from its initialisation and
+  to and from every member that touches it. A mutating method call (`set`,
+  `push`, `delete`) counts as a write, which the capture analysis alone did
+  not see. The closure reference box keeps "function value" and loses its
+  capture text; `presentation.mjs` drops the box's `captures`,
+  `destination.mjs` ignores `closure-state` wires, `instances.mjs` no longer
+  invents an invocation producer for them (92 spurious `invocation-origin`
+  rows gone), `store.mjs` remaps `ownerIndex` on renumbering. The viewer
+  draws state boxes with an "owned by" link and directional state wires.
+- Verified on the main store: 1562 state nodes (980 on 425 member pages, 582
+  on 156 holder pages), 1971 read and 1439 write wires, no floating node;
+  reference boxes with capture text 529 → 0; `closure-capture` rows 701
+  unchanged, all finding rows 12813 unchanged; `check` 3553 / 1080 / 47 /
+  5798, clean; destinations 752 graph, 918 code; depth 15; every declaration
+  homed once. Pages read: `createAgentRequests::accept` (`records`,
+  `pending`, `byPrint`, `latest`; `pending` write-only), `createAgentRequests`
+  (13 nodes, 56 wires), `interpretDensoFiles` (19 nodes, `execute` box with
+  no text) and `::execute` (62 wires), `sourceSession::acceptPose`.
+- Not done: class instance state (`this.x` on classes with `stateFields`)
+  keeps the class page's field hubs only; captures inside a member's
+  anonymous callbacks stay `closure-capture` rows. `README.md` at 185 lines
+  by rewrapping.
+
 ## 2026-09-21 — Dev map: callback targets as references; array-method callbacks entered
 
 - Callback targets (queue item 2). A callable a caller passes into a parameter

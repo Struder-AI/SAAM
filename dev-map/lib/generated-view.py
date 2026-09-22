@@ -422,8 +422,12 @@ def node_page(packet, page, unit, port, drawn, dropped):
     # is wired to it; the argument slots the tracer could not source are marked on the box.
     invocations = [w for w in packet["wires"] if w["kind"] == "invocation"]
     stubs = {w["to"]: w.get("stubs", []) for w in invocations}
-    if invocations:
-        me = unit("self", packet["path"][len(packet["file"]) + 2:], "this function",
+    # Closure-owned state is read and written by this body itself, so the subject box is drawn
+    # for a page that holds state even when it calls nothing.
+    state = packet.get("state", [])
+    subject = "self" if invocations or state else packet["index"]
+    if invocations or state:
+        me = unit(subject, packet["path"][len(packet["file"]) + 2:], "this function",
                   f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', "subject",
                   ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', path=packet["path"])
         me.go = ""
@@ -446,13 +450,6 @@ def node_page(packet, page, unit, port, drawn, dropped):
         rows = stubs.get(c.get("id", c["index"]), [])
         if rows:
             note.append(stub_note(rows))
-        for capture in c.get("captures", []):
-            flags = [label for key, label in (("valueUnknown", "origin unknown"),
-                     ("lifetimeUnknown", "lifetime unknown"), ("mutationUnknown", "mutation unknown")) if capture.get(key)]
-            if capture.get("access") != "read":
-                flags.insert(0, capture["access"])
-            if flags:
-                note.append(capture["name"] + " · " + ", ".join(flags))
         assertion = c.get("assertion", {}).get("condition")
         assertion_row = len(note)
         if assertion:
@@ -507,29 +504,50 @@ def node_page(packet, page, unit, port, drawn, dropped):
             node.source_path, node.source_line = source["file"], str(source["line"])
         port_context(node, p, page.context_pages)
         drawn.add(p["port"])
+    # A binding the holder declares and its members share: state this body reads and writes,
+    # drawn as its own node rather than recited as text on a box.
+    for s in state:
+        ref = f'{s["file"]}:{s["line"]}-{s["endLine"]}'
+        owner = s.get("ownerIndex") or s["owner"]
+        node = page.n(s["id"], s["name"], kind="state",
+                      note=f'{s["binding"]} · {s["access"]} · owned by {owner}', anchor=ref)
+        node.display_foot = ref
+        node.anchor_ref = ref
+        node.source_path, node.source_line = s["file"], str(s["line"])
+        node.go = owner if owner in page.context_pages else ""
+        drawn.add(s["id"])
     # A body that calls nothing still has a page: itself, what reaches it and what leaves it.
     if not packet["components"] and not packet.get("operators"):
-        me = unit(packet["index"], packet["path"][len(packet["file"]) + 2:], packet["kind"],
-                  f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
-                  "subject", ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
-                  path=packet["path"])
-        me.go = ""
+        if subject not in drawn:
+            me = unit(subject, packet["path"][len(packet["file"]) + 2:], packet["kind"],
+                      f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
+                      "subject", ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
+                      path=packet["path"])
+            me.go = ""
         for p in packet["inputs"]:
-            page.e(p["port"], packet["index"], p["name"], "data")
+            page.e(p["port"], subject, p["name"], "data")
         for p in packet["outputs"]:
-            page.e(packet["index"], p["port"], "", "io")
+            page.e(subject, p["port"], "", "io")
         for c in packet["calledFrom"]:
             caller = c.get("index") or c.get("path") or c.get("file") or "external"
             port("from:" + caller, caller, go=c.get("index") or "")
-            page.e("from:" + caller, packet["index"], ", ".join(c.get("labels", [])), "data")
+            page.e("from:" + caller, subject, ", ".join(c.get("labels", [])), "data")
     # A state wire that is not a thread is a `this.` field two members share, and the store holds
     # one such wire per writer-reader pair: the field itself becomes the box, so each member is
     # drawn once against it instead of once per partner. A thread carries its own order and is
     # left alone.
     shared = {}
     fields = {field["id"]: field for field in packet.get("stateFields", [])}
-    for w in value_bundles([w for w in packet["wires"] if w["kind"] != "invocation"]):
-        if w["kind"] == "state" and w.get("provenance") != "state-thread":
+    # A closure-state wire names this body as one of its ends; the box for it is `subject`.
+    body = [w if w.get("provenance") != "closure-state" else
+            {**w, "from": subject if w["from"] == "self" else w["from"],
+             "to": subject if w["to"] == "self" else w["to"]}
+            for w in packet["wires"] if w["kind"] != "invocation"]
+    for w in value_bundles(body):
+        if w.get("provenance") == "closure-state":
+            wire(page, w, " · ".join(x for x in (w.get("label", ""), w.get("stub", "")) if x),
+                 "state", drawn, dropped)
+        elif w["kind"] == "state" and w.get("provenance") != "state-thread":
             ends = shared.setdefault(w.get("stateField", w.get("label", "")), ([], []))
             for side, end in ((0, w["from"]), (1, w["to"])):
                 if end not in ends[side]:
@@ -704,7 +722,9 @@ LEGEND = [
                      "invocation edge, so no box floats; stub rows on a box name the argument "
                      "slots the tracer could not source."),
     ("b", "state", "local loop, update or collection state, with initial/current/next/final roles on its wires. "
-                   "A class field instead connects the members that write and read it."),
+                   "A class field instead connects the members that write and read it. A small named "
+                   "state box is a binding the enclosing declaration owns: its note says the binding "
+                   "kind, the access and which declaration owns it, and clicking it opens that owner."),
     ("h", None, "Ports"),
     ("b", "port", "in: a parameter, or a way in from outside this page — another file, another "
                   "region, an outside caller, or a caller of this function. Out: a return, named "
@@ -728,7 +748,11 @@ LEGEND = [
                      "not an invocation or an execution-order constraint. Mutable or untraced captures "
                      "retain their analysis limits."),
     ("w", "state", "state-thread: the same receiver at successive call sites, in source order. On "
-                   "a class page: a field one member writes and another reads."),
+                   "a class page: a field one member writes and another reads. closure-state: the "
+                   "arrow points out of a state box for a read and into it for a write, so the "
+                   "holder page says which members share which binding and a member page says what "
+                   "it reads and writes. A write whose value the tracer could not follow leaves "
+                   "this function's own box and names the gap beside the binding."),
     ("w", "gate", "ast-guard: the call is reached only under a test. The label names the condition "
                   "and branch; the full predicate remains under source and CLI --details."),
     ("w", "io", "ast-return / ast-throw: what leaves through a return or a throw."),

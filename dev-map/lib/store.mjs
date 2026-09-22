@@ -93,6 +93,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     packet.index=index.get(packet.path)??packet.index;
     for(const c of packet.components)c.index=index.get(`${c.file}::${c.label}`)??c.index;
     for(const f of packet.formulas)f.index=index.get(`${f.file}::${f.label}`)??f.index;
+    for(const s of packet.state??[])s.ownerIndex=index.get(s.owner)??s.ownerIndex;
     for(const r of packet.requires)r.index=index.get(r.by)??r.index;
   }
   // Incoming calls invert actual call components. Class membership and closure containment
@@ -288,6 +289,9 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   const placed=new Set([...destinations].filter(([at])=>tree.has(at)).map(([,page])=>page));
   const unplaced=[...destinations.values()].filter(page=>!placed.has(page)).map(page=>page.path??page.file).sort(order);
   renumber([...placed],tree);
+  // A state node names the declaration that owns the binding. That address is the tree's, like
+  // every other address on the page, so it is published with them.
+  for(const page of placed)for(const s of page.state??[])if(tree.has(s.ownerIndex))s.ownerIndex=tree.get(s.ownerIndex);
   for(const [path,page] of packets)if(!placed.has(page))packets.delete(path);
   const publish=pages=>Object.fromEntries([...pages].filter(page=>placed.has(page))
     .map(page=>[page.index,page]).sort((a,b)=>byIndex(a[0],b[0])));

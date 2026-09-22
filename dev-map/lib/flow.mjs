@@ -165,6 +165,65 @@ const directReturnCall=n=>{
   return name(n.callee);
 };
 
+// Closure-owned state. A factory's own `let`/`const` bindings are the state its members keep
+// between calls, so they are nodes of the drawing wherever they are used: on the factory page
+// once, wired to the members that share them, and on each member page with the reads and writes
+// that member makes. A binding holding a callable is a declaration, not state, and a parameter
+// is already a port.
+const MUTATING_MEMBERS=new Set(['set','delete','clear','add','push','pop','shift','unshift','splice',
+  'sort','reverse','fill','copyWithin','setDate','setTime']);
+function ownedBindings(fnNode,keyOf) {
+  const held=new Map();
+  const site=n=>({line:n.loc.start.line,column:n.loc.start.column+1,endLine:n.loc.end.line,start:n.start,end:n.end});
+  (function definitions(n,parent=null){
+    if(n!==fnNode&&functions.has(n.type))return;
+    if(n.type==='VariableDeclarator')for(const id of patternIds(n.id)) {
+      const b=keyOf(id);if(!b||held.has(b))continue;
+      held.set(b,{name:id.name,binding:parent?.kind??'let',source:site(id),
+        callable:Boolean(n.init&&functions.has(n.init.type)),
+        initial:!n.init?'undeclared-value':n.init.type==='NewExpression'?'constructed-value'
+          :['Literal','ArrayExpression','ObjectExpression','TemplateLiteral'].includes(n.init.type)?'literal'
+          :n.init.type==='CallExpression'?'nested-call':'computed-expression'});
+    }
+    for(const c of kids(n))definitions(c,n);
+  })(fnNode);
+  return held;
+}
+// How a body uses a binding it does not declare. Assigning the binding and mutating the object
+// it holds are both writes of that state; everything else is a read. The walk stops where the
+// map does: a declaration written inside this one has its own page and its own state wires.
+function stateUses(body,keyOf,owned,stop) {
+  const uses=new Map();
+  const accessOf=(n,parents)=>{
+    let top=n,above=parents.get(n);
+    while(above?.type==='MemberExpression'&&above.object===top){top=above;above=parents.get(top);}
+    if(above?.type==='AssignmentExpression'&&above.left===top)return top===n&&above.operator==='='?'write':'read-write';
+    if(above?.type==='UpdateExpression'&&above.argument===top)return 'read-write';
+    if(above?.type==='UnaryExpression'&&above.operator==='delete')return 'write';
+    if(top!==n&&!top.computed&&above?.type==='CallExpression'&&above.callee===top
+      &&MUTATING_MEMBERS.has(top.property?.name))return 'write';
+    return 'read';
+  };
+  const parents=new Map();
+  (function references(n,parent=null){
+    if(n!==body&&stop.has(n.start))return;
+    parents.set(n,parent);
+    const propertyKey=parent?.type==='MemberExpression'&&parent.property===n&&!parent.computed
+      ||parent?.type==='Property'&&parent.key===n&&!parent.computed&&parent.value!==n;
+    if(n.type==='Identifier'&&!propertyKey) {
+      const b=keyOf(n),info=b&&owned.get(b);
+      if(info&&!info.callable) {
+        const access=accessOf(n,parents),row=uses.get(b)??uses.set(b,{...info,access:null,sites:[]}).get(b);
+        row.access=row.access&&row.access!==access?'read-write':access;
+        row.sites.push({node:n,access});
+      }
+    }
+    for(const c of kids(n))references(c,n);
+  })(body);
+  return uses;
+}
+const childStops=node=>new Set(node.children.map(c=>c.start));
+
 // The `this.` fields a span reads and writes, taken from the span's own AST.
 function thisFields(ast,start,end) {
   const read=new Set(),written=new Set(),uncertainty=[],sites=[];
@@ -721,6 +780,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   })(fn);
   const capturedBindings=new Set([...closureBindings].filter(b=>outerBindings.has(b)));
   const captureBindings=new Map(),captureWrites=new Set(),captureMutations=new Set(),closureCaptures=new Map(),captureWires=[];
+  const stateProducers=new Map();
   const bindingSource=n=>({...sourceSite(n),endLine:n.loc.end.line,endColumn:n.loc.end.column+1});
   for(const p of fn.params)for(const id of patternIds(p))captureBindings.set(key(id),{name:id.name,kind:'parameter',source:bindingSource(id)});
   (function definitions(n,parent=null){
@@ -763,7 +823,10 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         ...(!known?{valueUnknown:true}:{}),...(!stable?{lifetimeUnknown:true}:{}),...(captureMutations.has(b)?{mutationUnknown:true}:{})};
       rows.set(b,previous&&!previous.valueUnknown?previous:row);
       if(!known)continue;
-      for(const p of value)if(p.end)captureWires.push({from:p.end,to:child.path,label:info.name,kind:'capture',toPort:`capture:${info.name}`,
+      // What the factory's own initialisation put in the binding, kept so the state node can be
+      // wired to it once instead of once per member.
+      if(!stateProducers.has(b))stateProducers.set(b,value);
+      for(const p of value)if(p.end)captureWires.push({binding:b,from:p.end,to:child.path,label:info.name,kind:'capture',toPort:`capture:${info.name}`,
         ...(p.port?{fromPort:p.port}:{}),...(p.site?{sourceSite:p.site}:{}),provenance:'ast-closure-capture'});
     }
   };
@@ -1441,9 +1504,123 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       needed.add(w.from);changed=true;
     }
   }
-  const liveOperators=operators.filter(o=>needed.has(o.id));
-  const kept=new Set([...drawn.map(c=>c.path),...liveOperators.map(o=>o.id),...params.map(p=>p.port),...outputs.map(o=>o.port)]);
+  let liveOperators=operators.filter(o=>needed.has(o.id));
+  let kept=new Set([...drawn.map(c=>c.path),...liveOperators.map(o=>o.id),...params.map(p=>p.port),...outputs.map(o=>o.port)]);
   const live=w=>kept.has(w.from)&&kept.has(w.to);
+  // Closure-owned state. The bindings a factory declares and its members share are drawn as
+  // their own nodes: once here with the initialisation that filled them and a wire per member
+  // that reads or writes them, and again on each member's page against the calls and operators
+  // that use them there. A state node is not a called declaration — it is no part of the
+  // map-or-code rule — and it never floats: every one of them is placed by its own wires.
+  const state=[],stateWires=[],stateBindings=new Set(),stateKey=new Map(),stateSeen=new Set();
+  const stateNode=(holder,b,info,access)=>{
+    const k=`${holder.path}\n${b}`,held=stateKey.get(k);
+    if(held){if(held.access!==access)held.access='read-write';return held;}
+    const made={id:`st${state.length+1}`,kind:'state',name:info.name,owner:holder.path,ownerIndex:holder.handle,
+      binding:info.binding,access,file:holder.file,line:info.source.line,endLine:info.source.endLine,column:info.source.column};
+    stateKey.set(k,made);state.push(made);return made;
+  };
+  const stateWire=w=>{
+    const k=JSON.stringify([w.from,w.to,w.toPort??'',w.fromPort??'',w.access,w.stub??'',
+      w.sourceSite?.start??'',w.targetSite?.start??'']);
+    if(stateSeen.has(k))return;
+    stateSeen.add(k);stateWires.push({kind:'state',provenance:'closure-state',...w});
+  };
+  const ownedHere=ownedBindings(fn,key);
+  if(ownedHere.size&&node.children.length) {
+    const shared=new Map();
+    for(const child of node.children) {
+      const body=childFunctions.get(child.path);if(!body)continue;
+      for(const [b,row] of stateUses(body,key,ownedHere,childStops(child)))
+        (shared.get(b)??shared.set(b,[]).get(b)).push({child,access:row.access});
+    }
+    for(const [b,members] of shared) {
+      const info=ownedHere.get(b);
+      const held=stateNode(node,b,info,members.map(m=>m.access).reduce((a,x)=>a&&a!==x?'read-write':x,null));
+      stateBindings.add(b);
+      const produced=(stateProducers.get(b)??[]).filter(p=>p.end);
+      if(produced.length)for(const p of produced)stateWire({from:p.end,to:held.id,label:info.name,access:'write',
+        ...(p.port?{fromPort:p.port}:{}),...(p.site?{sourceSite:p.site}:{})});
+      else stateWire({from:'self',to:held.id,label:info.name,access:'write',stub:info.initial});
+      for(const m of members) {
+        if(m.access!=='write')stateWire({from:held.id,to:m.child.path,label:info.name,access:'read'});
+        if(m.access!=='read')stateWire({from:m.child.path,to:held.id,label:info.name,access:'write'});
+      }
+    }
+  }
+  // This page's own view of the state it does not own: what the declaration holding it declared
+  // and this body uses. The holder chain is walked outward, so the innermost declaration that
+  // owns the binding is the one named.
+  const holders=[];
+  for(let a=node.parent;a&&['function','method','handler'].includes(a.kind);a=a.parent) {
+    const d=byAnchor(graph).get(a.path);if(!d||d.file!==node.file)break;
+    const outer=functionAt(ast,d.start,d.end);if(!outer)break;
+    const scope=scopeTree(outer),keyOf=n=>scope.binding(n)?.id??null;
+    holders.push({node:a,keyOf,owned:ownedBindings(outer,keyOf)});
+  }
+  if(holders.length) {
+    const siteByNode=new Map();
+    for(const c of order)for(const s of c.sites)if(!siteByNode.has(s.node))siteByNode.set(s.node,{path:c.node.path,site:s});
+    const opByNode=new Map();
+    for(const op of liveOperators)if(op.start!==undefined&&!opByNode.has(`${op.start}:${op.end}`))opByNode.set(`${op.start}:${op.end}`,op);
+    const outPortOf=new Map();
+    [...merged.values()].forEach((list,i)=>{for(const e of list)outPortOf.set(e.node,`out${i+1}`);});
+    // What consumes a read: the call it is an argument or receiver of, the operator it feeds, the
+    // exit it leaves by, or — when it reaches none of those — this function itself.
+    const consumerOf=id=>{
+      for(let n=id,p=parents.get(n);p;n=p,p=parents.get(n)) {
+        const held=siteByNode.get(p);
+        if(held) {
+          const slot=held.site.iteration?-1:held.site.args.findIndex(a=>a&&a.start<=id.start&&id.end<=a.end);
+          return {to:held.path,targetSite:sourceSite(p),
+            ...(slot>=0?{toPort:`arg${slot+1}`}
+              :p.callee&&p.callee.start<=id.start&&id.end<=p.callee.end?{toPort:'receiver'}:{})};
+        }
+        const op=opByNode.get(`${p.start}:${p.end}`);
+        if(op)return {to:op.id};
+        const out=outPortOf.get(p);
+        if(out)return {to:out};
+      }
+      return {to:'self'};
+    };
+    // What a write leaves behind. A binding assigned a traced value is wired from that value's
+    // producer; a mutation of the object the binding holds, or an assignment the tracer could
+    // not source, is the work of this function and says which gap it is.
+    const producerWires=(id,held,name)=>{
+      let top=id,above=parents.get(id);
+      while(above?.type==='MemberExpression'&&above.object===top){top=above;above=parents.get(top);}
+      if(top===id&&above?.type==='AssignmentExpression'&&above.left===id) {
+        const found=producers(above.right).filter(p=>p.end);
+        if(found.length)return found.map(p=>({from:p.end,to:held.id,label:name,access:'write',
+          ...(p.port?{fromPort:p.port}:{}),...(p.site?{sourceSite:p.site}:{})}));
+        return [{from:'self',to:held.id,label:name,access:'write',stub:'untraced'}];
+      }
+      return [{from:'self',to:held.id,label:name,access:'write',
+        stub:above?.type==='UpdateExpression'?'update'
+          :above?.type==='UnaryExpression'?'deleted-member'
+          :above?.type==='CallExpression'&&above.callee===top?'collection-mutation':'member-write'}];
+    };
+    for(const holder of holders)for(const [b,row] of stateUses(fn,holder.keyOf,holder.owned,stop)) {
+      const held=stateNode(holder.node,b,row,row.access);
+      for(const site of row.sites) {
+        if(site.access!=='write')stateWire({from:held.id,...consumerOf(site.node),label:row.name,access:'read'});
+        if(site.access!=='read')for(const w of producerWires(site.node,held,row.name))stateWire(w);
+      }
+    }
+  }
+  // Local bookkeeping whose only consumer is owned state is still a step of this flow: the
+  // liveness walk above stopped at the drawn boxes, so it is rerun once the state wires exist.
+  if(stateWires.some(w=>operatorIds.has(w.from)&&!needed.has(w.from))) {
+    for(const w of stateWires)if(operatorIds.has(w.from))needed.add(w.from);
+    for(let changed=true;changed;) {
+      changed=false;
+      for(const w of wires)if(needed.has(w.to)&&operatorIds.has(w.from)&&!needed.has(w.from)) {
+        needed.add(w.from);changed=true;
+      }
+    }
+    liveOperators=operators.filter(o=>needed.has(o.id));
+    kept=new Set([...drawn.map(c=>c.path),...liveOperators.map(o=>o.id),...params.map(p=>p.port),...outputs.map(o=>o.port)]);
+  }
   // A call boundary is a source observation, independent of the merged component box.
   // Preserve each invocation and its reaching argument definitions so a caller's local
   // names can be related to callee ports without guessing a unique upstream origin.
@@ -1528,7 +1705,10 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     components:drawn,
     callBindings,
     operators:liveOperators.map(({key,...op})=>op),
-    wires:wires.filter(w=>live(w)&&compatibleDefUse(w)),
+    ...(state.length?{state}:{}),
+    // A capture whose binding became a state node is drawn through that node instead, so the
+    // value is not also carried straight to the member as a second edge.
+    wires:[...wires.filter(w=>live(w)&&compatibleDefUse(w)&&!(w.kind==='capture'&&stateBindings.has(w.binding))),...stateWires],
     external:unlinked.filter(u=>u.state==='external'),
     unresolved:unlinked.filter(u=>u.state==='unresolved'),uncertainty};
   if(!built)return page;
@@ -1573,7 +1753,8 @@ export function flowPacket(context,target,{evidence=false}={}) {
     ...(repeated.has(w.to)&&w.targetSite?{targetSite:w.targetSite}:{}),
     ...(w.fromPort?{fromPort:w.fromPort}:{}),...(w.toPort?{toPort:w.toPort}:{}),...(w.expression?{expression:w.expression}:{}),
     ...(w.positionUnknown?{positionUnknown:true}:{}),...(w.spread?{spread:true}:{}),
-    ...(['ast-choice','ast-iteration','ast-normal-backedge','ast-invocation','ast-collection','ast-update','ast-closure-value','ast-closure-capture','ast-closure-binding'].includes(w.provenance)?{provenance:w.provenance}:{}),
+    ...(w.access?{access:w.access}:{}),...(w.stub?{stub:w.stub}:{}),
+    ...(['ast-choice','ast-iteration','ast-normal-backedge','ast-invocation','ast-collection','ast-update','ast-closure-value','ast-closure-capture','ast-closure-binding','closure-state'].includes(w.provenance)?{provenance:w.provenance}:{}),
     ...(w.gate?{gate:gateIndex(w.gate)}:{}),...(w.provenance==='state-thread'?{provenance:'state-thread',order:'source'}:{})});
   const packet={flow:true,generated:true,index:page.node.handle,path:page.node.path,
     ...(page.stateful?{stateful:true}:{}),
@@ -1590,6 +1771,9 @@ export function flowPacket(context,target,{evidence=false}={}) {
     ...(page.callBindings?.length?{invocationSites:true,callBindings:page.callBindings.map(({gate,...call})=>({...call,...(gate?{gate:gateIndex(gate)}:{})}))}:{}),
     ...(page.operators?.length?{operators:page.operators.map(({gate,...op})=>({...op,...(gate?{gate:gateIndex(gate)}:{})}))}:{}),
     ...(page.ports?{ports:page.ports}:{}),...(page.stateFields?{stateFields:page.stateFields}:{}),
+    // Closure-owned state: the holder's own bindings this page draws, with the declaration site
+    // that names each one. They are nodes of the drawing, never called declarations.
+    ...(page.state?.length?{state:page.state}:{}),
     wires:page.wires.map(wire),
     gates,
     calledFrom:[],couplings:[],

@@ -11,8 +11,10 @@ export const drawnShape=page=>{
   const called=new Set((drawn.components??[]).map(c=>c.id??c.index));
   const operators=(drawn.operators??[]).map(o=>o.id);
   const wires=drawn.wires??[];
+  // A state node is not a called declaration, so a wire to or from one says nothing about
+  // whether two called declarations are related here.
   return {boxes:called.size+operators.length,called:called.size,
-    wired:wires.some(w=>called.has(w.from)||called.has(w.to))};
+    wired:wires.some(w=>w.provenance!=='closure-state'&&(called.has(w.from)||called.has(w.to)))};
 };
 // A declaration page is a map when its drawing shows at least two called declarations with a
 // wire on one of them, and code otherwise. Iteration, update, choice, collection and
