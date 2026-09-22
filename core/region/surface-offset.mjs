@@ -10,8 +10,7 @@
 // runtime validation pass. See BUILDERS.md for limits and reference status.
 import { requireThat, dot, cross, normalize } from '../geom/tolerance.mjs';
 import { surfaceDerivatives } from '../geom/surface-derivatives.mjs';
-import { clipperContext, clipPaths } from './clipper.mjs';
-import {simplifyPaths} from './clipper2.mjs';
+import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
 import {intersect,difference,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
 
@@ -19,7 +18,13 @@ const plus=(a,b,s=1)=>a.map((x,k)=>x+b[k]*s);
 const midpoint=(a,b)=>a.map((x,k)=>(x+b[k])/2);
 const distance=(a,b)=>Math.hypot(...a.map((x,k)=>x-b[k]));
 
-export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
+export function offsetSurfaceRegion(patch,loopsUv,deltaMm,settings={}){
+  const prepared=prepareSurfaceOffset(patch,loopsUv,deltaMm,settings);
+  const swept=sweepSurfaceOffset(patch,prepared);
+  return finishSurfaceOffset(patch,prepared,swept);
+}
+
+export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   toleranceMm=0.01, maxStepMm=0.5, precisionUv=1e-10,
   constraintLoopsUv=null
 }={}) {
@@ -32,60 +37,28 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
     const counts=new Map(); for(const t of knots)if(t>domain[0]&&t<domain[1])counts.set(t,(counts.get(t)??0)+1);
     requireThat([...counts.values()].every(n=>order-1-n>=2),'Surface offset currently requires C2 continuity across internal knots.');
   }
-  let evaluations=0, integrations=0, subdivisions=0;
-  const cache=new Map();
-  const at=uv=>{
-    if(constraintLoopsUv!==null)uv=uv.map((x,k)=>{
-      const [lo,hi]=[patch.domainU,patch.domainV][k];
-      return x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
-    });
-    const key=uv.join(','); if(cache.has(key))return cache.get(key);
-    evaluations++;
-    const result=surfaceDerivatives(patch,...uv);cache.set(key,result);return result;
-  };
   const origin=constraintLoopsUv===null?null:[patch.domainU[0],patch.domainV[0]];
   const initial=clipperContext([loopsUv],precisionUv,0,origin);
-  let source=initial.decode(clipPaths(initial.encode(loopsUv)));
-  let simplificationUv=0;
-  const simplify=loops=>{
-    if(!loops.length)return loops;
-    // Repeated offsets amplify normals of redundant microscopic segments.
-    // Use the kernel's recommended simplification between offsets, with UV
-    // epsilon scaled by sampled surface derivatives (not by parameter units).
-    let stretch=0;
-    for(const loop of loops)for(let i=0;i<loop.length;i++)for(const uv of [loop[i],midpoint(loop[i],loop[(i+1)%loop.length])]){
-      const frame=at(uv);
-      stretch=Math.max(stretch,Math.hypot(...frame.du)+Math.hypot(...frame.dv));
-    }
-    const epsilon=toleranceMm/(8*stretch);
-    simplificationUv=Math.max(simplificationUv,epsilon);
-    const contact=uv=>constraint.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=precisionUv*8));
-    const result=[];
-    for(const loop of loops){
-      const start=loop.findIndex(contact);
-      if(start<0){result.push(...initial.decode(simplifyPaths(initial.encode([loop]),epsilon/precisionUv)));continue;}
-      // Preserve boundary contacts exactly. Simplifying a nearly straight
-      // corner across two domain edges can otherwise remove a reached corner
-      // and leave the same artificial residual on every later offset.
-      let chain=[loop[start]],joined=[];
-      for(let i=1;i<=loop.length;i++){
-        const uv=loop[(start+i)%loop.length];chain.push(uv);
-        if(contact(uv)){
-          const simplified=initial.decodeOpen(simplifyPaths(initial.encode([chain]),epsilon/precisionUv,false))[0];
-          if(simplified)joined.push(...simplified.slice(0,-1));
-          chain=[uv];
-        }
-      }
-      if(joined.length>=3)result.push(joined);
-    }
-    return result;
-  };
+  const source=initial.decode(clipPaths(initial.encode(loopsUv)));
   const domain=[[patch.domainU[0],patch.domainV[0]],[patch.domainU[1],patch.domainV[0]],
     [patch.domainU[1],patch.domainV[1]],[patch.domainU[0],patch.domainV[1]]];
   const options={precisionMm:precisionUv,origin};
   const constraint=constraintLoopsUv===null?null:intersect(constraintLoopsUv,[domain],options);
   requireThat(constraint===null||deltaMm>=0,'Constrained surface offsets currently support outward growth only.');
-  if(constraint!==null)source=simplify(source);
+  const settings={deltaMm,toleranceMm,maxStepMm,precisionUv,origin,constrained:constraintLoopsUv!==null};
+  const {at,samples}=createSurfaceSampler(patch,settings);
+  const simplified=constraint===null?{loops:source,simplificationUv:0}:
+    simplifySurfaceLoops(source,{constraint,initial,toleranceMm,precisionUv},at);
+  return {source:simplified.loops,constraint,initial,settings,surfaceSamples:samples,
+    work:{evaluations:samples.size,simplificationUv:simplified.simplificationUv}};
+}
+
+export function sweepSurfaceOffset(patch,prepared){
+  const {source,constraint,settings}=prepared;
+  const {deltaMm,toleranceMm,maxStepMm,precisionUv,origin}=settings;
+  const options={precisionMm:precisionUv,origin};
+  const {at,samples}=createSurfaceSampler(patch,settings,[prepared.surfaceSamples]);
+  let integrations=0,subdivisions=0;
   let boundaryStops=0;
   // A constrained ray ends at its first boundary crossing, never at a later
   // re-entry across a hole. All topology/clipping remains in the shared kernel.
@@ -258,15 +231,80 @@ export function offsetSurfaceRegion(patch, loopsUv, deltaMm, {
     if(distance(a,b)===0)continue;
     addStrip(a,b);addDisk(a,loop[(i+loop.length-1)%loop.length],b);
   }
+  return {bands,surfaceSamples:samples,work:{evaluations:samples.size,
+    integrationSteps:integrations,subdivisions,boundaryStops}};
+}
+
+export function finishSurfaceOffset(patch,prepared,swept){
+  const {source,constraint,initial,settings}=prepared,{bands}=swept;
+  const {deltaMm,toleranceMm,precisionUv,origin}=settings,radius=Math.abs(deltaMm);
+  const options={precisionMm:precisionUv,origin};
+  const {at,samples}=createSurfaceSampler(patch,settings,[prepared.surfaceSamples,swept.surfaceSamples]);
   const context=clipperContext([source,bands],precisionUv,0,origin);
   const region=context.encode(source), buffer=clipPaths(context.encode(bands));
   let result=radius===0?source:context.decode(deltaMm>0?clipPaths([...region,...buffer]):clipPaths(region,buffer,'difference'));
+  let simplificationUv=prepared.work.simplificationUv;
   if(constraint!==null){
     result=intersect(result,constraint,options);
-    if(difference(constraint,result,options).length)result=intersect(simplify(result),constraint,options);
+    if(difference(constraint,result,options).length){
+      const simplified=simplifySurfaceLoops(result,{constraint,initial,toleranceMm,precisionUv},at);
+      result=intersect(simplified.loops,constraint,options);
+      simplificationUv=Math.max(simplificationUv,simplified.simplificationUv);
+    }
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
   return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',
-    toleranceMm,precisionUv,evaluations,integrationSteps:integrations,subdivisions,
-    inverseMappings:0,bandTriangles:bands.length,boundaryStops,simplificationUv}};
+    toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
+    integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
+    inverseMappings:0,bandTriangles:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};
+}
+
+// A phase owns only new samples. Earlier completed phase maps are read-only;
+// their records are reused without copying the accumulated cache per ray.
+function createSurfaceSampler(patch,{constrained,precisionUv},priorSamples=[]){
+  const samples=new Map();
+  const at=uv=>{
+    if(constrained)uv=uv.map((x,k)=>{
+      const [lo,hi]=[patch.domainU,patch.domainV][k];
+      return x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
+    });
+    const key=uv.join(',');
+    if(samples.has(key))return samples.get(key);
+    for(const prior of priorSamples)if(prior.has(key))return prior.get(key);
+    const result=surfaceDerivatives(patch,...uv);
+    samples.set(key,result);return result;
+  };
+  return {at,samples};
+}
+
+function simplifySurfaceLoops(loops,{constraint,initial,toleranceMm,precisionUv},at){
+    if(!loops.length)return {loops,simplificationUv:0};
+    // Repeated offsets amplify normals of redundant microscopic segments.
+    // Use the kernel's recommended simplification between offsets, with UV
+    // epsilon scaled by sampled surface derivatives (not by parameter units).
+    let stretch=0;
+    for(const loop of loops)for(let i=0;i<loop.length;i++)for(const uv of [loop[i],midpoint(loop[i],loop[(i+1)%loop.length])]){
+      const frame=at(uv);
+      stretch=Math.max(stretch,Math.hypot(...frame.du)+Math.hypot(...frame.dv));
+    }
+    const epsilon=toleranceMm/(8*stretch);    const contact=uv=>constraint.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=precisionUv*8));
+    const result=[];
+    for(const loop of loops){
+      const start=loop.findIndex(contact);
+      if(start<0){result.push(...initial.decode(simplifyPaths(initial.encode([loop]),epsilon/precisionUv)));continue;}
+      // Preserve boundary contacts exactly. Simplifying a nearly straight
+      // corner across two domain edges can otherwise remove a reached corner
+      // and leave the same artificial residual on every later offset.
+      let chain=[loop[start]],joined=[];
+      for(let i=1;i<=loop.length;i++){
+        const uv=loop[(start+i)%loop.length];chain.push(uv);
+        if(contact(uv)){
+          const simplified=initial.decodeOpen(simplifyPaths(initial.encode([chain]),epsilon/precisionUv,false))[0];
+          if(simplified)joined.push(...simplified.slice(0,-1));
+          chain=[uv];
+        }
+      }
+      if(joined.length>=3)result.push(joined);
+    }
+    return {loops:result,simplificationUv:epsilon};
 }

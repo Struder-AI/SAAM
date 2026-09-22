@@ -134,8 +134,11 @@ uninterrupted row groups on each side of holes/concavities before changing sides
 Rectilinear, grid and triangle row groups choose the closest endpoint of either
 end row, with row order and stroke direction chosen independently. Concentric
 and gyroid keep their existing ordering. Heat balancing and lookahead are deferred.
-Shared motion compacts straight runs and directly repositions across permitted
-gaps of at most 1 mm without retraction or lift. Other moves clear
+Shared motion compacts straight runs. Rows, rings, wall loops and fill entries
+starting within 2 mm of the preceding deposition, inside the layer's region,
+continue as short printed connectors rather than travels, so sparse rows join
+along the wall. A nearby start on the next layer is one rising move without
+retraction. Other moves clear
 the highest deposited material plus `liftMm` (default 1 mm; zero allowed). See [travel](../../core/path/README.md#whole-plan-travel-requirement).
 Thin features may collapse under offsets; density is approximate near
 boundaries. No collision or automatic support model is implied by these checks.

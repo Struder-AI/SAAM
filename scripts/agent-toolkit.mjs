@@ -3,7 +3,7 @@ import {parseArgs} from 'node:util';
 import {createInterface} from 'node:readline';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {onboarding, readSkill, readMaps, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
+import {onboarding, readSkill, readMaps, regenerateMap, contextPacket, preview, showPrint, beginWork, waitForRequests, readStudioEvents, respondToRequest, recordRequestActivity, inspectFailure, developmentAreas} from '../core/agent/toolkit.mjs';
 
 const string = {type: 'string'}, boolean = {type: 'boolean'}, many = {type: 'string', multiple: true};
 const schemas = {
@@ -12,7 +12,8 @@ const schemas = {
   'developer-onboarding': {area: many},
   'read-skill': {maker: boolean, builder: boolean, developer: boolean},
   'read-guidance': {},
-  'read-map': {section: string, node: string, inventory: boolean, evidence: boolean},
+  'read-map': {code: boolean, details: boolean},
+  'regenerate': {},
   'start-tour': {library: string, 'start-at-layer': string, 'no-open': boolean,'agent-owner':string},
   'open-print': {library: string, 'no-open': boolean, studio: string, 'agent-owner': string},
   'create-preview': {library: string, recipe: string, stl: string, kind: string, machine: string, units: string, 'no-open': boolean, studio: string, 'agent-owner': string},
@@ -26,9 +27,10 @@ const schemas = {
 export const help = {
   commands: {
     'maker-onboarding': 'Maker guidance, complete skill digest and print tools; choose follow-up reads for the task.',
-    'builder-onboarding [--area AREA]': 'Builder and maker context, skill authoring and digest; selected core/Studio maps or external-area references.',
-    'developer-onboarding [--area AREA]': 'Developer policy, system map and selected area maps; contracts are selective map reads.',
-    'read-map PAGE [--section ID#HEADING] [--node ADDRESS] [--inventory] [--evidence]': 'Read one page, a map-owned contract section, file ownership or detailed impact evidence from current source.',
+    'builder-onboarding [--area AREA]': 'Builder and maker context, skill authoring and digest; each --area adds its component manual and, for a region of the map, that region page.',
+    'developer-onboarding [--area AREA]': 'The developer orientation and map page 0 — no component manuals; each --area adds that region page (path or index) or an outside area’s references.',
+    'read-map INDEX|DECLARATION [--code] [--details]': 'Read one compact stored graph; terminal pages open source. --code returns the page’s source span (a region includes its files); refused on 0. --details returns the full stored packet and scanner evidence. Reads never scan. range is [first,last] inclusive; nested locations inherit file. Empty lists are omitted.',
+    'regenerate [INDEX]': 'Scan the source and write the stored map. No index, or 0, generates everything; a region or page index regenerates that region.',
     'read-skill ID [--maker] [--builder] [--developer]': 'Read only the selected skill roles; defaults to maker. Missing optional manuals are reported in unavailableRoles.',
     'read-guidance PATH#HEADING': 'Read one published manual or section chosen for the task.',
     'start-tour [--start-at-layer 12] [--no-open] [--agent-owner ID]': 'Fresh tour copies, live Studio, browser dispatch and participation context. --agent-owner resumes the agent owner of an earlier launch on this new Studio.',
@@ -42,7 +44,9 @@ export const help = {
     'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
   },
   developmentAreas: Object.keys(developmentAreas),
-  notes: ['--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
+  notes: ['--area takes a map region path or index (read-map 0 lists them), or one of the areas above.',
+    'Map indexes are regenerated and may change. Use just the index when talking about the current map; write the declaration path when something must keep pointing at it.',
+    '--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
     'Relaunching a Studio with --agent-owner ID, the agentOwnerId from an earlier studio-ready line, resumes that owner so its in-flight requests stay visible. The relaunch always gets a new Studio instance.',
     '--area and --after may repeat where accepted. Skill manuals are individual follow-up reads.',
     'Studio commands stay in the managed command session. Read studio-ready before waiting for completion.',
@@ -84,7 +88,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     if (!Object.hasOwn(schemas, command)) throw Error(`Unknown command: ${command}. Use --help.`);
     const {values: v, positionals} = parseArgs({args: rest, options: schemas[command], allowPositionals: true, strict: true});
     const needsTarget = ['read-skill', 'read-guidance', 'read-map', 'open-print', 'create-preview', 'inspect-generation-failure', 'respond-to-studio-request','record-request-activity'].includes(command);
-    const permitsTarget = needsTarget || command === 'begin-studio-work';
+    const permitsTarget = needsTarget || ['begin-studio-work', 'regenerate'].includes(command);
     if (positionals.length > (permitsTarget ? 1 : 0) || needsTarget && !positionals.length) throw Error('Unexpected or missing positional argument. Use --help.');
     if (command === 'create-preview' && v.units && !v.stl) throw Error('--units applies only to --stl.');
     const options = {command, target: positionals[0], library: v.library, recipe: v.recipe, stl: v.stl,
@@ -96,6 +100,7 @@ export async function runCLI(args = process.argv.slice(2), {write = value => con
     else if (command === 'read-skill') result = await readSkill(positionals[0], v);
     else if (command === 'read-guidance') result = await contextPacket([positionals[0]]);
     else if (command === 'read-map') result = {maps: await readMaps([positionals[0]], v)};
+    else if (command === 'regenerate') result = await regenerateMap(positionals[0]);
     else if (['open-print', 'create-preview'].includes(command) && v.studio) result = await showPrint({...options, studio: v.studio});
     else if (['start-tour', 'open-print', 'create-preview'].includes(command)) {
       const opened = await preview({...options, onReady: write,onRequest:event=>write({ok:true,event:'studio-request',command,...event}),onEvents:event=>write({ok:true,event:'studio-events',command,...event})});

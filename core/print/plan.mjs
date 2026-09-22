@@ -15,6 +15,7 @@ import {makeMesh} from '../geom/mesh.mjs';
 import {PLANAR_INFILL_DEFAULTS} from '../../skills/planar-infill/scripts/infill.mjs';
 import {INFILL_PATTERNS} from '../../skills/planar-infill/scripts/patterns.mjs';
 import {LINE_NETWORK_DEFAULTS} from '../../skills/line-network/scripts/network.mjs';
+import {BRIDGING_DEFAULTS,validateBridging} from '../../skills/bridging/scripts/bridge.mjs';
 import {VASE_WALL_DEFAULTS} from '../../skills/vase-wall/scripts/vase.mjs';
 import {THICK_LIP_DEFAULTS} from '../../skills/thick-lip/scripts/lip.mjs';
 import {validateVasePattern} from '../../skills/vase-wall/scripts/paths.mjs';
@@ -30,6 +31,7 @@ import {SPACING_SKILLS,lineSpacing} from '../path/spacing.mjs';
 import {WAVE_DEFAULTS,validateWaves} from '../../skills/wave-overhangs/scripts/wave.mjs';
 import {PLASTIC_WELD_DEFAULTS,validatePlasticWeld} from '../../skills/plastic-weld/scripts/weld.mjs';
 import {heatSetTemplate,validateHeatSetRecord} from '../../skills/heat-set-inserts/scripts/feature.mjs';
+import {filamentPlan} from '../machine/filaments.mjs';
 
 export const VERSION = '0.1.0';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
@@ -73,6 +75,7 @@ export function defaults(machine=loadMachine()) {
       'full-fill': { enabled: true, parts: [], ...FULL_FILL_DEFAULTS },
       'planar-infill': {enabled:false,parts:[],...PLANAR_INFILL_DEFAULTS},
       'line-network': structuredClone(LINE_NETWORK_DEFAULTS),
+      bridging: structuredClone(BRIDGING_DEFAULTS),
       'vase-wall': {enabled:false,part:null,...VASE_WALL_DEFAULTS},
       'thick-lip': {enabled:false,part:null,...THICK_LIP_DEFAULTS},
       'draped-skin': { enabled: machine.capabilities.includes('nonplanar'), part: null, ...DRAPED_SKIN_DEFAULTS }
@@ -120,7 +123,19 @@ export function geometryTemplate(shape,geometry) {
   return { shape: 'spline-top', runMm: 40, widthMm: 30, cpU: 5, cpV: 5, heightsMm: [] };
 }
 
-export function validatePlan(plan, machine) {
+export function validatePlan(plan,machine) {
+  const fields=validatePlanFields(plan,machine);
+  const geometry=validatePlanGeometry(fields,machine);
+  const process=validatePlanProcess(geometry,machine);
+  const auxiliary=validatePlanAuxiliary(process,machine);
+  const walls=validatePlanWalls(auxiliary);
+  const selections=validatePlanSelections(walls,machine);
+  const deposition=validatePlanDeposition(selections);
+  const placement=validatePlanPlacement(deposition,machine);
+  return validatePlanRegions(placement,machine);
+}
+
+export function validatePlanFields(plan,machine) {
   requireThat(plan && typeof plan === 'object' && ['box', 'wedge', 'spline-top', 'spline-shell', 'vertical-spline-shell', 'assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(plan.geometry?.shape), 'Unsupported shape.');
   // Validation is check-only: a plan carries every current field or it is
   // rejected. Pre-policy bundles are recreated from their skills, not migrated.
@@ -135,7 +150,11 @@ export function validatePlan(plan, machine) {
   // validation below.
   for(const name of SPACING_SKILLS)lineSpacing(plan.process.lineWidthMm,plan.skills[name]);
 
-  const { geometry, placement, process, setup, skills } = plan;
+  return plan;
+}
+
+export function validatePlanGeometry(plan,machine) {
+  const {geometry,placement,setup}=plan;
   validatePlasticWeld(plan,machine);
   if(geometry.shape==='spline-tube')validateSplineTube(geometry);
   if(geometry.shape==='text')validateTextRecord(geometry);
@@ -174,13 +193,29 @@ export function validatePlan(plan, machine) {
     number(geometry.yInsetMm, 0, (geometry.widthMm - 5) / 2, 'Y-side inset');
   }
 
+  return plan;
+}
+
+// Layer height, bead width, flow and retraction ceilings are declared by the
+// selected tool and material, and validateSetup enforces them against that
+// profile two steps later. Repeating them here as chosen numbers refused a
+// legitimate 0.8 mm nozzle, so this pass keeps only the floors that say a value
+// is not a usable process value at all. Axis speeds are bounded by the machine's
+// own declared feed, which is a property of the hardware rather than a budget.
+export function validatePlanProcess(plan,machine) {
+  const {process}=plan;
   requireThat(typeof process.experimentalDeposition==='boolean','experimentalDeposition must be boolean.');
-  const planarLimits=process.experimentalDeposition?{firstLayerMm:1,layerMm:1,lineWidthMm:2,maxFlowMm3S:30}:{firstLayerMm:.3,layerMm:.3,lineWidthMm:.8,maxFlowMm3S:15};
-  for (const [key, min, max] of [['firstLayerMm', 0.1, planarLimits.firstLayerMm], ['layerMm', 0.06, planarLimits.layerMm], ['lineWidthMm', 0.3, planarLimits.lineWidthMm],
-    ['planarSpeedMmS', 2, 80], ['skinSpeedMmS', 2, 40], ['firstLayerSpeedMmS', 2, 40], ['travelSpeedMmS', 5, 200],
-    ['zSpeedMmS', 1, 20], ['retractMm', 0, 10], ['retractSpeedMmS', 1, 50], ['liftMm', 0, 20],
-    ['maxCombMm', 0, 100], ['fanPercent', 0, 100], ['maxFlowMm3S', 0.1, planarLimits.maxFlowMm3S], ['minimumLayerSeconds', 0, 60]])
-    number(process[key], min, max, key);
+  const feed=machine?.maxFeedMmS,xy=feed?Math.min(feed.x,feed.y):null;
+  const finiteAtLeast=(value,min,name)=>requireThat(typeof value==='number'&&Number.isFinite(value)&&value>=min,
+    `${name} must be a finite value of at least ${min}.`);
+  const bounded2=(value,min,max,name)=>max===null||max===undefined?finiteAtLeast(value,min,name):number(value,min,max,name);
+  const bounded=(key,min,max)=>max===null||max===undefined?finiteAtLeast(process[key],min,key):number(process[key],min,max,key);
+  for (const [key, min] of [['firstLayerMm', 0.01], ['layerMm', 0.01], ['lineWidthMm', 0.05], ['maxFlowMm3S', 0.1],
+    ['retractMm', 0], ['retractSpeedMmS', 1], ['liftMm', 0], ['maxCombMm', 0], ['minimumLayerSeconds', 0]])
+    finiteAtLeast(process[key], min, key);
+  for (const [key, min, max] of [['planarSpeedMmS', 2, xy], ['skinSpeedMmS', 2, xy], ['firstLayerSpeedMmS', 2, xy],
+    ['travelSpeedMmS', 5, xy], ['zSpeedMmS', 1, feed?feed.z:null]]) bounded(key, min, max);
+  number(process.fanPercent, 0, 100, 'fanPercent');
   requireThat(process.clearanceResponsibility === 'operator', 'Clearance responsibility must be recorded as operator.');
   requireThat(typeof process.clearanceNote === 'string' && process.clearanceNote.length <= 1000, 'Invalid clearance note.');
   if(process.primeLine!==null){
@@ -192,11 +227,17 @@ export function validatePlan(plan, machine) {
       requireThat(pass&&typeof pass==='object'&&!Array.isArray(pass)&&Object.keys(pass).sort().join()==='endMm,heightMm,speedMmS,startMm,widthMm,zMm','Invalid prime pass fields.');
       requireThat([pass.startMm,pass.endMm].every(point=>Array.isArray(point)&&point.length===2&&point.every(Number.isFinite))&&
         Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>=10,'Prime pass needs two finite XY endpoints at least 10 mm apart.');
-      number(pass.zMm,.05,10,'Prime line Z');number(pass.widthMm,.3,planarLimits.lineWidthMm,'Prime line width');
-      number(pass.heightMm,.05,planarLimits.layerMm,'Prime line height');number(pass.speedMmS,2,80,'Prime line speed');
+      finiteAtLeast(pass.zMm,.05,'Prime line Z');finiteAtLeast(pass.widthMm,.05,'Prime line width');
+      finiteAtLeast(pass.heightMm,.01,'Prime line height');bounded2(pass.speedMmS,2,xy,'Prime line speed');
     }
   }
 
+  return plan;
+}
+
+export function validatePlanAuxiliary(plan,machine) {
+  const {geometry,process,setup,skills}=plan;
+  const normal=skills['planar-infill'];
   validateSetup(plan,machine);
   validateWaves(skills['wave-overhangs']);
   if(skills['wave-overhangs'].enabled){
@@ -223,8 +264,12 @@ export function validatePlan(plan, machine) {
   if(skills.supports.enabled)requireMachine(machine,['xyz-extrusion','planar'],'supports');
   requireThat(typeof setup.startupVerified === 'boolean' && typeof setup.firmwareVersion === 'string' && /^[\w .+-]{0,80}$/.test(setup.firmwareVersion), 'Invalid firmware setup.');
 
-  const fill = skills['full-fill'], skin = skills['draped-skin'],normal=skills['planar-infill'],network=skills['line-network'];
-  const vase=skills['vase-wall'];
+  return plan;
+}
+
+export function validatePlanWalls(plan) {
+  const {skills}=plan;
+  const vase=skills['vase-wall'],lip=skills['thick-lip'];
   requireThat(['continuous','segmented'].includes(vase.pathMode),'Path mode must be continuous or segmented.');
   validateVasePattern(vase.pattern,vase.pathMode);
   requireThat(vase.pattern!==null||vase.pathMode==='continuous','Segmented mode requires a sleeve pattern; ordinary vase walls are continuous.');
@@ -252,10 +297,18 @@ export function validatePlan(plan, machine) {
   number(vase.sampleStepMm,0.1,5,'Vase sampling step');number(vase.toleranceMm,0.002,0.05,'Vase chord tolerance');
   number(vase.boundaryToleranceMm,0.002,0.05,'Vase boundary tolerance');
   number(vase.minFeatureMm,0.05,5,'Vase minimum section feature');
-  const lip=skills['thick-lip'];
   requireThat(typeof lip.enabled==='boolean'&&(lip.part===null||typeof lip.part==='string'),'Invalid thick-lip selection.');
   requireThat(Array.isArray(lip.steps)&&lip.steps.length>=1&&lip.steps.length<=50&&lip.steps.every(n=>Number.isInteger(n)&&n>=1),'Lip steps must be 1–50 layer entries, each a whole number of perimeters from 1 up.');
   number(lip.minFeatureMm,0.05,5,'Lip minimum section feature');
+  return plan;
+}
+
+export function validatePlanSelections(plan,machine) {
+  validateBridging(plan.skills.bridging);
+  if(plan.skills.bridging.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'bridging');
+  const {geometry,placement,skills}=plan;
+  const regional=plan.composition.regions.length>0;
+  const fill=skills['full-fill'],skin=skills['draped-skin'],normal=skills['planar-infill'],network=skills['line-network'],vase=skills['vase-wall'],lip=skills['thick-lip'];
   requireThat(typeof normal.enabled==='boolean'&&Array.isArray(normal.parts)&&new Set(normal.parts).size===normal.parts.length&&normal.parts.every(id=>typeof id==='string'),'Invalid planar-infill selection.');
   // Course, group, stroke and point counts follow the authored frame; only the
   // shape of each entry is checked.
@@ -283,7 +336,8 @@ export function validatePlan(plan, machine) {
       ids.add(part.id);
       requireThat(part.geometry?.shape!=='assembly','Nested assemblies are not supported.');
       number(part.xMm,-200,200,'Component X');number(part.yMm,-200,200,'Component Y');number(part.zMm,0,200,'Component Z');
-      const child=structuredClone(plan);child.geometry=part.geometry;
+      const assigned=plan.composition.regions.find(r=>r.part===part.id&&r.filament!==undefined);
+      const child=structuredClone(assigned?filamentPlan(plan,machine,assigned.filament):plan);child.geometry=part.geometry;
       child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};
       child.skills['full-fill'].parts=[];child.skills['draped-skin'].part=null;
       child.skills['planar-infill'].parts=[];
@@ -311,6 +365,12 @@ export function validatePlan(plan, machine) {
   if(network.enabled)requireMachine(machine,['xyz-extrusion','planar'],'line-network');
   if(!regional&&fill.enabled)requireMachine(machine,['xyz-extrusion','planar'],'full-fill');
   if(!regional&&skin.enabled)requireMachine(machine,['xyz-extrusion','nonplanar'],'draped-skin');
+  return plan;
+}
+
+export function validatePlanDeposition(plan) {
+  const {process,skills}=plan;
+  const fill=skills['full-fill'],skin=skills['draped-skin'],normal=skills['planar-infill'];
   requireThat(Number.isInteger(fill.perimeters), 'perimeters must be an integer.');
   requireThat(fill.perimeters >= 0, 'perimeters must be zero or more.');
   requireThat(['all','outer'].includes(fill.perimeterScope),'Full-fill perimeterScope must be all or outer.');
@@ -336,6 +396,13 @@ export function validatePlan(plan, machine) {
     && skin.maxAngleDegOverride > 0 && skin.maxAngleDegOverride < 90),
   'Experimental non-planar override must be null or an angle between 0 and 90 degrees.');
 
+  return plan;
+}
+
+export function validatePlanPlacement(plan,machine) {
+  const {geometry,placement,setup,skills}=plan;
+  const regional=plan.composition.regions.length>0;
+  const skin=skills['draped-skin'];
   requireThat(machine.schema === 'saam-machine/1' && machine.outputs.some(option => option.id === plan.output), 'Unsupported machine or output.');
   if (!regional&&skin.enabled) requireThat(Number.isFinite(machine.nonplanar?.maxAngleDeg), 'The machine file must declare nonplanar.maxAngleDeg.');
   const xBulgeMm = geometry.shape === 'spline-shell' ? geometry.shortSideOutsetMm
@@ -344,10 +411,16 @@ export function validatePlan(plan, machine) {
   if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.xMm, bounds.min[0]+5 + xBulgeMm, bounds.max[0] - geometry.runMm - xBulgeMm - 5, 'Placement X');
   if(machine.motionChecks!=='deferred'&&!['assembly','mesh','pipe','spline-tube','text','gridfinity','heat-set'].includes(geometry.shape)) number(placement.yMm, bounds.min[1]+5, bounds.max[1] - geometry.widthMm - 5, 'Placement Y');
   requireThat(Number.isFinite(placement.xMm)&&Number.isFinite(placement.yMm),'Placement must be finite.');
+  return plan;
+}
+
+export function validatePlanRegions(plan,machine) {
+  const {geometry,placement,process,skills}=plan;
+  const normal=skills['planar-infill'];
   const regionIds=new Set(),selections=geometrySelections(geometry);
   for(const region of plan.composition.regions) {
-    // process is the one optional assignment field: present only to override layer/bead settings.
-    requireThat(region&&Object.keys(region).filter(key=>key!=='process').sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
+    // Optional process overrides layer/bead settings; filament selects a Bambu material/nozzle.
+    requireThat(region&&Object.keys(region).filter(key=>!['process','filament'].includes(key)).sort().join()==='id,lowerSurfaceFrom,part,skills,zEndMm,zStartMm','Invalid region assignment fields.');
     requireThat(typeof region.id==='string'&&/^[a-z][a-z0-9-]*$/.test(region.id)&&!regionIds.has(region.id),'Invalid or duplicate region ID.');regionIds.add(region.id);
     const part=selections.get(region.part);
     requireThat(part,'Region must select its geometry component or a prepared text material partition (base, text/feature-id). Rebuild older lettering with the text skill to expose its partitions.');
@@ -357,7 +430,7 @@ export function validatePlan(plan, machine) {
     requireThat(region.zEndMm===null||(Number.isFinite(region.zEndMm)&&region.zEndMm>region.zStartMm),'Region end must exceed its start or be null.');
     requireThat(region.lowerSurfaceFrom===null||typeof region.lowerSurfaceFrom==='string','Invalid region lower-surface reference.');
     requireThat(region.skills&&typeof region.skills==='object'&&!Array.isArray(region.skills)&&Object.keys(region.skills).length>0,'A region needs selected skills.');
-    const child=structuredClone(plan);child.composition.regions=[];
+    const child=structuredClone(region.filament===undefined?plan:filamentPlan(plan,machine,region.filament));child.composition.regions=[];
     if(part){child.geometry=part.geometry;child.placement={xMm:placement.xMm+part.xMm,yMm:placement.yMm+part.yMm};}
     for(const [name,settings] of Object.entries(child.skills)){settings.enabled=Object.hasOwn(region.skills,name);if('part' in settings)settings.part=null;if('parts' in settings)settings.parts=[];}
     if(Object.hasOwn(region,'process')){
@@ -367,7 +440,7 @@ export function validatePlan(plan, machine) {
       Object.assign(child.process,region.process);
     }
     for(const [name,overrides] of Object.entries(region.skills)) {
-      requireThat(!['supports','rimming-planar','rimming-normal','pipe-cladding','wave-overhangs','plastic-weld'].includes(name),'Assign supports, exterior cladding, wave slices and plastic welds through their global skill settings, outside part material regions.');
+      requireThat(!['supports','rimming-planar','rimming-normal','pipe-cladding','wave-overhangs','plastic-weld','bridging'].includes(name),'Assign supports, exterior cladding, wave slices, plastic welds and bridging through their global skill settings, outside part material regions.');
       const settings=child.skills[name];
       requireThat(settings&&overrides&&typeof overrides==='object'&&!Array.isArray(overrides),'Unknown region skill or invalid overrides.');
       requireThat(Object.keys(overrides).every(key=>Object.hasOwn(settings,key)&&!['enabled','part','parts','zStartMm','zEndMm'].includes(key)),'Unknown or region-owned skill override.');

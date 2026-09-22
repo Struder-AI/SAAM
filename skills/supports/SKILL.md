@@ -113,8 +113,12 @@ multi-extruder supports.
 
 ## Composition and verification
 
-`supportResults({plan, shells, modelResults})` returns operations through the
-existing full-fill producer and composer. It consumes the plan already checked
+`supportResults({plan, shells, modelResults})` returns `{results, dependencyChanges}`
+through the existing full-fill producer. It leaves `modelResults` unchanged.
+Each dependency change names `operationId`, an ordered `after` list and
+`mode: 'append'`. Generation applies the changes with
+`applyResultDependencies` from `core/print/generate.mjs` before composing the
+returned support results with the updated model results. It consumes the plan already checked
 by shared `validatePlan`; standalone developer callers validate their inputs at
 that boundary (or with `validateSupports`) before invoking the producer. It does
 not repeat settings validation while slicing. Shared Clipper union removes overlap

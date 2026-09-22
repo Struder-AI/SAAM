@@ -11,7 +11,10 @@ const clone=({key,...event})=>structuredClone(event);
 
 export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={}){
   const queued=[],recent=[],listeners=new Set(),waiters=new Set();let seq=0,closed=false;
-  const wake=()=>{for(const done of [...waiters])done();};
+  // One record per pending wait owns that wait's timer, abort listener and
+  // resolver, so waking a waiter is a named step rather than a stored callback.
+  const wake=()=>{for(const waiter of [...waiters])settleWaiter(waiter);};
+  function settleWaiter(waiter){clearTimeout(waiter.timer);waiters.delete(waiter);waiter.signal?.removeEventListener('abort',waiter.done);waiter.resolve(pendingDelivery());}
   const pendingDelivery=()=>queued.some(event=>event.delivery==='delivered');
   function record(kind,detail={}){
     if(closed)return null;
@@ -39,8 +42,8 @@ export function createStudioEvents({now=Date.now,limit=200,historyLimit=100}={})
       const remaining=Math.min(25000,Math.max(0,waitMs));
       if(closed||pendingDelivery()||remaining<=0||signal?.aborted)return Promise.resolve(pendingDelivery());
       return new Promise(resolve=>{
-        let timer;const done=()=>{clearTimeout(timer);waiters.delete(done);signal?.removeEventListener('abort',done);resolve(pendingDelivery());};
-        waiters.add(done);timer=setTimeout(done,remaining);timer.unref?.();signal?.addEventListener('abort',done,{once:true});
+        const waiter={timer:null,signal,resolve,done:null};waiter.done=()=>settleWaiter(waiter);
+        waiters.add(waiter);waiter.timer=setTimeout(waiter.done,remaining);waiter.timer.unref?.();signal?.addEventListener('abort',waiter.done,{once:true});
       });
     },
     close(){closed=true;listeners.clear();wake();}

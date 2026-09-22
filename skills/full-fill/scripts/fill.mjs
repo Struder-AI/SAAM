@@ -11,7 +11,6 @@
 // reserved surface is still above the layer - the general form of a flat
 // "core plane" reservation.
 
-import { composeResults } from '../../../core/path/compose.mjs';
 import { createSectionQuery } from '../../../core/geom/query.mjs';
 import { scanlineFill, regionArea, loopArea, pointInRegion } from '../../../core/region/region2d.mjs';
 import { offsetRegion } from '../../../core/region/offset.mjs';
@@ -157,7 +156,7 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
       // composition. Construct it on first use and retain it for that result.
       let materialRegion;
       operations.push({id:operationId,layerId:'planar:'+z,phase:'planar',layer:index,rank:z,
-        after:[...previous,...current],strokes:selected,
+        after:[...previous,...current],strokes:selected,connectNearby:true,
         order:closed&&!lowerSurface?'nearest':!closed&&selected.every(s=>s.scanlineCell!==undefined)?'nearest-cells':'given',region,
         get materialRegion(){const boundary=detail?.interiorBoundary??region;return materialRegion??=role==='fins'?detail.finRegion:closed?union(detail?.wallRegion??[],pitch===width?difference(boundary,offsetRegion(boundary,-width*settings.perimeters)):
           union(Array.from({length:settings.perimeters},(_,ring)=>difference(ring?offsetRegion(boundary,-ring*pitch):boundary,offsetRegion(boundary,-ring*pitch-width))).flat(),[])):
@@ -177,11 +176,4 @@ export function fullFillResult({ shell, plan, machine, reserve = null, id = 'ful
   requireThat(!reserves.length || report.layers > 0,
     'No planar layers fit below the reserved surface; the reserved skin leaves no printable body.');
   return {id,operations,report};
-}
-
-// Compatibility callable, using the same result/composition implementation.
-export function generateFullFill(builder,options){
-  const result=fullFillResult(options);
-  composeResults(builder,[result]);
-  return result.report;
 }

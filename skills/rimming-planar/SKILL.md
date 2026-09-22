@@ -117,6 +117,13 @@ The shared plan boundary validates assigned settings once. The internal
 callers first use `validatePlan` or `validateRimming`. Generation checks newly
 constructed sections and operation dependencies at their point of use.
 
+The producer returns `{results, dependencyChanges}` and does not modify
+`modelResults`. Each change is `{operationId, after, mode: 'append'}`. Callers
+apply these ordered prerequisites with `applyResultDependencies` from
+`core/print/generate.mjs`, then combine the returned rim results with the updated
+model results before scheduling. Existing prerequisites and append order remain
+intact; the producer does not edit an earlier stage's operations.
+
 Both rimming skills obey the same ordering rules:
 
 1. Every part of the assigned base edge must have printed before any rim starts.

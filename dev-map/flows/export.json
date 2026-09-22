@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "flows": [
+    {
+      "path": "core/export",
+      "groups": [
+        {
+          "id": "dialect-routing",
+          "label": "dialect routing",
+          "members": [
+            "core/export/registry.mjs::exportProgram",
+            "core/export/registry.mjs::interpretProgram",
+            "core/export/registry.mjs::exportAndInterpretProgram"
+          ]
+        },
+        {
+          "id": "playback",
+          "label": "playback and travel evidence",
+          "members": [
+            "core/export/machine-study.mjs::interpretMachineStudy",
+            "core/export/source-time.mjs::frameAtTime"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/export/dobot-lua-subset.mjs::parse",
+      "groups": [
+        {
+          "id": "cursor",
+          "label": "token cursor",
+          "members": [
+            "core/export/dobot-lua-subset.mjs::parse::peek",
+            "core/export/dobot-lua-subset.mjs::parse::fail",
+            "core/export/dobot-lua-subset.mjs::parse::check",
+            "core/export/dobot-lua-subset.mjs::parse::accept",
+            "core/export/dobot-lua-subset.mjs::parse::expect"
+          ]
+        },
+        {
+          "id": "statements",
+          "label": "statements",
+          "members": [
+            "core/export/dobot-lua-subset.mjs::parse::parseBlock",
+            "core/export/dobot-lua-subset.mjs::parse::parseStatement",
+            "core/export/dobot-lua-subset.mjs::parse::parseLocal",
+            "core/export/dobot-lua-subset.mjs::parse::parseFunctionStatement",
+            "core/export/dobot-lua-subset.mjs::parse::parseFunctionBody",
+            "core/export/dobot-lua-subset.mjs::parse::parseIf",
+            "core/export/dobot-lua-subset.mjs::parse::parseWhile",
+            "core/export/dobot-lua-subset.mjs::parse::parseFor"
+          ]
+        },
+        {
+          "id": "expressions",
+          "label": "expressions",
+          "members": [
+            "core/export/dobot-lua-subset.mjs::parse::parseExpr",
+            "core/export/dobot-lua-subset.mjs::parse::parseSimple",
+            "core/export/dobot-lua-subset.mjs::parse::parsePrimary",
+            "core/export/dobot-lua-subset.mjs::parse::parseSuffixed",
+            "core/export/dobot-lua-subset.mjs::parse::parseCallArgs",
+            "core/export/dobot-lua-subset.mjs::parse::parseTable"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/export/dobot-lua-subset.mjs::LuaRuntime",
+      "groups": [
+        {
+          "id": "runtime-state",
+          "label": "runtime state",
+          "members": [
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::tick"
+          ]
+        },
+        {
+          "id": "control",
+          "label": "statement execution",
+          "members": [
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::execBlock",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::execStatement",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::assign"
+          ]
+        },
+        {
+          "id": "evaluate",
+          "label": "value evaluation",
+          "members": [
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalList",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalMulti",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::eval",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalUnary",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalBinary",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::compare",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::stringify",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::number"
+          ]
+        },
+        {
+          "id": "invocation",
+          "label": "function invocation",
+          "members": [
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalCall",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::invoke",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::enter",
+            "core/export/dobot-lua-subset.mjs::LuaRuntime::contextWithStack"
+          ]
+        }
+      ]
+    }
+  ]
+}

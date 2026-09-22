@@ -2,20 +2,23 @@
   "schema": "saam-machine/1",
   "id": "bambu-x1-carbon",
   "name": "Bambu Lab X1 Carbon",
-  "revision": 2,
+  "revision": 7,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
     "units": 4,
-    "slotsPerUnit": 4
+    "slotsPerUnit": 4,
+    "htUnits": 4,
+    "maxDevices": 4
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "X1 Carbon uses a PLA / Textured PEI firmware envelope taken from a local Bambu Studio 02.08.02.61 slice. Startup flushes at 250 C and draws its purge and calibration lines along the front edge (Y 1 to 12 mm); their time and material are excluded from print-body totals. First-layer scan registration and printer-selected calibration remain under printer control. Experimental output has not been physically validated."
+    "X1 Carbon uses a bounded 0.4 mm PLA / Textured or Smooth PEI service sequence. Startup flushes at 250 C and includes front-edge purge/calibration; service time/material are excluded from body totals. First-layer scan and printer-selected calibration remain. This revision awaits physical validation."
   ],
   "capabilities": [
     "xyz-extrusion",
-    "planar"
+    "planar",
+    "nonplanar"
   ],
   "bounds": {
     "min": [
@@ -167,7 +170,21 @@
     "buildVolumeC": 0,
     "materialGuid": null,
     "firmwareVersion": "",
-    "startupVerified": false
+    "startupVerified": false,
+    "bambu": {
+      "plate": "textured_plate",
+      "otherNozzleMm": null,
+      "amsConnections": null,
+      "filaments": null,
+      "filament": 0,
+      "startup": {
+        "bedLeveling": "printer",
+        "flowCalibration": "printer",
+        "plateDetection": "printer",
+        "toolOffsetCalibration": "printer"
+      },
+      "fast_start": false
+    }
   },
   "defaultProcess": {
     "planarSpeedMmS": 40,
@@ -187,8 +204,9 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "x1c-02.08.02.61-pla-textured-v1",
+        "contract": "x1c-saam-startup-v5",
         "start": [
+          "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
           "M203 X500 Y500 Z20 E30",
           "M204 P20000 R5000 T20000",
@@ -197,25 +215,29 @@
           "M106 P2 S0",
           "M17",
           "M400 S1",
-          "M1006 S1",
-          "M1006 A0 B10 L100 C37 D10 M60 E37 F10 N60",
-          "M1006 A0 B10 L100 C41 D10 M60 E41 F10 N60",
-          "M1006 A0 B10 L100 C44 D10 M60 E44 F10 N60",
-          "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N60",
-          "M1006 A46 B10 L100 C43 D10 M70 E39 F10 N100",
-          "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
-          "M1006 A43 B10 L100 C0 D10 M60 E39 F10 N100",
-          "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
-          "M1006 A41 B10 L100 C0 D10 M100 E41 F10 N100",
-          "M1006 A44 B10 L100 C0 D10 M100 E44 F10 N100",
-          "M1006 A49 B10 L100 C0 D10 M100 E49 F10 N100",
-          "M1006 A0 B10 L100 C0 D10 M100 E0 F10 N100",
-          "M1006 A48 B10 L100 C44 D10 M60 E39 F10 N100",
-          "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
-          "M1006 A44 B10 L100 C0 D10 M90 E39 F10 N100",
-          "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
-          "M1006 A46 B10 L100 C43 D10 M60 E39 F10 N100",
-          "M1006 W",
+          {
+            "fullStartOnly": [
+              "M1006 S1",
+              "M1006 A0 B10 L100 C37 D10 M60 E37 F10 N60",
+              "M1006 A0 B10 L100 C41 D10 M60 E41 F10 N60",
+              "M1006 A0 B10 L100 C44 D10 M60 E44 F10 N60",
+              "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N60",
+              "M1006 A46 B10 L100 C43 D10 M70 E39 F10 N100",
+              "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
+              "M1006 A43 B10 L100 C0 D10 M60 E39 F10 N100",
+              "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
+              "M1006 A41 B10 L100 C0 D10 M100 E41 F10 N100",
+              "M1006 A44 B10 L100 C0 D10 M100 E44 F10 N100",
+              "M1006 A49 B10 L100 C0 D10 M100 E49 F10 N100",
+              "M1006 A0 B10 L100 C0 D10 M100 E0 F10 N100",
+              "M1006 A48 B10 L100 C44 D10 M60 E39 F10 N100",
+              "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
+              "M1006 A44 B10 L100 C0 D10 M90 E39 F10 N100",
+              "M1006 A0 B10 L100 C0 D10 M60 E0 F10 N100",
+              "M1006 A46 B10 L100 C43 D10 M60 E39 F10 N100",
+              "M1006 W"
+            ]
+          },
           "M104 S75",
           "M290 X40 Y40 Z2.6666666",
           "G91",
@@ -237,7 +259,11 @@
           "M1002 gcode_claim_action:54",
           "M140 S{bedC}",
           "M190 S{bedC}",
-          "M977 S1 P60",
+          {
+            "fullStartOnly": [
+              "M977 S1 P60"
+            ]
+          },
           "M106 P3 S180",
           "M142 P1 R35 S40",
           "M106 P2 S100",
@@ -261,9 +287,9 @@
           "G1 Y265",
           "M400",
           "M621 S{filamentTool}A",
-          "M620.1 E F523.843 T240",
+          "M620.1 E F{flushFeed} T{flushC}",
           "M412 S1",
-          "M109 S250",
+          "M109 S{purgeC}",
           "M106 P1 S0",
           "G92 E0",
           "G1 E50 F200",
@@ -371,7 +397,11 @@
           "M106 S0",
           "G1 X128 Y128 F24000",
           "G28 Z P0",
-          "M972 S5 P0",
+          {
+            "fullStartOnly": [
+              "M972 S5 P0"
+            ]
+          },
           "G1 X230 Y15 F24000",
           "M1002 judge_flag g29_before_print_flag",
           "M622 J1",
@@ -390,22 +420,30 @@
           "M142 P1 R35 S40",
           "M106 P2 S100",
           "M104 S{nozzleC}",
-          "G1 X128 Y128 Z10 F20000",
-          "M400 P200",
-          "M970.3 Q1 A7 B30 C80  H15 K0",
-          "M974 Q1 S2 P0",
-          "G1 X128 Y128 Z10 F20000",
-          "M400 P200",
-          "M970.3 Q0 A7 B30 C90 Q0 H15 K0",
-          "M974 Q0 S2 P0",
+          {
+            "fullStartOnly": [
+              "G1 X128 Y128 Z10 F20000",
+              "M400 P200",
+              "M970.3 Q1 A7 B30 C80  H15 K0",
+              "M974 Q1 S2 P0",
+              "G1 X128 Y128 Z10 F20000",
+              "M400 P200",
+              "M970.3 Q0 A7 B30 C90 Q0 H15 K0",
+              "M974 Q0 S2 P0"
+            ]
+          },
           "M975 S1",
           "G1 F30000",
           "G1 X230 Y15",
           "G28 X",
-          "M976 S2 P1",
-          "G90",
-          "G1 X128 Y128 F20000",
-          "M976 S3 P2",
+          {
+            "fullStartOnly": [
+              "M976 S2 P1",
+              "G90",
+              "G1 X128 Y128 F20000",
+              "M976 S3 P2"
+            ]
+          },
           "M975 S1",
           "G90",
           "M83",
@@ -421,7 +459,7 @@
           "G0 Y1.5 E0.700",
           "G0 X231 E0.700 F6033.27",
           "M400",
-          "G29.1 Z-0.04",
+          "G29.1 Z{plateOffset}",
           "M1002 judge_flag extrude_cali_flag",
           "M622 J1",
           "M1002 gcode_claim_action : 8",
@@ -562,24 +600,28 @@
           "G0 X231 Y1.5 F30000",
           "G0 X18 E14.3 F6033.27",
           "M623",
-          "M104 S140",
-          "M400",
-          "M18 E",
-          "M500 R",
-          "M973 S3 P14",
-          "G1 X120 Y1.0 Z0.3 F18000.0",
-          "T1100",
-          "G1 X235.0 Y1.0 Z0.3 F18000.0",
-          "M400 P100",
-          "M960 S1 P1",
-          "M400 P100",
-          "M973 S6 P0",
-          "M960 S0 P0",
-          "G1 X240.0 Y6.0 Z0.3 F18000.0",
-          "M960 S2 P1",
-          "M400 P100",
-          "M973 S6 P1",
-          "M960 S0 P0",
+          {
+            "fullStartOnly": [
+              "M104 S140",
+              "M400",
+              "M18 E",
+              "M500 R",
+              "M973 S3 P14",
+              "G1 X120 Y1.0 Z0.3 F18000.0",
+              "T1100",
+              "G1 X235.0 Y1.0 Z0.3 F18000.0",
+              "M400 P100",
+              "M960 S1 P1",
+              "M400 P100",
+              "M973 S6 P0",
+              "M960 S0 P0",
+              "G1 X240.0 Y6.0 Z0.3 F18000.0",
+              "M960 S2 P1",
+              "M400 P100",
+              "M973 S6 P1",
+              "M960 S0 P0"
+            ]
+          },
           "M1002 judge_flag extrude_cali_flag",
           "M622 J1",
           "M973 S3 P1",
@@ -799,44 +841,50 @@
           0.4
         ],
         "filamentMm": 1.75,
-        "bedType": "textured_plate",
+        "plates": [
+          "textured_plate",
+          "hot_plate"
+        ],
         "chamberC": 0,
         "bedC": [
           46,
           70
         ],
+        "startupFlushC": 240,
         "startupPurgeC": 250,
         "startupPurgeFlowMm3S": 21,
         "endLiftMm": 0.5,
         "parkLimitMm": 250,
         "parkRiseMm": 100,
         "parkHeightFactor": 1,
-        "parkSettleMm": 2
+        "parkSettleMm": 2,
+        "bodyTravelCommand": "G1",
+        "materialChangeMode": "single-nozzle-ams",
+        "materialChangeFlushMm3": 300,
+        "toolChangeLiftMm": 3,
+        "toolChangeAcceleration": 9000,
+        "bodyAcceleration": 5000
       },
       "package": {
         "printerModelId": "BL-P001",
         "clientVersion": "02.08.02.61",
-        "projectSettings": {
-          "filament_map_mode": "Auto For Flush",
-          "filament_nozzle_map": [
-            "1"
-          ],
-          "nozzle_type": [
-            "hardened_steel",
-            "hardened_steel"
-          ]
-        }
+        "projectSettings": {}
       },
-      "validation": "Experimental output: the firmware envelope comes from a local Bambu Studio 02.08.02.61 X1 Carbon 0.4 mm / Bambu PLA Basic / Textured PEI slice and shares the H2D exporter, interpreter and package writer. The reference branch that runs the chamber fan against PLA jamming applies above a 45 C bed, so the contract requires bedC 46 to 70. Software checks only; no Bambu Studio viewer or physical validation. Firmware routines are checked as a fixed contract, not motion-simulated."
+      "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested; service motion, mixed-nozzle jobs and physical AMS mapping require reference and hardware acceptance."
     }
   ],
   "startup": {
     "protocol": "bambu-x1c-reference-envelope",
     "zAfterStartupMm": 20,
-    "validation": "Bambu Studio 02.08.02.61 PLA / Textured PEI reference startup, unmodified apart from removed slicer progress lines, followed by the explicit body origin [100,100,20]. Homing, nozzle wipe, bed leveling, mechanical-mode check, purge and extrusion/lidar calibration remain. Firmware service routines are not simulated; their conditions remain controlled by the printer. No physical validation."
+    "validation": "SAAM bounded X1 Carbon startup, cross-referenced to Bambu Studio 02.08.02.61. Homing, wiping, leveling, mechanical checks, purge and lidar/flow calibration remain. Plate and working temperatures derive from the resolved job. Explicit origin [100,100,20]. Service routines are not simulated. Supported flag choices are explicit; this revision awaits physical acceptance. fast_start reuses saved calibration and omits optional vision/music/vibration checks; homing, wipe, prime and temperature waits remain. Physical acceptance pending."
   },
   "boundsBasis": "Nominal 256 mm cube. Selected-tool bounds conservatively exclude the entire x < 18 mm strip to avoid the official x=0..18, y=0..28 cutter exclusion without claiming polygon-aware clearance.",
-  "processBasis": "PLA is an editable default. Material temperature windows are bounded starting ranges, not spool-specific tuning. Flow/retraction caps are conservative SAAM choices; TPU denotes 95A-class material and needs maxFlowMm3S <= 2. Bed ceiling is conservatively 110 C across supply-voltage variants. The implemented output is PLA-only; other materials remain setup-review profiles. No active chamber heating, in-print AMS changes or nonplanar clearance is declared.",
+  "processBasis": "PLA is an editable default. Material temperature windows are bounded starting ranges, not spool-specific tuning. Flow/retraction caps are conservative SAAM choices; TPU denotes 95A-class material and needs maxFlowMm3S <= 2. Bed ceiling is conservatively 110 C across supply-voltage variants. The implemented output is PLA-only; other materials remain setup-review profiles. No active chamber heating is declared. In-print PLA AMS changes use a bounded chute-flush recipe; physical acceptance is pending. The nonplanar limit is a user-chosen experiment, not a clearance rating.",
+  "nonplanar": {
+    "maxAngleDeg": 10,
+    "experimental": true,
+    "basis": "User explicitly chose experimental 10 degrees on 2026-09-19 for a small draped-skin proof on a chess-pawn ball top; no manufacturer non-planar clearance rating or physical validation."
+  },
   "sources": [
     "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/Bambu%20Lab%20X1%20Carbon%200.4%20nozzle.json",
     "https://raw.githubusercontent.com/bambulab/BambuStudio/master/resources/profiles/BBL/machine/fdm_bbl_3dp_001_common.json",

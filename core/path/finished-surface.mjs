@@ -7,18 +7,20 @@ import {requireThat} from '../geom/tolerance.mjs';
 
 export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2],endMm=shell.bounds.max[2],boundary='shell',coverage='nominal',toleranceMm=.02,maxSlopeDeg=90,contains=null}){
   const sourceOperationIds=result.operations.filter(op=>op.strokes.length).map(op=>op.id);
-  let sectionAt;const sections=new Map();
+  // Owned state of this boundary test: the section query is built on first side
+  // use, and the loops it returns are cached by Z.
+  const sideState={sectionAt:null},sections=new Map();
   const onBoundary=contains??(e=>{
     if(boundary==='top'){const top=topAt(shell,e.point[0],e.point[1]);return top&&top.slopeDeg<=maxSlopeDeg+1e-8&&Math.abs(top.zMm-e.point[2])<=toleranceMm;}
     if(boundary!=='side')return true;
     // A hollow wall publishes its exterior, not the unprinted cap or center.
-    sectionAt??=createSectionQuery(shell);
+    sideState.sectionAt??=createSectionQuery(shell);
     const z=e.point[2];let loops=sections.get(z);
-    if(!loops){loops=sectionAt(z).loops.filter(loop=>loopArea(loop)>0);if(sections.size>=256)sections.clear();sections.set(z,loops);}
+    if(!loops){loops=sideState.sectionAt(z).loops.filter(loop=>loopArea(loop)>0);if(sections.size>=256)sections.clear();sections.set(z,loops);}
     return loops.some(loop=>loop.some((p,i)=>pointSegmentDistance(e.point,p,loop[(i+1)%loop.length])<=toleranceMm));
   });
-  result.finishedSurfaces=sourceOperationIds.length?[{shell,startMm,endMm,coverage,contains:onBoundary,sourceOperationIds}]:[];
-  return result;
+  const finishedSurfaces=sourceOperationIds.length?[{shell,startMm,endMm,coverage,contains:onBoundary,sourceOperationIds}]:[];
+  return {...result,finishedSurfaces};
 }
 
 export function consumeFinishedSurface({shell,selection,results}){

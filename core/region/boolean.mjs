@@ -73,8 +73,14 @@ export function levelSetCoverage(field, level) {
 }
 
 export function levelSetRegion(field, level, { refine = null } = {}) {
-  const { xs, ys, values } = field;
+  const { xs, ys } = field;
   requireThat(xs.length > 1 && ys.length > 1, 'A level set needs a sampled grid.');
+  const interiorSegments=levelSetInteriorSegments(field,level,refine);
+  const boundarySegments=levelSetBoundarySegments(field,level,refine);
+  return chain([...interiorSegments,...boundarySegments]);
+}
+
+function levelSetInteriorSegments({xs,ys,values},level,refine){
   const segments = [];
   for (let i = 0; i < xs.length - 1; i++)
     for (let j = 0; j < ys.length - 1; j++) {
@@ -104,9 +110,13 @@ export function levelSetRegion(field, level, { refine = null } = {}) {
       }
       for (let k = 0; k < Math.min(exits.length, entries.length); k++) segments.push([exits[k], entries[k]]);
     }
+  return segments;
+}
+
+function levelSetBoundarySegments({xs,ys,values},level,refine){
   // A level set can meet the sampled domain boundary. Close its high side
   // along that boundary instead of implicitly joining an open contour by a chord.
-  const border=[];
+  const border=[],segments=[];
   const sample=(i,j)=>({x:xs[i],y:ys[j],value:values[i][j]});
   for(let i=0;i<xs.length-1;i++)border.push(sample(i,0));
   for(let j=0;j<ys.length-1;j++)border.push(sample(xs.length-1,j));
@@ -121,5 +131,5 @@ export function levelSetRegion(field, level, { refine = null } = {}) {
     if(!point){const t=(level-p.value)/(q.value-p.value);point=[p.x+t*(q.x-p.x),p.y+t*(q.y-p.y)];}
     segments.push(above?[[p.x,p.y],point]:[point,[q.x,q.y]]);
   }
-  return chain(segments.map(segment => [...segment]));
+  return segments;
 }

@@ -38,9 +38,8 @@ For an assembly, set `part` to the roof component's ID; the template's `null`
 selection is only for a single part, and the skin stack must fit the selected roof.
 
 `drapedSkinResult({shell, plan, machine, survey, id, after})` returns operations
-for the shared composer. `generateDrapedSkin(builder, options)` uses the same
-implementation for a single instance. Use all results together when composing a
-plan, so whole-plan travel accounts for every component and operation.
+for the shared composer. Pass all skill results to `planComposition(state, results)`
+together, so whole-plan travel accounts for every component and operation.
 
 Shared `composition.regions` assigns skins to the actual roof of a selected
 component alongside or after its body regions. Its emitted stack must fit the
@@ -95,7 +94,10 @@ stroke direction can reverse independently; reversing strokes also reverses
 their segment volumes and metadata. Skin-layer dependencies
 remain ordered; heat balancing and lookahead are deferred.
 
-Verified short direct moves may stay down on the current skin. Lifted travel and
+A row starting within 2 mm of the preceding row's end continues as a short
+printed connector when the chord passes the skin's surface and footprint checks,
+so each scanline group prints as one zigzag. Other verified short direct moves
+may stay down on the current skin. Lifted travel and
 cooling clear the **highest material deposited so far** across all skills plus
 the locked `liftMm` (default 1 mm; zero allowed). Shared comb routing uses the
 allowed footprint, including holes, and samples each skin's local height for

@@ -51,7 +51,8 @@ export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0}) {
       data.fields??=Object.entries(row).map(([name,value])=>({name,width:Array.isArray(value)?value.length:1,
         ...(typeof value==='number'||Array.isArray(value)?{}:{values:[]})}));
       const offset=data.length%CHUNK;
-      if(offset===0)data.chunks.push(Object.fromEntries(data.fields.map(f=>[f.name,new (f.values?Uint32Array:Float64Array)(CHUNK*f.width)])));
+      // Indexed values are stored as dictionary ids; numbers keep full precision.
+      if(offset===0)data.chunks.push(Object.fromEntries(data.fields.map(f=>[f.name,f.values?new Uint32Array(CHUNK*f.width):new Float64Array(CHUNK*f.width)])));
       const chunk=data.chunks.at(-1);
       for(const field of data.fields){
         const value=row[field.name],column=chunk[field.name];

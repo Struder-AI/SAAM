@@ -38,7 +38,8 @@ concentric substrate pattern. This stays within full-fill's existing composition
 travel and export lifecycle; it is not a general annular medial-axis fill.
 
 Cladding owns the remaining radial band. The first shell runs up and down along
-the cylinder, with extrusion off while the bed indexes between tracks. Track
+the cylinder, continuing deposition across the short index between neighboring
+tracks at each end. Track
 count is even and bead width adjusts slightly downward to divide the circumference.
 The next shell is a circumferential helix, rising one line width per turn. Further
 shells alternate these patterns. Each entire shell depends on its predecessor;
@@ -258,8 +259,9 @@ their offset-surface arc length at sampled V rows, and allocates bead-width cell
 within each sector. A cell's course starts or ends when local width crosses its
 threshold. The root is refined in V, and the last cell tapers its intended bead
 width; no full-height course is forced through a disappearing cell. Alternating
-direction avoids flipping the nozzle frame. Repositioning between separate
-courses turns extrusion off and uses the shared oriented retreat/approach policy.
+direction avoids flipping the nozzle frame. Neighboring courses ending within 2 mm
+continue deposition across that index; other repositioning turns
+extrusion off and uses the shared oriented retreat/approach policy.
 Hoop layers use a continuous periodic helix with pitch based on a sampled longest
 meridian and locally scaled bead width. All substrate operations precede the
 first shell; every later shell depends on the complete preceding shell.
@@ -287,10 +289,11 @@ cells have small intended bead widths. Fixed relay flow cannot meter those width
 software intent and relay estimates remain separate. Physical clearance, robot
 feasibility and execution remain unverified.
 
-[Surface-cladding tests](../../core/tests/surface-cladding.test.mjs) cover native
-round trips, bore and wall dimensions, normal offsets/refinement, mesh-strip
-mapping, perimeter-front interaction, partial courses, rotary continuity, bead
-frames, packaging beyond 64 helper files and the shared export/review lifecycle.
+Native round trips, bore and wall dimensions, normal offsets/refinement,
+mesh-strip mapping, perimeter-front interaction, partial courses, rotary
+continuity and bead frames have no stored tests; their expected values follow
+from the contracts above. The machine bytes they produce stay covered by
+[denso.test.mjs](../../core/tests/denso.test.mjs).
 
 ## Shared example
 

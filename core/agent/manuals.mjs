@@ -4,7 +4,7 @@ import { resolve, posix } from 'node:path';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'BUILDERS.md', 'DEVELOPER-CONTEXT.md',
   'CONTRIBUTING.md', 'CONTRIBUTING-AGENTS.md', 'SETUP.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'build_request.md', 'CLAUDE.md', 'examples/prints/README.md']);
-const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'adapters', 'scripts', 'maps']);
+const documentRoots = new Set(['core', 'skills', 'studio', 'machines', 'adapters', 'scripts', 'dev-map']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
   makers: 'MAKERS.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
@@ -66,9 +66,7 @@ export function guidanceSection(markdown, anchor) {
   return markdown.slice(section.offset, next?.offset ?? markdown.length);
 }
 
-export async function readGuidance(root, guidanceId, seen = new Set()) {
-  if(seen.has(guidanceId)||seen.size>8)throw new Error('Documentation redirect cycle.');
-  seen.add(guidanceId);
+export async function readGuidance(root, guidanceId) {
   const [requested, encodedAnchor] = guidanceId.split('#');
   let path, anchor;
   try {
@@ -84,11 +82,6 @@ export async function readGuidance(root, guidanceId, seen = new Set()) {
       throw new Error('Documentation paths cannot contain symbolic links, junctions or hard-linked files.');
   }
   const markdown = await readFile(current, 'utf8');
-  const redirect=/^<!-- saam-map-reference: (maps\/reference\/[a-z0-9-]+\.md) -->/.exec(markdown)?.[1];
-  if(redirect) {
-    const document=await readGuidance(root,redirect+(anchor?'#'+anchor:''),seen);
-    return {...document,guidanceId,redirectedFrom:path};
-  }
   const sections = headings(markdown);
   const text = guidanceSection(markdown, anchor);
   return { guidanceId, path, text, headings: sections.map(({ title, anchor }) => ({ title, guidanceId: `${path}#${anchor}` })),

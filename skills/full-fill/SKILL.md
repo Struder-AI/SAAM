@@ -75,8 +75,11 @@ of its first or last row. Row order and stroke direction are chosen independentl
 so either side of either end row can be the entry.
 Variable-gap volumes stay attached to their segments when reversed. This is
 straight-line distance ordering; heat balancing and lookahead are deferred.
-Shared motion compacts straight runs and directly
-repositions across permitted gaps of at most 1 mm without retraction or lift. Verified
+Shared motion compacts straight runs. A row, wall loop or fill entry starting
+within 2 mm of the preceding deposition, inside the layer's region, continues as
+a short printed connector rather than a travel: rows print as a zigzag and wall
+loops step into each other. A nearby start on the next layer is one rising move
+without retraction. Verified
 combing stays inside the allowed region at print height, with routes around
 holes when possible within `maxCombMm`. Other traverses clear the highest material
 deposited so far across all skills plus `liftMm` (default 1 mm; zero allowed).
@@ -86,8 +89,7 @@ This is not a full head collision model. See [shared travel](../../core/path/REA
 ## Composition and limits
 
 `fullFillResult({shell, plan, reserve, id})` returns wall and interior operations.
-`generateFullFill(builder, options)` uses the same result/composer for a single
-instance. General composition uses all results together, with one travel state
+`planComposition(state, results)` plans all skill results together, with one travel state
 and one deposited-height record. Assemblies can alternate or batch compatible layers;
 body operations precede their draped skins. A drape reserve removes only its
 owned footprint from planar sections, including separate components supporting

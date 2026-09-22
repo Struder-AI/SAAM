@@ -1,5 +1,1913 @@
 # Development log
 
+## 2026-09-21 — Dev map: functional tree
+
+- Operators no longer count toward the map-or-code rule (`lib/destination.mjs`,
+  the one rule): a page is a map only with at least two called declarations
+  and a wire; 129 pages became code, among them `loopArea` and 49 other
+  operator-only bodies. Graph pages drawing no called declaration: 0.
+- Region pages home flow roots only (declarations no declaration of the
+  region calls: core 2, export 7, geom 47, machine 9, path 13, print 8,
+  region 13, studio 32), optionally clustered; every other declaration is
+  homed by the first flow page of its region that reaches it, depth first in
+  call order; region wires contract onto the owning root. `stranded`
+  (unreached from any root; currently none) replaces `unreached`. File pages
+  and file addresses are removed.
+- File paths are rejected as authored members; the flows were converted to
+  the roots they held: 52 groups and 266 members remain (was 148 and 624, 231
+  of them files); 96 groups fell below two roots and were dropped, including
+  studio's interaction, requests and view groups and core/export's gcode,
+  robot-commands and lua. Root clustering is the next authoring pass.
+- Verified after `regenerate 0`: 1682 pages (was 1778), 0 single-box pages,
+  every one of 1621 declarations homed exactly once, `check` exits 0 with
+  3552 linked, 1079 unresolved, 47 outside, 5807 platform, no stale,
+  unplaced, stranded or orphan facts; totals identical to before the change.
+  Max index depth 7 → 18: the deepest index is a real 17-step call chain in
+  studio. Pages read: `0`, `core/export` (2 clusters, 2 loose roots),
+  `core/region`, `loopArea` (code, 19 callers), the deepest index.
+- Documentation: the functional tree carried into DEVELOPER-CONTEXT.md, the
+  map guide and the handoff; the "once per node" ruling on finding rows
+  recorded (function pages should list their drawn nodes' rows once each;
+  queued).
+
+## 2026-09-21 — Maker handoff for accepted H2D colour and dual-nozzle workflows
+
+- User requested the code/guidance rewrites needed for future maker agents,
+  following AMS-19 and DUAL-20 physical passes. The v13 implementation remains
+  unchanged: canonical job projections and identical rendered executable/project
+  startup/shutdown are the accepted path, with no reference-file substitution.
+- MAKERS links directly to the Bambu setup and both workflows. Maker onboarding
+  includes MAKERS and core/print/USAGE.md, whose Bambu instructions now describe
+  the accepted paths. The Bambu manual supplies per-filament/nozzle/process/feed
+  setup examples, assembly-region assignment, optional fast startup, current
+  profile generation and USB mapping review. Removed stale guidance saying
+  same-nozzle colour changes were unsupported; kept X1 failure explicit.
+- The duplication inventory now includes stored startup/shutdown. Physical facts
+  and machine descriptions distinguish accepted H2D jobs from other installations.
+  The regression pins both generated project and executable hashes for AMS-19
+  and DUAL-20, so unchanged commands cannot conceal a project-metadata regression.
+- Verification: all 31 targeted Bambu tests pass, including the strengthened
+  hardware regression; git diff --check reports no whitespace errors.
+
+## 2026-09-21 — Generated H2D DUAL-20 passes, closing dual-nozzle exporter work
+
+- User reports "ams-20 also pass!" after the request to run the delivered
+  DUAL-20-GENERATED. Archive SHA256 2a3007ea7fbc8251d199088ebfca4db630ebfd2133c1d4d675eddcdd04f25744;
+  project SHA256 96efadb599441203b9156c450343acb29c8b507d713d63fb38c8825dcaba6af5.
+  This accepts ordinary generated v13 output, not a reference-entry substitution:
+  left 0.4 external PLA centre pad, right 0.8 blue AMS offset pad, then left,
+  with correct-height deposition, Textured PEI, fast startup and no tower.
+- AMS-19 had already passed ordinary generated same-nozzle blue/orange/blue.
+  Both requested H2D capabilities now have physical evidence. No further
+  template-isolation prints are needed to close the tested workflow.
+- Maker guidance, machine evidence and hardware facts now reflect both passes.
+  The regression protects generated project hashes as well as executable hashes
+  for both successful jobs. Startup/shutdown duplication remains derived from
+  the exact same rendered strings, and other declarations from the resolved job.
+- Completed BR-056 is removed from the open backlog; BR-055 retains only X1
+  and other installation acceptance work. X1's failed AMS test is not closed by
+  an H2D pass. Original BR-056 provenance and pre-acceptance history follow.
+
+### Completed BR-056 — Use both H2D nozzles with different diameters in one print
+
+- Status: in progress
+- Contributor: current user; account identity unconfirmed, no identity question required.
+- Authorization: human requested — "bambu studio does not support 2-extruder prints with different nozzle sizes. On the other hand, we MUST support this. So there will be differences" (2026-09-21).
+- Current hardware evidence (2026-09-21): the left-only reference, repack and producer-identity controls pass. Reduced configuration reproduces wrong-right-nozzle/elevated-height failures; alphabetizing it still fails. Full project JSON with minimal G-code CONFIG passes; full G-code CONFIG with minimal project JSON fails. Project JSON omissions are isolated, with individual keys unresolved. User requested a return to actual dual-nozzle testing: dual-project-identity-fast-06 adds three project metadata fields to the unchanged SAAM fast-05 mixed-nozzle program; it failed (no adhesion, right-nozzle dribbling; actual nozzle sequence and Z were not watched). AMS-09 and AMS-10 now pass same-nozzle AMS switching, with AMS-10 declaring actual left 0.4/right 0.8. AMS-11 failed the reusable v12 project writer (entirely orange). At the user's request, DUAL-12 is prepared while AMS-11 runs: exactly left/right/left, centre external-spool pad at Z0.2/Z0.4 and blue right-AMS pad 60 mm to the right at Z0.3. The original DUAL-12 is on hold; revised DUAL-12-PROJECT-CONTROL uses working AMS-10's exact project entry with all dual executable bytes unchanged, and is on D: with verified hash. The user now reports DUAL-12-PROJECT-CONTROL passed: physical mixed-nozzle left/right/left is demonstrated. Porting the working project representation into ordinary generated output remains open. X1 is unavailable.
+- Session: current startup/nozzle/plate/AMS task; exact task title and stable ID unavailable.
+- Source: follow-ups accompanying `twistedbox.gcode.3mf`; the two-nozzle references have SHA-256 `ddbea3c405b12328990c1aa6f45c106b8e6899a5807d7cc7947c23caa2835a63` (tower) and `f6bad52dc858c7a06ebdbace77b40706d8ea8d1f9afbfac26dd4e4678d03bf86` (tower-free), with actual left 0.4 / right 0.8 and a four-slot AMS connected to the right.
+- Context: differing installed diameters and actual use of both nozzles are separate implemented contracts; regional filament selection drives each nozzle's process and the shared path, interpreter and package usage. The user explicitly excluded a prime tower and requires hardware-supported feed combinations rather than one fixed installation. Exact reference analysis, generated artifact hashes, implementation evidence and successive physical failures are retained in the [dual-nozzle reference](DEVLOG.md#2026-09-21--dual-nozzle-reference-distinguishes-outgoing-and-incoming-settings), [delivered verification](DEVLOG.md#2026-09-21--mixed-diameter-h2d-output-and-delivered-hardware-verification) and subsequent dated DEVLOG records.
+- Remaining: make the physically successful DUAL-12 command sequence reproducible through the ordinary exporter without a substituted project entry, then verify a regenerated dual archive. Preserve the tested commands with the hardware regression and provide maker setup/review guidance. Extended AMS/HT configurations and other installations still need physical acceptance. Same-nozzle PLA AMS output now physically passes fresh generated v13 AMS-19; v12 AMS-11 is a historical failed format. Automatic power-loss recovery has no output contract; do not claim either from the dual test.
+- Completion: the reviewed SAAM program deposits with both actual 0.4/0.8 tools, with correct process settings, synchronized startup/changeover/package declarations and recorded physical acceptance.
+
+
+## 2026-09-21 — Fresh generated H2D AMS-19 physically passes
+
+- User reports "ams-19 is pass". Delivered v13 archive SHA256
+  30044f96b878e81bcc26795cef425658da60961c10f76096a0503c45b5d4beae.
+  This was an ordinary generated bundle, strict-reopened, with no substituted
+  reference project. It exercises right 0.8 PLA blue/orange/blue, installed left
+  0.4, right four-slot AMS, Textured PEI, fast startup and no tower.
+- Stored authored startup/shutdown plus seven empty template fields are
+  sufficient for this job; individual necessity or firmware execution of those
+  fields is not established. No further template isolation is needed to accept
+  this tested same-nozzle workflow. Maker guidance now permits normal generation
+  without reference-file patching, while preserving installation evidence limits.
+- Pin generated project SHA256 c1181788a9dfab5e3934e67e65984e735e1b22cce7b8383d1df416f66491fd03
+  alongside the existing successful executable hash in the hardware regression.
+- DUAL-20 is on D: with verified SHA256; its generated-project dual-nozzle
+  physical acceptance remains the next check before closing H2D dual work.
+
+## 2026-09-21 — Dev-map documentation consolidated; handoff written
+
+- DEVELOPER-CONTEXT.md now owns the map's intent: purpose, scope and active
+  callers, the functional tree, page principles, findings policy, the three
+  code-shape rules and the rewrite criterion, all as settled with the owner
+  today (recorded as D-038). dev-map/README.md is reduced to mechanics:
+  commands, addresses, page fields, staleness, authoring, checking, viewer.
+  The AGENTS.md "Dev maps" section and the BUILDERS.md map contract are
+  pointers with the reading rules only. BR-052 restated against the new
+  intent with the remaining queue.
+- New dev-map/HANDOFF.md: the owner's standard in their words, the concrete
+  rulings behind each change, the code-shape criterion per pattern, what has
+  landed by commit, what is in flight, the remaining work in order with
+  rationale, how the work was run, and the open questions.
+- Line counts: AGENTS 202 → 190, BUILDERS 421 → 399, DEVELOPER-CONTEXT
+  113 → 127, dev-map/README 473 → 178; the four owners 1209 → 894, or 1087
+  with the new handoff. Developer and builder onboarding still resolve.
+
+## 2026-09-21 — Dev map: name-keyed function tables become registry entries
+
+- `couplings.mjs` recognises a named table of functions — a `const` object
+  literal, a `Map` filled with literal keys, or the object (or array element)
+  a factory returns, named by the factory's path — and emits one
+  `registry-entry` coupling per entry, labelled `<table>.<key>`, with lookup
+  sites (`table[name]`, `table.get(name)`, `name in table`) appended as
+  evidence. Computed keys and spreads are recorded as analysis-limit rows.
+  Table couplings carry `table: true`; `regions.mjs` no longer counts a
+  table's owner as called by its own entries.
+- 48 tables, 212 new couplings (216 total, was 4); the export dialect
+  registry's four are byte-identical. Islands (declaration pages with no
+  caller and no coupling) 187 → 117. Largest tables: `createBundleWorkflow`
+  17, `createAgentRequests` 15, `createTour` 13, `moveStore::methods` 13.
+  Not recognised, by design: two-level tables whose entries are objects
+  (`studio/app.mjs::views`, `registry.mjs::adapters`), tables built by
+  assignment (`createStudio`), and array-of-pairs `LuaTable.from`.
+- Verified after `regenerate 0`: `check` exits 0, 1621 pages, 3552 linked,
+  1079 unresolved, 47 outside, 5807 platform, no stale, unplaced or orphan
+  facts; `standardLibrary::tonumber` carries its incoming registry coupling.
+
+## 2026-09-21 — H2D authored stored sections, routing and variant controls pass
+
+- User confirms AMS-14 passes two colours and AMS-15 passes. These independently
+  reduce saved routing and High Flow table rows from successful AMS-10, retaining
+  other working fields. They do not validate the entire generated project.
+- H2D revision 23 / contract v13 / project schema v2 now stores the exact authored
+  startup and shutdown strings also used by the executable. Export and strict
+  import share the materializer; no copied reference project or vendor template
+  is loaded. Remaining template fields are empty. This is a repair candidate:
+  AMS-13 identified a failing nine-field family, not the required individual key.
+- All 31 targeted Bambu tests pass, including stored/executable equality across
+  nozzle/plate/temperature choices, fast startup, tamper rejection and exact
+  preservation of physically successful colour/dual executable hashes.
+- Fresh normal bundles: AMS-19-GENERATED SHA256
+  30044f96b878e81bcc26795cef425658da60961c10f76096a0503c45b5d4beae;
+  DUAL-20-GENERATED SHA256
+  2a3007ea7fbc8251d199088ebfca4db630ebfd2133c1d4d675eddcdd04f25744.
+  Both pass strict reopen; neither has a reference-entry substitution. Both
+  physical results are pending. D: unavailable when prepared; no USB copy claimed.
+
+## 2026-09-21 — Dev map: active outside callers, scope-edge arrows, findings on the boxes that draw them
+
+- `dev-map/lib/scope.mjs` gains `activeCallers`: catalogued skill
+  implementations (`skills/<id>/scripts/*.mjs`, no demo or example files),
+  `adapters/mcp/src`, `core/agent` and `scripts/agent-toolkit.mjs`. A caller is
+  active when it runs while a person makes a part or operates Studio. Active
+  outside callers are listed on declaration pages and code reads by
+  declaration path with `unmapped: true`; inactive ones (skill tests and
+  demos, benchmarks, the Bambu audit) are counted per directory in
+  `outsideCallers` and still counted at the root.
+- Calls leaving the mapped roots are drawn at every level: `out:<root>` ports
+  and wires on root, region, file and group pages (root: core/print → skills
+  ×47), outside invocation boxes on function pages name their target path,
+  and `external` is replaced by `outside` (47) and `platform` (5807).
+- The rolled-up `uncertaintySummary`/`unresolvedSummary` are gone. A
+  containment map carries each drawn declaration box's own finding rows,
+  identical to the node's page, and one integer on a group or file box.
+  Declaration pages are unchanged: 13 829 finding rows before and after.
+- Verified after `regenerate 0`: 143 declaration pages list an outside
+  caller (411 rows), 96 inactive callers counted, 16 structural pages draw an
+  outgoing outside port; `core/geom/query.mjs::topAt` lists four skill
+  callers beside five mapped ones; `8.2` boxes carry the same rows as their
+  own pages. `check`: 1620 pages, 3550 linked, 1079 unresolved, no unplaced
+  or orphan facts. The store reports stale on `core/export/bambu-project.mjs`,
+  which another session is editing at the time of writing.
+
+## 2026-09-21 — Code shape, second pass: dead accessors, parameter mutation, callable closure state
+
+- Deleted `LuaRuntime::getGlobal/setGlobal/hasGlobal` (no caller anywhere;
+  authored membership removed from `flows/export.json`).
+- Rule 3 (a stage does not mutate caller-owned state), 40 sites judged:
+  rewritten in `fitLineWidthToSetup` (returns the plan, a copy when fitted;
+  both resolvers in `resolve-plan.mjs` return it), `toolpath-view.mjs`
+  (display memos moved off view/group records into `createToolpathMemo()`),
+  and `server.mjs` (`annotateSourceSkew` → `noteSourceSkew` +
+  `reportedMessage`, the note kept in a module `WeakMap` instead of on the
+  Error). Left as the controller exception: `createTour::enter/
+  editLessonBaseline/ensure`, `app.mjs::applyProgress`,
+  `createTourUI::acknowledgeView`. Awaiting the owner: `drawMachineCanvas`
+  (Canvas 2D `ctx` property writes, bracketed by save/restore) and the seven
+  sites in `bambu.mjs::completeProgram` (genuine violation, file owned by a
+  concurrent session).
+- Rule 1 (no callable or state in a reassigned binding): 163 written
+  captured bindings across 49 factories enumerated; exactly one held a
+  callable (`geometryProject` in `createViewerRenderer`), now the
+  `picking` record. The rest are controller state, accumulators, caches and
+  cursors and stay as they are (triage table in the worker report).
+- Verified: `node --test` on dobot, export, workflow, studio-material,
+  printer-profiles, studio-generation-control, studio-open, studio-lifetime,
+  studio-tour-lifetime, regional-workflow: 54 pass, 0 fail; A/B checks of
+  the toolpath memo and viewer pick paths identical to HEAD. `check`: 1620
+  pages, 3550 linked, 1079 unresolved, 5807 external, no stale, unplaced or
+  orphan facts. The checkpoint also carries concurrent Bambu hardware
+  regression work from another session.
+
+## 2026-09-21 — AMS-13 fails; stored template family is necessary in the working control
+
+- User reports "AMS-13 is all orange" and asks whether the reusable generator
+  is done. Clarified explicitly: a generator was written, but its v12 metadata
+  fails; the reusable exporter fix is not complete. Guidance and regression
+  updates do not change that status.
+- AMS-13 differs from successful AMS-10 only by clearing nine nonempty stored
+  template fields in project_settings.config. Every other archive entry and
+  serialization is unchanged. That reduction independently breaks colour
+  switching; it does not identify the particular required field or establish
+  that firmware executes template contents. Routing/variant controls remain
+  useful independent tests. User advised to continue AMS-14.
+- Prepared three independent reductions of failed AMS-13, with every executable
+  and other archive entry unchanged: AMS-16 restores only machine_start_gcode;
+  AMS-17 restores only change_filament_gcode; AMS-18 populates only
+  machine_start_gcode with the exact SAAM-authored startup already present in
+  the successful AMS-10 executable. All other stored G-code fields remain
+  empty in AMS-18. This tests a direct authored replacement, not merely which
+  copied field works. No shared exporter behavior changed on an unverified guess.
+- Candidates in Prints/bambu-h2d-ams-template-isolation-16-18; SHA-256 values:
+  - AMS-16-START-ONLY: af72b812579e9b15b2e220a2fb6d15e9472283b9d8fc7356ec23ff55cf2c59c2
+  - AMS-17-CHANGE-ONLY: d6e68ea7822b946ef6042bd392580399d4e25bf761e0dbbf6127ec0296f296da
+  - AMS-18-SAAM-START: 48c6385d14c4d99e5496ad342d971afa9aae376d76c636cfc2e23739be6c64ae
+  D: is unavailable; these have not been copied. Prioritize the authored AMS-18
+  candidate once the USB returns; 16/17 isolate the field if needed. All physical
+  results are pending. A passing generated replacement remains necessary before
+  declaring the ordinary dual/multicolour workflow repaired.
+
+## 2026-09-21 — DUAL-12 physically passes; maker workflow and executable regression
+
+- User reports: "Test 12 is a pass! We have dual-nozzle!" The delivered
+  DUAL-12-PROJECT-CONTROL archive is SHA-256
+  bef010be5cd763a86fecfc6432fc8eeef6ca4d1190e7021bdb1d3d8edb13c036.
+  This establishes the controlled left 0.4/external PLA -> right 0.8/AMS blue ->
+  left sequence, fast startup, separated pads and their expected deposition
+  heights. The user is continuing AMS-13; no result for 13/14/15 is assumed.
+- Preserved fact-only hashes and human observations for AMS-10, DUAL-12 and
+  failed AMS-11 in the H2D hardware fixture. Added the exact DUAL-12 geometry
+  and setup as a reusable test fixture. A regression regenerates both working
+  controls' executable streams through the shared planner/exporter and matches
+  their physically tested SHA-256 values, with the expected filament sequence
+  and dual deposition stages. It passes. It deliberately does not transplant
+  or approve the reference project entry.
+- Added maker dual-nozzle setup/review instructions and a left-first mixed
+  diameter recipe fragment to core/export/bambu.md. It distinguishes logical
+  filaments, nozzle sides, heater selectors and AMS devices; explains per-nozzle
+  process settings, regions/STLs, return switches, fast start, no tower and
+  physical verification. The shared print-tools guide links it, covering the
+  maker-context-map.html onboarding route. Machine-facing limitations now
+  record physical controls passing and the generated project writer failing.
+- The portable exporter is not yet repaired: DUAL-12 used the same substituted
+  project entry as AMS-10; AMS-11's authored project failed. Keep the tested
+  executable unchanged while isolating which project representation changes
+  are necessary. Any required project/header duplicates must still derive from
+  the canonical job, with explicit per-filament/tool/variant projections.
+  Metadata field count or software consistency alone is insufficient evidence.
+  Next: incorporate AMS-13/14/15 results into the project writer and verify
+  fresh generated dual-nozzle and same-nozzle colour files.
+
+## 2026-09-21 — Dev-map scanner: super, pattern defaults, receivers, callbacks, outside roots, subscribers
+
+- `super(...)` resolves to the extended class (a `construct` edge, or an
+  external `super-of-unbound-class` for platform classes); calls inside
+  destructuring pattern defaults are collected; member calls on class
+  instances and on records are followed one static selection further
+  (`valuesOf`/`memberValues`), with a `possible` mark where the member holds
+  a callable rather than naming a method; `new C()` of a package import is
+  proven external. Parameter-call rows carry the supplying argument's
+  location in `resolution` and, where unresolved, `candidates`. Receiver and
+  callable resolution now runs for every scanned root, giving 33 new edges
+  into mapped code (skills 19, core/agent 9, adapters 5). A callee iterated
+  from a closure-local collection filled by a registration function reports
+  `registered-subscriber` naming the registering declaration.
+- Verified after `regenerate 0`: `check` exits 0 with 1616 declaration
+  pages, 3545 linked, 1075 unresolved (971 member-receiver, 101
+  parameter-target, 2 registered-subscriber, 1 local-value), 5800 external,
+  no stale, unreached or orphan facts; reciprocal caller entries hold for
+  every resolved binding. Sites read in source by the worker for each rule
+  are listed in its report; `createAgentRequests::notify` now names
+  `subscribe` as the registration.
+- Deliberately unresolved: `res.end/write` on node:http parameters, members
+  on reassigned `let` receivers, a policy assembled by spread, `this` inside
+  object-literal methods, and `now()` whose only known value is a parameter
+  default.
+
+## 2026-09-21 — Dev map: one collapse rule, nested helpers homed with their holder, constructors folded
+
+- One rule decides map or code: an address is a map when its drawing shows at
+  least two boxes with a wire on them. File pages exist only under ungrouped
+  regions and only when they draw; a region page draws a collapsed file's
+  declarations in its place, and a file fact row homes on the region page when
+  the file has no page. A code read also carries the boxes it would have drawn,
+  so the walk continues through it.
+- A declaration written inside another is homed by its holder, on the holder's
+  page, and is rejected as an authored member elsewhere (the rejection names
+  the holder). A class is its construction plus its members: `Class::constructor`
+  is no longer a node; `new X()` reaches the class page, which keeps the
+  constructor's span, calls, wires, findings and `stateFields`.
+- Flows: 374 nested members, 23 never-published file-level flows and 16
+  one-box groups removed from dev-map/flows/*.json; an authored group that
+  would draw fewer than two boxes now fails generation; `check` fails on
+  `unplaced`. The studio fragment was merged with the same-day code-shape
+  renames (`beadFrame` added beside `beadSection`).
+- Measured on the regenerated store: 1775 pages (was 1806); 0 single-box
+  graph pages (was 37); 0 constructor pages (was 8); authored members 625
+  (was 1766), of which 78 nested and all on their holder's page; unattached
+  components on structural pages 14 on 10 pages (was 84 on 41); `unplaced` 0
+  (was 224). `check`: 8 regions, 149 files, 1618 declaration pages, 3538
+  linked, 1085 unresolved, 5797 external, no stale, unreached or orphan facts.
+  Pages read to confirm: `1`, `core/export/griffin.mjs::validatePath`,
+  `core/path/planning.mjs::ActionAccumulator`, the material-view beads group.
+- Judgment recorded by the worker and accepted: "two connected boxes" is read
+  as two boxes with a wire on one of them; the strict reading would collapse
+  243 pages with real navigation.
+
+## 2026-09-21 — AMS-11 fails; dual control and independent reductions delivered
+
+- User reports AMS-11 is fully orange. Its executable is byte-identical to
+  successful AMS-10, but the authored project writer changes 264 project field
+  values. The 580-field vocabulary and passing software checks did not establish
+  firmware compatibility. Maker guidance now records a known physical failure,
+  not a pending first acceptance. No speculative shared-code fix was made.
+  Archive comparison also finds Metadata/saam.json changed between AMS-10/11;
+  the new reductions hold that context entry fixed as well. AMS-11 alone is
+  therefore not a project-entry-only mutation.
+- Held unprinted DUAL-12-L04-R08. Prepared DUAL-12-PROJECT-CONTROL with exactly
+  AMS-10's project entry; every other dual archive entry, including the complete
+  G-code and checksum, is byte-identical to the checked DUAL-12. It still requests
+  actual left 0.4/right 0.8, left/right/left, centre Z0.2/right Z0.3/centre Z0.4,
+  fast startup and no executable tower. This tests the successful project
+  representation directly against the user's physical two-nozzle goal.
+- User explicitly authorized multiple tests together. AMS-13 independently
+  empties nine nonempty stored G-code-template fields in working AMS-10;
+  AMS-14 changes only saved map mode, filament map and nozzle map (three fields);
+  AMS-15 removes unused High Flow rows from variant table families (125 fields),
+  retaining three logical filaments, both physical nozzles and non-variant device,
+  dryer, geometry and flush-matrix/vector lists. These are independent controls,
+  not cumulative changes. JSON serialization was first proven byte-identical
+  before edits. Each changes only the project archive entry; all other entries
+  and the complete executable remain byte-identical to physically working AMS-10.
+- All four files and BAMBU-TESTS-12-15-README.txt copied to D: and checksums
+  verified. SHA-256 values:
+  - DUAL-12-PROJECT-CONTROL: bef010be5cd763a86fecfc6432fc8eeef6ca4d1190e7021bdb1d3d8edb13c036
+  - AMS-13-NO-TEMPLATES: 306622d136817247635c907fb819ce6cb2a344c46b6d5421859492d6f5114403
+  - AMS-14-ROUTING: a5858638575905d21b50c2e0880bee5a8ae79a787ffc73a9b6a9244adfb3662f
+  - AMS-15-STANDARD-VARIANTS: e0879058f837cd649dbf8dd9214bf2eac5ce78c54d160f59a264f40448b3801e
+- These project-substitution/reduction diagnostics retain foreign stored
+  preferences and are not maker templates. The normal strict importer remains
+  unchanged and rejects them. No vendor motion or tower was inserted into the
+  executable. Results are pending. Next: record physical nozzle/height sequence
+  for the dual control and colour-switch results per AMS filename, then isolate
+  the failing field family or interactions before changing the shared writer.
+
+## 2026-09-21 — Code-shape findings resolved where the code hid a relationship
+
+- Owner authorised rewriting the sites the dev-map scanner reports as
+  `mutated-binding`, `unresolved-local-value`, `unsupported-callee-expression`
+  or `unaccounted`, with behaviour preserved. 14 sites reviewed; 8 rewritten,
+  6 left as scanner limits (core/agent's two are now outside the map scope).
+- Rewritten: `surfaceRegion::sample` chooses a named chart once
+  (`splinePatchChart`/`meshStripChart`); `beadSection::end` takes its normal
+  from a named `beadFrame` with four named normals; `createAgentRequests` and
+  `createStudioEvents` hold waiters as records settled by a named
+  `settleWaiter`; `moveStore::push` constructs the two typed arrays
+  explicitly; `LuaRuntime::evalCall` routes host functions through the
+  existing `invoke`; `publishFinishedBoundary` and `createViewerRenderer`
+  keep their late-bound state in explicit owned records. The last two made
+  the ownership visible (`member-mutation`) but the call itself is still
+  unresolved: resolving it would need eager construction or dropping the
+  latest-wins scheduling, both behaviour changes, so they were left there.
+- Scanner limits recorded, not code problems: `super(...)` callees are
+  skipped by `graph.mjs`; a call inside a destructuring pattern
+  (`const {frameNow=now()}=...`) is never collected; `onGeometry` in
+  `runRepairJob` is supplied only by unscanned callers (tests and the
+  worker side); `listener` in `notify`/`record` is a runtime-registered
+  subscriber with no static target.
+- Verified: `node --test` on dobot, studio-material, denso, bambu-dual,
+  studio-open, studio-generation-control, studio-tour-lifetime,
+  regional-workflow and mcp: 57 pass, 0 fail. Differential old/new checks:
+  `surfaceRegion` identical over 121 samples, `beadSection` identical over
+  864 combinations. `check`: 8 regions, 149 files, 1626 pages, 3547 linked,
+  1085 unresolved, 5797 external, no stale, unreached or orphan facts.
+  `dev-map/flows/studio.json` updated for the renamed and new declarations.
+
+## 2026-09-21 — DUAL-12 prepared while AMS-11 runs
+
+- User requested the next test in parallel with AMS-11's physical run. Generated
+  DUAL-12-L04-R08 through the shared v12 exporter: left 0.4 external PLA at
+  215 C, right 0.8 blue PLA via automatic right AMS matching at 225 C. Fast
+  startup, Textured PEI at 60 C, no tower. The left grey swatch is explicitly a
+  placeholder; its actual colour is immaterial to this test.
+- Two 12 mm square coupons: centre (175,160) has left layers Z0.2 and Z0.4;
+  right (235,160) has one right layer Z0.3 between them. This yields exactly
+  left/right/left with two changes, rather than additional alternating layers.
+  Explicit closed meshes represent the thin coupons; normal topology, bounds,
+  motion, extrusion and temperature checks pass. Estimated body time is
+  0.7 minutes, excluding startup and firmware service.
+- Separate source decoding matches the generated program's tool/filament/move
+  sequence. Assertions inspect the three deposition stages, both changeovers'
+  distinct H/temperature values, package mappings, installed diameters and AMS
+  connectivity. The material-change audit reports no issues. No shared code
+  changed and no physical acceptance is inferred from those checks.
+- Artifact: Prints/bambu-h2d-dual-fast-12/DUAL-12-L04-R08.gcode.3mf;
+  SHA-256 0e55143614dd4d5d2c00d0dba10b5aa8718dfc8dfbfc3d7b62263486e16bdce1.
+  D: was unavailable after preparation, so USB copy remains pending. Test after
+  AMS-11 confirms the generated project writer; success must include actual
+  nozzle switching, adhesion at each expected height and the return to left.
+
+## 2026-09-21 — AMS-10 passes with mixed declarations; generated AMS-11 sent to USB
+
+- User reports "AMS-10 works". That archive declares left 0.4 / right 0.8
+  throughout, with the same executable as AMS-09. Unequal installed-diameter
+  declarations are not sufficient to cause the same-nozzle colour failure.
+  This is right-nozzle AMS evidence, not dual-nozzle acceptance.
+- Generated AMS-11-L04-R08 from a fresh plan and the shared v12 exporter, with
+  no substituted reference project entry. Executable bytes exactly match
+  successful AMS-10. Canonical diameters, two colours, right-nozzle routing,
+  A/B/A sequence and tower-disabled setting are checked, as are normal bundle
+  generation/interpretation and material-change audit. No shared code changed.
+- Copied D:/AMS-11-L04-R08.gcode.3mf and verified SHA-256
+  6c159c1ab39d41aa4dced0bc5a5acc987aada98dd46ba7b7a83c1f1c113f9199.
+  Same fast startup, geometry and service commands; this isolates the authored
+  project representation. The unprinted equal-diameter AMS-11 is superseded.
+- Next: observe both AMS-11 colour changes and first-layer contact. On success,
+  return to a separated-pad left/right/left test using the accepted writer.
+  General exporter hardware acceptance and physical dual-nozzle use remain open.
+
+
+## 2026-09-21 — Agent CLI toolkit moved outside the dev-map scope
+
+- Decision (project owner, this session): the dev map covers core and Studio
+  product code only. The agent CLI toolkit, `core/agent`, is not in scope.
+- `dev-map/lib/scope.mjs` gains `unmappedDirs=['core/agent']` and
+  `outsideRootOf`; `isMapped` excludes those directories. Region discovery,
+  port naming on root/region/group pages and overview anchors use them, so
+  `core/agent` is scanned as an outside caller like `scripts` and `adapters`:
+  never a region, page or index. `dev-map/flows/agent.json` deleted; the
+  toolkit manual moved to `outsideAreas` in `core/agent/toolkit.mjs` so
+  `--area core/agent` still returns it without a map target. Scope statements
+  updated in AGENTS.md, BUILDERS.md, DEVELOPER-CONTEXT.md, dev-map/README.md
+  and core/agent/README.md.
+- Verified after `regenerate 0`: 8 regions; `check` exits 0 with 149 files,
+  1617 pages, 3521 linked, 1091 unresolved, 5794 external, no unreached,
+  orphan facts or stale pages; root shows `core/agent` → core/print 4 calls and
+  → studio 33 calls, and its two http-routes under an `http-route` port.
+- Observed limit, not fixed: receiver-value linking in `graph.mjs accountCalls`
+  runs only for mapped callers, so 7 of the toolkit's 40 former call edges into
+  studio (resolved through returned records) are no longer drawn. The same
+  limit applies to skills, adapters and scripts today.
+- Map audit findings from the same session (measured on the stored map before
+  this change): 157 one-box passthrough pages; 862 of 1833 authored members are
+  nested helpers listed beside their parents; 543 boxes with no wire (455 call
+  boxes on function pages whose arguments and results the tracer did not
+  source, 88 home nodes on structural pages); all 5035 resolved calls carry a
+  reciprocal caller entry; 127 unresolved member-call sites name a mapped
+  declaration and 442 sites call through a function parameter; every one of the
+  1633 scanned declarations is published. Follow-up generator work is pending
+  the owner's go.
+
+## 2026-09-21 — AMS-09 switches colours; reusable H2D project writer awaits acceptance
+
+- User reports AMS-09 changed colours. Its executable commands and every entry
+  except project_settings.config were byte-identical to the failed AMS-08 ALT.
+  It declares 0.8/0.8. This proves the project-entry replacement is sufficient
+  for that job; no individual key or serialization requirement is isolated.
+- At the user's request, AMS-10 changes only left-diameter declarations to 0.4
+  across CONFIG, project JSON, slice metadata and SAAM summary, plus checksum.
+  Executable commands are identical to AMS-09. D:/AMS-10-L04-R08.gcode.3mf was
+  copied and SHA-256 verified as
+  `188b78db273366b7d5bf40cc22d91eb7e774cebdd6570a6bb815401661ac956b`.
+  Its physical result is pending. It uses only the right nozzle.
+- H2D v12 adds an authored project writer and explicitly scoped compatibility
+  defaults cross-referenced to Studio 02.08.02.61. Runtime has no reference-file
+  dependency. Canonical job values determine all repeated installation/material
+  fields; no vendor executable template, object or spare filament is retained.
+  Standard-only variants and actual filament cardinality are explicit. The
+  resolved slice keeps map_2; the saved project omits that slice-only field.
+  This is a broader compatibility representation, not a proven minimal schema.
+- Maker guidance now includes same-nozzle A/B/A setup, automatic colour matching,
+  fresh-profile generation, review, fast start and physical observation. Shared
+  print usage links it, so the maker onboarding route includes this guidance.
+  Copying the successful diagnostic's foreign project entry is not the workflow.
+- AMS-11 is a fresh v12 development bundle with two blue/orange logical filaments
+  and 580 generated project fields. Its executable is byte-identical to AMS-09;
+  it deliberately preserves that control's 0.8/0.8 declarations. SHA-256:
+  `d01b4347c811e477123052d7e08b6068af9256d1ecfd422f4447b99e90bbf8d1`.
+  Software generation checks pass; human review and physical test remain pending.
+- Targeted Bambu tests pass (30), including both nozzles, mixed diameters, AMS
+  changes, one/two/three-filament project cardinalities, source decoding, package
+  tampering and review/delivery. These do not prove firmware routing. Next:
+  obtain AMS-10's mixed-declaration result, verify the reusable writer, then
+  resume physical dual-nozzle work. X1 AMS acceptance is still open.
+
+## 2026-09-21 — Both AMS-08 variants fail colour switching; working reference confirmed
+
+- User reports both AMS-08 variants complete entirely orange with no colour
+  switch, while twocolor.twistedbox.gcode.3mf physically prints two colours.
+  First-layer height was not explicitly restated. B-1 and the equal-diameter
+  ALT did not resolve the failure. The investigation had continued command
+  changes without closing the isolated project-representation difference.
+- Created AMS-09-PROJECT-CONTROL from failed AMS-08-ALT-L08-R08, changing
+  exactly Metadata/project_settings.config to the working reference entry's
+  exact bytes. All G-code, CONFIG comments, MD5, thumbnails, slice/model
+  metadata and sequence entries are byte-identical to failed ALT-08. Both
+  declare 0.8/0.8. The body requests two changes, with fast start and no tower.
+- Local diagnostic only, not a production template. It retains reference
+  project preferences (green/yellow, unused third filament, Auto For Flush,
+  stored tower/template settings). The slice/body still uses SAAM's two
+  blue/orange filaments on the right. User maps first used filament to blue,
+  second to orange. No reference executable/tower commands were inserted.
+  The normal strict SAAM importer intentionally rejects this foreign entry.
+- SHA-256 f18304938c88ccd63644038b3b56769812824675b22b83bd2504f12bbab83e98.
+  Copied it and AMS-09-README.txt to D: with hash verification; result pending.
+  Changed-field lists and byte assertions are recorded in the local diagnostic
+  bundle Prints/bambu-h2d-ams-project-isolation-fast-09/comparison.json.
+- A pass establishes the complete reference project representation suffices
+  with this short SAAM executable. Narrow field presence, values and serialization
+  next while holding G-code fixed. A failure means this entry alone is
+  insufficient for this job; examine other package/startup differences against
+  the working reference. Neither outcome alone identifies a required key.
+  Round-trip consistency does not verify firmware ingestion or execution.
+
+## 2026-09-21 — Dev-map indexes are places in the map tree
+
+- Owner's model: an index names a node's home position in the map tree, not a
+  file. Every studio/core declaration is a leaf on some map, leaves sit in
+  authored functional flows, nesting reaches a single `0`, and a node repeated
+  on another map keeps its home index with a red link on both sides.
+- Before: published indexes were source addresses (region.file.declaration,
+  groups at `N.0.k`, with another `.0.` per nesting level). Only 141 of 1,827
+  reachable pages had an index extending the map that showed them; 148 of 150
+  file pages were unreachable from `0`.
+- New `dev-map/lib/tree.mjs`: after composition, walk containment maps (root,
+  region, group, file) before call-flow maps; each map numbers its home nodes
+  1…n under its own index. Address fields are rewritten once across all
+  published pages; repeats carry `home`, home nodes carry `alsoOn`. Pages no map
+  shows (148 file pages, 83 file-level groups) are not published and are listed
+  as `unplaced` by `regenerate`. Source addresses stay internal (`sourceByPath`,
+  source packets) for scoped reuse; store schema 4. Viewer draws `home`/`alsoOn`
+  as red links. AGENTS.md, DEVELOPER-CONTEXT.md, BUILDERS.md, dev-map/README.md
+  and developer onboarding text describe the new walk.
+- Verified in the shared checkout (no dev-map tests remain after the test cut):
+  all 1,633 declarations reachable from `0`; all 1,827 pages are home nodes on
+  their parent map with gap-free numbering; no index has a `0` segment; every
+  repeat names its home; no wire end names a missing page; `regenerate 3` output
+  identical to a full run; `dev-map/cli.mjs check` clean; developer onboarding
+  runs; viewer shows `home 4.6` etc. on `3.2.1.1.1` (DOM read, no screenshot).
+  Checkpointed in 85c9bfd with concurrent sessions' work, unreviewed.
+- Open: file-level flow groupings (e.g. `core/export/dobot-lua-subset.mjs`)
+  duplicate their region-level groups and now draw nothing; delete or keep as
+  the owner decides.
+
+## 2026-09-21 — Same-nozzle reference received; AMS main/ALT pair on USB
+
+- Inspected user-supplied twocolor.twistedbox.gcode.3mf, SHA-256
+  c0905ff8957f685282ba66d0795765a016d2c95246ad99183989a6600fdf5127:
+  62 material changes, all through right nozzle 1. All outgoing descriptors
+  retain B-1, including returns to filament 0. The prior SAAM colour candidate
+  changed B to 1 after its first change. v11 now keeps remapped B-1 for
+  same-nozzle changes and derives the reference thermal-sync form from owned
+  temperature/rate settings. Cross-nozzle behaviour remains unchanged.
+- The supplied reference uses green/yellow and declares 0.8/0.8, with a tower
+  and an unused third filament. SAAM retains user-requested blue/orange, two
+  logical filaments, right-only deposition and no tower. No vendor header or
+  project-settings blob is copied into either generated file.
+- Prepared main and user-requested ALT in Prints/bambu-h2d-ams-pair-fast-08.
+  Main AMS-08-L04-R08.gcode.3mf declares left 0.4/right 0.8; SHA-256
+  1207e944e38dc860edd5f512a9f14457fd6f466bac56a0262e202f851dc25d2f.
+  ALT AMS-08-ALT-L08-R08.gcode.3mf declares left 0.8/right 0.8; SHA-256
+  995ae7697a7c697e5901844570c345e3b55d7fafb0b63332ab80b5fa87c8327a.
+  Executable bytes and decoded moves are identical across the pair. Both print
+  six 0.3 mm layers, two each blue/orange/blue, centred 24×16×1.8 mm. Estimated
+  body time is 3.1 minutes, excluding startup and AMS operations.
+- Copied both files and AMS-08-README.txt to the user's D: USB with exact
+  SHA-256 read-back verification. User starts prints; no manufacturing approval
+  or hardware execution was synthesized by the agent. Physical results pending.
+- 28 focused checks pass, including two changes on one nozzle, both outgoing
+  selectors, purge units, thermal sync, ALT executable equality, package
+  round-trip and existing dual diameter/feed tests. The minimum project record
+  is unchanged; omitted project-settings dependency remains unresolved.
+  B-1 is a reference-alignment change, not a proven cause of earlier failures:
+  wrong nozzle/Z occurred before the first colour change, when B was already -1.
+
+## 2026-09-21 — Shift the next hardware test to H2D same-nozzle AMS colours
+
+- User reports dual-project-identity-fast-06 failed: nothing adhered to the bed
+  and dribbling material was seen at the right nozzle. The print was not watched;
+  elevated Z and right-only execution are suspected, not directly confirmed in
+  this run. Adding project name/from/version alone has not repaired the dual job.
+- User explicitly shifts the immediate investigation to same-nozzle colours;
+  dual-nozzle support remains an outstanding goal. Confirmed test colours are
+  blue and orange (correcting the earlier brown description). Planned sequence
+  is blue → orange → blue on the right 0.8 mm nozzle, with fast startup and no
+  prime tower. No AMS slot numbers requested.
+- H2D v10 implements the same-nozzle branch in the shared regional change
+  writer, using one 300 mm³ profile purge policy converted to filament length
+  for both M620.10 descriptors. H2D firmware owns flushing; no duplicate explicit
+  E flush is emitted. Existing dual-nozzle changes retain L0. Summary counts
+  now count only same-nozzle changes as colour flushing. External-spool material
+  changes are rejected. Installed H2D template dated 20260528 and upstream
+  GCode.cpp provide command/unit evidence, not physical validation.
+- Ten focused tests pass: H2D colour changes and rejection, existing dual
+  diameter/feed cases, and X1 colour changes. New coverage verifies right-only
+  body motion, 0.3 mm initial deposition, blue/orange/blue layer assignment,
+  repeated logical-filament selection, descriptor volume and tamper rejection.
+- Requested a dedicated Studio same-nozzle reference; existing two-colour
+  twisted-box export changes nozzles and cannot establish same-nozzle behaviour.
+  No new hardware success is claimed; unresolved project ingestion remains a
+  material limitation before the next test is released.
+
+## 2026-09-21 — Project JSON isolated; return to actual mixed-nozzle testing
+
+- User reports full-gcode-config-fast-04 fails with the same wrong right nozzle
+  and elevated Z, while full-project-config-fast-04 passes. Full project JSON
+  suffices with the minimal 40-entry G-code CONFIG; restoring only full G-code
+  CONFIG does not repair minimal project JSON. This identifies the project-file
+  reduction as the relevant configuration difference in the controlled reference
+  experiment. No individual omitted field or firmware parsing mechanism is proven.
+- User challenged the continuing single-nozzle tests and reiterated the goals:
+  working dual nozzles first, AMS colours second. The prepared three-field
+  single-left identity probe is superseded without hardware testing. The next
+  experiment directly uses the SAAM-authored mixed-diameter fast-05 job.
+- Prepared Prints/bambu-h2d-dual-project-identity-fast-06. It adds only project
+  name=project_settings, from=project and version=02.08.02.61; version is taken
+  from the archive's existing X-BBL-Client-Version. Every G-code byte and every
+  other ZIP entry is identical to failed fast-05. SHA-256:
+  383e099acb335aaf9537ef86f8d5c812a766181423f93fb678f3422ff033c7b7.
+- Expected physical sequence: left 0.4 / centre pad, right 0.8 / pad 60 mm to
+  the right, left, right, left. Left uses external PLA at 215 C; right uses blue
+  PLA through AMS at 225 C. Fast startup and no tower remain. Verify actual
+  nozzle changes and correct-height deposition, not just cleaning visits.
+- This is a clearly labeled diagnostic mutation, not a normal regenerated
+  delivery: the shared interpreter/exporter is unchanged and does not accept
+  the added project fields yet. If successful, implement this authored metadata
+  in the canonical exporter and regenerate; if unsuccessful, broaden project
+  repair on the dual job rather than extending the single-left test sequence.
+  No reference header was copied into this SAAM-authored diagnostic. USB D: was
+  disconnected when prepared; copy/hash verification remains pending.
+
+## 2026-09-21 — Alphabetical minimal configuration fails; isolate configuration source
+
+- User reports left-config-order-fast-03 uses the right nozzle at elevated
+  height. Both reduced configurations fail, while the complete configuration
+  succeeds with identical executable commands. Alphabetical order alone is
+  insufficient. Missing information or a larger-configuration requirement is
+  implicated; no particular field or count threshold is established.
+- Prepared two complementary controls in Prints/bambu-h2d-config-surface-fast-04.
+  First test left-full-gcode-config-fast-04: full 569-entry G-code CONFIG with
+  minimal 39-entry project JSON (SHA-256
+  d87f2d6ffa61970897402ae3b415a32da33651248ea853eb8506ee89ee9ee66e).
+  If it fails, test left-full-project-config-fast-04: minimal 40-entry G-code
+  CONFIG with full 580-entry project JSON (SHA-256
+  4041bf7a6c95ee9469f2058a24842a07d1fc2ddaf6289848f85b67216dbdda50).
+- The first differs from the physically successful fast control only in its
+  project-settings ZIP entry. The second differs from the failed order probe
+  only in that entry. Every executable byte, startup reduction, setting value
+  retained on each surface, nozzle declaration and part motion is preserved.
+  A pass identifies a sufficient configuration source for this reference; if
+  both fail, investigate their interaction. These remain single-left reference
+  diagnostics, with physical results pending and no production-header adoption.
+
+## 2026-09-21 — Fast reference control passes: configuration differences isolated
+
+- User reports left-reference-fast-control-02 prints correctly. Its executable
+  G-code is byte-identical to failed left-minimal-config-fast-02, which printed
+  using the right nozzle at elevated height. Both use the same shortened
+  startup, temperatures, homing, selection and part motions. The changed
+  configuration surfaces therefore distinguish the physical outcomes in this
+  controlled comparison; startup reduction does not explain that difference.
+- Still unresolved: omitted fields versus ordering, and G-code CONFIG versus
+  project JSON. Do not identify a specific setting or firmware parsing mechanism
+  as the cause yet. The prepared alphabetical-order probe changes no setting
+  values, counts or executable commands and is the next test. Shared exporter
+  changes and mixed-diameter acceptance follow the discriminating result.
+
+## 2026-09-21 — Reduced configuration reproduces wrong nozzle and elevated printing
+
+- User reports left-minimal-config-fast-02 prints with the right nozzle at the
+  wrong height, reproducing both H2D failures while using the reference's
+  executable commands with shortened startup. Its matching full-configuration
+  fast control has not yet been reported; common startup changes remain a
+  confounder until that result. Do not declare a specific missing key proven.
+- Prepared left-config-order-fast-03 as the next discriminating probe if the
+  full-configuration control passes. It alphabetizes exactly the same 40 CONFIG
+  and 39 project entries. No value, entry count, executable command, temperature,
+  nozzle map or Z move changes. This separates field order from field omission
+  without introducing speculative settings. It remains a local reference
+  diagnostic, not an exporter fix or dual-nozzle acceptance.
+- Order probe SHA-256:
+  8e9fd31cf5ebdc73871495008f4f36eff1f57f6492cb75b93309339a4e342da1.
+  Archive round-trip checks verify the changed-entry set and byte-identical
+  executable against failed minimal-config-fast-02. Physical result pending.
+
+## 2026-09-21 — Packaging and producer controls pass; reduced-configuration probe
+
+- User reports both leftnozzle-repack-control-01 and leftnozzle-origin-probe-01
+  print correctly, with slow startup the only issue. This is physical H2D
+  evidence against ZIP packaging or those two producer-identification fields
+  alone explaining fast-05. It does not establish X1 or mixed-nozzle acceptance.
+  Exact hashes and the user report are in the controls' comparison.json.
+- Prepared Prints/bambu-h2d-left-config-probe-fast-02. The probe retains reference
+  values but reduces/reorders CONFIG/project fields to the keys SAAM emits:
+  CONFIG 569 to 40, project 580 to 39. The companion control keeps all reference
+  settings. Both have byte-identical executable G-code: reference commands with
+  optional leveling/flow/plate/tool-offset flags off and music/vibration removed.
+  Homing, nozzle-type selection, saved compensation, heating, cleaning and Z
+  registration remain. Body and shutdown are unchanged from the reference.
+- Test the reduced-config probe first; if it succeeds, the second print is
+  unnecessary. If it fails and the fast reference control succeeds, field
+  omission/order is implicated. If both fail, the common startup reduction is
+  a confounder. Both retain the reference's declared 0.4/0.4 and single-left path;
+  they do not test mixed diameters. First-layer observation suffices. Results
+  remain pending. No reference header or geometry entered the shared exporter.
+- Probe SHA-256:
+  68449ae70a29ff0ceef7e4dee404157720fc4d78230bfd40d81a178625670df8.
+  Fast reference control SHA-256:
+  f56dbda516e11f07829b1e7b95ee079451f1451c2556cd35fac6ea734e5861ce.
+  Archive checks confirm only G-code/dependent MD5 change in the control, with
+  project settings additionally reduced in the probe; retained values match.
+
+## 2026-09-21 — Stored test suite cut to the tests that cannot be regenerated
+
+- Premise agreed with the owner: "does this work?" can be answered by tests an
+  agent writes on demand from the code. A stored test earns its place only when
+  its oracle cannot be regenerated by that reasoning at the time of need.
+- Four keep criteria: (1) the oracle lives outside the repository — machine,
+  firmware, controller or upstream reference; (2) a safety invariant with no
+  local trigger — approval invalidation, stale views, byte-identical delivery,
+  manifest honesty, cancellation boundaries, lifetime and shutdown isolation;
+  (3) an expensively discovered defect on its minimal fixture; (4) the MCP
+  adapter surface, kept whole. Everything else is written on demand.
+- Before: 200 `*.test.mjs` files, 20,928 lines, 1,182 cases. After: 42 files,
+  4,152 lines (19.8%), 192 cases. Lines by criterion: 1,428 external oracle;
+  1,169 safety invariants; 718 observed defects; 837 MCP. Five files were kept
+  only for their criterion-3 case and trimmed to it (`studio-material`,
+  `vase-wall/vase`, `vase-wall/paths`, `text/text`, `wave-overhangs/wave`).
+- Removed: all of `dev-map/tests/` (analyzer oracle is JS semantics), every
+  `*-stages.test.mjs` refactor characterization, Studio UI/presentation suites,
+  analytical geometry/path/region suites, agent-surface tests other than MCP,
+  and source-text regex tests. `package.json` drops the `dev-map/tests` glob
+  and `test:maps`; `core/tests/README.md` now states the four criteria and
+  lists only surviving files.
+- Recovery needs no backup: every deleted file is at `git show f7ec6f6:<path>`
+  (test files carrying another session's uncommitted edits recover to their
+  last committed state).
+- Verification: `node scripts/check-repo.mjs` passes after repairing the doc
+  links this cut broke. `npm test` is 193/194 with one failure that is not from
+  this change: `skills/gridfinity/tests/access.test.mjs` expects
+  `toolpathApproved === false` while the new `core/print/review-state.mjs`
+  projection returns `null` for an unchecked program.
+
+## 2026-09-21 — Fast-05 fails; distinguish file recognition from firmware execution
+
+- User reports fast-05 still starts and prints with the right nozzle at elevated
+  height. Restoring early homing and adding two configuration declarations did
+  not fix those symptoms. The working leftnozzle archive remains the positive
+  physical control; do not ask the user to identify it again. Its SHA-256 is
+  2e476df9cccd6e1b94433c9ddfc91295db9b00b9054206cfd7c4dc6c55a55be7.
+- Both the working control and failed SAAM output enable M620 remapping, select
+  logical filament 0 using M620/T0 H-1/M621, and command a 0.2 mm first deposition
+  height. These encoded values do not establish the firmware's physical nozzle
+  selection or coordinate state. A numeric first-layer-height typo is not shown.
+- Official Studio desktop source gates embedded G-code configuration loading on
+  producer recognition. ConfigBase::load_from_gcode_file then requires a
+  `; BambuStudio` line prefix and at least 80 recognized configuration pairs.
+  The working control has that marker on line 2 and 569 total pairs. Fast-05 has
+  no such marker and 40 pairs. This establishes a desktop-reader compatibility
+  gap, not that printer firmware applies the same gate or deliberately rejects
+  SAAM. Adding the marker alone would not satisfy the desktop configuration
+  loader. No borrowed header or false Studio authorship was added.
+- The read-only Bambu audit now reports these necessary desktop-reader conditions
+  separately from selected-field consistency. Unknown keys still count toward
+  the reported total, so reaching 80 is explicitly not sufficient. Five audit
+  tests pass, including the distinction between the count and schema acceptance.
+- Installed Studio 02.08.02.61 CLI --help works, but attempted --info imports
+  yielded no diagnostic output; an explicit process wait reported exit -6 for
+  fast-05. No successful import or rejection reason was obtained. These attempts
+  did not start a print or change either tested archive.
+- A first-person H2C report (bambuddy issue 2800) links incorrect dispatch nozzle
+  mapping to elevated printing and reports a hardware-tested correction. It is
+  supporting evidence for investigating routing and Z together, not an H2D
+  protocol or a fix to copy. H2D USB dispatch remains unobserved.
+- Prepared two local reference controls in
+  Prints/bambu-h2d-leftnozzle-origin-probe-01. Test the repack control first
+  (SHA-256 fa835bca4c716bab35c6ce9a3243eebb9f4c921236ddb72661b377b66629df83):
+  every one of its 17 entries is byte-identical to the working reference, using
+  SAAM's ZIP writer. Only if that works, test the origin probe
+  (SHA-256 a011ab35caa6184c292af7de1a1b757153898d7c04cfe3974a8c1c643d55b903):
+  the G-code producer comment and 3MF Application identity change, plus the
+  dependent MD5. Configuration and executable bytes remain identical. This
+  staged comparison separates packaging from the identification fields as a
+  group. Both retain the reference's full startup and need only first-layer
+  observation; physical results are pending. These are diagnostic reference
+  copies, not SAAM-generated geometry or borrowed exporter headers.
+
+## 2026-09-21 — Corrected interpretation of homing evidence and fast-05
+
+- User challenged the claim that missing homing explains the elevated part:
+  SAAM has printed correctly on this H2D many times, and full-04's front purge
+  was at the correct height. The agent's earlier explanation overstated the
+  evidence. Full-04 lacks an early X/Z block, not all homing or Z calibration;
+  it retains later conditional G28 R, G383/G39.1 operations, compensation and
+  front-purge registration. The early omission was already documented as H10.
+- No exact previously successful SAAM archive has yet been correlated and
+  compared with full-04 to identify the regression. Successful older prints
+  must not be discounted because that artifact-level comparison is missing.
+- Fast-05 changes three groups relative to full-04: fast-start policy, restored
+  early homing, and added CONFIG/project declarations. Its body and shutdown
+  are unchanged. It is not a single-variable causal experiment; a successful
+  result would validate that combination only. Neither homing restoration nor
+  multi-material metadata has been proven to fix the physical routing/height.
+- Export, audit and playback checks establish encoded intentions and consistency,
+  not the printer's actual active nozzle, coordinate transforms or AMS routing.
+  The height/routing root cause remains unknown. A wrong active nozzle/offset
+  state is a hypothesis connecting the two symptoms, not a measured finding.
+
+## 2026-09-21 — H2D fast-05 restores initial homing after full-04 retest
+
+- After repairing the pinched left-feed PTFE tube, user reports full-04 now
+  completes its motions without freezing, but prints both pads using the right
+  nozzle at elevated height. It visits the cleaning station at changes without
+  switching nozzles. Initial left-feed suggestion remains a one-slot AMS; user
+  manually selects external. The obstruction explains the change in stalling
+  behavior, but routing and height failures remain.
+- User requested another H2D test with fast start. H2D v9/revision 19 restores
+  initial X home, wipe/park and the M1009-bracketed Z home before initial load,
+  matching the working left-only Studio reference's essential homing sequence.
+  The earlier H10 omission had persisted even in full-04. Fast mode now retains
+  this sequence while omitting optional calibration/vision/vibration blocks.
+  No arbitrary numerical Z compensation or forced physical T index was added.
+- Both Bambu outputs now declare single_extruder_multi_material=1 and
+  printer_technology=FFF from the resolved job into CONFIG and project JSON.
+  The installed common profile and H2D reference supply evidence for these
+  declarations; whether they correct firmware routing is not yet established.
+- Generated Prints/bambu-h2d-mixed-nozzle-fast-05, SHA-256
+  99148aefa414cd763c5d3087173002271c9fd194ca7a1cdc9480c6029df57863.
+  Its complete print body is byte-identical to full-04: centre left 0.4,
+  offset right 0.8/blue, four switches, no tower. Startup is fast with restored
+  initial homing. Audit reports no selected-field inconsistencies. 31 targeted
+  Bambu/dual/X1/audit tests pass, including homing-before-load in full/fast modes.
+- Studio server opened at http://127.0.0.1:56084; browser navigation was denied.
+  Human review/export and physical acceptance are pending. Do not report either
+  the nozzle selection or actual print height fixed without the hardware result.
+
+## 2026-09-21 — Left-only Studio control succeeds; left feed obstruction corrected
+
+- User reports the untouched leftnozzle.gcode.3mf prints correctly on H2D
+  (reference SHA-256
+  2e476df9cccd6e1b94433c9ddfc91295db9b00b9054206cfd7c4dc6c55a55be7).
+  They found and corrected a pinched PTFE tube that prevented filament from
+  advancing through the left external feed. They report that the printer had
+  consequently treated the left external spool as unloaded. This physical
+  obstruction is a confounding factor in the earlier H2D failures; it does not
+  yet establish which routing, height or freeze symptoms it explains.
+- User is repeating the unchanged full-04 archive after the repair (SHA-256
+  a8623e7bcbbf4776b8319e32d596aafe92e796883abd2e8dc219e32c00dd60e5).
+  Result pending. Preserve the executable and settings for this comparison.
+- X1 is no longer available. Continue hardware testing on H2D: first verify
+  left/right mixed-diameter execution and resumption after switches; then
+  verify AMS colour changes. H2D same-nozzle colour changes still need an
+  implemented service contract and verification. The failed X1 result remains
+  unresolved; H2D success would not count as X1 physical acceptance.
+
+## 2026-09-21 — Inclined bridge follow-up and transverse second course
+
+- Nave requested two-loop supports, 4 mm rise, +/-Y spans, increased bridge flow,
+  uphill/downhill one-way end-attachment comparisons, and a matched singleton
+  second layer along +/-X. Subsequent corrections set low rims to 2 mm and all
+  non-circular spans to 24 mm; circular spans retain 12 mm.
+- Bridging now accepts an optional one-way end-attachment record for independent
+  overlap, speed, press, jog and flow. A later course can explicitly name an
+  earlier bridge as nominal strand support. Attachment checks interpolate its
+  actual 3D segments; they do not promote gaps into a filled supporting sheet.
+  Existing wall producers and shared composition/export remain unchanged.
+- Local Array 02 contains 16 specimens, 17 bridge courses, including 100/120%
+  references and one second-layer specimen. Export checks verify 1,160 wall
+  circuits, 1,170 straight spans, direction/flow, matched first layers, directed
+  returns and continuous paths. Whole-stack excursion is at most 4.16667 mm.
+  Six bridge and twelve lifecycle tests pass. Preview motion estimate 71.6 min;
+  no Array 02 physical results yet. R001 photos and operator findings are retained
+  separately in the local print-test program.
+
+## 2026-09-21 — X1 AMS failure; H2D dual-nozzle work remains first priority
+
+- User physically tested the approved X1 fast-01 archive (SHA-256
+  09b38dfef9515d83292b9e0d45f5dc7cd6bb169c96be9ec6069e04d2809524b8).
+  The printer said: "The current model does not support AMS manual mapping.
+  Please arrange the AMS filaments from left to right in the order of model
+  filaments". After the user arranged them, the part printed entirely grey
+  without the requested colour changes. Whether service visits occurred and the
+  launch method are not yet confirmed. This is a failed AMS acceptance test,
+  not successful three-colour printing.
+- User observed some startup vibration, then explicitly deprioritized that
+  observation. Priority is H2D mixed-diameter dual-nozzle execution, followed by
+  AMS colour changes on either/both machines. No vibration-related executable
+  changes were made in response.
+- Read back the exact approved files. X1 contains M620 S1A / T1 / M621 S1A
+  and then M620 S2A / T2 / M621 S2A; explicit M970/M974 tests are absent.
+  H2D full-04 contains G1 Z0.2 before the centre pad and its first change is to
+  logical filament 1. These are source observations, not proof of firmware
+  execution. Right target 215 C still supports the first filament being routed
+  to the wrong nozzle; it does not identify the cause.
+- The installed Bambu common profile and supplied H2D reference declare
+  single_extruder_multi_material=1 and printer_technology=FFF. SAAM currently
+  omits these fields and machine_start_gcode configuration text. Their absence
+  is a compatibility hypothesis, not a demonstrated firmware requirement or
+  proven explanation. Do not add guessed routing overrides or misattribute
+  SAAM output to Bambu Studio to mask the failure.
+- Requested the untouched leftnozzle.gcode.3mf USB first-layer control with
+  left external selected. Requested an X1 three-colour Studio reference for
+  secondary comparison; it is not a prerequisite for continuing H2D work.
+  Preserve failed artifacts and approval hashes for controlled comparisons.
+
+## 2026-09-21 — X1 three-colour AMS test and H2D full-start failure
+
+- User requested a second machine test: X1 Carbon, 0.4 nozzle, fast startup,
+  exactly two AMS changes white -> grey -> black, and confirmed all PLA with
+  Textured PEI. Added X1 v5's single-nozzle material-change contract, without a
+  prime tower. H2D same-nozzle material changes remain unsupported.
+- Authored an X1 cutter/load/chute-flush/wipe/handoff recipe using the installed
+  X1 0.4 change_filament_gcode (20251031) as protocol comparison. Each change
+  flushes 300 mm3 plus 2 mm filament priming; this is a bounded test purge policy,
+  not a colour-purity guarantee. All M620/T/M621 selectors use logical filament
+  identities. Incoming retraction follows its own process, including when it
+  differs from the outgoing material on the same physical extruder.
+- Shared planning, body export, source interpretation and package quantities
+  support these changes through the existing regional selections. Studio shows
+  separate chute-purge allowance. Added the new player module to Studio's
+  explicit browser module allowlist after the first UI verification caught the
+  missing route; no unrestricted file-serving route was introduced.
+- Prepared Prints/bambu-x1-ams-white-grey-black-fast-01: centred 18 x 12 x 1.8 mm
+  coupon, 0.6 mm colour bands, nine layers, two changes, 215 C nozzle / 60 C bed,
+  fast startup, all feeds auto-matched by material/colour for user confirmation.
+  SHA-256 09b38dfef9515d83292b9e0d45f5dc7cd6bb169c96be9ec6069e04d2809524b8.
+  Body time 139.99 s, body volume 394.44 mm3; service time/material additional.
+  Studio loaded the complete toolpath after the browser module fix. Human
+  settings/toolpath approval was recorded at 2026-09-21T20:51:57.811Z for this
+  exact hash; the UI showed Export again and Download reviewed file. No
+  physical print result is claimed.
+- Validation: 41 targeted tests pass (39 existing Bambu/dual/audit/source/Studio
+  checks plus two new X1 cases). New checks cover exact change order, actual
+  purge volume, same-nozzle retraction differences, decoded band heights and
+  colour IDs, archive tampering, external-feed rejection and insufficient lift.
+- Meanwhile user reported H2D full-04 reproduced the elevated first pattern and
+  freeze exactly. Right nozzle stayed active at target 215 C (the first/left
+  filament's requested temperature), while left cooled after startup. Left
+  target was not displayed and remains unknown; do not record assumed target 0.
+  Fast startup is therefore not required to trigger this H2D failure. Next
+  independent H2D comparison remains the untouched Studio left-only USB file.
+
+
+## 2026-09-21 — USB external-feed default observation during full-04
+
+- While testing full-04, the user clarified that the printer correctly defaults
+  right to blue AMS, but defaults the left filament to a one-slot AMS. They
+  manually change left to external spool before confirming. Record this
+  distinction: the final confirmed screen is correct, its initial left default
+  is not. The full-04 physical result is still pending.
+- Checked the exact full-04 archive: extruder_ams_count is
+  [1#0|4#0, 1#0|4#1], identical to the supplied left-only Studio reference.
+  This declares no left AMS devices, not a one-slot device on left. Source
+  external is currently serialized only in SAAM's intent manifest/review, not
+  a demonstrated printer-consumed dispatch field. The export cannot claim to
+  force automatic external selection. Do not replace default_ams_type with an
+  invented external selector: Studio defines it as a timing-estimate enum.
+- Next: record full-04 hardware outcome, then compare the untouched Studio
+  left-only reference's USB default and actual first-nozzle behavior if needed.
+
+
+## 2026-09-21 — Centre-pad failure confirmed and calibration identity correction
+
+- User tested approved fast-03 (714b84745c27efc33f627025728548405fb01e82f255b78d12539a1e21923522):
+  right 0.8 physically traced the centre pad intended for left 0.4, above the
+  plate, for one layer, then stopped with the head over the centre pad. The job
+  was cancelled before temperatures were recorded. G1 travel did not resolve it.
+  First changeover is the next planned service boundary, not a proven stall line.
+- User supplied leftnozzle.gcode.3mf, SHA-256
+  2e476df9cccd6e1b94433c9ddfc91295db9b00b9054206cfd7c4dc6c55a55be7.
+  Its maps 1,1 / 0,0 and used nozzle group 0 confirm left-only intent. Initial
+  M104 T1, G151 P1 and remapped T0 H-1 match SAAM's selected-left expressions.
+  No physical result for this reference is established. Its declared diameters
+  remain 0.4/0.4; they do not override the reported installed 0.4/0.8 pair.
+- Found a separate duplicated startup defect: M620.17 assigned both physical
+  extruders the initial temperature and hardcoded filament 0, while G383* also
+  hardcoded L0. H2D v8 now resolves these fields from actual ordered filament
+  use and the machine physical-extruder map; unused nozzles use the vendor's
+  declared-filament-0 fallback. The initial G383* L follows the selected logical
+  filament. Source GCode.cpp explicitly reorders first_filaments physically.
+  This calibration branch was disabled in fast-03 and is not its root cause.
+- Added independent audit checks for calibration filament/physical-extruder and
+  temperature mismatches; regression checks cover opposite-side temperatures,
+  both J1/J2 branches, nonzero selected IDs and unused earlier declarations.
+  Targeted exporter, dual-nozzle, audit and source-player checks pass (34 unique
+  tests across focused runs). Approved fast-03 bytes were not modified.
+- User then explicitly requested the next SAAM test without fast start. Prepared
+  Prints/bambu-h2d-mixed-nozzle-full-04, fast_start=false with bed leveling,
+  flow calibration, plate detection and tool-offset calibration explicitly on.
+  The G-code body is byte-for-byte identical to fast-03; normal startup scans,
+  vibration checks and music are present. H2D v8's corrected calibration identity
+  is also included, so this is not a pure fast_start-only A/B comparison.
+  Cold interpretation and independent audit pass. Export SHA-256
+  a8623e7bcbbf4776b8319e32d596aafe92e796883abd2e8dc219e32c00dd60e5.
+  Presented in refreshed Studio for human settings/toolpath review; approval and
+  hardware result remain pending at preparation. No change was made to fast-03.
+- Pending independent comparison: start the untouched left-only Studio reference via
+  the same USB flow and observe its first layer/nozzle/height. No additional SAAM
+  test is presented as a routing or freeze fix. AMS mapping and mixed-nozzle
+  execution remain unresolved; heater readings at any subsequent stop are needed.
+
+
+## 2026-09-21 — H2D second failure, feed-rate audit and separated diagnostic
+
+- The user confirmed fast-02's USB mapping screen explicitly selected external
+  left and blue AMS right, but the printer physically loaded another AMS slot.
+  It started with the right nozzle, deposited one layer several millimetres above
+  the plate after a correctly placed front purge, then appeared to freeze while
+  reporting Printing. Which pad it traced and heater readings remain unknown.
+  Previous prints on this machine did not freeze; AMS routing has never worked
+  correctly for the user. The header correction did not resolve these symptoms.
+- Fast-02 was actually approved and delivered in Studio at 19:46:39Z, hash
+  6447f187172833bd3d76d743fa72be424f02defae8c0662dd6f51dd14e24b202.
+  Audited its exact archived G-code: deposition 16.664–40 mm/s, travel up to
+  120 mm/s, Z travel 10 mm/s; decoded body total 31.34 seconds. Minimum-layer
+  slowdown is zero and M220 is 100%. No body G4 dwell. Temperature waits and
+  firmware nozzle-change synchronization remain possible stop points; service
+  time is not included in body timing. Slow commanded motion is not the cause
+  of a sustained stop in these body moves.
+- Bambu bodies now use G1 for travel, matching the supplied H2D Studio body.
+  H2D v7 / X1 v4 pin that choice; the shared writer keeps G0 as the default for
+  other dialects. Interpretation rejects G0 in this new body contract. This is
+  a bounded compatibility change, not proof that G0 caused the elevated layer
+  or the stop. Static H-1 selectors are retained: Studio source explicitly uses
+  -1 when dynamic nozzle mapping is disabled.
+- Prepared Prints/bambu-h2d-mixed-nozzle-fast-03 with the intended first left
+  pad centred at (175,160) and right/blue pad centred at (235,160). Both remain
+  8 x 8 x 0.6 mm, four changes, fast startup, no tower. Production generation
+  passes; SHA-256 714b84745c27efc33f627025728548405fb01e82f255b78d12539a1e21923522.
+  Local-user settings/toolpath approval was recorded at 20:13:37.518Z and Studio
+  delivered the same hash. Physical acceptance remains pending.
+- Validation: all 38 targeted exporter, dual-nozzle, archive-audit, source-player
+  and Studio-settings tests pass across the focused run and the corrected
+  bounds-tamper test rerun. The new assertion checks explicit first-layer G1
+  descent and rejection of a G0 substitution. General Griffin source playback
+  retains its existing output and passes.
+- Next evidence: identify the first physical pad/nozzle and any stop position,
+  plus actual/target heater readings. Request a small single-left-nozzle Studio
+  export for comparison: both supplied H2D references start on the right, leaving
+  left-first startup without independent reference coverage. AMS/USB dispatch
+  and physical mixed-diameter acceptance remain open.
+
+
+## 2026-09-21 — USB filament header correction and reusable Bambu fast start
+
+- The user reported the delivered mixed-nozzle test failed: USB print-screen
+  mapping correctly selected blue, but a different AMS slot loaded. Startup
+  reached the print position and stopped without an error; the screen said
+  Printing. Heater readings and whether any pad was deposited remain unknown.
+- Found a concrete cross-surface mismatch: the generated header used
+  `filament: 2` as a count, whereas the reference describes IDs `1,2`. Corrected
+  the header ID list and per-used-filament length/volume/weight/diameter/density
+  arrays from interpreted usage. The audit now flags the exact previous file.
+  This is a candidate explanation for routing, not proof of the stop cause.
+- H2D v6 / X1 v3 add `setup.bambu.fast_start`, default false: supported optional
+  calibration flags off, machine-owned optional music/vision/vibration blocks
+  omitted, explicit conflicting calibration-on requests rejected. Necessary
+  homing, Z registration, saved compensation, heat waits, loading, wipe and
+  prime remain. Guidance and Studio recipe review expose the option.
+- During retest preparation, the concurrent bundle-manifest change dropped a
+  non-enumerable geometry artifact when cloning restored state. Preserved that
+  property so generation does not write an unreadable manifest. Updated the
+  two affected exporter/source tests to use the manifest program path.
+- Validation: 38 targeted Bambu, audit, mixed-nozzle, source-player and Studio
+  settings tests pass. Original failed delivery now reports the header defect;
+  the replacement passes cold interpretation and the selected-field audit.
+- Prepared `Prints/bambu-h2d-mixed-nozzle-fast-02`: same two pads and four
+  changes, blue/right 0.8 and external/left 0.4, no tower; fast startup enabled.
+  Export SHA-256 `6447f187172833bd3d76d743fa72be424f02defae8c0662dd6f51dd14e24b202`.
+  Studio shows the checked production toolpath and Confirm settings & export;
+  approval and physical execution have not been claimed. Next observation is
+  actual feed selection and pad deposition; if it stalls, record both actual
+  and target nozzle temperatures and whether it stopped above or at the pads.
+
+## 2026-09-21 — Bridge-only recipe and S5 test array
+
+- Nave requested standard one/two-loop walls with no infill, roof or floor,
+  and a custom recipe owning only bridge spans and attachment motions.
+  Added the bridging skill through the existing plan/composition/export path;
+  no wall generator or new scheduler was introduced.
+- Two sampled rim rails produce straight XYZ spans, alternating continuous
+  paths or one-way diagnostic returns, supported overlap/lead/jog/press,
+  and separate attachment versus unsupported speed/flow. Generation checks
+  attachment coverage against emitted planar strokes and whole-bridge Z extent.
+- The earlier local thin-frame full-fill preview lost long single walls through
+  offset collapse; its prior geometry/export checks did not establish intended
+  wall coverage. Rebuilt the local S5 array using standard planar-infill guides.
+  Inclined supports are hollow towers rather than a closing wedge shell.
+- Evidence: four bridge tests and twelve workflow tests pass. Independent local
+  G-code checks cover 1,884 complete wall circuits and 960 straight spans over
+  24 specimens; continuous cases have zero internal travel, diagnostic cases
+  have 31 returns each. Export checks pass without short-travel warnings.
+  Physical results remain absent. Compact records and exact recipe/program are
+  in ignored `Prints/test-programs/001-s5-bridging`, current bundle `array-01-r02`.
+
+## 2026-09-21 — Mixed-diameter H2D output and delivered hardware verification
+
+- Continued the user's startup/nozzle/plate/AMS request through actual dual-nozzle
+  body output. H2D v5 adds regional logical-filament assignment and effective
+  nozzle-specific process settings, preserving the separate installed diameter,
+  logical material, physical heater and feed-source identities. All output
+  repetitions use the resolved settings; conflicting startup aliases fail.
+- Authored a bounded tower-free changeover from protocol facts cross-referenced
+  against both supplied two-colour exports and the installed template. A0/A1
+  use outgoing/incoming diameters and temperatures independently. The planner
+  retracts, clears deposited material and enters the common nozzle area; the
+  reader independently checks handoff position/debt and exact service commands.
+  Incoming recovery, outgoing hotend state, count, fan and body acceleration are
+  restored explicitly. No prime tower or same-nozzle material flush was added.
+- Source interpretation tracks each nozzle's bounds, temperature, withdrawal,
+  bead width, colour and consumption. Package usage, layer lists and nozzle
+  sequence follow actual actions. Mixed layer grids no longer collide through
+  their local indices or floating-point representations of the same height.
+  Studio settings/playback show the active nozzle and both material recipes.
+- Normal AMS choice remains material/colour matching. Auto, external-spool and
+  optional unit/slot intentions are independent per logical filament. Connection
+  validation rejects an AMS request on the wrong nozzle. This does not implement
+  network dispatch or guarantee a printer's physical mapping. Existing profiles
+  cover H2D and X1; unsupported device/output combinations remain explicit
+  rather than silently treated as this installation.
+- Extended device declarations after checking manufacturer capacity information:
+  H2D revision 15 permits four four-slot units plus eight single-slot HT units,
+  each connected to its declared nozzle. X1 revision 4 permits four connected
+  devices total, including HT; that combined limit is conservative. HT requests
+  have their own identity and never invent a four-slot tray index. Per-nozzle
+  count serialization follows Studio's count parser/writer. Sources and limits
+  are recorded in the Bambu contract and dev-map facts; physical HT routing is
+  not established. The already approved verification archive/snapshot is unchanged.
+- Validation: 64 distinct targeted tests pass across Bambu export/audit/dual
+  output, regions, composition, source playback, Studio settings, material and
+  renderer checks. These include all nine 0.4/0.6/0.8 diameter pairs, right-first
+  output, the right nozzle's additional build area, independent feed intentions,
+  altered change descriptors/temperatures/retraction/detection/acceleration,
+  rejected same-nozzle switching and cold archive interpretation. Maps were
+  regenerated and new declarations read back. Browser inspection showed both
+  pads, blue right material and correct separate nozzle/process/source rows.
+- Prepared `Prints/bambu-h2d-mixed-nozzle-verification`: two 8 × 8 × 0.6 mm pads,
+  left 0.4 external PLA at 215 C / 0.2 mm layers / 0.4 mm bead; right 0.8 blue PLA
+  at 225 C / 0.3 mm layers / 0.8 mm bead. Textured PEI, 60 C bed, no chamber heat.
+  Blue was explicitly requested; the user said left colour did not matter, so
+  #808080 is a display placeholder. Body has 228 moves and four nozzle changes,
+  approximately 31.34 seconds and 78.62 mm³ deposition, excluding firmware
+  service material/time; zero short-travel advisory findings.
+- Studio recorded local-user settings/toolpath approval at
+  `2026-09-21T19:06:41.718Z` and delivered
+  `bambu-h2d-mixed-nozzle-verification.gcode.3mf`. Saved delivery SHA-256:
+  `63289f90c83ca4658f9de55fd5dc6c2c1c1fe0b9ef06d1e5bf982e88a16ec6fe`.
+  A subsequent cold load checked the same bytes. The archive audit found four
+  nozzle changes, zero tower sections and zero issues within its documented
+  field coverage. This is software evidence and human job approval, not a
+  physical print result. Requested observations: mixed-diameter recognition,
+  blue/right AMS and external/left mapping, startup and repeat changeovers.
+- Remaining physical questions include the earlier user-requested H10 omission,
+  service/head clearance, offsets and actual feed selection. Automatic standby
+  cooling and power-loss recovery are not verified contracts. Broader physical
+  plate/feed acceptance remains in BR-055/BR-056; the task is not declared fully
+  complete from software tests alone.
+- Concurrent bridging-skill work subsequently added a required plan field, so
+  the old verification bundle cannot be reopened through the new strict recipe
+  validator without recreation. The approved bundle was not silently migrated
+  or re-approved. Direct interpretation of its unchanged delivered archive and
+  saved plan/machine still succeeds (228 moves, sequence 0/1/0/1/0). Preserve
+  those bytes for the physical test; recreate a current-schema preview if an
+  actual requested edit is needed. A concurrent map-view generation also hit a
+  missing intermediate store file; a subsequent full regeneration rebuilt the
+  viewer successfully, with no stale maps, orphan facts or unreached declarations.
+
+## 2026-09-21 — Simplification review pause: UI evidence and code-line snapshot
+
+- Baseline checkpoint: `7160421` on `codex/remettub-dev-branch`. The selected
+  simplifications are conditional Studio state reads, removal of `/api/gcode`,
+  and removal of the fixed export-path/default-setup aliases. Work is paused
+  after completing those changes and their existing checks; other proposed
+  simplifications were not started.
+- Parent-agent browser use of the disposable
+  `Prints/development/studio-usage-smoke-20260921` development preview found the
+  missing static-module routes recorded below. After repair and final server
+  restart, geometry/toolpath viewing, play/pause, next-layer navigation and
+  browser reload worked. Final reload retained the paused layer 3 position.
+  This is software/UI evidence only; no human approval, delivery or physical
+  print was performed. Editing the export-name field exercised a draft input,
+  not a persisted plan/settings change.
+- During an earlier run, concurrent source edits correctly prevented loading
+  source from a stale server, but the geometry view did not visibly explain why
+  the toolpath became unavailable. This remains an observation, not a new task.
+- Code-line snapshot at `2026-09-21T19:00:15Z`: physical lines, including blanks
+  and comments, in non-ignored `.mjs`, `.cpp`, `.html` and `.css` under `core/`
+  and `studio/`; `core/tests/` counted separately. Documentation, data, build
+  configuration and generated map output are excluded.
+
+  | Scope | Checkpoint | Working tree | Delta |
+  | --- | ---: | ---: | ---: |
+  | Core production | 11,164 | 11,391 | +227 |
+  | Studio production | 4,304 | 4,308 | +4 |
+  | Production total | 15,468 | 15,699 | +231 |
+  | Core tests | 11,788 | 12,026 | +238 |
+
+  These whole-checkout totals include concurrent contributions. The selected
+  task's five production files (`core/print/bundle.mjs`,
+  `core/print/workflow.mjs`, `studio/app.mjs`, `studio/server.mjs`, and
+  `studio/tour.mjs`) have a combined net reduction of 13 physical lines.
+  The concurrent static-module-list edit in `studio/server.mjs` has zero net
+  line effect. The small net reduction removes two HTTP routes and two obsolete
+  exported aliases; it is not a claim that the entire checkout became smaller.
+
+## 2026-09-21 — Retired legacy Studio source and fixed-path workflow aliases
+
+- Removed the unused `/api/gcode` route. Studio continues to load checked,
+  machine-specific source inventories through `/api/sources`, including its
+  print, revision, export and per-source hash checks. Source-player coverage now
+  asserts that the legacy single-source route returns 404.
+- Removed the unused public `EXPORT_PATH` and `defaultSetupFile` workflow
+  aliases, including shell and tour adapter forwarding. Runtime export selection
+  remains dynamic through `plan.output` and `state.exportName`; remembered setup
+  selection remains machine-specific through `setupFor(machine)` or an explicit
+  setup file. Tests that compare saved and delivered bytes now derive the actual
+  current export path from state.
+- The focused 79-check run passed 78 checks and exposed one regression from the
+  preceding conditional-state change: successful Studio approval retained a
+  call to its removed revision metadata helper. The approval route now projects
+  its compact response locally. Its isolated workflow check passes and asserts
+  the preserved program, export, approval and history-omission contract. The
+  broad run was not repeated because no other relevant input changed. These are
+  software checks, not a physical printing result.
+- Regenerating the print region widened to the root because declarations were
+  removed. Generation completed with 2,014 pages, 146 files, eight bound facts
+  and no stale pages, orphan facts or fact errors.
+
+## 2026-09-21 — Studio serves every direct browser bootstrap module
+
+- A live Studio check exposed a pre-existing startup failure: `app.mjs` imported
+  `viewer-renderer.mjs`, `studio-state.mjs` and `studio-controls.mjs`, but the
+  server's explicit static-file list returned 404 for all three. The state API
+  remained healthy, while browser module evaluation stopped before Studio could
+  register its controls or render the print.
+- Added those three owned modules to the existing static route. The HTTP route
+  check now fetches each module, verifies JavaScript content and compares the
+  served bytes with its source. The focused Studio open and startup checks pass
+  13/13. This is software validation; the repaired browser startup is checked
+  separately in the live Studio.
+- Regenerated the Studio map; its composition dependencies widened the scan to
+  the root. Generation completed with 2,003 pages, 144 files, eight bound facts
+  and no stale pages, orphan facts or fact errors.
+
+## 2026-09-21 — Studio polling uses one conditional state read
+
+- Replaced the browser's `/api/revision` check followed by `/api/state` with a
+  conditional `/api/state` request. Full responses carry a weak ETag for the
+  poll-relevant view: server instance, checked bundle/source identity, exact tour
+  view and in-memory generation failure or cancellation. A matching
+  `If-None-Match` returns 304 after the cached fingerprint/tour check and performs
+  no stable bundle load; a changed view performs the existing stable read and
+  returns its full state once. `Cache-Control: no-store` and stable-read retry
+  behavior remain.
+- The browser adopts that returned state directly. Approval/history-only and
+  tour-metadata updates still reuse the presentation without entering the busy
+  overlay; source/presentation changes, reconnects and required tour toolpaths
+  retain the loading lifecycle. SSE hints, visibility/reconnect checks and the
+  15-second missed-event heartbeat remain. Non-tour request records continue to
+  synchronize through the existing agent-request poll; tour-relevant request
+  state is included in the tour view identity.
+- Removed the revision route, its unused `reviewUpdate` payload and its compact
+  metadata helper. Focused server/browser tests covered an unchanged 304 without
+  JSON parsing or bundle loading, real bundle edits, approval-only updates,
+  tour-only updates, geometry-only reads, print switching, cached presentation,
+  server restart/reconnect and event/heartbeat wiring: 62 checks passed in
+  10.8 seconds. These are software checks, not a physical printing result.
+- Regenerated the Studio map after replacing its removed metadata group member
+  with the conditional-state identity stages. The requested region widened to
+  the root because a declaration was removed; generation completed with 2,000
+  pages, 143 files, eight bound facts and no stale pages, orphan facts or fact
+  errors. The updated `stateTag`, `matchesStateTag`, `poll` and `refresh` pages
+  were read back against current source.
+
+## 2026-09-21 — Dual-nozzle reference distinguishes outgoing and incoming settings
+
+- Inspected user-supplied `twistedbox.2color.gcode.3mf`, SHA-256
+  `ddbea3c405b12328990c1aa6f45c106b8e6899a5807d7cc7947c23caa2835a63`.
+  It declares 0.4/0.4, green logical filament 0 on the right and yellow 1 on the
+  left, with 124 nozzle changes and 372 tower feature sections. These are file
+  observations, not evidence that the actual unequal-nozzle machine printed it.
+- The installed H2D change template uses outgoing `current_nozzle_id` for
+  M620.10 A0 H and incoming `next_nozzle_id` for A1 H. Thus equal-H repetition in
+  this reference must become different H values on the actual 0.4/0.8 machine.
+  Outgoing feeder I and incoming load/detector I also have different owners.
+- Extended `scripts/bambu-audit.mjs` to pair loads and report those fields,
+  transitions, cooling/retraction observations and selected-field mismatches.
+  Both the supplied dual reference and existing generated right-0.8 development
+  archive produce no mismatches in those bounded checks. Two regression tests
+  exercise a synthetic unequal-diameter sequence and deliberately corrupt each
+  selector/diameter; both pass. No firmware service sequence was changed.
+- The user excluded prime-tower implementation and confirmed the current left
+  feed is an external spool. They clarified that arbitrary hardware-supported
+  feed combinations across machines remain the goal; this installation is only
+  a test fixture. Recorded that scope in the contract and BR-056. Requested a
+  tower-disabled reference because this file's cooling and return path include
+  tower-specific policy. No tower or dual-tool print program was implemented.
+- Follow-up: received the replacement tower-free archive at the same path,
+  SHA-256 `f6bad52dc858c7a06ebdbace77b40706d8ea8d1f9afbfac26dd4e4678d03bf86`.
+  It retains 124 transitions, has no tower object/feature sections, removes the
+  tower approach and uses M620.15 C220 throughout. Outgoing B selectors become
+  known 0/1 after initial -1; incoming H selectors remain automatic -1. Retained
+  both versions' facts by hash and revised the remaining work accordingly.
+- Fixed another canonical-job limitation exposed by the reference: explicit
+  logical filament entries can now name their own nozzle. All four mapping
+  surfaces preserve those assignments; the selected entry must match setup.tool.
+  Regression checks exercise both selected sides with actual diameters 0.4/0.8,
+  opposite-nozzle declared filaments, archive round trips and contradiction
+  rejection. The body remains single-tool. All 28 selected Bambu, audit,
+  interoperability and export tests pass; no physical result is claimed.
+- Map regeneration (root and export region) was attempted but blocked by the
+  concurrently changed Studio server's stale authored reference
+  `studio/server.mjs::createStudio::metadata`. This task did not edit that server
+  or its map. Bambu diff whitespace checks passed; map refresh remains pending
+  reconciliation of the separate Studio work.
+
+## 2026-09-21 — Bambu startup settings resolve once; hardware acceptance remains open
+
+- Request: current user asked for all startup duplication points, exporter and
+  guidance rewrites, and one source for values repeated in G-code. They then
+  required both different-diameter H2D nozzles to operate within one print.
+  This is developer work; pre-existing local edits were retained.
+- Implemented `core/export/bambu-job.mjs`: selected/other diameter, physical and
+  logical nozzle IDs, compact variant indices, logical filament identity, plate,
+  temperatures, startup flags and AMS connectivity are resolved once. Both the
+  G-code config and package settings consume that record; profile overrides of
+  generated fields are rejected. H2D flush/detection H parameters and the
+  previously fixed AMS detector I0 now follow their actual job settings.
+- The machine envelopes are `h2d-saam-startup-v4` and `x1c-saam-startup-v2`.
+  Their hashes now bind constraints as well as start/end arrays. Smooth PEI uses
+  its detection branch and zero texture correction; Textured PEI retains each
+  model's correction. Fixed calibration A0.4 and service/unload sentinels remain
+  distinct from nozzle diameter or logical filament IDs. The earlier H10 homing
+  omission is retained and remains a physical acceptance question.
+- Removed the shared profile's installation-specific four-tray colours and the
+  inference that declaring N filaments selects physical tray N. Physical tray
+  intent is now explicit in the manifest/review, and declared AMS connectivity
+  rejects requests through the wrong nozzle. Four-slot connection counts derive
+  from that declaration. No physical dispatch mapping adapter is implemented.
+- Supplied reference: `twistedbox.gcode.3mf`, SHA-256
+  `3a0cf2396c1f05862945ca740bd2e3f8cd7545d9947a3bf68a28adab97fc2459`,
+  Bambu Studio 02.08.02.61. The user reports left 0.4 / right 0.8 and a four-slot
+  AMS feeding the right. The archive declares 0.8/0.8, so those declarations
+  must not override actual hardware. Its resolved slice selects right (map 2,
+  nozzle 1, heater 0, map_2 1, Manual), while project preferences retain left /
+  Auto For Flush. This corrects the earlier assumption that these modes govern
+  physical manual AMS tray selection. Its plate JSON IDs are zero-based.
+- The reference confirms H0.8 in flush/air-print detection and A0.4 in flow
+  calibration. Its service flow is 30 mm³/s; SAAM retains its distinct bounded
+  25 mm³/s service recipe. Primary vendor source and installed template
+  expressions were also inspected, not copied into new reference-derived headers.
+- Added the read-only `scripts/bambu-audit.mjs` report and a small sanitized
+  reference-facts fixture. Full local reports and a synthetic development cube
+  artifact are under `.local/bambu-startup-audit/`; the cube's unit 1 slot 1
+  request is a test input, not a claim about the user's intended spool. No
+  development artifact was delivered, approved, sent to a printer or printed.
+- Rewrote `core/export/bambu.md` with maker setup and the full duplication
+  inventory; print-tool guidance links to it. Historical spool hypotheses above
+  remain history; current behavior is described at the component owner.
+- Verification: 25 targeted tests passed across Bambu, interoperability and
+  export suites, including both H2D tools, three diameters, both plates,
+  independent other-nozzle diameter, nonzero logical filament, physical-tray
+  separation, connectivity, temperature, startup flags, override/tamper rejection,
+  reference facts and Studio same-file approval/delivery. These are software
+  checks, not firmware/service-motion or physical-print evidence.
+- Remaining: controlled left/smooth references, printer AMS acceptance and cold
+  startup checks (BR-055), plus actual mixed-diameter two-tool planning,
+  changeover, interpretation and physical validation (BR-056). A both-nozzle
+  Studio reference was requested as protocol evidence without inheriting Studio's
+  equal-diameter restriction. The overall request is not yet complete.
+
+## 2026-09-19 — layer_filament_lists decided which tray loaded
+
+- Source: same maker session. With the inventory declared and per-tray identity
+  correct, the warnings were gone and the screen offered tray A4 brown, but the
+  print still came out A1 grey — no error reported.
+- `slice_info.config` carries `layer_filament_lists`, whose `filament_list` is
+  the zero-based filament those layers print. This exporter hardcoded `0` while
+  the startup addressed the requested position, so the layer data said the job
+  prints the first tray and the printer followed it. Confirmed against the one
+  reference program that uses a non-first filament: it pairs
+  `filament_list="2"` with `M620 S2A` and `<filament id="3">`.
+- That was the last record still describing position 0. The delivered program now
+  names tray 4 in the config block, `M620 S3A`, `limit_filament_maps 0 0 0 1`,
+  `<filament id="4" tray_info_idx="GFA01">`, `plate_1.json` `filament_ids [3]`
+  and `layer_filament_list filament_list="3"`.
+- 32 tests pass. Checks pass at 145 min and 27.6 g.
+- Not established: that this program prints, or that no record remains
+  inconsistent. Each of the four attempts before this one was also internally
+  consistent as far as it had been checked.
+
+## 2026-09-19 — Declared trays must carry their own identity
+
+- Source: same maker session. Declaring four entries and naming position 3
+  returned "failed to get ams mapping" again, and the revert that followed
+  changed three things at once. The user: "you do have to declare the inventory,
+  surely, you reverted something else at the same time". Correct on both counts.
+- The inventory was right; the fabricated value in it was not. All four declared
+  entries repeated the one requested colour, which asks the printer to find four
+  trays holding it against a single brown spool. The reference program declares
+  four entries with four real tray colours,
+  `#8E9089;#8E9089;#0056B8;#B15533` against `GFA00;GFA00;GFA00;GFA01`.
+- Added `outputs[].package.amsTrays` to the H2D profile, read from that
+  program: the installation's tray inventory. Declared entries now take their id
+  and colour per tray, so with trays known the package describes the spool in the
+  selected tray and `setup.filamentColor` no longer decides what is recorded.
+- Two further records still described one filament while the config block
+  declared four. `slice_info.config` now carries `filament_maps` per declared
+  entry with `limit_filament_maps` marking the used one (`0 0 0 1` for tray 4,
+  matching the reference's `1 0 0 0` for tray 1), and its `<filament>` element
+  takes the used tray's one-based position, filament id and colour.
+  `model_settings.config` carries the same list.
+- Verified against the reference: every package record now names tray 4
+  consistently — config `GFA01`/`#B15533` at position 4, `M620 S3A`,
+  `limit_filament_maps 0 0 0 1`, `<filament id="4" tray_info_idx="GFA01">`,
+  plate `filament_ids [3]`. 32 tests pass.
+- `amsTrays` is installation data sitting in a shared profile; it belongs in the
+  local machine setup, and is recorded under BR-055.
+- Not established: that this program prints.
+
+## 2026-09-19 — The declared filament list is the AMS inventory
+
+- Source: same maker session. With the config block and `Auto For Flush` in
+  place the three warnings cleared, but the printer offered tray A4 brown on
+  screen and then printed A1 grey.
+- Found by looking for the closest reference rather than reasoning further: the
+  operator's card holds two Bambu Studio **single-filament** H2D programs, one of
+  them on the 0.8 nozzle. Both declare four filament entries, one per AMS tray,
+  while keeping `; filament: 1` in the header:
+  `filament_ids = GFA00;GFA00;GFA00;GFA01`,
+  `filament_colour = #8E9089;#8E9089;#0056B8;#B15533`,
+  `filament_self_index = 1,2,3,4`, and print tray 1 with `M620 S0A`. The grey it
+  printed is the same `#8E9089` the operator was getting.
+- So the declared list is the AMS inventory in tray order and the startup names a
+  position in it. Declaring one entry pinned every SAAM job to tray 1 regardless
+  of the screen's mapping, and the earlier `M620 S3A` against a single declared
+  entry named a filament that did not exist, which is what produced "failed to
+  get ams mapping". Both observations now have one cause.
+- `projectSettings` declares entries up to `feederSelector`'s position, with
+  `filament_self_index`, `filament_is_support` and the per-filament temperature,
+  density and flow arrays sized to match, and `plate_1.json` carries the used
+  position in `filament_ids` and `first_extruder`. The startup names that
+  position again. Verified field by field against the single-filament reference:
+  identical in shape, count and separators.
+- Unused entries repeat this job's own filament, because the operator's real
+  inventory is not knowable from a recipe. That is the one fabricated value in
+  the package and is recorded as such in the contract.
+- 32 tests pass across `bambu`, `interoperability`, `export`, `workflow` and
+  `regional-workflow`.
+- Not established: that this program prints, or how a printer responds to
+  repeated colours across declared trays.
+
+## 2026-09-19 — M620 takes a filament index, and the map mode must be automatic
+
+- Source: same maker session. After the config block landed, the user rejected
+  the remaining `filament_map_mode = Manual` outright and declined to keep
+  test-printing. Both points were correct and both are now fixed without another
+  trial.
+- **Map mode.** The H2D profile was the only thing in this repository asking for
+  `Manual`; the X1 Carbon profile, on the machine whose prints work, already
+  declared `Auto For Flush`, and so do both Bambu Studio H2D programs on the
+  operator's drive. The H2D profile now matches.
+- **M620 takes a logical filament index, not an AMS tray.** Bambu's own
+  change-filament code is `M620 S[next_filament_id]A`, and the reference programs
+  use `S2A` with three filaments and `S1A` with two — always below the declared
+  filament count. This exporter declares one filament, so the only valid index is
+  `0`. `feederSelector` was feeding an AMS tray number into that field, which is
+  harmless only when it resolves to 0; the X1 Carbon's remembered `{unit 1, slot
+  1}` always did, which is why the defect stayed hidden. Setting `{unit 1, slot
+  4}` emitted `M620 S3A`, naming a filament that does not exist, and the printer
+  answered "failed to get ams mapping". The startup now emits the logical index.
+- This restores the original reading that `setup.ams` does not pick a tray from
+  the card, which an earlier entry today wrongly revised. The tray is chosen by
+  the printer from the recorded colour, exactly as the maker said; `setup.ams`
+  stays a validated record of intent. Two assertions in `core/tests/bambu.test.mjs`
+  encoded the tray-as-index behaviour and were corrected.
+- Added `filament_self_index`, a one-based sequence in the reference programs and
+  `1` for a single filament. `filament_settings_id` is still omitted: its value
+  is a preset name that would have to be extrapolated rather than read.
+- Verified offline against a Bambu Studio H2D program rather than on hardware:
+  all 29 emitted config keys match the reference in form, with per-filament keys
+  carrying one element and per-tool keys two. 32 tests pass across `bambu`,
+  `interoperability`, `export`, `workflow` and `regional-workflow`.
+- Not established: that this program prints.
+
+## 2026-09-19 — Bambu programs were missing their CONFIG_BLOCK
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`, third failed H2D
+  load. Warning `[05ff-8053 132520]` "The right nozzle is not matched with
+  slicing file", a build-plate mismatch, and — new after `setup.ams` was set —
+  "failed to get ams mapping". The user: "You need to KNOW what to do, not guess
+  at random shit." That was fair; the preceding `printer_settings_id` change was
+  reasoned from field names in `project_settings.config` and changed nothing.
+- Root cause, found by diffing the G-code rather than the package metadata: no
+  SAAM export has ever emitted a `; CONFIG_BLOCK_START` ... `; CONFIG_BLOCK_END`
+  section. Bambu Studio writes 548 `; key = value` lines there, including
+  `nozzle_diameter`, `curr_bed_type`, `printer_model`, `filament_map` and the AMS
+  fields, and the printer validates against that block. Checked: two SAAM
+  packages on the operator's drive have zero config blocks, two Bambu Studio H2D
+  packages have one each. This explains all three warnings together, and why the
+  single-nozzle X1 Carbon was unaffected.
+- `projectSettings` is now one exported function in [bambu.mjs](core/export/bambu.mjs),
+  rendered as JSON for `project_settings.config` and as the program's CONFIG_BLOCK.
+  Per-key list separators were read from the reference program, not assumed.
+  The H2D profile gained `extruder_ams_count`, `default_ams_type` and
+  `enable_filament_dynamic_map` from a real slice of that operator's machine, and
+  its `nozzle_type` was corrected from five entries to one per tool.
+- Regenerated: the program now carries `nozzle_diameter = 0.4,0.8`,
+  `curr_bed_type = Textured PEI Plate`, `extruder_ams_count = 1#0|4#0;1#0|4#0`
+  and `filament_map = 2`, with the block between `HEADER_BLOCK_END` and
+  `EXECUTABLE_BLOCK_START`. Checks pass at 145 min and 27.6 g. `bambu`,
+  `interoperability` and `export` pass (19 tests), including the round trip that
+  re-derives the header and compares it to the stored bytes.
+- Not established: that this file prints. Three warnings have a named cause and a
+  fix; whether any remain is the next observation.
+
+## 2026-09-19 — H2D right-nozzle refusal, and the AMS tray the program asked for
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`, printing
+  `chalice-drip-h2d-08` on a Bambu H2D whose right nozzle is 0.8 mm. The card
+  loaded, the screen pre-selected the brown spool in AMS slot 4 from the recorded
+  colour, and the printer then raised `[05ff-8053 132520]`: "The right nozzle is
+  not matched with slicing file. Please initiate the print after re-slicing, or
+  continue printing after replacing with the correct nozzle." Ignored, it went on
+  to a build-plate warning and then loaded slot 1, grey, instead of slot 4.
+- **Nozzle refusal, fixed.** `printer_settings_id` was built from the first
+  tool's diameter, so a right-nozzle job on a 0.4/0.8 machine claimed
+  "Bambu Lab H2D 0.4 nozzle" with a 0.8 mm nozzle fitted. It now follows the
+  selected tool. Evidence: an earlier SAAM right-nozzle H2D package on the
+  operator's drive carries "0.8 nozzle" with the same `nozzle_diameter`
+  `['0.4','0.8']`, and a Bambu Studio H2D slice carries "0.6 nozzle" with
+  `['0.6','0.6']` — the field names the nozzle that must be fitted, not the first
+  one. `core/tests/bambu.test.mjs` asserted the old behaviour and was corrected.
+- **Build plate.** Not ours. `plate_1.json` `bed_type: textured_plate` and
+  `project_settings.config` `curr_bed_type: Textured PEI Plate` are byte-identical
+  across this export, the earlier SAAM package and a real Bambu Studio H2D slice.
+  `curr_bed_type` is hardcoded in the exporter, so no other plate can be
+  expressed; recorded as [BR-055](build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
+- **AMS tray.** The print carried `setup.ams: null`, so `feederSelector` wrote
+  selector 0 and the program asked for the first tray. The screen's colour match
+  and the program's selector disagreed for the first time here, and the tray that
+  loaded was the program's. The 2026-09-18 X1 Carbon observation cannot decide
+  between them: that print carried `{unit: 1, slot: 1}`, so colour and selector
+  both named slot 1. Which mechanism governs is recorded as unsettled in
+  [the Bambu contract](core/export/bambu.md#choosing-the-spool), with both set to
+  the same spool as the working practice.
+- Regenerated with `setup.ams: {unit: 1, slot: 4}` and the preset fix: the program
+  now carries `M620 S3A` / `T3` / `M621 S3A` and "Bambu Lab H2D 0.8 nozzle".
+  Checks pass at 145 min and 27.6 g. Delivered unmodified.
+- Not established: that this file prints, or which of colour and selector governs
+  tray choice. Setting both to the same spool makes the next print succeed under
+  either reading, so that print will not decide it either.
+
+## 2026-09-19 — Process validation stops shadowing the machine profile
+
+- Source: same maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`. A 0.8 mm
+  right-nozzle H2D recipe was refused with "lineWidthMm must be between 0.3 and
+  0.8" although the tool declares 0.8 mm and the profile allows a 0.6–1.6 mm
+  bead. The user: "We shouldn't have arbitrary caps, fix that when you are done
+  with the toolpath."
+- `validatePlanProcess` carried a `planarLimits` object of chosen numbers
+  (`firstLayerMm`/`layerMm` 0.3, `lineWidthMm` 0.8, `maxFlowMm3S` 15) applied
+  without reference to any machine. `validateSetup` already enforced all four
+  against the selected tool's `layerHeightMm`, `lineWidthLimits` and the
+  material's `maxFlowMm3S`, two steps later in the same `validatePlan` chain, so
+  the fixed numbers only shadowed the real limits with smaller ones.
+- The fixed ceilings are removed. `validatePlanProcess` now takes the machine,
+  keeps floors that say a value is not a usable process value, and bounds axis
+  speeds by the machine's declared `maxFeedMmS` instead of 80/40/200. Prime-line
+  width and height follow the same rule. The profile keeps every real ceiling.
+- Checked on the H2D profile: a 0.8 mm nozzle now accepts a 0.9 mm bead at 0.4 mm
+  layers and up to the profile's 1.6 mm, while 1.7 mm, a 0.9 mm bead on a 0.4 mm
+  nozzle, a 0.7 mm layer past the tool's 0.6 mm, 5 mm³/s past PLA's 4 and a
+  1200 mm/s axis speed are all still rejected — now with the profile's own
+  messages. `bambu`, `workflow`, `regional-workflow`, `demos`, `composition`,
+  `export`, `interoperability`, `line-network` and `workflow-generation-stages`
+  pass (55 tests). One assertion in `workflow.test.mjs` expected the old
+  `/layerMm/` text and now expects the profile's "Layer height outside profile
+  limits"; the value is still rejected.
+- The kept-limits register in [core/README.md](core/README.md#limits-that-adapt-and-limits-that-are-kept)
+  now names layer height and bead width in the machine-limits row.
+
+## 2026-09-19 — AMS spool selection follows filament colour
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`, printing the
+  `chalice-drip-h2d` bundle on a Bambu H2D. The maker reported needing the AMS,
+  asked "does the AMS only use right nozzle or something?", then stated the
+  mechanism: "I think you just set color (do brown) and AMS chooses slot for
+  you." They later reported the job "won't print" while mapped to the left
+  nozzle and asked for the right nozzle.
+- `core/export/bambu.md` already recorded colour-based tray matching for the
+  X1 Carbon, but the H2D section of the same file called `setup.filamentColor`
+  a value "used only for package labelling". That contradiction is corrected and
+  the spool guidance is now one section covering both profiles. The matching
+  comment in `core/machine/rules.mjs` said a colour "only labels the job"; it now
+  points at the export contract.
+- The failing export had `setup.ams: null` and `setup.filamentColor: null`, so
+  `feederSelector` returned selector 0 and the exporter wrote the H2D output's
+  `defaultFilamentColor` `#28A090` — a profile placeholder matching no spool the
+  operator owns. A machine with no remembered setup reaches this by default.
+- Nozzle mapping was checked against references on the operator's drive rather
+  than inferred. Two Bambu Studio H2D packages and one earlier SAAM right-nozzle
+  H2D package agree with this exporter: `filament_map` is `tool + 1`,
+  `filament_nozzle_map` is `tool`, `first_extruder` tracks the filament id and
+  not the tool, and a right-nozzle job starts `T0` / `G151 P0` because H2D tool 1
+  declares `physicalExtruder` 0. No exporter defect was found; an earlier reading
+  of `filament_map: ["2"]` as out of range was wrong.
+- Regenerated the bundle on `setup.tool: 1` with `filamentColor: "#8B5A2B"`;
+  checks pass at 96.9 min and 19.1 g, with the same single short-travel advisory
+  in `bowl:vase-wall:wall`. Delivered to the operator unmodified.
+- Not established: that colour matching selects the spool on the H2D specifically,
+  or that this part prints. Both are maker reports and a software check; no
+  completed print has confirmed either.
+
+## 2026-09-19 — Bed-adhesion skill first draft, from a reported brim failure
+
+- Source: maker session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`. The user printed
+  an open-bottom vase-mode part on a Bambu X1 Carbon in PLA and reported "It
+  didn't adhere to the print bed", then asked for "a good solid brim to start
+  out, maybe 8 layers on the outside before getting to the part, with full flow
+  or maybe even a little more", clarified as "Just do the first layer and then
+  vase on top of that", and finally asked for a bed-adhesion skill draft.
+- Physical evidence: the failed part's only bed contact was one 0.5 mm vase-wall
+  bead around an 80 mm circle, roughly 125 mm² carrying a 124 mm tall part. No
+  brim has been printed; the brim figures below are software measurements.
+- Added [skills/bed-adhesion/SKILL.md](skills/bed-adhesion/SKILL.md) with one
+  entry, brims, and registered it in [skills/catalog.mjs](skills/catalog.mjs)
+  after `supports`. Regenerated the digest.
+- The documented brim uses existing components only: a flange modeled over the
+  first layer height, plus a first-layer region assigning `planar-infill` with
+  `density: 0` and a `perimeters` count, with a region `process` override for
+  bead width and speed. `line-network` was assessed first and rejected — it is
+  validated as a standalone planar path and is generated only from the global
+  skill path in `core/print/generate.mjs`, so it cannot coexist with a vase wall
+  or with composition regions.
+- Measured on the `chalice-drip` bundles: nine first-layer loops at radii 39.75
+  through 44.55 mm, matching the derivation in the manual; 3,111 mm of path at a
+  measured 0.652 x 0.2 mm bead and 18 mm/s, about 2,030 mm² of bed contact. Both
+  the X1 Carbon and H2D bundles check `pass`.
+- The flange requirement is recorded as [BR-054](build_request.md#br-054--a-brim-producer-that-does-not-need-a-modeled-flange).
+
+## 2026-09-19 — Developer-map scanner and architecture integration
+
+- Post-checkpoint priority correction: the user explicitly rejected treating
+  unresolved/uncertain relationships as an acceptable finished state or requiring
+  every developer to reconstruct missing dependencies from source. BR-052 now
+  prioritizes eliminating the gaps through scanner inference, sensible reviewed
+  authorship and code-practice changes. Complete affected-caller/consumer coverage
+  and useful data/control/state relationships are the acceptance criterion;
+  warning suppression and payload reduction do not establish it. The broader
+  goal and team remain paused; this correction updates the authorized remainder.
+- Final requested checkpoint: private prepared mesh-section queries now copy
+  vertices, triangle indices and bounds once, so cached indices cannot observe
+  later caller geometry mutation. Returned query closures capture `fixedMesh`
+  rather than caller-owned mesh geometry. This costs one geometry snapshot for
+  each prepared query's lifetime; public mesh mutability is unchanged. Geometry
+  behavior checks passed 23/23, including nested and top-level caller mutation.
+- Ambiguous repeated-invocation endpoints now identify an unknown producer or
+  consumer instead of pretending to be function parameters/returns. Canonical
+  source navigation and unresolved wire evidence remain: 13 endpoints on four
+  pages. Integrated map checks passed 335/335 and full regeneration produced
+  1,990 destinations (142 files), with no stale pages or orphan facts.
+- Final stored declaration diagnostic counts are 1,056 unresolved and 12,475
+  uncertainty rows, versus 1,054/12,472 before the ownership correction. The
+  added snapshot array traversals expose two further receiver-call limitations;
+  these totals count analysis rows, not unique bugs or completion tasks. Runtime
+  core/Studio source totals 15,345 physical lines (core 11,041; Studio 4,304),
+  counting mjs/js/cjs/cpp/h/hpp/css/html and excluding tests. No commit or push
+  was made at this checkpoint; existing unrelated checkout work was preserved.
+- The user requested wrap-up at the next logical stopping point and explicitly
+  chose "Pause at the checkpoint". Remaining conceptual review, local diagnostic
+  usability and the observed Studio overview ownership-projection defect remain
+  in BR-052. The whole-scope goal is not achieved. All assigned agents completed;
+  no additional implementation assignment was started.
+- Corrected overview reads after the user's cost report and clarification that
+  maps should locate descendant detail without displaying it. Region/file/group
+  diagnostics now roll up to counts and immediate child addresses; unmatched
+  local findings stay explicit. Default drawings and CLI omit expanded member,
+  file, child and code-target inventories. Visible boxes retain their navigation;
+  raw details and complete matching code reads remain available. Fixed compact
+  file reads restoring full shared-helper caller lists from child metadata.
+- Equivalent fresh default CLI responses for regions `9,7,6,4,3` fell from
+  402,269 to 33,350 UTF-8 bytes (392.8 to 32.6 KiB, 91.7% reduction); files
+  `4.38,5.7,9.12` fell from 30,928 to 14,140 bytes (54.3%). The reported 71k
+  estimated tokens were the region discovery reads, not those three file reads.
+  These are payload savings, not resolved scanner findings or tokenizer counts.
+  Adopted cross-level redundancy as a review metric: separate repeated descendant
+  detail from necessary identities, addresses and boundary-edge perspectives.
+  Summary counts across nesting overlap and are not unique-finding totals.
+- Verification: all 333 map tests pass; regenerated all 1,990 destinations with
+  no stale pages or orphan facts. Independent navigation check covered all 3,492
+  displayed boxes. Inspected drawing and CLI for region `9`; inventories and
+  verbose warning dictionaries are gone. Its large number of connections still
+  makes the drawing crowded; payload reduction alone does not establish good
+  visual composition.
+- Resumed after the user's architecture/size reflection: conceptual simplification
+  and increased code visibility remain primary; runtime size and function counts
+  remain reported countermeasures. The proposed small-leaf absorption policy is
+  not yet adopted. Measured 748 canonical code leaves from matching snapshot
+  source spans: mean 241 characters, population standard deviation 313, median
+  131, 90th percentile 542. Full-line spans include comments/whitespace and may
+  overlap, so their sum is not a partition of codebase size.
+- Machine mechanism selection now returns explicit gantry, aligned-arm and
+  unavailable-arm records instead of reassigning shared callback bindings.
+  Existing value-flow analysis can follow the actual solver/source-pose choices;
+  no authored links or broader scanner guesses were added. Behavior checks,
+  including scaled Dobot overlay suppression, passed 21/21; independent factory
+  callback inference regressions passed 2/2. Source delta: -2 lines, +530 characters,
+  unchanged function count. Five newly anchored callback entities increase map
+  coverage without adding runtime callbacks. Current runtime total is 15,337 lines.
+- Corrected sole local-closure invocation endpoints when a separate callable
+  reference is also needed. `sweepSurfaceOffset`, `simplifySurfaceLoops` and
+  `offsetSurfaceSection` no longer gain fabricated untraced return ports; their
+  arguments reach the real invocation. Captures, callable returns, recursion and
+  genuinely ambiguous multiple invocations remain distinct. After integration,
+  333 map tests pass; regenerated canonical pages contain 1,054 unresolved rows
+  and 12,472 uncertainty rows. This counts stored evidence, separately from
+  presentation-only invocation-origin diagnostics.
+- Consolidated local request waiting and live Studio polling's selection/claim
+  policy in `createAgentRequests().selectQueued`; transports retain their own
+  waiting behavior. This removes one competing policy implementation while adding
+  one function and three runtime lines. Focused toolkit/work checks passed 23/23.
+  Runtime core/Studio totals at this checkpoint: 11,035 + 4,304 = 15,339 lines,
+  using the same runtime-extension scope as the earlier comparison.
+- Mutable array receivers are classified only when initialization and every direct
+  reassignment are array literals, with no own-member writes or direct call escapes.
+  The conservative final rule removes 10 false unresolved sites on identical source;
+  overridden methods and uncertain mutation remain unresolved. A broader candidate
+  was rejected during integration review. Literal dynamic-import destructuring was
+  already supported and gained regression coverage.
+- Preserved adapter selection provenance through flow construction. Matching
+  exporter/interpreter alternatives now have four `bytes` connections rather than
+  sixteen; independent selections retain all possible pairings. No runtime export
+  behavior changed. Region overview diagnostics now summarize counts by source and
+  finding type, retaining flagged-limit counts and detailed drill-down in both CLI
+  and drawing. Underlying findings remain intact.
+- Regenerated September 20 at 04:20 UTC: 142 files, 1,567 declarations, 266 groups,
+  1,237 graph pages and 748 code destinations, with no stale pages or orphan facts
+  at generation. Canonical stored pages contain 1,059 unresolved rows and 12,496
+  uncertainty rows (not a claim of distinct source sites). All 328 map tests passed.
+  Machine solver callback selection remains the next code/graph visibility gap.
+- Source: user follow-up in Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`:
+  remove `dev-map/audit`, use Sol agents for code-shape/scanner improvements,
+  distinguish static/instance declaration identities, and implement the five
+  proposed action-delta, Dobot, generation, Clipper and viewer cleanups.
+  The user subsequently strengthened the goal to require architectural clarity
+  and conceptual usefulness throughout core/Studio, beyond inventory coverage.
+- Removed the disposable `dev-map/audit` tree. Temporary verification output now
+  uses the operating system's temporary directory. Updated active guidance to use
+  just the current map index; durable references continue to use declaration paths.
+- The scanner no longer treats every scalar local declaration as a possible
+  carried method name. A same-source comparison moved 187 call sites from
+  unresolved to external while preserving all 4,922 linked sites in that scan.
+  Static methods now have `@static/` declaration identities; reserved-looking
+  instance names are escaped without renaming source methods. Static spread-key
+  analysis also preserves return fields proved disjoint from a spread: the
+  generation-check record's 17 false override findings became zero. Unknown
+  spreads and unsupported value flow remain explicit.
+- `materializeActions` now uses `ActionAccumulator`; planning results carry
+  state/actions/decisions without copied timing/accounting fields. Dobot imports
+  the existing rigid-vector helpers. Approval and machine-change transitions
+  return new review records instead of mutating loaded review/history objects.
+- Core `generateBundle` owns current-output reuse, development promotion and
+  generation. Studio supplies computation transport only. Promotion rechecks
+  plan/export/review identity after the commit hook; failed prepared jobs retain
+  their existing diagnostic/retry lifecycle. The transport consumes the execution
+  state supplied by core rather than an earlier Studio snapshot.
+- Region operations use one lowercase Clipper adapter vocabulary with an explicit
+  `open` option. The native-memory module is reached through that adapter,
+  including simplification and setup verification.
+- Studio's `createViewerRenderer` owns scene publication, renderers, picking,
+  quality and redraw scheduling. The app assembles an explicit frame snapshot and
+  applies returned DOM annotations; movie output uses the same renderer.
+  Verification caught and corrected early-resize, restored-page disposal and
+  coalesced-redraw races. Viewer tests live in the normal core test suite.
+- Integration evidence: 195/195 Studio tests and 306/306 map tests passed after
+  source/group updates. The generation agent's focused lifecycle checks passed
+  47/47; the later named-transport change passed 11/11 Studio stage tests.
+  Earlier slice checks covered action input identity/order, frozen review
+  transitions, Clipper reference fixtures and static/instance source identity.
+- Explicit regeneration at 02:34 UTC on September 20 produced 139 source files,
+  1,550 declarations, 262 groups, 1,223 graph destinations and 738 code destinations
+  across nine regions, with eight facts, no orphan facts and no stale sources.
+  Human and CLI review exposed excessive repeated helper callers, expression
+  bodies on wires and suspicious receiver-call references. Those remain follow-up
+  work; this checkpoint does not certify the full conceptual goal as complete.
+- The subsequent text/heat-set ownership pass moved text-layer unwrapping and
+  reconstruction into `core/print/text.mjs`. Heat-set editing no longer imports
+  the text compiler or owns its wrapper schema/order. The existing text and
+  heat-set suites plus a frozen nested-layer reconstruction regression passed
+  28/28, retaining compiled record hashes, material partitions and standalone
+  stopping behavior. Local outline accumulators and compiler-owned kernel handles
+  were inspected and retained; they were not caller-owned planning mutations.
+- Export advisory enrichment now returns detached program/summary records while
+  retaining motion payload identities. Frozen-input and export regressions passed
+  40/40. Prepared contour, radial-contact and sleeve-contact query reports now
+  return snapshots; all consumers were rewired. Snapshot isolation and existing
+  query/skill checks passed 39/39.
+- An ownership assessment covered all 39 geometry and 12 region source files.
+  Pure/local algorithms and explicit cache/native-resource owners were retained;
+  this is code-ownership evidence, not certification of each conceptual map.
+  A subsequent exact-contract vector cleanup removed four duplicate helpers and
+  reused shared operations in NURBS normal evaluation. Arbitrary-dimension mesh
+  operations and the scalar 2D sleeve determinant remain distinct. Focused
+  geometry tests passed 41/41.
+- The next user-supplied proposals were checked against current source: accepted
+  one work-status summary, one export representability guard, immutable Studio
+  response adoption, control-policy derivation and DOM-update ownership. Declined
+  a generic review-event helper because the pure transitions retain deliberately
+  different approval policies, and declined merging print identities because the
+  absolute-directory hash and library-relative request identity differ.
+- Studio response adoption now returns state and presentation decisions without
+  mutating fetched JSON. Successful preview publication explicitly reports
+  consumption, allowing detached state/cache envelopes to release preview data
+  while preserving move-buffer identity. Unavailable, failed or superseded
+  publication retains that data. The control model supplies button/tab policy;
+  the duplicate refresh-time skin-label write was removed. Work-status and export
+  guard checks passed 56/56; the integrated Studio suite passed 199/199 after
+  correcting a test fixture that failed to retain its simulated viewer response.
+- The user approved naming architectural stages while permitting anonymous
+  implementation callbacks. All 30 authored anonymous source-position references
+  were replaced by named bindings or removed from incidental callback grouping.
+  Parameter-default functions use stable `@default/NAME` identities, without
+  claiming the runtime caller selected that default. Generation rejects anonymous
+  position paths in authored grouping. No map-specific source IDs are introduced.
+- Caller summaries now replace long off-page component lists with a count and
+  canonical caller-page link. The generation-page drawing and exact default CLI
+  were inspected together: the assertion summary retained all 225 off-page
+  callers, and its canonical view retained 228 total callers. This reduced that
+  CLI response from about 20.8k to 13.4k characters. The viewer factory was grouped
+  into scene publication, frame scheduling and performance responsibilities,
+  with direct teardown; it still needs shared-state presentation work.
+- Regeneration at 03:28 UTC on September 20 covered 141 files, 1,560 declarations,
+  266 groups, 1,231 graph destinations and 746 code destinations. The comparable
+  canonical-source count was 1,075 unresolved sites and 12,414 distinct uncertainty
+  findings (12,506 rows), versus the saved baseline 1,070 and 12,402. Increased or
+  reclassified findings are not claimed as analysis improvement. Subsequent source
+  changes correctly marked that snapshot stale while leaving it readable.
+- A further user ticket batch was accepted for shared Studio rigid math, one
+  polling adoption path, one normal/inspection render selection, invariant travel
+  policy construction, structural planning-result fields, and a generation-input
+  identity rename with persisted-record migration. Shared pure review invalidation
+  was accepted; a generic bundle write loop was declined because it would not
+  establish atomicity or complete file sets. The path changes passed 34 checks;
+  shared invalidation passed 16 workflow/edit checks.
+- Studio now shares core rigid-transform math, retains its descriptor validation,
+  and uses one polling state-adoption path while preserving metadata-only playback,
+  manual controls and fading. A named presentation selection skips normal table
+  construction for inspection content. The core/Studio generation-input identity
+  is now `generationHash`; legacy saved reviews/checks normalize at read boundaries,
+  reject conflicting identities and leave source files untouched. Existing approved
+  exports remain valid; old revision tokens require refresh. Runtime/API/cache
+  contracts have no parallel old-name aliases.
+- Bundle adapter resolution moved out of the HTTP server into one neutral module,
+  with all consumers rewired. The tour adapter names its complete delegated
+  interface instead of spreading an implicit export surface. Integrated map tests
+  passed 320/320; Studio/workflow/handoff and wave-workflow checks passed 231/231.
+  A subsequent focused presentation refinement passed 22/22. Verification also
+  found a real MCP disconnect ordering bug: failure records are now persisted
+  before notifying Studio, while notification still precedes shutdown. Its existing
+  scoped-owner regression passed without weakening assertions.
+- The final 03:47 UTC generation covered nine regions, 142 files and 1,566
+  declarations, with 266 authored groups, 1,235 graph and 749 code destinations,
+  eight facts and no orphan facts or stale sources. Canonical-source diagnostics:
+  1,070 unresolved sites and 12,408 distinct uncertainty findings (12,500 rows),
+  down five and six respectively from the previous reported snapshot. These totals
+  reflect changed source as well as analysis, not a same-source scanner benchmark.
+  Exact shared-state/capture duplicates now consolidate in both default views;
+  the viewer controller CLI shrank from 108 to 79 wire records without merging
+  invocations, ordered state transitions or distinct fields. Its 59 uncertainty
+  findings remain. The generation drawing and CLI were reinspected together at
+  current index 7.16.44; the exact CLI was queued in the sidebar. The controller
+  still needs a clearer presentation of real owned state and repeated uncertainty.
+- At the user's request, code size joins diagnostic counts in progress reports.
+  Count physical lines (including comments/blanks) in runtime `.mjs`, `.js`,
+  `.cjs`, `.cpp`, `.h`, `.hpp`, `.css` and `.html` files under core/Studio;
+  exclude tests, node_modules, .local, docs and generated maps. Compare each
+  revision's actual file set, including new untracked runtime files in the worktree.
+  Current: core 11,036, Studio 4,299, total 15,335 (JavaScript alone 15,174).
+  HEAD b3515d8: 10,971 + 4,223 = 15,194; a11926e and b1ef0cb:
+  10,739 + 4,138 = 14,877; 36a671d: 10,269 + 4,036 = 14,305;
+  ab61e96: 10,251 + 4,036 = 14,287; 5526585: 10,260 + 4,036 = 14,296.
+  Thus this batch adds 141 runtime lines (+0.93%), not a net size reduction.
+  App/controller/state/control extraction nets +39 lines, workflow +44, tour's
+  explicit facade +24, adapter/server ownership +14. Runtime nonblank lines
+  increased 126 and normalized characters increased 10,833; the increase is not
+  solely blank lines. Tests are separate: 11,647 currently versus 11,215 at HEAD.
+
 ## 2026-09-18 — Remove fixed failing caps
 
 - Source: owner rule, 2026-09-18: "fixed cap limits like that will ALWAYS fail at
@@ -76,7 +1984,7 @@ Checks (targeted, no full suite): `core/tests/denso.test.mjs`,
 `mcp*.test.mjs`, and the wave-overhangs, planar-infill, full-fill, text,
 rimming-planar, thick-lip, supports, draped-skin, vase-wall, plastic-weld,
 heat-set-inserts and gridfinity skill tests. All pass except the seven failures
-that predate this work. `node scripts/dev-map.mjs check` passes.
+that predate this work. `node dev-map/cli.mjs check` passes.
 
 ### Group B — core samplers and geometry the skills call (B1–B7)
 
@@ -125,7 +2033,7 @@ Checks for group B (targeted): `core/tests/surface-cladding.test.mjs`,
 `line-network.test.mjs`, `dev-map*.test.mjs`, and the rimming-planar, full-fill,
 wave-overhangs, vase-wall, text, heat-set-inserts and draped-skin skill tests.
 All pass except the pre-existing finished-cladding failure.
-`node scripts/dev-map.mjs check` passes.
+`node dev-map/cli.mjs check` passes.
 
 - **Mesh sleeve `maxSectionPoints` (16,384).** Removed. The points in a complete
   fitted section already follow the section tolerance and the fitted
@@ -167,7 +2075,7 @@ Checks for group B part 2: `core/tests/mesh-sleeve.test.mjs`,
 `mesh-large.test.mjs`, `mesh-distance.test.mjs`, `loose-surface-offset.test.mjs`,
 `cladding-offset-tightness.test.mjs`, `surface-offset.test.mjs`,
 `sleeve-frame.test.mjs`, `sleeve-contact.test.mjs` and the vase-wall skill test.
-All pass. `node scripts/dev-map.mjs check` passes.
+All pass. `node dev-map/cli.mjs check` passes.
 
 ### Group B — travel routing, machine commands and program readers (B12–B15)
 
@@ -225,7 +2133,7 @@ Checks for group B part 3: `core/tests/travel.test.mjs`,
 `machine-presentation.test.mjs`, `bambu.test.mjs`, `pipeline.test.mjs`,
 `travel-advisory.test.mjs`, `studio-kinematics.test.mjs`, `dev-map.test.mjs`,
 `dev-map-reference.test.mjs` and the full-fill, planar-infill and draped-skin
-skill tests. All pass. `node scripts/dev-map.mjs check` passes.
+skill tests. All pass. `node dev-map/cli.mjs check` passes.
 
 ### Group C — time limits
 
@@ -267,7 +2175,7 @@ four native-backend tests, which really ran here), `studio-import.test.mjs`,
 `dev-map.test.mjs`, `dev-map-reference.test.mjs`, `skill-digest.test.mjs` (29
 pass). The old test asserted that a 1 ms limit rejected a repair; it now asserts
 that the same call completes, that a cancelled repair and a failed repair each
-publish no directory. `node scripts/dev-map.mjs check` passes.
+publish no directory. `node dev-map/cli.mjs check` passes.
 
 ### Group D — memory guard
 
@@ -354,7 +2262,7 @@ skips. The test that asserted the budget throws now asserts the opposite: the
 196,608-face streamed import completes with `SAAM_MESH_MEMORY_MIB=16` set, which
 is the setting that used to refuse it, and a separate fast test covers index
 capacity at its exact boundaries, an injected allocator failure naming its stage
-and size, and the worker out-of-memory mapping. `node scripts/dev-map.mjs check`
+and size, and the worker out-of-memory mapping. `node dev-map/cli.mjs check`
 passes.
 
 ### Group E — sweep, decisions and register
@@ -459,7 +2367,14 @@ two runs); no skips. Each removed ceiling is now pinned from the other side: ten
 perimeters on a small box validates and deposits more wall than two, ten draped
 skins reach layer index nine, a 24-perimeter lip step generates, and a 150 second
 Dobot pause exports as 60,000 + 60,000 + 30,000 and reads back as 150 seconds.
-`node scripts/dev-map.mjs check` passes.
+`node dev-map/cli.mjs check` passes.
+
+Repository-wide checkpoint verification on 2026-09-19 ran `npm test`: 1,096 of
+1,100 tests passed. The four failures are the already recorded MCP
+transport-close expectation, Studio lifetime harness, and two plastic-weld
+overlap cases (the latter also fail at `6004141`); no new failure was found.
+`node dev-map/cli.mjs check --json` also passed with 1,527 pages, no stale store,
+no unreached pages, no orphan facts and no fact errors.
 
 ## 2026-09-18 — Finish opening Studio in a tab that is never painted
 
@@ -1287,8 +3202,8 @@ not runtime observations or physical evidence.
 ## 2026-09-17 — Report-only code-derived developer-map pilot
 
 Implemented lexical/import/alias resolution and exact source evidence in
-`scripts/dev-map/graph.mjs`, with declaration containment, typed relationship
-projection and shared-caller reports in `scripts/dev-map/evidence.mjs`.
+`dev-map/lib/graph.mjs`, with declaration containment, typed relationship
+projection and shared-caller reports in `dev-map/lib/evidence.mjs`.
 `node scripts/dev-map-evidence.mjs` regenerates the ignored JSON graph, comparison
 report and readable report. The existing viewer, region wiring, red-link behavior
 and manufacturing implementation were left unchanged. The pilot operates in the
@@ -1369,7 +3284,7 @@ the same file's header prose had already been updated — they now name the owni
 region maps and `scripts/bench/region-reference.md`. The builder map's two map
 nodes had no wires at all, so nothing showed how a builder reaches them and hover
 did nothing; they are now wired from `BUILDERS.md` with a `read-map` action, a
-`maps/README.md` node was added because the map guide was unreachable, and the
+`dev-map/README.md` node was added because the map guide was unreachable, and the
 generated viewer node says to build first. Its legend gained the blue-dashed
 swatch its prose already promised.
 
@@ -1394,7 +3309,7 @@ guarantee — are enforced only when a contributor runs them locally. `check-rep
 walks `*.md` only, so the two context-map HTML files are never link- or
 coverage-checked; that is why the stale nodes survived. The viewer's Doc pane
 renders region-prose Markdown links as literal text, because `md_to_html` in
-`scripts/dev-map/viewer.py` handles code, bold and italic but not links, so the
+`dev-map/lib/viewer.py` handles code, bold and italic but not links, so the
 routing half of the map contract does not reach people. The builder map still
 omits nodes for the test reference, benchmarks, MCP development, machine models
 and `skills/wave-overhangs/DEVELOP.md`. `--area path` returns `core/path/README.md`
@@ -5041,3 +6956,864 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   three region-composition failures that already fail on a clean checkout of
   `e783862` and are unrelated to this change. A new regression generates a
   wall above 100000 points on the exact path and reads old budgets as inert.
+
+## 2026-09-18 — Nearby strokes connect by deposition; the short-travel advisory reports only bad paths
+
+- Source: user, as developer work: fix all skills and toolpath generation so the
+  short-travel advisory essentially never triggers, then have the agent always
+  mention it when it does (BR-049).
+- Measured before the change, by regenerating saved prints in memory and
+  bucketing every travel of at most 2 mm by its neighboring operations: tour
+  handle 2074 of 2950 travels, freehand cat mesh 1718 of 3876, wavy roof 10959 of
+  14471, DENSO surface cladding 17372 of 18135. About 95% were fill row to next
+  row, wall loop to wall loop and wall to fill, written as non-extruding direct
+  moves; on curved mesh outlines 337 wall-to-wall steps of 0.4 mm were full
+  retract/lift/descend hops because the outer wall centerline sits exactly on
+  the half-line-width combing standoff. The rest were layer changes that started
+  near the previous layer's end (hops), the 1 mm final park, axial cladding index
+  steps, sub-micron gyroid segments whose E rounded to zero, and the vanishing
+  end of a level vase rim.
+- Implemented: `PathBuilder.connectTo` and `connectNearby` operations — a stroke
+  starting within 2 mm of the preceding deposition continues as one printed
+  connector carrying the next stroke's bead, under the same region, surface and
+  completed-material checks as a direct travel, with a 0.05 mm released standoff
+  for wall centerlines; connector moves carry `connector: true` and
+  `summary.travel.connected` counts them. Full-fill (and planar-infill, supports
+  and regional fill through it), draped-skin, thick-lip and axial pipe/surface
+  cladding opt in; authored-gap producers do not. Thick-lip travel now uses the
+  ring band it deposits rather than the wall section. A nearby start on the next
+  layer up is one rising `layer-step` move without retraction. Level vase rims
+  end where the remaining taper holds under 0.001 mm3. Relative-E export carries
+  its rounding remainder, which the many equal connectors exposed as a 0.003 mm3
+  drift on H2D. The advisory no longer flags the first approach, the final
+  departure, travels between different known layer labels, or segments of at
+  most 0.001 mm; it reports `liftedCount` and a per-sample `lifted` flag, and its
+  message and the Studio advisory request tell the agent to inform the person.
+- Measured after: handle 3 (lifted travels between letter islands 1.2 mm apart),
+  cat 0, gyroid check 0, cylinder vase 0, thick-lip example 0, plastic-weld trial
+  0, wave-overhang example 0, heat-set example 0; DENSO surface cladding 17372 to
+  shell changes only. Across every program the test suites export, thirteen
+  still report 1–20 findings each; BR-049 lists their causes. Connectors add
+  material: 0.46% on a five-loop 2 mm ring wall, the usual zigzag turn on solid
+  fill. No physical print has tested them.
+- Verification: affected core and skill suites pass in the shared checkout after
+  updating expectations that encoded the former non-extruding steps. Still
+  failing and unrelated: the known mcp, finished-cladding, plastic-weld and vase
+  interoperability cases, `studio-lifetime` "last viewer closes only its
+  instance" (fails identically without this change), and dev-map suites under
+  concurrent edit by another session.
+
+## 2026-09-18 — Dev map generated from code, alongside the authored maps
+
+- Source: user, as developer work: agents orient from graph structure only; node
+  set, grouping, addresses, labels, boundaries and couplings come from a scan, and
+  map prose is to be removed.
+- Implemented, additive: `read-map TARGET --generated` (`dev-map/lib/projection.mjs`).
+  Identity is the declaration path; a numeric handle is recomputed every scan and
+  stored nowhere. Nodes are named callables with a unique, non-positional path;
+  other code is enclosed in its nearest such ancestor or a module node. Pages are
+  directories, page reads return a file-level index, file and node reads return
+  per-node edges with labels taken from parameter, argument and result names.
+  `dev-map/lib/couplings.mjs` links literal worker message types, HTTP
+  method/path, file writer/reader names and registry entries; `--tests` lists
+  importing tests on request. Authored reads, build and check are unchanged.
+- Measured 2026-09-18: 9 pages, 134 files, 1274 nodes, 6119 enclosed
+  declarations, 4070 edges; couplings linked 24 worker-message, 26 http-route,
+  84 file, 4 registry-entry; not linked 24 http and 59 file sites. Packets:
+  `core/path` page 9.8 KB (authored `5_motion` 12.6 KB), `studio` page 57 KB,
+  one declaration 1.5 KB.
+- Found without a matchable signature: `/api/download/<id>` followed from a
+  returned URL, the export file name computed from plan data, zip entry names.
+  File links ignore directories. Anonymous route and message handlers project
+  onto `createStudio` or a module node.
+- Verification: the six dev-map test files pass 50 of 50; `dev-map.mjs check` passes.
+
+## 2026-09-18 — Flow pages generated from function bodies
+
+- Source: user, as developer work: the by-file generated map says where code
+  lives, not what happens; the map wanted is a Grasshopper-style leveled flow.
+- Implemented, additive: `read-map DECLARATION --generated --flow` and
+  `dev-map.mjs build --flow DECLARATION` (`dev-map/lib/flow.mjs`, `flow.py`).
+  One function is one page: parameters are input ports, distinct callees are
+  components in first-appearance order, local def-use gives named wires, a
+  mutated receiver gives a state thread, the enclosing test gives the gate,
+  returns are output ports. Every element records the mechanism that produced
+  it and the drawing carries a provenance legend; nothing is authored. Method
+  calls on a receiver resolve through the value a caller passes (opt-in
+  `receiverCalls`), which supplies the ten `builder.*` calls of
+  `composeResults` that extraction previously missed.
+- Measured 2026-09-18: `composeResults` page 15 components, 47 wires, packet
+  24 KB; `travelTo` 16 boxes, 27 wires. Repo-wide receiver-value links 43. The
+  unique-method-name fallback made 1939 links, about 1900 of them built-in
+  `map/push/every/some/has` calls matched to unrelated object methods; it is
+  quarantined and due for removal. Of 4086 other unresolved method calls in
+  core and Studio, 2258 use a name no core/Studio declaration carries.
+- Reads worse than the authored `5_motion`/`5a_travel` pages where parallel
+  wires repeat one variable name, gates are raw test text, one callee box
+  merges several branches, and literal-tagged returns carry nothing.
+- Verification: seven dev-map test files pass 55 of 55; `dev-map.mjs check` passes.
+
+## 2026-09-19 — Generated flow map: complete call accounting, stored map, explicit regeneration
+
+- Source: user, as developer work: one agent path `0` -> region -> page -> code;
+  scanning is an explicit `regenerate`; no prose in packets; no authored lists
+  or thresholds.
+- Implemented, additive (`--generated` gate; authored reads, build and check
+  unchanged): every call site in core and Studio is LINKED, EXTERNAL by a named
+  mechanical rule, or UNRESOLVED; the unique-method-name fallback is deleted;
+  value following covers factory-returned objects and destructuring. Flow pages
+  resolve def-use through scopes, draw early returns and throws as output
+  ports, list assertion-shaped calls as `requires`, keep formula-shaped callees
+  off the page with wire continuity, and carry `calledFrom` and couplings.
+  `dev-map/lib/store.mjs`, `regions.mjs`, `shapes.mjs`: a stored map under
+  `dev-map/generated/`, `regenerate [INDEX]`, region-local canonical numbering,
+  page 0 and region pages, `unreached`, stale marking by file hash on read,
+  `read-map INDEX --generated [--code]` with `--code` refused on root and
+  region pages.
+- Measured 2026-09-19: call sites LINKED 4633, EXTERNAL 5657, UNRESOLVED 1298
+  (was 6019 incl. 1523 junk / 0 / 5572). 9 regions, 1275 pages, 615 leaves, 273
+  formulas, 4 assertions, 2 unreached nodes. Full regenerate 9.3 s: link 8.0 s,
+  parse 0.14 s, shapes 0.17 s, pages 0.61 s, write 0.18 s. Region-scoped
+  regenerate 8.6-8.8 s: scoping rebuilds only that region's pages and numbers
+  but the link phase is still whole-program. Reads from the store 0.09-0.13 s
+  wall (were 4-8 s). Store 2.6 MB, 135 files. Packets: median 771 B, p90 2.1 KB,
+  max 20 KB (`createStudio`); `composeResults` 7.0 KB (was 23.9 KB).
+- Open: 211 formula/assertion nodes have an index and page but no page lists
+  them as components; `addEventListener` handlers and CLI dispatch under
+  `scripts/` are not detected as entry points; `core/geom` region page admits
+  106 entries; class pages have no wires; 7 gate texts render `??` as `== null`.
+- Verification: seven dev-map test files pass 71 of 71; `dev-map.mjs check`
+  passes; scoped regenerate of every region with no source change leaves the
+  store byte-identical (subagent-run); audit of all pages: 2475 call sites,
+  2711 wire labels, 10027 index references, 0 failures.
+
+## 2026-09-19 — Generated flow map: faster linker, file level, class pages, entry points
+
+- Source: user, as developer work: density is solved by more nesting; nothing
+  unlisted; no thresholds; benchmark regeneration.
+- Implemented, additive: linker hot spots removed (per-node `children`,
+  per-function returns, memoised value resolution) with the store byte-identical
+  before and after. Index path is now `0` -> region -> file -> entry -> callees;
+  `--code` is allowed on a file page and refused on `0` and region pages. Every
+  page lists its formula-shaped callees; formulas additionally exclude async,
+  `await`, `new`, nested block functions and unresolved calls (273 -> 201).
+  Class pages draw method calls and shared `this.` fields as state wires.
+  `dev-map/lib/scope.mjs` is the one authored scan scope (mapped: core,
+  studio; outside callers: skills, adapters, scripts). Event-listener
+  registrations are entry points. `??` gates show the source slice.
+- Measured 2026-09-19: full regenerate 7.7 s wall (link 5.6 s, pages 0.9 s,
+  parse 0.36 s), was 9.3 s; on the former 180-file scope the link phase is 2.6 s
+  (was 8.3 s); the added `scripts` root and listener pass account for the rest.
+  Region-scoped regenerate 6.9-7.1 s: the link phase remains whole-program.
+  Reads: `0` 4.7 KB, `core/path` region 3.8 KB (was 10.5 KB), `compose.mjs`
+  file page 1.0 KB, `composeResults` 7.9 KB. `core/geom` region page 39 KB ->
+  17 KB. `PathBuilder` class page: 12 method calls, 128 state wires over 15
+  fields. Entries 451; unreached list empty. Call sites linked 4633, external
+  5653, unresolved 1302, of which about 726 are `map/every/slice/filter/some/
+  push/at` on untyped receivers, kept unresolved because
+  `studio/move-store.mjs` defines methods with those names.
+- Verification: seven dev-map test files pass 78 of 78; `dev-map.mjs check`
+  passes; whole-store audit (subagent-run): 0 index, calledFrom, gate-slice or
+  call-site failures, 0 nodes off the map.
+
+## 2026-09-19 — Whole generated map drawn for the owner
+
+- Source: user, as developer work: put everything generated so far where it can
+  be viewed.
+- Implemented, additive: `node dev-map/cli.mjs build --generated` draws the
+  stored map (`dev-map/lib/generated-view.mjs`, `generated-view.py`) into
+  `dev-map/generated-view/`: page `0`, region, file, class and function pages in
+  the leveled layout, click-through between levels, breadcrumb to `0`, a URL
+  hash per index, search by index or declaration path, a source pane, page
+  lists (`requires`, `formulas`, `calledFrom`, couplings, unresolved, external
+  count), stale pages framed in red with the `regenerate` command, and one
+  legend as the only prose. It reads only the store and exits non-zero when the
+  store is missing or stale. Class `this.` field wires are drawn bundled per
+  field. `leveled.py` no longer fails on a page without boxes.
+  `.claude/launch.json` serves the output for the desktop browser pane.
+- Measured 2026-09-19: 1419 pages (root 1, region 9, file 134, function 1023,
+  method 223, handler 21, class 8), 8442 boxes, 7008 wires; build 2.6 s;
+  output 13.6 MB in 1421 files, shell 0.77 MB with one script sidecar per page;
+  inlining every drawing made the shell 13.3 MB and opening took 18.7 s
+  against 0.1 s. Full regenerate 4.4 s on an idle machine.
+- Reads badly when drawn: `core/geom` and `studio` region pages, `studio/app.mjs`
+  and `core/geom/tolerance.mjs` file pages, `createStudio`, `validatePlan`
+  (60 assertions), `PathBuilder` and `LuaRuntime` class pages, and pages whose
+  parameters fan to every component such as `exportAndInterpretProgram`.
+- Verification: eight dev-map test files pass 82 of 82; `dev-map.mjs check`
+  passes; viewer opened in the browser pane at `0` and `#6.3.1`; the first-open
+  fit was wrong and is fixed.
+
+## 2026-09-19 — Switch-over: the generated map replaces the authored maps
+
+- Source: user, as developer work: "go ahead and switch"; old maps remain
+  readable at commit 5526585.
+- Implemented: `read-map INDEX|DECLARATION [--code]` is the only map read and
+  `regenerate [INDEX]` the only scan; `--generated` and the authored flags are
+  gone; `--code` is refused on `0` and region pages. Store `dev-map/store/`,
+  viewer `dev-map/view/` (`node dev-map/cli.mjs build`). Developer and
+  builder onboarding return page `0` and, for `--area REGION`, that region
+  page. Deleted: 10 authored region files, 23 `maps/reference/` files, 21
+  redirect-only component READMEs, the authored pipeline (model, generate,
+  evidence, containment, reference, maintenance, render) and six test files.
+  Every inbound link was removed; AGENTS, BUILDERS, DEVELOPER-CONTEXT, SETUP,
+  README, the context-map pages and `dev-map/README.md` now describe the walk from
+  `0`, discourage text search for orientation, and drop the responsibilities
+  and contract authoring procedure. `dev-map/facts.tsv` (header only) is the one
+  authored map content: rows attach to pages, orphans are reported, malformed
+  rows fail `dev-map.mjs check`, which also fails on a missing or stale store.
+- Lost with the reference prose and not yet re-homed: operator-facing Studio
+  guidance that lived in `maps/reference/studio.md` (agent permissions, opening
+  local prints, agent request coordination, event queue, STL import), machine
+  program notes for Griffin, Bambu, Dobot and DENSO, and the caller contracts
+  skill manuals linked to. AGENTS.md still says SETUP.md covers Studio client
+  permissions; SETUP.md no longer does. The subagent listed 25 candidate
+  external facts by old location; none were added to `dev-map/facts.tsv`.
+- Not built: `check --since REF`.
+- Verification: `dev-map-flow`, `dev-map-view`, `agent-toolkit`, `context-map`
+  and `mcp-access` tests pass 56 of 56; `mcp.test.mjs` 16 of 17 with the same
+  transport-close failure present at 5526585; `dev-map.mjs check` exit 0 (2128
+  linked, 1285 unresolved, 5383 external, 0 unreached); `check-repo.mjs` reports
+  only BR-049's existing "Remaining" format error; no reference to the deleted
+  system remains outside DEVLOG and DECISIONS history.
+
+## 2026-09-19 — Maker and builder manuals restored; three reading roles; viewer follows the map
+
+- Source: user correction: makers and builders keep their prose documentation;
+  developers read the generated map and one small orientation file. The
+  switch-over (ab61e96) had deleted the component manuals along with the map
+  prose, because since 8b4b148 (2026-09-17) their content had lived under
+  `maps/reference/` behind redirect stubs.
+- Restored at their own paths, newest text from 5526585: 21 component manuals
+  (`core/README.md`, `core/agent`, `core/export` and its four machine manuals,
+  `core/geom` and `native`, `core/machine`, `core/path` and its collision
+  proposal, `core/print`, `core/region`, `core/tests`, `machines`,
+  `scripts/bench` and its region reference, `studio` README, KINEMATICS and
+  RENDERING). Dropped from them: every `Implementation responsibilities` section
+  and every `Changing ...` section with the Contract/Failures/Change
+  together/Verification shape, which were added on 2026-09-17 for the deleted
+  responsibilities check. `maps/reference/generation.md` was that apparatus only
+  and is not restored; the ordinary sections of `studio-protocols.md` are now
+  `studio/README.md#studio-state-and-worker-protocols`. Nothing is restored
+  under `maps/`. 136 inbound links restored across MAKERS, SETUP, GLOSSARY,
+  USAGE, skill manuals, adapters, AGENTS and BUILDERS; both context-map pages
+  have their nodes back, pointing at the component manuals.
+- Roles: maker reads prose, no maps; builder reads prose and may walk the map
+  for the region touched (`builder-onboarding --area core/path` returns the
+  builder documents, `core/path/README.md` and region page 6); developer reads
+  the map from `0` and `DEVELOPER-CONTEXT.md` only (66 lines; developer
+  onboarding no longer returns BUILDERS.md).
+- Viewer: index rows were not clickable; fixed. The index is indented,
+  collapsible and can be hidden. `dev-map/view/index.html` is overwritten in
+  place and reloads itself when a new drawing lands; every `regenerate` redraws
+  it (8.6 s together); a stale store is still drawn with the affected pages
+  marked, and `build` fails only when there is no store.
+- Not documented anywhere but this log: a locked `process.primeLine` replacing
+  profile priming (was in the dropped generation apparatus).
+- Verification: `check-repo.mjs` passes link and anchor checks (only the known
+  BR-049 format error); toolkit, context-map, mcp-access, dev-map-flow and
+  dev-map-view tests pass 56 of 56; `mcp.test.mjs` 16 of 17 with the known
+  transport-close failure; no tracked file mentions `maps/reference`,
+  `saam-map-reference`, `Implementation responsibilities` or `map-owned`.
+
+## 2026-09-19 — Generated-map integrity and explicit path-planning pilot
+
+- Source: current user in task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`
+  requested completion of useful graph-native developer maps, approved authored
+  flow grouping, and selected path planning for an explicit-state coding pilot.
+  [D-035](DECISIONS.md#d-035--authored-flow-composition-over-generated-code-relationships)
+  and [D-036](DECISIONS.md#d-036--explicit-planning-stages-and-state-in-the-path-planning-pilot)
+  record the direction. Maker and builder manuals remain their prose context.
+- Map repair: canonical declarations belong to their own files; scoped
+  regeneration updates affected references and preserves unrefreshed source
+  fingerprints. Inventory, outside callers, generator dependencies, grouping
+  and facts participate in freshness. Invalid partial refreshes widen explicitly;
+  full regeneration removes obsolete pages. Region/group source reads work,
+  while root source reads remain refused. Terminal addresses open source in
+  both CLI and viewer; the left page index omits code-only destinations.
+- Flow repair: nested gates and per-use assignment origins are retained;
+  unsupported joins, loops and mutation are reported rather than supplying
+  guessed values or execution order. Called pure functions remain visible.
+  Authored membership contracts only generated relationships; group diagnostics
+  belong to their members or link the owner's analysis context. Seven external
+  facts were restored with provenance. The first utility grouping did not
+  provide a coherent high-level flow; the user retained it for comparison.
+- Path pilot: production generation enters `toolpath.mjs::planToolpath`, passing
+  explicit state through startup, priming, composition and finishing. Travel,
+  connection, deposition and layer cooling return new state and action deltas.
+  `PathBuilder` and `composeResults` are adapters to shared planning code, not
+  separate planning algorithms. Earlier action objects survive collinear
+  merging unchanged; the accumulated path is assembled at the boundary.
+- Initial behavior evidence: 7 new immutable-state tests and 49 affected
+  existing tests passed. Eight scenarios exactly matched isolated original
+  implementations, including complete S5, Bambu and oriented DENSO output and
+  summaries. Their combined serialized-output SHA-256 was
+  `9be0e5ededd2903f8cd1bd081198a0bf00c2779c89ae7e908abeb064ee0a373a`.
+  Removing duplicate composer logic retained those exact comparisons and all
+  eight composition tests. Baseline artifacts are ignored under
+  `dev-map/audit/pilot-baseline`.
+- Initial integration evidence: 83 map/toolkit/context checks passed after
+  updating the root-code-refusal assertion to its revised message (82 in the
+  combined run, the corrected onboarding test separately). Map check reported
+  fresh source and no orphan or malformed facts. Repository checks still report
+  the pre-existing BR-049 missing `Remaining` field.
+- Follow-up authorized during review: generated choice/iteration connections
+  are needed because explicit state still disappeared at branch and loop
+  boundaries. A single 50,000-collinear-segment measurement returned the same
+  one action in both planners; observed temporary heap growth was about 2 MiB
+  before and 15 MiB after, with 80/94 ms elapsed respectively. This is a synthetic
+  observation, not a general performance result. The user approved stage-local
+  compaction of superseded move deltas while preserving input/result immutability.
+- Compaction evidence: a stage-local accumulator retains surviving appends and
+  at most one replacement of the incoming tail. Twelve immutable-state tests
+  passed, including cross-stage replacements, process-action barriers, detached
+  accumulator reuse and 10,000 collinear segments producing one retained action.
+  All eight baseline outputs still match the same hash. A fresh single synthetic
+  run observed about 3 MiB temporary heap growth and 70 ms for the compacted
+  planner, versus 3 MiB and 71 ms for the original implementation; timings are
+  indicative only.
+- Subsequent review accepted the density and comprehensibility of the operation
+  composition page, while identifying sparse scheduler helpers, disconnected
+  progress input, duplicate caller references and navigation friction. Source
+  destinations now use a distinct color; the viewer has actual-route Back and
+  Escape-to-close. Callers already represented on a page use connecting call
+  arrows; only other callers retain red address references. Class membership
+  was removed from incoming-call accounting.
+- Source snapshots now accompany generated file records. CLI and viewer use
+  the same matching source while stale; scoped regeneration retains unrefreshed
+  snapshots. Legacy source is accepted only after a hash match. Shifted/deleted
+  source, partial regeneration and emitted-source parity were checked.
+- The user selected scheduling as the next bounded code-and-map section.
+  Validation, priority preparation, prerequisite preparation and topological
+  ordering now return explicit records, with heap mutation confined to ordering.
+  Eight composition tests and all eight baseline comparisons passed unchanged;
+  fourteen planning-state tests include frozen scheduler inputs, stable priority
+  ties, repeatability and cycle rejection without consuming prerequisites.
+- Known direct parameter-callback invocations now have callable and payload
+  connections, source locations and nullish optional gates. Concrete targets
+  remain unresolved. Independent negative cases caught and fixed false constant
+  claims for partly unknown values and computed payload keys. The eleven
+  external sites in planComposition were verified as Map/Array operations;
+  generic external counts no longer claim application-boundary semantics.
+- Integration evidence: 93 map tests passed, followed by 10 invocation and
+  independent callback checks. Regeneration produced 651 graph pages and 813
+  code destinations, with zero stale pages and no orphan or malformed facts.
+  Browser checks verified the scheduler's four connected stages, source color,
+  Escape, caller navigation and Back. Accumulator contents, scheduling-ledger
+  inputs and summary-field origins still have bounded analysis gaps; those
+  omissions are explicit uncertainty, not certified connections.
+- Subsequent boundary review: generated call-site evidence now traces input
+  arguments and returned-value bindings/known uses into port references. Each
+  caller and invocation keeps its source context; defaults, spreads, unknown
+  origins and untraced consumers stay explicit. Independent tests cover record
+  field isolation, escape invalidation and preserved source sites during scoped
+  renumbering. Forty-six boundary/store/view checks passed. Regeneration and
+  browser inspection verified scheduler port references, compatible wire bundles
+  and outward arrows attached to nodes or the expanded function frame. Local
+  collection/counter analysis remains the next active scanner increment.
+
+## 2026-09-19 — Cloudflare relay milestone specification
+
+- Source: “Plan Cloudflare MCP relay” (`01a0baba-5902-7c41-8e9e-19d95fe2c81c`).
+  The user selected active Studio-driven interaction through pending MCP calls
+  and requested a specification/roadmap rather than a capability experiment.
+- Added the [milestone plan](adapters/mcp/RELAY-PLAN.md) and recorded the selected
+  direction in [D-037](DECISIONS.md#d-037--cloudflare-relay-and-studio-driven-chat-sessions),
+  with a follow-up link from D-023. Windows/macOS packaging carries forward
+  D-023's recorded scope; a shared relay object and local review are explicit
+  planning defaults rather than newly attributed human decisions.
+- Specified session ownership, bounded event waits and renewal, durable event
+  replay/acknowledgment, independent local jobs, pairing/access boundaries,
+  installer/update behavior, failure recovery and six implementation stages.
+  Integration acceptance requires actual model responses to Studio requests
+  without routine chat intervention; it is not satisfied by an open socket.
+- Platform documentation consulted on 2026-09-19 describes a 240-second Claude
+  tool-call deadline and Cloudflare's shared allowances and duration metering.
+  The plan links those sources and budgets listener renewals separately from
+  the 900,000 ordinary monthly calls. One continuously active standard object
+  over 30 days calculates to 331,776 GB-seconds; this is a planning calculation,
+  not measured SAAM usage or a guaranteed total bill.
+- This task changed planning documentation only. No connector capability test,
+  relay deployment, installer build or manufacturing execution was performed.
+  Implementation remains future work; no implementation backlog entry was
+  created from engineering recommendations alone.
+- Documentation check: `node scripts/check-repo.mjs` reported no new plan-link
+  or decision-metadata errors. The repository-wide check remains failing on the
+  pre-existing BR-049 `Remaining` field format in build_request.md; that unrelated
+  queue entry was left unchanged.
+
+## 2026-09-19 — Refine relay sessions, account access and wait targets
+
+- Revised the relay plan in response to review: one active paired installation,
+  no routine device picker, explicit replacement, and new chats that reopen
+  saved print bundles without transferring chat sessions. Part creation is
+  agent-led, with loading an STL as the alternative starting point.
+- Replaced the ambiguous cloud-state wording with explicit local revision
+  checks. Reduced interruption recovery to retained requests/outcomes, safe
+  retries and visible unavailable state; stopping the assistant does not cause
+  automatic restart. Normal listener renewal is not an interruption.
+- The user replaced the ten-minute quiet-wait request with 7:30 and explicitly
+  requested that timeout for ChatGPT too. The plan targets a 450-second ChatGPT
+  call and two 225-second Claude calls, with one renewal. Claude documents a
+  240-second per-call limit; the cited ChatGPT documentation supplies no matching
+  deadline. Its 450-second value is a requested implementation target, not a
+  verified client capability. No live capability test was performed.
+- Added sourced account/workspace and tool-consent requirements, distinguished
+  web connectors from other client surfaces, and expanded the transport/cost
+  model. A 450-second interval on one standard active object calculates to
+  57.6 GB-seconds; one such interval per print adds 30,000-60,000 monthly wait
+  calls depending on client mix. These are scenarios, not usage measurements.
+- Re-ran `node scripts/check-repo.mjs`: the same pre-existing BR-049 `Remaining`
+  format error is the only reported content failure. Left it and concurrent
+  implementation work unchanged. This revision changes planning documents only.
+
+## 2026-09-19 — Alpha permissions and beta distribution context
+
+- Added the intended first-use permission flow and distinguished device pairing,
+  OAuth access, provider tool consent and local output approval. Fetched official
+  OpenAI submission/OAuth/permission documentation and Anthropic connector policy
+  documentation; the plan links the sources and labels unimplemented screens.
+- Clarified that RELAY-PLAN owns the alpha milestone. Developer mode is acceptable
+  there; reviewed ChatGPT publication remains beta context and is excluded from
+  the alpha roadmap and acceptance gates. No external submission was made.
+- The user requested consolidation proposals for review. No proposed structural
+  consolidation or content deletion was applied; only the explicit alpha scope
+  correction was made after that request.
+
+## 2026-09-19 — Apply reviewed relay-plan consolidation
+
+- Applied the user's item-by-item review: preserved Goalpost, Selected scope and
+  planning defaults, and Person's workflow; retained a shorter permission-screen
+  section; limited eligibility to target web clients; consolidated architecture
+  boundaries and session/recovery rules. Moved the shortened cost discussion
+  directly after architecture, linked roadmap stages to one acceptance checklist,
+  and reduced beta publication to context. The plan shrank from 5,862 to roughly
+  3,600 whitespace-delimited words without changing the wait targets.
+- Replaced the wide Mermaid diagram with a portrait SVG using explicit dark
+  backing, larger labels and thick high-contrast arrows. Rendered it through
+  Sharp and visually inspected the result. The approved preserved sections were
+  checked against their exact pre-edit text; no incoming links to removed
+  section anchors were found. No implementation code was changed.
+- `node scripts/check-repo.mjs` still reports only the pre-existing BR-049
+  `Remaining` field format failure; the plan's links introduced no new errors.
+
+## 2026-09-19 — Recheck alpha and future beta account setup
+
+- Re-fetched official OpenAI developer-mode, plugin-installation, workspace and
+  submission documentation, plus Anthropic custom-connector, directory and
+  plugin documentation. Added the requested future-beta column, made ChatGPT
+  Free/Go eligibility explicitly unconfirmed for the published route, and split
+  Claude Free from Pro/Max to distinguish its one custom connector from paid-plan
+  bundled plugins. Retained per-user authorization and organization policies.
+- Moved beta context into one explicitly deferred paragraph in Goalpost and
+  removed its standalone section. Beta publication remains outside alpha scope;
+  no new distribution or implementation work was performed.
+
+## 2026-09-19 — Compact developer map reads
+
+- Made agent map reads a compact presentation of the existing stored graph:
+  inclusive line ranges, inherited file locations, empty-list omission and
+  deduplicated inventory/caller metadata. Calls retain argument expressions and
+  producer sites; repeated invocations retain result uses. `--details` returns
+  the unchanged rich packet without scanning.
+- Source reads omit the graph body while preserving provenance, freshness and
+  edit-safety metadata. Automatic terminal reads also retain input/output
+  boundary references. The human viewer and stored graph representation are
+  unchanged by this CLI presentation change.
+- Measured the full scheduler CLI response, including its current stale notice
+  and trailing newline: 5,198 characters against 5,483 source characters for the
+  scheduler and its four stages. The equivalent detailed response is 9,545
+  characters; the compact response without a stale notice is 4,764. Source-only
+  scheduler output is 1,480 characters excluding its trailing newline.
+- Five focused compact-packet tests and the targeted toolkit onboarding/map
+  integration test pass. Independent review caught and verified fixes for
+  repeated-call producer identity and automatic terminal boundary provenance.
+  Shared regeneration is held while the user considers the separate renderer
+  fix for missing collection/update expressions, constants and optional gates.
+
+## 2026-09-19 — Integrate local state analysis and rendering
+
+- Following user approval to proceed, completed the renderer's local-state
+  display: collection argument expressions, certified constant operands,
+  iteration initial constants and optional collection/update gates. A real
+  scanner-to-SVG fixture verifies these details without claiming dynamic values
+  are constants.
+- Regenerated all nine regions and 136 files. The viewer now has 688 graph pages
+  and 776 code destinations, with no stale pages or orphan facts. Inspected the
+  actual composition page in the browser: six components, 22 flow operators and
+  56 wires. Escaped deposited state, custom accumulator effects and unsupported
+  returned-array/callback provenance remain explicit limitations.
+- Seventeen viewer tests, twenty store integration tests and five compact-read
+  tests pass. Updated the old disconnected-helper fixture because its array
+  operations now generate real state flow; kept a separate genuinely disconnected
+  helper case and asserted both source and graph destinations independently.
+- The regenerated scheduler's compact CLI response is 4,886 characters including
+  its newline against 5,483 source characters; all four stages still open code.
+  No additional core behavior changes were made in this integration.
+
+## 2026-09-19 — Reduce map detail and separate source from navigation
+
+- Recorded the reviewed composition page as a rough upper density reference,
+  not a target to fill. Private state bookkeeping remains a candidate for
+  operator-aware grouping; that structural change has been proposed to the
+  user and has not been implemented.
+- Human and agent default views now share a presentation layer: boundary ports
+  show a short caller-site reference with uncertainty flags, rather than copied
+  argument/result and producer/consumer context. Detailed evidence remains in
+  the store and `read-map --details`. Callback object payloads show field names;
+  redundant operator port lists, AST tags and initializer boilerplate are omitted.
+  Conditions, transformations, constants and graph connections remain visible.
+- Back tracks map pages only. Source open/close creates no map-history entry;
+  Back leaves an open pane untouched. Clicking the body of a source-addressed
+  operator opens its matching source span. Verified in the browser that both
+  Back with source open and Back after Escape behave this way.
+- Seventeen viewer tests and eight compact-presentation tests pass. Independent
+  review caught an overly broad return-label abbreviation; it now requires
+  direct-return AST evidence and preserves arithmetic, member and conditional
+  return expressions. No core planning behavior changed.
+
+## 2026-09-19 — Keep operator implementation behind source access
+
+- The user clarified that operator implementation is unnecessary for developer
+  orientation too. Removed expressions, alternative values, payloads, constants,
+  prefix/postfix mechanics and loop bookkeeping from default operator boxes and
+  the shared default agent presentation. Boxes retain identity, operation, source
+  location and a concise unresolved marker. Wires, gates and page uncertainty
+  remain; matching source and `--details` retain the implementation evidence.
+- Seventeen viewer tests and eight compact-presentation tests pass. The view
+  tests check all five operator types for absent implementation bodies while
+  preserving edge endpoints and source click behavior.
+
+## 2026-09-19 — Derive the alpha relay hosting budget and user cap
+
+- Rechecked Cloudflare Workers/DO pricing and replaced the relay plan's loose
+  capacity discussion with per-user request and monthly hosting tables. Set
+  the planning target to $5/month for the relay and derived 150 active users
+  from 6,000 metered DO requests/user/month with 10% included-request headroom.
+  Kept the user's five prints/day and 30 ordinary calls/print; additional event,
+  listening, transport, CPU, SQLite and log quantities are explicitly unmeasured
+  engineering budgets. Updated scope and alpha acceptance to the derived cap.
+- Calculated all request components and thresholds: 166 users fit without
+  reserve, the first rounded overage begins at 167, and the original 200-user
+  scenario projects to $5.15/month. The request-only marginal rate is $0.0009
+  per additional scenario user/month, distinct from the $0.15 invoice steps.
+  The one-object projection and all other allowance assumptions are retained;
+  this is a cost model, not measured capacity or a provider-enforced spending cap.
+
+## 2026-09-19 — Whole-scope map rollout and smaller review checkpoints
+
+- User direction: preserve the Grasshopper-style code-and-map objective, remove
+  superseded implementations after rewiring every consumer, and review smaller
+  sections before repeating an approach. Each proposed review now includes an
+  inspected default CLI response opened beside the drawing.
+- Shared generation at 22:42 UTC covered 9 regions and 138 mapped files, with
+  1,415 declarations, 267 authored containment groups, and 1,830 destinations.
+  It reported no orphan facts or malformed facts and was current at publication.
+  Coverage is not completion: region/file capability inventories and remaining
+  weak orchestration pages are tracked separately in the ignored rollout audit.
+- Distinct invocations retain separate stage identities. Function grouping now
+  rejects contractions that hide an outside stage between two group members and
+  would therefore draw false feedback. Invalid Studio draw/service contractions
+  were removed; structural navigation groups remain.
+- Full gate predicates moved behind source/details; exit control wires connect
+  unsupported-format exceptions to their deciding inputs. The user visually
+  accepted studio/source-player.mjs::decodeSource (then 9.23.1). Accuracy remains
+  the developer's responsibility. Full conditions and matching stale source are
+  retained for inspection.
+- Default CLI calls no longer duplicate argument expressions, producer traces or
+  result-use lists. Generated argument-slot wires preserve order and repeated
+  arguments; spread-affected positions remain explicitly uncertain. Compatible
+  argument values share a drawn link without losing individual slot labels.
+- Removed PathBuilder, composeResults, primeBeforePart, planOperationControls,
+  generateFullFill and generateDrapedSkin after rewiring their live consumers.
+  Functional trimming and finished-boundary publication preserve incoming
+  values. Regional cladding now receives the same shell identity used by its
+  producer. Thirteen captured paths remained exact; 25 focused checks passed.
+- At this checkpoint all 181 map tests passed. Subsequent review work continues
+  on compound-gate identities, returned record labels, possible-target markers,
+  live browser freshness, external call boundaries, and named worker/tessellation
+  stages. These outstanding items are not claimed complete by the coverage count.
+
+### 2026-09-19 — Interpreter and service-stage review checkpoint
+
+- At 23:11 UTC the shared snapshot covered 138 core/Studio files and 1,441
+  declarations across nine regions: 1,123 graph destinations, 729 source
+  destinations and 263 containment groups. It was current at publication;
+  subsequent edits are reported by the live freshness watcher without replacing
+  the matching source snapshot. All 212 map checks passed at this checkpoint.
+- Griffin interpretation now exposes initialization, stream processing,
+  completion validation and program construction. Twenty captured success/error
+  outcomes remained exact; 16 focused checks included a 200,000-move replay.
+  The drawing and exact default CLI response for interpretGcode (then 3.9.10)
+  were inspected and offered for review. Lower stream feedback and switch
+  analysis remain incomplete; a clean top page does not resolve those limits.
+- Machine presentation separates mechanism assembly, controls, descriptor and
+  sampling. Seven profile descriptors and 38 captured poses matched; 20 checks
+  passed. Bundle workflow separates candidate reuse, generation, verification,
+  checks and persistence, with 12 focused/integration checks passing. Returned
+  callback captures and dynamic adapter targets remain explicit analysis gaps.
+- Parameter-owned method invocations now show receiver, argument and result
+  connections while keeping their targets unresolved. Full source spans prevent
+  nested logical expressions from colliding into false feedback. Condition
+  captions open their caller predicate source; whole awaited-call result labels
+  and returned-record labels no longer repeat implementation expressions.
+- Whole-scope execution-flow completion remains open. Active follow-ups cover
+  adaptive-loop state, toolkit preview ownership, and mesh-repair worker dispatch
+  and lifetime. Inventory coverage is not used as evidence that these flows are
+  complete.
+
+## 2026-09-19 — Developer-map wrap-up checkpoint
+
+- The user ended the active rollout with "We are in good shape on this, we can
+  wrap up." The team stopped new refactors and finished the stable integration.
+  Remaining authorized work is deferred in BR-052; inventory coverage is not a
+  claim that every flow or scanner limitation is resolved.
+- Active map tooling, authored grouping, tests and generated assets now live
+  under `dev-map/`; historical comparison assets live under `dev-map-OLD/`.
+  Toolkit entry commands remain unchanged. Maker/builder documentation maps
+  remain separate. Cross-project compatibility was explicitly not added as an
+  objective. Fixed the guidance reader's document root after relocation.
+- Scanner improvements resolve supported re-export chains, exported factory
+  destructuring and awaited literal dynamic imports, retaining conservative
+  ambiguity and unsupported-call diagnostics. Numeric helper destinations can
+  open directly as code. Presentation keeps distinct invocation identities,
+  short boundary/caller references and implementation behind source/details.
+  Error labels and condition wires no longer repeat full diagnostic/predicate
+  text. Class overviews consolidate repeated relationships.
+- The user approved private Lua interpreter variables, tables, scopes and call
+  stack behind an explicit stateful boundary. This is recorded in D-036 and the
+  developer orientation. Generated class fields carry distinct instance/static
+  identities and matching source spans through authored groups. Yellow hubs open
+  those spans, including stale/deleted live-source cases. Proved incoming class
+  construction/member calls connect to their actual target groups.
+- Planning/geometry changes include explicit comb routing, priming, perimeter
+  recovery, scanline and surface-offset stages, owned Bézier samples and NURBS
+  basis results, and staged sleeve fitting and directional regularization.
+  Studio changes include pointer planning, generation orchestration and source
+  sampling decisions; workflow edits return explicit replacement records.
+  Completed slices retain their captured outputs/error ordering under focused
+  tests. The last geometry batch passed 40 targeted checks with exact captured
+  outputs; its alternating NURBS benchmark improved, while directional sampling
+  showed no measured regression. These are software observations only.
+- Final integration passed all 302 map tests. Generation at 2026-09-20 00:48 UTC
+  (September 19 local time) covered nine regions, 138 files and 1,527 code
+  declarations: 1,218 graph destinations, 718 code destinations and 261 authored
+  groups. Eight external facts bound with no orphan/malformed facts; the final
+  map check passed with no staleness. The default LuaRuntime CLI packet and its
+  drawing were inspected together; clicking callStack opened the matching line
+  606, and Escape closed it. Its CLI packet was queued in the sidebar.
+- Forty-two service files and all 39 geometry files have recorded source
+  assessments; remaining Studio assessment and source/refinement priorities are
+  explicit. Immutable program enrichment and review transitions were not started
+  in the final slice. The Bambu source-offset tradeoff remains unresolved: early
+  final offsets alter partial sink rows on failure, while an offset view changes
+  result identity. Existing behavior remains intact. No new stateful exception
+  was silently introduced.
+- Local ignored evidence is in `dev-map/audit/`, including final test/generation
+  logs, exact review packets and source-hashed assessments. Current source/tests
+  and this log are the durable implementation record. This closeout does not
+  include a new commit or remote push after the earlier backup checkpoint.
+
+## 2026-09-21 — Wiring simplification: WS-01, WS-03, WS-05, WS-08 and WS-12
+
+- The user assigned WS-01, WS-03, WS-05 and WS-08, then added WS-12. The shell
+  print lifecycle now has one mutable commit point: top-level recipe fields and
+  a reserved `bundle` envelope in `plan.json`. The envelope owns machine,
+  review/check evidence and immutable content-addressed geometry/program
+  references. Existing parallel-file bundles migrate on first load.
+- Configuration precedence moved to `core/print/resolve-plan.mjs`. Initial
+  defaults, remembered setup, machine-owned changes and interactive patches now
+  share one strict resolver boundary; firmware changes still clear startup
+  verification unless explicitly re-confirmed.
+- Generation now reads as prepare candidate → revalidate identity → commit
+  checked output. Studio's worker passes that candidate into the commit instead
+  of running a diagnostic calculation and a second production calculation.
+  Delivery continues to copy the exact reviewed artifact without regeneration.
+- Studio's normal and tour export routes share generation, approval and delivery
+  operations. Tour-only teaching policy remains outside those lifecycle
+  operations. Browser presentation now has one identity/model and explicit
+  replace, retain and clear effects; the separate stale-state and playback-cache
+  owners were removed.
+- The print and Studio dev-map regions regenerated with no stale pages, orphan
+  facts or fact errors. Focused lifecycle, migration, worker, tour and browser
+  presentation checks passed. The final full parallel core run passed all 675
+  tests. This is software evidence only.
+
+## 2026-09-21 — Maker and builder guidance synchronized after wiring simplification
+
+- Updated the print, export, Studio and rendering contracts for the atomic
+  `saam-print-bundle/2` manifest, the single prepare/commit generation candidate,
+  shared normal/tour lifecycle operations and the browser's one presentation
+  model. Maker behavior and the tour sequence did not change.
+- Removed the duplicated per-skill registries from both human context maps. The
+  maps now route through the catalog-backed `skills/README.md` digest, identify
+  the shared H2D/X1 contract and use executable dev-map entry `0`.
+- Strengthened context-map coverage so copied skill registries, the invalid
+  `0_system` command and a stale H2D-only label cannot return. Repaired two dead
+  test-manual links and normalized the outstanding-work queue; dated Bambu
+  implementation and hardware evidence remains in this log rather than the queue.
+- `node scripts/check-repo.mjs` passed across 76 documents and 1,085 local links.
+  Fifteen focused context-map, manifest, generation-worker and presentation tests
+  passed. This is software/documentation evidence only.
+
+## 2026-09-21 — Job-scoped checked-output handoff
+
+- Replaced Studio's process-global worker attachment and checked-source slot with
+  a handoff owned by each prepared generation job. The handoff owns the worker
+  message subscription, supplies the job an opaque, single-use ticket alongside
+  the successful message, and removes the subscription when disposed. Pending
+  sources are keyed by generation/export identity, capped at 32 entries and
+  expire after one minute, so concurrent jobs remain independent without
+  retaining abandoned source indefinitely.
+- The handoff rejects stale, disposed, cancelled, mismatched and forged results,
+  strips motion arrays and returns defensive metadata/source copies. Workflow
+  reuse still follows a reread and hash of the current output bytes; cold and
+  full-motion loads continue through the interpreter.
+- Forty-five focused handoff, worker/job, Studio opening, read-scope and workflow
+  tests passed, including concurrent tickets and saved-output tamper rejection.
+  This is software evidence only.
+
+## 2026-09-21 — Coherent Studio operation snapshots
+
+- Conditional state reads now use one stable bundle snapshot for both their ETag
+  decision and response instead of discarding a first lifecycle read on cache
+  misses. The tag includes the request, import-repair, tour, generation-failure
+  and cancellation metadata returned by the route.
+- Machine-source reads use one source-bearing snapshot for request identity and
+  streaming instead of a fingerprint/read/fingerprint sequence. Atomic manifests
+  therefore use one lifecycle read per state or source GET; machine-study keeps
+  its existing legacy stability retries. Geometry-only state still omits export
+  bytes, and source state still omits full motion.
+- Thirty-four focused read-scope, source-player, state metadata, Studio opening,
+  tour and reconnect tests passed. Instrumentation covered conditional hits and
+  misses, source success and stale-byte rejection at one snapshot each. This is
+  software evidence only.
+
+## 2026-09-21 — Ordered Studio updates and explicit refresh stages
+
+- The existing viewer stream now carries ordered state and preparation updates.
+  Connected clients coalesce state triggers into one conditional read and apply
+  identity-scoped progress without a full-state read. State and progress polling
+  run only as a disconnect fallback; late subscription and reconnect recover
+  current progress and state, while visibility recovery checks state changes.
+- Refresh now has explicit load/adopt, presentation and tour-generation stages.
+  Tour generation adopts and presents its result directly instead of recursively
+  entering refresh. Disposal clears queued refresh and fallback work.
+- Viewer progress uses the Studio instance and hashed viewer print identity;
+  agent generation events retain their request-derived print identity. The
+  server and UI share the same cancellation-capable preparation status, including
+  commit-phase cancellation semantics.
+- Sixteen focused scheduler/lifetime tests and 53 Studio integration tests passed.
+  An actual SSE generation test verified the payload consumed by the UI and the
+  separate agent identity. This is software evidence only.
+
+## 2026-09-21 — Shared lifecycle review decisions
+
+- Kept current-byte validation, generation identity and exact approval hashes in
+  the bundle workflow. Added a pure projection for the smaller decisions that
+  Studio controls, toolkit summaries and MCP summaries had derived separately:
+  checked currency, production readiness, effective toolpath approval and next
+  review action.
+- Geometry-only reads now consistently report output currency and approval as
+  unknown instead of inferring either from the manifest. UI labels, output
+  availability, calculation/cancellation activity and request presentation keep
+  their existing owners.
+- A focused matrix covers no output, unavailable output, development and
+  production generation, approved output, changed bytes and unchecked reads.
+  Cross-consumer assertions confirm Studio, toolkit and MCP use the same derived
+  decisions; existing workflow tests retain exact-hash and promotion coverage.
+
+## 2026-09-21 — Shared incremental STL decoding
+
+- Replaced the independent buffer and file STL parsers with one incremental
+  decoder for binary records and ASCII tokens. Complete buffers and 64 KiB file
+  streams now share recognition, grammar, unit scaling, finite checks, exact
+  vertex indexing and capacity enforcement. File I/O still owns hashing,
+  progress, cancellation and changed-length detection without retaining another
+  full source or text copy.
+- Standardized ASCII on the existing streaming line-oriented grammar. Leading
+  whitespace, CRLF, split UTF-8 header text and closing solid names remain
+  accepted. The buffer-only acceptance of a same-line `solid ... endsolid` file
+  was removed because it cannot contain standard facet records.
+- Eighteen focused large-mesh, repair and decoder tests passed, covering varied
+  one-byte through record-sized chunks, malformed/truncated/extra data and
+  trailing lines, nonfinite scaling, progress, cancellation and capacity failure.
+
+## 2026-09-21 — Output contract ownership assessment
+
+- Reviewed exporter selection, locked machine output declarations, lifecycle
+  filenames, Studio source playback and delivery MIME handling. The production
+  exporter registry already solely owns exporter/interpreter implementation
+  dispatch. Locked `outputs[]` entries separately and legitimately own each
+  machine's enabled outputs, extension, constraints and optional MIME metadata;
+  workflow consumes those declarations without inferring a machine from a name.
+- Studio's source-player switch is a browser boundary over streamed text/source
+  maps and browser move storage, not a second production exporter. Merging it
+  into the Node registry would add Node/browser coupling or another catalog.
+  Delivery's small extension-to-MIME mapping and compound-extension naming are
+  presentation concerns; moving them would require another bundle read or a
+  breaking change to the path-returning delivery API.
+- No implementation changed. Bambu resolution/settings and concurrent work were
+  left untouched. Existing output bytes, interpreter behavior, filenames,
+  availability and content types therefore remain the evidence for this review.
+
+## 2026-09-21 — Explicit legacy print-bundle migration
+
+- A bounded read-only inventory of repository `Prints/` and `examples/` found
+  130 ordinary bundles: 6 current `saam-print-bundle/2` manifests and 124 legacy
+  split-file bundles. It found no machine-study bundles or unclassified plans.
+  None of the inventoried bundles was converted or deleted.
+- Ordinary legacy reads and fingerprints are now effect-free and return the
+  exact explicit CLI migration command. `cli.mjs migrate` preflights legacy
+  plan, machine, review, geometry/source and program bytes, stages missing
+  immutable artifacts, rechecks captured presence and bytes before atomically
+  replacing `plan.json`, then reloads the manifest for verification. It retains every legacy
+  sidecar and unknown file and reports all created, updated, removed and retained
+  paths; current bundles are idempotent no-ops.
+- Valid current legacy programs retain their exact approval identity. Stale
+  programs remain retained and explicitly unapproved; corrupt bytes and malformed
+  inputs fail before the manifest commit. Eight focused tests cover effect-free
+  reads, explicit reports, current no-op/CLI access, malformed and corrupt input,
+  concurrent input changes including absent files appearing, stale approval, and
+  fresh-process reopen with current-byte invalidation. Compatibility remains
+  until supported/distributed split-file inventory reaches zero and its migration
+  window is closed in a documented release.
+
+## 2026-09-21 — BR-057 recommendation queue completed
+
+- Authorization: the current requester asked to "Quickly regen our dev maps now"
+  and to "Synthesize both sets of recommendations into a task queue, organized by
+  priority/value, and assign them one at a time to a single worker agent (sol)."
+  Contributor account and exact originating task title are unconfirmed. One Sol
+  worker implemented the queue sequentially under parent review.
+- Completed six retained tasks: job-scoped checked-output handoff, coherent
+  Studio snapshots, ordered updates and explicit refresh stages, shared lifecycle
+  review decisions, incremental STL decoding, and explicit legacy migration.
+  Their behavior and focused verification are recorded in the entries above.
+- Dropped output-catalog consolidation after finding distinct legitimate owners;
+  also omitted already-shared generation, cosmetic extractions and speculative
+  wholesale configuration/schema changes. The final migration checks passed 8/8,
+  including fresh-process reopen. Maps were regenerated and relevant pages reread
+  without orphan or fact errors. Concurrent test reductions were preserved.
+- Removed BR-057 from outstanding work. BR-050's broader cross-process and
+  performance audit remains separate; the migration currentness check is not a
+  cross-process lock or compare-and-swap. No inventoried user bundle was migrated,
+  no hardware execution was performed, and no changes were published.
+
+## 2026-09-21 — S5 bridge interpolation trial and narrower array
+
+- Nave reports that physical inclined extrusion spans change Z too early in both
+  directions. The previous export commanded each free span with one coordinated
+  G1; software straightness did not establish physical axis coordination.
+- Added optional bridging `maxSegmentMm`, using collinear XYZ samples and distinct
+  segment metadata to retain commanded intervals through path compaction. Array 02
+  uses 0.5 mm maximum intervals with constant speed and volume per length, no
+  inserted pauses, and no added travel in continuous courses. Physical mitigation
+  remains unvalidated; a one-line S5 note is now in builder guidance.
+- Halved rectangular X widths to 13.8 mm while retaining 24 mm first-layer Y spans;
+  transverse second-layer spans now measure 12 mm. Circular supports are unchanged,
+  with bridges only over their left 180 degrees. Preserved previous array inputs.
+- Export audit passed for 624 spans, all intermediate XYZ endpoints and lengths,
+  flow, matching first layers, attachment controls, and 1,160 standard wall loops.
+  Generated estimate: 46.4 minutes. Exact program identity and compact report are
+  in PT-001 Array 02; physical success is still to be assessed.

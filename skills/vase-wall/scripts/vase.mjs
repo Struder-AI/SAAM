@@ -5,7 +5,7 @@ import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../../core/
 import {offsetRegion} from '../../../core/region/offset.mjs';
 import {requireThat,distance} from '../../../core/geom/tolerance.mjs';
 import {contourPath} from '../../../core/geom/contour-path.mjs';
-import {depositionStroke,maximumPathAngle} from '../../../core/path/deposition.mjs';
+import {depositionStroke,maximumPathAngle,trimVanishingEnd} from '../../../core/path/deposition.mjs';
 import {mappedPatternResult} from './paths.mjs';
 import {prepareContourFamily} from '../../../core/geom/prepared-contours.mjs';
 import {createVaseMeshReference,createStandardVaseSleeve} from './reference.mjs';
@@ -162,7 +162,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const prepared=prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm});
     return mappedPatternResult({settings,process,machine,id,after,base,start,end,firstHeight,referenceLengthMm:section(start).curve.length,
       mappedPoint:(u,z,offset)=>{const p=[...prepared.at(u,z,offset),z];return reference?reference.map(p):p;},mappingErrorMm,onProgress,
-      sectionReport:()=>({sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report,...reference?.report()})});
+      sectionReport:()=>({sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...prepared.report(),...reference?.report()})});
   }
   const point=t=>reference?reference.map(reference.pointAt(t,zAt(t),0)):mappedPoint(t,zAt(t));
   const points=[point(0)],times=[0];
@@ -196,16 +196,17 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     const middle=(times[i]+times[i+1])/2;
     return times[i+1]<=1+1e-9?firstHeight:zAt(middle)-zAt(middle-1);
   });
-  const stroke=depositionStroke({role:'vase-wall',points,heightsMm,widthMm:width,speedMmS:speed,
+  const depositedStroke=depositionStroke({role:'vase-wall',points,heightsMm,widthMm:width,speedMmS:speed,
     segmentMetadata:times.slice(1).map((t,i)=>({layer:Math.floor((times[i]+t)/2)}))});
-  const volumesMm3=stroke.volumesMm3;
-  const rimStart=settings.endTransition==='level'?times.findIndex(t=>t>=spiralTurns-1e-9):-1;
-  const levelBoundary=rimStart>=0?{zMm:end,widthMm:width,strokes:[{...stroke,points:points.slice(rimStart),
+  const stroke=settings.endTransition==='level'?trimVanishingEnd(depositedStroke):depositedStroke;
+  const volumesMm3=stroke.volumesMm3,strokeTimes=times.slice(0,stroke.points.length);
+  const rimStart=settings.endTransition==='level'?strokeTimes.findIndex(t=>t>=spiralTurns-1e-9):-1;
+  const levelBoundary=rimStart>=0?{zMm:end,widthMm:width,strokes:[{...stroke,points:stroke.points.slice(rimStart),
     volumesMm3:volumesMm3.slice(rimStart),segmentMetadata:stroke.segmentMetadata.slice(rimStart)}]}:null;
   return {id,...(levelBoundary?{levelBoundary}:{}),operations:[{id:id+':wall',layerId:id+':continuous',phase:'vase-wall',layer:0,rank:start,
     after,strokes:[stroke],order:'given',continuous:true,fanPercent:process.fanPercent,
     travelPolicy:{maxCombMm:0,clearanceFor:()=>end+process.liftMm}}],
-    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
+    report:{startMm:start,endMm:end,baseTopMm:base,turns,spiralTurns,endTransition:settings.endTransition,levelRimMm:settings.endTransition==='level'?end:null,points:stroke.points.length,sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,
       volumeMm3:volumesMm3.reduce((sum,v)=>sum+v,0),speedMmS:speed,maximumAngleDeg,...reference?.report(),
       scope:'One outer section with arc-length correspondence from a fixed projected seam; concavity is supported while the inset remains one loop. Sampled topology and boundary checks; no physical validation.'}};
 }

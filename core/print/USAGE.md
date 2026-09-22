@@ -131,8 +131,11 @@ saved IDs, `get_print` reads state and recipe settings, and
 on `get_print` when you need the complete editable recipe; the default omits
 geometry and reports `planComplete:false`.
 CLI `adjust` returns a compact checked summary and revision instead of echoing
-the entire geometry-bearing plan. The complete editable recipe remains in
-`plan.json`.
+the entire geometry-bearing plan. The editable recipe is the top-level portion
+of `plan.json`; its reserved `bundle` envelope is lifecycle metadata, not recipe
+input. Do not copy `bundle` into an adjustment patch. Initialization accepts a
+saved manifest as a recipe source by stripping that envelope and starting with
+fresh review state.
 
 ## Adjust the recipe
 
@@ -185,12 +188,17 @@ surface fitting and composition behavior.
 Every interpreted toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory).
 Read `shortTravel` in generation checks/MCP print state or the program summary
 in CLI/toolkit state. Studio also sends an `advisory` through the existing request
-listener once per displayed export with findings. Preserve its source/operation
-evidence for deferred producer improvement, acknowledge it as completed, and
-continue the user's task. It requests no repair, regeneration or extra approval.
+listener once per displayed export with findings. Producers connect nearby
+strokes, so an ordinary print reports none. Whenever `shortTravel.count` is
+nonzero, however you read it, tell the person: how many travels, which
+operations, and whether they were lifted over a blocked line or moved directly.
+Preserve its source/operation evidence, acknowledge a Studio advisory as
+completed, and continue the user's task. It requests no repair, regeneration or
+extra approval.
 
 | Operation | CLI suffix after `node core/print/cli.mjs` | MCP tool | Result |
 |---|---|---|---|
+| Migrate a legacy split bundle | `migrate Prints/my-part` | — | Explicitly preflights and converts `plan.json` to the current manifest; retains legacy and unknown files and reports all file effects. Current bundles are no-ops. |
 | Read checked state | `check Prints/my-part` | `check_print` | Checks saved inputs and any stored export; reports approval state without generation. |
 | Investigate path feasibility | `check-path Prints/my-part` | `check_path` | Runs shared generation and machine checks without approval or persisted output. Use when feasibility needs investigation; it is not a mandatory extra step. |
 | Generate for review | `generate Prints/my-part` | `generate_print` | Creates and checks the export for combined settings/toolpath review; geometry review is advisory. |
@@ -240,3 +248,38 @@ explicitly supplied with it. Keep user-reported findings distinct from assumed
 profile behavior. The [S5 setup guidance](../export/griffin.md#s5-setup-and-troubleshooting)
 and other [machine contracts](../export/README.md) own installation-specific
 questions and required calibration.
+
+Bambu agents must read [maker setup and the startup inventory](../export/bambu.md#maker-setup)
+before selecting output. The recipe records the actual other H2D nozzle diameter,
+plate and startup choices in `setup.bambu`. For repeated tests on an unchanged,
+already calibrated H2D or X1, set `setup.bambu.fast_start: true` to omit optional
+calibration, scans, music and vibration tests while retaining homing, heating,
+loading, cleaning and priming. It defaults to false; explicit calibration `on`
+conflicts with fast start. Assign a region's `filament` to use
+the matching `setup.bambu.filaments` entry: its nozzle, temperature and optional
+process settings. Follow [the dual-nozzle workflow](../export/bambu.md#making-an-h2d-dual-nozzle-print)
+for mixed diameters and independent feeds. Fresh generated DUAL-20 physically
+passed left 0.4 → right 0.8 → left 0.4, external-left/AMS-right, correct-height
+deposition, Textured PEI and fast startup. Use the normal exporter; no reference
+project substitution or stored-template editing is required.
+For H2D AMS colours, follow [the two-colour workflow](../export/bambu.md#making-an-h2d-two-colour-print):
+declare two filaments on the same nozzle and assign regions to indices 0, 1, 0.
+AMS-19 physically passed the ordinary v13 exporter: right 0.8, installed left
+0.4, PLA blue/orange/blue, right four-slot AMS, Textured PEI, fast startup, no
+tower. Stored startup and shutdown reuse the executable's exact rendered
+strings; the other stored template fields are empty. Makers use the normal
+plan/generate/review/deliver workflow, without copying a reference project or
+editing template fields. Other installations need their own physical evidence.
+X1 AMS output has not passed physically; its earlier test printed one colour.
+Treat X1 colour changes as development verification, not the accepted H2D workflow.
+For an X1 colour-change test, assign successive height regions to distinct PLA
+filaments on tool 0. The X1 adapter flushes into the rear chute; no tower is added.
+Review the separate service purge allowance and verify actual feed changes on the
+machine; software playback is not physical routing evidence.
+
+Supply material identity and colour for normal automatic AMS matching; a physical
+slot request is optional. External/auto/requested AMS source and declared device
+connections stay separate from logical filament/nozzle IDs. Review the printer's
+proposed mapping before printing; the exporter does not force physical routing.
+Reference slicer presets may declare equal diameters even when the installed
+hardware differs. Do not copy those declarations over the actual setup.

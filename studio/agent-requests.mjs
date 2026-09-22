@@ -14,7 +14,10 @@ export function workSnapshot({plan,machine,review}){
 }
 async function snapshot(directory){
   try{
-    const [plan,machine,review]=await Promise.all(['plan.json','machine.json','review.json'].map(async name=>JSON.parse(await readFile(resolve(directory,name),'utf8'))));
+    const document=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));
+    const {bundle,...plan}=document;
+    const [machine,review]=bundle?[bundle.machine,bundle.review]:await Promise.all(['machine.json','review.json']
+      .map(async name=>JSON.parse(await readFile(resolve(directory,name),'utf8'))));
     return workSnapshot({plan,machine,review});
   }catch(error){if(error.code==='ENOENT')return null;throw error;}
 }
@@ -31,7 +34,10 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
   const visible=(r,history)=>ownerId?(!r.ownerId||r.ownerId===ownerId):history||!r.studioInstanceId;
   const unfinished=r=>['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
     &&requestReceiptState(r,{view:{ready:true,snapshot:{...r.result,stage:r.target?.stage??'toolpath'}}}).receipt;
-  const wake=()=>{changeVersion++;for(const done of [...waiters])done();};
+  // One record per pending wait owns that wait's timer, event subscription and
+  // resolver, so waking a waiter is a named step rather than a stored callback.
+  const wake=()=>{changeVersion++;for(const waiter of [...waiters])settleWaiter(waiter);};
+  function settleWaiter(waiter){clearTimeout(waiter.timer);waiters.delete(waiter);waiter.stopEvents?.();waiter.resolve();}
   const notify=record=>{
     if(!record)return;
     const key=[record.updatedAt,record.status,record.presented,record.connectionClosed].join(':');
@@ -80,7 +86,8 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       if(typeof listener!=='function')throw Error('Request listener must be a function.');
       listeners.add(listener);const release=index.retain();
       void mkdir(folder,{recursive:true}).then(()=>index.refresh()).catch(()=>{});
-      return()=>{listeners.delete(listener);release();};
+      const unsubscribe=()=>{listeners.delete(listener);release();};
+      return unsubscribe;
     },
     close(){disconnected=true;wake();listeners.clear();index.close();},
     async activity(id,{directory}={}){
@@ -135,19 +142,23 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
         await save({...record,status:'failed',connectionClosed:true,updatedAt:Math.max(now(),record.updatedAt+1)});
       index.close();
     },
+    async selectQueued(candidates,{after=[],claim=false,studioInstanceId}={}){
+      const requests=candidates.filter(request=>!after.includes(request.id)&&(!studioInstanceId||request.studioInstanceId===studioInstanceId));
+      return claim?Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests;
+    },
     async wait({after=[],waitMs=25000,claim=false,studioInstanceId}={}){
       const deadline=Date.now()+Math.min(25000,Math.max(0,waitMs));
       await mkdir(folder,{recursive:true});const release=index.retain();
       try{for(;;){
         const observed=changeVersion;
-        const requests=(await query({status:'queued'})).filter(r=>!after.includes(r.id)&&(!studioInstanceId||r.studioInstanceId===studioInstanceId));
+        const requests=await this.selectQueued(await query({status:'queued'}),{after,claim,studioInstanceId});
         const remaining=deadline-Date.now();
         // A delivered Studio event ends the wait too, carrying every held event.
-        if(requests.length||remaining<=0||disconnected||events?.pendingDelivery())return {requests:claim?await Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests,...(events?{events:events.drain()}:{})};
+        if(requests.length||remaining<=0||disconnected||events?.pendingDelivery())return {requests,...(events?{events:events.drain()}:{})};
         if(changeVersion!==observed)continue;
         await new Promise(resolve=>{
-          let timer,stopEvents;const done=()=>{clearTimeout(timer);waiters.delete(done);stopEvents?.();resolve();};
-          waiters.add(done);stopEvents=events?.subscribe(done);timer=setTimeout(done,remaining);timer.unref?.();
+          const waiter={timer:null,stopEvents:null,resolve},done=()=>settleWaiter(waiter);
+          waiters.add(waiter);waiter.stopEvents=events?.subscribe(done);waiter.timer=setTimeout(done,remaining);waiter.timer.unref?.();
         });
       }}finally{release();}
     },

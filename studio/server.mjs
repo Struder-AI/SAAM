@@ -1,7 +1,8 @@
-import {createTour,referenceAdapter,tourExample,useExample} from './tour.mjs';
+import {createTour,tourExample,useExample} from './tour.mjs';
+import {bundleFor,readStableBundle,supportsBundleSchema} from './adapter-resolution.mjs';
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {createAgentRequests,workSnapshot} from './agent-requests.mjs';
-import {hasUnpreparedEdit} from './work-state.mjs';
+import {composeStudioState} from './state-response.mjs';
 import {printName,downloadName,requestedDownloadName} from './print-name.mjs';
 import {importStudioSTL,loadStudioImportRepair} from './import-stl.mjs';
 import http from 'node:http';
@@ -47,57 +48,30 @@ export async function sourceSkewNotice(sinceMs=loadedAtMs,{base=root,roots=SOURC
   }
   return null;
 }
-// Appended to a failure that already happened, once per error. A detected skew
-// persists until this process restarts, which is the only cure for it.
+// Recorded against a failure that already happened, once per error, and read
+// back by whoever reports it: the note rides with the error through every
+// rethrow without the error itself being rewritten. A detected skew persists
+// until this process restarts, which is the only cure for it.
+const skewNotes=new WeakMap();
 let skewNotice=null,skewCheckedAt=0;
-export async function annotateSourceSkew(error){
-  if(!(error instanceof Error)||error.sourceSkewChecked)return error;
-  error.sourceSkewChecked=true;
+export async function noteSourceSkew(error){
+  if(!(error instanceof Error)||skewNotes.has(error))return error;
+  skewNotes.set(error,'');
   if(!skewNotice&&Date.now()-skewCheckedAt>=3000){skewCheckedAt=Date.now();skewNotice=await sourceSkewNotice();}
-  if(skewNotice)error.message+=' '+skewNotice;
+  if(skewNotice)skewNotes.set(error,' '+skewNotice);
   return error;
 }
+export function reportedMessage(error){const note=skewNotes.get(error);return note?error.message+note:error.message;}
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
   'core/machine/presentation.mjs','core/machine/rigid.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
+  'core/print/review-state.mjs',
   'core/export/denso-player.mjs','core/machine/denso.mjs','core/path/pose.mjs',
-  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs',
+  'core/export/griffin.mjs','core/export/gcode-lines.mjs','core/export/bambu-player.mjs','core/export/bambu-change.mjs','core/export/bambu-x1-change.mjs','core/machine/filaments.mjs',
   'core/export/dobot-player.mjs','core/export/dobot-lua-subset.mjs','core/machine/rules.mjs','core/geom/tolerance.mjs','core/path/process-controls.mjs']);
 
-// Studio reviews whatever print it is opened on. A bundle names its own schema,
-// and that selects its geometry/recipe adapter. Both adapters use the single
-// workflow implementation in core/print/workflow.mjs.
-const bundles={
-  'saam-machine-study/1':()=>import('./machine-study.mjs'),
-  'saam-shell-plan/1':()=>import('../core/print/bundle.mjs')
-};
-export async function bundleFor(directory) {
-  const plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));
-  const load=bundles[plan.schema];
-  if(!load)throw new Error(`This print uses ${plan.schema??'an unknown plan format'}, which Studio cannot review.`);
-  const adapter=await load();return plan.schema==='saam-shell-plan/1'?referenceAdapter(adapter):adapter;
-}
-// A CLI update replaces several bundle files. Retry only reads caught between
-// those replacements; persistent corruption still fails the normal validation.
-// One fingerprint pass on each side of the load yields both the source and
-// presentation fingerprints; presentation derives from files source covers.
-export async function readStableBundle(adapter,directory,options){
-  for(let attempt=0;;attempt++){
-    let before;
-    try{
-      before=await adapter.bundleFingerprints(directory,options);
-      const state=await adapter.loadBundle(directory,options);
-      if(before.source!==(await adapter.bundleFingerprints(directory,options)).source)throw Error('The print is being updated.');
-      return {state,fingerprint:before.source,presentationFingerprint:before.presentation};
-    }catch(error){
-      const changing=before!==undefined&&before.source!==(await adapter.bundleFingerprints(directory,options)).source;
-      if(attempt>=3||!changing&&error.code!=='ENOENT'&&!/Plan and geometry disagree|being updated/.test(error.message))throw error;
-      await new Promise(resolve=>setTimeout(resolve,60*(attempt+1)));
-    }
-  }
-}
 // A selected plan, export or delivery file reopens its owning print bundle.
 // Standalone foreign programs need an interpreter contract before review.
 export async function printDirectory(input,resolveBundle=bundleFor) {
@@ -108,15 +82,15 @@ export async function printDirectory(input,resolveBundle=bundleFor) {
     try{await resolveBundle(dir);return dir;}catch(error){if(error.code!=='ENOENT')throw error;}
     const parent=dirname(dir);if(parent===dir)break;dir=parent;
   }
-  throw new Error('No SAAM print bundle found. Open the saved print folder containing plan.json, geometry and machine.json. Standalone G-code/3MF import is not supported.');
+  throw new Error('No SAAM print bundle found. Open the saved print folder containing plan.json and its referenced artifacts. Standalone G-code/3MF import is not supported.');
 }
 export async function listPrints(libraryRoot,resolveBundle=bundleFor) {
   const prints=[];
   async function walk(dir,depth){
     let entries;try{entries=await readdir(dir,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return;throw error;}
     if(entries.some(e=>e.name==='plan.json'&&e.isFile())){
-      try{const plan=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),machine=JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
-        if(bundles[plan.schema]||await resolveBundle(dir))prints.push({path:dir,name:await printName(dir,plan),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
+      try{const document=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8')),{bundle,...plan}=document,machine=bundle?.machine??JSON.parse(await readFile(resolve(dir,'machine.json'),'utf8'));
+        if(supportsBundleSchema(plan.schema)||await resolveBundle(dir))prints.push({path:dir,name:await printName(dir,plan),machine:machine.name,modified:(await stat(resolve(dir,'plan.json'))).mtime.toISOString()});
       }catch{/* One damaged bundle must not hide the other prints. */}
       return;
     }
@@ -134,9 +108,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const tour=createTour(libraryRoot,{ownerId:sessionOwnerId,studioId:instanceId,agentRequests:requests});
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
-  const metadata=state=>({revision:state.revision,review:{...state.review,history:undefined},
-    toolpathApproved:state.toolpathApproved,tourExample:state.tourExample??null,
-    programError:state.programError??null,exportHash:state.exportHash??null});
   let dir=resolve(directory);
   const token=randomBytes(24).toString('hex'),viewPerformance=[];
   // Studio observations for the owning agent: person-driven actions, worker
@@ -152,7 +123,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     const key=randomBytes(24).toString('hex'),exportHash=createHash('sha256').update(bytes).digest('hex'),expiresAt=now+10*60*1000;
     downloadLinks.set(key,{file,name,exportHash,expiresAt});return {url:'/api/download/'+key,name,exportHash,expiresAt};
   };
-  const printId=()=>createHash('sha256').update(dir).digest('hex');
+  const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
+  const printId=()=>printIdFor(dir);
   // Resolved on the first request; the no-op catch keeps an unopened print
   // from raising an unhandled rejection before a request reports it.
   const attached=tour.attachStudio(dir);
@@ -161,6 +133,11 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   // Speculation never enters the HTTP mutation queue or the browser's busy
   // state. Keep one worker/candidate, replacing it when the reviewed plan changes.
   let preparation,generationFailure,generationCancelled,importProgress,generationRun=null,closed=false;
+  const stateTag=(fingerprint,guide,failure=generationFailure,cancelled=generationCancelled,records=[],importRepair=null)=>
+    'W/"'+createHash('sha256').update(JSON.stringify([instanceId,fingerprint,guide,failure,cancelled,records,importRepair])).digest('base64url')+'"';
+  const matchesStateTag=(header,tag)=>typeof header==='string'&&header.split(',').some(value=>{
+    const candidate=value.trim();return candidate==='*'||candidate.replace(/^W\//,'')===tag.replace(/^W\//,'');
+  });
   const discardPreparation=(error=new Error('The prepared print changed.'))=>{
     const previous=preparation;preparation=null;
     return previous?.dispose(error);
@@ -168,71 +145,127 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const cancelGeneration=async(reason='person')=>{
     const job=preparation;if(!job)return {cancelled:false,committing:false};
     const result=job.cancel();if(!result.cancelled)return {cancelled:false,committing:result.committing};
-    generationCancelled={directory:job.directory,planHash:job.planHash};
-    note('generation-cancelled',{planHash:job.planHash,reason});
+    generationCancelled={directory:job.directory,generationHash:job.generationHash};
+    note('generation-cancelled',{generationHash:job.generationHash,reason});
     if(preparation===job)preparation=null;
     await result.done;return {cancelled:true,committing:false};
   };
-  const prepare=(state,readDir)=>{
-    if(closed||resolveBundle!==bundleFor)return null;
+  const planPreparation=(state,readDir,session)=>{
+    if(session.closed||!session.workerEnabled)return {action:'skip'};
     // Geometry-only reads deliberately omit program bytes. A matching saved
     // generation is enough to defer speculation; explicit review still checks
     // its bytes and will regenerate if that stored result is damaged.
-    if(state.program||state.outputAvailability||state.review?.generation?.planHash===state.planHash&&!state.programError){discardPreparation();return null;}
-    const key=readDir+':'+state.planHash;
-    if(preparation?.key===key)return preparation;
+    if(state.program||state.outputAvailability||state.review?.generation?.generationHash===state.generationHash&&!state.programError)return {action:'discard'};
+    const key=readDir+':'+state.generationHash;
+    return {action:session.currentKey===key?'reuse':'create',key};
+  };
+  const prepare=(state,readDir,{computationRequired=false}={})=>{
+    const key=readDir+':'+state.generationHash;
+    const decision=computationRequired
+      ?(closed||resolveBundle!==bundleFor?{action:'skip'}:{action:preparation?.key===key?'reuse':'create',key})
+      :planPreparation(state,readDir,{closed,workerEnabled:resolveBundle===bundleFor,currentKey:preparation?.key});
+    if(decision.action==='skip')return null;
+    if(decision.action==='discard'){discardPreparation();return null;}
+    if(decision.action==='reuse')return preparation;
     discardPreparation();
-    return preparation=new PreparedGenerationJob({key,directory:readDir,planHash:state.planHash,
+    return preparation=new PreparedGenerationJob({key:decision.key,directory:readDir,generationHash:state.generationHash,
       createWorker:cancellation=>new Worker(new URL('./generation-worker.mjs',import.meta.url),
-        {workerData:{directory:readDir,planHash:state.planHash,progress:true,cancellation}})});
+        {workerData:{directory:readDir,generationHash:state.generationHash,progress:true,cancellation}}),onUpdate:()=>publishProgress()});
   };
   // Only a real calculation is an event; a mode transition of a valid saved
   // program starts nothing the person or agent would wait on.
-  const generationStatus=()=>{
+  const preparationStatus=()=>{
+    if(importProgress)return {...importProgress,cancellable:false};
     const job=preparation,run=generationRun;
-    if(!run&&!(job&&['preparing','generating'].includes(job.status)))return null;
     const progress=job?.progress??null,percent=progress?.total>0?Math.floor(100*progress.completed/progress.total):null;
-    const directory=run?.directory??job.directory;
-    return {studioInstanceId:instanceId,printId:requests.printId(directory,{optional:true}),directory,planHash:run?.planHash??job.planHash,
-      status:run?(job?.status==='preparing'?'preparing':'generating'):'preparing',requested:Boolean(run),trigger:run?.trigger??null,
-      startedAt:run?.startedAt??null,elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
+    const directory=run?.directory??job?.directory??dir;
+    return {studioInstanceId:instanceId,printId:printIdFor(directory),directory,generationHash:run?.generationHash??job?.generationHash??null,
+      status:run?(job?.status==='preparing'?'preparing':'generating'):(job?.status??'idle'),cancellable:Boolean(job?.cancellable),error:job?.error??null,
+      requested:Boolean(run),trigger:run?.trigger??null,startedAt:run?.startedAt??null,
+      elapsedMs:run?Date.now()-run.startedAt:null,progress:progress?{...progress,percent}:null};
   };
-  const generate=async(current,development,trigger='generate')=>{
+  const activePreparationStatus=()=>{const status=preparationStatus();return status.requested||['preparing','generating'].includes(status.status)?status:null;};
+  const generationStatus=()=>{const status=activePreparationStatus();return status?{...status,printId:requests.printId(status.directory,{optional:true})}:null;};
+  const publishProgress=(status=activePreparationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
+  const readGeneration=async current=>{
     generationCancelled=null;
-    const generationDir=dir,state=await current.loadBundle(generationDir,{program:'source'});
+    const directory=dir,state=await current.loadBundle(directory,{program:false});
     if(state.inspection)throw Error('This inspection does not support print generation.');
-    const calculating=!(state.program&&!state.programError);
-    if(calculating){generationRun={directory:generationDir,planHash:state.planHash,trigger,development,startedAt:Date.now()};note('generation-started',{planHash:state.planHash,development,trigger});}
-    try{
-      if(state.program&&!state.programError){
-        // A valid saved development export needs only the shared mode transition.
-        // Do not start a new slicing worker for an already-reviewed program.
-        if(!development&&state.review.generation?.mode!=='production')await current.generateBundle(generationDir,{development:false});
-      }else if(resolveBundle===bundleFor){
-        // A stopped worker needs restarting; a completed preparation diagnostic
-        // is already useful and need not be recomputed on the first Continue.
-        if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===generationDir&&generationFailure.planHash===state.planHash))await discardPreparation();
-        const job=prepare(state,dir);
-        if(job){await job.generate(development);if(preparation===job)preparation=null;}
-        else await current.generateBundle(dir,{development});
-      }else await current.generateBundle(dir,{development});
-      generationFailure=null;
-      if(calculating)note('generation-finished',{planHash:state.planHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
-      const guide=await tour.info();
-      if(guide.active&&guide.directory===generationDir&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
-    }catch(error){
+    return {directory,state};
+  };
+  const beginGeneration=(snapshot,development,trigger)=>{
+    if(generationRun)return;
+    generationRun={directory:snapshot.directory,generationHash:snapshot.state.generationHash,trigger,development,startedAt:Date.now()};
+    note('generation-started',{generationHash:snapshot.state.generationHash,development,trigger});
+    publishProgress();
+  };
+  const executeGeneration=async(current,snapshot,development,trigger)=>{
+    const {directory:generationDir,state}=snapshot;
+    let calculated=false;
+    const markCalculation=()=>{if(!calculated){calculated=true;beginGeneration(snapshot,development,trigger);}};
+    async function dispatchComputation(execution){
+      const {directory:executionDir,state:executionState}=execution;
+      // A stopped worker needs restarting; a completed preparation diagnostic
+      // is already useful and need not be recomputed on the first Continue.
+      if(preparation?.status==='failed'&&(!preparation.worker||generationFailure?.directory===executionDir&&generationFailure.generationHash===executionState.generationHash))await discardPreparation();
+      const job=prepare(executionState,executionDir,{computationRequired:true});
+      if(!job)return execution.runLocally();
+      if(job.status==='preparing')markCalculation();
+      const checked=await job.generate(development);
+      if(preparation===job)preparation=null;
+      return checked;
+    }
+    const checks=await current.generateBundle(dir,{development,
+      dispatchComputation:resolveBundle===bundleFor?dispatchComputation:undefined,
+      onProgress:progress=>{if(progress.stage==='Preparing geometry')markCalculation();}});
+    return {directory:generationDir,generationHash:state.generationHash,calculated,checks};
+  };
+  const publishGeneration=async(outcome,development,trigger)=>{
+    generationFailure=null;
+    if(outcome.calculated)note('generation-finished',{generationHash:outcome.generationHash,development,trigger,durationMs:Date.now()-generationRun.startedAt});
+    const guide=await tour.info();
+    if(guide.active&&guide.directory===outcome.directory&&guide.step===L.playback&&!guide.startAt)await tour.requestStartLayer();
+  };
+  const publishGenerationFailure=async(error,snapshot,trigger)=>{
+      const {directory:generationDir,state}=snapshot;
       if(error.code==='GENERATION_CANCELLED')throw error;
       // Before the message reaches the page, the event queue and the failure
       // request, say whether this process is behind the files the worker read.
-      await annotateSourceSkew(error);
-      generationFailure={directory:generationDir,planHash:state.planHash,message:error.message};
+      await noteSourceSkew(error);
+      const reported=reportedMessage(error);
+      generationFailure={directory:generationDir,generationHash:state.generationHash,message:reported};
       try{const record=await requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
-        key:'generation-failure:'+generationDir+':'+state.planHash+':'+error.message,
-        instruction:'Toolpath generation failed for this print. Error: '+error.message+
+        key:'generation-failure:'+generationDir+':'+state.generationHash+':'+reported,
+        instruction:'Toolpath generation failed for this print. Error: '+reported+
           '\nInspect the current recipe and relevant skill limits, diagnose the cause and apply appropriate fixes before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then regenerate and verify the current toolpath is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
-        note('generation-failed',{planHash:state.planHash,trigger,error:error.message,requestId:record.id});}
+        note('generation-failed',{generationHash:state.generationHash,trigger,error:reported,requestId:record.id});}
       finally{throw error;} // A notification failure must not hide the generation error.
-    }finally{generationRun=null;}
+  };
+  const generate=async(current,development,trigger='generate')=>{
+    const snapshot=await readGeneration(current);
+    try{
+      const outcome=await executeGeneration(current,snapshot,development,trigger);
+      await publishGeneration(outcome,development,trigger);
+    }catch(error){await publishGenerationFailure(error,snapshot,trigger);}
+    finally{
+      const finished=generationRun;generationRun=null;
+      publishProgress(finished?{studioInstanceId:instanceId,printId:printIdFor(finished.directory),
+        directory:finished.directory,generationHash:finished.generationHash,status:'idle',cancellable:false,progress:null}:null);
+    }
+  };
+  const approvePrint=async(current,{actor,revision},progress)=>{
+    const state=await current.approve(dir,{actor,revision,program:'source'});
+    const {history:_history,...review}=state.review,{source,presentation}=await current.bundleFingerprints(dir,{program:!geometryOnly(progress)});
+    note('approved',{revision:state.revision});
+    return {state,response:{revision:state.revision,review,toolpathApproved:state.toolpathApproved,
+      programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,
+      presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}};
+  };
+  const deliverPrint=async(current,{requestedName,tour=false}={})=>{
+    const file=await current.deliver(dir),fallback=basename(file),name=requestedDownloadName(requestedName,await printName(dir),fallback);
+    const bytes=await readFile(file),exportHash=createHash('sha256').update(bytes).digest('hex');
+    note('export-delivered',{tour,name,exportHash});
+    return {file,name,bytes,exportHash,contentType:fallback.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':fallback.endsWith('.zip')?'application/zip':'text/plain'};
   };
   const openPrint=async input=>{
     const next=await printDirectory(input,resolveBundle),adapter=await resolveBundle(next);
@@ -272,7 +305,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token);
         res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(html);return;
       }
-      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
+      if(req.method==='GET'&&['/work-state.mjs','/agent-ui.mjs','/tour-ui.mjs','/tour-catalog.mjs','/viewer-session.mjs','/view-performance.mjs','/refresh-plan.mjs','/viewer-renderer.mjs','/studio-state.mjs','/studio-controls.mjs','/app.mjs','/playback.mjs','/camera.mjs','/toolpath-view.mjs','/mesh-view.mjs','/material-view.mjs','/machine-view.mjs','/settings.mjs','/style.css'].includes(url.pathname)) {
         res.writeHead(200,{'Content-Type':url.pathname.endsWith('.css')?'text/css':'text/javascript'});res.end(await readFile(resolve(here,url.pathname.slice(1))));return;
       }
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
@@ -299,9 +332,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           ...(url.searchParams.has('history')?{recent:events.history()}:{})});return;
       }
       if(req.method==='GET'&&url.pathname==='/api/preparation'){
-        if(importProgress){send(importProgress);return;}
-        const job=preparation;
-        send({printId:printId(),planHash:job?.planHash??null,cancellable:Boolean(job?.cancellable),status:job?.status??'idle',progress:job?.progress??null,error:job?.error??null});return;
+        send(preparationStatus());return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
         const p=await tour.info(),prints=p.active
@@ -314,27 +345,30 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       const bundle=await opened;
       if(req.method==='GET'&&await localExtension.studioGet?.({url,res,token,dir:readDir,printId:readId,bundle,send,assertCurrent:()=>{if(readDir!==dir)throw new Error('The open print changed.');}}))return;
       if(req.method==='GET'&&url.pathname==='/api/state') {
+        const condition=req.headers['if-none-match'];
         const workId=requests.printId(readDir,{optional:true}),allRecords=workId?await requests.query({printId:workId}):[],records=allRecords.filter(record=>!record.studioInstanceId||record.studioInstanceId===instanceId),guide=await tour.info({records});
         const {state,fingerprint,presentationFingerprint}=await readStableBundle(bundle,readDir,{program:geometryOnly(guide)?false:'source'});
         if(readDir!==dir)throw new Error('The print is being updated.');
-        state.tour=guide;state.localPrintDirectory=readDir;state.instanceId=instanceId;
-        state.importRepair=await loadStudioImportRepair(readDir);
-        state.work={printId:workId??readId,snapshot:{...workSnapshot(state),studioInstanceId:instanceId},requests:workId?records.filter(r=>r.printId===workId):[]};
-        if(generationFailure?.directory===readDir&&generationFailure.planHash===state.planHash&&!state.program)
-          state.generationError=generationFailure.message;
-        state.generationCancelled=generationCancelled?.directory===readDir&&generationCancelled.planHash===state.planHash;
-        state.presentationFingerprint=viewFingerprint(readId,presentationFingerprint,guide);
-        delete state.code;delete state.dir;state.printName=await printName(readDir,state.plan);state.downloadName=downloadName(state.printName,state.exportName);state.printId=readId;state.fingerprint=viewFingerprint(readId,fingerprint,guide);send(state);
+        const responseFingerprint=viewFingerprint(readId,fingerprint,guide),failure=generationFailure,cancelled=generationCancelled;
+        const importRepair=await loadStudioImportRepair(readDir);
+        if(readDir!==dir)throw new Error('The print is being updated.');
+        const tag=stateTag(responseFingerprint,guide,failure,cancelled,records,importRepair);
+        if(condition&&matchesStateTag(condition,tag)){res.setHeader('ETag',tag);res.writeHead(304);res.end();return;}
+        const presentation=viewFingerprint(readId,presentationFingerprint,guide),name=await printName(readDir,state.plan);
+        const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,records,importRepair,
+          printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
+          generationFailure:failure,generationCancelled:cancelled,now:Date.now()});
+        res.setHeader('ETag',tag);
+        send(assembled.response);
         // Speculate only on the tour's explicitly selected, confirmed part.
         // Ordinary edits use explicit generation; starting a second worker here
         // competes with the agent and may slice inputs it is still changing.
-        if(!state.generationCancelled&&guide.active&&guide.directory===readDir&&guide.step===L.import
-          &&!hasUnpreparedEdit(state.work.requests,state.work.snapshot))prepare(state,readDir);
+        if(assembled.preparation)prepare(assembled.preparation.state,assembled.preparation.directory);
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/sources'){
-        const fingerprint=await bundle.bundleFingerprint(readDir),state=await bundle.loadBundle(readDir,{program:'source',allSources:true});
-        if(fingerprint!==await bundle.bundleFingerprint(readDir)||readDir!==dir)throw new Error('The print is being updated.');
+        const {state}=await readStableBundle(bundle,readDir,{program:'source',allSources:true});
+        if(readDir!==dir)throw new Error('The print is being updated.');
         for(const [key,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]])
           if(url.searchParams.get(key)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
         if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
@@ -346,29 +380,6 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           });
         }
         res.end();return;
-      }
-      if(req.method==='GET'&&url.pathname==='/api/revision'){
-        const guide=await tour.info();
-        const options={program:!geometryOnly(guide)},current=await bundle.bundleFingerprints(readDir,options),raw=current.source;
-        const fingerprint=viewFingerprint(readId,raw,guide),presentationFingerprint=viewFingerprint(readId,current.presentation,guide);
-        let reviewUpdate;
-        if(url.searchParams.has('fingerprint')&&url.searchParams.get('fingerprint')!==fingerprint){
-          const {state,fingerprint:checked}=await readStableBundle(bundle,readDir,{program:options.program?'source':false});
-          if(checked!==raw||readDir!==dir)throw Error('The print is being updated.');
-          reviewUpdate=metadata(state);
-        }
-        send({instanceId,fingerprint,presentationFingerprint,reviewUpdate,tour:guide});return;
-      }
-      if(req.method==='GET'&&url.pathname==='/api/gcode') {
-        const fingerprint=await bundle.bundleFingerprint(readDir);
-        const state=await bundle.loadBundle(readDir,{program:'source'});
-        if(readDir!==dir)throw new Error('The open print changed. Reload before continuing.');
-        if(fingerprint!==await bundle.bundleFingerprint(readDir))throw new Error('The print is being updated.');
-        for(const [name,value] of [['printId',readId],['revision',state.revision],['exportHash',state.exportHash]]){
-          if(url.searchParams.has(name)&&url.searchParams.get(name)!==value)throw new Error('The reviewed program changed. Reload before continuing.');
-        }
-        if(!state.program||state.programError)throw new Error(state.programError??'Generate the program first.');
-        res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end(state.code);return;
       }
       if(req.method!=='POST'||!url.pathname.startsWith('/api/')){send({error:'Not found'},404);return;}
       if(url.pathname==='/api/agent-open'){
@@ -387,7 +398,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
-        if(data.printId!==printId()||data.planHash&&data.planHash!==preparation?.planHash)throw Error('The calculation changed. Refresh before cancelling.');
+        if(data.printId!==printId()||data.generationHash&&data.generationHash!==preparation?.generationHash)throw Error('The calculation changed. Refresh before cancelling.');
         send(await cancelGeneration());return;
       }
       const run=queue.then(async()=>{
@@ -398,13 +409,13 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
           if(progress.active)throw Error('Import STL is available after you finish or exit the tour.');
           await discardPreparation();
           const state=await current.loadBundle(dir,{program:false});
-          importProgress={printId:printId(),planHash:null,status:'importing',progress:{stage:'Checking your STL'}};
+          importProgress={studioInstanceId:instanceId,printId:printId(),generationHash:null,status:'importing',progress:{stage:'Checking your STL'}};publishProgress(importProgress);
           note('import-started',{name:data.name??null,units:data.units??null});
           let imported;
           try{imported=await importStudioSTL(libraryRoot,body,{name:data.name,units:data.units,machineId:state.machine.id,
-            onProgress:value=>{importProgress.progress=value;}});}
+            onProgress:value=>{importProgress.progress=value;publishProgress(importProgress);}});}
           catch(error){note('import-failed',{name:data.name??null,error:error.message});throw error;}
-          finally{importProgress=null;}
+          finally{const finished=importProgress;importProgress=null;publishProgress({...finished,status:'idle',progress:null,cancellable:false});}
           await openPrint(imported.directory);
           note('import-completed',{name:await printName(dir),units:data.units??null});
           send({ok:true});return;
@@ -422,11 +433,10 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             if(stage==='toolpath'&&advisory?.count&&requests.printId(dir,{optional:true}))
               await requests.begin({directory:dir,source:'studio',kind:'advisory',studioInstanceId:instanceId,
                 key:`short-travel:${dir}:${state.exportHash}`,
-                evidence:{exportHash:state.exportHash,planHash:state.planHash,skills:state.skills,shortTravel:advisory},
+                evidence:{exportHash:state.exportHash,generationHash:state.generationHash,skills:state.skills,shortTravel:advisory},
                 instruction:`Toolpath quality advisory for export ${state.exportHash}: ${advisory.message}\n`+
                   `Affected recipe skills: ${(state.skills??[]).join(', ')}. This notification preserves source locations and operation counts in evidence.shortTravel. `+
-                  `${advisory.count} travels have endpoints within ${advisory.thresholdMm} mm. `+
-                  'Record this as evidence for deferred generator improvement and acknowledge this advisory as completed. Continue the current user task; no repair or new approval is required.'});
+                  'Mention this finding to the person in your next reply, then acknowledge this advisory as completed and continue the current user task; no repair or new approval is required.'});
           }
           send({...await tour.acknowledgeView(dir,data,state),presentedRequests});return;
         }
@@ -443,10 +453,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
             state=await current.loadBundle(dir,{program:'source'});
             if(state.review.generation?.mode!=='production'){await generate(current,false,'tour-export');state=await current.loadBundle(dir,{program:'source'});}
             if(state.exportHash!==shownHash)throw Error('The regenerated toolpath changed. Review it, then confirm export again.');
-            if(!state.toolpathApproved)state=await current.approve(dir,{actor:'Local user — tour export',revision:state.revision,program:'source'});
-            const file=await current.deliver(dir),name=requestedDownloadName(data.name,await printName(dir),basename(file)),bytes=await readFile(file);
+            if(!state.toolpathApproved)state=(await approvePrint(current,{actor:'Local user — tour export',revision:state.revision},progress)).state;
+            const {file,name,bytes}=await deliverPrint(current,{requestedName:data.name,tour:true});
             await tour.downloaded(state.exportHash);
-            note('export-delivered',{tour:true,name,exportHash:state.exportHash,revision:state.revision});
             if(data.downloadLink===true){send(stageDownload(file,name,bytes));return;}
             res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(name)}`});res.end(bytes);return;
           }finally{await tour.restoreReference(dir);}
@@ -492,35 +501,26 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         else if(await localExtension.studioPost?.({url,data,dir,printId:printId(),send}))return;
         else if(url.pathname==='/api/plan'){await current.updatePlan(dir,data.plan,data.revision);note('plan-updated',{revision:data.revision??null});}
         else if(url.pathname==='/api/approve'){
-          const state=await current.approve(dir,{actor:data.actor,revision:data.revision,program:'source'});
-          const {revision,review,toolpathApproved}=metadata(state);
-          note('approved',{revision});
-          const {source,presentation}=await current.bundleFingerprints(dir,{program:!geometryOnly(progress)});
-          send({ok:true,approval:{revision,review,toolpathApproved,
-            programAvailable:Boolean(state.program),programError:state.programError??null,exportHash:state.exportHash??null,
-            presentationFingerprint:viewFingerprint(printId(),presentation,progress),fingerprint:viewFingerprint(printId(),source,progress)}});return;
+          const approved=await approvePrint(current,data,progress);send({ok:true,approval:approved.response});return;
         }
         else if(url.pathname==='/api/generate'){
-          if(data.planHash&&(await current.loadBundle(dir,{program:false})).planHash!==data.planHash)throw Error('The print changed before generation. Review the updated print.');
+          if(data.generationHash&&(await current.loadBundle(dir,{program:false})).generationHash!==data.generationHash)throw Error('The print changed before generation. Review the updated print.');
           await generate(current,data.development===true);
         }
         else if(url.pathname==='/api/deliver') {
-          const file=await current.deliver(dir),name=basename(file);
-          const selectedName=requestedDownloadName(data.name,await printName(dir),name),delivered=await readFile(file);
-          note('export-delivered',{tour:false,name:selectedName,exportHash:createHash('sha256').update(delivered).digest('hex')});
-          if(data.downloadLink===true){send(stageDownload(file,selectedName,delivered));return;}
-          const contentType=name.endsWith('.3mf')?'application/vnd.ms-package.3dmanufacturing-3dmodel+xml':name.endsWith('.zip')?'application/zip':'text/plain';
-          res.writeHead(200,{'Content-Type':contentType,'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(selectedName)}`});res.end(delivered);return;
+          const delivered=await deliverPrint(current,{requestedName:data.name});
+          if(data.downloadLink===true){send(stageDownload(delivered.file,delivered.name,delivered.bytes));return;}
+          res.writeHead(200,{'Content-Type':delivered.contentType,'Content-Disposition':`attachment; filename*=UTF-8''${encodeURIComponent(delivered.name)}`});res.end(delivered.bytes);return;
         } else throw new Error('Unknown operation.');
         send({ok:true});
       });
       queue=run.catch(()=>{});await run;
-    } catch(error){if(!res.headersSent){await annotateSourceSkew(error);send({error:error.message,code:error.code},400);}else res.end();}
+    } catch(error){if(!res.headersSent){await noteSourceSkew(error);send({error:reportedMessage(error),code:error.code},400);}else res.end();}
   });
   // Local adapters reopen through the same serialized and validated operation
   // as the picker, including when the person changed this viewer's print.
   server.openPrint=input=>{
-    const run=queue.then(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-change',{kinds:['print']});});
+    const run=queue.then(async()=>{const before=dir;await openPrint(input);if(dir!==before)lifetime.notify('studio-update',{kind:'state',kinds:['print']});});
     queue=run.catch(()=>{});return run;
   };
   server.setStartAt=startAt=>tour.setStartAt(startAt);
@@ -531,17 +531,17 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
     if(record.source==='studio'&&record.status==='queued'&&record.studioInstanceId===instanceId&&!queuedNoted.has(record.id)){
       queuedNoted.add(record.id);note('request-queued',{requestId:record.id,requestKind:record.kind,instruction:record.instruction,scope:record.scope??null,printId:record.printId});
     }
-    if((!record.studioInstanceId||record.studioInstanceId===instanceId)&&record.printId===requests.printId(dir,{optional:true}))lifetime.notify('studio-change',{kinds:['requests'],instanceId});
+    if((!record.studioInstanceId||record.studioInstanceId===instanceId)&&record.printId===requests.printId(dir,{optional:true}))lifetime.notify('studio-update',{kind:'state',kinds:['requests'],instanceId});
   });
   let checkingGeneration=false;
   const stopWatching=watchStudioChanges(libraryRoot,kinds=>{
     const external=kinds.filter(kind=>kind!=='requests');
-    if(external.length)lifetime.notify('studio-change',{kinds:external});
+    if(external.length)lifetime.notify('studio-update',{kind:'state',kinds:external});
     const job=preparation;
     if(kinds.includes('print')&&job?.cancellable&&!checkingGeneration){
       checkingGeneration=true;
       void resolveBundle(job.directory).then(adapter=>readStableBundle(adapter,job.directory,{program:false})).then(({state})=>{
-        if(preparation===job&&state.planHash!==job.planHash)return cancelGeneration('inputs-changed');
+        if(preparation===job&&state.generationHash!==job.generationHash)return cancelGeneration('inputs-changed');
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });

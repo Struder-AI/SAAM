@@ -13,14 +13,19 @@ const distanceToSegment=(p,a,b)=>{
 // Subdivision ends on the flatness tolerance, which control-point convergence
 // reaches for any finite curve. The only real failure is a parameter interval
 // too small to halve again, which is reported as such.
-export function flattenBezier(points,toleranceMm,output,parameters=null,t0=0,t1=1){
-  requireThat(points.every(p=>p.every(Number.isFinite)),'Text curve control point is not finite.');
-  if(points.slice(1,-1).every(p=>distanceToSegment(p,points[0],points.at(-1))<=toleranceMm)){output.push(points.at(-1));parameters?.push(t1);return;}
-  const left=[points[0]],right=[points.at(-1)];let row=points;
-  while(row.length>1){row=row.slice(1).map((p,i)=>midpoint(row[i],p));left.push(row[0]);right.unshift(row.at(-1));}
-  const tm=(t0+t1)/2;
-  requireThat(tm>t0&&tm<t1,'Text curve subdivision reached the smallest representable parameter step without meeting its flatness tolerance.');
-  flattenBezier(left,toleranceMm,output,parameters,t0,tm);flattenBezier(right,toleranceMm,output,parameters,tm,t1);
+export function flattenBezier(points,toleranceMm){
+  const samples=[],parameters=[];
+  function subdivide(control,t0,t1){
+    requireThat(control.every(p=>p.every(Number.isFinite)),'Text curve control point is not finite.');
+    if(control.slice(1,-1).every(p=>distanceToSegment(p,control[0],control.at(-1))<=toleranceMm)){samples.push(control.at(-1));parameters.push(t1);return;}
+    const left=[control[0]],right=[control.at(-1)];let row=control;
+    while(row.length>1){row=row.slice(1).map((p,i)=>midpoint(row[i],p));left.push(row[0]);right.unshift(row.at(-1));}
+    const tm=(t0+t1)/2;
+    requireThat(tm>t0&&tm<t1,'Text curve subdivision reached the smallest representable parameter step without meeting its flatness tolerance.');
+    subdivide(left,t0,tm);subdivide(right,tm,t1);
+  }
+  subdivide(points,0,1);
+  return {points:samples,parameters};
 }
 export function textOutlines(feature,toleranceMm){
   const bytes=Buffer.from(feature.font.data,'base64');
@@ -49,7 +54,7 @@ export function textOutlines(feature,toleranceMm){
         else if(command==='lineTo'){point=xy(...args);loop.push(point);}
         else if(command==='quadraticCurveTo'||command==='bezierCurveTo'){
           const points=[point];for(let i=0;i<args.length;i+=2)points.push(xy(args[i],args[i+1]));
-          flattenBezier(points,toleranceMm,loop);point=points.at(-1);
+          const flattened=flattenBezier(points,toleranceMm);for(const sample of flattened.points)loop.push(sample);point=points.at(-1);
         }else if(command==='closePath')finish();
         else throw new Error('Unsupported font outline command: '+command);
       }

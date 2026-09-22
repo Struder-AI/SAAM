@@ -1,14 +1,14 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
-import { requireThat } from './tolerance.mjs';
+import { requireThat, cross } from './tolerance.mjs';
 import { orientLoops } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
 import {meshTopology,meshEdgeMap} from './mesh-topology.mjs';
 import {triangleBVH} from './triangle-bvh.mjs';
+import {decodeSTLBuffer} from './stl-decoder.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
-const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const dot = (a,b) => a.reduce((s,v,i)=>s+v*b[i],0);
 const edgeKey = (a,b) => a<b ? `${a}:${b}` : `${b}:${a}`;
 
@@ -45,32 +45,53 @@ function meshIdentity(vertices,triangles){
   put(vertices.length);put(triangles.length);for(const p of vertices)for(const v of p)put(v);for(const t of triangles)for(const v of t)put(v);hash.update(buffer.subarray(0,offset));return hash.digest('hex');
 }
 export function makeMesh(vertices,triangles,{name='mesh'}={}){
+  const input=validateMeshInput(vertices,triangles);
+  const identity=meshIdentity(input.vertices,input.triangles);
+  if(validatedMeshes.has(identity))return meshResult(vertices,triangles,name,validatedMeshes.get(identity));
+  const faceGeometry=meshFaceGeometry(input);
+  const derived=validateMeshGeometry(input,faceGeometry);
+  const retained=retainValidatedMesh(identity,derived);
+  return meshResult(vertices,triangles,name,retained);
+}
+
+function validateMeshInput(vertices,triangles){
   requireMeshInput(Array.isArray(vertices)&&vertices.length>=4,'Mesh needs at least 4 vertices.');
   requireMeshInput(vertices.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'Mesh vertices must be finite XYZ millimeters.');
   requireMeshInput(Array.isArray(triangles)&&triangles.length>=4,'Mesh needs at least 4 triangles.');
   checkMeshCapacity(vertices.length,triangles.length);
   for(const t of triangles)requireMeshInput(Array.isArray(t)&&t.length===3&&t.every(v=>Number.isInteger(v)&&v>=0&&v<vertices.length)&&t[0]!==t[1]&&t[1]!==t[2]&&t[0]!==t[2],'Invalid mesh triangle indices.');
-  const identity=meshIdentity(vertices,triangles);
-  if(validatedMeshes.has(identity))return meshResult(vertices,triangles,name,validatedMeshes.get(identity));
+  return {vertices,triangles};
+}
+
+function meshFaceGeometry({vertices,triangles}){
   const counts=[vertices.length,triangles.length];
   const normals=meshAllocation('Mesh face normals',...counts,()=>new Float64Array(triangles.length*3)),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const p of vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
   for(let i=0;i<triangles.length;i++){const t=triangles[i],n=cross(sub(vertices[t[1]],vertices[t[0]]),sub(vertices[t[2]],vertices[t[0]])),length=Math.hypot(...n);requireMeshInput(length>1e-10,'Degenerate mesh triangle.');for(let k=0;k<3;k++)normals[i*3+k]=n[k]/length;}
+  return {normals,bounds};
+}
+
+function validateMeshGeometry({vertices,triangles},{normals,bounds}){
+  const counts=[vertices.length,triangles.length];
   const edgeData=meshAllocation('Mesh edge topology',...counts,()=>meshTopology(vertices,triangles,requireMeshInput));
   meshAllocation('Mesh intersection index',...counts,()=>rejectIntersections(vertices,triangles,normals));
-  const derived={normals,edgeData,bounds};
+  return {normals,edgeData,bounds};
+}
+
+function retainValidatedMesh(identity,derived){
   // Keep at most 32 MiB of compact derived data, never a full JSON mesh key.
-  const bytes=normals.byteLength+edgeData.byteLength;
+  const bytes=derived.normals.byteLength+derived.edgeData.byteLength;
   if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength+v.edgeData.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
-  return meshResult(vertices,triangles,name,derived);
+  return derived;
 }
 function rejectIntersections(vertices,triangles,normals){
   const tree=triangleBVH(vertices,triangles);
   for(let i=0;i<triangles.length;i++){const ta=triangles[i],pa=ta.map(v=>vertices[v]),min=[0,1,2].map(k=>Math.min(pa[0][k],pa[1][k],pa[2][k])),max=[0,1,2].map(k=>Math.max(pa[0][k],pa[1][k],pa[2][k]));
-    tree.query(min,max,j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
+    const inspectCandidate=j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
       const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-1e-9||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+1e-9))return;
       if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
-    });
+    };
+    tree.query(min,max,inspectCandidate);
   }
 }
 
@@ -105,10 +126,14 @@ export function translateMesh(mesh,dx,dy,dz=0) {
 // A Z-bound hierarchy stores each triangle once, including tall triangles that
 // would occupy many bins in a uniform layer index.
 export function createMeshSectionQuery(mesh) {
-  const heights=mesh.vertices.map(p=>p[2]).sort((a,b)=>a-b);
-  const ranges=mesh.triangles.map((t,i)=>({i,
-    min:Math.min(...t.map(v=>mesh.vertices[v][2])),
-    max:Math.max(...t.map(v=>mesh.vertices[v][2]))}));
+  // A prepared query owns the geometry behind its indices. Public meshes remain
+  // mutable, but later caller edits cannot mix changed faces with this tree.
+  const fixedMesh={vertices:mesh.vertices.map(p=>[...p]),triangles:mesh.triangles.map(t=>[...t]),
+    bounds:{min:[...mesh.bounds.min],max:[...mesh.bounds.max]}};
+  const heights=fixedMesh.vertices.map(p=>p[2]).sort((a,b)=>a-b);
+  const ranges=fixedMesh.triangles.map((t,i)=>({i,
+    min:Math.min(...t.map(v=>fixedMesh.vertices[v][2])),
+    max:Math.max(...t.map(v=>fixedMesh.vertices[v][2]))}));
   function build(items) {
     let min=Infinity,max=-Infinity;
     for(const item of items){min=Math.min(min,item.min);max=Math.max(max,item.max);}
@@ -133,7 +158,7 @@ export function createMeshSectionQuery(mesh) {
     }
     visit(tree);
     // Preserve the original edge overwrite and contour traversal order exactly.
-    return found.sort((a,b)=>a-b).map(i=>mesh.triangles[i]);
+    return found.sort((a,b)=>a-b).map(i=>fixedMesh.triangles[i]);
   };
   // Between consecutive vertex heights the intersected edges and their
   // connectivity are fixed. Reuse that topology, not sampled coordinates.
@@ -143,17 +168,20 @@ export function createMeshSectionQuery(mesh) {
     let lo=0,hi=heights.length;
     while(lo<hi){const mid=(lo+hi)>>1;if(heights[mid]<cut)lo=mid+1;else hi=mid;}
     if(!bands.has(lo)){
-      const contours=meshContourEdges(mesh,cut,trianglesAt(cut));
+      const contours=meshContourEdges(fixedMesh,cut,trianglesAt(cut));
       if(bands.size>=8)bands.delete(bands.keys().next().value);
       bands.set(lo,contours);
     }
     return bands.get(lo);
   };
-  return z=>cutMesh(mesh,z,nearVertex,trianglesAt,contoursAt);
+  const sectionAt=z=>cutMesh(fixedMesh,z,nearVertex,trianglesAt,contoursAt);
+  return sectionAt;
 }
 
 export function sectionMesh(mesh,z) {
-  return cutMesh(mesh,z,cut=>mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10),()=>mesh.triangles);
+  const nearVertex=cut=>mesh.vertices.some(p=>Math.abs(p[2]-cut)<1e-10);
+  const trianglesAt=()=>mesh.triangles;
+  return cutMesh(mesh,z,nearVertex,trianglesAt);
 }
 
 function meshContourEdges(mesh,cut,triangles){
@@ -224,29 +252,12 @@ export function meshTopAt(mesh,x,y) {
 // STL has no units. Exact duplicate coordinates are indexed without moving them.
 // Decoding is also used by explicit repair. Ordinary import still validates below.
 export function decodeSTL(bytes,{units,scale=1}={}) {
-  requireThat(['mm','inch'].includes(units)&&Number.isFinite(scale)&&scale>0,'STL import needs explicit mm/inch units and positive scale.');
-  const buffer=Buffer.isBuffer(bytes)?bytes:Buffer.from(bytes),factor=scale*(units==='inch'?25.4:1),vertices=[],triangles=[],lookup=new Map();
-  const addFacet=facet=>triangles.push(facet.map(p=>{requireMeshInput(p.every(Number.isFinite),'Nonfinite STL coordinate.');const key=p.join(',');if(!lookup.has(key)){lookup.set(key,vertices.length);vertices.push(p);}return lookup.get(key);}));
-  const count=buffer.length>=84?buffer.readUInt32LE(80):0;
-  if(count>0&&84+50*count===buffer.length){
-    checkMeshCapacity(count*3,count);
-    for(let i=0;i<count;i++)addFacet(Array.from({length:3},(_,v)=>Array.from({length:3},(_,k)=>buffer.readFloatLE(84+i*50+12+v*12+k*4)*factor)));
-  } else {
-    const text=buffer.toString('utf8').trim();
-    requireMeshInput(/^solid(?:\s|$)/i.test(text)&&/endsolid[^\r\n]*$/i.test(text),'Invalid or truncated STL.');
-    const start=/^solid[^\r\n]*(?:\r?\n|$)/i.exec(text)[0].length,end=/endsolid[^\r\n]*$/i.exec(text).index,scanner=/\S+/g;scanner.lastIndex=start;
-    const read=()=>{const m=scanner.exec(text);return m&&m.index<end?m[0]:undefined;};
-    let token=read();const take=()=>{const value=token;token=read();return value;};
-    const word=w=>requireMeshInput(take()?.toLowerCase()===w,'Malformed ASCII STL.');
-    const number=()=>{const v=Number(take());requireMeshInput(Number.isFinite(v),'Nonfinite STL coordinate.');return v;};
-    while(token!==undefined){
-      word('facet');word('normal');number();number();number();word('outer');word('loop');
-      addFacet(Array.from({length:3},()=>{word('vertex');return [number()*factor,number()*factor,number()*factor];}));
-      word('endloop');word('endfacet');
-    }
+  try{return decodeSTLBuffer(bytes,{units,scale});}
+  catch(error){
+    if(!error.code&&error.name==='Error'&&!error.message.startsWith('STL import needs')&&!error.message.includes('capacity'))
+      throw meshInputError(error.message);
+    throw error;
   }
-  checkMeshCapacity(vertices.length,triangles.length);
-  return {vertices,triangles};
 }
 
 export function parseSTL(bytes,options) {

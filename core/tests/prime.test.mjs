@@ -4,8 +4,8 @@ import {loadMachine,startupPosition,startupRetracted} from '../machine/profile.m
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
-import {PathBuilder} from '../path/builder.mjs';
-import {primeBeforePart} from '../path/prime.mjs';
+import {createPlanningState,planningPath} from '../path/planning.mjs';
+import {planPriming} from '../path/prime.mjs';
 import {exportGriffin,interpretGriffin} from '../export/griffin.mjs';
 
 test('S5 shell exports recover, sacrificial strokes, then the part on either nozzle',async()=>{
@@ -36,33 +36,33 @@ test('S5 shell exports recover, sacrificial strokes, then the part on either noz
 });
 
 function fixture(machine=loadMachine()){
-  const plan=defaults(machine),builder=new PathBuilder({start:startupPosition(machine,plan),process:plan.process,machine,generatorVersion:'test'});
-  builder.retracted=startupRetracted(machine,plan);
+  const plan=defaults(machine),state=createPlanningState({start:startupPosition(machine,plan),process:plan.process,machine,generatorVersion:'test',retracted:startupRetracted(machine,plan)});
   const geometry={min:[140,100,0],max:[148,108,2]};
   const results=[{operations:[{strokes:[{points:[[140,100,.2],[148,108,.2]],beadAreaMm2:.08}]}]}];
-  return {builder,geometry,results};
+  return {state,geometry,results};
 }
 
 test('priming avoids generated support extents and finds space away from occupied bed edges',()=>{
   const f=fixture();
   f.geometry={min:[0,0,0],max:[325,220,2]};
   f.results[0].operations[0].strokes[0].points=[[0,0,.2],[329,220,.2]];
-  primeBeforePart(f.builder,f.geometry,f.results);
-  const deposition=f.builder.actions.filter(a=>a.volumeMm3>0);
+  const primed=planPriming(f.state,f.geometry,f.results);
+  const deposition=planningPath(primed.state,[primed.actions]).actions.filter(a=>a.volumeMm3>0);
   assert.equal(deposition.length,3);
   assert.ok(deposition.every(a=>a.to[1]>224),'only the rear strip is available');
   assert.ok(deposition.every(a=>a.to[0]>=.2&&a.to[0]<=329.8&&a.to[1]<=239.8));
   const full=fixture();full.geometry={min:[0,0,0],max:[330,240,2]};
-  assert.throws(()=>primeBeforePart(full.builder,full.geometry,full.results),/No room for machine priming strokes/);
-  assert.equal(full.builder.actions.length,0,'reject before emitting partial motion');
+  const unchanged=structuredClone(full.state);
+  assert.throws(()=>planPriming(full.state,full.geometry,full.results),/No room for machine priming strokes/);
+  assert.deepEqual(full.state,unchanged,'rejection leaves incoming planning state unchanged');
 });
 
 test('profiles without explicit priming and empty deposition preserve their paths',()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']){
     const machine=loadMachine(id);delete machine.startup.primingStrokes;
-    const f=fixture(machine);primeBeforePart(f.builder,f.geometry,f.results);
-    assert.equal(f.builder.actions.length,0,'old snapshots and other machines retain their startup');
+    const f=fixture(machine),primed=planPriming(f.state,f.geometry,f.results);
+    assert.equal(planningPath(primed.state,[primed.actions]).actions.length,0,'old snapshots and other machines retain their startup');
   }
-  const f=fixture();primeBeforePart(f.builder,f.geometry,[]);
-  assert.equal(f.builder.actions.length,0,'priming cannot disguise an empty part');
+  const f=fixture(),primed=planPriming(f.state,f.geometry,[]);
+  assert.equal(planningPath(primed.state,[primed.actions]).actions.length,0,'priming cannot disguise an empty part');
 });

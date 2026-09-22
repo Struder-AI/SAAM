@@ -36,6 +36,48 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-055 — Extend Bambu hardware acceptance beyond the verified H2D installation
+
+- Status: in progress; H2D two-colour and mixed-nozzle exporter/guidance work is complete for the physically tested installation.
+- Contributor: current user; earlier attribution to `remettub` was inferred and remains unconfirmed.
+- Authorization: user requested startup/nozzle/plate/AMS synchronization and support for any supported feed combination and machine (2026-09-21). The earlier AMS investigation originated in Claude Code session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`; current session title/ID unavailable.
+- Accepted H2D scope: ordinary generated v13 AMS-19 and DUAL-20 physically passed same-nozzle PLA colour changes and left 0.4/right 0.8/left nozzle changes with correct deposition heights. Both use fast startup, Textured PEI and right four-slot AMS; dual uses the left external spool. No reference project entry is substituted. Canonical settings, synchronized stored/executable sections, regression protection and maker workflows are implemented in [the Bambu contract](core/export/bambu.md).
+- Remaining: X1 AMS switching failed its earlier test and X1 is unavailable; investigate and physically accept its package/USB mapping behavior when available. Validate other supported plate/nozzle/feed configurations as hardware becomes available, distinguishing implemented configuration support from physical evidence. No direct printer-dispatch adapter exists; user-confirmed mapping remains the current dispatch path.
+- Completion: close each remaining machine/configuration with exact exported-file evidence and actual nozzle/filament/plate observations. H2D acceptance does not certify every Bambu installation. Historical diagnosis and completed BR-056 evidence are in [DEVLOG](DEVLOG.md#2026-09-21--generated-h2d-dual-20-passes-closing-dual-nozzle-exporter-work).
+
+### BR-054 — A brim producer that does not need a modeled flange
+
+- Status: open
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — after a physical bed-adhesion failure, asked for a brim on the current print and then: "you may want to escalate to builder and write the first draft of a bed adhesion skill, currently very small, only with one entry - brims." Scope covers the brim entry; a raft, a detached skirt and a removal gap are proposals, not authorized here.
+- Session: Claude Code session `1a69160c-5d8b-4d89-898f-cfcd81550fdb`; exact chat title unavailable.
+- Source: current conversation, 2026-09-19: "It didn't adhere to the print bed, can you give it a good solid brim to start out, maybe 8 layers on the outside before getting to the part, with full flow or maybe even a little more", clarified as "Just do the first layer and then vase on top of that".
+- Context: [bed-adhesion](skills/bed-adhesion/SKILL.md) documents the brim that is achievable today: a flange modeled into the part's first layer height plus a first-layer region assigning `planar-infill` with `density: 0`, a `perimeters` count and a region `process` override for bead width and speed. Verified on the `chalice-drip` bundles — nine loops at the predicted radii, 3,111 mm of first-layer path at a measured 0.652 x 0.2 mm bead. Because the loops come from the region's own section, the brim width lives in the geometry, so an imported STL cannot take a brim without editing its mesh.
+- Remaining: Derive the brim loops from the part's own first-layer section offset outward, rather than from a modeled flange, so brim width and loop count are ordinary recipe settings. Decide where the offset belongs relative to the existing shared section/offset components before adding a producer. Keep `density: 0` behaviour so an open-bottom part stays open.
+- Completion: A brim is requested through recipe settings alone on any supported geometry, including an imported STL, with its loop placement visible in Studio's first layer. Covered by a test. No physical validation is implied.
+
+### BR-053 — Restart an agent-owned Studio on the same port
+
+- Status: open
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — asked whether a Studio can be restarted on the same port and, if that is not supported, said it can go in a build request. Scope: let an agent restart its own Studio and keep its URL. Any related stale-source warning or onboarding guidance is a proposal and is not authorized here.
+- Session: Claude Code session `01e30a9a-dde6-45f3-b8eb-5829055cdac7`; exact chat title unavailable.
+- Source: current conversation, 2026-09-19: "Is it possible to restart and use the same port? If not supported currently, we can put that in a build request." The user had just asked why a second Studio instance was started; "We've been trying to reduce multiple studio instances."
+- Context: During a builder task an edit to `machines/bambu-x1-carbon.json` left the live Studio running [older source than the files on disk](studio/README.md), so it had to be restarted. The toolkit launch path (`--toolkit create-preview|open-print|start-tour`) always listens on port 0 (`listenPreview` in [toolkit.mjs](core/agent/toolkit.mjs)), so the restart got a new URL and the person's tab had to be re-pointed. The plain launcher `node studio/server.mjs DIR` reads an undocumented `SAAM_STUDIO_PORT` variable, but it does not carry the agent owner, requests or events, so it is not a substitute.
+- Remaining: Let the toolkit launch path bind a requested port (or reuse the previous instance's port when relaunching with `--agent-owner`), and fail clearly, naming the process holding it, when the port is busy. Document it where agents already read Studio restart guidance. Keep one Studio per agent by default.
+- Completion: An agent stops its own Studio and relaunches on the same URL, and the person's open tab reconnects with the print and pending requests intact. A busy port gives an actionable error and never silently picks another. Covered by a test.
+
+### BR-052 — Complete the dev map against the 2026-09-21 intent
+
+- Status: in progress
+- Contributor: Project owner (remettub), attribution from the 2026-09-21 review session.
+- Authorization: human requested — apply the reviewed Grasshopper-style code-and-map standard throughout core and Studio, eliminating unresolved and uncertain relationships through scanner improvements, sensible authored relationships or clearer code shapes; shortening diagnostic lists is not completion. On 2026-09-21 the owner settled the intent recorded in [D-038](DECISIONS.md#d-038--dev-map-intent-functional-tree-complete-leaf-context-findings-kept-code-shape-rules) and approved the remaining generator items listed in the handoff.
+- Session: Origin: Codex task `01a0ba56-7b17-71e3-9219-4972a0bc5bfd`. Follow-up: the 2026-09-21 dev-map review session (title unavailable).
+- Source: Origin: "Let's apply this to the whole core/studio codebase now" and "don't stop the team until the whole core/studio codebase is mapped". Follow-up: the owner's point-by-point approvals summarised in [dev-map/HANDOFF.md](dev-map/HANDOFF.md).
+- Context: The 2026-09-21 DEVLOG entries record what landed: scope, collapse rule, nested homing, constructor fold, scanner resolution, active outside callers, scope-edge arrows, findings on drawn boxes, registry entries, two code-shape passes. The functional-tree reshape was in flight at the last checkpoint.
+- Remaining: In the order given in [dev-map/HANDOFF.md](dev-map/HANDOFF.md#what-remains-in-order): the invocation edge; callback targets as references; closure-owned state on member pages; entering array-method callbacks; loop accumulation; a ruling on repeated assertion boxes; thoughtful root clustering; the two code-shape sites awaiting the owner; review of the remaining islands.
+- Completion: Every declaration page shows its callers, callees, state and consequences without a separate trace; no page draws one box or a floating box; findings remain visible at their nodes; the remaining unresolved rows are the accepted scanner limits listed in the handoff.
+
 ### BR-051 — Complete output for the three new printer profiles
 
 - Status: open
@@ -60,14 +102,14 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ### BR-049 — Improve generators identified by short-travel advisories
 
-- Status: open
-- Contributor: Current requester; account attribution unconfirmed.
-- Authorization: human requested — add an advisory for all Studio toolpaths and improve the responsible skills/functions “at some point.” Generator repairs are explicitly deferred; the advisory itself is implemented.
-- Session: Current Codex task, `01a0a650-b120-7bd3-a9c7-93fbede5003b`; title unavailable.
-- Source: 2026-09-15 request: travel start/end points “within 2mm?” indicate a bad path; “it don't block, it doesn't repair, it just let's the agent know about the problem.”
-- Context: The [shared advisory](core/export/README.md#short-travel-advisory) preserves counts, operation labels and source locations for complete travel trips whose XYZ endpoints are at most 2 mm apart. Near endpoints can expose avoidable breaks or detours; recipe membership alone does not identify the responsible algorithm.
-- Remaining: Other advisory-identified cases remain deferred. When taken up, use reported exports and operation/source evidence to identify and improve the responsible skills or shared routing functions while preserving intended deposition and required clearance.
-- Completion: Demonstrate the targeted generator improvement against representative reported cases and record the resolved producer/cause. Keep the advisory nonblocking and avoid automatic repair during review.
+- Status: in progress
+- Contributor: Current requester; account attribution unconfirmed. 2026-09-18 continuation by `remettub` as developer.
+- Authorization: human requested — add an advisory for all Studio toolpaths and improve the responsible skills/functions “at some point”; on 2026-09-18, “fix ALL skills / toolpath generation so they are robust and the travel advisory essentially never triggers”, and have the agent always mention a finding.
+- Session: Codex task `01a0a650-b120-7bd3-a9c7-93fbede5003b` (advisory); Claude Code session 2026-09-18 (generator work).
+- Source: 2026-09-15 and 2026-09-18 requests above; [implementation record](DEVLOG.md#2026-09-18--nearby-strokes-connect-by-deposition-the-short-travel-advisory-reports-only-bad-paths).
+- Context: Fill rows, wall loops, rings, skin rows, lip rings and axial cladding tracks now continue as [deposited connectors](core/path/README.md#whole-plan-travel-requirement); the [advisory](core/export/README.md#short-travel-advisory) exempts required transitions and agents report findings.
+- Remaining: From the programs the test suites export (each 1–20 findings; every other program reports none): (1) Neighboring islands or walls closer than 2 mm across open air (raised letters, text, supports, two-component composition, a Bambu fixture) need a lifted travel and are reported with `lifted: true`; decide whether the advisory should exempt lifted travels or a producer should order around them. (2) Planar walls printed after a rim hop on every 0.4–0.6 mm wall step, because rimming publishes no material region and later operations fall back to the conservative `clearanceFor` comparison; give rims a material footprint. (3) Vase walls and mapped motifs whose thickness ramps from or to zero contain segments whose filament amount rounds to nothing mid-stroke and read as direct travels of up to 1 mm; only the level rim's final taper is trimmed. (4) A level vase rim followed by a cap starts the cap 0.2 mm away under the same layer label. (5) Line-network, wave-overhang, plastic-weld and segmented vase motifs keep authored gaps by design.
+- Completion: Representative prints for every producing skill report no advisory, or each residual is an agreed exemption.
 
 ### BR-045 — Complete continuous wave-overhang paths around holes
 

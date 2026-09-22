@@ -36,7 +36,7 @@ export function prepareSleeveContact({loopsAt,anchorAt,side='inside'}) {
     if(cache.size>=128)cache.delete(cache.keys().next().value);
     cache.set(z,result);return result;
   }
-  return {report,at(point,fidelity=1){
+  return {report:()=>({...report}),at(point,fidelity=1){
     requireThat(point.length===3&&point.every(Number.isFinite)&&Number.isFinite(fidelity)&&fidelity>=0&&fidelity<=1,
       'Sleeve contact needs a finite XYZ point and continuous fidelity from 0 to 1.');
     if(fidelity===0)return [...point];

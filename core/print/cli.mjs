@@ -1,7 +1,7 @@
 // Every command uses the same print bundle; Studio previews the checked export.
 import {readFile,access} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine} from './bundle.mjs';
+import {initBundle,loadBundle,generateBundle,adjustBundle,rememberSetup,deliver,checkPathBundle,changeMachine,migrateBundle} from './bundle.mjs';
 import {importSTLBundle,setSTLUnits} from './import-stl.mjs';
 import {repairSTLFiles} from './repair-stl.mjs';
 import {applyText} from './text.mjs';
@@ -30,6 +30,8 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(`Print created at ${directory}`);
       console.log(`Open it for review with: npm run studio -- ${directory}`);
       console.log('Nothing is approved yet; review the geometry and generate freely, then confirm the exact settings/toolpath together in Studio before export.');
+    } else if(command==='migrate') {
+      console.log(JSON.stringify(await migrateBundle(bundleDirectory()),null,2));
     } else if(command==='text') {
       if(!argument)throw new Error('Use text <print-directory> <text-request.json> [--revision <revision>].');
       const state=await applyText(bundleDirectory(),await readJson(resolve(argument)),{expectedRevision});
@@ -77,7 +79,7 @@ if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].rep
       console.log(report(state));
       if(state.programError)process.exitCode=1;
     } else {
-      console.error('       cli.mjs init|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
+      console.error('       cli.mjs init|migrate|demo|generate|check|deliver|remember-setup [print-directory] [plan.json]');
       console.error('       cli.mjs adjust <print-directory> <patch.json> [--revision <revision>]');
       console.error('       cli.mjs change-machine <print-directory> <machine-id> [--revision <revision>]');
       console.error('       cli.mjs text <print-directory> <text-request.json> [--revision <revision>]');

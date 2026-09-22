@@ -20,11 +20,13 @@ not clearly call for more, **default to maker**.
 | Role | Does | Onboarding | Reads |
 |---|---|---|---|
 | **Maker** | Uses skills to make parts, gives printing advice, operates Studio for a person. Changes no shared code. | `node scripts/agent-toolkit.mjs maker-onboarding` | [MAKERS.md](MAKERS.md) and the maker context it bundles. No maps. |
-| **Builder** | Changes skills, adds functionality to Studio, and makes isolated, local changes to core; makes parts to test that work in development. | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` | [BUILDERS.md](BUILDERS.md) (with maker workflow in onboarding) and the [dev maps](#dev-maps) for the region being touched. |
-| **Developer** | Works on core and any other component as the work needs; owns cross-cutting design. Maps-native. | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` | The [dev maps](#dev-maps) as the primary account, plus the [developer orientation](DEVELOPER-CONTEXT.md#orientation) for scoped implementation reads. |
+| **Builder** | Changes skills, adds functionality to Studio, and makes isolated, local changes to core; makes parts to test that work in development. | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` | [BUILDERS.md](BUILDERS.md) (with maker workflow in onboarding), [skill authoring](skills/AUTHORING.md) and the [component manual](#find-the-owning-source) for what is being changed; the [dev map](#dev-maps) may be walked for the region being touched. |
+| **Developer** | Works on core and any other component as the work needs; owns cross-cutting design. Maps-native. | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` | The [dev map](#dev-maps), walked from `0`, and one orientation file, [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#orientation). Nothing else: not BUILDERS.md, not the component manuals. |
 
-Builders inherit maker responsibilities; developers inherit both maker and
-builder responsibilities. This is not a requirement to load every lower-role
+Builders inherit maker responsibilities. Developers do not inherit the builder
+reading list: the map and the developer orientation are their account of
+core and Studio, and prose manuals are for makers and builders. This is not a
+requirement to load every lower-role
 manual. Onboarding supplies the role's starting context; read additional workflow,
 skill and implementation context only when the task needs it. Reuse material
 already consumed, including when changing roles. Run onboarding once for missing
@@ -74,10 +76,9 @@ experienced management.
 
 ### Report sync state at session start
 
-At the start of a maker or builder session — after launching a tour, or before
-taking on any other request — tell the user in one line the date of this
+At the start of a maker or builder session, tell the user in one line the date of this
 checkout's last pull from `main`, the current commit hash and how many commits `main` has advanced since,
-so they can pull the latest first if they want.
+so they can pull the latest first if they want. You can do this WITH maker/builder onboarding, or soon after.
 
 If the checkout also holds local work the user wants to publish, it belongs on
 that user's contributor dev branch, never on `main` directly; keep one such
@@ -86,12 +87,25 @@ branch per account and reuse it across tasks. Publishing itself follows
 
 ## Dev maps
 
-[Dev maps](maps/0_system.md) own the complete technical reference for core and
-Studio: builders read the regions they touch, developers read them as their
-primary account, and makers operating existing tools need none. The
-[map guide](maps/README.md) owns the `read-map` command, its flags and the
-build/check and authoring syntax; the [map contract](BUILDERS.md#maps-and-local-documentation)
-owns boundaries, shared components and reading rules.
+The dev map is the generated account of core and Studio structure: entities,
+relationships and findings come from source, and authored grouping only
+clusters a region's entry points. A developer orients by walking it from page
+`0` and reads no prose manual; a builder may walk the region it is touching
+alongside [BUILDERS.md](BUILDERS.md) and that component's manual; makers need
+none of it. [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) owns its intent,
+scope and reading rules and the [map guide](dev-map/README.md) its commands,
+page fields and authoring mechanics.
+
+```sh
+node scripts/agent-toolkit.mjs read-map 0
+node scripts/agent-toolkit.mjs read-map core/path/compose.mjs::planComposition
+node scripts/agent-toolkit.mjs read-map 6.3.1 --code
+node scripts/agent-toolkit.mjs regenerate 6
+```
+
+**Text search for orientation is discouraged.** After an edit, `regenerate`
+and read again. Indexes are regenerated and may change; write the declaration
+path when something must keep pointing at it.
 
 ## Getting to work
 
@@ -102,8 +116,8 @@ Choose the context for the requested work rather than reading everything.
 | Start a guided tour | Execute the tour launch command above first, open its Studio URL, then use its returned context and listener. |
 | Start a new custom part (maker) | Run `node scripts/agent-toolkit.mjs maker-onboarding` if maker context is missing. It supplies MAKERS, the complete skill digest and shared print tools. Then choose and read relevant skill manuals before preparing the preview. |
 | Edit an existing Studio print | Start work early: run `node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "Requested change"` (omit the directory for the active tour) to claim the request — you can acknowledge the person first. For Studio-originated work use `--request ID`. Then load only missing context and apply the edit. |
-| Change a skill, extend Studio, or make an isolated core change (builder) | Run `node scripts/agent-toolkit.mjs builder-onboarding` (add `--area AREA` for a known component) if builder context is missing. Core/Studio changes use the affected dev maps; skill-only changes use skill guidance and consumed API contracts. |
-| Develop core or work across components (developer) | Run `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]`. Work from the region maps; use `read-map PAGE` for missing regions. |
+| Change a skill, extend Studio, or make an isolated core change (builder) | Run `node scripts/agent-toolkit.mjs builder-onboarding` (add `--area core/path` or `--area 6` for a known region) if builder context is missing. Core/Studio changes read the [component manual](#find-the-owning-source) for what is touched and may walk that region of the dev map; skill-only changes use skill guidance and consumed API contracts. |
+| Develop core or work across components (developer) | Run `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]`, where `--area` is a region path or index. Walk the map from the returned page with `read-map INDEX|DECLARATION`; the only orientation text is [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#orientation). |
 | Set up an unused checkout | Follow [setup and checks](SETUP.md), including [Studio client permissions](studio/README.md#studio-agent-permissions), before using it. |
 
 The [agent CLI toolkit](core/agent/README.md) bundles these onboarding reads,
@@ -143,13 +157,14 @@ result until relevant inputs change.
 
 - [MAKERS.md](MAKERS.md) owns guidance for helping a person make a part (maker context).
 - [BUILDERS.md](BUILDERS.md) owns builder orientation — changing skills, extending Studio, isolated core changes — and routes to the relevant implementation references. Builder onboarding includes maker workflow context.
-- [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) indexes region maps and scoped caller contracts; the implementation bin has been absorbed.
+- [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) owns developer orientation and is the only prose a developer loads: how the generated map is walked and what still has its own owner.
 - [SETUP.md](SETUP.md) owns installation and reusable first-use checks.
 - [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md) owns checkpoint and remote contribution guidance; read it after implementation, immediately before those activities, or earlier when they are the task.
-- [Dev maps](maps/0_system.md) own core/Studio implementation, shared contracts, runtime protocols and verification routes. Former component-manual paths forward to map-owned references; skill callers can read those contracts independently.
+- The [dev map](#dev-maps) owns core/Studio implementation *structure* — what exists, what calls what — generated from the source and read with `read-map`. It is a developer's account of the code; it replaces no manual.
+- The component manuals own core/Studio behaviour, contracts and limits for makers and builders: [core architecture](core/README.md), the [agent CLI toolkit](core/agent/README.md), [machine interfaces and program output](core/export/README.md) with its [Bambu](core/export/bambu.md), [DENSO](core/export/denso.md), [Dobot](core/export/dobot.md) and [Griffin](core/export/griffin.md) pages, [geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md), [machine presentation models](core/machine/README.md), [skill composition and travel](core/path/README.md), the [print lifecycle](core/print/README.md), [regions](core/region/README.md), [development tests](core/tests/README.md), [machine files](machines/README.md), [benchmarks](scripts/bench/README.md), and [Studio](studio/README.md) with its [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md) contracts. Studio client permissions live in [studio/README.md](studio/README.md#studio-agent-permissions).
 - [Skill manuals](skills/README.md) own pattern and preparation-task tools, settings and limits; [shared print tools](core/print/USAGE.md) owns common operations.
 - [The MCP adapter manual](adapters/mcp/README.md) owns chat-client connection and tool use.
-- [The map guide](maps/README.md) owns region-map authoring syntax and the build/check commands; the [map contract](BUILDERS.md#maps-and-local-documentation) owns its reading and shared-use rules.
+- [The map guide](dev-map/README.md) owns the map commands, page fields and authoring mechanics; [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md) owns the map's intent and reading rules; [dev-map/HANDOFF.md](dev-map/HANDOFF.md) owns the state of the map work and what remains.
 - `maker-context-map.html` and `builder-context-map.html` own documentation navigation for people; they are a human reference, not an agent read.
 - [GLOSSARY.md](GLOSSARY.md) owns shared terms.
 - [DECISIONS.md](DECISIONS.md) owns contributor decisions and their approval status.

@@ -1,12 +1,122 @@
-// Skill results describe deposition operations. Only this composer writes the
-// final sequence, connecting travel and layer cooling through one PathBuilder.
+// Skill results describe deposition operations. The composer advances explicit
+// planning state through scheduled operations and returns action chunks.
 import { requireThat, distance } from '../geom/tolerance.mjs';
 import { orderStrokes, orderScanlineCells } from './builder.mjs';
+import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planConnection,planTravel,planMove,
+  planExtrusion,planDwell,planLayerCooling,planSelection} from './planning.mjs';
 
-export function scheduleOperations(results, { order = [], dependencies = [], batchLayers = 1 } = {}) {
+// Schedule once, then advance explicit motion state through operations. Layer and
+// obstacle ledgers are local scheduling work, never shared builder state.
+export function planComposition(initialState,skillResults,rules={},onProgress) {
+  const operations=scheduleOperations(skillResults,rules).map(op=>initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)
+    ?{...op,layerId:'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5))}:op);
+  const remaining=new Map(),elapsed=new Map(),deposited=[],actions=new ActionAccumulator();
+  let state=initialState,completed=0;
+  // Independent nozzle grids can have the same local layer index at different
+  // heights. Preserve the shared physical layer identity in emitted actions.
+  const layerIndices=initialState.selections?new Map([...new Set(operations.map(op=>op.layerId))].map((id,i)=>[id,i])):null;
+  onProgress?.({stage:'Planning print moves',completed,total:operations.length});
+  for(const op of operations)remaining.set(op.layerId,(remaining.get(op.layerId)??0)+1);
+  for(const op of operations){
+    const lastInLayer=remaining.get(op.layerId)===1;
+    const planned=planOperation(state,layerIndices?{...op,layer:layerIndices.get(op.layerId)}:op,{deposited,layerSeconds:elapsed.get(op.layerId)??0,finishLayer:lastInLayer&&!op.continuous});
+    state=planned.state;actions.add(planned.actions);
+    deposited.push(op.travelPolicy);elapsed.set(op.layerId,planned.operationSeconds);
+    remaining.set(op.layerId,remaining.get(op.layerId)-1);
+    onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
+  }
+  return planningResult({...state,operationId:undefined},actions.finish(),
+    {summary:{operationOrder:operations.map(op=>op.id),layers:remaining.size}});
+}
+
+export function planOperation(initialState,op,{deposited=[],layerSeconds=0,finishLayer=false}={}) {
+  const contextual=planContext({...initialState,layerSeconds},op.phase,op.layer,op.id);
+  const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
+  const prepared=planOperationStart(selected.state,op);
+  const strokes=op.order==='nearest'?orderStrokes(op.strokes,prepared.state.position)
+    :op.order==='nearest-cells'?orderScanlineCells(op.strokes,prepared.state.position):op.strokes;
+  const actions=new ActionAccumulator();actions.add(selected.actions);actions.add(prepared.actions);
+  const policy=operationTravelPolicy(op.travelPolicy,deposited);
+  let state=prepared.state;
+  for(const stroke of strokes){
+    const approached=planStrokeApproach(state,stroke,op,policy);
+    const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
+    state=depositedStroke.state;actions.add(approached.actions);actions.add(depositedStroke.actions);
+  }
+  const restored=planOperationEnd(state,op),operationSeconds=restored.state.layerSeconds;
+  const cooled=finishLayer?planLayerCooling(restored.state):planningResult(restored.state);
+  actions.add(restored.actions);actions.add(cooled.actions);
+  return planningResult(cooled.state,actions.finish(),{operationSeconds});
+}
+
+export function planOperationStart(state,op) {
+  const fan=op.fanPercent!==undefined?planFan(state,op.fanPercent):planningResult(state);
+  if(op.nozzleC===undefined)return fan;
+  const parked=planPark(fan.state),heated=planNozzle(parked.state,op.nozzleC);
+  return planningResult(heated.state,{chunks:[fan.actions,parked.actions,heated.actions]});
+}
+
+export function planOperationEnd(state,op) {
+  if(op.nozzleC===undefined)return planningResult(state);
+  const parked=planPark(state),restored=planNozzle(parked.state,op.restoreNozzleC);
+  return planningResult(restored.state,{chunks:[parked.actions,restored.actions]});
+}
+
+function operationTravelPolicy(policy,deposited) {
+  return {...policy,isTravelClear:(from,to)=>(!policy.isTravelClear||policy.isTravelClear(from,to))
+    &&!deposited.some(previous=>previous.material?previous.material.blocksSegment(from,to)
+      :previous.clearanceFor(from,to)>policy.clearanceFor(from,to)+1e-9)};
+}
+
+function segmentExtras(stroke,op,index) {
+  return {role:stroke.role,...(stroke.poses?{pose:stroke.poses[index+1]}:{}),
+    ...(op.regionId?{region:op.regionId}:{}),...(stroke.segmentMetadata?.[index]??{})};
+}
+
+export function planStrokeApproach(state,stroke,op,policy) {
+  requireThat(stroke.points.length>=(stroke.stationaryExtrusion?1:2),'An operation stroke needs at least two points or an explicit stationary extrusion.');
+  requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
+  const connection=op.connectNearby&&!stroke.stationaryExtrusion
+    ?planConnection(state,stroke.points[0],policy,stroke.speedMmS,
+      stroke.volumesMm3?stroke.volumesMm3[0]/distance(stroke.points[0],stroke.points[1]):stroke.beadAreaMm2,
+      segmentExtras(stroke,op,0),stroke.poses?.[0])
+    :planningResult(state,undefined,{connected:false});
+  if(connection.connected)return connection;
+  const travel=planTravel(connection.state,stroke.points[0],policy,stroke.poses?.[0]);
+  return planningResult(travel.state,{chunks:[connection.actions,travel.actions]},
+    {connected:false,travelKind:travel.travelKind});
+}
+
+export function planStrokeDeposition(initialState,stroke,op) {
+  const actions=new ActionAccumulator();
+  let state=initialState;
+  if(stroke.stationaryExtrusion){
+    requireThat(stroke.points.length===1&&!stroke.closed&&!stroke.poses,'Stationary extrusion needs one unoriented point.');
+    const extruded=planExtrusion(state,stroke.stationaryExtrusion.volumeMm3,stroke.stationaryExtrusion.flowMm3S);
+    const holdSeconds=stroke.stationaryExtrusion.holdSeconds??0,held=planDwell(extruded.state,holdSeconds);
+    state={...held.state,layerSeconds:held.state.layerSeconds+holdSeconds};actions.add(extruded.actions);actions.add(held.actions);
+  }
+  for(let i=1;i<stroke.points.length;i++){
+    const volume=stroke.volumesMm3?stroke.volumesMm3[i-1]:distance(stroke.points[i-1],stroke.points[i])*stroke.beadAreaMm2;
+    requireThat(Number.isFinite(volume)&&volume>=0,'Invalid operation deposition volume.');
+    const moved=planMove(state,stroke.points[i],stroke.speedMmS,volume,segmentExtras(stroke,op,i-1));
+    state=moved.state;actions.add(moved.actions);
+  }
+  return planningResult(state,actions.finish());
+}
+
+export function scheduleOperations(skillResults, { order = [], dependencies = [], batchLayers = 1 } = {}) {
+  const batch=validateOperationBatch(skillResults,batchLayers);
+  const priorityById=prepareOperationPriorities(batch.operations,batch.resultIndex,batchLayers);
+  const prerequisites=prepareOperationDependencies(batch.operations,batch.byId,{order,dependencies});
+  const scheduled=orderReadyOperations(batch.operations,priorityById,prerequisites);
+  return scheduled;
+}
+
+export function validateOperationBatch(skillResults,batchLayers) {
   requireThat(Number.isInteger(batchLayers) && batchLayers >= 1 && batchLayers <= 20, 'Batch size must be 1–20 layers.');
-  const operations = results.flatMap(result => result.operations);
-  const resultIndex = new Map(results.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
+  const operations = skillResults.flatMap(result => result.operations);
+  const resultIndex = new Map(skillResults.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
   const byId = new Map();
   for (const operation of operations) {
     requireThat(typeof operation.id === 'string' && operation.id && !byId.has(operation.id), 'Duplicate or missing operation id.');
@@ -19,6 +129,10 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
       'Nearest cell ordering requires grouped open strokes without tool poses.');
     byId.set(operation.id, operation);
   }
+  return {operations,resultIndex,byId};
+}
+
+export function prepareOperationPriorities(operations,resultIndex,batchLayers) {
   // Dependencies express what must exist first. Among ready operations, keep
   // skills near the same physical height, even when a skill's rank is merely
   // its construction order (for example surface-normal rimming or draped skin).
@@ -27,6 +141,10 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   const heights=new Map(operations.map(op=>[op.id,op.strokes.reduce((z,s)=>s.points.reduce((h,p)=>Math.max(h,p[2]),z),-Infinity)]));
   const levels=[...new Set(heights.values())].sort((a,b)=>a-b);
   const bands=new Map(levels.map((z,i)=>[z,Math.floor(i/batchLayers)]));
+  return new Map(operations.map((op,index)=>[op.id,{band:bands.get(heights.get(op.id)),result:resultIndex.get(op.id),index}]));
+}
+
+export function prepareOperationDependencies(operations,byId,{order=[],dependencies=[]}={}) {
   const prerequisites = new Map(operations.map(op => [op.id, new Set(op.after ?? [])]));
   for (const edge of dependencies) {
     requireThat(edge && byId.has(edge.before) && byId.has(edge.after), 'Unknown composition dependency.');
@@ -38,10 +156,14 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   // Explicit order is an additional precedence constraint, never permission to
   // bypass geometry/support dependencies. Omitted operations remain schedulable.
   for (let i = 1; i < order.length; i++) prerequisites.get(order[i]).add(order[i - 1]);
+  return prerequisites;
+}
+
+export function orderReadyOperations(operations,priorityById,prerequisites) {
   // Kahn's topological ordering with the same stable priority as the former
   // ready-list sort. Each dependency is visited once; unrelated ready work
   // stays in a heap instead of being rescanned and resorted after every layer.
-  const nodes=operations.map((op,index)=>({op,index,band:bands.get(heights.get(op.id)),result:resultIndex.get(op.id),
+  const nodes=operations.map(op=>({op,...priorityById.get(op.id),
     remaining:prerequisites.get(op.id).size,following:[]}));
   const nodesById=new Map(nodes.map(node=>[node.op.id,node]));
   for(const node of nodes)for(const id of prerequisites.get(node.op.id))nodesById.get(id).following.push(node);
@@ -73,58 +195,4 @@ export function scheduleOperations(results, { order = [], dependencies = [], bat
   }
   requireThat(scheduled.length===operations.length,'Composition dependencies contain a cycle.');
   return scheduled;
-}
-
-export function composeResults(builder, results, rules = {}, onProgress) {
-  const operations = scheduleOperations(results, rules);
-  const remaining = new Map(), elapsed = new Map();
-  const deposited=[];
-  let completed=0;
-  onProgress?.({stage:'Planning print moves',completed,total:operations.length});
-  for (const op of operations) remaining.set(op.layerId, (remaining.get(op.layerId) ?? 0) + 1);
-  for (const op of operations) {
-    builder.setContext(op.phase, op.layer);
-    builder.operationId = op.id;
-    builder.layerSeconds = elapsed.get(op.layerId) ?? 0;
-    if (op.fanPercent !== undefined) builder.fan(op.fanPercent);
-    // Heat at clearance, before approaching the work. Restore at clearance too.
-    if(op.nozzleC!==undefined){builder.park();builder.nozzle(op.nozzleC);}
-    const strokes = op.order === 'nearest' ? orderStrokes(op.strokes, builder.position)
-      : op.order === 'nearest-cells' ? orderScanlineCells(op.strokes, builder.position) : op.strokes;
-    for (const stroke of strokes) {
-      requireThat(stroke.points.length >= (stroke.stationaryExtrusion?1:2), 'An operation stroke needs at least two points or an explicit stationary extrusion.');
-      requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
-      // PathBuilder tracks deposited height per segment. These local queries
-      // retain the existing restrictions on direct/combed moves only.
-      const policy = { ...op.travelPolicy };
-      // Geometry queries, not the scheduling rank, decide whether an earlier
-      // operation blocks direct travel. Rank need not mean physical height.
-      policy.isTravelClear=(from,to)=> (!op.travelPolicy.isTravelClear||op.travelPolicy.isTravelClear(from,to))
-        &&!deposited.some(previous=>previous.material
-          ?previous.material.blocksSegment(from,to)
-          :previous.clearanceFor(from,to)>op.travelPolicy.clearanceFor(from,to)+1e-9);
-      builder.travelTo(stroke.points[0], policy,stroke.poses?.[0]);
-      if(stroke.stationaryExtrusion){
-        requireThat(stroke.points.length===1&&!stroke.closed&&!stroke.poses,'Stationary extrusion needs one unoriented point.');
-        builder.extrude(stroke.stationaryExtrusion.volumeMm3,stroke.stationaryExtrusion.flowMm3S);
-        builder.dwell(stroke.stationaryExtrusion.holdSeconds??0);
-        builder.layerSeconds+=stroke.stationaryExtrusion.holdSeconds??0;
-      }
-      for (let i = 1; i < stroke.points.length; i++) {
-        const volume = stroke.volumesMm3 ? stroke.volumesMm3[i - 1]
-          : distance(stroke.points[i - 1], stroke.points[i]) * stroke.beadAreaMm2;
-        requireThat(Number.isFinite(volume) && volume >= 0, 'Invalid operation deposition volume.');
-        builder.move(stroke.points[i], stroke.speedMmS, volume,
-          { role: stroke.role, ...(stroke.poses?{pose:stroke.poses[i]}:{}), ...(op.regionId?{region:op.regionId}:{}), ...(stroke.segmentMetadata?.[i - 1] ?? {}) });
-      }
-    }
-    if(op.nozzleC!==undefined){builder.park();builder.nozzle(op.restoreNozzleC);}
-    deposited.push(op.travelPolicy);
-    elapsed.set(op.layerId, builder.layerSeconds);
-    remaining.set(op.layerId, remaining.get(op.layerId) - 1);
-    if (remaining.get(op.layerId) === 0 && !op.continuous) builder.finishLayer();
-    onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
-  }
-  builder.operationId = undefined;
-  return { operationOrder: operations.map(op => op.id), layers: remaining.size };
 }

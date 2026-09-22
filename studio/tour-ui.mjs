@@ -64,7 +64,7 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
       const canExport=step.tab==='toolpath'&&Boolean(state.program)&&!state.programError&&state.review?.generation?.mode==='production';
       $('confirm').disabled=isBusy()||!canExport;
       if(canExport)$('confirm').textContent='Confirm settings & export';
-      $('review-note').textContent=canExport?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
+      if(!state.inspection)$('review-note').textContent=canExport?'Confirming approves the displayed settings and toolpath, downloads the file and finishes the tour.':'Ask your agent for changes. Your current print stays selected.';
       for(const id of highlights)$(id)?.classList.add('tour-highlight');
       if(progress.step===L.setup)$('more-settings').open=true;
       const desired=step.tab;

@@ -2,16 +2,18 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 12,
+  "revision": 23,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
-    "units": 2,
-    "slotsPerUnit": 4
+    "units": 4,
+    "slotsPerUnit": 4,
+    "htUnits": 8,
+    "maxDevices": 12
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "H2D uses the supplied PLA / Textured PEI firmware envelope. Startup purge uses 240 C and up to 25 mm³/s; its time and material are excluded from print-body totals. Printer-selected calibration may heat both nozzles. Experimental output has not been physically validated.",
+    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job; stored startup/shutdown reuse the exact authored executable sections. Fresh v13 AMS-19 passed same-nozzle blue/orange/blue; DUAL-20 passed left 0.4 external PLA/right 0.8 blue AMS PLA/left with correct-height deposition. Both used fast startup and Textured PEI through the ordinary exporter without reference project substitution. Other installations need separate physical evidence. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles.",
     "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
   ],
   "capabilities": [
@@ -84,8 +86,14 @@
         0.6
       ],
       "experimentalPlanar": {
-        "layerHeightMm": [0.08, 1.0],
-        "lineWidthMm": [0.3, 2.0]
+        "layerHeightMm": [
+          0.08,
+          1
+        ],
+        "lineWidthMm": [
+          0.3,
+          2
+        ]
       },
       "physicalExtruder": 1
     },
@@ -123,8 +131,14 @@
         0.6
       ],
       "experimentalPlanar": {
-        "layerHeightMm": [0.08, 1.0],
-        "lineWidthMm": [0.3, 2.0]
+        "layerHeightMm": [
+          0.08,
+          1
+        ],
+        "lineWidthMm": [
+          0.3,
+          2
+        ]
       },
       "physicalExtruder": 0
     }
@@ -157,7 +171,21 @@
     "buildVolumeC": 0,
     "materialGuid": null,
     "firmwareVersion": "",
-    "startupVerified": false
+    "startupVerified": false,
+    "bambu": {
+      "plate": "textured_plate",
+      "otherNozzleMm": 0.4,
+      "amsConnections": null,
+      "filaments": null,
+      "filament": 0,
+      "startup": {
+        "bedLeveling": "printer",
+        "flowCalibration": "printer",
+        "plateDetection": "printer",
+        "toolOffsetCalibration": "printer"
+      },
+      "fast_start": false
+    }
   },
   "defaultProcess": {
     "planarSpeedMmS": 40,
@@ -177,8 +205,9 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "h2d-02.08.02.61-pla-textured-v3",
+        "contract": "h2d-saam-startup-v13",
         "start": [
+          "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
           "M203 X1000 Y1000 Z30 E50",
           "M204 P20000 R5000 T20000",
@@ -190,15 +219,19 @@
           "M960 S10 P1",
           "M17",
           "M400 S1",
-          "M1006 S1",
-          "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
-          "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
-          "M1006 A61 B9 L99 C61 D9 M99 E61 F9 N99",
-          "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
-          "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
-          "M1006 A61 B18 L99 C61 D18 M99 E61 F18 N99",
-          "M1006 W",
-          "M204 S10000",
+          {
+            "fullStartOnly": [
+              "M1006 S1",
+              "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
+              "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
+              "M1006 A61 B9 L99 C61 D9 M99 E61 F9 N99",
+              "M1006 A53 B9 L99 C53 D9 M99 E53 F9 N99",
+              "M1006 A56 B9 L99 C56 D9 M99 E56 F9 N99",
+              "M1006 A61 B18 L99 C61 D18 M99 E61 F18 N99",
+              "M1006 W"
+            ]
+          },
+          "M204 S{bodyAcceleration}",
           "M630 S0 P0",
           "G90",
           "M17 D",
@@ -230,21 +263,42 @@
           "M1002 set_filament_type:PLA",
           "M104 S140 A",
           "M140 S{bedC}",
-          "M982.2 S1",
-          "M1002 gcode_claim_action : 74",
-          "M972 S26 P0 C0",
-          "M972 S35 P0 C0",
-          "M972 S41 P0 T5000",
+          "M1002 gcode_claim_action : 13",
+          "G28 X T300",
+          "G150.1 F18000",
+          "G150.3 F18000",
+          "M400 P200",
+          "M1009 Q1 L1",
+          "G91",
+          "G380 S2 Z30 F1200",
+          "G90",
+          "G1 X175 Y160 F30000",
+          "G28 Z P0 T250",
+          "M1009 Q1 L0",
           "M400",
-          "M1002 judge_flag build_plate_detect_flag",
-          "M622 S1",
-          "M972 S19 P0 C0",
-          "M972 S31 P0 T5000",
-          "M972 S34 P0 T5000",
-          "M623",
-          "M1002 gcode_claim_action : 72",
-          "T1001",
-          "M972 S14 P0 T5000",
+          {
+            "fullStartOnly": [
+              "M982.2 S1",
+              "M1002 gcode_claim_action : 74",
+              "{plateDetection}",
+              "M972 S35 P0 C0",
+              "M972 S41 P0 T5000",
+              "M400",
+              "M1002 judge_flag build_plate_detect_flag",
+              "M622 S1",
+              "M972 S19 P0 C0",
+              "M972 S31 P0 T5000",
+              "M972 S34 P0 T5000",
+              "M623"
+            ]
+          },
+          {
+            "fullStartOnly": [
+              "M1002 gcode_claim_action : 72",
+              "T1001",
+              "M972 S14 P0 T5000"
+            ]
+          },
           "M104 S{nozzleC} T{physicalTool}",
           "G151 P{physicalTool} M",
           "M400",
@@ -252,12 +306,12 @@
           "M211 X0 Y0 Z0",
           "M975 S1",
           "G29.2 S0",
-          "M620.10 A0 F498.898 H0.4 T240 P{nozzleC} S1",
-          "M620.10 A1 F498.898 H0.4 T240 P{nozzleC} S1",
+          "M620.10 A0 F{reducedFlushFeed} H{nozzleMm} T{flushC} P{nozzleC} S1",
+          "M620.10 A1 F{reducedFlushFeed} H{nozzleMm} T{flushC} P{nozzleC} S1",
           "M620.11 P0 I0 B-1 E0",
-          "M620.11 K1 I0 B-1 R10 F623.623",
+          "M620.11 K1 I0 B-1 R10 F{flushFeed}",
           "M628 S1",
-          "M620.11 S1 L0 I0 B-1 R10 D8 E-10 F623.623",
+          "M620.11 S1 L0 I0 B-1 R10 D8 E-10 F{flushFeed}",
           "M629",
           "M620 S{filamentTool}A H-1",
           "M1002 gcode_claim_action : 4",
@@ -278,7 +332,7 @@
           "M975 S1",
           "M1002 judge_flag extrude_cali_flag",
           "M622 J0",
-          "M983.3 F10.4167 A0.4",
+          "M983.3 F{calibrationFeed} A0.4",
           "M623",
           "M622 J1",
           "M1002 set_filament_type:PLA",
@@ -286,7 +340,7 @@
           "M109 S{nozzleC}",
           "G90",
           "M83",
-          "M983.3 F10.4167 A0.4",
+          "M983.3 F{calibrationFeed} A0.4",
           "M400",
           "M106 P1 S255",
           "M400 S5",
@@ -299,7 +353,7 @@
           "M109 S{nozzleC}",
           "G90",
           "M83",
-          "M983.3 F10.4167 A0.4",
+          "M983.3 F{calibrationFeed} A0.4",
           "M400",
           "M106 P1 S255",
           "M400 S5",
@@ -310,7 +364,7 @@
           "M400 S2",
           "M109 S{nozzleC}",
           "M83",
-          "G1 E45 F623.623",
+          "G1 E45 F{flushFeed}",
           "G1 E-3 F1800",
           "M400 P500",
           "G150.2",
@@ -356,18 +410,22 @@
           "G28.140 S0",
           "M141 S0",
           "M104 S{nozzleC} A",
-          "M1002 gcode_claim_action : 3",
-          "G90",
-          "G1 Z5 F1200",
-          "G1 X187 Y160 F20000",
-          "T1000",
-          "M400 P200",
-          "M970.3 Q1 A5 K0 O1",
-          "M974 Q1 S2 P0",
-          "M970.3 Q0 A5 K0 O1",
-          "M974 Q0 S2 P0",
-          "M970.2 Q2 K0 W38 Z0.01",
-          "M974 Q2 S2 P0",
+          {
+            "fullStartOnly": [
+              "M1002 gcode_claim_action : 3",
+              "G90",
+              "G1 Z5 F1200",
+              "G1 X187 Y160 F20000",
+              "T1000",
+              "M400 P200",
+              "M970.3 Q1 A5 K0 O1",
+              "M974 Q1 S2 P0",
+              "M970.3 Q0 A5 K0 O1",
+              "M974 Q0 S2 P0",
+              "M970.2 Q2 K0 W38 Z0.01",
+              "M974 Q2 S2 P0"
+            ]
+          },
           "M975 S1",
           "M400",
           "G150.3",
@@ -380,19 +438,19 @@
           "M622 J1",
           "M1002 gcode_claim_action : 39",
           "M141 S0",
-          "M620.17 T0 S{nozzleC} L0",
-          "M620.17 T1 S{nozzleC} L0",
+          "M620.17 T0 S{calibrationTemperatureZero} L{calibrationFilamentZero}",
+          "M620.17 T1 S{calibrationTemperatureOne} L{calibrationFilamentOne}",
           "M620 D-1",
-          "G383 O1 T{nozzleC} L0",
+          "G383 O1 T{nozzleC} L{filamentTool}",
           "M141 S0",
           "M623",
           "M622 J2",
           "M1002 gcode_claim_action : 39",
           "M141 S0",
-          "M620.17 T0 S{nozzleC} L0",
-          "M620.17 T1 S{nozzleC} L0",
+          "M620.17 T0 S{calibrationTemperatureZero} L{calibrationFilamentZero}",
+          "M620.17 T1 S{calibrationTemperatureOne} L{calibrationFilamentOne}",
           "M620 D-1",
-          "G383.3 T{nozzleC} L0",
+          "G383.3 T{nozzleC} L{filamentTool}",
           "M141 S0",
           "M623",
           "M400",
@@ -422,7 +480,7 @@
           "M106 P9 S255",
           "M400 S1",
           "M400",
-          "G29.1 Z-0.02",
+          "G29.1 Z{plateOffset}",
           "G150.1",
           "M975 S1",
           "M983.4 S1",
@@ -448,8 +506,8 @@
           "M400 S3",
           "M109 S{nozzleC}",
           "M83",
-          "G1 E5 F623.623",
-          "G1 X290 E10 F623.623",
+          "G1 E5 F{flushFeed}",
+          "G1 X290 E10 F{flushFeed}",
           "G91",
           "G3 Z0.4 I1.217 J0 P1 F60000",
           "G90",
@@ -458,8 +516,8 @@
           "M400",
           "M993 A1 B1 C1",
           "M1015.3 S0",
-          "M1015.4 S1 K1 H0.4",
-          "M620.6 I0 H-1 W1",
+          "M1015.4 S1 K1 H{nozzleMm}",
+          "M620.6 I{filamentTool} H-1 W1",
           "M620 Q1",
           "M211 Z1",
           "G29.99",
@@ -554,33 +612,46 @@
       },
       "constraints": {
         "material": "PLA",
-        "nozzleMm": [0.4, 0.6, 0.8],
+        "nozzleMm": [
+          0.4,
+          0.6,
+          0.8
+        ],
         "filamentMm": 1.75,
-        "bedType": "textured_plate",
+        "plates": [
+          "textured_plate",
+          "hot_plate"
+        ],
         "chamberC": 0,
-        "startupPurgeC": 240,
+        "startupFlushC": 240,
         "startupPurgeFlowMm3S": 25,
         "endLiftMm": 10,
         "parkLimitMm": 320,
         "parkRiseMm": 100,
         "parkHeightFactor": 0.5,
-        "parkSettleMm": 0
+        "parkSettleMm": 0,
+        "toolChangeLiftMm": 3,
+        "materialChangeMode": "single-nozzle-ams",
+        "materialChangeFlushMm3": 300,
+        "hotendCoolingRateCPerS": 2,
+        "hotendHeatingRateCPerS": 3.6,
+        "toolChangeAcceleration": 9000,
+        "bodyAcceleration": 10000,
+        "bodyTravelCommand": "G1"
       },
       "package": {
         "printerModelId": "O1D",
         "clientVersion": "02.08.02.61",
-        "projectSettings": {
-          "filament_map_mode": "Manual",
-          "nozzle_type": ["hardened_steel", "hardened_steel", "hardened_steel", "hardened_steel", "hardened_steel"]
-        }
+        "projectSchema": "h2d-full-project-v2",
+        "projectSettings": {}
       },
-      "validation": "Experimental output: the firmware envelope comes from a 0.4 mm Bambu Studio reference and is reused for explicitly selected 0.6 and 0.8 mm jobs with nozzle-correct package metadata. The 0.6 and 0.8 mm paths have software checks only and no independent Bambu Studio or physical validation. Later probing and calibration remain; firmware routines are checked as a fixed contract, not motion-simulated."
+      "validation": "SAAM-authored v13 metadata and bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one source; project startup/shutdown are exact executable copies. Software consistency is tested. Ordinary generated AMS-19 and DUAL-20 physically passed same-nozzle colours and mixed 0.4/0.8 nozzles respectively, with PLA/Textured PEI/fast startup and right four-slot AMS, left external spool for dual. Other installations and feed combinations are not physically certified by these tests."
     }
   ],
   "startup": {
-    "protocol": "bambu-h2d-reference-envelope-without-initial-homing",
+    "protocol": "bambu-h2d-reference-envelope",
     "zAfterStartupMm": 20,
-    "validation": "Bambu Studio 02.08.02.61 PLA / Textured PEI reference envelope with startup triage H10 removed: initial X home, early wiping-area moves/M972 S24, and initial Z-clearance/center/Z-home block. Later bed leveling, Z/XY calibration and priming remain. Explicit body origin [100,100,20]. Firmware service routines are not simulated; their conditions remain controlled by the printer. Revised startup has no physical validation."
+    "validation": "SAAM bounded H2D startup with initial XY/Z registration restored before filament loading in full and fast modes. Optional calibration, vision and vibration checks are omitted in fast mode; homing, saved compensation, wiping, priming and temperature waits remain. Nozzle, plate and logical filament settings derive from the resolved job. Service motion is not simulated. Fresh generated AMS-19 and DUAL-20 physically passed fast-start same-nozzle colours and mixed-nozzle left/right/left respectively."
   },
   "nonplanar": {
     "maxAngleDeg": 15,
@@ -594,7 +665,7 @@
     "https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp"
   ],
   "sourceChecked": "2026-09-09",
-  "validation": "Software profile, envelope, package and SAAMpath round-trip checks. Left printable height follows the official inherited profile: 320 mm. Experimental 15 degree draping; no physical print or firmware macro simulation.",
+  "validation": "Software profile, envelope, package and SAAMpath round-trip checks. Left printable height follows the official inherited profile: 320 mm. Fresh generated v13 AMS-19 and DUAL-20 physically passed same-nozzle colours and planar mixed-nozzle left/right/left, with left 0.4/right 0.8, PLA/Textured PEI and fast startup. Experimental 15 degree draping has no physical validation; firmware macros are not simulated.",
   "referenceExports": [
     {
       "role": "left nozzle reference",

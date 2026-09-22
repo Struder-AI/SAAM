@@ -23,7 +23,7 @@ export function createRequestIndex(folder,{reconcileMs=5000,onChange=()=>{},onHi
       entries.set(name,{key,record});onChange(name.slice(0,-5),record);
     }catch(error){if(error.code==='ENOENT')drop(name);else throw error;}
   }
-  async function refresh(force){
+  async function reconcileRecords(force){
     if(closed)return;
     if(!watcher&&!force)try{
       watcher=watch(folder,{persistent:false},(_event,name)=>{
@@ -50,7 +50,7 @@ export function createRequestIndex(folder,{reconcileMs=5000,onChange=()=>{},onHi
   return {
     async refresh({force=false}={}){
       if(pending){await pending;if(!force&&!dirty.size&&!scan)return;}
-      pending=refresh(force);try{await pending;}finally{pending=null;}
+      pending=reconcileRecords(force);try{await pending;}finally{pending=null;}
     },
     changed(id){dirty.add(id+'.json');},
     retain(){

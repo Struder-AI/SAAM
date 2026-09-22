@@ -629,15 +629,6 @@ export class LuaRuntime {
     return this.invoke(fn, args, { file: this.file, line: null, name });
   }
 
-  hasGlobal(name) { return this.globals.has(name); }
-
-  getGlobal(name) {
-    const value = this.globals.get(name);
-    return value === undefined ? null : value;
-  }
-
-  setGlobal(name, value) { this.globals.set(name, value); }
-
   // -- execution -------------------------------------------------------
 
   tick(line) {
@@ -977,7 +968,10 @@ export class LuaRuntime {
       // binding, so a project can wrap a controller primitive in its own Lua.
       if (defined === undefined || defined === null) {
         const hostFn = this.host.get(name);
-        if (hostFn) { this.steps = 0; return this.enter(context, () => normalizeReturn(hostFn(args, this.contextWithStack(context)))); }
+        // Host bindings enter through the same invocation step as Lua values, so
+        // one path covers every call and a non-callable host entry is refused
+        // rather than crashing.
+        if (hostFn) { this.steps = 0; return this.invoke(hostFn, args, context); }
         throw new LuaSubsetError(
           `call to unknown function "${name}" — the reader will not guess what it does`,
           { file: this.file, line: node.line }

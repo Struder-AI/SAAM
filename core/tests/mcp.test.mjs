@@ -7,7 +7,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { bundleFor } from '../../studio/server.mjs';
+import { bundleFor } from '../../studio/adapter-resolution.mjs';
 import { syntheticDobotSetup } from './fixtures/dobot.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import {createTour} from '../../studio/tour.mjs';
@@ -91,7 +91,8 @@ test('MCP follows tour chat gates while production generation remains available 
   await tour.action('exit');
   const current=await call('get_print',{printId:'tour/handle'});
   const changed=await call('change_machine',{printId:'tour/handle',machineId:'bambu-h2d',expectedRevision:current.revision});
-  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.toolpathApproved,false);
+  assert.equal(changed.machineId,'bambu-h2d');assert.equal(changed.toolpathApproved,null,
+    'a geometry-only mutation does not claim current output approval state');
 });
 
 
@@ -199,7 +200,7 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
   assert.equal((await call('get_studio_sessions')).sessions.length,2,'one agent can own multiple Studio instances');
   assert.notEqual(secondStudio.studioInstanceId,a.studioInstanceId);
   await call('close_studio_session',{studioInstanceId:secondStudio.studioInstanceId});
-  const before=await readFile(resolve(printsRoot,'owned','review.json'));
+  const before=await readFile(resolve(printsRoot,'owned','plan.json'));
   async function view(url){
     const token=(await(await fetch(url)).text()).match(/name="saam-token" content="([^"]+)"/)[1];
     const response=await fetch(url+'/api/viewer?token='+token,{headers:{Connection:'close'}});
@@ -222,7 +223,7 @@ test('MCP Studio survives a viewer disconnect and releases only the closing adap
   const next=await clientFor(t,printsRoot);
   const restarted=await next.call('request_review',{printId:'owned'});
   assert.equal((await fetch(restarted.url)).status,200);
-  assert.deepEqual(await readFile(resolve(printsRoot,'owned','review.json')),before);
+  assert.deepEqual(await readFile(resolve(printsRoot,'owned','plan.json')),before);
 });
 
 // One case per transport/output shape; vase geometry and machine semantics are
@@ -250,7 +251,7 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     assert.equal(status.toolpathApproved, true);
     const delivered = await call('deliver_print', { printId });
     const bundle = await bundleFor(dir), state = await bundle.loadBundle(dir);
-    const exportFile = resolve(dir, 'exports', state.plan.output, state.exportName);
+    const exportFile = resolve(dir,state.review.generation.file);
     assert.deepEqual(await readFile(delivered.file), await readFile(exportFile));
     assert.equal((await call('deliver_print', { printId })).exportHash, delivered.exportHash);
     const changed = await call('adjust_print', { printId, expectedRevision: status.revision, patch: { process: { planarSpeedMmS: 22 } } });
@@ -258,8 +259,8 @@ for (const machineId of ['ultimaker-s5', 'bambu-h2d', 'dobot-mg400']) {
     await call('deliver_print', { printId }, /approval/);
     await call('generate_print', { printId });
     await syntheticApproval(dir, 'toolpath');
-    const bytes = await readFile(exportFile);
-    await writeFile(exportFile, Buffer.concat([bytes, Buffer.from('\n; tampered') ]));
+    const regenerated=await bundle.loadBundle(dir),currentExportFile=resolve(dir,regenerated.review.generation.file),bytes=await readFile(currentExportFile);
+    await writeFile(currentExportFile, Buffer.concat([bytes, Buffer.from('\n; tampered') ]));
     assert.equal((await call('get_approval_status', { printId })).toolpathApproved, false);
     await call('check_print', { printId }, /changed|stale/);
     await call('deliver_print', { printId }, /approval/);

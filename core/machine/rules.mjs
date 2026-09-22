@@ -1,6 +1,7 @@
 import {requireThat,distance} from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from './denso.mjs';
 import {requireProcessControl,validateNozzleC,plannedNozzleTemperatures} from '../path/process-controls.mjs';
+import {filamentPlan} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
   const tool=machine.tools.find(t=>t.index===index);
@@ -45,7 +46,8 @@ export function validateSetup(plan,machine,{required=false}={}) {
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
   if(plan.output==='griffin-gcode')requireThat(/^[a-f0-9-]{36}$/i.test(s.materialGuid),'A material GUID is required for Griffin.');
   else requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
-  // A colour only labels the job in the printer's own software; it is optional.
+  // Spool identity is a mapping hint, not a guarantee of physical AMS selection.
+  // The Bambu exporter separately records logical filament and requested tray.
   requireThat(s.filamentColor==null||/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Filament color must be a six-digit hex color such as #28A090.');
   feederSelector(plan,machine);
   if(machine.id==='dobot-mg400'){
@@ -61,6 +63,8 @@ export function lineWidthLimits(plan,machine){
 
 // Optional spool choice from the profile's declared feeder units. No request
 // keeps the first filament path, which a printer without a feeder also uses.
+// This flattens physical tray intent only. It must never be emitted as a
+// logical filament ID. Printer/job dispatch owns that mapping; see bambu.md.
 export function feederSelector(plan,machine){
   const request=plan.setup.ams,feeder=machine.ams;
   if(request==null)return 0;
@@ -102,29 +106,36 @@ export const startupPosition=(machine,plan)=>plan.setup.denso?.initialPositionMm
 export const startupRetracted=(machine,plan)=>plan.process.retractMm>0
   && (plan.process.startupRetracted??machine.startup.handsOverRetracted===true);
 
+export const sameNozzleMaterialChanges=machine=>machine.outputs.some(o=>o.id==='bambu-gcode'&&o.constraints?.materialChangeMode==='single-nozzle-ams');
+
 export function requireMachine(machine,capabilities,skill) {
   for(const capability of capabilities) requireThat(machine.capabilities?.includes(capability),`${skill} requires machine capability ${capability}.`);
 }
 
 // Validate SAAMpath independently of the chosen machine-program language.
 export function checkMachinePath(path,plan,machine) {
-  const bounds=toolBounds(machine,plan.setup.tool),area=Math.PI*(plan.setup.filamentMm/2)**2;
+  let selected=plan,bounds=toolBounds(machine,plan.setup.tool);const area=Math.PI*(plan.setup.filamentMm/2)**2;
   let from=path.initialPosition;
   const point=p=>requireThat(Array.isArray(p)&&p.length===3&&p.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]-1e-7&&v<=bounds.max[i]+1e-7),'SAAMpath exceeds selected tool bounds.');
   point(from);
   for(const action of path.actions){
+    if(action.kind==='toolChange'){
+      selected=filamentPlan(plan,machine,action.filament);validateSetup(selected,machine);
+      requireThat(action.tool===selected.setup.tool,'Tool-change action disagrees with its filament.');
+      bounds=toolBounds(machine,selected.setup.tool);point(from);continue;
+    }
     if(action.kind==='move'){
       point(action.to);const length=distance(from,action.to),seconds=length/action.speedMmS;
       requireThat(seconds>0&&Number.isFinite(seconds)&&Number.isFinite(action.volumeMm3)&&action.volumeMm3>=0,'Invalid machine motion.');
       for(let i=0;i<3;i++)requireThat(Math.abs(action.to[i]-from[i])/seconds<=machine.maxFeedMmS['xyz'[i]]+1e-7,'Machine axis feed exceeded.');
-      requireThat(action.volumeMm3/seconds<=plan.process.maxFlowMm3S+1e-7&&(machine.id==='dobot-mg400'||action.volumeMm3/area/seconds<=machine.maxFeedMmS.e+1e-7),'Machine/material extrusion feed exceeded.');
+      requireThat(action.volumeMm3/seconds<=selected.process.maxFlowMm3S+1e-7&&(machine.id==='dobot-mg400'||action.volumeMm3/area/seconds<=machine.maxFeedMmS.e+1e-7),'Machine/material extrusion feed exceeded.');
       from=action.to;
     } else if(action.kind==='extrude'){
       requireProcessControl(machine);point(from);
-      requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0&&action.flowMm3S<=plan.process.maxFlowMm3S&&action.flowMm3S/area<=machine.maxFeedMmS.e,'Invalid stationary extrusion or flow exceeded.');
+      requireThat(Number.isFinite(action.volumeMm3)&&action.volumeMm3>0&&Number.isFinite(action.flowMm3S)&&action.flowMm3S>0&&action.flowMm3S<=selected.process.maxFlowMm3S&&action.flowMm3S/area<=machine.maxFeedMmS.e,'Invalid stationary extrusion or flow exceeded.');
     } else if(action.kind==='temperature'){
-      requireProcessControl(machine);validateNozzleC(action.targetC,plan,machine);
-      requireThat(plannedNozzleTemperatures(plan).has(action.targetC),'Unplanned operation temperature.');
+      requireProcessControl(machine);validateNozzleC(action.targetC,selected,machine);
+      requireThat(plannedNozzleTemperatures(selected).has(action.targetC),'Unplanned operation temperature.');
     } else if(['retract','recover'].includes(action.kind))requireThat(action.speedMmS<=machine.maxFeedMmS.e&&(machine.id!=='dobot-mg400'||action.filamentMm===0),'Machine extruder feed exceeded or relay retraction unsupported.');
     else if(action.kind==='fan'&&machine.id==='dobot-mg400')requireThat(action.percent===0,'Dobot output has no fan control.');
   }

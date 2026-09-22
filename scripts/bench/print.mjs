@@ -42,9 +42,10 @@ try{
   const [generation,planning,exports,geometry]=await stage('runtime',()=>Promise.all([
     import('../../core/print/generate.mjs'),import('../../core/print/plan.mjs'),
     import('../../core/export/registry.mjs'),import('../../core/print/geometry.mjs')]));
-  const [plan,machine]=await stage('read-and-parse',async()=>Promise.all(['plan.json','machine.json'].map(async name=>{
-    const bytes=await readFile(path.join(input,name));report.input[name]={bytes:bytes.length,sha256:digest(bytes)};return JSON.parse(bytes);
-  })));
+  const {plan,machine}=await stage('read-and-parse',async()=>{
+    const bytes=await readFile(path.join(input,'plan.json'));report.input['plan.json']={bytes:bytes.length,sha256:digest(bytes)};
+    const {bundle,...plan}=JSON.parse(bytes);return {plan,machine:bundle.machine};
+  });
   // A fresh benchmark process has no earlier geometry-ingestion result. Keep
   // this cold cost separate from generation after geometry is already loaded.
   await stage('geometry-and-plan',()=>planning.validatePlan(plan,machine));

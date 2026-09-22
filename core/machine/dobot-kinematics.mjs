@@ -2,7 +2,9 @@
 // Units mm/degrees; base frame is that URDF's base_link, not a calibrated user frame.
 // q2/q3 are absolute upper/forearm Y rotations because the parallelograms cancel
 // their inherited rotations. q4 adds wrist yaw to q1. No DENSO model is included.
-const rad=Math.PI/180,add=(a,b)=>a.map((v,i)=>v+b[i]),norm=v=>Math.hypot(...v);
+import {add,norm} from './rigid.mjs';
+
+const rad=Math.PI/180;
 const ry=(v,a)=>{const c=Math.cos(a*rad),s=Math.sin(a*rad);return [c*v[0]+s*v[2],v[1],-s*v[0]+c*v[2]];};
 const rz=(v,a)=>{const c=Math.cos(a*rad),s=Math.sin(a*rad);return [c*v[0]-s*v[1],s*v[0]+c*v[1],v[2]];};
 export const DOBOT_MODEL_DEFAULTS=Object.freeze({
