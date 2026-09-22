@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-09-21 — Dev-map scanner: super, pattern defaults, receivers, callbacks, outside roots, subscribers
+
+- `super(...)` resolves to the extended class (a `construct` edge, or an
+  external `super-of-unbound-class` for platform classes); calls inside
+  destructuring pattern defaults are collected; member calls on class
+  instances and on records are followed one static selection further
+  (`valuesOf`/`memberValues`), with a `possible` mark where the member holds
+  a callable rather than naming a method; `new C()` of a package import is
+  proven external. Parameter-call rows carry the supplying argument's
+  location in `resolution` and, where unresolved, `candidates`. Receiver and
+  callable resolution now runs for every scanned root, giving 33 new edges
+  into mapped code (skills 19, core/agent 9, adapters 5). A callee iterated
+  from a closure-local collection filled by a registration function reports
+  `registered-subscriber` naming the registering declaration.
+- Verified after `regenerate 0`: `check` exits 0 with 1616 declaration
+  pages, 3545 linked, 1075 unresolved (971 member-receiver, 101
+  parameter-target, 2 registered-subscriber, 1 local-value), 5800 external,
+  no stale, unreached or orphan facts; reciprocal caller entries hold for
+  every resolved binding. Sites read in source by the worker for each rule
+  are listed in its report; `createAgentRequests::notify` now names
+  `subscribe` as the registration.
+- Deliberately unresolved: `res.end/write` on node:http parameters, members
+  on reassigned `let` receivers, a policy assembled by spread, `this` inside
+  object-literal methods, and `now()` whose only known value is a parameter
+  default.
+
 ## 2026-09-21 — Dev map: one collapse rule, nested helpers homed with their holder, constructors folded
 
 - One rule decides map or code: an address is a map when its drawing shows at

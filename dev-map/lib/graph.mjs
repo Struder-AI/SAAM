@@ -111,7 +111,13 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
           const b=bind(target,v.id.name,{node:v,init:v.init,decl:d,module:m,constant:n.kind==='const'});
           nodeScope.set(v,s);nodeOwner.set(v,owner);parents.set(v,n);
           if(v.init) {if(functions.has(v.init.type))b.fn=v.init;visit(m,v.init,s,next,owner,v);}
-        } else {pattern(v.id,target,{},v.init?{init:v.init,module:m,keys:[],stable:n.kind==='const'}:null);if(v.init)visit(m,v.init,s,path,owner,v);}
+        } else {
+          pattern(v.id,target,{},v.init?{init:v.init,module:m,keys:[],stable:n.kind==='const'}:null);
+          // A pattern is code too: defaults and computed keys hold calls and callable values
+          // that run when the declarator does. Function parameters are walked the same way.
+          visit(m,v.id,s,path,owner,v);
+          if(v.init)visit(m,v.init,s,path,owner,v);
+        }
       }
       return;
     }
@@ -358,6 +364,16 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     if(functions.has(n.type))return {fn:n,decl:nodeDecl.get(n),module:m};
     if(n.type==='Identifier')return bindingValue(lookup(s,n.name),seen);
     if(n.type==='ThisExpression') {let outer=s;while(outer&&!outer.thisBoundary)outer=outer.parent;return outer?.thisClass?{classNode:outer.thisClass,module:m,static:outer.thisStatic}:null;}
+    // `super` is the class the enclosing method's class extends: `super(...)` calls its
+    // constructor and `super.name()` its method. Arrow functions inherit the binding; an
+    // ordinary function body starts a new one, so the search stops at the first `this` boundary.
+    if(n.type==='Super') {
+      let outer=s;while(outer&&!outer.thisBoundary)outer=outer.parent;
+      const extended=outer?.thisClass?.superClass;
+      if(!extended)return null;
+      return union(choices(value(extended,nodeScope.get(extended)??s,m,seen)).filter(v=>v.classNode)
+        .map(v=>({...v,static:!!outer.thisStatic,resolution:[...v.resolution??[],location(m,n)]})));
+    }
     if(n.type==='NewExpression')return union(choices(value(n.callee,s,m,seen)).filter(v=>v.classNode).map(v=>({...v,static:false,resolution:[location(m,n)]})));
     if(n.type==='ObjectExpression')return {object:n,scope:s,module:m};
     if(n.type==='ConditionalExpression'||n.type==='LogicalExpression')return union([value(n.consequent??n.left,s,m,seen),value(n.alternate??n.right,s,m,seen)]);
@@ -422,11 +438,13 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   }
   for(const c of calls) {
     const v=value(c.node.callee,c.scope,c.module),site=location(c.module,c.node);
+    // `super(...)` runs the extended class's constructor, so it is a construction like `new`.
+    const kind=c.node.type==='NewExpression'||c.node.callee.type==='Super'?'construct':'call';
     const targets=choices(v).filter(v=>v.decl),resolved=[];c.targets=targets;
-    for(const target of targets)if(!resolved.some(e=>e.to===target.decl.id&&JSON.stringify(e.selections)===JSON.stringify(target.selections)))resolved.push(edge(c.node.type==='NewExpression'?'construct':'call',c.owner?.id??`${c.module.file}:<module>`,target.decl.id,[site],{resolution:target.resolution??[],selections:target.selections,possible:!!target.possible||targets.length>1||choices(v).some(v=>v.unknown),
+    for(const target of targets)if(!resolved.some(e=>e.to===target.decl.id&&JSON.stringify(e.selections)===JSON.stringify(target.selections)))resolved.push(edge(kind,c.owner?.id??`${c.module.file}:<module>`,target.decl.id,[site],{resolution:target.resolution??[],selections:target.selections,possible:!!target.possible||targets.length>1||choices(v).some(v=>v.unknown),
       args:c.node.arguments.map(passed),params:(target.fn??target.classNode?.body.body.find(p=>p.kind==='constructor')?.value)?.params.map(passed)??[]}));
     if(resolved.length)callEdges.set(c.node,resolved);
-    else unresolved.push({kind:c.node.type==='NewExpression'?'construct':'call',from:c.owner?.id??`${c.module.file}:<module>`,site,reason:unresolvedReason(c.node.callee,c.scope)});
+    else unresolved.push({kind,from:c.owner?.id??`${c.module.file}:<module>`,site,reason:unresolvedReason(c.node.callee,c.scope)});
     if(resolved.length&&choices(v).some(v=>v.unknown))unresolved.push({kind:'call',from:c.owner?.id??`${c.module.file}:<module>`,site,reason:'partially-resolved-target',knownTargets:resolved.map(e=>e.to)});
   }
   function producer(n,seen=new Set()) {
@@ -514,6 +532,8 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       for(const c of children(n))walk(c);
     })(m.ast);
     const rootOf=n=>{let base=n;while(base&&['MemberExpression','ChainExpression','AwaitExpression','TSNonNullExpression'].includes(base.type))base=base.object??base.expression??base.argument;return base;};
+    // The `extends` expression governing a `super` reference, found the way `value` finds it.
+    const superClassAt=n=>{let s=nodeScope.get(n);while(s&&!s.thisBoundary)s=s.parent;return s?.thisClass?.superClass??null;};
     const packageImport=b=>!!b?.imported&&!importPath(b.module,b.source);
     const bindingOf=n=>n?.type==='Identifier'?lookup(nodeScope.get(n),n.name):null;
     // Reassignment alone does not erase a receiver's built-in type when every value written to
@@ -528,7 +548,8 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       if(seen.has(node))return null;seen.add(node);
       if(['Literal','TemplateLiteral','ArrayExpression'].includes(node.type))return 'receiver-literal';
       if(node.type==='ObjectExpression')return node.properties.some(p=>p.type==='SpreadElement'||p.computed||String(p.key?.name??p.key?.value)===key)?null:'receiver-object-literal-lacks-member';
-      if(node.type==='NewExpression')return node.callee.type==='Identifier'&&!bindingOf(node.callee)?'receiver-new-of-unbound-class':null;
+      if(node.type==='NewExpression')return node.callee.type==='Identifier'&&!bindingOf(node.callee)?'receiver-new-of-unbound-class'
+        :packageImport(bindingOf(node.callee))?'receiver-new-of-package-class':null;
       if(node.type==='Identifier') {
         const b=bindingOf(node);
         if(!b)return 'receiver-unbound-identifier';
@@ -542,6 +563,14 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     // A call whose callee is provably not mapped code.
     function externalCall(node,module,seen) {
       const callee=node.callee,key=callee.type==='MemberExpression'?property(callee):null;
+      // A `super` call reaches the extended class. When that class is not code this scan holds,
+      // the call is outside the map for the same reason `new` of such a class is.
+      if(callee.type==='Super'||callee.object?.type==='Super') {
+        const extended=superClassAt(callee);
+        if(!extended)return null;
+        if(extended.type==='Identifier'&&!bindingOf(extended))return 'super-of-unbound-class';
+        return packageImport(bindingOf(extended))?'super-of-package-import':null;
+      }
       const imported=choices(value(callee,nodeScope.get(callee),module));
       if(imported.length&&imported.every(v=>v.externalMember))return 'literal-import-outside-scan';
       if(callee.type==='MemberExpression') {
@@ -586,44 +615,131 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       }
       return out;
     }
+    // A member a resolved holder carries under `key`, as values rather than functions, so a
+    // further member of the selected value can be read in turn. Every selection is an exact,
+    // non-computed key: a class body's own method, or a property of an object literal that no
+    // spread can override.
+    const memberValues=(v,key,module)=>{
+      if(v.classNode) {
+        const method=v.classNode.body.body.find(p=>p.type==='MethodDefinition'&&!p.computed&&String(p.key.name??p.key.value)===key&&!!p.static===!!v.static&&p.kind==='method');
+        return method?[{fn:method.value,decl:nodeDecl.get(method.value),module:v.module??module}]:[];
+      }
+      if(v.object&&!v.object.properties.some(p=>p.type==='SpreadElement'||p.computed))
+        return v.object.properties.filter(p=>p.type==='Property'&&!p.computed&&p.kind==='init'&&String(p.key.name??p.key.value)===key)
+          .flatMap(p=>choices(value(p.value,nodeScope.get(p.value),v.module??module)));
+      return [];
+    };
+    // The values an expression can hold, each with `at`: the argument (or iterated element)
+    // where that value entered, which is the caller site that supplies it. `follow` reads
+    // locals, parameters, destructured bindings and this-fields; where `value` cannot read the
+    // expression `follow` returned, and that expression selects a named member, the holder is
+    // resolved the same way and the member selected on it. One hop per level, two at most.
+    function valuesOf(node,module,depth=0) {
+      const out=[];
+      for(const o of follow(node,module)) {
+        const held=choices(value(o.node,nodeScope.get(o.node),o.module)).flatMap(v=>o.awaited?awaitedValues(v):[v]);
+        const member=o.node.type==='MemberExpression'?property(o.node):null;
+        if(member===null||depth>=2||held.some(v=>!v.unknown)) {out.push(...held.map(v=>({v,at:o.at})));continue;}
+        for(const held of valuesOf(o.node.object,o.module,depth+1))
+          out.push(...memberValues(held.v,member,o.module).map(v=>({v,at:held.at??o.at})));
+      }
+      return out;
+    }
     // Counts are call sites; `links` counts the relations those sites produced.
     const linked={'ast-call-site':0,'receiver-value':0,'value-follow':0},links={'receiver-value':0,'value-follow':0};
     // Full spans distinguish nested calls that share a starting expression.
-    const external={},externalSites=[],unresolved=[],rules={},unlinked={};
+    const external={},externalSites=[],unresolved=[],rules={},unlinked={},notes={};
     const count=(table,rule)=>{table[rule]=(table[rule]??0)+1;};
     for(const c of calls) {
-      if(!mappedCode(c.module.file))continue;
+      // Receiver and callable resolution runs for every scanned root, so an outside caller
+      // reaches the same mapped declarations a mapped caller does and appears as a port.
+      // The linked/external/unresolved account itself stays an account of mapped code.
+      const inside=mappedCode(c.module.file);
       const callee=c.node.callee,key=callee.type==='MemberExpression'?property(callee):null;
-      if(callee.type==='Super'||callee.object?.type==='Super')continue;
-      if(callEdges.has(c.node)) {linked['ast-call-site']++;count(rules,'ast-call-site');continue;}
+      if(callEdges.has(c.node)) {if(inside) {linked['ast-call-site']++;count(rules,'ast-call-site');}continue;}
       const from=c.owner?.id??`${c.module.file}:<module>`,site=location(c.module,c.node);
-      const by=callee.type==='MemberExpression'?'receiver-value':'value-follow',found=new Map();
+      const found=new Map();
       // A default expression is one possible value of a parameter, not proof that it was selected
       // at this call. Concrete callback arguments traced from callers remain valid possible targets.
       const directParameter=callee.type==='Identifier'&&lookup(c.scope,callee.name)?.parameter;
+      // Declarations reached that are scanned but not mapped: no map address, but still named,
+      // so a finding row can say which callables this code supplies.
+      const outside=new Set();
+      const take=(fn,route,at,callable=false)=>{
+        if(directParameter&&parameterDefaultNames.has(fn))return;
+        const d=nodeDecl.get(fn);
+        if(!d)return;
+        if(mappedCode(d.file))found.set(d.id,{decl:d,fn,route,callable,at});
+        else if(d.anchor)outside.add(d.anchor);
+      };
       if(callee.type!=='MemberExpression'||key!==null) {
-        for(const o of follow(callee.type==='MemberExpression'?callee.object:callee,c.module))
-          for(const v of choices(value(o.node,nodeScope.get(o.node),o.module)).flatMap(v=>o.awaited?awaitedValues(v):[v])) {
-            for(const fn of key===null?(v.fn?[v.fn]:[]):holderFns(v,key,o.module)) {
-              if(directParameter&&parameterDefaultNames.has(fn))continue;
-              const d=nodeDecl.get(fn);
-              if(d&&mappedCode(d.file))found.set(d.id,{decl:d,fn});
-            }
-          }
+        const by=callee.type==='MemberExpression'?'receiver-value':'value-follow';
+        for(const {v,at} of valuesOf(callee.type==='MemberExpression'?callee.object:callee,c.module))
+          for(const fn of key===null?(v.fn?[v.fn]:[]):holderFns(v,key,c.module))take(fn,by,at);
+        // A member that holds a callable rather than naming a method — a field assigned a
+        // callback, a record member whose value is a function — is read as a value itself.
+        if(!found.size&&key!==null)for(const {v,at} of valuesOf(callee,c.module))if(v.fn)take(v.fn,'value-follow',at,true);
       }
       if(found.size) {
-        linked[by]++;links[by]+=found.size;count(rules,by);
-        for(const {decl,fn} of found.values())edge('call',from,decl.id,[site],{resolution:[],resolvedBy:by,...(key?{receiver:key}:{}),possible:found.size>1,
-          args:c.node.arguments.map(passed),params:(fn??declFn.get(decl.id))?.params.map(passed)??[]});
+        const route=[...found.values()][0].route;
+        // A callable held in a member is whatever was stored there; the store is the evidence,
+        // not a proof that this call reaches one particular stored function.
+        const possible=found.size>1||[...found.values()].some(f=>f.callable);
+        if(inside) {linked[route]++;links[route]+=found.size;count(rules,route);}
+        // `evidence` stays the call site alone: other analyses read it as the set of accounted
+        // call spans. The argument that supplied the value is provenance, so it goes to
+        // `resolution`, where it names the caller this link was proved from.
+        for(const {decl,fn,at} of found.values())
+          edge('call',from,decl.id,[site],{resolution:at?.node?[location(at.module,at.node)]:[],resolvedBy:route,...(key?{receiver:key}:{}),possible,
+            args:c.node.arguments.map(passed),params:(fn??declFn.get(decl.id))?.params.map(passed)??[]});
         continue;
       }
+      if(!inside)continue;
+      // No mapped target. Known callables this code can supply are still listed, so a finding
+      // row says what the candidates are rather than only that the site is unresolved.
+      const candidates=outside.size?[...outside].sort():null;
       const rule=externalCall(c.node,c.module,new Set());
       if(rule) {count(external,rule);count(rules,rule);unlinked[`${site.file}:${site.start}:${site.end}`]=rule;externalSites.push({from,site,rule});continue;}
-      const reason=key!==null?'member-receiver-unresolved':callee.type==='MemberExpression'?'computed-member':unresolvedReason(callee,c.scope);
-      unresolved.push({from,site,name:key,reason});count(rules,reason);unlinked[`${site.file}:${site.start}:${site.end}`]=reason;
+      const subscribers=key!==null?null:registeredSubscriber(callee,c.scope);
+      const reason=key!==null?'member-receiver-unresolved':callee.type==='MemberExpression'?'computed-member'
+        :subscribers?'registered-subscriber':unresolvedReason(callee,c.scope);
+      unresolved.push({from,site,name:key,reason,...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})});
+      count(rules,reason);unlinked[`${site.file}:${site.start}:${site.end}`]=reason;
+      if(subscribers||candidates)notes[`${site.file}:${site.start}:${site.end}`]={...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})};
     }
     return {states:{linked:Object.values(linked).reduce((a,b)=>a+b,0),external:Object.values(external).reduce((a,b)=>a+b,0),unresolved:unresolved.length},
-      linked,links,external,externalSites,rules,unresolved,unlinked};
+      linked,links,external,externalSites,rules,unresolved,unlinked,notes};
+  }
+  // A local collection of callables, filled by a registration function in the same closure and
+  // iterated at the call site: the value called is whatever was registered. No static target
+  // exists, so the site names the registering declarations instead of inventing a callee.
+  function registeredSubscriber(callee,s) {
+    if(callee.type!=='Identifier')return null;
+    const b=lookup(s,callee.name);
+    if(!b?.node||b.written)return null;
+    const holder=parents.get(parents.get(b.node));
+    if(holder?.type!=='ForOfStatement'||holder.left!==parents.get(b.node))return null;
+    let source=holder.right;
+    // `for(const x of [...listeners])` iterates a copy of the same collection.
+    if(source.type==='ArrayExpression'&&source.elements.length===1&&source.elements[0]?.type==='SpreadElement')source=source.elements[0].argument;
+    if(source.type!=='Identifier')return null;
+    const collection=lookup(nodeScope.get(source),source.name);
+    if(!collection?.constant||!collection.init)return null;
+    // A closure's own collection, not a module-level or imported one.
+    let owner=collection.scope,closure=false;
+    while(owner) {if(owner.kind==='function'||owner.kind==='parameters')closure=true;owner=owner.parent;}
+    if(!closure)return null;
+    const init=collection.init,builtin=n=>n.type==='Identifier'&&!lookup(nodeScope.get(n),n.name);
+    if(!(init.type==='ArrayExpression'||init.type==='NewExpression'&&['Set','Map'].includes(init.callee.name)&&builtin(init.callee)))return null;
+    const adds=new Set(['add','set','push','unshift']),registrations=new Set();
+    for(const r of calls) {
+      const target=r.node.callee;
+      if(target.type!=='MemberExpression'||!adds.has(property(target))||target.object.type!=='Identifier')continue;
+      if(lookup(nodeScope.get(target.object),target.object.name)!==collection)continue;
+      const d=r.owner;
+      if(d?.anchor&&!d.ambiguousAnchor)registrations.add(d.anchor);
+    }
+    return registrations.size?[...registrations].sort():null;
   }
   // Registrations. A call the accounting could not link, made on a receiver's method, handed a
   // string literal and a function, enters that function whenever the named event fires. The shape
@@ -675,7 +791,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,
     ...(coupled?{couplings:{linked:coupled.linked,unlinked:coupled.unlinked}}:{}),...(accounting?{callSites:accounting}:{}),
     limits:['Static possible relationships, not execution traces or proofs of reachability.',
-      'Calls resolve lexical bindings, const aliases, imports, named re-exports, literal object members, finite function-return choices and local class methods. Computed registry selection gives possible targets, not a selected dialect or proof of branch feasibility. Escaped object mutation, arbitrary callback protocols, inheritance, export-star and dynamic imports are not modeled.',
+      'Calls resolve lexical bindings, const aliases, imports, named re-exports, literal object members, finite function-return choices, local class methods and the extended class a `super` reference names. A receiver or callable is followed through parameters, destructured bindings and this-fields, then through at most one further static member selection per hop. Computed registry selection gives possible targets, not a selected dialect or proof of branch feasibility. Escaped object mutation, arbitrary callback protocols, inherited members reached other than through `super`, export-star and dynamic imports are not modeled.',
       'Value flow handles direct call results and immutable aliases. Lexical state dependencies do not prove reaching definitions. Control sequence is not inferred from call order.',
       'Worker links require a literal /studio/ URL passed directly to a resolved function parameter; messages are not correlated by ID or branch. Other worker construction remains unresolved.',
       'Import aliases are explicit deployment facts, not guessed module paths.',

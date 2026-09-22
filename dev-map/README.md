@@ -391,8 +391,15 @@ An assertion does not imply an invented success edge or prove exception ordering
 An external call alone is not evidence of purity.
 The `external` count means call sites without mapped targets under scanner
 rules; it does not mean user actions or calls across an application boundary.
-It includes platform/library operations. Unresolved parameter calls are a
-separate category. Event entry points and incoming callers retain their own
+It includes platform/library operations. It also covers a `super` call whose
+extended class is outside the scan. Unresolved parameter calls are a separate
+category; such a row lists the known callables its callers supply as
+`candidates`. A local collection of callables filled by a registration function
+in the same closure and iterated at the call site is reported as
+`registered-subscriber`, naming that registration; no target is invented.
+Receiver and callable resolution runs for every scanned root, so an outside
+caller reaches the same declarations a mapped caller does.
+Event entry points and incoming callers retain their own
 generated relationships where the scanner can identify them.
 
 ## External facts

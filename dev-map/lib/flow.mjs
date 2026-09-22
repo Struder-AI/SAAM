@@ -353,6 +353,9 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   const components=new Map(),unlinked=[],requires=[],childAt=new Map(node.children.map(c=>[c.start,c]));
   for(const child of node.children)if(childFunctions.get(child.path))childAt.set(childFunctions.get(child.path).start,child);
   const rules=graph.callSites?.unlinked??{},externalRule=new Set(Object.keys(graph.callSites?.external??{}));
+  // What a finding row can say beyond its rule: the registering declarations behind a
+  // subscriber list, the known callables a still-unresolved site could reach.
+  const siteNotes=graph.callSites?.notes??{};
   for(const child of node.children)components.set(child.path,{node:child,order:child.start,sites:[],links:new Set(['ast-closure'])});
   const assertionAt=(site,path)=>{
     const shape=shapes.assertions.get(path);if(!shape)return null;
@@ -370,9 +373,9 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     const receiver=site.node.callee.type==='MemberExpression'
       ?site.node.callee.object.type==='Identifier'?site.node.callee.object:site.node.callee.object.type==='ThisExpression'?site.node.callee.object:null:null;
     if(!found.length) {
-      const rule=rules[`${node.file}:${site.node.start}:${site.node.end}`]??'unaccounted';
+      const at=`${node.file}:${site.node.start}:${site.node.end}`,rule=rules[at]??'unaccounted';
       unlinked.push({call:src(text,site.node.callee),line:site.node.loc.start.line,column:site.node.loc.start.column+1,
-        state:externalRule.has(rule)?'external':'unresolved',rule});
+        state:externalRule.has(rule)?'external':'unresolved',rule,...(siteNotes[at]??{})});
       continue;
     }
     for(const r of found) {
@@ -1371,7 +1374,8 @@ export function flowPacket(context,target,{evidence=false}={}) {
     ...(c.calls===1?{}:{calls:c.calls}),...(c.gate?{gate:gateIndex(c.gate)}:{}),
     ...(c.links.join()==='ast-call-site'?{}:{links:c.links}),
     ...(evidence?{sites:c.sites.map(({provenance,...s})=>s)}:{})});
-  const site=u=>({call:u.call,line:u.line,column:u.column,rule:u.rule});
+  const site=u=>({call:u.call,line:u.line,column:u.column,rule:u.rule,
+    ...(u.registration?{registration:u.registration}:{}),...(u.candidates?{candidates:u.candidates}:{})});
   const wire=w=>({from:end(w.from),to:end(w.to),...(w.label?{label:w.label}:{}),kind:w.kind,
     ...(w.stateField?{stateField:w.stateField}:{}),...(w.callKind?{callKind:w.callKind}:{}),...(w.source?{source:w.source}:{}),...(w.possibleTarget?{possibleTarget:true}:{}),
     ...(repeated.has(w.from)&&w.sourceSite?{sourceSite:w.sourceSite}:{}),
