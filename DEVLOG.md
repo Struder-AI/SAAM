@@ -1,5 +1,28 @@
 # Development log
 
+## 2026-09-22 — Dev map: repeats measured against "only where it gives context"
+
+- Read-only analysis over the 704 node pages (script in the session
+  scratchpad). Drawn boxes 5286, repeats 3128 (56 %). Kinds: a callee with
+  a data wire on the page 2237 (71.5 %); a callee with only its invocation
+  wire but carrying a condition, argument literals or state 705 (22.5 %);
+  pure fan-out with nothing but the wire from `self` 71 (2.3 %, 43 pages,
+  all studio); an inlined chain box repeating a declaration homed
+  elsewhere 115 (3.7 %; none draws its own chain, as the rule says).
+  Instances of one declaration on one page add 2041 boxes (38.6 %), the
+  largest groups `render` × 31 of `$`, `createStudio` × 26 of one callable
+  and × 12 of `note`, `validatePlanSelections` × 22 of `requireThat`.
+  918 repeats (29 %) have their home in another region.
+- Recommendation: no kind becomes a reference row. Only pure fan-out
+  passes the reader-value test, and collapsing it removes 71 boxes (1.3 %)
+  while flipping 8 pages to code; collapsing every no-data repeat removes
+  776 (14.7 %) and flips 50 pages, and buys nothing on the two largest
+  pages (`createStudio` 167 → 154). 96 % of repeats carry a wire, a
+  condition or a literal. The real lever, if fewer boxes are wanted, is
+  per-declaration ubiquity: 15 declarations account for 1168 repeats,
+  `requireThat` alone 682, and each of those still carries its predicate
+  and message.
+
 ## 2026-09-22 — Dev map: an invocation wire carries its call site's condition
 
 - A `call-site` invocation wire carries `gate` (an index into the page's

@@ -230,6 +230,10 @@ unscanned callers (`onGeometry` in `runRepairJob`).
   called declarations; the guide says between them. Strictly read, 264 of
   about 700 function maps would become code (`validatePath` among them).
   Recommendation: keep the code, fix the wording.
+- Repeats, measured 2026-09-22 (DEVLOG): 96 % of the 3128 repeat boxes on
+  node pages carry a wire, a condition or a literal; no kind should become
+  a reference row. If fewer boxes are wanted, the lever is ubiquity: 15
+  declarations make 1168 repeats, `requireThat` 682. Rule on that, or not.
 - Three finding kinds the map now draws: `closure-capture` (701, state
   wires), `loop-exception-path` (393, accumulator ports),
   `member-receiver-unresolved` on known platform receivers (most of 975,
