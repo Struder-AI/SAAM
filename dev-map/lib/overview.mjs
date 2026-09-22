@@ -1,5 +1,7 @@
 import {outsideRootOf,isMapped} from './scope.mjs';
 
+const order=(a,b)=>a<b?-1:a>b?1:0;
+
 // Generated overview anchors follow the enclosing graph's actual containment.
 // Exact call sites remain on the stored wires; only inventory views summarize them.
 export function attachOverviewAnchors(pages, index) {
@@ -49,19 +51,36 @@ export function structuralOverview(page) {
     return [...grouped.values()];
   };
   const inputs=ports(page.inputs,'in'),outputs=ports(page.outputs,'out'),groups=new Map();
+  // One relationship between two boxes is one wire. A containment map says that this flow reaches
+  // that one and how often; the mechanism and what each site names are counted inside that single
+  // wire, not spread over a row each, which only made the reader count arrows. What still splits
+  // a wire is what the reader would act on differently: an operator port at either end, a gate,
+  // and the leaf a contracted chain runs `via`.
   for(const wire of page.wires??[]) {
     const from=endpoints.get(wire.from)??wire.from,to=endpoints.get(wire.to)??wire.to;
-    const label=['call','construct'].includes(wire.kind)?undefined:wire.label;
-    const key=JSON.stringify([from,to,wire.kind,label,wire.gate,wire.fromPort,wire.toPort]);
-    const held=groups.get(key);
-    if(held)held.count++;
-    else groups.set(key,{from,to,kind:wire.kind,count:1,
-      ...(label?{label}:{}),
+    const key=JSON.stringify([from,to,wire.gate,wire.fromPort,wire.toPort,wire.via]);
+    const held=groups.get(key)??groups.set(key,{from,to,kinds:{},names:new Set(),count:0,
       ...(wire.gate!==undefined?{gate:wire.gate}:{}),
       ...(wire.fromPort!==undefined?{fromPort:wire.fromPort}:{}),
-      ...(wire.toPort!==undefined?{toPort:wire.toPort}:{})});
+      ...(wire.toPort!==undefined?{toPort:wire.toPort}:{}),
+      ...(wire.via!==undefined?{via:wire.via}:{})}).get(key);
+    for(const kind of wire.kinds?Object.keys(wire.kinds):[wire.kind])
+      held.kinds[kind]=(held.kinds[kind]??0)+(wire.kinds?.[kind]??1);
+    held.count+=wire.count??1;
+    // A call site's label is the argument list, which belongs to the call, not to this map. What
+    // a coupling names — a route, a message, a file — is the relationship itself, so it is kept.
+    if(wire.label&&!['call','construct'].includes(wire.kind))held.names.add(wire.label);
   }
-  const wires=[...groups.values()].map(w=>({...w,label:(w.label?`${w.kind}: ${w.label}`:w.kind)+(w.count>1?` ×${w.count}`:'')}));
+  // The label says the mechanisms and their counts, and the names when a drawing can still read
+  // them. Past that the names stay whole in `names`, so nothing a site said is lost.
+  const wires=[...groups.values()].map(({kinds,names,...wire})=>{
+    const counted=Object.entries(kinds).sort(([a],[b])=>order(a,b));
+    const mechanisms=counted.map(([kind,n])=>n>1?`${kind} ×${n}`:kind).join(', ');
+    const named=[...names].sort(order),short=named.length&&named.length<=3;
+    return {...wire,...(counted.length===1?{kind:counted[0][0]}:{kinds:Object.fromEntries(counted)}),
+      count:wire.count,label:short?`${mechanisms}: ${named.join(', ')}`:mechanisms,
+      ...(named.length&&!short?{names:named}:{})};
+  });
   // These callers already have a generated boundary wire in this structural view.
   // Repeating each call site as an off-page arrow would undo the overview.
   const components=(page.components??[]).map(({callerReferences,...component})=>component);

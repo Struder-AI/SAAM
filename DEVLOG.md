@@ -1,5 +1,35 @@
 # Development log
 
+## 2026-09-22 — Dev map: module-level handlers are declarations; one wire per pair
+
+- A callable stored at module level on a platform event property
+  (`el.onclick = …`, `addEventListener`) is a `handler` declaration named
+  `file.mjs::@handler/<receiver>.<event>` (`graph.mjs`), the receiver being
+  an id selector's id, a binding or a static member path; a handler's body
+  homes what it declares. The six studio artefacts are gone from the region
+  page: the three position-named `onclick`/`onchange` lambdas are homed
+  under `@handler/confirm.onclick` and `@handler/stl-file.onchange`,
+  `blob::draw` and `blob::onProgress` under `@handler/export-movie.onclick`;
+  `viewer::reportPerformance` stays, a genuine root (record member, not
+  ambiguous). 26 declarations renamed in all; every one homed once; no root
+  carries a position identity.
+- Containment wires merge per pair of boxes (`overview.mjs`): one wire with
+  a summed `count`, `kind` or `kinds` by mechanism, names in the label up to
+  three. Pairs carrying more than one row 45 → 0; region `2` draws `2.1 →
+  2.4` once as `call ×13, construct ×19`.
+- The totals moved, and rightly: the 22 handler bodies in `studio/app.mjs`
+  had no page before (ambiguous `onclick` anchor), so every call inside
+  them was counted nowhere. `check` 3614 → 3691 linked, 1080 → 1084
+  unresolved, 5798 → 5833 platform, pages 1611 → 1633, distinct finding
+  rows 12187 → 12307; `outside` 47, floating boxes 0, depth 13, every
+  declaration homed once. Region `8` draws 57 boxes: 21 named handler roots
+  joined it while `clock`, `stepLayer`, `exportMovie` and `createLayerFade`
+  moved under the handler flows that reach them.
+- Forced authored edits in `flows/studio.json`: three paths renamed
+  (`onkeydown`, `onsubmit`, `onmessage`), four members no longer roots
+  removed, and the `playback` subgroup dropped below two boxes and was
+  deleted; the authoring pass rebuilds it from the handler roots.
+
 ## 2026-09-22 — Dev map viewer: large function pages read as maps
 
 - The owner's finding on 8.2.2 (`createStudio`, 167 boxes): a vertical

@@ -10,16 +10,14 @@
           "members": [
             "studio/app.mjs::initializeAgentInterface",
             "studio/app.mjs::connectViewPersistence",
-            "studio/app.mjs::clock",
             "studio/app.mjs::beginCanvasDrag",
             "studio/app.mjs::moveCanvasDrag",
             "studio/app.mjs::endCanvasDrag",
             "studio/app.mjs::cancelCanvasDrag",
             "studio/app.mjs::suppressCanvasContextMenu",
             "studio/app.mjs::connectCanvasPointerEvents",
-            "studio/app.mjs::onkeydown",
-            "studio/app.mjs::onsubmit",
-            "studio/app.mjs::stepLayer",
+            "studio/app.mjs::@handler/canvas.onkeydown",
+            "studio/app.mjs::@handler/open-path.onsubmit",
             "studio/app.mjs::animate",
             "studio/app.mjs::studioUpdate",
             "studio/app.mjs::studioVisible",
@@ -28,15 +26,6 @@
             "studio/app.mjs::initializeStudio"
           ],
           "groups": [
-            {
-              "id": "playback",
-              "label": "Playback and export",
-              "members": [
-                "studio/app.mjs::clock",
-                "studio/app.mjs::stepLayer",
-                "studio/app.mjs::animate"
-              ]
-            },
             {
               "id": "session",
               "label": "Session and interaction",
@@ -49,7 +38,7 @@
                 "studio/app.mjs::cancelCanvasDrag",
                 "studio/app.mjs::suppressCanvasContextMenu",
                 "studio/app.mjs::connectCanvasPointerEvents",
-                "studio/app.mjs::onkeydown",
+                "studio/app.mjs::@handler/canvas.onkeydown",
                 "studio/app.mjs::studioUpdate",
                 "studio/app.mjs::studioVisible",
                 "studio/app.mjs::disposeStudioSession",
@@ -76,7 +65,7 @@
             "studio/machine-study.mjs::bundleFingerprints",
             "studio/machine-study.mjs::loadBundle",
             "studio/machine-study.mjs::unavailable",
-            "studio/source-worker.mjs::onmessage"
+            "studio/source-worker.mjs::@handler/self.onmessage"
           ]
         },
         {
@@ -84,8 +73,6 @@
           "label": "Geometry and playback",
           "members": [
             "studio/machine-session.mjs::machineCameras",
-            "studio/playback.mjs::exportMovie",
-            "studio/toolpath-view.mjs::createLayerFade",
             "studio/viewer-renderer.mjs::createViewerRenderer"
           ]
         }

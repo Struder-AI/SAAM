@@ -7,8 +7,9 @@ const dirname=f=>f.slice(0,f.lastIndexOf('/'));
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry','event-listener']);
 const outermost=n=>{let node=n;while(node.parent)node=node.parent;return node;};
-// A declaration written as `x.onthing = function` is reached by the host that fires it.
-const domHandler=d=>d.kind==='handler'&&/^on[a-z]/.test(d.name);
+// A declaration written as `x.onthing = function` is reached by the host that fires it. At module
+// level the element and the event name it, so the event is the last segment of that name.
+const domHandler=d=>d.kind==='handler'&&/(?:^|\.)on[a-z]/.test(d.name);
 // A call made on a parameter is an invocation of whatever a caller passed. The callable is the
 // caller's code, so it is no step inside the callee's flow: it does not put the target under the
 // callee, and a declaration reached only this way is a flow root of its own region.

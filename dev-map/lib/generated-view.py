@@ -248,7 +248,7 @@ def value_bundles(wires):
     """
     bundles, positions = [], {}
     for w in wires:
-        if w["kind"] not in ("data", "return"):
+        if w.get("kind") not in ("data", "return"):
             bundles.append(dict(w))
             continue
         argument = bool(re.fullmatch(r'arg\d+', w.get("toPort", "")))
@@ -498,7 +498,7 @@ def node_page(packet, page, unit, port, drawn, dropped):
         port_context(node, p, page.context_pages)
     # The function itself. Every box below is something it invokes, so it is drawn and every box
     # is wired to it; the argument slots the tracer could not source are marked on the box.
-    invocations = [w for w in packet["wires"] if w["kind"] == "invocation"]
+    invocations = [w for w in packet["wires"] if w.get("kind") == "invocation"]
     stubs = {w["to"]: w.get("stubs", []) for w in invocations}
     # Closure-owned state is read and written by this body itself, so the subject box is drawn
     # for a page that holds state even when it calls nothing; an inlined chain wires from the
@@ -618,7 +618,7 @@ def node_page(packet, page, unit, port, drawn, dropped):
     body = [w if w.get("provenance") != "owned-state" else
             {**w, "from": subject if w["from"] == "self" else w["from"],
              "to": subject if w["to"] == "self" else w["to"]}
-            for w in packet["wires"] if w["kind"] != "invocation"]
+            for w in packet["wires"] if w.get("kind") != "invocation"]
     for w in value_bundles(body):
         if w.get("provenance") == "owned-state":
             wire(page, w, " · ".join(x for x in (w.get("label", ""), w.get("stub", "")) if x),
@@ -630,7 +630,7 @@ def node_page(packet, page, unit, port, drawn, dropped):
                 flags = ", ".join(text for key, text in (("spread", "spread"), ("positionUnknown", "position unknown")) if value.get(key))
                 return " ".join(x for x in [value.get("label", ""), f'({roles})' if roles else "", flags, f'[{gate}]' if gate else ""] if x)
             label = "\n".join(value_label(value) for value in w.get("argumentValues", [w]))
-            wire(page, w, label, "gate" if gate else WIRE.get(w["kind"], "data"), drawn, dropped)
+            wire(page, w, label, "gate" if gate else WIRE.get(w.get("kind"), "data"), drawn, dropped)
     # Last, so a box is placed by the values that reach it and not by the call that makes it:
     # the invocation edge states the call, it does not order the drawing.
     for w in invocations:

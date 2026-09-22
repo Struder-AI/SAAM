@@ -24,6 +24,25 @@ const children = node => {
   return out;
 };
 const property = node => !node.computed ? node.property?.name : node.property?.type==='Literal' ? String(node.property.value) : null;
+// The thing a handler is stored on, as the source names it: an id selector by its id, a binding
+// by its name, a static member path by that path. A receiver no static reading names gives null,
+// and the handler keeps the property alone, as before.
+const handlerReceiver = node => {
+  if(node.type==='Identifier')return node.name;
+  if(node.type==='ThisExpression')return 'this';
+  if(node.type==='MemberExpression'&&property(node)) {
+    const outer=handlerReceiver(node.object);return outer?`${outer}.${property(node)}`:null;
+  }
+  if(node.type==='CallExpression'&&node.arguments.length===1&&node.arguments[0].type==='Literal'
+    &&typeof node.arguments[0].value==='string')return node.arguments[0].value.replace(/^#/,'')||null;
+  return null;
+};
+// A callable stored on a platform event property is reached by whatever fires it, never by a name
+// this code calls, so nothing but the site can name it. Inside a holder the holder does. At module
+// level there is no holder, and the property alone repeats for every element of the same page, so
+// the receiver and the event name it: an identity unique in the file that survives line edits,
+// where a source position does not.
+const handlerPath = (receiver,event) => receiver?`@handler/${encodeURIComponent(receiver)}.${event}`:event;
 // Static and instance methods occupy different receiver namespaces in JavaScript. Keep the
 // ordinary source spelling for instance methods and reserve a generated segment for every static
 // method, so adding or removing a same-named counterpart never retargets either declaration.
@@ -54,7 +73,7 @@ const mappedCode=isMapped;
 export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
   const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[], declFn=new Map(),declarationPaths=new Map();
   const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap();
-  const parameterDefaultNames=new WeakMap();
+  const parameterDefaultNames=new WeakMap(),listenerNames=new WeakMap();
   const scopes=[], bindings=[];
   const scope=(parent,kind)=>{const s={parent,kind,bindings:new Map()};scopes.push(s);return s;};
   const lookup=(s,name)=>s?.bindings.get(name)??(s?.parent?lookup(s.parent,name):null);
@@ -124,13 +143,14 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     }
     if(functions.has(n.type)) {
       const named=n.type==='FunctionDeclaration'&&!!n.id;
-      const defaultName=parameterDefaultNames.get(n);
+      const defaultName=parameterDefaultNames.get(n),listenerName=listenerNames.get(n);
       const inherited=!!parent&&nodeDecl.has(parent)&&(
         parent.type==='VariableDeclarator'&&parent.init===n||
         ['Property','MethodDefinition'].includes(parent.type)&&parent.value===n||
         parent.type==='AssignmentExpression'&&parent.right===n);
-      const next=named?[...path,n.id.name]:inherited?path:defaultName?[...path,`@default/${encodeURIComponent(defaultName)}`]:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
-      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,'function',owner,named||!!defaultName);
+      const next=named?[...path,n.id.name]:inherited?path:listenerName?[...path,listenerName]
+        :defaultName?[...path,`@default/${encodeURIComponent(defaultName)}`]:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
+      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,listenerName?'handler':'function',owner,named||!!defaultName||!!listenerName);
       if(!named&&!inherited&&returnedCallable(n,parent))d.generatedRole='returned-callable';
       if(defaultName)d.generatedRole='parameter-default';
       d.callable=true;nodeDecl.set(n,d);nodeOwner.set(n,d);declFn.set(d.id,n);m.functions.push(n);
@@ -157,7 +177,17 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       declaration(m,n,next,'method',owner);visit(m,n.value,s,next,owner,n);return;
     }
     if(n.type==='AssignmentExpression'&&n.left.type==='MemberExpression'&&property(n.left)&&functions.has(n.right.type)) {
-      declaration(m,n,[...path,property(n.left)],'handler',owner);
+      // The handler's body is written inside the handler, so what that body declares is homed by
+      // the handler, not by the module or the function the assignment happens to sit in.
+      path=[...path,owner?property(n.left):handlerPath(handlerReceiver(n.left.object),property(n.left))];
+      declaration(m,n,path,'handler',owner);
+    }
+    // `addEventListener('x', …)` stores a callable the same way, and at module level it is named
+    // the same way, so the listener is a handler declaration rather than a source position.
+    if(n.type==='CallExpression'&&!owner&&n.callee.type==='MemberExpression'&&property(n.callee)==='addEventListener') {
+      const [event,handler]=n.arguments,receiver=handlerReceiver(n.callee.object);
+      if(receiver&&event?.type==='Literal'&&typeof event.value==='string'&&functions.has(handler?.type))
+        listenerNames.set(handler,handlerPath(receiver,event.value));
     }
     if((n.type==='BlockStatement'&&!functions.has(parent?.type))||n.type==='CatchClause'||['ForStatement','ForOfStatement','ForInStatement','SwitchStatement'].includes(n.type)) {
       s=scope(s,'block');nodeScope.set(n,s);if(n.type==='CatchClause')pattern(n.param,s);
