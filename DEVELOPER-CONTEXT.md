@@ -43,8 +43,10 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
   under its own index. Where the code lives does not enter into it: the tree is
   functional, never a file tree.
 - A region page shows its flow roots, the declarations nothing in the region
-  calls, optionally clustered by authored groups. Everything else is homed by
-  the first flow page that reaches it. A declaration written inside another is
+  calls, optionally clustered by authored groups; a wire between them says the
+  code under one root reaches the code under the other. Everything else in the
+  region is homed by the first flow page of that region that reaches it, so a
+  deep call chain is a deep index. A declaration written inside another is
   homed by its holder; a class is its construction and its members. A node
   drawn anywhere else is a repeat carrying `home`, and the home node lists its
   repeats as `alsoOn`.
@@ -60,8 +62,9 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
 ### Findings
 
 Findings are the scanner's honesty, never hidden. A finding about a node is
-shown on every map that draws that node: a structural map carries each drawn
-declaration's own rows, and a group box carries one count. Most rows are
+shown on every map that draws that node, once per node however many boxes
+draw it: the box carries a count and the rows sit in the page's finding list,
+sectioned by node; a group box carries one count. Most rows are
 analysis limits (destructuring, loop values, callbacks the tracer does not
 enter, untyped receivers) and are generator work; a few are the code's shape,
 handled below. Do not turn a finding into an invented wire, and do not infer

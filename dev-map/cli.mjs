@@ -69,7 +69,7 @@ const {regenerate}=await import('./lib/generated-view.mjs');
 const status=await storeStatus({repo:root});
 const result={store:status.dir,generated:status.generated??null,missing:status.missing,
   stale:status.missing?null:status.stale,totals:status.missing?null:status.totals,
-  unreached:status.missing?[]:status.unreached,unplaced:status.missing?[]:status.unplaced,
+  stranded:status.missing?[]:status.stranded,unplaced:status.missing?[]:status.unplaced,
   orphanFacts:status.orphanFacts,factErrors:status.facts.errors};
 const failed=status.missing||!!status.stale||status.facts.errors.length>0||(status.unplaced?.length??0)>0;
 
@@ -83,8 +83,9 @@ else {
     for(const file of [...status.stale.files,...status.stale.inputs??[]])console.log(`  ${file}`);
     console.log(`Run: ${regenerate} ${status.stale.regenerate}`);
   }
-  console.log(`Unreached: ${status.unreached.length}`);
-  for(const node of status.unreached)console.log(`  ${node.index} ${node.path} (${node.lines} lines)`);
+  console.log(`Stranded: ${status.stranded.length}`);
+  for(const node of status.stranded)console.log(`  ${node.region}\t${node.path}`);
+  if(status.stranded.length)console.log(`No flow root of the region reaches these; they keep a box on the region page.`);
   console.log(`Unplaced: ${status.unplaced.length}`);
   for(const page of status.unplaced)console.log(`  ${page}`);
   if(status.unplaced.length)console.log(`No map shows these pages. Remove the authored grouping, or place what it groups.`);

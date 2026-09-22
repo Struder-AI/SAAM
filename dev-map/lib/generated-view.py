@@ -21,7 +21,6 @@ from viewer import CSS as BASE_CSS
 # The box a page IS, drawn when the body calls nothing; and code in a file that no entry
 # point of that file reaches.
 STYLE["subject"] = dict(fill="#f8fafc", stroke="#0f172a", sw=2.6, rx=7, tc="#0f172a")
-STYLE["unreached"] = dict(fill="#f1f5f9", stroke="#94a3b8", sw=1.3, rx=6, tc="#475569", dash="4 4")
 STYLE["choice"] = dict(fill="#faf5ff", stroke="#7e22ce", sw=1.8, rx=12, tc="#581c87")
 STYLE["code"] = dict(fill="#fff7ed", stroke="#c2410c", sw=1.8, rx=7, tc="#7c2d12")
 STYLE["assertion"] = dict(fill="#faf5ff", stroke="#7e22ce", sw=1.8, rx=15, tc="#581c87")
@@ -333,40 +332,23 @@ def build_page(packet, ctx):
     elif kind == "root":
         for r in packet["regions"]:
             unit(r["index"], r["path"],
-                 f'{r["files"]} files · {r["nodes"]} nodes · {r["entries"]} entry points',
+                 f'{r["files"]} files · {r["nodes"]} nodes · {r["roots"]} flow roots',
                  f'{r["lines"]} lines', "stage")
         for p in packet["ports"]:
             port(p["port"], p["port"], go=port_target(p["port"], pages))
         for w in packet["wires"]:
             wire(page, w, aggregate(w), "data", drawn, dropped)
     elif kind == "region":
+        # A region draws the flow roots it holds; module-only source keeps its file box.
         for c in packet["components"]:
-            # A file whose own drawing would show nothing has no page: the region draws its
-            # declarations directly, in the file box's place.
-            if "label" in c:
-                unit(c["index"], c["label"], "",
-                     f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
-                     ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c["path"])
+            if c.get("kind") == "file":
+                unit(c["index"], c["file"].rsplit("/", 1)[-1], "module only",
+                     f'{c["file"]} · {c["lines"]} lines', "stage",
+                     ref=f'{c["file"]}:1-{c["lines"]}', path=c["file"])
                 continue
-            note = f'{c["nodes"]} nodes · {c["entries"]} entry points'
-            if c.get("unreached"):
-                note += f' · {c["unreached"]} unreached'
-            unit(c["index"], c["file"].rsplit("/", 1)[-1], note,
-                 f'{c["file"]} · {c["lines"]} lines', "stage",
-                 ref=f'{c["file"]}:1-{c["lines"]}', path=c["file"])
-        for p in packet["ports"]:
-            port(p["port"], p["port"], go=port_target(p["port"], pages))
-        for w in packet["wires"]:
-            wire(page, w, aggregate(w), "data", drawn, dropped)
-    elif kind == "file":
-        for c in packet["components"]:
             unit(c["index"], c["label"], "",
                  f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
-                 ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=f'{c["file"]}::{c["label"]}')
-        for c in packet["unreached"]["nodes"]:
-            unit(c["index"], c["label"], "unreached",
-                 f'{c["file"]}:{c["line"]}-{c["endLine"]}', "unreached",
-                 ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=f'{c["file"]}::{c["label"]}')
+                 ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c["path"])
         for p in packet["ports"]:
             port(p["port"], p["port"], go=port_target(p["port"], pages))
         for w in packet["wires"]:
@@ -388,7 +370,7 @@ def build_page(packet, ctx):
             continue
         node.co = tuple(node.co) + tuple(labels)
     # The findings of the node a box draws are listed below; the box says how many there are.
-    for c in list(packet.get("components", [])) + (packet.get("unreached") or {}).get("nodes", []):
+    for c in packet.get("components", []):
         node = page.index.get(c.get("id", c["index"]))
         if node is None:
             continue
@@ -617,7 +599,7 @@ def lists(packet, page, pages):
     # A finding belongs to the node it is about, so every page that draws that node shows its
     # rows under that box. A group or file box is not a node and carries its count alone.
     for category in ("unresolved", "uncertainty"):
-        for c in list(packet.get("components", [])) + (packet.get("unreached") or {}).get("nodes", []):
+        for c in packet.get("components", []):
             rows = c.get(category)
             if not rows:
                 continue
@@ -674,7 +656,6 @@ LEGEND = [
     ("b", "subject", "the function this page is, drawn when its body calls nothing."),
     ("b", "state", "local loop, update or collection state, with initial/current/next/final roles on its wires. "
                    "A class field instead connects the members that write and read it."),
-    ("b", "unreached", "code in this file that no entry point of the file reaches."),
     ("h", None, "Ports"),
     ("b", "port", "in: a parameter, or a way in from outside this page — another file, another "
                   "region, an outside caller, or a caller of this function. Out: a return, named "

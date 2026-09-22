@@ -1,5 +1,103 @@
 # Development log
 
+## 2026-09-21 — Dev map: functional tree
+
+- Operators no longer count toward the map-or-code rule (`lib/destination.mjs`,
+  the one rule): a page is a map only with at least two called declarations
+  and a wire; 129 pages became code, among them `loopArea` and 49 other
+  operator-only bodies. Graph pages drawing no called declaration: 0.
+- Region pages home flow roots only (declarations no declaration of the
+  region calls: core 2, export 7, geom 47, machine 9, path 13, print 8,
+  region 13, studio 32), optionally clustered; every other declaration is
+  homed by the first flow page of its region that reaches it, depth first in
+  call order; region wires contract onto the owning root. `stranded`
+  (unreached from any root; currently none) replaces `unreached`. File pages
+  and file addresses are removed.
+- File paths are rejected as authored members; the flows were converted to
+  the roots they held: 52 groups and 266 members remain (was 148 and 624, 231
+  of them files); 96 groups fell below two roots and were dropped, including
+  studio's interaction, requests and view groups and core/export's gcode,
+  robot-commands and lua. Root clustering is the next authoring pass.
+- Verified after `regenerate 0`: 1682 pages (was 1778), 0 single-box pages,
+  every one of 1621 declarations homed exactly once, `check` exits 0 with
+  3552 linked, 1079 unresolved, 47 outside, 5807 platform, no stale,
+  unplaced, stranded or orphan facts; totals identical to before the change.
+  Max index depth 7 → 18: the deepest index is a real 17-step call chain in
+  studio. Pages read: `0`, `core/export` (2 clusters, 2 loose roots),
+  `core/region`, `loopArea` (code, 19 callers), the deepest index.
+- Documentation: the functional tree carried into DEVELOPER-CONTEXT.md, the
+  map guide and the handoff; the "once per node" ruling on finding rows
+  recorded (function pages should list their drawn nodes' rows once each;
+  queued).
+
+## 2026-09-21 — Maker handoff for accepted H2D colour and dual-nozzle workflows
+
+- User requested the code/guidance rewrites needed for future maker agents,
+  following AMS-19 and DUAL-20 physical passes. The v13 implementation remains
+  unchanged: canonical job projections and identical rendered executable/project
+  startup/shutdown are the accepted path, with no reference-file substitution.
+- MAKERS links directly to the Bambu setup and both workflows. Maker onboarding
+  includes MAKERS and core/print/USAGE.md, whose Bambu instructions now describe
+  the accepted paths. The Bambu manual supplies per-filament/nozzle/process/feed
+  setup examples, assembly-region assignment, optional fast startup, current
+  profile generation and USB mapping review. Removed stale guidance saying
+  same-nozzle colour changes were unsupported; kept X1 failure explicit.
+- The duplication inventory now includes stored startup/shutdown. Physical facts
+  and machine descriptions distinguish accepted H2D jobs from other installations.
+  The regression pins both generated project and executable hashes for AMS-19
+  and DUAL-20, so unchanged commands cannot conceal a project-metadata regression.
+- Verification: all 31 targeted Bambu tests pass, including the strengthened
+  hardware regression; git diff --check reports no whitespace errors.
+
+## 2026-09-21 — Generated H2D DUAL-20 passes, closing dual-nozzle exporter work
+
+- User reports "ams-20 also pass!" after the request to run the delivered
+  DUAL-20-GENERATED. Archive SHA256 2a3007ea7fbc8251d199088ebfca4db630ebfd2133c1d4d675eddcdd04f25744;
+  project SHA256 96efadb599441203b9156c450343acb29c8b507d713d63fb38c8825dcaba6af5.
+  This accepts ordinary generated v13 output, not a reference-entry substitution:
+  left 0.4 external PLA centre pad, right 0.8 blue AMS offset pad, then left,
+  with correct-height deposition, Textured PEI, fast startup and no tower.
+- AMS-19 had already passed ordinary generated same-nozzle blue/orange/blue.
+  Both requested H2D capabilities now have physical evidence. No further
+  template-isolation prints are needed to close the tested workflow.
+- Maker guidance, machine evidence and hardware facts now reflect both passes.
+  The regression protects generated project hashes as well as executable hashes
+  for both successful jobs. Startup/shutdown duplication remains derived from
+  the exact same rendered strings, and other declarations from the resolved job.
+- Completed BR-056 is removed from the open backlog; BR-055 retains only X1
+  and other installation acceptance work. X1's failed AMS test is not closed by
+  an H2D pass. Original BR-056 provenance and pre-acceptance history follow.
+
+### Completed BR-056 — Use both H2D nozzles with different diameters in one print
+
+- Status: in progress
+- Contributor: current user; account identity unconfirmed, no identity question required.
+- Authorization: human requested — "bambu studio does not support 2-extruder prints with different nozzle sizes. On the other hand, we MUST support this. So there will be differences" (2026-09-21).
+- Current hardware evidence (2026-09-21): the left-only reference, repack and producer-identity controls pass. Reduced configuration reproduces wrong-right-nozzle/elevated-height failures; alphabetizing it still fails. Full project JSON with minimal G-code CONFIG passes; full G-code CONFIG with minimal project JSON fails. Project JSON omissions are isolated, with individual keys unresolved. User requested a return to actual dual-nozzle testing: dual-project-identity-fast-06 adds three project metadata fields to the unchanged SAAM fast-05 mixed-nozzle program; it failed (no adhesion, right-nozzle dribbling; actual nozzle sequence and Z were not watched). AMS-09 and AMS-10 now pass same-nozzle AMS switching, with AMS-10 declaring actual left 0.4/right 0.8. AMS-11 failed the reusable v12 project writer (entirely orange). At the user's request, DUAL-12 is prepared while AMS-11 runs: exactly left/right/left, centre external-spool pad at Z0.2/Z0.4 and blue right-AMS pad 60 mm to the right at Z0.3. The original DUAL-12 is on hold; revised DUAL-12-PROJECT-CONTROL uses working AMS-10's exact project entry with all dual executable bytes unchanged, and is on D: with verified hash. The user now reports DUAL-12-PROJECT-CONTROL passed: physical mixed-nozzle left/right/left is demonstrated. Porting the working project representation into ordinary generated output remains open. X1 is unavailable.
+- Session: current startup/nozzle/plate/AMS task; exact task title and stable ID unavailable.
+- Source: follow-ups accompanying `twistedbox.gcode.3mf`; the two-nozzle references have SHA-256 `ddbea3c405b12328990c1aa6f45c106b8e6899a5807d7cc7947c23caa2835a63` (tower) and `f6bad52dc858c7a06ebdbace77b40706d8ea8d1f9afbfac26dd4e4678d03bf86` (tower-free), with actual left 0.4 / right 0.8 and a four-slot AMS connected to the right.
+- Context: differing installed diameters and actual use of both nozzles are separate implemented contracts; regional filament selection drives each nozzle's process and the shared path, interpreter and package usage. The user explicitly excluded a prime tower and requires hardware-supported feed combinations rather than one fixed installation. Exact reference analysis, generated artifact hashes, implementation evidence and successive physical failures are retained in the [dual-nozzle reference](DEVLOG.md#2026-09-21--dual-nozzle-reference-distinguishes-outgoing-and-incoming-settings), [delivered verification](DEVLOG.md#2026-09-21--mixed-diameter-h2d-output-and-delivered-hardware-verification) and subsequent dated DEVLOG records.
+- Remaining: make the physically successful DUAL-12 command sequence reproducible through the ordinary exporter without a substituted project entry, then verify a regenerated dual archive. Preserve the tested commands with the hardware regression and provide maker setup/review guidance. Extended AMS/HT configurations and other installations still need physical acceptance. Same-nozzle PLA AMS output now physically passes fresh generated v13 AMS-19; v12 AMS-11 is a historical failed format. Automatic power-loss recovery has no output contract; do not claim either from the dual test.
+- Completion: the reviewed SAAM program deposits with both actual 0.4/0.8 tools, with correct process settings, synchronized startup/changeover/package declarations and recorded physical acceptance.
+
+
+## 2026-09-21 — Fresh generated H2D AMS-19 physically passes
+
+- User reports "ams-19 is pass". Delivered v13 archive SHA256
+  30044f96b878e81bcc26795cef425658da60961c10f76096a0503c45b5d4beae.
+  This was an ordinary generated bundle, strict-reopened, with no substituted
+  reference project. It exercises right 0.8 PLA blue/orange/blue, installed left
+  0.4, right four-slot AMS, Textured PEI, fast startup and no tower.
+- Stored authored startup/shutdown plus seven empty template fields are
+  sufficient for this job; individual necessity or firmware execution of those
+  fields is not established. No further template isolation is needed to accept
+  this tested same-nozzle workflow. Maker guidance now permits normal generation
+  without reference-file patching, while preserving installation evidence limits.
+- Pin generated project SHA256 c1181788a9dfab5e3934e67e65984e735e1b22cce7b8383d1df416f66491fd03
+  alongside the existing successful executable hash in the hardware regression.
+- DUAL-20 is on D: with verified SHA256; its generated-project dual-nozzle
+  physical acceptance remains the next check before closing H2D dual work.
+
 ## 2026-09-21 — Dev-map documentation consolidated; handoff written
 
 - DEVELOPER-CONTEXT.md now owns the map's intent: purpose, scope and active

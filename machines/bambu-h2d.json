@@ -13,7 +13,7 @@
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Physical DUAL-12 passed left 0.4/right 0.8 and return to left; AMS-10 passed same-nozzle colour switching. Both controls used a reference project entry. Generated v12 project metadata failed AMS-11. The v13 repair reuses authored executable startup/shutdown in stored project fields; fresh AMS-19/DUAL-20 physical acceptance is pending. General dual-nozzle/multicolour delivery remains unresolved.",
+    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job; stored startup/shutdown reuse the exact authored executable sections. Fresh v13 AMS-19 passed same-nozzle blue/orange/blue; DUAL-20 passed left 0.4 external PLA/right 0.8 blue AMS PLA/left with correct-height deposition. Both used fast startup and Textured PEI through the ordinary exporter without reference project substitution. Other installations need separate physical evidence. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles.",
     "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
   ],
   "capabilities": [
@@ -645,13 +645,13 @@
         "projectSchema": "h2d-full-project-v2",
         "projectSettings": {}
       },
-      "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested. DUAL-12 and AMS-10 physically passed with a reference project entry. Generated v12 metadata failed AMS-11. Independent routing and Standard-only variant reductions AMS-14/15 passed. The v13 authored stored startup/shutdown repair passes software validation; normal regenerated AMS-19/DUAL-20 still need physical acceptance."
+      "validation": "SAAM-authored v13 metadata and bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one source; project startup/shutdown are exact executable copies. Software consistency is tested. Ordinary generated AMS-19 and DUAL-20 physically passed same-nozzle colours and mixed 0.4/0.8 nozzles respectively, with PLA/Textured PEI/fast startup and right four-slot AMS, left external spool for dual. Other installations and feed combinations are not physically certified by these tests."
     }
   ],
   "startup": {
     "protocol": "bambu-h2d-reference-envelope",
     "zAfterStartupMm": 20,
-    "validation": "SAAM bounded H2D startup with initial XY/Z registration restored before filament loading in full and fast modes. Optional calibration, vision and vibration checks are omitted in fast mode; homing, saved compensation, wiping, priming and temperature waits remain. Nozzle, plate and logical filament settings derive from the resolved job. Service motion is not simulated. DUAL-12 physically passed the fast-start left/right/left control; fresh generated project metadata remains unresolved."
+    "validation": "SAAM bounded H2D startup with initial XY/Z registration restored before filament loading in full and fast modes. Optional calibration, vision and vibration checks are omitted in fast mode; homing, saved compensation, wiping, priming and temperature waits remain. Nozzle, plate and logical filament settings derive from the resolved job. Service motion is not simulated. Fresh generated AMS-19 and DUAL-20 physically passed fast-start same-nozzle colours and mixed-nozzle left/right/left respectively."
   },
   "nonplanar": {
     "maxAngleDeg": 15,
@@ -665,7 +665,7 @@
     "https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp"
   ],
   "sourceChecked": "2026-09-09",
-  "validation": "Software profile, envelope, package and SAAMpath round-trip checks. Left printable height follows the official inherited profile: 320 mm. Planar mixed-nozzle DUAL-12 and same-nozzle AMS-10 controls physically passed with a reference project entry; generated project metadata remains unresolved. Experimental 15 degree draping has no physical validation; firmware macros are not simulated.",
+  "validation": "Software profile, envelope, package and SAAMpath round-trip checks. Left printable height follows the official inherited profile: 320 mm. Fresh generated v13 AMS-19 and DUAL-20 physically passed same-nozzle colours and planar mixed-nozzle left/right/left, with left 0.4/right 0.8, PLA/Textured PEI and fast startup. Experimental 15 degree draping has no physical validation; firmware macros are not simulated.",
   "referenceExports": [
     {
       "role": "left nozzle reference",

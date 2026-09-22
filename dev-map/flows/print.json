@@ -8,182 +8,19 @@
           "id": "lifecycle",
           "label": "reviewed print lifecycle",
           "members": [
-            "core/print/bundle.mjs",
-            "core/print/workflow.mjs",
-            "core/print/file-snapshot.mjs",
-            "core/print/generation-control.mjs",
-            "core/print/program-handoff.mjs"
+            "core/print/file-snapshot.mjs::createFileSnapshot",
+            "core/print/generation-control.mjs::generationControl",
+            "core/print/program-handoff.mjs::createCheckedProgramHandoff",
+            "core/print/workflow.mjs::createBundleWorkflow"
           ],
           "groups": [
-            {
-              "id": "bundle-identity",
-              "label": "bundle identity",
-              "members": [
-                "core/print/workflow.mjs::originalSource",
-                "core/print/workflow.mjs::migratedIdentity",
-                "core/print/workflow.mjs::migrateReview",
-                "core/print/workflow.mjs::migrateChecks"
-              ]
-            },
-            {
-              "id": "editing",
-              "label": "plan edits",
-              "members": [
-                "core/print/workflow.mjs::applyPlanPatch",
-                "core/print/workflow.mjs::editedPlanReview",
-                "core/print/workflow.mjs::invalidateReview"
-              ]
-            },
             {
               "id": "worker-identity",
               "label": "worker and file identity",
               "members": [
-                "core/print/file-snapshot.mjs",
-                "core/print/generation-control.mjs",
-                "core/print/program-handoff.mjs"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "plan",
-          "label": "locked plan",
-          "members": [
-            "core/print/plan.mjs"
-          ],
-          "groups": [
-            {
-              "id": "plan-identity",
-              "label": "plan identity",
-              "members": [
-                "core/print/plan.mjs::canonical",
-                "core/print/plan.mjs::hash",
-                "core/print/plan.mjs::defaults",
-                "core/print/plan.mjs::domeHeights",
-                "core/print/plan.mjs::geometryTemplate"
-              ]
-            },
-            {
-              "id": "validated-fields",
-              "label": "geometry and process checks",
-              "members": [
-                "core/print/plan.mjs::validatePlanFields",
-                "core/print/plan.mjs::validatePlanGeometry",
-                "core/print/plan.mjs::validatePlanProcess",
-                "core/print/plan.mjs::validatePlanPlacement",
-                "core/print/plan.mjs::keys",
-                "core/print/plan.mjs::number"
-              ]
-            },
-            {
-              "id": "skill-selections",
-              "label": "skill and region checks",
-              "members": [
-                "core/print/plan.mjs::validatePlanAuxiliary",
-                "core/print/plan.mjs::validatePlanWalls",
-                "core/print/plan.mjs::validatePlanSelections",
-                "core/print/plan.mjs::validatePlanDeposition",
-                "core/print/plan.mjs::validatePlanRegions"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "generation",
-          "label": "skill results and toolpath",
-          "members": [
-            "core/print/generate.mjs",
-            "core/print/regions.mjs"
-          ],
-          "groups": [
-            {
-              "id": "generation-stages",
-              "label": "generation stages",
-              "members": [
-                "core/print/generate.mjs"
-              ]
-            },
-            {
-              "id": "material-regions",
-              "label": "material regions",
-              "members": [
-                "core/print/regions.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "material-query",
-                  "label": "material support queries",
-                  "members": [
-                    "core/print/regions.mjs::has",
-                    "core/print/regions.mjs::planar",
-                    "core/print/regions.mjs::ids",
-                    "core/print/regions.mjs::inBounds",
-                    "core/print/regions.mjs::covered",
-                    "core/print/regions.mjs::planarLayers",
-                    "core/print/regions.mjs::planarSupportTopAt"
-                  ]
-                },
-                {
-                  "id": "surface",
-                  "label": "published material surface",
-                  "members": [
-                    "core/print/regions.mjs::surfaceField",
-                    "core/print/regions.mjs::publishSurface"
-                  ]
-                },
-                {
-                  "id": "execution",
-                  "label": "region execution",
-                  "members": [
-                    "core/print/regions.mjs::prepareRegionRecords",
-                    "core/print/regions.mjs::prepareRegionDependencies",
-                    "core/print/regions.mjs::generateAssignedRegion",
-                    "core/print/regions.mjs::generateRegionResults"
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "geometry",
-          "label": "native geometry and features",
-          "members": [
-            "core/print/geometry.mjs",
-            "core/print/text.mjs",
-            "core/print/heat-set.mjs"
-          ]
-        },
-        {
-          "id": "mesh-import",
-          "label": "STL import and repair",
-          "members": [
-            "core/print/import-stl.mjs",
-            "core/print/repair-stl.mjs",
-            "core/print/mesh-repair-job.mjs",
-            "core/print/mesh-repair-worker.mjs"
-          ],
-          "groups": [
-            {
-              "id": "import",
-              "label": "import and units",
-              "members": [
-                "core/print/import-stl.mjs"
-              ]
-            },
-            {
-              "id": "repair",
-              "label": "repair and change evidence",
-              "members": [
-                "core/print/repair-stl.mjs"
-              ]
-            },
-            {
-              "id": "worker",
-              "label": "repair worker",
-              "members": [
-                "core/print/mesh-repair-job.mjs",
-                "core/print/mesh-repair-worker.mjs"
+                "core/print/file-snapshot.mjs::createFileSnapshot",
+                "core/print/generation-control.mjs::generationControl",
+                "core/print/program-handoff.mjs::createCheckedProgramHandoff"
               ]
             }
           ]

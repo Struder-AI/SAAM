@@ -6,52 +6,34 @@ export or import; [bambu.mjs](bambu.mjs) projects it into every repeated field.
 Machine files own bounded firmware service sequences. Reference exports are
 comparison evidence, never package/header/thumbnail templates to copy into a job.
 
-Output remains experimental. A consistent archive proves neither firmware
-compatibility nor that the requested AMS tray is physically connected or loaded.
-An explicitly correct USB mapping screen has still produced a wrong physical
-feed in testing. Screen confirmation is necessary review evidence, not physical
-acceptance. Verify the actual loaded filament and selected nozzle.
-The X1 three-colour test also failed: the printer rejected manual AMS mapping
-and printed all bands in grey despite two material-change command blocks.
-H2D DUAL-12-PROJECT-CONTROL physically passed left/right/left with left 0.4,
-right 0.8, left external PLA and right AMS blue PLA. AMS-10 passed right-nozzle
-colour switching. Both used the same successful reference project entry; these
-are physical command/installation results, not acceptance of the reusable
-project writer. X1 AMS changes remain unaccepted.
-The current v13 writer stores its own rendered startup and shutdown in the
-project fields, using the exact same strings as the executable. Fresh AMS-19
-and DUAL-20 pass software validation but await physical acceptance. AMS-14
-(routing changes) and AMS-15 (Standard-only variant tables) physically passed
-as independent reductions of the working reference project. Those results do
-not prove that every other authored project field is compatible.
-The H2D investigation also found a pinched left-feed PTFE tube. The untouched
-Studio left-only reference prints correctly. After that repair, full-04 completes
-its motions but still prints entirely with the right nozzle at elevated height.
-Fast-05, including restored early homing, has the same physical failure. Neither
-the missing early homing block nor the obstruction explains all observations.
-The working left-only reference also prints correctly when repacked by SAAM and
-when its G-code producer marker and 3MF Application identity are replaced.
-Those container/identification changes alone do not explain the H2D failure.
-In a subsequent controlled pair, the full reference configuration printed
-correctly while reducing/reordering CONFIG and project fields to SAAM's current
-field set reproduced the wrong right nozzle and elevated height. The two files
-had byte-identical executable commands and the same shortened startup. This
-isolates the changed configuration surfaces in that comparison; the responsible
-field remains unresolved. Alphabetizing the same reduced configuration also
-failed. Subsequent physical controls isolate project JSON: full project settings
-with the minimal 40-entry G-code CONFIG print correctly; full G-code CONFIG with
-minimal project settings fails. Correct G-code comments cannot compensate for
-this project-settings omission. No individual key or firmware entry-count
-requirement is established. AMS-09 subsequently changed colours successfully
-with SAAM's same-nozzle commands and the complete reference project entry.
-It declared 0.8/0.8. AMS-10 retains its executable commands and changes only
-left-diameter declarations to 0.4; the user confirms it works. Mixed installed
-diameters therefore do not prevent this same-nozzle colour job. The authored
-v12 project writer failed its AMS-11 acceptance test: the user reports the
-whole part is orange. The shared multicolour exporter remains unresolved;
-the reusable dual-nozzle package writer remains open despite DUAL-12's success.
-The outstanding reference and hardware checks are tracked in
-[BR-055](../../build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
+The ordinary H2D v13 exporter has physically passed both maker workflows:
+
+| Workflow | Physical acceptance | Maker instructions |
+|---|---|---|
+| Same-nozzle AMS colours | AMS-19: right 0.8, blue → orange → blue, installed left 0.4 | [Two-colour workflow](#making-an-h2d-two-colour-print) |
+| Different nozzles and diameters | DUAL-20: left 0.4 external PLA → right 0.8 blue AMS PLA → left, correct deposition heights | [Dual-nozzle workflow](#making-an-h2d-dual-nozzle-print) |
+
+Both used PLA, Textured PEI, a right-connected four-slot AMS, fast startup and
+no tower. Both came from the normal generator and passed strict archive reopen;
+neither needed a Bambu Studio project/header transplant. Use the current machine
+profile and canonical plan fields. Stored startup and shutdown are generated
+from the exact same strings as the executable; makers do not edit them.
+
+These results verify this H2D installation. Other supported diameters, plate
+surfaces and feed layouts remain configurable, with their physical evidence
+reported separately. X1 AMS is still unresolved: its test printed all bands in
+grey and rejected manual mapping. Do not extrapolate the H2D fix to X1 or another
+model. Nonplanar clearance and firmware service motion are not simulated.
+
+Material/colour matching is a proposal for the printer's confirmation screen.
+Review the actual feed selection there, including external spools; the exporter
+does not force physical slots. Earlier failed formats showed why screen mapping
+and valid executable commands alone are insufficient evidence. The accepted
+generated project and executable are now both protected by regression hashes.
+The [development log](../../DEVLOG.md#2026-09-21--generated-h2d-dual-20-passes-closing-dual-nozzle-exporter-work)
+owns that investigation and the exact delivered-file evidence. Remaining X1 and
+installation checks are tracked in
+[BR-055](../../build_request.md#br-055--extend-bambu-hardware-acceptance-beyond-the-verified-h2d-installation).
 
 ## Maker setup
 
@@ -182,7 +164,7 @@ program. X1 supports regional PLA changes through its single 0.4 mm nozzle and
 AMS, with a bounded rear-chute flush. H2D also implements same-nozzle PLA changes
 through AMS. AMS-09 physically verified those same-nozzle commands with the
 reference project entry. The reusable v12 project writer failed AMS-11 (all
-orange); do not represent its colour changes as physically working.
+orange); v13 subsequently passed fresh generated AMS-19 without that substitution.
 
 The normal source is `{ "type": "auto" }`: supply material preset ID and colour
 and let the printer propose a physical feed match. Do not ask for a slot just
@@ -239,10 +221,13 @@ recipe loads the incoming logical filament, waits for its print temperature,
 restores body acceleration/fan/modes and returns to the checked handoff position.
 Layer identities, nozzle records, material quantities and usage sequence come
 from actual actions. The two nozzle grids need not share layer height or width.
-There is no prime tower. One logical filament per used nozzle is supported;
-switching materials inside one nozzle needs a separate flushing contract and
-is rejected. Firmware service moves, purged material, heating time, automatic
-standby cooling and power-loss recovery are not modeled or physically validated.
+There is no prime tower. Same-nozzle PLA changes use the implemented AMS
+chute-flushing contract; automatic external-spool colour changes are rejected.
+When switching back from the other nozzle, the incoming logical filament must
+be the one last used on that nozzle; changing its material requires a separate
+same-nozzle AMS change. Firmware service moves, purged material, heating time,
+automatic standby cooling and power-loss recovery are not simulated. The physical
+passes establish the tested changes, not automatic recovery support.
 Do not infer recovery support or a cold parked nozzle from this implementation.
 
 `bambu.amsConnections` is null when connectivity is unknown, or the installation's
@@ -312,6 +297,7 @@ Numbers with different meanings are intentionally not unified.
 
 | Aspect / authoritative input | All generated repetitions and handling |
 |---|---|
+| Stored startup/shutdown: one rendered `sections()` result | Executable prefix/suffix and H2D project `machine_start_gcode`/`machine_end_gcode` receive identical strings. Full/fast selection, nozzle/filament/temperature/plate values and shutdown bounds are resolved before this duplication. Strict import regenerates both; editing either copy invalidates the archive. Other stored template fields remain empty in the physically accepted v13 jobs. |
 | Selected diameter: `setup.nozzleMm` | CONFIG/project `printer_settings_id` and `nozzle_diameter`; plate JSON `nozzle_diameter`; slice `nozzle_diameters`, filament `nozzle_diameter`, nozzle `nozzle_diameter`; H2D both `M620.10 H`, `M1015.4 H`; SAAM job summary. Fixed 0.4 command literals were replaced. |
 | Other installed diameter: `bambu.otherNozzleMm` | Other element of CONFIG/project `nozzle_diameter`, slice `nozzle_diameters`, job summary; when used, its own filament/nozzle records and changeover H values. Never independently defaulted inside each writer. |
 | Nozzle side: `setup.tool`, each `bambu.filaments[].tool` + machine `physicalExtruder` | CONFIG/project `filament_map`, `filament_nozzle_map`, `physical_extruder_map`; slice CONFIG `filament_map_2`; model/slice `filament_maps`; slice filament `group_id`, nozzle `id`/`extruder_id`; sequence `nozzle_sequence`; H2D `M104 T` and `G151 P`. The selected filament must agree with setup.tool. No profile settings spread can overwrite them. |
@@ -366,13 +352,14 @@ it does not establish physical priming quality or clearance on the actual printe
 
 The physical DUAL-12 control passed with left 0.4/right 0.8 and a return to the
 left nozzle. The shared planner and executable writer can express this job.
-**The current generated project metadata is still unresolved:** AMS-11 failed,
-and DUAL-12 succeeded with a reference project entry substituted. A maker must
-not advertise arbitrary generated jobs as hardware-verified or copy that entry
-into another job. Use the setup/review workflow below when the project writer
-has passed generated-file acceptance; current hardware experiments remain
-builder/developer work. The fact-only hardware fixture and executable regression
-test preserve the successful command sequence without a reference dependency.
+**Fresh generated DUAL-20 physically passed:** left 0.4 external PLA at the
+centre, right 0.8 blue AMS PLA at the offset pad, then left again, with correct
+deposition heights. It uses the ordinary v13 exporter, fast startup and Textured
+PEI; no reference project is substituted. Makers use the normal workflow below
+without editing exported metadata or choosing stored templates. The hardware
+regression preserves both the successful executable and generated project.
+This installation is evidence for the workflow, not a fixed required feed layout
+or certification of other untested installations.
 
 1. Establish the machine and installation: left and right diameters, plate,
    materials, nozzle temperatures, feed devices and which nozzle each device
@@ -404,7 +391,8 @@ test preserve the successful command sequence without a reference dependency.
 
 Example filament settings for a **left-first** recipe (merge with the complete
 plan, keeping `setup.tool: 0`, `nozzleMm: 0.4`, `core: "Hardened steel 0.4"`,
-`nozzleC: 215`, line width 0.4 and first/subsequent layers 0.2):
+`nozzleC: 215`, `ams: null`, `filamentColor: null` or the initial entry's colour,
+line width 0.4 and first/subsequent layers 0.2):
 
 ```json
 {
@@ -426,8 +414,33 @@ For independent STLs, put them in separate assembly parts and assign each
 part's region to the corresponding filament. For different patterns in one
 part, use the normal regional composition and support/dependency rules.
 Neither workflow requires Bambu Studio to slice unequal diameters.
+For example, an assembly part `left-part` can have region
+`{"id":"left-body","part":"left-part","filament":0,"zStartMm":0,"zEndMm":null,"lowerSurfaceFrom":null,"skills":{"full-fill":{"mode":"body"}}}`;
+the other part uses its own region with `filament: 1`. These are ordinary
+composition inputs; use the chosen pattern's skills and support dependencies
+for the requested geometry. Do not copy the verification pads as a required part.
 
 ## Making an H2D two-colour print
+
+For the accepted right-0.8 example, merge the following into `setup.bambu` of a
+complete recipe. Set `setup.tool: 1`, `nozzleMm: 0.8`, matching `core`,
+`nozzleC: 225`, `ams: null`, `filamentColor: null` (or blue), and process
+`lineWidthMm: 0.8`, `firstLayerMm: 0.3`, `layerMm: 0.3`. These are the test's
+values, not defaults to substitute for a user's material or installation.
+
+```json
+{
+  "plate": "textured_plate",
+  "otherNozzleMm": 0.4,
+  "filament": 0,
+  "fast_start": true,
+  "amsConnections": [{"unit": 1, "tool": 1}],
+  "filaments": [
+    {"id": "GFA00", "colour": "#0000FF", "tool": 1, "source": {"type": "auto"}},
+    {"id": "GFA00", "colour": "#FF8000", "tool": 1, "source": {"type": "auto"}}
+  ]
+}
+```
 
 1. Establish the actual installed diameters, selected nozzle, plate, PLA identities
    and colours. Set `setup.tool`, `nozzleMm`, matching `core`, temperature and
@@ -441,8 +454,10 @@ Neither workflow requires Bambu Studio to slice unequal diameters.
    desired part. The return to A reuses its entry. Both colour-change feeds must
    be AMS feeds; external-spool automatic colour changes are rejected.
 4. Generate with the current machine profile through normal print tools. Existing
-   bundles pin their profiles: create a fresh bundle or explicitly update the
-   profile through the supported workflow when testing this exporter revision.
+   bundles pin their profiles: create a fresh bundle with the current profile
+   for a pre-v13 job. Changing a global profile does not update an old archive.
+   Carry forward the requested geometry/process/setup through normal tools,
+   regenerate and obtain the normal final review; do not redeliver an old file.
    Review geometry, first-layer Z, colours and both change boundaries in Studio.
    For repeat tests on calibrated hardware, `bambu.fast_start: true` is available.
    No prime tower is generated.
@@ -453,14 +468,13 @@ Neither workflow requires Bambu Studio to slice unequal diameters.
 
 Do not transplant a Studio project entry or hand-edit exported metadata. The
 exporter derives job declarations from the plan and rejects package overrides.
-The successful AMS-09 control is evidence for the service commands; it is not
-a reusable maker file. The v12 generated-project test failed: AMS-11 printed
-entirely orange. This workflow currently supports controlled development tests,
-not a verified multicolour delivery. Explain that limitation and escalate shared
-exporter investigation to a builder/developer; do not transplant the control
-entry as a maker workaround. DUAL-12 demonstrated physical H2D nozzle changes
-using the successful reference project; portable metadata and X1 AMS acceptance
-remain separate outstanding work.
+AMS-19 physically passed this workflow through the ordinary v13 exporter:
+right 0.8 nozzle, installed left 0.4, PLA blue/orange/blue, four-slot right AMS,
+Textured PEI, fast startup and no tower. Makers can use the generated workflow;
+no reference-file patch or template choice is required. Preserve those settings
+through the canonical plan and review the actual installation for each new job.
+Generated dual-nozzle DUAL-20 also passed. X1 AMS and other feed configurations
+remain separate evidence gaps; these passes do not certify every Bambu installation.
 
 ## The program carries its own configuration
 
@@ -525,11 +539,15 @@ Revision v13 adds authored stored startup and shutdown to the project writer.
 the executable and project materializer receive the same strings. Fast/full
 startup, installed nozzles, plate, temperatures and shutdown clearance cannot
 drift between those copies. No reference file is required at export time.
-The other stored G-code fields remain empty; whether these two populated fields
-are sufficient is the physical acceptance question for AMS-19 and DUAL-20.
+The other stored G-code fields remain empty. AMS-19's physical pass establishes
+that these two populated fields are sufficient for the tested same-nozzle job;
+it does not establish that both are individually necessary or executed by firmware.
 Both normal bundles reopen through the strict importer, and executable hashes
-match physically successful AMS-10 and DUAL-12 respectively. This is an
-implemented repair candidate, not yet a physically accepted exporter.
+match physically successful AMS-10 and DUAL-12 respectively. The v13 same-nozzle
+repair is physically accepted for AMS-19 and generated dual-nozzle DUAL-20.
+No additional stored-template isolation is required to use these accepted
+workflows. Keep the tested authored fields populated; their individual necessity
+is not a prerequisite for generation and need not become a maker decision.
 
 Revision v12 introduced the authored H2D project writer. Canonical job values override
 compatibility defaults, including colours, material identities, connections,

@@ -5,172 +5,57 @@
       "path": "studio",
       "groups": [
         {
-          "id": "interaction",
-          "label": "Review interaction",
+          "id": "app",
+          "label": "app",
           "members": [
-            "studio/app.mjs",
-            "studio/agent-ui.mjs",
-            "studio/settings.mjs",
-            "studio/refresh-plan.mjs",
-            "studio/studio-state.mjs",
-            "studio/studio-controls.mjs"
+            "studio/app.mjs::initializeAgentInterface",
+            "studio/app.mjs::connectViewPersistence",
+            "studio/app.mjs::toolpathPlaceholder",
+            "studio/app.mjs::clock",
+            "studio/app.mjs::beginCanvasDrag",
+            "studio/app.mjs::moveCanvasDrag",
+            "studio/app.mjs::endCanvasDrag",
+            "studio/app.mjs::cancelCanvasDrag",
+            "studio/app.mjs::suppressCanvasContextMenu",
+            "studio/app.mjs::connectCanvasPointerEvents",
+            "studio/app.mjs::onkeydown",
+            "studio/app.mjs::onsubmit",
+            "studio/app.mjs::stepLayer",
+            "studio/app.mjs::animate",
+            "studio/app.mjs::studioUpdate",
+            "studio/app.mjs::studioVisible",
+            "studio/app.mjs::disposeStudioSession",
+            "studio/app.mjs::restoreStudioSession",
+            "studio/app.mjs::initializeStudio"
           ],
           "groups": [
             {
-              "id": "app",
-              "label": "app",
+              "id": "playback",
+              "label": "Playback and export",
               "members": [
-                "studio/app.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "review",
-                  "label": "Review display",
-                  "members": [
-                    "studio/app.mjs::requestDraw",
-                    "studio/app.mjs::toolpathPlaceholder",
-                    "studio/app.mjs::showingGeometry",
-                    "studio/app.mjs::round2",
-                    "studio/app.mjs::views::facts",
-                    "studio/app.mjs::views::settings",
-                    "studio/app.mjs::view",
-                    "studio/app.mjs::label",
-                    "studio/app.mjs::partBounds",
-                    "studio/app.mjs::table",
-                    "studio/app.mjs::render",
-                    "studio/app.mjs::selectFeature",
-                    "studio/app.mjs::setTab",
-                    "studio/app.mjs::draw",
-                    "studio/app.mjs::readViewerSnapshot",
-                    "studio/app.mjs::applyViewerAnnotations"
-                  ]
-                },
-                {
-                  "id": "machine",
-                  "label": "Machine pose and camera",
-                  "members": [
-                    "studio/app.mjs::cameraState",
-                    "studio/app.mjs::useCamera",
-                    "studio/app.mjs::machineSample",
-                    "studio/app.mjs::machineDisplay",
-                    "studio/app.mjs::clearManual",
-                    "studio/app.mjs::updateManualControls",
-                    "studio/app.mjs::machineTheme",
-                    "studio/app.mjs::updateMachineStatus",
-                    "studio/app.mjs::requestMachinePose",
-                    "studio/app.mjs::worldToDisplay",
-                    "studio/app.mjs::fitMachine",
-                    "studio/app.mjs::fitDisplayedPart",
-                    "studio/app.mjs::fit"
-                  ]
-                },
-                {
-                  "id": "generation",
-                  "label": "Prepare and load",
-                  "members": [
-                    "studio/app.mjs::clearProgramView",
-                    "studio/app.mjs::message",
-                    "studio/app.mjs::presentedState",
-                    "studio/app.mjs::generationPending",
-                    "studio/app.mjs::working",
-                    "studio/app.mjs::painted",
-                    "studio/app.mjs::api",
-                    "studio/app.mjs::pollPreparation",
-                    "studio/app.mjs::refresh",
-                    "studio/app.mjs::applyProgramPresentation",
-                    "studio/app.mjs::applyRefreshNavigation",
-                    "studio/app.mjs::acknowledgeDisplayedView",
-                    "studio/app.mjs::decodeInWorker",
-                    "studio/app.mjs::openPrint",
-                    "studio/app.mjs::onsubmit",
-                    "studio/app.mjs::scheduleChange",
-                    "studio/app.mjs::bindCachedProgram"
-                  ]
-                },
-                {
-                  "id": "playback",
-                  "label": "Playback and export",
-                  "members": [
-                    "studio/app.mjs::duration",
-                    "studio/app.mjs::clock",
-                    "studio/app.mjs::stop",
-                    "studio/app.mjs::approval",
-                    "studio/app.mjs::download",
-                    "studio/app.mjs::stepLayer",
-                    "studio/app.mjs::blob::draw",
-                    "studio/app.mjs::blob::onProgress",
-                    "studio/app.mjs::animate",
-                    "studio/app.mjs::seekTourLayer"
-                  ]
-                },
-                {
-                  "id": "session",
-                  "label": "Session and interaction",
-                  "members": [
-                    "studio/app.mjs::viewer::reportPerformance",
-                    "studio/app.mjs::viewStorageKey",
-                    "studio/app.mjs::saveView",
-                    "studio/app.mjs::restoreView",
-                    "studio/app.mjs::activity",
-                    "studio/app.mjs::beginCanvasDrag",
-                    "studio/app.mjs::moveCanvasDrag",
-                    "studio/app.mjs::readCanvasDrag",
-                    "studio/app.mjs::planCanvasDrag",
-                    "studio/app.mjs::applyCanvasDrag",
-                    "studio/app.mjs::connectCanvasPointerEvents",
-                    "studio/app.mjs::endCanvasDrag",
-                    "studio/app.mjs::cancelCanvasDrag",
-                    "studio/app.mjs::suppressCanvasContextMenu",
-                    "studio/app.mjs::onkeydown",
-                    "studio/app.mjs::poll",
-                    "studio/app.mjs::initializeAgentInterface",
-                    "studio/app.mjs::connectViewPersistence",
-                    "studio/app.mjs::applyProgress",
-                    "studio/app.mjs::loadAndAdoptStudioState",
-                    "studio/app.mjs::presentStudioState",
-                    "studio/app.mjs::ensureTourGeneration",
-                    "studio/app.mjs::createStudioTour",
-                    "studio/app.mjs::loadStudio",
-                    "studio/app.mjs::studioUpdate",
-                    "studio/app.mjs::studioConnection",
-                    "studio/app.mjs::startFallbackPolling",
-                    "studio/app.mjs::stopFallbackPolling",
-                    "studio/app.mjs::studioVisible",
-                    "studio/app.mjs::connectStudioUpdates",
-                    "studio/app.mjs::disposeStudioSession",
-                    "studio/app.mjs::restoreStudioSession",
-                    "studio/app.mjs::connectStudioSession",
-                    "studio/app.mjs::initializeStudio"
-                  ]
-                },
-                {
-                  "id": "facts",
-                  "label": "Settings and material facts",
-                  "members": [
-                    "studio/app.mjs::exportKey",
-                    "studio/app.mjs::materialFact",
-                    "studio/app.mjs::materialSetup",
-                    "studio/app.mjs::vaseSettings",
-                    "studio/app.mjs::machineSettings",
-                    "studio/app.mjs::selectStudioPresentation"
-                  ]
-                }
+                "studio/app.mjs::clock",
+                "studio/app.mjs::stepLayer",
+                "studio/app.mjs::animate"
               ]
             },
             {
-              "id": "settings",
-              "label": "settings",
+              "id": "session",
+              "label": "Session and interaction",
               "members": [
-                "studio/settings.mjs"
-              ]
-            },
-            {
-              "id": "state-policy",
-              "label": "Refresh and control policy",
-              "members": [
-                "studio/refresh-plan.mjs",
-                "studio/studio-state.mjs",
-                "studio/studio-controls.mjs"
+                "studio/app.mjs::initializeAgentInterface",
+                "studio/app.mjs::connectViewPersistence",
+                "studio/app.mjs::beginCanvasDrag",
+                "studio/app.mjs::moveCanvasDrag",
+                "studio/app.mjs::endCanvasDrag",
+                "studio/app.mjs::cancelCanvasDrag",
+                "studio/app.mjs::suppressCanvasContextMenu",
+                "studio/app.mjs::connectCanvasPointerEvents",
+                "studio/app.mjs::onkeydown",
+                "studio/app.mjs::studioUpdate",
+                "studio/app.mjs::studioVisible",
+                "studio/app.mjs::disposeStudioSession",
+                "studio/app.mjs::restoreStudioSession",
+                "studio/app.mjs::initializeStudio"
               ]
             }
           ]
@@ -179,352 +64,30 @@
           "id": "service",
           "label": "Studio service",
           "members": [
-            "studio/server.mjs",
-            "studio/state-response.mjs",
-            "studio/browser.mjs",
-            "studio/changes.mjs",
-            "studio/lifetime.mjs",
-            "studio/viewer-session.mjs",
-            "studio/print-name.mjs",
-            "studio/adapter-resolution.mjs"
-          ],
-          "groups": [
-            {
-              "id": "server",
-              "label": "server",
-              "members": [
-                "studio/server.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "catalog",
-                  "label": "Print and source selection",
-                  "members": [
-                    "studio/server.mjs::changedSince",
-                    "studio/server.mjs::sourceSkewNotice",
-                    "studio/server.mjs::noteSourceSkew",
-                    "studio/server.mjs::reportedMessage",
-                    "studio/server.mjs::printDirectory",
-                    "studio/server.mjs::listPrints"
-                  ]
-                }
-              ]
-            }
+            "studio/browser.mjs::openBrowser",
+            "studio/server.mjs::createStudio",
+            "studio/viewer-session.mjs::connect"
           ]
         },
         {
           "id": "generation",
           "label": "Generation and source loading",
           "members": [
-            "studio/prepared-generation-job.mjs",
-            "studio/generation-worker.mjs",
-            "studio/import-stl.mjs",
-            "studio/source-player.mjs",
-            "studio/source-worker.mjs",
-            "studio/machine-study.mjs"
-          ],
-          "groups": [
-            {
-              "id": "prepared-generation-job",
-              "label": "prepared generation job",
-              "members": [
-                "studio/prepared-generation-job.mjs"
-              ]
-            }
+            "studio/generation-worker.mjs::startGenerationWorker",
+            "studio/machine-study.mjs::bundleFingerprints",
+            "studio/machine-study.mjs::loadBundle",
+            "studio/machine-study.mjs::unavailable",
+            "studio/source-worker.mjs::onmessage"
           ]
         },
         {
           "id": "presentation",
           "label": "Geometry and playback",
           "members": [
-            "studio/mesh-view.mjs",
-            "studio/material-view.mjs",
-            "studio/toolpath-view.mjs",
-            "studio/move-store.mjs",
-            "studio/playback.mjs",
-            "studio/machine-view.mjs",
-            "studio/machine-session.mjs",
-            "studio/camera.mjs",
-            "studio/view-performance.mjs",
-            "studio/viewer-renderer.mjs"
-          ],
-          "groups": [
-            {
-              "id": "viewer-renderer",
-              "label": "Viewer state and frames",
-              "members": [
-                "studio/viewer-renderer.mjs"
-              ]
-            },
-            {
-              "id": "mesh-view",
-              "label": "mesh view",
-              "members": [
-                "studio/mesh-view.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "geometry",
-                  "label": "Geometry views",
-                  "members": [
-                    "studio/mesh-view.mjs::buildMeshView",
-                    "studio/mesh-view.mjs::buildGeometryView"
-                  ]
-                },
-                {
-                  "id": "selection",
-                  "label": "Selection and visible edges",
-                  "members": [
-                    "studio/mesh-view.mjs::faceAt",
-                    "studio/mesh-view.mjs::pickGeometry",
-                    "studio/mesh-view.mjs::visibleGeometryEdgeSegments"
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "material-view",
-              "label": "material view",
-              "members": [
-                "studio/material-view.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "beads",
-                  "label": "Bead geometry",
-                  "members": [
-                    "studio/material-view.mjs::materialKey",
-                    "studio/material-view.mjs::mix",
-                    "studio/material-view.mjs::beadSection",
-                    "studio/material-view.mjs::beadFrame",
-                    "studio/material-view.mjs::beadInstance"
-                  ]
-                },
-                {
-                  "id": "scene",
-                  "label": "Material scene",
-                  "members": [
-                    "studio/material-view.mjs::buildMaterialScene",
-                    "studio/material-view.mjs::materialTemplate",
-                    "studio/material-view.mjs::groupBounds",
-                    "studio/material-view.mjs::materialProjection"
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "toolpath-view",
-              "label": "toolpath view",
-              "members": [
-                "studio/toolpath-view.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "appearance",
-                  "label": "Layer appearance",
-                  "members": [
-                    "studio/toolpath-view.mjs::layerKey",
-                    "studio/toolpath-view.mjs::createLayerFade",
-                    "studio/toolpath-view.mjs::mixColor",
-                    "studio/toolpath-view.mjs::toolpathStyle"
-                  ]
-                },
-                {
-                  "id": "detail",
-                  "label": "Visible path detail",
-                  "members": [
-                    "studio/toolpath-view.mjs::same",
-                    "studio/toolpath-view.mjs::distance2",
-                    "studio/toolpath-view.mjs::simplify",
-                    "studio/toolpath-view.mjs::buildToolpathView",
-                    "studio/toolpath-view.mjs::createToolpathMemo",
-                    "studio/toolpath-view.mjs::entries",
-                    "studio/toolpath-view.mjs::visible",
-                    "studio/toolpath-view.mjs::spread",
-                    "studio/toolpath-view.mjs::localDetail",
-                    "studio/toolpath-view.mjs::toolpathFrame",
-                    "studio/toolpath-view.mjs::toolpathPresentation",
-                    "studio/toolpath-view.mjs::selectFrame"
-                  ]
-                },
-                {
-                  "id": "layers",
-                  "label": "Layer navigation",
-                  "members": [
-                    "studio/toolpath-view.mjs::remainingLayerMs",
-                    "studio/toolpath-view.mjs::layerIndexAt",
-                    "studio/toolpath-view.mjs::layerEndSeconds",
-                    "studio/toolpath-view.mjs::stepLayerIndex"
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "move-store",
-              "label": "move store",
-              "members": [
-                "studio/move-store.mjs"
-              ]
-            },
-            {
-              "id": "playback",
-              "label": "playback",
-              "members": [
-                "studio/playback.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "timeline",
-                  "label": "Playback sampling",
-                  "members": [
-                    "studio/playback.mjs::advancePlayback",
-                    "studio/playback.mjs::displayPoint",
-                    "studio/playback.mjs::movieTimeline"
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "machine-view",
-              "label": "machine view",
-              "members": [
-                "studio/machine-view.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "validation",
-                  "label": "Descriptor validation",
-                  "members": [
-                    "studio/machine-view.mjs::bindingKey",
-                    "studio/machine-view.mjs::require",
-                    "studio/machine-view.mjs::validatePresentationRigid",
-                    "studio/machine-view.mjs::binding",
-                    "studio/machine-view.mjs::validateDescriptor",
-                    "studio/machine-view.mjs::validateSnapshot"
-                  ]
-                },
-                {
-                  "id": "pose",
-                  "label": "Posed machine geometry",
-                  "members": [
-                    "studio/machine-view.mjs::vector",
-                    "studio/machine-view.mjs::primitive",
-                    "studio/machine-view.mjs::compileMachine",
-                    "studio/machine-view.mjs::poseMachine",
-                    "studio/machine-view.mjs::boundsCorners",
-                    "studio/machine-view.mjs::machineFitBounds"
-                  ]
-                },
-                {
-                  "id": "draw",
-                  "label": "Machine drawing",
-                  "members": [
-                    "studio/machine-view.mjs::marks",
-                    "studio/machine-view.mjs::drawMachineCanvas",
-                    "studio/machine-view.mjs::createMachineLayer"
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "machine-session",
-              "label": "machine session",
-              "members": [
-                "studio/machine-session.mjs"
-              ]
-            },
-            {
-              "id": "view-performance",
-              "label": "view performance",
-              "members": [
-                "studio/view-performance.mjs"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "requests",
-          "label": "Agent requests",
-          "members": [
-            "studio/agent-requests.mjs",
-            "studio/request-index.mjs",
-            "studio/studio-events.mjs",
-            "studio/work-state.mjs"
-          ],
-          "groups": [
-            {
-              "id": "agent-requests",
-              "label": "agent requests",
-              "members": [
-                "studio/agent-requests.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "records",
-                  "label": "Request records",
-                  "members": [
-                    "studio/agent-requests.mjs::workSnapshot",
-                    "studio/agent-requests.mjs::snapshot"
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "request-index",
-              "label": "request index",
-              "members": [
-                "studio/request-index.mjs"
-              ]
-            },
-            {
-              "id": "studio-events",
-              "label": "studio events",
-              "members": [
-                "studio/studio-events.mjs"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "tour",
-          "label": "Guided tour",
-          "members": [
-            "studio/tour.mjs",
-            "studio/tour-ui.mjs",
-            "studio/tour-catalog.mjs"
-          ],
-          "groups": [
-            {
-              "id": "tour",
-              "label": "tour",
-              "members": [
-                "studio/tour.mjs"
-              ],
-              "groups": [
-                {
-                  "id": "examples",
-                  "label": "Example and reference data",
-                  "members": [
-                    "studio/tour.mjs::hash",
-                    "studio/tour.mjs::json",
-                    "studio/tour.mjs::optional",
-                    "studio/tour.mjs::save",
-                    "studio/tour.mjs::demo",
-                    "studio/tour.mjs::validPath",
-                    "studio/tour.mjs::tourExample",
-                    "studio/tour.mjs::referenceAdapter",
-                    "studio/tour.mjs::useExample"
-                  ]
-                }
-              ]
-            },
-            {
-              "id": "tour-ui",
-              "label": "tour ui",
-              "members": [
-                "studio/tour-ui.mjs"
-              ]
-            }
+            "studio/machine-session.mjs::machineCameras",
+            "studio/playback.mjs::exportMovie",
+            "studio/toolpath-view.mjs::createLayerFade",
+            "studio/viewer-renderer.mjs::createViewerRenderer"
           ]
         }
       ]

@@ -5,123 +5,39 @@
       "path": "core/path",
       "groups": [
         {
-          "id": "orchestration",
-          "label": "toolpathOrchestration",
-          "members": [
-            "core/path/toolpath.mjs",
-            "core/path/compose.mjs",
-            "core/path/prime.mjs"
-          ],
-          "groups": [
-            {
-              "id": "scheduling",
-              "label": "operationScheduling",
-              "members": [
-                "core/path/compose.mjs::scheduleOperations",
-                "core/path/compose.mjs::validateOperationBatch",
-                "core/path/compose.mjs::prepareOperationPriorities",
-                "core/path/compose.mjs::prepareOperationDependencies",
-                "core/path/compose.mjs::orderReadyOperations"
-              ]
-            },
-            {
-              "id": "operations",
-              "label": "operationPlanning",
-              "members": [
-                "core/path/compose.mjs::planOperation",
-                "core/path/compose.mjs::planOperationStart",
-                "core/path/compose.mjs::planOperationEnd",
-                "core/path/compose.mjs::operationTravelPolicy",
-                "core/path/compose.mjs::segmentExtras",
-                "core/path/compose.mjs::planStrokeApproach",
-                "core/path/compose.mjs::planStrokeDeposition"
-              ]
-            },
-            {
-              "id": "lifecycle",
-              "label": "wholePathPlanning",
-              "members": [
-                "core/path/toolpath.mjs",
-                "core/path/prime.mjs",
-                "core/path/compose.mjs::planComposition"
-              ]
-            }
-          ]
-        },
-        {
           "id": "transitions",
           "label": "planningTransitions",
           "members": [
-            "core/path/planning.mjs",
-            "core/path/process-controls.mjs"
-          ],
-          "groups": [
-            {
-              "id": "state-actions",
-              "label": "planningStateAndActions",
-              "members": [
-                "core/path/planning.mjs::createPlanningState",
-                "core/path/planning.mjs::planningResult",
-                "core/path/planning.mjs::ActionAccumulator",
-                "core/path/planning.mjs::appendAction",
-                "core/path/planning.mjs::planContext",
-                "core/path/planning.mjs::materializeActions",
-                "core/path/planning.mjs::planningPath"
-              ]
-            },
-            {
-              "id": "motion",
-              "label": "movementAndTravel",
-              "members": [
-                "core/path/planning.mjs::planMove",
-                "core/path/planning.mjs::travelClearance",
-                "core/path/planning.mjs::canPlanComb",
-                "core/path/planning.mjs::planTravel",
-                "core/path/planning.mjs::planPoseTravel",
-                "core/path/planning.mjs::planConnection",
-                "core/path/planning.mjs::mergeableMove"
-              ]
-            },
-            {
-              "id": "process",
-              "label": "processTransitions",
-              "members": [
-                "core/path/planning.mjs::planSelection",
-                "core/path/planning.mjs::planRetraction",
-                "core/path/planning.mjs::planRecovery",
-                "core/path/planning.mjs::planFan",
-                "core/path/planning.mjs::planNozzle",
-                "core/path/planning.mjs::planExtrusion",
-                "core/path/planning.mjs::planDwell",
-                "core/path/planning.mjs::planPark",
-                "core/path/planning.mjs::planLayerCooling"
-              ]
-            }
+            "core/path/process-controls.mjs::validateNozzleC",
+            "core/path/process-controls.mjs::plannedNozzleTemperatures"
           ]
         },
         {
           "id": "travel",
           "label": "travelAndMaterial",
           "members": [
-            "core/path/comb.mjs",
-            "core/path/material.mjs",
-            "core/path/finished-surface.mjs"
+            "core/path/finished-surface.mjs::publishFinishedBoundary",
+            "core/path/finished-surface.mjs::consumeFinishedSurface"
           ]
         },
         {
           "id": "deposition",
           "label": "depositionGeometry",
           "members": [
-            "core/path/deposition.mjs",
-            "core/path/pose.mjs",
-            "core/path/spacing.mjs"
+            "core/path/deposition.mjs::depositionStroke",
+            "core/path/deposition.mjs::trimVanishingEnd",
+            "core/path/deposition.mjs::maximumPathAngle",
+            "core/path/pose.mjs::interpolateDirections",
+            "core/path/spacing.mjs::lineSpacing"
           ]
         },
         {
           "id": "policies-ordering",
           "label": "travelPoliciesAndStrokeOrdering",
           "members": [
-            "core/path/builder.mjs"
+            "core/path/builder.mjs::planarPolicy",
+            "core/path/builder.mjs::surfacePolicy",
+            "core/path/builder.mjs::beadVolume"
           ],
           "groups": [
             {

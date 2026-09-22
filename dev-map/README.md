@@ -6,7 +6,8 @@ what remains by [HANDOFF.md](HANDOFF.md). This guide owns the commands, the
 addresses, what each page carries and the authoring mechanics.
 
 - `cli.mjs`: generation, drawing, checking and live freshness commands.
-- `lib/`: source scanning, graph composition, stored pages and rendering.
+- `lib/`: source scanning, graph composition, stored pages and rendering;
+  `lib/destination.mjs` is the one map-or-code rule.
 - `flows/*.json`, `facts.tsv`, `lib/scope.mjs`: the authored inputs.
 - `store/`, `view/`: generated snapshots and the human viewer; git-ignored.
 - [`../dev-map-OLD/`](../dev-map-OLD/README.md): superseded material, not an input.
@@ -28,7 +29,8 @@ node dev-map/cli.mjs watch-freshness [--once]
 
 `read-map` returns one stored page and never scans. Its argument is an index,
 or the durable path that index is for: a region (`core/path`), a declaration
-(`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`).
+(`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`);
+file paths are not addresses.
 `--code` returns the source span of a declaration, the member spans of a group,
 or every file of a region (`0 --code` is refused); `--details` returns the full
 stored evidence. The default response is compact JSON: `range` is
@@ -51,13 +53,16 @@ none exists.
 
 `0` is the root; `N` a region; each map numbers the nodes it homes `N.1`,
 `N.2`, and so on under its own index, down to leaves. A region page homes its
-flow roots, the declarations nothing in the region calls, and any authored
-clusters of them; every other declaration is homed by the first flow page that
-reaches it, walking regions in index order, a page's components in call order,
-depth first. A declaration written inside another is homed by its holder. A
-node drawn on any other map is a repeat: it keeps its index and carries `home`,
-and the home node carries `alsoOn`. Indexes are regenerated and may change; the
-declaration path is the durable name. Static methods are
+flow roots, the declarations no declaration of that region calls, and any
+authored clusters of them; every other declaration of the region is homed by
+the first flow page that reaches it, walking that region's roots and clusters
+in index order and each page's components in call order, depth first. A
+declaration written inside another is homed by its holder. A node drawn on any
+other map, including a callee in another region, is a repeat: it keeps its
+index and carries `home`, and the home node carries `alsoOn`. A wire on a
+region page is a derived summary: it says the code under one root reaches the
+code under the other. Indexes are regenerated and may change; the declaration
+path is the durable name. A file path is not an address. Static methods are
 `file.mjs::Class::@static/method` (URI-encoded), instance methods
 `file.mjs::Class::method`, function-valued parameter defaults
 `OWNER::@default/NAME`, and anonymous callbacks a snapshot source-position
@@ -78,13 +83,14 @@ instance methods are separate nodes homed there.
 
 Every page: `index`, `kind`, `destination`, and `stale` when its inputs moved.
 
-- **root**: `regions` (index, path, files, lines, nodes, entries), `ports`
+- **root**: `regions` (index, path, files, lines, nodes, roots), `ports`
   (each way into the regions, and `out:<root>` per scanned root they call),
   `wires` with kinds and counts.
 - **region** and **group**: `components` (roots or clusters; a group's
   members), input and output ports including `in:` and `out:` for every scanned
-  root, `wires` labelled `calls` with counts. These are containment maps: a
-  `calls` arrow is a call site, not execution order or dataflow. Each drawn
+  root, `wires` labelled `calls` with counts, contracted onto the root whose
+  flow owns each endpoint. These are containment maps: a `calls` arrow is a
+  call site, not execution order or dataflow. Each drawn
   declaration box carries its own `uncertainty` and `unresolved` rows; a group
   box carries `findings`, one count.
 - **node** (function, method, handler, class): `path`, `file`, `range`,
@@ -163,8 +169,9 @@ paths that are not the path on disk.
 `check` exits non-zero when the store is missing or stale (naming the index to
 regenerate), when an authored page is unplaced, or when a fact row is
 malformed. It reports `linked`, `unresolved`, `outside` and `platform` totals,
-`unreached` declarations, `unplaced` pages and orphan facts; `--json` returns
-the same as data. The analyzers have no stored tests: their oracle is
+`stranded` declarations (ones no root of their region reaches; generation homes
+them on the region page rather than dropping them), `unplaced` pages and orphan
+facts; `--json` returns the same as data. The analyzers have no stored tests: their oracle is
 JavaScript semantics, re-derived from the scanner source when a change is
 made, and a change is checked by regenerating and reading the affected pages.
 

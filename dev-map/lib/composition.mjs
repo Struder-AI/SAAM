@@ -3,6 +3,7 @@
 import {readFile,readdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {invocationInstances} from './instances.mjs';
+import {destinationFor} from './destination.mjs';
 
 export async function compositionFiles(repo) {
   const entries=await readdir(resolve(repo,'dev-map/flows'),{withFileTypes:true})
@@ -33,20 +34,23 @@ const allowed=(value,keys,where)=>{
   for(const key of Object.keys(value))if(!keys.includes(key))throw Error(`Composition ${where}: unsupported field ${key}.`);
 };
 
-// Region/file compositions operate on the declarations actually contained by that scope.
-// Calls remain calls (not imaginary returned-value wires); exact evidence survives contraction.
+// A region composition operates on the flow roots of that region: where its work starts. Every
+// other declaration belongs to the flow that reaches it, and its links here contract onto the
+// root that owns that flow. Calls remain calls (not imaginary returned-value wires); exact
+// evidence survives contraction.
 function structural(page,{model,index,packets}) {
-  const files=page.kind==='region'?page.files:[page.file],inside=new Set(files);
-  // A nested declaration is placed by the declaration that holds it. Here it is drawn with
-  // that declaration: its links contract to the top-level declaration they run through.
-  const nodes=model.nodes.filter(n=>inside.has(n.file)&&!n.parent);
-  const held=new Map(model.nodes.filter(n=>inside.has(n.file)).map(n=>[n.path,outermost(n).path]));
+  const region=model.regions.find(r=>r.path===page.path);
+  const files=page.files,inside=new Set(files);
+  const nodes=model.regionBoxes.get(region.index);
+  const held=new Map(model.nodes.filter(n=>inside.has(n.file))
+    .map(n=>[n.path,model.ownerRoot.get(n.path)??outermost(n).path]));
   const components=nodes.map(n=>({index:index.get(n.path),path:n.path,label:n.path.slice(n.file.length+2),
     file:n.file,line:n.line,endLine:n.endLine,lines:n.endLine-n.line+1,
-    leaf:!(packets.get(n.path)?.components.length||packets.get(n.path)?.operators?.length)}));
-  // Module-only source is still part of the region. Its recorded module-level
-  // calls/couplings use the file endpoint; missing callback analysis stays explicit.
-  for(const file of files)if(!nodes.some(n=>n.file===file))components.push({
+    ...(packets.has(n.path)&&destinationFor(packets.get(n.path))==='graph'?{}:{leaf:true})}));
+  // Module-only source declares nothing, so no flow root can stand for it. It is still part of
+  // the region: its recorded module-level calls/couplings use the file endpoint, and missing
+  // callback analysis stays explicit.
+  for(const file of files)if(!model.nodes.some(n=>n.file===file))components.push({
     index:index.get(file),path:file,file,label:file.slice(file.lastIndexOf('/')+1),kind:'file',
     line:1,endLine:contextLines(model,file),leaf:true,moduleOnly:true});
   const shown=new Set(components.map(c=>c.index)),inputs=[],outputs=[],wires=[];
@@ -133,7 +137,7 @@ export function composePages(pages,config,context) {
     const original=pages.get(spec.path);if(!original)throw Error(`Unknown composition page ${spec.path}.`);
     const owner=original.owner??spec.path;
     if(!Array.isArray(spec.groups)||!spec.groups.length)throw Error(`Composition ${spec.path} has no groups.`);
-    const packet=['region','file'].includes(original.kind)?structural(original,context):structuredClone(original);
+    const packet=original.kind==='region'?structural(original,context):structuredClone(original);
     const base=packet.wires.map((w,i)=>({...w,edgeId:w.edgeId??`${spec.path}#${i+1}`}));
     packet.wires=base;
     const byIdentity=new Map(packet.components.map(c=>[identity(c),c]));
@@ -147,16 +151,17 @@ export function composePages(pages,config,context) {
       const members=[];
       for(const ref of g.members) {
         requireStableReference(ref);
+        // A member is a declaration, never a file. Where the code is written is not a place in
+        // the map, so a file path selects nothing to group.
+        if(!ref.includes('::'))throw Error(`Composition member ${ref} in ${spec.path} is a file path. A member is a declaration path; name the declarations to group.`);
         // A nested declaration is placed by the declaration that holds it, so only that
         // declaration's own page can group it. Elsewhere it is not a member to author.
         const parent=holder.get(ref);
         if(parent&&parent!==owner)throw Error(`Composition member ${ref} in ${spec.path}: ${parent} already places it. Group it on that declaration's page, or group ${parent} here.`);
-        const matching=byIdentity.has(ref)?[byIdentity.get(ref)]:packet.components.filter(c=>c.file===ref);
-        if(!matching.length)throw Error(`Unknown composition member ${ref} in ${spec.path}.`);
-        for(const c of matching) {
-          if(claimed.has(c.index))throw Error(`Duplicate composition member ${identity(c)} in ${spec.path}.`);
-          claimed.add(c.index);members.push(c);
-        }
+        const c=byIdentity.get(ref);
+        if(!c)throw Error(`Unknown composition member ${ref} in ${spec.path}.`);
+        if(claimed.has(c.index))throw Error(`Duplicate composition member ${identity(c)} in ${spec.path}.`);
+        claimed.add(c.index);members.push(c);
       }
       // Internal address: one `.0.` separates authored groups from the source page they
       // group, and a subgroup nests past it. Published indexes are the map tree's (tree.mjs).

@@ -2,18 +2,19 @@
 // whose home is that map, and so on down. Generation numbers declarations by source position
 // (region.file.declaration); that address stays internal, for scoped reuse only.
 //
-// A page's home is the first map that shows it, walking every containment map (root, region,
-// group, file) before any call-flow map. Authored grouping therefore places every declaration
-// it claims, and a call-flow map homes only its own groups and what no containment map shows.
-// A nested declaration is homed by the declaration that holds it, never beside it.
-// Every other appearance is a repeat: it keeps the home index and names its home, and the home
-// names each map that repeats it.
+// The walk is one depth-first pass, and a page's home is the first map of its own region that
+// reaches it: `0` lists the regions in index order; a region page lists its flow roots and the
+// authored clusters of them, in index order; a group lists its members in index order; a flow
+// page lists its components in call order. Each child is numbered where it is met and then
+// expanded in full before its next sibling. A nested declaration is homed by the declaration
+// that holds it, never beside it. Every other appearance is a repeat: it keeps the home index
+// and names its home, and the home names each map that repeats it.
 //
 // One rule decides whether an address is a map at all: it is, when its drawing would show at
-// least two boxes with a wire on them; otherwise the address opens code. A file whose drawing
-// would not is no page, and its declarations are numbered on the region map instead. A code
-// address still numbers what it holds, so the walk continues through it.
-const containment=new Set(['root','region','group','file']);
+// least two called declarations with a wire on one of them; otherwise the address opens code
+// (dev-map/lib/destination.mjs). A code address still numbers what it holds, so the walk
+// continues through it.
+const containment=new Set(['root','region','group']);
 const byIndex=(a,b)=>{
   const x=a.split('.').map(Number),y=b.split('.').map(Number);
   for(let i=0;i<Math.max(x.length,y.length);i++)if((x[i]??-1)!==(y[i]??-1))return (x[i]??-1)-(y[i]??-1);
@@ -54,18 +55,25 @@ function holders(pages) {
 // pages the walk reaches; any other page belongs to no map.
 export function treeNumbering(pages) {
   const {holder,scope}=holders(pages);
-  const tree=new Map([['0','0']]),maps=[['0','0']],flows=[];
-  while(maps.length||flows.length) {
-    const [at,placed]=(maps.length?maps:flows).shift();
-    const here=scope(at);
-    const children=[...new Set(shownOn(pages.get(at)).map(c=>c.index))]
+  const tree=new Map([['0','0']]),stack=[['0','0']];
+  // A region holds its own code. A call that crosses a region draws the callee here and links
+  // to its home; it does not move the callee into the caller's region.
+  const regionOf=at=>at.split('.')[0];
+  while(stack.length) {
+    const [at,placed]=stack.pop();
+    const page=pages.get(at),here=scope(at);
+    let children=[...new Set(shownOn(page).map(c=>c.index))]
       .filter(child=>pages.has(child)&&!tree.has(child)&&
-        [undefined,at,here].includes(holder.get(child))).sort(byIndex);
-    for(const [i,child] of children.entries()) {
+        (at==='0'||regionOf(child)===regionOf(at))&&
+        [undefined,at,here].includes(holder.get(child)));
+    // A containment map is an arrangement, so it reads in index order; a flow page is a
+    // sequence, so it keeps the call order its components already carry.
+    if(containment.has(page.kind))children=children.sort(byIndex);
+    const placedChildren=children.map((child,i)=>{
       const index=placed==='0'?String(i+1):`${placed}.${i+1}`;
-      tree.set(child,index);
-      (containment.has(pages.get(child).kind)?maps:flows).push([child,index]);
-    }
+      tree.set(child,index);return [child,index];
+    });
+    for(const child of placedChildren.reverse())stack.push(child);
   }
   return tree;
 }

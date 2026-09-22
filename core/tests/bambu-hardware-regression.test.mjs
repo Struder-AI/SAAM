@@ -7,10 +7,11 @@ import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {rhino} from '../print/geometry.mjs';
 import {exportProgram,interpretProgram} from '../export/registry.mjs';
+import {unpackZip} from '../export/zip.mjs';
 
-test('fresh H2D generation preserves the exact physically successful same-nozzle and dual-nozzle executables',async()=>{
+test('fresh H2D generation preserves physically accepted colour and dual executables and project metadata',async()=>{
   const r=await rhino();
-  for(const [make,record]of [[h2dColourFixture,facts.sameNozzle],[dualNozzleVerificationFixture,facts.dualNozzle]]){
+  for(const [make,record]of [[h2dColourFixture,facts.generatedSameNozzle],[dualNozzleVerificationFixture,facts.generatedDualNozzle]]){
     const {plan,machine}=make(),path=generatePath(plan,machine,r);
     const bytes=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:facts.date});
     const program=interpretProgram(bytes,plan,machine);
@@ -18,6 +19,9 @@ test('fresh H2D generation preserves the exact physically successful same-nozzle
     assert.equal(createHash('sha256').update(executable).digest('hex'),record.executableSha256,
       'Executable differs from the physically tested file; review the change and its hardware-evidence implications');
     assert.deepEqual(program.filamentSequence,record.filamentSequence);
+    assert.equal(
+      createHash('sha256').update(unpackZip(bytes).get('Metadata/project_settings.config')).digest('hex'),record.projectSha256,
+      'Generated project differs from the physically accepted archive; unchanged commands alone do not preserve Bambu hardware evidence');
     if(record.depositionStages){
       const stages=[];
       for(const move of program.moves.filter(m=>m.extruding)){

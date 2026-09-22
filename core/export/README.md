@@ -78,8 +78,10 @@ non-planar limit. The profile records official hardware/slicer sources, separate
 nozzle work areas and conservative PLA settings. The inherited left-tool height
 is 320 mm; the advertised overall height is 325 mm. The supplied left/right
 Bambu Studio exports establish the bounded [H2D output contract](./bambu.md#h2d-output-contract).
-The current startup revision awaits physical acceptance; earlier print reports
-do not validate every nozzle, plate or AMS configuration. The Bambu contract
+Ordinary generated H2D v13 AMS-19 and DUAL-20 physically passed same-nozzle
+AMS colours and left 0.4/right 0.8/left nozzle changes, with PLA, Textured PEI
+and fast startup. X1 AMS remains unresolved; the H2D passes do not validate
+every nozzle, plate or feed configuration. The Bambu contract
 owns the startup duplication inventory, actual installed-nozzle declarations and
 the distinction between logical filament IDs and physical AMS tray intent.
 

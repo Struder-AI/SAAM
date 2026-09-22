@@ -258,21 +258,20 @@ loading, cleaning and priming. It defaults to false; explicit calibration `on`
 conflicts with fast start. Assign a region's `filament` to use
 the matching `setup.bambu.filaments` entry: its nozzle, temperature and optional
 process settings. Follow [the dual-nozzle workflow](../export/bambu.md#making-an-h2d-dual-nozzle-print)
-for mixed diameters and independent feeds. DUAL-12 physically passed
-left 0.4 → right 0.8 → left 0.4, external-left/AMS-right, with the successful
-reference project entry. The reusable generated metadata remains unresolved;
-this control does not establish general maker-delivery acceptance.
+for mixed diameters and independent feeds. Fresh generated DUAL-20 physically
+passed left 0.4 → right 0.8 → left 0.4, external-left/AMS-right, correct-height
+deposition, Textured PEI and fast startup. Use the normal exporter; no reference
+project substitution or stored-template editing is required.
 For H2D AMS colours, follow [the two-colour workflow](../export/bambu.md#making-an-h2d-two-colour-print):
 declare two filaments on the same nozzle and assign regions to indices 0, 1, 0.
-AMS-09 physically changed colours using SAAM commands and a reference project
-entry. The reusable v12 project writer failed AMS-11: the part printed entirely
-orange. Multicolour delivery remains unverified and needs builder/developer
-investigation; do not copy that diagnostic's foreign project entry into new jobs.
-The current v13 writer has an implemented repair candidate: stored startup and
-shutdown reuse the executable's exact rendered strings. AMS-19 (same-nozzle
-colours) and DUAL-20 (mixed nozzles) are fresh normal-exporter acceptance files;
-their physical results are pending. Routing and Standard-only table controls
-AMS-14/15 passed, but that alone does not validate fresh generated metadata.
+AMS-19 physically passed the ordinary v13 exporter: right 0.8, installed left
+0.4, PLA blue/orange/blue, right four-slot AMS, Textured PEI, fast startup, no
+tower. Stored startup and shutdown reuse the executable's exact rendered
+strings; the other stored template fields are empty. Makers use the normal
+plan/generate/review/deliver workflow, without copying a reference project or
+editing template fields. Other installations need their own physical evidence.
+X1 AMS output has not passed physically; its earlier test printed one colour.
+Treat X1 colour changes as development verification, not the accepted H2D workflow.
 For an X1 colour-change test, assign successive height regions to distinct PLA
 filaments on tool 0. The X1 adapter flushes into the rear chute; no tower is added.
 Review the separate service purge allowance and verify actual feed changes on the

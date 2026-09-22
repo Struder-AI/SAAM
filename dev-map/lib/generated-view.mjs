@@ -18,7 +18,7 @@ export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve
   if(!held)throw Error(noStore(dir));
   const freshness=await storedFreshness(held,{repo,readSource,files});
   const sources={},sourceInfo={};
-  const pages=[held.root,...Object.values(held.regionPages),...Object.values(held.filePages),...Object.values(held.groupPages??{})];
+  const pages=[held.root,...Object.values(held.regionPages),...Object.values(held.groupPages??{})];
   for(const [file,name] of Object.entries(held.records)) {
     const record=JSON.parse(await readFile(resolve(dir,'files',name),'utf8'));
     pages.push(...Object.values(record.pages));

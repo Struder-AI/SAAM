@@ -14,26 +14,11 @@ import {readCompositions,compositionFiles,composePages} from './composition.mjs'
 import {attachPortReferences} from './port-references.mjs';
 import {attachOverviewAnchors} from './overview.mjs';
 import {treeNumbering,renumber,markRepeats} from './tree.mjs';
-import {invocationInstances} from './instances.mjs';
+import {destinationFor} from './destination.mjs';
+export {drawnShape,destinationFor} from './destination.mjs';
 
 export const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
 export const storeDir=repo=>resolve(repo,'dev-map/store');
-// What a page would draw: one box per component invocation and per operator. Ports are not
-// boxes. The count uses the same expansion the drawing and the agent read use.
-export const drawnShape=page=>{
-  const drawn=invocationInstances(page);
-  const boxes=new Set([...(drawn.components??[]).map(c=>c.id??c.index),...(drawn.operators??[]).map(o=>o.id)]);
-  return {boxes:boxes.size,wired:(drawn.wires??[]).some(w=>boxes.has(w.from)||boxes.has(w.to))};
-};
-// One rule for every page that stands for code: it is a graph when its drawing shows at least
-// two boxes with a wire on them, and code otherwise. A file page's boxes are its declarations;
-// a declaration page's are what it calls and its operators. Root, region and group pages are
-// containment maps and always graphs.
-export const destinationFor=page=>{
-  if(['root','region','group'].includes(page.kind))return 'graph';
-  const {boxes,wired}=drawnShape(page);
-  return boxes>1&&wired?'graph':'code';
-};
 const slug=f=>f.replace(/[^A-Za-z0-9]+/g,'_');
 const sha=t=>createHash('sha256').update(t).digest('hex');
 const order=(a,b)=>a<b?-1:a>b?1:0;
@@ -71,7 +56,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   if(region) {
     const scanned=new Map(graph.files.map(f=>[f.file,f.sha256]));
     const structuralChanged=(config.flows??[]).some(spec=>{
-      const at=held.sourceByPath[spec.path],page=held.sourceRegionPages?.[at]??held.regionPages[at]??held.sourceFilePages?.[at]??held.filePages[at];
+      const at=held.sourceByPath[spec.path],page=held.sourceRegionPages?.[at]??held.regionPages[at];
       if(!page)return false;
       const contained=page.kind==='region'?[...page.files,...(m.regions.find(r=>r.path===spec.path)?.files??[])]:[page.file];
       return contained.some(file=>held.files[file]?.region!==region&&m.regionOf.get(file)?.index!==region&&held.fingerprint.sources[file]!==scanned.get(file));
@@ -83,13 +68,11 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   // Numbering. A scoped run keeps every index the store already holds outside the region.
   const index=new Map();
   if(region&&held)for(const [path,at] of Object.entries(held.sourceByPath))if(at.split('.')[0]!==region)index.set(path,at);
-  const trees=new Map(),entries=new Map();
   for(const r of scoped) {
     const numbered=numberRegion(m,r);
     index.set(r.path,r.index);
     for(const f of numbered.files)index.set(f.file,f.index);
     for(const [path,at] of numbered.index)index.set(path,at);
-    trees.set(r.index,numbered);entries.set(r.index,numbered.entries);
   }
   for(const n of projection.nodes.values())if(index.has(n.path))n.handle=index.get(n.path);
 
@@ -162,47 +145,27 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
 
   attachPortReferences(packets,index);
 
-  // Root, region and file pages, and the file records the node pages are stored in.
+  // Root and region pages, and the file records the node pages are stored in. A file is where
+  // code is written, not a place in the map: it is no box, no page and no member.
   const regionPages=new Map(region&&held?Object.entries(held.sourceRegionPages??held.regionPages??{}):[]);
-  const filePages=new Map(region&&held?Object.entries(held.sourceFilePages??held.filePages??{}):[]);
-  if(region)for(const page of [...regionPages.values(),...filePages.values()])remapReferences(page,held,index,projection,mine);
-  if(region)for(const [at,page] of [...filePages])if(at.split('.')[0]===region)filePages.delete(at);
-  // A grouped region page shows declarations, so its files have no page. Elsewhere a file page
-  // follows the same rule as a declaration page: a drawing that would not show two connected
-  // boxes is no page, and the file's declarations are placed on the region page instead.
-  const grouped=new Set((config.flows??[]).map(spec=>spec.path));
-  for(const r of scoped) {
-    const numbered=trees.get(r.index),expanded=new Set();
-    if(!grouped.has(r.path)) {
-      const drafts=numbered.files.map(f=>[f,filePage(m,r,f,numbered,index,packets,lines)]);
-      for(const [f,page] of drafts)if(destinationFor(page)!=='graph'&&f.entries.length)expanded.add(f.file);
-      // A file with no declaration of its own keeps its box and opens the file's code.
-      for(const [f] of drafts)if(!expanded.has(f.file))
-        filePages.set(f.index,filePage(m,r,f,numbered,index,packets,lines,expanded));
-    }
-    regionPages.set(r.index,regionPage(m,r,numbered,index,packets,lines,expanded));
-  }
+  if(region)for(const page of regionPages.values())remapReferences(page,held,index,projection,mine);
+  for(const r of scoped)regionPages.set(r.index,regionPage(m,r,index,packets,lines));
   const root=rootPage(m,lines);
 
   // External facts. A row names a declaration this scan holds or a file of the map; anything else
   // is an orphan, carried in the store so a read and `check` both report it.
   const facts=await readFacts({repo});
-  // A file fact belongs to the page that shows that file: its own file page where there is one,
-  // and otherwise the region page it is part of, so no authored row is left without a reader.
+  // A file fact belongs to the region page that holds that file, so no authored row is left
+  // without a reader now that a file is no page of its own.
   const known=new Set([...packets.keys(),...m.regions.flatMap(r=>r.files)]);
   const {byTarget,orphans}=bindFacts(facts.rows,known);
   for(const packet of packets.values()) {
     const held=byTarget.get(packet.path);
     if(held)packet.facts=held;else delete packet.facts;
   }
-  const filePaged=new Set([...filePages.values()].map(p=>p.file));
-  for(const page of filePages.values()) {
-    const held=byTarget.get(page.file);
-    if(held)page.facts=held;else delete page.facts;
-  }
   for(const page of regionPages.values()) {
     const rows=(m.regions.find(r=>r.path===page.path)?.files??[])
-      .filter(file=>!filePaged.has(file)).flatMap(file=>(byTarget.get(file)??[]).map(fact=>({file,...fact})));
+      .flatMap(file=>(byTarget.get(file)??[]).map(fact=>({file,...fact})));
     if(rows.length)page.facts=rows;else delete page.facts;
   }
 
@@ -210,23 +173,20 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   // those packets, not from an already collapsed drawing that has lost its internal wires.
   const sourcePackets=new Map([...packets].map(([path,page])=>[path,structuredClone(page)]));
   const sourceRegionPages=structuredClone(Object.fromEntries([...regionPages].sort(([a],[b])=>byIndex(a,b))));
-  const sourceFilePages=structuredClone(Object.fromEntries([...filePages].sort(([a],[b])=>byIndex(a,b))));
-  const allPages=new Map([...packets,...[...regionPages.values()].map(p=>[p.path,p]),...[...filePages.values()].map(p=>[p.file,p])]);
+  const allPages=new Map([...packets,...[...regionPages.values()].map(p=>[p.path,p])]);
   const composed=composePages(allPages,config,{model:m,index,packets});
   for(const [path,page] of composed.pages) {
     if(packets.has(path))packets.set(path,page);
     else if(page.kind==='region')regionPages.set(page.index,page);
-    else if(page.kind==='file')filePages.set(page.index,page);
   }
   const groupPages=Object.fromEntries(composed.groupPages);
-  const destinations=new Map([root,...regionPages.values(),...filePages.values(),...packets.values(),...Object.values(groupPages)].map(page=>[page.index,page]));
+  const destinations=new Map([root,...regionPages.values(),...packets.values(),...Object.values(groupPages)].map(page=>[page.index,page]));
   for(const page of destinations.values()) {
     page.destination=destinationFor(page);
-    if(!['root','region','file','group'].includes(page.kind)) {
+    if(!['root','region','group'].includes(page.kind)) {
       if(page.destination==='code')page.leaf=true;else delete page.leaf;
     }
-    if(page.destination==='code')page.sourceSpan={file:page.file,line:page.kind==='file'?1:page.line,
-      endLine:page.kind==='file'?page.lines:page.endLine};
+    if(page.destination==='code')page.sourceSpan={file:page.file,line:page.line,endLine:page.endLine};
     else delete page.sourceSpan;
   }
   for(const page of destinations.values()) {
@@ -295,8 +255,8 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   const rowCount=pages=>pages.reduce((n,p)=>n+[...(p.uncertainty??[]),...(p.unresolved??[])]
     .reduce((rows,row)=>rows+(row.count??1),0),0);
   for(const page of destinations.values()) {
-    if(!['region','file'].includes(page.kind)&&!(page.kind==='group'&&page.structural))continue;
-    for(const component of [...(page.components??[]),...(page.unreached?.nodes??[])]) {
+    if(page.kind!=='region'&&!(page.kind==='group'&&page.structural))continue;
+    for(const component of page.components??[]) {
       const path=component.path??(component.file&&component.label?`${component.file}::${component.label}`:null);
       const node=path&&packets.get(path);
       if(node) {
@@ -325,8 +285,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   for(const [path,page] of packets)if(!placed.has(page))packets.delete(path);
   const publish=pages=>Object.fromEntries([...pages].filter(page=>placed.has(page))
     .map(page=>[page.index,page]).sort((a,b)=>byIndex(a[0],b[0])));
-  const publishedRegions=publish(regionPages.values()),publishedFiles=publish(filePages.values()),
-    publishedGroups=publish(Object.values(groupPages));
+  const publishedRegions=publish(regionPages.values()),publishedGroups=publish(Object.values(groupPages));
   markRepeats(new Map([...placed].map(page=>[page.index,page])));
   const records=new Map();
   const recordFiles=new Map(graph.files.filter(f=>mine.has(f.file)).map(f=>[f.file,f]));
@@ -353,15 +312,13 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     files:Object.fromEntries([...records.values()].map(r=>[r.file,{sha256:r.sha256,lines:r.lines,region:r.region}])),
     records:Object.fromEntries([...records.keys()].map(f=>[f,`${slug(f)}.json`])),
     nodes:Object.fromEntries([...packets.values()].map(p=>[p.index,{path:p.path,file:p.file}]).sort((a,b)=>byIndex(a[0],b[0]))),
-    // A page is reachable by the durable name of what it is about: a declaration path, a file
+    // A page is reachable by the durable name of what it is about: a declaration path, a group
     // path, or — for a region — the directory the region is.
     byPath:Object.fromEntries([...[...packets.values()].map(p=>[p.path,p.index]),
-      ...Object.values(publishedFiles).map(p=>[p.file,p.index]),
       ...Object.values(publishedGroups).map(p=>[p.path,p.index]),
       ...m.regions.map(r=>[r.path,r.index])].sort((a,b)=>order(a[0],b[0]))),
     sourceByPath,
-    root,regionPages:publishedRegions,filePages:publishedFiles,
-    sourceRegionPages,sourceFilePages,groupPages:publishedGroups,
+    root,regionPages:publishedRegions,sourceRegionPages,groupPages:publishedGroups,
     unplaced,orphanFacts:orphans,factErrors:facts.errors};
   await clock('write',async()=>{
     if(!region)await rm(resolve(dir,'files'),{recursive:true,force:true});
@@ -446,7 +403,7 @@ export async function storedFreshness(held,{repo=repoRoot,readSource=file=>readF
 function rootPage(m,lines) {
   const components=m.regions.map(r=>({index:r.index,path:r.path,files:r.files.length,
     lines:r.files.reduce((sum,f)=>sum+(lines.get(f)??0),0),nodes:m.inRegion.get(r.index).length,
-    entries:m.entries(r.index).length}));
+    roots:m.regionBoxes.get(r.index).length}));
   const wires=new Map(),ports=new Map();
   const add=(from,to,kind,label)=>{
     const key=`${from}\n${to}`,w=wires.get(key)??wires.set(key,{from,to,kinds:{},count:0,labels:new Set()}).get(key);
@@ -506,9 +463,9 @@ const links=()=>{
   return {add,port,portOut,drawn};
 };
 
-// A region page: the files it holds as components, the links between those files as wires, and
-// every way into the region from outside it as a port. A file is a bounded unit of code, so the
-// summary a region owes is which of its files reach which.
+// A region page: the flow roots it holds as components, the links between the flows those roots
+// begin as wires, and every way into the region from outside it as a port. The region owes an
+// account of where its work starts, not of which file holds which declaration.
 // `platform` is a call site with no target in any scanned root — a library, runtime or DOM
 // operation. `outside` is a call site whose target is scanned source the map does not cover.
 function moduleDiagnostics(m,files) {
@@ -519,75 +476,37 @@ function moduleDiagnostics(m,files) {
     outside:m.outsideCalls.filter(c=>held.has(c.fromFile)).length,
     moduleCallSites:sites};
 }
-function regionPage(m,r,numbered,index,packets,lines,expanded=new Set()) {
-  const at=new Map(numbered.files.map(f=>[f.file,f.index]));
-  const count=new Map(r.files.map(f=>[f,0]));
-  for(const n of m.inRegion.get(r.index))count.set(n.file,count.get(n.file)+1);
-  const components=numbered.files.flatMap(f=>expanded.has(f.file)
-    ?f.entries.map(b=>declarationBox(b.node,index,packets))
-    :[{index:f.index,file:f.file,lines:lines.get(f.file)??0,
-      nodes:count.get(f.file),entries:f.entries.length,...(f.unreached?{unreached:f.unreached.children.length}:{})}]);
-  // A declaration standing in for its file takes its file's place at both ends of a link;
-  // a nested declaration is drawn with the top-level declaration that holds it.
-  const box=n=>expanded.has(n.file)?index.get(outermost(n).path):at.get(n.file);
+function regionPage(m,r,index,packets,lines) {
+  const components=m.regionBoxes.get(r.index).map(n=>declarationBox(n,index,packets));
+  // Every link of the region contracts onto the root whose flow holds it, so a declaration that
+  // is no root is drawn on that root's flow instead of a second time here. A nested declaration
+  // goes with the top-level declaration that holds it.
+  const inside=new Set(r.files);
+  const box=n=>index.get(m.ownerRoot.get(n.path)??outermost(n).path);
   const {add,port,portOut,drawn}=links();
   for(const n of m.inRegion.get(r.index))for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,box(n),mechanism,label);
   for(const c of m.outsideCalls) {
-    if(m.regionOf.get(c.fromFile)!==r)continue;
-    portOut(c.root,c.from?box(c.from):at.get(c.fromFile),'call',null);
+    if(m.regionOf.get(c.fromFile)!==r||!c.from)continue;
+    portOut(c.root,box(c.from),'call',null);
   }
   for(const c of m.calls) {
     if(!c.from||m.regionOf.get(c.from.file)!==r||m.regionOf.get(c.to.file)!==r)continue;
     add(box(c.from),box(c.to),c.relation.kind,c.label||null);
   }
   for(const c of m.couplings) {
-    if(!c.fromFile||!c.toFile||m.regionOf.get(c.fromFile)!==r||m.regionOf.get(c.toFile)!==r)continue;
-    add(c.from&&expanded.has(c.fromFile)?box(c.from):at.get(c.fromFile),
-      c.to&&expanded.has(c.toFile)?box(c.to):at.get(c.toFile),c.kind,c.label||null);
+    if(!c.from||!c.to||!inside.has(c.fromFile)||!inside.has(c.toFile))continue;
+    add(box(c.from),box(c.to),c.kind,c.label||null);
   }
   return {flow:true,generated:true,index:r.index,kind:'region',path:r.path,
     files:r.files,lines:r.files.reduce((sum,f)=>sum+(lines.get(f)??0),0),nodes:m.inRegion.get(r.index).length,
     ...drawn(),...moduleDiagnostics(m,r.files),components,
-    children:components.map(c=>({index:c.index,...(c.path?{path:c.path,label:c.label}:{}),file:c.file,lines:c.lines,
-      ...(c.nodes!==undefined?{nodes:c.nodes}:{})}))};
+    ...(m.stranded.get(r.index).length?{stranded:m.stranded.get(r.index).map(n=>n.path)}:{}),
+    children:components.map(c=>({index:c.index,path:c.path,label:c.label,file:c.file,lines:c.lines}))};
 }
 const outermost=n=>{let node=n;while(node.parent)node=node.parent;return node;};
 const declarationBox=(n,index,packets)=>({index:index.get(n.path),path:n.path,label:n.path.slice(n.file.length+2),
   file:n.file,line:n.line,endLine:n.endLine,lines:n.endLine-n.line+1,
   ...(packets.has(n.path)&&destinationFor(packets.get(n.path))==='graph'?{}:{leaf:true})});
-
-// A file page: the entry points declared in it as components, the derived `unreached` box for
-// whatever the walk from those entries never reaches, and everything that reaches them — other
-// files of the region, other regions, outside callers — as ports.
-function filePage(m,r,f,numbered,index,packets,lines,expanded=new Set()) {
-  const at=new Map(numbered.files.map(x=>[x.file,x.index]));
-  const box=n=>({index:index.get(n.path),label:n.path.slice(n.file.length+2),file:n.file,line:n.line,
-    endLine:n.endLine,lines:n.endLine-n.line+1,...(packets.has(n.path)&&destinationFor(packets.get(n.path))==='graph'?{}:{leaf:true})});
-  const components=f.entries.map(b=>box(b.node));
-  const unreached=f.unreached?f.unreached.children.map(b=>box(b.node)):[];
-  const shown=new Set(components.map(c=>c.index));
-  const boxOf=n=>index.get(outermost(n).path);
-  const {add,port,portOut,drawn}=links();
-  for(const n of m.inRegion.get(r.index))if(n.file===f.file)
-    for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,boxOf(n),mechanism,label);
-  for(const c of m.outsideCalls) {
-    if(c.fromFile!==f.file||!c.from)continue;
-    const holder=boxOf(c.from);if(shown.has(holder))portOut(c.root,holder,'call',null);
-  }
-  for(const c of m.calls) {
-    if(!c.from)continue;
-    const to=boxOf(c.to);if(!shown.has(to))continue;
-    const from=boxOf(c.from);
-    if(shown.has(from)){if(from!==to)add(from,to,c.relation.kind,c.label||null);}
-    else if(m.regionOf.get(c.from.file)===r&&c.from.file!==f.file)
-      port(expanded.has(c.from.file)?from:`file:${at.get(c.from.file)}`,to,c.relation.kind,c.label||null);
-  }
-  return {flow:true,generated:true,index:f.index,kind:'file',file:f.file,region:r.index,
-    lines:lines.get(f.file)??0,nodes:m.inRegion.get(r.index).filter(n=>n.file===f.file).length,
-    ...drawn(),...moduleDiagnostics(m,[f.file]),components,
-    ...(f.unreached?{unreached:{index:f.unreached.index,nodes:unreached}}:{unreached:{nodes:[]}}),
-    children:[...components,...unreached].map(c=>({index:c.index,label:c.label,file:c.file,lines:c.lines}))};
-}
 
 // ---- reading ----------------------------------------------------------------------------
 export async function readIndex(dir) {
@@ -614,7 +533,7 @@ export async function readGenerated(target,{repo=repoRoot,code=false,readSource=
   const key=String(target).replaceAll('\\','/').replace(/\/$/,'');
   const at=/^\d+(\.\d+)*$/.test(key)?key:held.byPath[key];
   if(at===undefined)throw Error(`No generated page for ${key}. Read 0 for the regions.`);
-  const page=at==='0'?held.root:held.groupPages?.[at]??held.regionPages[at]??held.filePages?.[at]??await nodePage(dir,held,at);
+  const page=at==='0'?held.root:held.groupPages?.[at]??held.regionPages[at]??await nodePage(dir,held,at);
   if(!page)throw Error(`No generated page ${at}. Read 0 for the regions.`);
   const stale=await storedFreshness(held,{repo,readSource,files});
   const described={...page,destination:destinationFor(page),...(stale?{stale}:{})};
@@ -633,14 +552,14 @@ async function nodePage(dir,held,at) {
 // code: complete files for a region, source spans for a contextual group, or its own declaration.
 async function codeFor(page,held,dir) {
   if(page.kind==='root')
-    throw Error(`Page ${page.index} is a root page; --code takes a region, file, group or node. Read 0 without --code for its regions.`);
+    throw Error(`Page ${page.index} is a root page; --code takes a region, group or node. Read 0 without --code for its regions.`);
   if(page.kind==='region'||page.kind==='group') {
     const spans=[];
     if(page.kind==='region')for(const file of page.files)spans.push({file,line:1,endLine:held.files[file].lines});
     else for(const path of page.codeTargets??[]) {
-      const at=held.byPath[path],target=held.filePages[at]??await nodePage(dir,held,at);
+      const target=await nodePage(dir,held,held.byPath[path]);
       if(!target)throw Error(`Group ${page.index} refers to missing code ${path}; regenerate 0.`);
-      spans.push({file:target.file,line:target.kind==='file'?1:target.line,endLine:target.kind==='file'?target.lines:target.endLine});
+      spans.push({file:target.file,line:target.line,endLine:target.endLine});
     }
     const merged=[];
     for(const span of spans.sort((a,b)=>order(a.file,b.file)||a.line-b.line||a.endLine-b.endLine)) {
@@ -651,8 +570,6 @@ async function codeFor(page,held,dir) {
     return {generated:true,index:page.index,path:page.path,kind:page.kind,code:true,
       spans:merged.map(s=>({...s,lines:s.endLine-s.line+1}))};
   }
-  if(page.kind==='file')
-    return {generated:true,index:page.index,kind:page.kind,file:page.file,line:1,endLine:page.lines,lines:page.lines,code:true};
   return {generated:true,index:page.index,path:page.path,file:page.file,line:page.line,endLine:page.endLine,lines:page.lines,code:true};
 }
 
@@ -695,11 +612,12 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
     outside:nodes.reduce((n,p)=>n+(p.outside??0),0),
     platform:nodes.reduce((n,p)=>n+(p.platform??0),0)};
-  const unreached=Object.values(held.filePages??{}).flatMap(p=>(p.unreached?.nodes??[])
-    .map(n=>({index:n.index,path:`${n.file}::${n.label}`,lines:n.lines})));
+  // A declaration whose region reaches it through no flow root: it keeps a box on the region
+  // page, and `check` names it so the cycle behind it can be looked at.
+  const stranded=Object.values(held.regionPages).flatMap(p=>(p.stranded??[]).map(path=>({region:p.path,path})));
   return {dir,missing:false,generated:held.generated,
     stale,
-    totals,unreached:unreached.sort((a,b)=>byIndex(a.index,b.index)),
+    totals,stranded,
     // A page no map shows, which for an authored group means grouping that nothing reads.
     unplaced:held.unplaced??[],
     facts,orphanFacts:held.orphanFacts??[]};

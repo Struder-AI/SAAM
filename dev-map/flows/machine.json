@@ -8,21 +8,21 @@
           "id": "setup",
           "label": "setup and limits",
           "members": [
-            "core/machine/profile.mjs",
-            "core/machine/rules.mjs",
-            "core/machine/filaments.mjs",
-            "core/machine/denso.mjs"
+            "core/machine/filaments.mjs::filamentSelection",
+            "core/machine/profile.mjs::loadMachine",
+            "core/machine/rules.mjs::centeredPlacement",
+            "core/machine/rules.mjs::startupPosition",
+            "core/machine/rules.mjs::startupRetracted",
+            "core/machine/rules.mjs::sameNozzleMaterialChanges",
+            "core/machine/rules.mjs::requireMachine",
+            "core/machine/rules.mjs::checkMachinePath"
           ],
           "groups": [
             {
               "id": "tool-start",
               "label": "tool and start state",
               "members": [
-                "core/machine/rules.mjs::toolFor",
-                "core/machine/rules.mjs::toolBounds",
                 "core/machine/rules.mjs::centeredPlacement",
-                "core/machine/rules.mjs::lineWidthLimits",
-                "core/machine/rules.mjs::feederSelector",
                 "core/machine/rules.mjs::startupPosition",
                 "core/machine/rules.mjs::startupRetracted"
               ]
@@ -31,91 +31,8 @@
               "id": "validation",
               "label": "setup and path checks",
               "members": [
-                "core/machine/rules.mjs::range",
-                "core/machine/rules.mjs::planarWallTolerance",
-                "core/machine/rules.mjs::validateSetup",
-                "core/machine/rules.mjs::validateDobotConfiguration",
                 "core/machine/rules.mjs::requireMachine",
-                "core/machine/rules.mjs::checkMachinePath",
-                "core/machine/denso.mjs::validateDensoConfiguration"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "mechanisms",
-          "label": "robot mechanisms",
-          "members": [
-            "core/machine/denso-kinematics.mjs",
-            "core/machine/dobot-kinematics.mjs"
-          ],
-          "groups": [
-            {
-              "id": "denso",
-              "label": "DENSO kinematics",
-              "members": [
-                "core/machine/denso-kinematics.mjs"
-              ]
-            },
-            {
-              "id": "dobot",
-              "label": "Dobot kinematics",
-              "members": [
-                "core/machine/dobot-kinematics.mjs"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "presentation",
-          "label": "source pose and jogging",
-          "members": [
-            "core/machine/presentation.mjs",
-            "core/machine/jog.mjs"
-          ]
-        },
-        {
-          "id": "frames",
-          "label": "coordinate frames",
-          "members": [
-            "core/machine/rigid.mjs"
-          ],
-          "groups": [
-            {
-              "id": "vectors",
-              "label": "vectors",
-              "members": [
-                "core/machine/rigid.mjs::add",
-                "core/machine/rigid.mjs::sub",
-                "core/machine/rigid.mjs::scale",
-                "core/machine/rigid.mjs::dot",
-                "core/machine/rigid.mjs::cross",
-                "core/machine/rigid.mjs::norm",
-                "core/machine/rigid.mjs::unit"
-              ]
-            },
-            {
-              "id": "matrices",
-              "label": "rotations",
-              "members": [
-                "core/machine/rigid.mjs::identity",
-                "core/machine/rigid.mjs::mv",
-                "core/machine/rigid.mjs::transpose",
-                "core/machine/rigid.mjs::mm",
-                "core/machine/rigid.mjs::rotation"
-              ]
-            },
-            {
-              "id": "transforms",
-              "label": "rigid transforms",
-              "members": [
-                "core/machine/rigid.mjs::rigid",
-                "core/machine/rigid.mjs::point",
-                "core/machine/rigid.mjs::compose",
-                "core/machine/rigid.mjs::invert",
-                "core/machine/rigid.mjs::axisFrame",
-                "core/machine/rigid.mjs::rodFrame",
-                "core/machine/rigid.mjs::validateRigid"
+                "core/machine/rules.mjs::checkMachinePath"
               ]
             }
           ]

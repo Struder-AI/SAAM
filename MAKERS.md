@@ -231,6 +231,7 @@ Follow additional references when the part needs them:
 |---|---|
 | Initial installation or Studio access | [Setup and checks](SETUP.md), then [Studio agent permissions](studio/README.md#studio-agent-permissions). |
 | Machine-specific setup, export or playback limits | The relevant contract under [machine interoperability](core/export/README.md#machine-interoperability-design). |
+| Bambu dual nozzles or AMS colours | [Bambu setup](core/export/bambu.md#maker-setup), then the [H2D dual-nozzle](core/export/bambu.md#making-an-h2d-dual-nozzle-print) or [two-colour](core/export/bambu.md#making-an-h2d-two-colour-print) workflow. Use logical filament assignments and the normal exporter; never transplant reference G-code/project entries. |
 | Several printing patterns or material regions in one part | The chosen skill manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces). |
 | Sacrificial or edge supports | [Supports](skills/supports/SKILL.md), [rimming-planar](skills/rimming-planar/SKILL.md) or [rimming-normal](skills/rimming-normal/SKILL.md), as applicable. |
 | Creating or importing a print, changing settings or reusing setup | [Shared print tools](core/print/USAGE.md). |

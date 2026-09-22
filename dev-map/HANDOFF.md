@@ -65,10 +65,11 @@ These are the concrete rulings, each from a page the owner looked at.
 - **Findings are never removed, and they follow their node.** The owner
   rejected pruning uncertainty rows outright: the rows stay until the intent
   discussion says a kind is not a problem. A finding about a node is shown on
-  every map that draws that node. The implementation applies this to
-  containment maps; on a function page a repeat box does not carry its node's
-  own rows, on the reasoning that those rows are about the node's body, not
-  the call site. The owner has not ruled on that narrower reading.
+  every map that draws that node, once per node however many boxes draw it:
+  the box carries a count and the rows sit in the page's finding list below
+  the drawing, sectioned by node. The implementation applies this to
+  containment maps; function pages do not yet list the rows of the nodes they
+  draw (ruled on 2026-09-21: they should, once per node). See the queue.
 - **Scope is product code.** The agent CLI toolkit is not core; it is scanned
   as an outside caller. The Lua interpreter stays in scope: name-keyed
   function tables are a normal boundary pattern here (eight of them in core
@@ -115,13 +116,27 @@ In commit order. Each has a DEVLOG entry with the measurements.
 6. `c7f1ad7` active callers on declaration pages; scope-edge arrows at every level; `outside`/`platform`; findings on the boxes that draw them.
 7. `86c37cf` function tables become registry entries (48 tables; islands 187 to 117).
 
-In flight at the time of writing, in an isolated worktree: operators no longer
-count toward the collapse rule; region pages home flow roots only; file
-members rejected and the existing groups converted to root clusters with a
-per-region review table. Integrate it as the earlier ones were: apply the
-worktree diff to the main checkout, `regenerate 0`, `check`, read the pages
-the report names, then checkpoint. Its README edits will conflict with the
-rewritten guide; carry the mechanics into the new structure by hand.
+8. The functional tree (DEVLOG 2026-09-21, "Dev map: functional tree"):
+   operators no longer count toward the collapse rule (129 pages became code);
+   region pages home flow roots only, with wires contracted onto the owning
+   root; the walk is confined to a declaration's own region; file pages and
+   file addresses are gone, `stranded` replaces `unreached`; file members
+   rejected and the flows converted, which dropped 96 of 148 groups and left
+   52 clusters over 266 members. No relationship or finding row changed.
+
+Two consequences of the tree to look at before settling:
+
+- **Depth.** Max page depth went from 7 to 18. The deepest index is a genuine
+  17-step call chain inside studio (`studio/machine-view.mjs::require`), not
+  an artefact: depth-first homing along real calls makes a long chain a long
+  index. Breadth-first would home shared helpers shallower but would no longer
+  read as a flow. The owner set no cap; decide whether a very deep chain wants
+  a different presentation.
+- **Lost labels.** Whole named layers fell below two roots and vanished:
+  studio's interaction, requests and per-view groups; core/export's gcode,
+  robot-commands and lua; most of core/print, which now shows one cluster and
+  four loose roots. That is the mechanical result of the rule and the reason
+  the thoughtful clustering pass (queue item 8) is next.
 
 ## What remains, in order
 
@@ -147,14 +162,17 @@ rewritten guide; carry the mechanics into the new structure by hand.
 5. **Loop accumulation.** Accumulators in loops (`samples`, `inside`,
    `maxSlope` in `sampleTopSurface`) are marked as findings rather than
    carried to the output. Carrying them closes the last gap on small flow pages.
-6. **Repeated invocations of one declaration.** `validatePath` draws
+6. **Finding rows on function pages.** Extend the containment-map behaviour:
+   a function page lists, once per node, the rows of every node it draws,
+   sectioned by node below the drawing, with the count on the box.
+7. **Repeated invocations of one declaration.** `validatePath` draws
    `requireThat` eight times. The rule "separate source calls never collapse"
    is right for stages and noisy for assertions; the owner has not ruled.
-7. **Thoughtful root clustering.** After the tree reshape lands, the region
+8. **Thoughtful root clustering.** After the tree reshape lands, the region
    pages show their roots; cluster them by link relationships, visibility and
    saliency where a label helps, and drop groups that only restate a file.
-8. **The two code-shape sites above**, once the owner decides.
-9. **Unreached declarations and dead code.** Islands are down to 117 and the
+9. **The two code-shape sites above**, once the owner decides.
+10. **Unreached declarations and dead code.** Islands are down to 117 and the
    `unreached` list is empty; review the remaining islands for dead code the
    way the Lua accessors were handled.
 
@@ -188,6 +206,5 @@ unscanned callers (`onGeometry` in `runRepairJob`).
 
 ## Open questions for the owner
 
-- Should a repeat box on a function page carry its node's own finding rows?
 - Should repeated assertion calls on one page collapse to one box with a count?
 - The two code-shape sites above.
