@@ -477,6 +477,9 @@ def invocation_label(w):
         return "declares"
     if w.get("provenance") == "reference":
         return "value"
+    # An operation this body performs whose result nothing here takes: no call number to state.
+    if w.get("provenance") == "operation":
+        return "performs"
     return f'call {w["order"]}' + (f' ×{w["sites"]}' if w.get("sites") else "")
 
 
@@ -575,6 +578,11 @@ def node_page(packet, page, unit, port, drawn, dropped):
         title = identity + " · " + operation if identity else operation
         uncertainty_label = "argument origin unknown" if op.get("scope") == "outside" and op.get("argumentUnknown") and not op.get("targetUnknown") else "unresolved"
         note = " · ".join(text for condition, text in ((unresolved, uncertainty_label), (op.get("possibleTarget"), "possible target")) if condition)
+        # An operator kept because a finding names it carries the inputs it could not source as
+        # stub rows, the way a call box carries its untraced argument slots.
+        rows = stubs.get(op["id"], [])
+        if rows:
+            note = (note + "\n" if note else "") + stub_note(rows)
         unit(op["id"], title, note,
              f'{op["file"]}:{op["line"]}-{op["endLine"]}',
              "outside" if op.get("scope") == "outside" else {"choice": "choice", "invocation": "invocation"}.get(op["kind"], "state"),

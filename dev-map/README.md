@@ -58,16 +58,15 @@ and may change; the declaration path is the durable name. Static methods are
 `file.mjs::Class::@static/method` (URI-encoded), instance methods
 `file.mjs::Class::method`, parameter defaults `OWNER::@default/NAME`, and
 anonymous callbacks a snapshot position authoring must not reference. A
-module-level `el.onclick = …` or `addEventListener('x', …)` has no holder, so
-its site names it `file.mjs::@handler/<receiver>.<event>` (URI-encoded; the
-receiver an id selector's id, a binding or a member path) and homes its body. A
-module-level record is no page, so `.` joins its function members,
-`file.mjs::viewer.reportPerformance`; a registry table's entries keep their key.
+module-level `el.onclick = …` or `addEventListener('x', …)` names its site
+`file.mjs::@handler/<receiver>.<event>` (URI-encoded; the receiver an id
+selector's id, a binding or a member path) and homes its body. A record is no
+page at any depth, so `.` joins its members, `createStudio::lifetime.onViewers`;
+a module-level table keeps its entry keys.
 
-An address is a map when its drawing would show at least two called declarations
-with a data wire between them; otherwise `destination` is `code` and the read
-returns source with what the page would have carried. Neither operators nor the
-boxes a leaf brings make a map: the rule reads the page's own calls.
+An address is a map when its drawing shows at least two called declarations with
+a data wire between them; otherwise `destination` is `code` and the read returns
+source with what it would carry. Operators and leaf boxes never make one.
 
 Repeated invocations of one declaration are distinct instances, each with an
 `id` for its local wires and the shared `index`; a call inside a loop is one
@@ -98,30 +97,31 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   stage of this flow, traced inline or called by name; a box a leaf homed here
   brought carries `inlined` and `via`, the leaf calling it, and counts toward no
   relationship total), `operators` (choices, iterations, updates, collections,
-  member invocations), `wires` (data between instances, with `fromPort` and
-  `toPort`; `argN` for argument slots, `positionUnknown` after a spread; one
-  `invocation` wire per box, so none floats: `from`, the function itself
-  (`"self"`) or the leaf whose chain drew it, the call's `order`, `provenance`
-  (`call-site`, or `declaration`/`reference` for a box held or named, not
-  called) and `stubs`, the slots with no data wire, each a `slot` and either a
-  `literal`, the constant written there, cut past 40 characters (a number or
-  boolean as itself), or a `reason`, a gap `argument-origin` carries; the rule
-  counts data wires only), `gates` (every enclosing condition), `requires`,
-  `couplings`, `callerReferences` (mapped callers by index; active outside
-  callers by path with `unmapped: true`; `callerSummary` with a count and
-  canonical index above five), `outsideCallers` (counts per inactive directory),
-  `outside` and `platform` (call sites without a mapped target), `unresolved`
-  (rows with a `rule`, and `candidates` where callers supply known callables),
-  `uncertainty` (rows with a `kind`; repeated `closure-capture` rows share one
-  with `count`), `stateFields` on a class, and `state`, what the holder owns and
-  this page uses: a factory's `let`/`const` bindings and a class's `this.`
-  fields (`field`, `static-field`), each `name`, `owner`, `ownerIndex`,
-  `binding` kind, `access` and site, drawn but never called and outside the
-  map-or-code rule. Its wires carry `owned-state` provenance, leaving the node
-  for a read and entering it for a write, from `self` with a `stub` where the
-  write has no traced producer; the holder wires each one to its initialisation
-  and to every member touching it. A code read adds `source`, `sourceKind`,
-  `sourceSha256`, its callees and its invocation wires.
+  member invocations; one only a finding names carries `keptFor`), `wires` (data
+  between instances, with `fromPort` and `toPort`; `argN` for argument slots,
+  `positionUnknown` after a spread; one `invocation` wire per box, so none
+  floats: `from`, the function itself (`"self"`) or the leaf whose chain drew
+  it, the call's `order`, `provenance` (`call-site`, `declaration`/`reference`
+  for a box held or named, not called, `operation` for a `keptFor` operator) and
+  `stubs`, the slots with no data wire, each a `slot` and either a `literal`,
+  the constant written there, cut past 40 characters (a number or boolean as
+  itself), or a `reason`, a gap `argument-origin` carries; the rule counts data
+  wires but not a `keptFor` operator's), `gates` (every enclosing condition),
+  `requires`, `couplings`, `callerReferences` (mapped callers by index; active
+  outside callers by path with `unmapped: true`; `callerSummary` with a count
+  and canonical index above five), `outsideCallers` (counts per inactive
+  directory), `outside` and `platform` (call sites without a mapped target),
+  `unresolved` (rows with a `rule`, and `candidates` where callers supply known
+  callables), `uncertainty` (rows with a `kind`; repeated `closure-capture` rows
+  share one with `count`), `stateFields` on a class, and `state`, what the
+  holder owns and this page uses: a factory's `let`/`const` bindings and a
+  class's `this.` fields (`field`, `static-field`), each `name`, `owner`,
+  `ownerIndex`, `binding` kind, `access` and site, drawn but never called and
+  outside the map-or-code rule. Its wires carry `owned-state` provenance,
+  leaving the node for a read and entering it for a write, from `self` with a
+  `stub` where the write has no traced producer; the holder wires each one to
+  its initialisation and to every member touching it. A code read adds `source`,
+  `sourceKind`, `sourceSha256`, its callees and its invocation wires.
 
 Findings follow the node: every box, inlined ones included, carries its row
 count as `findings`, a group box the count inside it; a containment map puts the

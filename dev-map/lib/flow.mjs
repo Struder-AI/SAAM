@@ -1655,13 +1655,28 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   // Keep synthetic operators only along actual dependency paths to those graph boundaries.
   const operatorIds=new Set(operators.map(o=>o.id)),needed=new Set([...drawn.map(c=>c.path),...outputs.map(o=>o.port),
     ...operators.filter(o=>o.kind==='invocation').map(o=>o.id)]);
-  for(let changed=true;changed;) {
-    changed=false;
-    for(const w of wires)if(needed.has(w.to)&&operatorIds.has(w.from)&&!needed.has(w.from)) {
-      needed.add(w.from);changed=true;
+  const reachOperators=()=>{
+    for(let changed=true;changed;) {
+      changed=false;
+      for(const w of wires)if(needed.has(w.to)&&operatorIds.has(w.from)&&!needed.has(w.from)) {
+        needed.add(w.from);changed=true;
+      }
     }
+  };
+  reachOperators();
+  // A finding row that names an operator is a consumer of it. Every such row is about that
+  // operator's own input or control — the value it iterates from, the test it repeats on, the
+  // argument it could not source — so a reader who cannot find the box cannot read the row, and
+  // the row would name nothing on the page. Keep the operator, with everything it depends on, so
+  // the gap is drawn where it happens; `keptFor` says why the box is here when nothing consumes
+  // its result.
+  const namedByFinding=new Set(uncertainty.map(u=>u.operator).filter(id=>operatorIds.has(id)&&!needed.has(id)));
+  if(namedByFinding.size) {
+    for(const id of namedByFinding)needed.add(id);
+    reachOperators();
   }
   let liveOperators=operators.filter(o=>needed.has(o.id));
+  for(const op of operators)if(namedByFinding.has(op.id))op.keptFor='finding';
   let kept=new Set([...drawn.map(c=>c.path),...liveOperators.map(o=>o.id),...params.map(p=>p.port),...outputs.map(o=>o.port)]);
   const live=w=>kept.has(w.from)&&kept.has(w.to);
   // Closure-owned state. The bindings a factory declares and its members share are drawn as
@@ -1805,12 +1820,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   const stateEnds=[...stateWires,...[...fieldInit.values()].flat()];
   if(stateEnds.some(w=>operatorIds.has(w.from)&&!needed.has(w.from))) {
     for(const w of stateEnds)if(operatorIds.has(w.from))needed.add(w.from);
-    for(let changed=true;changed;) {
-      changed=false;
-      for(const w of wires)if(needed.has(w.to)&&operatorIds.has(w.from)&&!needed.has(w.from)) {
-        needed.add(w.from);changed=true;
-      }
-    }
+    reachOperators();
     liveOperators=operators.filter(o=>needed.has(o.id));
     kept=new Set([...drawn.map(c=>c.path),...liveOperators.map(o=>o.id),...params.map(p=>p.port),...outputs.map(o=>o.port)]);
   }

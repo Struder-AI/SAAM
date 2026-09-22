@@ -1,5 +1,32 @@
 # Development log
 
+## 2026-09-22 — Dev map: finding rows keep their operator drawn; nested record members
+
+- Every finding row that names an operator (`iteration-control`,
+  `iteration-input`, `collection-input`, `update-input`, `choice-control`,
+  `iteration-backedge-control`) is about that operator's own input or
+  control, so the operator stays drawn when the liveness pass would drop it
+  (`flow.mjs`, `keptFor: "finding"`, 504 operators). One with no data wire
+  at all is attached to the function by an `invocation` wire with
+  `provenance: "operation"` and its unknown inputs as stubs (116), so
+  nothing floats; `destination.mjs` ignores kept operators and their wires
+  so no page changes destination. Rows naming a missing operator 559 → 0.
+- A record member joins its holder with `.` at any depth when the holder is
+  a non-callable variable (`graph.mjs`): 33 renames such as
+  `createStudio::lifetime.onViewers`, `moveStore::methods.reader`,
+  `exportMovie::encoder.output`. Callable holders keep `::`; the four
+  `PreparedGenerationJob::constructor::…` children are fields, defaults and
+  an anonymous callable, not record members. A registry table inside a
+  function folds like any record; module-level tables keep their key
+  segment, an asymmetry for the owner. Forced flow edit: one member path in
+  `flows/studio.json` (`performanceView.context`).
+- Verified on the main store: `skillSettingsRows` 41 operators, 29 kept, 46
+  rows all resolving; distinct finding rows 12307 unchanged; `check` 3691 /
+  1084 / 47 / 5833, clean; floating boxes 0, depth 13, every declaration
+  homed once, destinations unchanged. Noted: `destination.mjs::wired` tests
+  "a wire on one of the two declarations", not "between them" as the guide
+  says.
+
 ## 2026-09-22 — Dev map: handler-property registrations; record-member names
 
 - A named declaration assigned to an `on<event>` property inside a function

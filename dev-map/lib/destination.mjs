@@ -9,8 +9,12 @@ import {invocationInstances} from './instances.mjs';
 export const drawnShape=page=>{
   const drawn=invocationInstances(page);
   const called=new Set((drawn.components??[]).map(c=>c.id??c.index));
-  const operators=(drawn.operators??[]).map(o=>o.id);
-  const wires=drawn.wires??[];
+  // An operator the liveness pass dropped and a finding row kept is on the page so the row has
+  // something to name; nothing consumes its result, so it is no part of this flow and says
+  // nothing about whether two called declarations are related here.
+  const forFinding=new Set((drawn.operators??[]).filter(o=>o.keptFor==='finding').map(o=>o.id));
+  const operators=(drawn.operators??[]).map(o=>o.id).filter(id=>!forFinding.has(id));
+  const wires=(drawn.wires??[]).filter(w=>!forFinding.has(w.from)&&!forFinding.has(w.to));
   // A state node is not a called declaration, so a wire to or from one says nothing about
   // whether two called declarations are related here.
   return {boxes:called.size+operators.length,called:called.size,

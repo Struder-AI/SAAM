@@ -73,13 +73,22 @@ const bySite=(a,b)=>a.file<b.file?-1:a.file>b.file?1:a.line-b.line||a.column-b.c
 // claiming a call.
 export function invocationWires(page) {
   const components=page.components??[];
-  if(!components.length)return [];
   // A containment map draws no call of its own — its wires are contracted relationships — but a
   // leaf it homes still brings the calls it makes, and those boxes hang off the leaf here too.
   const ownCalls=!page.structural&&NODE_PAGE.includes(page.kind);
-  if(!ownCalls&&!components.some(c=>c.via!==undefined))return [];
   const names={loops:namedBindings(page,['loop-data-flow','iteration-source'],['iteration']),
     joins:namedBindings(page,['branch-data-join','member-mutation'])};
+  // An operator the flow dropped and a finding row kept, that no value reaches and nothing
+  // takes the result of, is attached to the function that performs it exactly as a call is: the
+  // inputs it could not source are stubs on the wire, so the box says where the operation
+  // happens and which input is missing, and no box on the page floats.
+  const operations=!ownCalls?[]:(page.operators??[]).filter(op=>op.keptFor==='finding'
+    &&!(page.wires??[]).some(w=>w.from===op.id||w.to===op.id))
+    .map(op=>({kind:'invocation',from:'self',to:op.id,provenance:'operation',
+      ...((op.unknownInputs??[]).length?{stubs:(op.unknownInputs??[]).map(port=>
+        stubOf(port,(op.arguments??[]).find(a=>a.port===port)??{},names))}:{})}));
+  if(!components.length)return operations;
+  if(!ownCalls&&!components.some(c=>c.via!==undefined))return [];
   const wired=new Map();
   for(const wire of page.wires??[]) {
     if(!SLOT.test(wire.toPort??''))continue;
@@ -141,5 +150,5 @@ export function invocationWires(page) {
   const byCall=(a,b)=>{const x=key(a.to),y=key(b.to);
     for(let i=0;i<Math.max(x.length,y.length);i++)if((x[i]??-1)!==(y[i]??-1))return (x[i]??-1)-(y[i]??-1);
     return 0;};
-  return [...[...called,...chain].sort(byCall),...held];
+  return [...[...called,...chain].sort(byCall),...held,...operations];
 }

@@ -106,7 +106,7 @@
           "label": "Performance reporting",
           "members": [
             "studio/view-performance.mjs::createViewPerformance",
-            "studio/viewer-renderer.mjs::createViewerRenderer::performanceView::context",
+            "studio/viewer-renderer.mjs::createViewerRenderer::performanceView.context",
             "studio/viewer-renderer.mjs::createViewerRenderer::flushPerformance"
           ]
         }

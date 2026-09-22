@@ -150,7 +150,7 @@ export function presentationPage(page) {
     // Boxes identify an operation and its source. Its implementation belongs
     // under that source click, not repeated as a second body on the drawing.
     const fields = ['id', 'kind', 'file', 'line', 'endLine', 'column',
-      'binding', 'collection', 'operation', 'callee', 'gate', 'optional', 'scope', 'targets', 'possibleTarget', 'callKind',
+      'binding', 'collection', 'operation', 'callee', 'gate', 'optional', 'scope', 'targets', 'possibleTarget', 'callKind', 'keptFor',
       'receiver', 'member', 'optionalReceiver', 'optionalCall'];
     return {...Object.fromEntries(fields.filter(key => op[key] !== undefined).map(key => [key, op[key]])),
       ...Object.fromEntries(Object.entries(op).filter(([key, value]) => key.endsWith('Unknown') && value === true)),

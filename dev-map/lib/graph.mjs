@@ -543,22 +543,32 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   // Opt-in, after every other relation, so relation ids and the authored projection are unchanged without it.
   const coupled=literalCouplings?couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,parents,value,choices,location,edge,property,children,functions,importPath}):null;
   if(receiverCalls&&!coupled)throw Error('receiverCalls needs literalCouplings: it reuses that value resolver.');
-  // A module-level record is a holder, not a page. `const viewer={…}` names a value no reader can
-  // open, so `::` before one of its function members promises a page that does not exist; the
-  // member is `file.mjs::viewer.reportPerformance`, one segment, `.` for record membership, and
-  // what is written inside that member keeps `::` after it. A name-keyed dispatch table is the
-  // exception the registry rule already made: a `registry-entry` coupling reaches each entry by
-  // its key, so the key stays a segment of its own and the entry keeps the identity it had.
+  // A record is a holder, not a page, wherever it is written. `const viewer={…}` names a value no
+  // reader can open, so `::` before one of its function members promises a page that does not
+  // exist; the member joins its holder with `.` for record membership, and what is written inside
+  // that member keeps `::` after it. The same holds for a record declared inside a function
+  // (`createStudio::lifetime.onViewers`): the holder is still a value, not a page. A holder that
+  // is callable — a nested function, a method, a class — is a page, and keeps `::`. A name-keyed
+  // dispatch table at module level is the exception the registry rule already made: a
+  // `registry-entry` coupling reaches each entry of a module-level table by its key, so that key
+  // stays a segment of its own and the entry keeps the identity it had. A table written inside a
+  // function is a local value like any other record, and its entries read `table.key`, which is
+  // how the registry coupling already labels them.
   {
     const keyed=new Set();
     for(const r of relations)if(r.kind==='registry-entry'){keyed.add(r.from);keyed.add(r.to);}
-    const records=new Map();
+    const records=new Set();
     for(const d of declarations)
-      if(d.kind==='variable'&&!d.parent&&!d.callable&&d.anchor&&declarationPaths.get(d.id).length===1)records.set(d.anchor,d);
+      if(d.kind==='variable'&&!d.callable&&d.anchor)records.add(`${d.file}::${declarationPaths.get(d.id).join('::')}`);
     for(const d of declarations) {
       const segments=declarationPaths.get(d.id);
-      if(!d.anchor||segments.length<2||keyed.has(d.id)||!records.has(`${d.file}::${segments[0]}`))continue;
-      d.anchor=`${d.file}::${[`${segments[0]}.${segments[1]}`,...segments.slice(2)].join('::')}`;
+      if(!d.anchor||segments.length<2)continue;
+      const named=[segments[0]];
+      for(let i=1;i<segments.length;i++)
+        if(records.has(`${d.file}::${segments.slice(0,i).join('::')}`)&&!(i===1&&keyed.has(d.id)))
+          named[named.length-1]+=`.${segments[i]}`;
+        else named.push(segments[i]);
+      d.anchor=`${d.file}::${named.join('::')}`;
     }
   }
   const accounting=receiverCalls?accountCalls(coupled.origins):null;
