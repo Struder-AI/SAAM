@@ -1,5 +1,35 @@
 # Development log
 
+## 2026-09-21 — Dev-map indexes are places in the map tree
+
+- Owner's model: an index names a node's home position in the map tree, not a
+  file. Every studio/core declaration is a leaf on some map, leaves sit in
+  authored functional flows, nesting reaches a single `0`, and a node repeated
+  on another map keeps its home index with a red link on both sides.
+- Before: published indexes were source addresses (region.file.declaration,
+  groups at `N.0.k`, with another `.0.` per nesting level). Only 141 of 1,827
+  reachable pages had an index extending the map that showed them; 148 of 150
+  file pages were unreachable from `0`.
+- New `dev-map/lib/tree.mjs`: after composition, walk containment maps (root,
+  region, group, file) before call-flow maps; each map numbers its home nodes
+  1…n under its own index. Address fields are rewritten once across all
+  published pages; repeats carry `home`, home nodes carry `alsoOn`. Pages no map
+  shows (148 file pages, 83 file-level groups) are not published and are listed
+  as `unplaced` by `regenerate`. Source addresses stay internal (`sourceByPath`,
+  source packets) for scoped reuse; store schema 4. Viewer draws `home`/`alsoOn`
+  as red links. AGENTS.md, DEVELOPER-CONTEXT.md, BUILDERS.md, dev-map/README.md
+  and developer onboarding text describe the new walk.
+- Verified in the shared checkout (no dev-map tests remain after the test cut):
+  all 1,633 declarations reachable from `0`; all 1,827 pages are home nodes on
+  their parent map with gap-free numbering; no index has a `0` segment; every
+  repeat names its home; no wire end names a missing page; `regenerate 3` output
+  identical to a full run; `dev-map/cli.mjs check` clean; developer onboarding
+  runs; viewer shows `home 4.6` etc. on `3.2.1.1.1` (DOM read, no screenshot).
+  Checkpointed in 85c9bfd with concurrent sessions' work, unreviewed.
+- Open: file-level flow groupings (e.g. `core/export/dobot-lua-subset.mjs`)
+  duplicate their region-level groups and now draw nothing; delete or keep as
+  the owner decides.
+
 ## 2026-09-21 — Same-nozzle reference received; AMS main/ALT pair on USB
 
 - Inspected user-supplied twocolor.twistedbox.gcode.3mf, SHA-256
