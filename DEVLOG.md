@@ -1,5 +1,63 @@
 # Development log
 
+## 2026-09-21 — Dev map: the invocation edge; no box floats
+
+- `lib/invocation.mjs` derives one `invocation` wire per drawn box from the
+  call sites, in call order (`order`), from a `self` node to the instance;
+  argument slots the tracer could not source are `stubs` with a reason
+  (`literal`, `nested-call`, `untraced-binding`, `property-path`,
+  `loop-variable`, `branch-join`, `computed-expression`, `constructed-value`,
+  `composed-literal`, `spread`, `position-unknown`, `awaited-value`). A box the
+  function holds or names without calling gets a `declaration` or `reference`
+  edge; authored clusters get none. Appended in `presentation.mjs` after every
+  collapse; `agent-view.mjs` returns them on code pages too; the viewer draws
+  them dashed indigo with the stub rows on the box. `destination.mjs` is
+  untouched: a page with no data wire is still code.
+- Verified on the regenerated main store: floating boxes 1434 → 0 (471 pages,
+  316 drawn); 5601 invocation edges (call-site 4996, declaration 485,
+  reference 120); 2669 boxes carry 3994 stubs, 1778 of them `literal`; pages
+  by kind and destination, max depth 18 and one home per declaration
+  unchanged. Pages read: `createAgentRequests::accept` (8 edges in line
+  order, 3 stubs matching its 3 `argument-origin` rows), `griffin.mjs::
+  validatePath` (11 edges, eight `requireThat` each `arg1 nested-call, arg2
+  literal`), `initializeStudio` (5 boxes that floated, now wired),
+  `regionComponents` (`componentFromRoot` as a `declaration` edge: the
+  array-callback gap made visible), `dobot-lua-subset.mjs::parse`.
+- `--details` still returns the stored packet without the wires; `README.md`
+  held at 185 lines by removing sentences duplicated elsewhere. Rulings
+  recorded in the handoff: repeated assertion boxes stay; the two code-shape
+  sites are settled.
+
+## 2026-09-21 — Code shape, third pass: `completeProgram` returns; ten dead declarations
+
+- `core/export/bambu.mjs::completeProgram` no longer mutates its `program`
+  parameter: it returns `{...program, moves, events, summary, code, envelope}`
+  with shifted `line` values on new move and event records and the envelope
+  built as one literal. Key order preserved. A/B over eight Bambu cases
+  (H2D tools and nozzles, fast start, H2D and X1 colour change, mixed nozzle,
+  dual verification): package bytes, program JSON, move and event line arrays
+  and key orders identical, total `960aad380bd61d367b614d48fc7e6454` before
+  and after. On the regenerated map the page's return reaches both callers.
+- Island review (declaration pages with no caller and no coupling: 137; 41
+  are defaults, anonymous callables, statics and DOM handlers; 96 triaged).
+  Deleted as dead, no reference anywhere: `builder.mjs::beadVolume`,
+  `reservation.mjs::intersectsReservation`, `tolerance.mjs::lerp`,
+  `tessellate.mjs::lerp`, `nurbs.mjs::height`, `field.mjs::sampleTopSurface`
+  (superseded by `query.mjs::sampleTopSurface`), `tour-ui.mjs::
+  needsTourGeometryReview`, `app.mjs::toolpathPlaceholder` (its behaviour
+  lives in `showingGeometry`), `LuaTable.fromArray`, `LuaRuntime::call`.
+  Their authored memberships were pruned; `path.json` lost the one-box
+  wrapper `policies-ordering`. 36 islands are entry points called from
+  skills, scripts, adapters or tests; 48 are scanner limits: array-method
+  callbacks not entered, module-level call sites, callbacks registered on
+  platform objects or passed in records, getters read by property access or
+  spread, members on instance receivers, the schema-keyed dynamic bundle
+  table. Flagged, not deleted: `SegmentIndex::distanceTo` (test-only caller).
+- Verified: `npm test` 210 pass, 0 fail before and after (the earlier
+  known failures are gone at this head); `check` 1611 pages, 3540 linked,
+  1080 unresolved, 47 outside, 5798 platform, no stale, stranded, unplaced
+  or orphan facts.
+
 ## 2026-09-21 — Dev map: functional tree
 
 - Operators no longer count toward the map-or-code rule (`lib/destination.mjs`,

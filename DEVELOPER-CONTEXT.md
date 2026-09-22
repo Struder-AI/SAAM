@@ -72,22 +72,30 @@ that no caller exists from an unscanned or dynamic boundary.
 
 ### Code shape
 
-Three rules, strongly preferred; the restricted form needs the owner's explicit
-permission for a compelling case:
+The map is trustworthy only when everything a piece of code does is visible
+at its boundary: the scanner and a human reviewer read the same syntax, and
+three patterns hide a relationship from both, so the map would draw nothing
+or something false and no scanner work could recover it. They are strongly
+preferred against; the restricted form needs the owner's explicit permission
+for a compelling case:
 
-1. No callable and no state in a reassigned binding. Owned state lives in an
-   explicit record or behind an explicit stateful boundary; a callback chosen
-   once is a `const` or a named function.
-2. No callee chosen by an expression.
-3. A stage does not mutate caller-owned state. It returns its result. The
+1. No callable and no state in a reassigned binding: what runs, or what a
+   value is, would depend on execution history rather than the text at the
+   site. Owned state lives in an explicit record or behind an explicit
+   stateful boundary; a callback chosen once is a `const` or a named function.
+2. No callee chosen by an expression: the call site would not name its callee.
+3. A stage does not mutate caller-owned state; it returns its result, so the
+   effect is on a wire rather than invisible on the caller's page. The
    exception is an explicit stateful controller (a UI controller, a session,
    the tour, the Lua runtime) operating on state it owns.
 
 A rewrite counts as a code-shape fix only when it preserves behaviour and,
 after regeneration, the map draws what was hidden. Anything the scanner cannot
-follow by syntax (`super`, destructuring, loop variables, nested-call
-arguments, `Promise.all`, instance receivers, passed callbacks) is generator
-work, never code churn. Reading a map does not by itself authorise a rewrite.
+yet follow by syntax (`super`, destructuring, loop variables, nested-call
+arguments, `Promise.all`, instance receivers, passed callbacks) has a definite
+meaning, so teaching the scanner is cheaper and more trustworthy than touching
+ordinary code: generator work, never code churn. Reading a map does not by
+itself authorise a rewrite.
 
 Also: give conceptual stages and callbacks code names, so grouping survives
 line edits; when code replaces an entity, rewire every consumer and remove the

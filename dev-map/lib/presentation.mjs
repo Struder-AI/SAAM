@@ -2,7 +2,8 @@
 // call-boundary tracing stays in the stored packet, available through --details.
 import {structuralOverview} from './overview.mjs';
 import {invocationInstances} from './instances.mjs';
-const referenceFlags = ['unknown', 'positionUnknown', 'executionUnknown', 'possibleTarget', 'usesUnknown',
+import {invocationWires} from './invocation.mjs';
+const referenceFlags =['unknown', 'positionUnknown', 'executionUnknown', 'possibleTarget', 'usesUnknown',
   'optional', 'omitted', 'defaulted', 'spread', 'rest', 'unmapped'];
 const dataPath=/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/;
 function callerReferences(references) {
@@ -157,6 +158,9 @@ export function presentationPage(page) {
       ...(g.terms?{terms:terms.map((term,j)=>({name:term.name??`condition ${i+1}.${j+1}`,branch:term.kind,
         ...(term.source?{file:term.source.file,line:term.source.line,endLine:term.source.endLine??term.source.line,column:term.source.column}:{})}))}:{})};
   };
+  // Every box a function page draws is attached to the function that draws it. These wires are
+  // added last, so nothing above collapses or relabels them, and they carry no value.
+  const invocations = invocationWires(page);
   return {...page,
     ...(page.uncertainty ? {uncertainty: uncertaintyRows(page.uncertainty)} : {}),
     ...(page.components ? {components: page.components.map(component)} : {}),
@@ -164,7 +168,7 @@ export function presentationPage(page) {
     ...(page.inputs ? {inputs: page.inputs.map(port => boundary(port))} : {}),
     ...(page.outputs ? {outputs: page.outputs.map(port => boundary(port, true))} : {}),
     ...(page.operators ? {operators: page.operators.map(operator)} : {}),
-      ...(page.wires ? {wires: page.wires.map(({expression,...wire})=>{
+      ...(page.wires||invocations.length ? {wires: [...(page.wires??[]).map(({expression,...wire})=>{
         const returned=wire.kind==='return'&&wire.fromPort==='result'
           ? page.outputs?.find(port=>port.port===wire.to):null;
         if(returned?.returnCall)return {...wire,label:`${returned.returnCall} result`};
@@ -172,6 +176,6 @@ export function presentationPage(page) {
       if(wire.kind==='gate'||wire.toPort==='control')return {...wire,label:'condition'};
       if(wire.fromPort==='selected')return {...wire,label:'selected result'};
       return wire;
-    })} : {}),
+    }),...invocations]} : {}),
     ...(page.gates ? {gates: page.gates.map(gate)} : {})};
 }

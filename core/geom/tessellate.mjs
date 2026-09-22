@@ -3,7 +3,6 @@ import {evaluate} from './nurbs.mjs';
 import {makeMesh} from './mesh.mjs';
 import {requireThat,distance} from './tolerance.mjs';
 
-const lerp=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 function closest(curve,p){
   let best=0,score=Infinity;
   for(let i=0;i<=32;i++){const d=distance(curve(i/32),p);if(d<score){best=i/32;score=d;}}

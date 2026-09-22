@@ -144,7 +144,6 @@ const generationPending=()=>generating||agentUI.generating()||Boolean(activePres
 // placeholder — the previous toolpath when one is retained, otherwise the part
 // being sliced — through first generation, regeneration, reload and failure.
 const showingGeometry=()=>tab!=='toolpath'||!presentedState()?.program;
-const toolpathPlaceholder=()=>tab==='toolpath'&&!state?.program;
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);

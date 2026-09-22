@@ -69,7 +69,6 @@
             "core/geom/cylinder.mjs::pipeMesh",
             "core/geom/cylinder.mjs::cylindricalPoint",
             "core/geom/cylinder.mjs::cylindricalPose",
-            "core/geom/nurbs.mjs::height",
             "core/geom/shapes.mjs::boxShell",
             "core/geom/shapes.mjs::wedgeShell",
             "core/geom/shapes.mjs::splineTopShell",
@@ -124,14 +123,12 @@
           "id": "surface-fields",
           "label": "surfaceFields",
           "members": [
-            "core/geom/field.mjs::sampleTopSurface",
             "core/geom/reference-surface.mjs::referenceSurface",
             "core/geom/support-surface.mjs::supportSurface",
             "core/geom/support-surface.mjs::supportSurfaceSection",
             "core/geom/support-surface.mjs::supportBoundaryAt",
             "core/geom/surface-derivatives.mjs::surfaceDerivatives",
             "core/geom/surface-region.mjs::surfaceRegion",
-            "core/geom/tessellate.mjs::lerp",
             "core/geom/tessellate.mjs::tessellateShell"
           ],
           "groups": [
@@ -139,7 +136,6 @@
               "id": "surface-query",
               "label": "surfaceSampling",
               "members": [
-                "core/geom/field.mjs::sampleTopSurface",
                 "core/geom/surface-derivatives.mjs::surfaceDerivatives",
                 "core/geom/surface-region.mjs::surfaceRegion"
               ]
@@ -152,7 +148,6 @@
                 "core/geom/support-surface.mjs::supportSurface",
                 "core/geom/support-surface.mjs::supportSurfaceSection",
                 "core/geom/support-surface.mjs::supportBoundaryAt",
-                "core/geom/tessellate.mjs::lerp",
                 "core/geom/tessellate.mjs::tessellateShell"
               ]
             }
@@ -174,8 +169,7 @@
             "core/geom/query.mjs::sectionGeometry",
             "core/geom/query.mjs::sampleTopSurface",
             "core/geom/selections.mjs::geometrySelections",
-            "core/geom/selections.mjs::selectionsOverlap",
-            "core/geom/tolerance.mjs::lerp"
+            "core/geom/selections.mjs::selectionsOverlap"
           ]
         }
       ]

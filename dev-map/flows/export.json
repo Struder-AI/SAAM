@@ -73,7 +73,6 @@
           "label": "runtime state",
           "members": [
             "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
             "core/export/dobot-lua-subset.mjs::LuaRuntime::tick"
           ]
         },

@@ -39,10 +39,13 @@ export function compactPage(page, {code = false} = {}) {
   }
   if (sourceOnly) {
     // A page that opens as code still names the pages it would have drawn: the walk down to a
-    // declaration it holds or calls stays visible without a second read.
+    // declaration it holds or calls stays visible without a second read. Its data wires are the
+    // drawing it does not get; its invocation wires say which call each box is and which
+    // argument slots are stubs, which the source alone does not say.
+    packet.wires = (page.wires ?? []).filter(wire => wire.kind === 'invocation');
     const keys = ['index', 'path', 'file', 'kind', 'line', 'endLine', 'destination',
       'code', 'source', 'sources', 'sourceKind', 'sourceSha256', 'sourceUnavailable', 'regenerate', 'stale',
-      'components', 'facts', 'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
+      'components', 'wires', 'facts', 'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
     if (!code) keys.push('inputs', 'outputs');
     return clean(Object.fromEntries(keys.filter(key => key in packet).map(key => [key, packet[key]])), undefined, true);
   }

@@ -27,7 +27,6 @@
           "label": "surfaceRegions",
           "members": [
             "core/region/normal-surface.mjs::sampleSurfaceCurve",
-            "core/region/reservation.mjs::intersectsReservation",
             "core/region/reservation.mjs::clipReservedRegion",
             "core/region/reservation.mjs::clipAboveSurface",
             "core/region/reservation.mjs::surfaceStroke",
@@ -39,7 +38,6 @@
               "id": "reservation",
               "label": "materialReservation",
               "members": [
-                "core/region/reservation.mjs::intersectsReservation",
                 "core/region/reservation.mjs::clipReservedRegion",
                 "core/region/reservation.mjs::clipAboveSurface",
                 "core/region/reservation.mjs::surfaceStroke"

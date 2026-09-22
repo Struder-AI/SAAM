@@ -133,6 +133,4 @@ export function orderScanlineCells(strokes, from) {
   }
   return ordered;
 }
-
-export const beadVolume = (lengthMm, widthMm, heightMm) => lengthMm * widthMm * heightMm;
 export { pointSegmentDistance };

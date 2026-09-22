@@ -38,8 +38,7 @@ These are the concrete rulings, each from a page the owner looked at.
   not source (nested-call arguments, module constants, loop variables,
   destructuring, `Promise.all`). Ruling: the invocation edge is drawn from the
   function to every call it makes, with untraced arguments shown as marked
-  stubs; the tracing gaps are generator work. **This edge is approved and not
-  yet implemented**; see the queue.
+  stubs; the tracing gaps are generator work. Built 2026-09-21 (queue item 1).
 - **Nested helpers are not siblings of their parent.** Listing them as group
   members added a nesting level everywhere and made up nearly half the
   authored membership. Ruling: a declaration written inside another is homed
@@ -98,11 +97,9 @@ map draws the relationship afterwards; two of the first-pass rewrites made
 ownership visible without resolving the call and were kept because they match
 the explicit-state guidance, and the owner was told.
 
-Two sites await the owner's word: `studio/machine-view.mjs::drawMachineCanvas`
-writes Canvas 2D context properties bracketed by save and restore (judged
-compelling to keep), and `core/export/bambu.mjs::completeProgram` mutates its
-`program` parameter at seven sites (a genuine violation with a clean fix, left
-because another session owned that file at the time).
+Both sites are settled (2026-09-21): `studio/machine-view.mjs::drawMachineCanvas`
+keeps its Canvas 2D property writes bracketed by save and restore, and
+`core/export/bambu.mjs::completeProgram` now returns a new program record.
 
 ## What has been built (dev branch, 2026-09-21)
 
@@ -140,11 +137,12 @@ Two consequences of the tree to look at before settling:
 
 ## What remains, in order
 
-1. **The invocation edge.** Approved, not built. Every call box on a function
-   page is connected to the function in call order; untraced arguments are
-   marked stubs. Without it, pages like `createAgentRequests::accept` draw a
-   pure-looking fan-out for a function that is all side effects, and 115 pages
-   have no wires at all.
+1. **The invocation edge.** Built 2026-09-21 (`lib/invocation.mjs`): every
+   drawn box is wired to its function in call order, untraced argument slots
+   are marked stubs with a reason, and a held or referenced declaration gets a
+   `declaration` or `reference` edge. Floating boxes 1434 to 0. Left open:
+   `--details` does not carry the wires (that read is in `core/agent`), and
+   `literal` stubs (1778 of 3994) mark constants rather than tracing gaps.
 2. **Callback targets as references, not boxes.** Value-follow targets of a
    parameter are drawn as boxes on the callee page (thirteen lambdas on the
    one-line `perTool`). They belong on the caller's page; the callee lists
@@ -165,16 +163,17 @@ Two consequences of the tree to look at before settling:
 6. **Finding rows on function pages.** Extend the containment-map behaviour:
    a function page lists, once per node, the rows of every node it draws,
    sectioned by node below the drawing, with the count on the box.
-7. **Repeated invocations of one declaration.** `validatePath` draws
-   `requireThat` eight times. The rule "separate source calls never collapse"
-   is right for stages and noisy for assertions; the owner has not ruled.
+7. **Repeated invocations of one declaration.** Ruled 2026-09-21: kept.
+   Every source call is its own box, assertions included.
 8. **Thoughtful root clustering.** After the tree reshape lands, the region
    pages show their roots; cluster them by link relationships, visibility and
    saliency where a label helps, and drop groups that only restate a file.
-9. **The two code-shape sites above**, once the owner decides.
-10. **Unreached declarations and dead code.** Islands are down to 117 and the
-   `unreached` list is empty; review the remaining islands for dead code the
-   way the Lua accessors were handled.
+9. **The two code-shape sites above.** Done 2026-09-21.
+10. **Unreached declarations and dead code.** Reviewed 2026-09-21: of 137
+   declaration pages with no caller and no coupling, 96 were triaged by hand;
+   10 were dead and deleted, 36 are entry points called from outside the
+   scanned roots, 48 are calls the scanner does not resolve (the DEVLOG entry
+   lists them by limit). Re-measure after the array-callback work.
 
 Scanner limits recorded and accepted, not to be "fixed" in code: `res.end` and
 `res.write` on node:http parameters; members on reassigned `let` receivers;
@@ -206,5 +205,11 @@ unscanned callers (`onGeometry` in `runRepairJob`).
 
 ## Open questions for the owner
 
-- Should repeated assertion calls on one page collapse to one box with a count?
-- The two code-shape sites above.
+- Should `literal` argument stubs be drawn, or only genuine tracing gaps?
+- Should `--details` carry the invocation wires (a `core/agent` change)?
+- A 17-step call chain is a 17-step index; does a very deep chain want a
+  different presentation, or is that clustering's job?
+- Interpreter-style methods (`LuaRuntime::execStatement`: one switch over
+  statement kinds, 46 boxes, 43 of them repeats) draw faithfully but read
+  badly; a per-kind dispatch table would draw as registry entries. Code
+  shape or leave it?

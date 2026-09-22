@@ -10,7 +10,6 @@
           "members": [
             "studio/app.mjs::initializeAgentInterface",
             "studio/app.mjs::connectViewPersistence",
-            "studio/app.mjs::toolpathPlaceholder",
             "studio/app.mjs::clock",
             "studio/app.mjs::beginCanvasDrag",
             "studio/app.mjs::moveCanvasDrag",

@@ -382,6 +382,21 @@ def build_page(packet, ctx):
     return page.layout()
 
 
+def stub_note(rows):
+    """An argument slot with no wire, said out loud on the box. `literal` is a constant written
+    at the call site; every other reason is a value the tracer could not follow."""
+    shown = ", ".join(f'{row["slot"]} {row["reason"]}' for row in rows[:4])
+    return "stub " + shown + (f' +{len(rows) - 4}' if len(rows) > 4 else "")
+
+
+def invocation_label(w):
+    if w.get("provenance") == "declaration":
+        return "declares"
+    if w.get("provenance") == "reference":
+        return "value"
+    return f'call {w["order"]}' + (f' ×{w["sites"]}' if w.get("sites") else "")
+
+
 def node_page(packet, page, unit, port, drawn, dropped):
     """A function, method, handler or class page: what it takes in, what it calls, what leaves."""
     gates = packet["gates"]
@@ -403,6 +418,15 @@ def node_page(packet, page, unit, port, drawn, dropped):
     for p in packet["inputs"]:
         node = port(p["port"], p["name"], go=p.get("index") or "")
         port_context(node, p, page.context_pages)
+    # The function itself. Every box below is something it invokes, so it is drawn and every box
+    # is wired to it; the argument slots the tracer could not source are marked on the box.
+    invocations = [w for w in packet["wires"] if w["kind"] == "invocation"]
+    stubs = {w["to"]: w.get("stubs", []) for w in invocations}
+    if invocations:
+        me = unit("self", packet["path"][len(packet["file"]) + 2:], "this function",
+                  f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', "subject",
+                  ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', path=packet["path"])
+        me.go = ""
     for c in packet["components"]:
         if c.get("kind") == "group":
             unit(c["index"], c["label"], f'{c["count"]} declarations · authored grouping',
@@ -419,6 +443,9 @@ def node_page(packet, page, unit, port, drawn, dropped):
             note.append("possible target")
         if c.get("executionUnknown"):
             note.append("execution unknown")
+        rows = stubs.get(c.get("id", c["index"]), [])
+        if rows:
+            note.append(stub_note(rows))
         for capture in c.get("captures", []):
             flags = [label for key, label in (("valueUnknown", "origin unknown"),
                      ("lifetimeUnknown", "lifetime unknown"), ("mutationUnknown", "mutation unknown")) if capture.get(key)]
@@ -501,7 +528,7 @@ def node_page(packet, page, unit, port, drawn, dropped):
     # left alone.
     shared = {}
     fields = {field["id"]: field for field in packet.get("stateFields", [])}
-    for w in value_bundles(packet["wires"]):
+    for w in value_bundles([w for w in packet["wires"] if w["kind"] != "invocation"]):
         if w["kind"] == "state" and w.get("provenance") != "state-thread":
             ends = shared.setdefault(w.get("stateField", w.get("label", "")), ([], []))
             for side, end in ((0, w["from"]), (1, w["to"])):
@@ -537,6 +564,13 @@ def node_page(packet, page, unit, port, drawn, dropped):
             page.e(end, hub_id, "", "state")
         for end in readers:
             page.e(hub_id, end, "", "state")
+    # Last, so a box is placed by the values that reach it and not by the call that makes it:
+    # the invocation edge states the call, it does not order the drawing.
+    for w in invocations:
+        if w["to"] not in drawn:
+            dropped.append((page.key, "self", w["to"]))
+            continue
+        page.e("self", w["to"], invocation_label(w), "invocation", rank=False)
 
 
 def lists(packet, page, pages):
@@ -653,7 +687,9 @@ LEGEND = [
                       "CLI target metadata names the outside declaration without inventing a map index."),
     ("b", "recv", "a callee resolved by following the receiver's or callee's value "
                   "(receiver-value, value-follow)."),
-    ("b", "subject", "the function this page is, drawn when its body calls nothing."),
+    ("b", "subject", "the function this page is. Every box it draws is wired to it by an "
+                     "invocation edge, so no box floats; stub rows on a box name the argument "
+                     "slots the tracer could not source."),
     ("b", "state", "local loop, update or collection state, with initial/current/next/final roles on its wires. "
                    "A class field instead connects the members that write and read it."),
     ("h", None, "Ports"),
@@ -683,6 +719,10 @@ LEGEND = [
     ("w", "gate", "ast-guard: the call is reached only under a test. The label names the condition "
                   "and branch; the full predicate remains under source and CLI --details."),
     ("w", "io", "ast-return / ast-throw: what leaves through a return or a throw."),
+    ("w", "invocation", "this function invokes that box, as its Nth call (×N when one "
+                        "declaration is called from several sites that did not separate), or "
+                        "declares it without calling it here. It carries no value: the values "
+                        "are the data wires, and the slots with none are the box's stub rows."),
     ("p", None, "On page 0 and on region and file pages one wire stands for every link between "
                 "those two boxes; its label is the kinds and their counts."),
     ("h", None, "What order means"),
