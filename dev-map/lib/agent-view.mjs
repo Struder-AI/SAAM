@@ -95,10 +95,11 @@ export function compactPage(page, {code = false} = {}) {
     // declaration it holds or calls stays visible without a second read. Its data wires are the
     // drawing it does not get; its invocation wires say which call each box is and which
     // argument slots are stubs, which the source alone does not say.
-    packet.wires = (page.wires ?? []).filter(wire => wire.kind === 'invocation');
+    // The state it reads and writes is context the source does not name in one place either.
+    packet.wires = (page.wires ?? []).filter(wire => wire.kind === 'invocation' || wire.kind === 'state');
     const keys = ['index', 'path', 'file', 'kind', 'line', 'endLine', 'destination',
       'code', 'source', 'sources', 'sourceKind', 'sourceSha256', 'sourceUnavailable', 'regenerate', 'stale',
-      'components', 'wires', 'facts', 'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
+      'components', 'state', 'wires', 'facts', 'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
     if (!code) keys.push('inputs', 'outputs');
     return clean(Object.fromEntries(keys.filter(key => key in packet).map(key => [key, packet[key]])), undefined, true);
   }

@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-22 — Dev map: `linked` counts relationships, code reads keep state
+
+- `check`'s `linked` counted drawn boxes, so an authored group on a
+  declaration page lowered it by one per member beyond the first (found by
+  the authoring worker: the `createBundleWorkflow` grouping alone hid 23).
+  `store.mjs::storeStatus` now counts each group member as the call it is;
+  drawing no longer moves the total. New baseline 3614 linked (was 3553),
+  1080 unresolved, 47 outside, 5798 platform.
+- The compact read of a code-destination page kept a fixed key list that
+  dropped `state`; it now returns `state` and the `state` wires beside the
+  invocation wires, so the 28 field-state and 263 closure-state member
+  pages that open as code carry their state (`SegmentIndex::add`: four
+  fields, six wires).
+- Authoring phase 1 (studio, core/print) is written in the worktree and
+  awaits the owner's review before it lands.
+
 ## 2026-09-22 — Dev map: class instance fields as state nodes
 
 - A class's `this.` fields are `state` nodes with `binding: "field"`

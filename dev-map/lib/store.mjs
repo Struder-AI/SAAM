@@ -647,11 +647,13 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
   for(const record of Object.values(held.records))
     nodes.push(...Object.values((await json(resolve(dir,'files',record))).pages));
   const totals={regions:held.regions.length,files:Object.keys(held.files).length,pages:nodes.length,
-    // Every linked call a page holds: a box it draws, plus the callables a caller passes into a
+    // Every linked call a page holds, whatever the drawing does with it: a box it draws, each
+    // member of an authored group drawn as one box, plus the callables a caller passes into a
     // parameter this page invokes, which are drawn on the caller's page and named here as rows.
     // A box a leaf drew onto the map above it repeats a call already counted on the leaf's
     // own page; it is context there, not a relationship of its own.
-    linked:nodes.reduce((n,p)=>n+p.components.filter(c=>!c.inlined).length
+    linked:nodes.reduce((n,p)=>n+p.components.filter(c=>!c.inlined)
+        .reduce((calls,c)=>calls+(c.kind==='group'?(c.members?.length??c.count??1):1),0)
       +(p.inputs??[]).reduce((rows,port)=>rows+(port.parameterTargets?.length??0),0),0),
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
     outside:nodes.reduce((n,p)=>n+(p.outside??0),0),

@@ -153,12 +153,12 @@ Two consequences of the tree to look at before settling:
    `parameterTargets` rows on the callee's port, boxes on the caller's page.
    Left: 9 boxes where the callable is destructured from a parameter record;
    a supplier with no page (ambiguous `onclick` anchors) falls back to the
-   file; `linked` now counts the rows.
+   file. `linked` counts relationships, not boxes, since 2026-09-22.
 3. **Closure-owned state on member pages.** Built 2026-09-22: `state` nodes
    with read and write wires on member and holder pages; capture text off
    the reference box; class fields followed on 2026-09-22 as the same node
-   kind. Left: captures inside anonymous nested callbacks; the compact read
-   of a code page drops `state` (fixed key list in `agent-view.mjs`).
+   kind, and code reads carry it. Left: captures inside anonymous nested
+   callbacks.
 4. **Enter array-method callbacks.** Built 2026-09-21: iteration methods
    are stages with the item as input (`shapes.mjs::iterationMethods`); 645
    callbacks entered. Not in the table: `Array.from(x, fn)`, `flat()`. A
