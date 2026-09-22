@@ -100,11 +100,11 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   member invocations), `wires` (data between instances, with `fromPort` and
   `toPort`; `argN` for argument slots, `positionUnknown` after a spread; one
   `invocation` wire per box, so none floats: `from`, the function itself
-  (`"self"`) or the leaf whose chain drew the box, the call's `order`,
-  `provenance` (`call-site`, or `declaration`/`reference` for a box held or
-  named but not called here) and `stubs`, the slots with no data wire, each a
-  `slot` and a `reason` (`literal` a constant at the call site, the rest gaps
-  already carried by `argument-origin` rows). It carries no value; the rule
+  (`"self"`) or the leaf whose chain drew it, the call's `order`, `provenance`
+  (`call-site`, or `declaration`/`reference` for a box held or named, not
+  called) and `stubs`, the slots with no data wire, each a `slot` and either a
+  `literal`, the constant written there, cut past 40 characters (a number or
+  boolean as itself), or a `reason`, a gap `argument-origin` carries; the rule
   counts data wires only), `gates` (every enclosing condition), `requires`,
   `couplings`, `callerReferences` (mapped callers by index; active outside
   callers by path with `unmapped: true`; `callerSummary` with a count and

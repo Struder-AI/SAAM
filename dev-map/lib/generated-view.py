@@ -447,11 +447,29 @@ def build_page(packet, ctx):
     return page.layout()
 
 
+STUB_LINE = 46      # characters; a long value takes a line rather than widening the box
+
+
 def stub_note(rows):
-    """An argument slot with no wire, said out loud on the box. `literal` is a constant written
-    at the call site; every other reason is a value the tracer could not follow."""
-    shown = ", ".join(f'{row["slot"]} {row["reason"]}' for row in rows[:4])
-    return "stub " + shown + (f' +{len(rows) - 4}' if len(rows) > 4 else "")
+    """An argument slot with no wire, said out loud on the box. A constant slot carries the
+    value the call site writes there, drawn on the slot the way a panel feeds an input; every
+    other slot names the gap the tracer could not follow. Values wrap onto further lines so a
+    box grows as wide as its widest slot, not as wide as all of them together."""
+    def said(row):
+        if "literal" not in row:
+            return row["reason"]
+        value = row["literal"]
+        return value if isinstance(value, str) else json.dumps(value)
+    slots = [f'{row["slot"]} {said(row)}' for row in rows[:4]]
+    if len(rows) > 4:
+        slots.append(f'+{len(rows) - 4}')
+    lines = ["stub"]
+    for slot in slots:
+        if len(lines[-1]) + len(slot) + 2 <= STUB_LINE:
+            lines[-1] += (" " if lines[-1] == "stub" else ", ") + slot
+        else:
+            lines.append(slot)
+    return "\n".join(lines)
 
 
 def invocation_label(w):

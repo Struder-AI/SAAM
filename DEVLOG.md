@@ -1,5 +1,27 @@
 # Development log
 
+## 2026-09-22 — Dev map: literal arguments drawn as values
+
+- The owner ruled literal stubs are drawn, and asked why they exist: a slot
+  fed by a constant at the call site has no producer to wire from, so the
+  invocation edge marked it `literal` to keep no slot silent. The stub now
+  carries the value instead of the word (`invocation.mjs::literalValue`):
+  the call site's own text on one line, cut past 40 characters, a plain
+  number or boolean as that scalar, strings with their quotes, object,
+  array, `null` and `undefined` as written; `reason` is gone from literal
+  stubs. The reason is derived first, so a constant hidden by a spread
+  stays `spread`/`position-unknown`. The box prints the value on the slot
+  and wraps slots at 46 characters.
+- Verified on the main store: 1882 slots carry `literal`, 0 carry the
+  reason; every other reason count identical; string 1360, number 258,
+  object 84, boolean 83, array 41, null 14, undefined 6, 36 constant-valued
+  expressions drawn as their source; compact reads +0.25 %. `check` 3691 /
+  1084 / 47 / 5833, clean; floating boxes 0, depth 13, every declaration
+  homed once. `validatePath` draws each `requireThat` message on `arg2`.
+- Not a literal slot: `setTimeout(…, 75)` in `scheduleChange`, a platform
+  call with no box, so the `75` is in the platform count only; the
+  expression-operator work draws platform calls as producers.
+
 ## 2026-09-22 — Dev map: module-level handlers are declarations; one wire per pair
 
 - A callable stored at module level on a platform event property

@@ -147,8 +147,7 @@ Two consequences of the tree to look at before settling:
    drawn box is wired to its function in call order, untraced argument slots
    are marked stubs with a reason, and a held or referenced declaration gets a
    `declaration` or `reference` edge. Floating boxes 1434 to 0; `--details`
-   carries them since 2026-09-22. Left open: `literal` stubs (1778 of 3994)
-   mark constants rather than tracing gaps.
+   carries them and literal slots carry their value since 2026-09-22.
 2. **Callback targets as references, not boxes.** Built 2026-09-21:
    `parameterTargets` rows on the callee's port, boxes on the caller's page.
    Left: 9 boxes where the callable is destructured from a parameter record;
@@ -213,7 +212,6 @@ unscanned callers (`onGeometry` in `runRepairJob`).
 
 ## Open questions for the owner
 
-- Should `literal` argument stubs be drawn, or only genuine tracing gaps?
 - The viewer now lays a function page out left to right with semantic zoom
   and focus (2026-09-22); small pages spread wider than they need
   (`regionComponents` p90 wire 919 → 1423 px). Tune `RANK_SPREAD`, `ASPECT`

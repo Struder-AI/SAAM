@@ -1,10 +1,10 @@
 // The invocation edge. A call box stands for a call the function makes, so it is attached to
 // the function that makes it: one `invocation` wire per box, in call order, carrying the
-// argument slots the tracer could not source as marked stubs. A data wire says a value moves
-// from one port to another; an invocation wire says this function invokes this box as its Nth
-// call, and nothing about a value. It is derived from the call site, never authored, and it is
-// no part of the map-or-code rule: `destination.mjs` decides on the stored page, which holds
-// data wires only.
+// argument slots no data wire reaches as stubs: a constant carries its value, a gap its reason.
+// A data wire says a value moves from one port to another; an invocation wire says this
+// function invokes this box as its Nth call, and carries no value the rule can count. It is
+// derived from the call site, never authored, and it is no part of the map-or-code rule:
+// `destination.mjs` decides on the stored page, which holds data wires only.
 const IDENTIFIER=/^[A-Za-z_$][\w$]*$/;
 const PROPERTY=/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/;
 const SLOT=/^arg\d+$/;
@@ -21,8 +21,8 @@ const namedBindings=(page,kinds,operators=[])=>new Set([
 // Why a slot carries no wire, read off the call site's own expression and the findings this
 // page already holds. The classification is cheap and says which gap it is; the expression
 // itself stays in `--details`, and the row that records the gap (`argument-origin`) is
-// untouched. `literal` is the one reason that is not a tracing gap: the value is a constant
-// written at the call site, so there is nothing to wire it to.
+// untouched. A constant is the one slot that is not a tracing gap, and it carries its value
+// instead of a reason; `literal` remains here only for a constant whose text was not recorded.
 const stubReason=(argument,{loops,joins})=>{
   if(argument.spread)return 'spread';
   if(argument.positionUnknown)return 'position-unknown';
@@ -38,6 +38,30 @@ const stubReason=(argument,{loops,joins})=>{
   if(/[\w$)\]]\s*\(/.test(text))return 'nested-call';
   if(/^[[{]/.test(text))return 'composed-literal';
   return 'computed-expression';
+};
+
+// A constant slot is not a gap, so it carries the value rather than a word for it: the panel
+// feeding the input, drawn on it. The rendering is the call site's own text on one line, cut
+// past LITERAL_LIMIT characters with an ellipsis — a string keeps its quotes, an object, array
+// or template its source. A number or boolean spelled the way JSON spells it is carried as
+// itself, so a reader gets the value and not a quotation of it; `null` and `undefined` stay
+// the words they are written as, which no reader can mistake for an absent slot.
+const LITERAL_LIMIT=40;
+const literalValue=argument=>{
+  const text=(argument.expression??'').replace(/\s+/g,' ').trim();
+  if(!text)return undefined;
+  if(text==='true')return true;
+  if(text==='false')return false;
+  if(/^-?[\d.]/.test(text)&&String(Number(text))===text)return Number(text);
+  return text.length>LITERAL_LIMIT?`${text.slice(0,LITERAL_LIMIT)}…`:text;
+};
+// What the slot says: its value when the call site wrote one on this slot, otherwise which gap
+// it is. A constant spread over the arguments, or one whose position a spread hid, is still a
+// gap: the value is known but the slot it lands on is not, so the reason stands.
+const stubOf=(slot,argument,names)=>{
+  const reason=stubReason(argument,names);
+  const value=reason==='literal'?literalValue(argument):undefined;
+  return value===undefined?{slot,reason}:{slot,literal:value};
 };
 
 const boxOf=component=>component.id??component.index;
@@ -95,7 +119,7 @@ export function invocationWires(page) {
     for(const call of calls)for(const argument of call.arguments??[]) {
       const slot=`arg${argument.position}`;
       if(slots.has(slot)||stubs.has(slot))continue;
-      stubs.set(slot,{slot,reason:stubReason(argument,names)});
+      stubs.set(slot,stubOf(slot,argument,names));
     }
     called.push({kind:'invocation',from:'self',to:box,provenance:'call-site',
       order:Math.min(...calls.map(call=>order.get(call))),
