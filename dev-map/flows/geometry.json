@@ -74,25 +74,7 @@
             "core/geom/shapes.mjs::splineTopShell",
             "core/geom/shapes.mjs::splineSideShell",
             "core/geom/shapes.mjs::verticalSplineSideShell",
-            "core/geom/shell.mjs::toPlanar",
             "core/geom/spline-tube.mjs::splineTubeShell"
-          ],
-          "groups": [
-            {
-              "id": "construction",
-              "label": "shellConstruction",
-              "members": [
-                "core/geom/cylinder.mjs::pipeMesh",
-                "core/geom/cylinder.mjs::cylindricalPoint",
-                "core/geom/cylinder.mjs::cylindricalPose",
-                "core/geom/shapes.mjs::boxShell",
-                "core/geom/shapes.mjs::wedgeShell",
-                "core/geom/shapes.mjs::splineTopShell",
-                "core/geom/shapes.mjs::splineSideShell",
-                "core/geom/shapes.mjs::verticalSplineSideShell",
-                "core/geom/spline-tube.mjs::splineTubeShell"
-              ]
-            }
           ]
         },
         {

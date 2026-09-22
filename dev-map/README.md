@@ -51,18 +51,18 @@ live status current by hashing inputs.
 
 `0` is the root; `N` a region; each map numbers the nodes it homes `N.1`, `N.2`,
 and so on under its own index, down to leaves. A region page homes its flow
-roots, the declarations no declaration of that region calls, and any authored
-clusters of them; every other declaration of the region is homed by the first
-flow page that reaches it, walking that region's roots and clusters in index
-order and each page's components in call order, depth first. A declaration
-written inside another is homed by its holder. A node drawn on any other map,
-including a callee in another region, is a repeat: it keeps its index and
-carries `home`, and the home node carries `alsoOn`. Indexes are regenerated and
-may change; the declaration path is the durable name. Static methods are
-`file.mjs::Class::@static/method` (URI-encoded), instance methods
-`file.mjs::Class::method`, function-valued parameter defaults
-`OWNER::@default/NAME`, and anonymous callbacks a snapshot source-position
-identity that authoring must not reference.
+roots, the declarations no declaration of that region calls by name — a callable
+only passed in as a callback is one — and any authored clusters of them; every
+other declaration of the region is homed by the first flow page that reaches it,
+walking that region's roots and clusters in index order and each page's
+components in call order, depth first. A declaration written inside another is
+homed by its holder. A node drawn on any other map, including a callee in
+another region, is a repeat: it keeps its index and carries `home`, and the home
+node carries `alsoOn`. Indexes are regenerated and may change; the declaration
+path is the durable name. Static methods are `file.mjs::Class::@static/method`
+(URI-encoded), instance methods `file.mjs::Class::method`, function-valued
+parameter defaults `OWNER::@default/NAME`, and anonymous callbacks a snapshot
+source-position identity that authoring must not reference.
 
 An address is a map when its drawing would show at least two called declarations
 with a data wire between them; otherwise `destination` is `code` and the read
@@ -90,28 +90,28 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   execution order or dataflow. Each drawn declaration box carries its own
   `uncertainty` and `unresolved` rows; a group box carries `findings`, one
   count.
-- **node** (function, method, handler, class): `path`, `file`, `range`,
-  `inputs`, `outputs` (each return and throw), `components` (what it calls, in
-  call order, including outside invocations that name their target), `operators`
-  (choices, iterations, updates, collections, member invocations), `wires` (data
-  between instances, with `fromPort` and `toPort`; `argN` for argument slots,
-  `positionUnknown` after a spread; and one `invocation` wire per box, so none
-  floats: `from: "self"`, the call's `order` in the body, `provenance`
-  (`call-site`, or `declaration`/`reference` for a box held or named but never
-  called here) and `stubs`, the slots left without a data wire, each a `slot`
-  and a `reason` for the gap (`literal` a constant at the call site, the rest
-  values the tracer could not follow, already carried by `argument-origin`
-  rows). It carries no value, and the map-or-code rule counts data wires only),
-  `gates` (every enclosing condition), `requires`, `couplings`,
-  `callerReferences` (mapped callers by index; active outside callers by path
-  with `unmapped: true`; `callerSummary` with a count and the canonical index
-  when more than five would repeat), `outsideCallers` (counts per inactive
-  caller directory), `outside` and `platform` (call sites without a mapped
-  target), `unresolved` (rows with a `rule`, and `candidates` where callers
-  supply known callables), `uncertainty` (rows with a `kind`; repeated
-  `closure-capture` rows share one row with `count`), and `stateFields` on a
-  class. A code read adds `source`, `sourceKind` and `sourceSha256`, and keeps
-  its invocation wires.
+- **node** (function, method, handler, class): `path`, `file`, `range`, `inputs`
+  (`parameterTargets` on a port this page calls: each callable a caller passes,
+  by `index`, `path` and `from`; its box is on that caller's page), `outputs`
+  (each return and throw), `components` (what it calls, in call order, outside
+  invocations naming their target included; an iteration method's callback is
+  a stage of this flow, traced inline or called by name), `operators` (choices, iterations,
+  updates, collections, member invocations), `wires` (data between instances,
+  with `fromPort` and `toPort`; `argN` for argument slots, `positionUnknown`
+  after a spread; one `invocation` wire per box, so none floats: `from: "self"`,
+  the call's `order`, `provenance` (`call-site`, or `declaration`/`reference`
+  for a box held or named but not called here) and `stubs`, the slots with no
+  data wire, each a `slot` and a `reason` (`literal` a constant at the call
+  site, the rest gaps already carried by `argument-origin` rows). It carries no
+  value; the rule counts data wires only), `gates` (every enclosing condition),
+  `requires`, `couplings`, `callerReferences` (mapped callers by index; active
+  outside callers by path with `unmapped: true`; `callerSummary` with a count
+  and canonical index above five), `outsideCallers` (counts per inactive caller
+  directory), `outside` and `platform` (call sites without a mapped target),
+  `unresolved` (rows with a `rule`, and `candidates` where callers supply known
+  callables), `uncertainty` (rows with a `kind`; repeated `closure-capture` rows
+  share one row with `count`), and `stateFields` on a class. A code read adds
+  `source`, `sourceKind`, `sourceSha256` and keeps its invocation wires.
 
 Couplings are `file`, `http-route`, `worker-message`, `event-listener` and
 `registry-entry`. A `registry-entry` is name-keyed dispatch: each entry of a

@@ -1,5 +1,47 @@
 # Development log
 
+## 2026-09-21 — Dev map: callback targets as references; array-method callbacks entered
+
+- Callback targets (queue item 2). A callable a caller passes into a parameter
+  is drawn on the caller's page, wired `callable → argN` into the call, and
+  the callee's input port lists it as a `parameterTargets` row (`index`,
+  `path`, `from`, `possible`); the callee collapses to code when nothing else
+  makes it a map. Parameter-target boxes 94 → 9 (the nine remaining are
+  callables destructured out of a parameter record), 85 reference rows on 44
+  pages; 15 pages graph → code (`perTool`, `perFilament`, `watchStudioChanges`,
+  `adoptProgramState` among them); 188 declarations changed home; a callable
+  reached only as a callback is a flow root of its region (`regions.mjs`),
+  so studio's region page went from 4 boxes to 20 and awaits clustering.
+  `linked` now counts the reference rows so the total stays 3540 for the same
+  relationships; flagged for the owner. Finding rows 13800 → 13804.
+- Array-method callbacks (queue item 4). `map`, `flatMap`, `filter`,
+  `forEach`, `find*`, `some`, `every`, `sort`, `toSorted`, `reduce*` callbacks
+  are stages of the enclosing flow (`shapes.mjs::iterationMethods`): an
+  inline callback is traced with its parameter bound to the iteration
+  operator's `item`, a named callback is an ordinary call instance with the
+  element as `arg1` (`graph.mjs`, `resolvedBy: iteration-callback`), and the
+  method's result leaves the operator. 645 callbacks entered (620 inline, 25
+  named). `linked` 3540 → 3553; `unresolved`, `outside` and `platform`
+  unchanged by choice (entering a callback does not prove the receiver is an
+  array). Finding rows 13804 → 12813: `callback-execution` 1010 → 172,
+  `argument-origin` 2717 → 2284; two kinds rise because the gap is now named
+  (`iteration-source` 221 → 496, `iteration-input` 0 → 345). Islands from
+  the triage now called: `toPlanar`, `addFace`, `componentFromRoot`,
+  `normalized`, `read`. `toPlanar` stopped being a root, so `spline-shells`
+  in `flows/geometry.json` lost that member and its now-identical nested
+  group.
+- Merged store: 1611 pages (752 graph, 918 code), 0 floating boxes, every
+  declaration homed once, max depth 18 → 15, stub slots 3994 → 3484,
+  `check` 3553 linked, 1080 unresolved, 47 outside, 5798 platform, clean.
+  Pages read: `perTool` (code, 13 rows), `resolveBambuProject` (its 13
+  lambdas as boxes with callable wires), `regionComponents` (code → graph,
+  `componentFromRoot` wired from the item), `toPlanar` (caller `joinChains`),
+  `createAgentRequests::query` (filter, map, sort chain), `watchStudioChanges`.
+- Ruling recorded in DEVELOPER-CONTEXT: what is not a map is drawn on the map
+  above it; a code-destination declaration is a leaf with nothing homed
+  beneath it. Today 368 code pages call a mapped declaration and 46 graph
+  pages have a code parent, which the viewer's tree cannot reach.
+
 ## 2026-09-21 — Dev map: the invocation edge; no box floats
 
 - `lib/invocation.mjs` derives one `invocation` wire per drawn box from the

@@ -52,9 +52,12 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
   repeats as `alsoOn`.
 - An address is a map only when it would draw at least two called declarations
   with a wire between them; otherwise it opens as code with the same callers,
-  couplings and findings beside it. No page draws a single box, and no box
-  floats: a call is connected to the function that makes it even when its
-  arguments could not be traced.
+  couplings and findings beside it. What is not a map is drawn on the map
+  above it: a code-destination declaration is a leaf, drawn as one box on the
+  map that reaches it with its incoming and outgoing wires there, and nothing
+  is homed beneath it. No page draws a single box, and no box floats: a call
+  is connected to the function that makes it even when its arguments could
+  not be traced.
 - From every map it is clear which child to open next. A node is repeated on a
   map only where it gives context in that view; nothing is read twice
   otherwise. There is no cap on page size or depth; a good map decides.
@@ -65,8 +68,8 @@ Findings are the scanner's honesty, never hidden. A finding about a node is
 shown on every map that draws that node, once per node however many boxes
 draw it: the box carries a count and the rows sit in the page's finding list,
 sectioned by node; a group box carries one count. Most rows are
-analysis limits (destructuring, loop values, callbacks the tracer does not
-enter, untyped receivers) and are generator work; a few are the code's shape,
+analysis limits (destructuring, loop values, untraced collections, untyped
+receivers) and are generator work; a few are the code's shape,
 handled below. Do not turn a finding into an invented wire, and do not infer
 that no caller exists from an unscanned or dynamic boundary.
 

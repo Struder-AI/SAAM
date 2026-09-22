@@ -9,7 +9,7 @@ import {resolve} from 'node:path';
 import {parse} from 'acorn';
 import {extractGraph,sourceFiles} from './graph.mjs';
 import {projectGraph,select} from './projection.mjs';
-import {classify,functionAt} from './shapes.mjs';
+import {classify,functionAt,iterationMethods} from './shapes.mjs';
 import {importAliases,scanRoots,isMapped} from './scope.mjs';
 
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
@@ -287,7 +287,11 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   if(!node||node.kind==='module')throw Error(`A flow page needs a function, method or class node; ${target} is not one.`);
   const declaration=byAnchor(graph).get(node.path)??(()=>{throw Error(`No declaration for ${node.path}.`);})();
   const text=sources.get(node.file)??(()=>{throw Error(`No source for ${node.file}.`);})();
-  const expression=n=>text.slice(n.start,n.end).trim();
+  // A value the source has no expression for — the element an iteration method hands its
+  // callback — is read as the element of the collection it comes from, not as that collection.
+  const synthetic=new Map();
+  const expression=n=>synthetic.get(n)??text.slice(n.start,n.end).trim();
+  const display=n=>synthetic.get(n)??src(text,n);
   const sourceSite=n=>({file:node.file,line:n.loc.start.line,column:n.loc.start.column+1,start:n.start,end:n.end});
   const ast=asts?.get(node.file)??parse(text,{ecmaVersion:'latest',sourceType:'module',locations:true});
   const head=n=>({handle:n.handle,path:n.path,label:n.label,foot:foot(n),file:n.file,line:n.line,endLine:n.endLine,
@@ -318,7 +322,51 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   };
   const controls=new Set(['IfStatement','ConditionalExpression','LogicalExpression','ForStatement','ForOfStatement','ForInStatement',
     'WhileStatement','DoWhileStatement','SwitchStatement','TryStatement','CatchClause']);
-  (function walk(n,gates,inner,controlled=false,gateInputs=[]){
+  const targets=callTargets(graph),declarations=declarationsById(graph);
+
+  // An iteration method runs the function it is handed once per element of its receiver, while
+  // the call itself runs. So the callback is not a deferred body: it is a stage of this flow,
+  // its parameter is the element, and the calls it makes are this function's calls. An inline
+  // callback is entered here; a callback that names a declaration is a call of that declaration
+  // with the element as its argument, and the edge for it was derived with the call sites.
+  const iterationAt=new Map(),entered=new Set(),iterationGate=new Map();
+  const iterationSpec=n=>{
+    if(n.type!=='CallExpression'||n.callee.type!=='MemberExpression'||n.callee.computed||n.callee.property.type!=='Identifier')return null;
+    const spec=iterationMethods.get(n.callee.property.name);
+    if(!spec||n.arguments.length>spec.arity||n.arguments.some(a=>a.type==='SpreadElement'))return null;
+    const handed=n.arguments[spec.callback];if(!handed)return null;
+    const found=targets.get(`${node.file}:${n.start}:${n.end}`)??[];
+    const callbacks=found.filter(r=>r.resolvedBy==='iteration-callback');
+    // The method itself named mapped code, so this is that declaration's call, not an iteration.
+    if(found.length!==callbacks.length)return null;
+    const inline=functions.has(handed.type)&&!stop.has(handed.start)?handed:null;
+    if(!inline&&!callbacks.length)return null;
+    // What the callback calls each of its parameters, read off the callback itself.
+    const named=spec.param.map((role,i)=>
+      ((inline?inline.params[i]&&name(inline.params[i]):callbacks[0].params?.[i])??role).replace(/^\.\.\./,''));
+    const receiver=n.callee.object,label=src(text,receiver),item=named[spec.param.indexOf('item')];
+    // A callback that names a declaration is called with the values this stage holds, one
+    // synthetic argument per parameter the method supplies: the element, and the accumulator.
+    const slots=spec.param.map((role,i)=>({role,
+      node:{type:'Identifier',name:named[i],start:receiver.start,end:receiver.end,loc:receiver.loc}}));
+    for(const {role,node:slot} of slots)
+      synthetic.set(slot,role==='item'?`${slot.name} of ${label}`:`${slot.name} so far`);
+    const held={spec,handed,inline,receiver,label,callbacks,item,slots,
+      accumulator:named[spec.param.indexOf('accumulator')],
+      gate:{text:`of ${label}`,kind:'loop',name:label,source:{...sourceSite(receiver),endLine:receiver.loc.end.line}},
+      element:slots[spec.param.indexOf('item')].node};
+    return held;
+  };
+  (function iterations(n){
+    if(n!==fn&&stop.has(n.start))return;
+    const held=n.type==='CallExpression'?iterationSpec(n):null;
+    if(held) {
+      iterationAt.set(n,held);
+      if(held.inline){entered.add(held.inline);iterationGate.set(held.inline,held.gate);}
+    }
+    for(const c of kids(n))iterations(c);
+  })(fn);
+  (function walk(n,gates,inner,controlled=false,gateInputs=[],nested=false){
     gatesAt.set(n,gates);
     gateInputsAt.set(n,gateInputs);
     if(n!==fn&&stop.has(n.start))return;
@@ -328,8 +376,8 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       sites.push({node:n,gates:optional?[...gates,optional]:[...gates],inner,controlled:controlled||Boolean(optional)});
     }
     // A return or throw inside a nested callback leaves that callback, not this body.
-    if(!inner&&n.type==='ReturnStatement')exits.push({kind:'return',node:n,value:n.argument,name:n.argument?src(text,n.argument):src(text,n),gate:shown(gates)});
-    if(!inner&&n.type==='ThrowStatement')exits.push({kind:'throw',node:n,value:n.argument,name:thrown(n.argument,text),gate:shown(gates)});
+    if(!nested&&n.type==='ReturnStatement')exits.push({kind:'return',node:n,value:n.argument,name:n.argument?src(text,n.argument):src(text,n),gate:shown(gates)});
+    if(!nested&&n.type==='ThrowStatement')exits.push({kind:'throw',node:n,value:n.argument,name:thrown(n.argument,text),gate:shown(gates)});
     for(const c of kids(n)){
       parents.set(c,n);let g=gateFor(n,c,text);
       const condition=g?(n.test??(n.type==='LogicalExpression'?n.left:['ForOfStatement','ForInStatement'].includes(n.type)?n.right:n.type==='CallExpression'?n.callee:null)):null;
@@ -338,14 +386,17 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         const named=['Identifier','MemberExpression'].includes(subject.type)?src(text,subject):subject.type==='CallExpression'?src(text,subject.callee):'condition';
         g={...g,name:named,source:{...sourceSite(condition),endLine:condition.loc.end.line}};
       }
-      walk(c,g?[...gates,g]:gates,inner||(n!==fn&&functions.has(n.type)),controlled||controls.has(n.type),condition?[...gateInputs,condition]:gateInputs);
+      // An entered callback body runs once per element, like a loop body: its calls are this
+      // function's calls, under the iteration's own gate.
+      if(!g&&iterationGate.has(c))g=iterationGate.get(c);
+      walk(c,g?[...gates,g]:gates,inner||(n!==fn&&functions.has(n.type)&&!entered.has(n)),
+        controlled||controls.has(n.type)||entered.has(c),condition?[...gateInputs,condition]:gateInputs,
+        nested||(n!==fn&&functions.has(n.type)));
     }
   })(fn,[],false);
   sites.sort((a,b)=>a.node.start-b.node.start);
   const siteAt=new Map(sites.map(site=>[`${site.node.start}:${site.node.end}`,site]));
   if(fn.body.type!=='BlockStatement')exits.push({kind:'return',node:fn.body,value:fn.body,name:src(text,fn.body),gate:null});
-
-  const targets=callTargets(graph),declarations=declarationsById(graph);
 
   // Components, in order of first appearance: a local closure where it is declared, any
   // other callee at its first call site. Assertions remain requirements. Computing a value
@@ -372,11 +423,13 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     const found=targets.get(`${node.file}:${site.node.start}:${site.node.end}`)??[];
     const receiver=site.node.callee.type==='MemberExpression'
       ?site.node.callee.object.type==='Identifier'?site.node.callee.object:site.node.callee.object.type==='ThisExpression'?site.node.callee.object:null:null;
-    if(!found.length) {
+    // Entering a callback does not identify the method that runs it: `xs.map` is still whatever
+    // `xs` is, so the site keeps the row that says so, exactly as an inline callback's does.
+    if(!found.some(r=>r.resolvedBy!=='iteration-callback')) {
       const at=`${node.file}:${site.node.start}:${site.node.end}`,rule=rules[at]??'unaccounted';
       unlinked.push({call:src(text,site.node.callee),line:site.node.loc.start.line,column:site.node.loc.start.column+1,
         state:externalRule.has(rule)?'external':'unresolved',rule,...(siteNotes[at]??{})});
-      continue;
+      if(!found.length)continue;
     }
     for(const r of found) {
       const to=projection.owner.get(r.to);
@@ -393,7 +446,13 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       let c=components.get(to.path);
       if(!c)components.set(to.path,c={node:to,order:site.node.start,sites:[],links:new Set()});
       c.order=Math.min(c.order,site.node.start);
-      c.sites.push({...site,receiver,relation:r,args:site.node.arguments});
+      // A callback an iteration method runs is handed the element, not the arguments written at
+      // the call site, and the receiver of the method is nothing the callback is called on.
+      const iteration=iterationAt.get(site.node);
+      const handed=iteration?.callbacks.includes(r)?iteration:null;
+      c.sites.push({...site,receiver:handed?null:receiver,relation:r,
+        ...(handed?{iteration:handed,gates:[...site.gates,handed.gate]}:{}),
+        args:handed?handed.slots.map(slot=>slot.node):site.node.arguments});
       c.links.add(linkOf(r));
     }
   }
@@ -430,13 +489,13 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       ...originGaps(p.value??p.argument,[field,p.type==='SpreadElement'?'...':p.computed?`[${src(text,p.key)}]`:p.key.name??p.key.value].filter(x=>x!=='').join('.'))]);
     if(n.type==='ArrayExpression')return n.elements.flatMap((e,i)=>originGaps(e,`${field}[${i}]`));
     const value=producers(n);
-    return [...(!value.length||value.some(p=>p.unknown)?[{node:n,field,expression:src(text,n)}]:[]),
+    return [...(!value.length||value.some(p=>p.unknown)?[{node:n,field,expression:display(n)}]:[]),
       ...(n.type==='MemberExpression'&&n.computed?originGaps(n.property,field?`${field}.[key]`:'[key]'):[])];
   };
   const containsWrite=n=>['UpdateExpression','AssignmentExpression'].includes(n.type)||kids(n).some(containsWrite);
   const valueDescription=expression=>{
     const value=producers(expression),unknown=originGaps(expression).length>0;
-    return {expression:src(text,expression),
+    return {expression:display(expression),
       ...(!unknown&&!containsWrite(expression)&&value.length&&value.every(p=>p.constant!==undefined)?{constant:true}:{}),
       ...(unknown?{unknown:true}:{})};
   };
@@ -469,22 +528,56 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     for(const b of branches)operatorInput(op,b.port,b.values,{expression:b.expression});
     return [{end:op.id,port:'selected',label:details.binding??src(text,n)}];
   };
+  // Who supplied a callable: the innermost declaration holding the argument the value was
+  // followed from. The argument may be the callable itself, so the holder above it is the
+  // caller; a value passed at module level names its file instead.
+  const declarationsInFile=new Map();
+  const supplier=(at,target)=>{
+    if(!at?.file)return null;
+    if(!declarationsInFile.has(at.file))declarationsInFile.set(at.file,
+      graph.declarations.filter(d=>d.file===at.file&&Number.isInteger(d.start)&&Number.isInteger(d.end)));
+    let innermost=null;
+    for(const d of declarationsInFile.get(at.file))
+      if(d.start<=at.start&&at.end<=d.end&&(!innermost||d.start>=innermost.start&&d.end<=innermost.end))innermost=d;
+    let found=innermost?projection.owner.get(innermost.id)??null:null;
+    while(found&&found===target)found=found.parent??null;
+    return found&&found.kind!=='module'?found:{file:at.file};
+  };
   // Knowing that a parameter is invoked does not identify its concrete target.
   // Preserve that source-addressed call, its payload and optional control while
   // retaining the original parameter-target unresolved site. No alias inference.
+  // Where callers could be followed to concrete callables, those callables are the callers'
+  // own code, written and passed there: they are drawn on the caller's page and named here as
+  // `parameterTargets` of this port. Either way the invocation itself is this one operator, so
+  // the parameter's call, its arguments and its result keep their wires on this page.
+  const parameterTargets=new Map(),parameterCallSites=new Set();
   const parameterInvocation=n=>{
     const site=siteAt.get(`${n.start}:${n.end}`),parameterPort=ports.get(key(n.callee));
-    if(n.type!=='CallExpression'||n.callee.type!=='Identifier'||!parameterPort||site?.inner
-      ||rules[`${node.file}:${n.start}:${n.end}`]!=='parameter-target')return null;
+    if(n.type!=='CallExpression'||n.callee.type!=='Identifier'||!parameterPort)return null;
+    const at=`${node.file}:${n.start}:${n.end}`;
+    const passed=(targets.get(at)??[]).filter(r=>r.viaParameter&&projection.owner.get(r.to)?.kind!=='module');
+    if(rules[at]!=='parameter-target'&&!passed.length)return null;
     const callable=producers(n.callee);
     if(callable.length!==1||callable[0].end!==parameterPort.port)return null;
+    const rows=parameterTargets.get(parameterPort.port)
+      ??parameterTargets.set(parameterPort.port,[]).get(parameterPort.port);
+    for(const r of passed) {
+      const to=projection.owner.get(r.to);if(!to||to===node||rows.some(row=>row.path===to.path))continue;
+      const from=supplier(r.resolution?.[0],to);
+      rows.push({index:to.handle,path:to.path,file:to.file,line:to.line,endLine:to.endLine,
+        ...(from?.handle?{from:from.handle,fromPath:from.path}:from?.file?{fromFile:from.file}:{}),
+        ...(r.possible?{possible:true}:{})});
+    }
+    if(passed.length)parameterCallSites.add(`${n.start}:${n.end}`);
     const callee=src(text,n.callee),gates=[...(site?.gates??[])];
     const gate=guarded(shown(gates));
     const args=n.arguments.map((arg,i)=>({port:`arg${i+1}`,...valueDescription(arg),
       ...(arg.type==='ObjectExpression'?{fields:arg.properties.map(property=>({
         name:property.type==='SpreadElement'?'...':property.computed?src(text,property.key):String(property.key.name??property.key.value),
         ...valueDescription(property.value??property.argument)}))}:{})}));
-    const op=operator('invocation',n,'parameter-call',{callee,optional:!!n.optional,targetUnknown:true,
+    const op=operator('invocation',n,'parameter-call',{callee,optional:!!n.optional,
+      ...(passed.length?{...(passed.length>1||passed.some(r=>r.possible)?{possibleTarget:true}:{})}:{targetUnknown:true}),
+      ...(site?.inner?{executionUnknown:true}:{}),
       column:n.loc.start.column+1,start:n.start,end:n.end,arguments:args,
       ports:{inputs:['callable',...args.map(a=>a.port)],outputs:['result']},...(gate?{gate}:{})});
     operatorInput(op,'callable',callable,gate?{gate}:{});
@@ -731,6 +824,73 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     for(let i=0;i<argPorts.length;i++)invalidateCollections(args[i],env,n,'collection-escape');
     return [{end:op.id,port:'result',...(operation==='set'?{collection}:operation==='map'?{collection:{kind:'array',id:`${node.file}:${n.start}`,owner:null}}:{})}];
   };
+  // What a callback leaves: the expression an arrow is, or every return its own body makes.
+  const callbackReturns=cb=>{
+    if(cb.body.type!=='BlockStatement')return producers(cb.body);
+    const out=[];
+    (function returns(s){
+      if(s!==cb&&functions.has(s.type))return;
+      if(s.type==='ReturnStatement'){if(s.argument)out.push(...producers(s.argument));return;}
+      for(const c of kids(s))returns(c);
+    })(cb);
+    return unique(out);
+  };
+  // One stage: the elements of the receiver in, the callback's work per element, the method's
+  // own value out. An inline callback is traced here, with the element as its parameter; a
+  // callback that names a declaration is drawn as a call of it and its result comes back from
+  // that box. An accumulator is loop-carried, exactly as a loop's own accumulation is.
+  const applyIterationCall=(n,held,env)=>{
+    const {spec,inline,receiver,item,label,element,slots}=held;
+    const iterable=evaluate(receiver,env);
+    evaluate(n.callee,env);
+    const initial=spec.initial!==undefined&&n.arguments[spec.initial]?evaluate(n.arguments[spec.initial],env):null;
+    const carriedAt=spec.param.indexOf('accumulator');
+    const binding=carriedAt<0?null:held.accumulator;
+    const op=operator('iteration',n,`callback:${spec.method}`,{mode:'elements',method:spec.method,item,
+      test:`of ${label}`,minIterations:0,callback:expression(held.handed),...(binding?{binding}:{}),
+      ports:{inputs:['iterable',...(carriedAt<0?spec.feed?[spec.feed]:[]:['initial','next'])],
+        outputs:['item',...(carriedAt<0?spec.produces?['result']:[]:['current','final'])]}});
+    const known=iterable.length&&!iterable.some(p=>p.unknown);
+    if(known)operatorInput(op,'iterable',iterable);
+    else {
+      // With no collection to read the element from, the element is the iteration's own variable
+      // and nothing more: it is named as one, so the slots it feeds read as loop variables.
+      op.iterationSourceUnknown=true;synthetic.set(element,item);
+      uncertain('iteration-source',n,{iterable:label,binding:item});
+    }
+    const elements=known?[{end:op.id,port:'item',label:item}]:[{unknown:label,label:item}];
+    const carried=carriedAt<0?null:[{end:op.id,port:'current',label:binding}];
+    for(const slot of slots)values.set(slot.node,slot.role==='accumulator'?carried:elements);
+    if(carriedAt>=0) {
+      if(initial)operatorInput(op,'initial',initial);
+      if(!initial||!initial.length||initial.some(p=>p.unknown)) {
+        op.initialUnknown=true;uncertain('iteration-input',n,{operator:op.id,input:'initial'});
+      }
+    }
+    invalidateCollections([...iterable,...(initial??[])],env,n,'collection-escape');
+    let returned=[];
+    if(inline) {
+      const inner=new Map(env),changed=written(inline);
+      // A binding the callback writes holds a different value on every element, and this tracer
+      // does not carry that around the iteration: it is the loop-accumulation gap, named as one.
+      for(const b of changed)if(env.has(b)){inner.set(b,[]);uncertain('loop-data-flow',n,{binding:bindingName.get(b)??b});}
+      (function captures(s){if(s.type==='Identifier')invalidateCollections(env.get(key(s))??[],env,n,'collection-capture');for(const c of kids(s))captures(c);})(inline.body);
+      inline.params.forEach((p,i)=>put(p,spec.param[i]==='item'?elements:spec.param[i]==='accumulator'&&carried?carried:[{unknown:src(text,p)}],inner));
+      statement(inline.body,inner);
+      values.set(inline,[]);
+      returned=callbackReturns(inline);
+      for(const b of changed)if(env.has(b))env.set(b,[]);
+    } else returned=held.callbacks.map(r=>projection.owner.get(r.to))
+      .filter(t=>t&&t!==node&&t.kind!=='module').map(t=>({end:t.path,site:sourceSite(n)}));
+    if(spec.feed) {
+      operatorInput(op,spec.feed,returned);
+      if((!returned.length||returned.some(p=>p.unknown))&&['value','next'].includes(spec.feed)) {
+        (op.unknownInputs??=[]).push(spec.feed);uncertain('iteration-input',n,{operator:op.id,input:spec.feed});
+      }
+    }
+    if(!spec.produces)return [{constant:'undefined'}];
+    return [{end:op.id,port:carriedAt<0?'result':'final',label:src(text,n)}];
+  };
   const updateValue=(n,prior,value,binding,prefix=true)=>{
     const op=operator('update',n,'value',{operation:n.operator,binding,prefix,
       ports:{inputs:['prior','value'],outputs:['next','result']}});
@@ -805,6 +965,8 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         &&rules[`${node.file}:${n.start}:${n.end}`]==='unbound-callee'&&local?.type==='VariableDeclarator'&&local.id.type==='Identifier') {
         result=createCollection(n,'map');values.set(n,result);return result;
       }
+      const held=spec?null:iterationAt.get(n);
+      if(held){result=applyIterationCall(n,held,env);values.set(n,result);return result;}
       evaluate(n.callee,env);
       const optional=!!optionalCallGate(n,text),argEnv=optional?new Map(env):env;
       const args=(n.arguments??[]).flatMap(a=>spec?.operation==='map'?[]:evaluate(a,argEnv));
@@ -821,7 +983,12 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       const drawn=to;
       if(!spec){
         const outside=outsideInvocation(n);
-        result=drawn.length?[...drawn.map(t=>({end:t.path,site:sourceSite(n)})),...(outside??[])]:outside??(to.length?args:parameterInvocation(n)??parameterMemberInvocation(n)??[{unknown:src(text,n)}]);
+        // A call on this function's own parameter is the parameter's invocation, whether or not
+        // the callables callers pass could be followed: those are the caller's boxes, not this
+        // page's, so the operator is the result here.
+        const viaParameter=outside?null:parameterInvocation(n);
+        result=viaParameter??(drawn.length?[...drawn.map(t=>({end:t.path,site:sourceSite(n)})),...(outside??[])]
+          :outside??(to.length?args:parameterMemberInvocation(n)??[{unknown:src(text,n)}]));
       }
       if(optional)merge(env,[argEnv,new Map(env)],n,'optional-argument-state',['present','nullish']);
     } else if(n.type==='MemberExpression') {
@@ -1074,6 +1241,29 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     return true;
   };
   statement(fn.body,initial);
+  // A callback target is a reference, not a box. The call sites the parameter invocation above
+  // stands for drop out of the drawing, and a component left with no site of its own goes with
+  // them unless this function holds the declaration, which homes it here regardless.
+  if(parameterCallSites.size) {
+    // A call written in a parameter default is invoked by the same parameter, outside the body
+    // the dataflow walks; a target already named as a reference is not also a box because of it.
+    const referenced=new Set([...parameterTargets.values()].flat().map(row=>row.path));
+    const onParameter=site=>site.node.callee.type==='Identifier'&&!!ports.get(key(site.node.callee));
+    for(const c of order)c.sites=c.sites.filter(site=>!parameterCallSites.has(`${site.node.start}:${site.node.end}`));
+    for(let i=order.length-1;i>=0;i--) {
+      const c=order[i];if(c.links.has('ast-closure'))continue;
+      if(c.sites.length&&!(referenced.has(c.node.path)&&c.sites.every(onParameter)))continue;
+      // A finding follows its node, so the rows a dropped site would have raised are raised here
+      // instead of with the box: what it invokes and where each argument came from.
+      for(const site of c.sites) {
+        diagnoseOrigin('callable-origin',site.node.callee,{call:src(text,site.node.callee)});
+        site.args.forEach((arg,at)=>diagnoseOrigin('argument-origin',arg,{call:src(text,site.node.callee),argument:at+1}));
+      }
+      order.splice(i,1);
+    }
+    order.forEach((c,i)=>{c.index=i+1;});
+  }
+  for(const p of params)if(parameterTargets.get(p.port)?.length)p.parameterTargets=parameterTargets.get(p.port);
   for(const [path,rows] of closureCaptures)for(const row of rows.values())if(row.valueUnknown||row.mutationUnknown)
     uncertain('closure-capture',childFunctions.get(path),{closure:path,binding:row.name,access:row.access,
       ...(row.valueUnknown?{valueUnknown:true}:{}),...(row.lifetimeUnknown?{lifetimeUnknown:true}:{}),...(row.mutationUnknown?{mutationUnknown:true}:{})});
@@ -1284,7 +1474,8 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       ...(site.args.slice(0,i+1).some(a=>a.type==='SpreadElement')?{positionUnknown:true}:{}),
       producers:producers(arg).filter(p=>p.end).map(p=>({endpoint:p.end,...(p.port?{port:p.port}:{}),
         ...(p.label?{label:p.label}:{}),...(p.site?{site:p.site}:{})}))})),
-    result:resultAt(site.node),resultUses:[]}))).sort((a,b)=>a.start-b.start||a.callee.localeCompare(b.callee));
+    // An iteration method's own result is the collection, not what the callback left behind.
+    result:site.iteration?{kind:'expression'}:resultAt(site.node),resultUses:[]}))).sort((a,b)=>a.start-b.start||a.callee.localeCompare(b.callee));
   const callBySite=new Map(callBindings.map(call=>[`${call.file}:${call.start}:${call.end}:${call.callee}`,call]));
   const producingCall=p=>p.site&&callBySite.get(`${p.site.file}:${p.site.start}:${p.site.end}:${p.endpoint}`);
   // Receiver alternatives selected by the same lookup are correlated: a value made by

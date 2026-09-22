@@ -3,6 +3,7 @@ import {posix, resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
 import {couplings} from './couplings.mjs';
+import {iterationMethods} from './shapes.mjs';
 import {isMapped} from './scope.mjs';
 
 const functions = new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
@@ -649,6 +650,9 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     const linked={'ast-call-site':0,'receiver-value':0,'value-follow':0},links={'receiver-value':0,'value-follow':0};
     // Full spans distinguish nested calls that share a starting expression.
     const external={},externalSites=[],unresolved=[],rules={},unlinked={},notes={};
+    // Every call span that reached a target, in any scanned root. A later pass reads it to know
+    // which member calls named no callee at all, which is what an iteration method looks like.
+    const accounted=new Set();
     const count=(table,rule)=>{table[rule]=(table[rule]??0)+1;};
     for(const c of calls) {
       // Receiver and callable resolution runs for every scanned root, so an outside caller
@@ -656,7 +660,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       // The linked/external/unresolved account itself stays an account of mapped code.
       const inside=mappedCode(c.module.file);
       const callee=c.node.callee,key=callee.type==='MemberExpression'?property(callee):null;
-      if(callEdges.has(c.node)) {if(inside) {linked['ast-call-site']++;count(rules,'ast-call-site');}continue;}
+      if(callEdges.has(c.node)) {accounted.add(`${c.module.file}:${c.node.start}:${c.node.end}`);if(inside) {linked['ast-call-site']++;count(rules,'ast-call-site');}continue;}
       const from=c.owner?.id??`${c.module.file}:<module>`,site=location(c.module,c.node);
       const found=new Map();
       // A default expression is one possible value of a parameter, not proof that it was selected
@@ -681,6 +685,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         if(!found.size&&key!==null)for(const {v,at} of valuesOf(callee,c.module))if(v.fn)take(v.fn,'value-follow',at,true);
       }
       if(found.size) {
+        accounted.add(`${site.file}:${site.start}:${site.end}`);
         const route=[...found.values()][0].route;
         // A callable held in a member is whatever was stored there; the store is the evidence,
         // not a proof that this call reaches one particular stored function.
@@ -689,8 +694,12 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         // `evidence` stays the call site alone: other analyses read it as the set of accounted
         // call spans. The argument that supplied the value is provenance, so it goes to
         // `resolution`, where it names the caller this link was proved from.
+        // A call on a parameter says so: the callable is the caller's, followed here through the
+        // argument. The relationship is the same link; where it is drawn is not, so the map
+        // keeps it out of the callee's own boxes and flow (dev-map/lib/flow.mjs, regions.mjs).
         for(const {decl,fn,at} of found.values())
           edge('call',from,decl.id,[site],{resolution:at?.node?[location(at.module,at.node)]:[],resolvedBy:route,...(key?{receiver:key}:{}),possible,
+            ...(directParameter?{viaParameter:true}:{}),
             args:c.node.arguments.map(passed),params:(fn??declFn.get(decl.id))?.params.map(passed)??[]});
         continue;
       }
@@ -708,7 +717,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       if(subscribers||candidates)notes[`${site.file}:${site.start}:${site.end}`]={...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})};
     }
     return {states:{linked:Object.values(linked).reduce((a,b)=>a+b,0),external:Object.values(external).reduce((a,b)=>a+b,0),unresolved:unresolved.length},
-      linked,links,external,externalSites,rules,unresolved,unlinked,notes};
+      linked,links,external,externalSites,rules,unresolved,unlinked,notes,accounted};
   }
   // A local collection of callables, filled by a registration function in the same closure and
   // iterated at the call site: the value called is whatever was registered. No static target
@@ -755,6 +764,29 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const d=nodeDecl.get(fn);if(!d||!mappedCode(d.file))continue;
       edge('event-listener',c.owner?.id??`${c.module.file}:<module>`,d.id,[location(c.module,c.node)],
         {label:first.value,receiver:key,rule:accounting.unlinked[`${c.module.file}:${c.node.start}:${c.node.end}`]});
+    }
+  }
+  // An iteration method calls the function it is handed, once per element. When that function is
+  // a declaration the call site names, the site is a call of it with the element as its argument,
+  // so it is an ordinary call edge. An inline callback is not: it is the calling flow's own body,
+  // traced there, and giving it an edge would make a box out of a stage.
+  if(accounting)for(const c of calls) {
+    if(c.node.type!=='CallExpression'||callEdges.has(c.node))continue;
+    const callee=c.node.callee,key=callee.type==='MemberExpression'?property(callee):null;
+    const spec=key===null?null:iterationMethods.get(key);
+    if(!spec||accounting.accounted.has(`${c.module.file}:${c.node.start}:${c.node.end}`))continue;
+    const args=c.node.arguments;
+    if(args.length>spec.arity||args.some(a=>a.type==='SpreadElement'))continue;
+    const handed=args[spec.callback];
+    if(!handed||functions.has(handed.type))continue;
+    const held=choices(value(handed,c.scope,c.module)).filter(v=>v.fn).map(v=>v.fn);
+    for(const fn of new Set(held)) {
+      const d=nodeDecl.get(fn);
+      // A positional anchor is an anonymous callable; it has no declaration a reader can open.
+      if(!d||!mappedCode(d.file)||!d.anchor||/<callback@\d+:\d+>/.test(d.anchor))continue;
+      edge('call',c.owner?.id??`${c.module.file}:<module>`,d.id,[location(c.module,c.node)],
+        {resolvedBy:'iteration-callback',iterationMethod:key,possible:held.length>1,
+          args:fn.params.slice(0,spec.param.length).map(passed),params:fn.params.map(passed)});
     }
   }
   // A resolved invocation of an anonymous function must retain that function's

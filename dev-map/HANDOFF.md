@@ -137,26 +137,32 @@ Two consequences of the tree to look at before settling:
 
 ## What remains, in order
 
+0. **Leaves drawn on the map above.** Ruled 2026-09-21: what is not a map is
+   drawn on the map above it. A code-destination declaration is a leaf: one
+   box on the map that reaches it, its calls drawn there as boxes wired from
+   it, nothing homed beneath it. Today 368 code pages call a mapped
+   declaration, 107 hold children and 46 graph pages have a code parent that
+   the viewer's tree cannot reach (they are appended after the last group).
 1. **The invocation edge.** Built 2026-09-21 (`lib/invocation.mjs`): every
    drawn box is wired to its function in call order, untraced argument slots
    are marked stubs with a reason, and a held or referenced declaration gets a
    `declaration` or `reference` edge. Floating boxes 1434 to 0. Left open:
    `--details` does not carry the wires (that read is in `core/agent`), and
    `literal` stubs (1778 of 3994) mark constants rather than tracing gaps.
-2. **Callback targets as references, not boxes.** Value-follow targets of a
-   parameter are drawn as boxes on the callee page (thirteen lambdas on the
-   one-line `perTool`). They belong on the caller's page; the callee lists
-   them as references and collapses to code.
+2. **Callback targets as references, not boxes.** Built 2026-09-21:
+   `parameterTargets` rows on the callee's port, boxes on the caller's page.
+   Left: 9 boxes where the callable is destructured from a parameter record;
+   a supplier with no page (ambiguous `onclick` anchors) falls back to the
+   file; `linked` now counts the rows.
 3. **Closure-owned state on member pages.** A closure factory's state is
    drawn on the factory page only, so a member such as `accept` shows none of
    the four maps it mutates. Draw the owned state as state nodes with read and
    write wires on the members. This is what makes Studio's controllers and
    sessions readable.
-4. **Enter array-method callbacks.** The tracer does not enter `map`,
-   `filter`, `sort`, `reduce`, `forEach` or `every` callbacks, which is the
-   dominant idiom in this codebase and the largest single dataflow gap
-   (`regionComponents` is the worked example). Treat them as inline stages
-   with the collection item as input.
+4. **Enter array-method callbacks.** Built 2026-09-21: iteration methods
+   are stages with the item as input (`shapes.mjs::iterationMethods`); 645
+   callbacks entered. Not in the table: `Array.from(x, fn)`, `flat()`. A
+   throw inside an entered callback is not yet an exit port.
 5. **Loop accumulation.** Accumulators in loops (`samples`, `inside`,
    `maxSlope` in `sampleTopSurface`) are marked as findings rather than
    carried to the output. Carrying them closes the last gap on small flow pages.

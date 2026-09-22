@@ -104,6 +104,12 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     const labels=[...new Set(packet.wires.filter(w=>w.to===c.index&&w.label).map(w=>w.label))].sort(order);
     list.push({index:packet.index,...(labels.length?{labels}:{})});
   }
+  // A callable passed into a parameter is invoked by the page that names it as a parameter
+  // target, though that page draws no box for it. The relationship is a caller either way.
+  for(const packet of packets.values())for(const port of packet.inputs??[])for(const row of port.parameterTargets??[]) {
+    const list=from.get(row.path)??from.set(row.path,[]).get(row.path);
+    if(!list.some(entry=>entry.index===packet.index))list.push({index:packet.index,labels:[port.name]});
+  }
   // Calls into mapped code from source the map does not cover. An active caller — code that runs
   // while a person makes a part or operates Studio — becomes a row on the callee's page carrying
   // its own declaration path; every other outside caller is one count per caller directory, so
@@ -608,7 +614,10 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
   for(const record of Object.values(held.records))
     nodes.push(...Object.values((await json(resolve(dir,'files',record))).pages));
   const totals={regions:held.regions.length,files:Object.keys(held.files).length,pages:nodes.length,
-    linked:nodes.reduce((n,p)=>n+p.components.length,0),
+    // Every linked call a page holds: a box it draws, plus the callables a caller passes into a
+    // parameter this page invokes, which are drawn on the caller's page and named here as rows.
+    linked:nodes.reduce((n,p)=>n+p.components.length
+      +(p.inputs??[]).reduce((rows,port)=>rows+(port.parameterTargets?.length??0),0),0),
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
     outside:nodes.reduce((n,p)=>n+(p.outside??0),0),
     platform:nodes.reduce((n,p)=>n+(p.platform??0),0)};

@@ -601,6 +601,17 @@ def lists(packet, page, pages):
             page.row("item", f'{c["kind"]} {c["direction"]} {c.get("label", "")}  → {end}'
                              + (f'  {c["path"]}' if c.get("index") and c.get("path") else ""),
                      c["index"] if c.get("index") in pages else "")
+    # A callable a caller passes into a parameter this page invokes. Its box is on the caller's
+    # page, where it is written and wired into the argument slot; here it is one row, so a page
+    # that only invokes its callback stays code rather than a wall of other people's lambdas.
+    targets = [(port, row) for port in packet.get("inputs", []) for row in port.get("parameterTargets", [])]
+    if targets:
+        page.row("head", f'parameter targets ({len(targets)}) — passed in by callers, drawn on the caller page')
+        for port, row in targets:
+            supplier = row.get("from") or row.get("fromPath") or row.get("fromFile") or "caller"
+            page.row("item", f'{port["port"]} {port["name"]}  →  {row["index"]} {row["path"]}'
+                             + f'  · from {supplier}' + ("  · possible target" if row.get("possible") else ""),
+                     row["index"] if row["index"] in pages else "")
     if packet.get("declarationReferences"):
         page.row("head", "declaration calls — invocation not established")
         for relation in packet["declarationReferences"]:
@@ -680,8 +691,10 @@ LEGEND = [
     ("b", "assertion-code", "an assertion gate. Its condition caption opens the caller's predicate; "
                            "its body opens the assertion implementation. Wires name its inputs, without "
                            "claiming downstream success or exception order."),
-    ("b", "invocation", "an invocation whose concrete target is unresolved. Callable or receiver "
-                        "and argument ports come from source; optional calls retain their nullish gates."),
+    ("b", "invocation", "an invocation whose callee is a parameter or is otherwise unresolved. Callable or "
+                        "receiver and argument ports come from source; optional calls retain their nullish "
+                        "gates. Where callers could be followed to concrete callables, those are listed as "
+                        "parameter-target rows below the drawing and drawn on the caller's own page."),
     ("b", "outside", "a call to a resolved source declaration outside the mapped roots, such as a skill. "
                       "Its wires come from the invocation; clicking opens that invocation's matching source. "
                       "CLI target metadata names the outside declaration without inventing a map index."),

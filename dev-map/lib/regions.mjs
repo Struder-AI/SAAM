@@ -9,6 +9,10 @@ const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry','
 const outermost=n=>{let node=n;while(node.parent)node=node.parent;return node;};
 // A declaration written as `x.onthing = function` is reached by the host that fires it.
 const domHandler=d=>d.kind==='handler'&&/^on[a-z]/.test(d.name);
+// A call made on a parameter is an invocation of whatever a caller passed. The callable is the
+// caller's code, so it is no step inside the callee's flow: it does not put the target under the
+// callee, and a declaration reached only this way is a flow root of its own region.
+const callback=c=>!!c.relation?.viaParameter;
 
 export function regionsOf(graph) {
   const files=graph.files.map(f=>f.file).filter(isMapped).sort(order);
@@ -78,6 +82,7 @@ export function model(graph,projection) {
   // Callees inside the same region, in first-appearance order within the caller's own body.
   const callees=new Map();
   for(const c of calls) {
+    if(callback(c))continue;
     if(!c.from||regionOf.get(c.from.file)!==regionOf.get(c.to.file)||c.from===c.to)continue;
     const list=callees.get(c.from.path)??callees.set(c.from.path,[]).get(c.from.path);
     const found=list.find(x=>x.to===c.to);
@@ -93,6 +98,7 @@ export function model(graph,projection) {
   // declaration holds, does not place a declaration under itself.
   const calledInRegion=new Set(),regionEdges=new Map();
   for(const c of calls) {
+    if(callback(c))continue;
     if(!c.from||regionOf.get(c.from.file)!==regionOf.get(c.to.file))continue;
     const from=outermost(c.from),to=outermost(c.to);
     if(from===to)continue;

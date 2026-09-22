@@ -169,6 +169,28 @@ export function numericalExpressionShape(fn) {
   return expression(body,names)&&operation;
 }
 
+// The iteration methods a callback is entered through. The callback runs once per element of the
+// receiver while the call itself runs, so its body is part of the calling flow rather than a
+// deferred one: `param` says what each callback parameter holds, `feed` the port the callback's
+// result reaches, and `produces` what the method leaves behind. `element` is a value the tracer
+// does not have (an index, the collection itself), so those parameters stay unknown.
+export const iterationMethods=new Map(Object.entries({
+  map:{param:['item'],feed:'value',produces:'collection'},
+  flatMap:{param:['item'],feed:'value',produces:'collection'},
+  filter:{param:['item'],feed:'test',produces:'subset'},
+  forEach:{param:['item'],feed:null,produces:null},
+  find:{param:['item'],feed:'test',produces:'element'},
+  findLast:{param:['item'],feed:'test',produces:'element'},
+  findIndex:{param:['item'],feed:'test',produces:'position'},
+  findLastIndex:{param:['item'],feed:'test',produces:'position'},
+  some:{param:['item'],feed:'test',produces:'test'},
+  every:{param:['item'],feed:'test',produces:'test'},
+  sort:{param:['item','item'],feed:'order',produces:'sorted'},
+  toSorted:{param:['item','item'],feed:'order',produces:'sorted'},
+  reduce:{param:['accumulator','item'],feed:'next',produces:'accumulator',initial:1},
+  reduceRight:{param:['accumulator','item'],feed:'next',produces:'accumulator',initial:1},
+}).map(([method,spec])=>[method,{method,callback:0,arity:2,...spec}]));
+
 // Shapes for every mapped node at once. A formula stays a formula only while every linked call it
 // makes reaches another formula, so the set is narrowed to its own fixed point.
 export function classify({graph,projection,asts}) {
