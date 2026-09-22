@@ -48,7 +48,7 @@ export function model(graph,projection) {
         line:at?.line??null,label:names(r,byId).join(', '),relation:r});
     } else if(COUPLINGS.has(r.kind)||r.kind==='worker-handoff') {
       const kind=r.kind==='worker-handoff'?'worker-message':r.kind;
-      couplings.push({kind,label:r.label??null,from:node(r.from),to:node(r.to),
+      couplings.push({kind,label:r.label??null,...(r.table?{table:true}:{}),from:node(r.from),to:node(r.to),
         fromFile:fileOf(r.from),toFile:fileOf(r.to),line:at?.line??null});
     }
   }
@@ -71,7 +71,7 @@ export function model(graph,projection) {
   }
   for(const c of couplings) {
     if(c.to){hasCaller.add(c.to.path);note(c.to,c.kind,c.from?.path??c.fromFile,c.label);}
-    if(c.from&&c.kind==='registry-entry')hasCaller.add(c.from.path);
+    if(c.from&&c.kind==='registry-entry'&&!c.table)hasCaller.add(c.from.path); // A table's owner is not called by its entries.
   }
   for(const path of domNodes)if(projection.nodes.has(path))note(projection.nodes.get(path),'dom-event',null);
 

@@ -18,6 +18,12 @@ right 0.8, left external PLA and right AMS blue PLA. AMS-10 passed right-nozzle
 colour switching. Both used the same successful reference project entry; these
 are physical command/installation results, not acceptance of the reusable
 project writer. X1 AMS changes remain unaccepted.
+The current v13 writer stores its own rendered startup and shutdown in the
+project fields, using the exact same strings as the executable. Fresh AMS-19
+and DUAL-20 pass software validation but await physical acceptance. AMS-14
+(routing changes) and AMS-15 (Standard-only variant tables) physically passed
+as independent reductions of the working reference project. Those results do
+not prove that every other authored project field is compatible.
 The H2D investigation also found a pinched left-feed PTFE tube. The untouched
 Studio left-only reference prints correctly. After that repair, full-04 completes
 its motions but still prints entirely with the right nozzle at elevated height.
@@ -296,8 +302,10 @@ the complete service start/end arrays and every generated package entry. The
 CONFIG_BLOCK and project JSON derive job fields from the **same resolved job**.
 H2D project JSON additionally expands explicit compatibility-field scopes through
 [the project writer](bambu-project.mjs); its field vocabulary/defaults are
-cross-referenced to Studio 02.08.02.61. It contains no executable templates or
-reference part data. Arrays follow declared filaments, physical tools or supported
+cross-referenced to Studio 02.08.02.61. It contains no vendor executable templates or
+reference part data. Stored `machine_start_gcode` and `machine_end_gcode` receive
+the very same rendered strings as the executable start and end; the strict
+importer reconstructs both and rejects any discrepancy. Arrays follow declared filaments, physical tools or supported
 variants; the reference's unused filament and High Flow variants are not retained.
 `filament_map_2` belongs to the resolved slice CONFIG, not the saved H2D project.
 Numbers with different meanings are intentionally not unified.
@@ -474,7 +482,7 @@ The same-file review/delivery lifecycle remains unchanged.
 
 ## H2D output contract
 
-`h2d-saam-startup-v12`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
+`h2d-saam-startup-v13`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
 including unequal diameters;
 1.75 mm PLA; Textured or Smooth PEI; no chamber heating. Startup establishes
 [100,100,20]. Shutdown clears geometry by 10 mm and parks at or below 320 mm.
@@ -512,7 +520,18 @@ filament's retraction debt afresh after each material change, including reuse
 of a previously selected logical filament. Dual-nozzle changes retain zero
 colour-flush length and do not increment the same-nozzle flush count.
 
-Revision v12 adds the authored H2D project writer. Canonical job values override
+Revision v13 adds authored stored startup and shutdown to the project writer.
+`sections()` renders each once from the canonical job and print bounds, then
+the executable and project materializer receive the same strings. Fast/full
+startup, installed nozzles, plate, temperatures and shutdown clearance cannot
+drift between those copies. No reference file is required at export time.
+The other stored G-code fields remain empty; whether these two populated fields
+are sufficient is the physical acceptance question for AMS-19 and DUAL-20.
+Both normal bundles reopen through the strict importer, and executable hashes
+match physically successful AMS-10 and DUAL-12 respectively. This is an
+implemented repair candidate, not yet a physically accepted exporter.
+
+Revision v12 introduced the authored H2D project writer. Canonical job values override
 compatibility defaults, including colours, material identities, connections,
 temperatures, plate, both diameters and all nozzle assignments. It emits only
 Standard variants, disables tower fields and leaves all executable-template
@@ -558,9 +577,11 @@ neither the required individual field nor its required contents is identified.
 Stored templates cannot yet be treated as safely disposable metadata. This does
 not prove the printer executes their contents. The next controls restore only
 startup, only filament-change, or SAAM's own exact executable startup in the
-startup field. Routing and variant-table tests remain independent. A future
-authored duplicate must reuse the executable's canonical renderer, not become
-a second source of nozzle/plate/feed settings or a copied vendor header.
+startup field. AMS-14 passed the three saved routing changes and AMS-15 passed
+the Standard-only variant-table reduction, each independently with the remaining
+working project fields preserved. Neither pass identifies the required template.
+The v13 authored duplicates now reuse the executable's canonical renderer;
+they introduce no second source of nozzle/plate/feed settings or vendor header.
 
 Both supported profiles declare `single_extruder_multi_material=1` and
 `printer_technology=FFF` in CONFIG and project JSON from the same resolved job.

@@ -268,6 +268,11 @@ AMS-09 physically changed colours using SAAM commands and a reference project
 entry. The reusable v12 project writer failed AMS-11: the part printed entirely
 orange. Multicolour delivery remains unverified and needs builder/developer
 investigation; do not copy that diagnostic's foreign project entry into new jobs.
+The current v13 writer has an implemented repair candidate: stored startup and
+shutdown reuse the executable's exact rendered strings. AMS-19 (same-nozzle
+colours) and DUAL-20 (mixed nozzles) are fresh normal-exporter acceptance files;
+their physical results are pending. Routing and Standard-only table controls
+AMS-14/15 passed, but that alone does not validate fresh generated metadata.
 For an X1 colour-change test, assign successive height regions to distinct PLA
 filaments on tool 0. The X1 adapter flushes into the rear chute; no tower is added.
 Review the separate service purge allowance and verify actual feed changes on the

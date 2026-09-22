@@ -1,5 +1,46 @@
 # Development log
 
+## 2026-09-21 — Dev map: name-keyed function tables become registry entries
+
+- `couplings.mjs` recognises a named table of functions — a `const` object
+  literal, a `Map` filled with literal keys, or the object (or array element)
+  a factory returns, named by the factory's path — and emits one
+  `registry-entry` coupling per entry, labelled `<table>.<key>`, with lookup
+  sites (`table[name]`, `table.get(name)`, `name in table`) appended as
+  evidence. Computed keys and spreads are recorded as analysis-limit rows.
+  Table couplings carry `table: true`; `regions.mjs` no longer counts a
+  table's owner as called by its own entries.
+- 48 tables, 212 new couplings (216 total, was 4); the export dialect
+  registry's four are byte-identical. Islands (declaration pages with no
+  caller and no coupling) 187 → 117. Largest tables: `createBundleWorkflow`
+  17, `createAgentRequests` 15, `createTour` 13, `moveStore::methods` 13.
+  Not recognised, by design: two-level tables whose entries are objects
+  (`studio/app.mjs::views`, `registry.mjs::adapters`), tables built by
+  assignment (`createStudio`), and array-of-pairs `LuaTable.from`.
+- Verified after `regenerate 0`: `check` exits 0, 1621 pages, 3552 linked,
+  1079 unresolved, 47 outside, 5807 platform, no stale, unplaced or orphan
+  facts; `standardLibrary::tonumber` carries its incoming registry coupling.
+
+## 2026-09-21 — H2D authored stored sections, routing and variant controls pass
+
+- User confirms AMS-14 passes two colours and AMS-15 passes. These independently
+  reduce saved routing and High Flow table rows from successful AMS-10, retaining
+  other working fields. They do not validate the entire generated project.
+- H2D revision 23 / contract v13 / project schema v2 now stores the exact authored
+  startup and shutdown strings also used by the executable. Export and strict
+  import share the materializer; no copied reference project or vendor template
+  is loaded. Remaining template fields are empty. This is a repair candidate:
+  AMS-13 identified a failing nine-field family, not the required individual key.
+- All 31 targeted Bambu tests pass, including stored/executable equality across
+  nozzle/plate/temperature choices, fast startup, tamper rejection and exact
+  preservation of physically successful colour/dual executable hashes.
+- Fresh normal bundles: AMS-19-GENERATED SHA256
+  30044f96b878e81bcc26795cef425658da60961c10f76096a0503c45b5d4beae;
+  DUAL-20-GENERATED SHA256
+  2a3007ea7fbc8251d199088ebfca4db630ebfd2133c1d4d675eddcdd04f25744.
+  Both pass strict reopen; neither has a reference-entry substitution. Both
+  physical results are pending. D: unavailable when prepared; no USB copy claimed.
+
 ## 2026-09-21 — Dev map: active outside callers, scope-edge arrows, findings on the boxes that draw them
 
 - `dev-map/lib/scope.mjs` gains `activeCallers`: catalogued skill

@@ -2,7 +2,7 @@
   "schema": "saam-machine/1",
   "id": "bambu-h2d",
   "name": "Bambu Lab H2D",
-  "revision": 22,
+  "revision": 23,
   "units": "mm",
   "planarWallToleranceMm": 0.01,
   "ams": {
@@ -13,7 +13,7 @@
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Physical DUAL-12 passed left 0.4/right 0.8 and return to left; AMS-10 passed same-nozzle colour switching. Both controls used a reference project entry. The generated v12 project writer failed AMS-11 (all orange), so general dual-nozzle/multicolour delivery remains unresolved.",
+    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Physical DUAL-12 passed left 0.4/right 0.8 and return to left; AMS-10 passed same-nozzle colour switching. Both controls used a reference project entry. Generated v12 project metadata failed AMS-11. The v13 repair reuses authored executable startup/shutdown in stored project fields; fresh AMS-19/DUAL-20 physical acceptance is pending. General dual-nozzle/multicolour delivery remains unresolved.",
     "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
   ],
   "capabilities": [
@@ -205,7 +205,7 @@
       "mimeType": "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
       "defaultFilamentColor": "#28A090",
       "program": {
-        "contract": "h2d-saam-startup-v12",
+        "contract": "h2d-saam-startup-v13",
         "start": [
           "{startupFlags}",
           "M201 X20000 Y20000 Z500 E5000",
@@ -642,10 +642,10 @@
       "package": {
         "printerModelId": "O1D",
         "clientVersion": "02.08.02.61",
-        "projectSchema": "h2d-full-project-v1",
+        "projectSchema": "h2d-full-project-v2",
         "projectSettings": {}
       },
-      "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested. DUAL-12 and AMS-10 physically passed with a reference project entry. Generated v12 metadata failed AMS-11; a normal regenerated archive still needs physical acceptance."
+      "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested. DUAL-12 and AMS-10 physically passed with a reference project entry. Generated v12 metadata failed AMS-11. Independent routing and Standard-only variant reductions AMS-14/15 passed. The v13 authored stored startup/shutdown repair passes software validation; normal regenerated AMS-19/DUAL-20 still need physical acceptance."
     }
   ],
   "startup": {

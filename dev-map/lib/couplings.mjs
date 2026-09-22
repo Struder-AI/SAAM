@@ -302,7 +302,10 @@ export function couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,
     }
   }
 
-  // 4. Registry entries: callables held side by side under one literal key, in an object whose entries repeat those roles.
+  // 4. Registries. Name-keyed dispatch through a table of functions is a boundary like the others:
+  // the key, not a call site, is what reaches the entry. Two shapes carry it.
+  //
+  // 4a. Peer entries: callables held side by side under one literal key, in an object whose entries repeat those roles.
   for(const m of modules.values())(function walk(n) {
     if(n.type==='ObjectExpression') {
       const entries=n.properties.filter(p=>key(p)&&p.value.type==='ObjectExpression'),roles=new Map();
@@ -312,6 +315,83 @@ export function couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,
         for(let i=0;i<held.length;i++)for(let j=i+1;j<held.length;j++)if(held[i].decl.id!==held[j].decl.id)
           link('registry-entry',held[i].decl.id,held[j].decl.id,[site(held[i].q,m),site(held[j].q,m)],`${key(e)}: ${key(held[i].q)}, ${key(held[j].q)}`);
       }
+    }
+    for(const c of children(n))walk(c);
+  })(m.ast);
+
+  // 4b. Table entries: every function a named table holds, linked from the declaration that names
+  // the table. A table is named when it is a `const` binding, or an object a function returns.
+  // A returned table has no binding of its own, so the factory's declaration path names the
+  // registry: `standardLibrary()` returns the Lua standard library, and its entries are the
+  // declarations `standardLibrary::tonumber`, `standardLibrary::ipairs` and the rest.
+  // Only literal keys are read. Computed keys and spreads are recorded as an analysis limit.
+  const constHolder=n=>{
+    const v=parents.get(n);
+    return v?.type==='VariableDeclarator'&&v.init===n&&v.id.type==='Identifier'&&parents.get(v)?.kind==='const'?v:null;
+  };
+  // Directly returned, or the element of a returned array: Lua-subset callables return their
+  // results as a list, so the table still leaves the factory under that factory's name.
+  const returnedTable=n=>{
+    let child=n,up=parents.get(n);
+    if(up?.type==='ArrayExpression'&&up.elements.includes(n)){child=up;up=parents.get(up);}
+    if(up?.type==='ReturnStatement'&&up.argument===child)return true;
+    return !!up&&functions.has(up.type)&&up.body===child;
+  };
+  // Where mapped code selects from the table by name. Kept as coupling evidence only; a consumer
+  // that looks an entry up is not a caller of every entry, so no call edge is invented for it.
+  const reads=(binding,m)=>{
+    const found=[],names=n=>n?.type==='Identifier'&&lookup(nodeScope.get(n),n.name)===binding;
+    (function walk(n) {
+      if(n.type==='MemberExpression'&&n.computed&&names(n.object))found.push(site(n,m));
+      else if(n.type==='CallExpression'&&n.callee.type==='MemberExpression'&&property(n.callee)==='get'&&names(n.callee.object))found.push(site(n,m));
+      else if(n.type==='BinaryExpression'&&n.operator==='in'&&names(n.right))found.push(site(n,m));
+      for(const c of children(n))walk(c);
+    })(m.ast);
+    return found;
+  };
+  const callable=(node,m)=>{const v=choices(value(node,nodeScope.get(node),m)).filter(v=>v.decl&&v.fn);return v.length===1?v[0].decl:null;};
+  // The `set(key,value)` calls made on each binding, so a `Map` table is read once rather than
+  // once per candidate.
+  const fills=new Map();
+  for(const c of calls) {
+    const callee=c.node.callee;
+    if(callee.type!=='MemberExpression'||property(callee)!=='set'||callee.object.type!=='Identifier')continue;
+    const b=lookup(nodeScope.get(callee.object),callee.object.name);
+    if(b)fills.set(b,[...fills.get(b)??[],c]);
+  }
+  // A table of functions is either wholly functions or holds several of them; one callback beside
+  // other data is an ordinary record, not a dispatch table.
+  function table(name,from,entries,rows,total,m,binding) {
+    if(!(entries.length>1||entries.length===1&&total===1))return;
+    for(const [reason,node] of rows)miss('registry-entry',reason,node,m,name);
+    const consumers=binding?reads(binding,m):[];
+    for(const e of entries)if(e.decl.id!==from)
+      link('registry-entry',from,e.decl.id,[site(e.node,m),...consumers],`${name}.${e.key}`,{table:true});
+  }
+  for(const m of modules.values())(function walk(n) {
+    const held=constHolder(n);
+    if(n.type==='ObjectExpression') {
+      const name=held?held.id.name:returnedTable(n)?nodeOwner.get(n)?.name:null;
+      if(name) {
+        const entries=[],rows=[];
+        for(const p of n.properties) {
+          if(p.type==='SpreadElement'){rows.push(['spread-entry',p]);continue;}
+          if(p.computed){rows.push(['computed-key',p]);continue;}
+          const k=key(p),decl=k?callable(p.value,m):null;
+          if(decl)entries.push({key:k,decl,node:p});
+        }
+        table(name,owner(n,m),entries,rows,n.properties.length,m,held&&lookup(nodeScope.get(held),held.id.name));
+      }
+    }
+    // A `Map` under a `const` name, filled with literal keys, is the same table written with `set`.
+    if(held&&n.type==='NewExpression'&&unbound(n.callee,'Map')) {
+      const binding=lookup(nodeScope.get(held),held.id.name),entries=[],rows=[];
+      for(const c of fills.get(binding)??[]) {
+        const [k,fn]=c.node.arguments,decl=k?.type==='Literal'&&fn?callable(fn,c.module):null;
+        if(k?.type!=='Literal')rows.push(['computed-key',c.node]);
+        else if(decl)entries.push({key:String(k.value),decl,node:c.node});
+      }
+      if(binding)table(held.id.name,owner(n,m),entries,rows,entries.length+rows.length,m,binding);
     }
     for(const c of children(n))walk(c);
   })(m.ast);

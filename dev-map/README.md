@@ -245,6 +245,11 @@ by `--details`; the default response applies the compact conventions above.
   in call order), `wires`, `gates`, `requires` (assertions it makes),
   `formulas`, `calledFrom`, `couplings`, `unresolved`, `outside`, `platform`,
   `uncertainty` where needed, and `leaf` when its destination is code.
+  A `registry-entry` coupling is name-keyed dispatch: the entries of a named table of
+  functions — a `const` table, a `Map` filled with literal keys, or the object a factory
+  returns, named by the factory's declaration path — are reached by key from the
+  declaration that names the table, not from a call site. Computed keys and spreads are
+  an analysis limit, not an entry.
 - **operators** — source-derived choices and supported loop-carried values.
   Choices expose control, alternatives and the selected value. Iterations expose
   initial/current/next/final state, including the zero-iteration path, and

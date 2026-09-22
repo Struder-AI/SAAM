@@ -49,8 +49,10 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
     assert.ok(program.moves.every(m=>/^G[01] /.test(code.split('\n')[m.line-1])),'line numbers refer to actual packaged code');
     assert.ok(!code.includes('wedge.stl'),'reference objects are not reused');
     const project=JSON.parse(entries.get('Metadata/project_settings.config'));
-    for(const [key,value]of Object.entries(project).filter(([key])=>key.endsWith('_gcode'))){
-      assert.ok((Array.isArray(value)?value:[value]).every(v=>v===''),`${key} must not embed executable templates`);
+    assert.equal(project.machine_start_gcode,code.split('; EXECUTABLE_BLOCK_START\n')[1].split(';SAAM_BODY_BEGIN\n')[0]);
+    assert.equal(project.machine_end_gcode,code.split(';SAAM_BODY_END\n')[1].split('; EXECUTABLE_BLOCK_END\n')[0]);
+    for(const [key,value]of Object.entries(project).filter(([key])=>key.endsWith('_gcode')&&!['machine_start_gcode','machine_end_gcode'].includes(key))){
+      assert.ok((Array.isArray(value)?value:[value]).every(v=>v===''),`${key} must not embed a vendor template`);
     }
   }
 });
@@ -199,6 +201,8 @@ test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent a
     plan.setup.nozzleC=225;plan.setup.bedC=65;
     const bytes=exportProgram(generatePath(plan,machine,r),plan,machine,release),z=unpackZip(bytes);
     const code=z.get(GCODE).toString(),p=JSON.parse(z.get('Metadata/project_settings.config'));
+    assert.equal(p.machine_start_gcode,code.split('; EXECUTABLE_BLOCK_START\n')[1].split(';SAAM_BODY_BEGIN\n')[0]);
+    assert.equal(p.machine_end_gcode,code.split(';SAAM_BODY_END\n')[1].split('; EXECUTABLE_BLOCK_END\n')[0]);
     const slice=z.get('Metadata/slice_info.config').toString(),plateInfo=JSON.parse(z.get('Metadata/plate_1.json'));
     assert.deepEqual(p.nozzle_diameter,tool===0?[String(diameter),'0.6']:['0.6',String(diameter)]);
     assert.ok(code.includes('; nozzle_diameter = '+p.nozzle_diameter.join(',')));
@@ -385,6 +389,14 @@ test('fast_start skips optional checks, keeps startup handoff and rejects contra
     assert.equal(JSON.parse(entries.get('Metadata/saam-job.json')).fast_start,true);
     const project=JSON.parse(entries.get('Metadata/project_settings.config'));
     assert.equal(project.single_extruder_multi_material,'1');
+    if(id==='bambu-h2d'){
+      assert.equal(project.machine_start_gcode,start.split('; EXECUTABLE_BLOCK_START\n')[1]);
+      for(const key of ['machine_start_gcode','machine_end_gcode']){
+        const altered=new Map(entries),p=structuredClone(project);p[key]+='M999\n';
+        altered.set('Metadata/project_settings.config',Buffer.from(JSON.stringify(p)));
+        assert.throws(()=>interpretProgram(packZip(altered),plan,machine),/metadata, checksum or thumbnail/);
+      }
+    }
     assert.match(start,/^; single_extruder_multi_material = 1$/m);
     plan.setup.bambu.startup.bedLeveling='on';assert.throws(()=>exportProgram(path,plan,machine,release),/fast_start conflicts/);
     plan.setup.bambu.startup.bedLeveling='printer';plan.setup.bambu.fast_start='true';assert.throws(()=>exportProgram(path,plan,machine,release),/fast_start must be boolean/);

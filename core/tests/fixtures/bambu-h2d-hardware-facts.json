@@ -75,6 +75,19 @@
     "contract": "h2d-saam-startup-v12"
   },
   "limitation": "Working controls substituted a reference project entry. Fresh generated project metadata has not passed. No vendor templates or complete project blob are stored in this fact fixture. Other machines/feed combinations require separate evidence.",
+  "routingReduction": {
+    "file": "AMS-14-ROUTING.gcode.3mf",
+    "archiveSha256": "a5858638575905d21b50c2e0880bee5a8ae79a787ffc73a9b6a9244adfb3662f",
+    "userReport": "14 passes - two colors. Run 15?",
+    "changedFields": ["filament_map_mode", "filament_map", "filament_nozzle_map"],
+    "scope": "Independent reduction of AMS-10; remaining working project fields preserved."
+  },
+  "variantReduction": {
+    "file": "AMS-15-STANDARD-VARIANTS.gcode.3mf",
+    "archiveSha256": "e0879058f837cd649dbf8dd9214bf2eac5ce78c54d160f59a264f40448b3801e",
+    "userReport": "Yes, 15 is pass",
+    "scope": "Independent Standard-only variant-table reduction of AMS-10; remaining working project fields preserved."
+  },
   "failedTemplateRemoval": {
     "file": "AMS-13-NO-TEMPLATES.gcode.3mf",
     "archiveSha256": "306622d136817247635c907fb819ce6cb2a344c46b6d5421859492d6f5114403",
