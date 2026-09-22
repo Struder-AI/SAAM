@@ -37,8 +37,7 @@ export function resolveInitialPlan(machine,{defaults,rememberedSetup,fit}){
   const plan=defaults(machine);
   if(rememberedSetup)plan.setup={...plan.setup,...rememberedSetup,
     materialGuid:rememberedSetup.materialGuid||plan.setup.materialGuid};
-  fit(plan,machine);
-  return plan;
+  return fit(plan,machine);
 }
 
 export function resolveMachinePlan(previous,previousMachine,machine,{defaults,rememberedSetup,fit}){
@@ -47,6 +46,5 @@ export function resolveMachinePlan(previous,previousMachine,machine,{defaults,re
   for(const key of new Set([...Object.keys(previousMachine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))
     process[key]=proposal.process[key];
   const plan={...structuredClone(previous),setup:proposal.setup,output:proposal.output,process};
-  fit(plan,machine);
-  return plan;
+  return fit(plan,machine);
 }

@@ -13,7 +13,11 @@ feed in testing. Screen confirmation is necessary review evidence, not physical
 acceptance. Verify the actual loaded filament and selected nozzle.
 The X1 three-colour test also failed: the printer rejected manual AMS mapping
 and printed all bands in grey despite two material-change command blocks.
-Neither multi-nozzle H2D execution nor X1 AMS changes have physical acceptance.
+H2D DUAL-12-PROJECT-CONTROL physically passed left/right/left with left 0.4,
+right 0.8, left external PLA and right AMS blue PLA. AMS-10 passed right-nozzle
+colour switching. Both used the same successful reference project entry; these
+are physical command/installation results, not acceptance of the reusable
+project writer. X1 AMS changes remain unaccepted.
 The H2D investigation also found a pinched left-feed PTFE tube. The untouched
 Studio left-only reference prints correctly. After that repair, full-04 completes
 its motions but still prints entirely with the right nozzle at elevated height.
@@ -39,7 +43,7 @@ left-diameter declarations to 0.4; the user confirms it works. Mixed installed
 diameters therefore do not prevent this same-nozzle colour job. The authored
 v12 project writer failed its AMS-11 acceptance test: the user reports the
 whole part is orange. The shared multicolour exporter remains unresolved;
-multi-nozzle acceptance remains open.
+the reusable dual-nozzle package writer remains open despite DUAL-12's success.
 The outstanding reference and hardware checks are tracked in
 [BR-055](../../build_request.md#br-055--express-plate-choice-and-close-the-ams-package-gap).
 
@@ -350,6 +354,71 @@ tower geometry, extrusion and tower-specific cooling/return policy out of the
 new writer. The subsequent tower-free reference below isolates those differences;
 it does not establish physical priming quality or clearance on the actual printer.
 
+## Making an H2D dual-nozzle print
+
+The physical DUAL-12 control passed with left 0.4/right 0.8 and a return to the
+left nozzle. The shared planner and executable writer can express this job.
+**The current generated project metadata is still unresolved:** AMS-11 failed,
+and DUAL-12 succeeded with a reference project entry substituted. A maker must
+not advertise arbitrary generated jobs as hardware-verified or copy that entry
+into another job. Use the setup/review workflow below when the project writer
+has passed generated-file acceptance; current hardware experiments remain
+builder/developer work. The fact-only hardware fixture and executable regression
+test preserve the successful command sequence without a reference dependency.
+
+1. Establish the machine and installation: left and right diameters, plate,
+   materials, nozzle temperatures, feed devices and which nozzle each device
+   connects to. `tool: 0` is left and `tool: 1` is right. These are not physical
+   heater selectors or AMS slots. The tested external-left/AMS-right combination
+   is an example, not a required topology.
+2. Set the starting filament's `setup.tool`, `nozzleMm`, matching `core`,
+   `nozzleC` and global process. `bambu.otherNozzleMm` describes the other side.
+   Declare each logical filament once, with its `tool`, material ID, colour and
+   source. Set per-filament `nozzleC` and process overrides for a different
+   nozzle/process. Same-nozzle colours can share a tool; different tools do not
+   have to share a diameter or layer grid.
+3. Assign each part/region its logical `filament` index. `bambu.filament` selects
+   the initial entry, which must agree with `setup.tool`. Reuse that entry when
+   returning to the original material/nozzle. Do not express a physical nozzle
+   switch by changing temperatures or by adding raw G-code.
+4. Generate using the current profile and normal print tools. Review the part
+   placement, selected nozzle and bead dimensions per region, first-layer
+   heights, order of actual changes and clearance. Each nozzle must stay within
+   its own print area. No prime tower is implemented. Fast start is optional
+   for a calibrated, unchanged installation; it retains homing and required
+   loading, heating, wiping and priming.
+5. At USB launch, confirm intended feeds. For the tested example, explicitly
+   select left external PLA and map right blue to its actual AMS filament;
+   the printer's initial left suggestion may be incorrect. Automatic matching
+   needs material/colour, not an invented physical slot number. Observe actual
+   nozzle selection and deposition height, including a return switch. Record
+   the archive hash and human result; playback verifies commands, not firmware.
+
+Example filament settings for a **left-first** recipe (merge with the complete
+plan, keeping `setup.tool: 0`, `nozzleMm: 0.4`, `core: "Hardened steel 0.4"`,
+`nozzleC: 215`, line width 0.4 and first/subsequent layers 0.2):
+
+```json
+{
+  "plate": "textured_plate",
+  "otherNozzleMm": 0.8,
+  "filament": 0,
+  "amsConnections": [{"unit": 1, "tool": 1}],
+  "filaments": [
+    {"id": "GFA00", "colour": "#808080", "tool": 0, "source": {"type": "external"}},
+    {"id": "GFA00", "colour": "#0000FF", "tool": 1, "source": {"type": "auto"},
+     "nozzleC": 225, "process": {"lineWidthMm": 0.8, "firstLayerMm": 0.3, "layerMm": 0.3}}
+  ]
+}
+```
+
+This is `setup.bambu` input, not a complete plan. Colours, PLA Basic IDs,
+temperatures and the unit number are example values; confirm the actual job.
+For independent STLs, put them in separate assembly parts and assign each
+part's region to the corresponding filament. For different patterns in one
+part, use the normal regional composition and support/dependency rules.
+Neither workflow requires Bambu Studio to slice unequal diameters.
+
 ## Making an H2D two-colour print
 
 1. Establish the actual installed diameters, selected nozzle, plate, PLA identities
@@ -381,7 +450,9 @@ a reusable maker file. The v12 generated-project test failed: AMS-11 printed
 entirely orange. This workflow currently supports controlled development tests,
 not a verified multicolour delivery. Explain that limitation and escalate shared
 exporter investigation to a builder/developer; do not transplant the control
-entry as a maker workaround. Dual-nozzle H2D and X1 AMS acceptance remain separate.
+entry as a maker workaround. DUAL-12 demonstrated physical H2D nozzle changes
+using the successful reference project; portable metadata and X1 AMS acceptance
+remain separate outstanding work.
 
 ## The program carries its own configuration
 
@@ -479,6 +550,17 @@ start independently from working AMS-10: empty stored executable templates,
 change only saved routing, or remove unused High Flow variant rows. A revised
 DUAL-12 control retains the dual executable and substitutes AMS-10's exact
 project entry. All are explicit diagnostics, not shared exporter fixes.
+
+AMS-13 subsequently failed entirely orange. It cleared nine nonempty stored
+G-code-template fields from working AMS-10 and changed no other archive entry.
+Thus emptying that family is independently sufficient to break this job;
+neither the required individual field nor its required contents is identified.
+Stored templates cannot yet be treated as safely disposable metadata. This does
+not prove the printer executes their contents. The next controls restore only
+startup, only filament-change, or SAAM's own exact executable startup in the
+startup field. Routing and variant-table tests remain independent. A future
+authored duplicate must reuse the executable's canonical renderer, not become
+a second source of nozzle/plate/feed settings or a copied vendor header.
 
 Both supported profiles declare `single_extruder_multi_material=1` and
 `printer_technology=FFF` in CONFIG and project JSON from the same resolved job.
@@ -582,7 +664,9 @@ Its 30 mm³/s service recipe also differs from SAAM's pinned 25 mm³/s recipe.
 Using both different-diameter nozzles within one job is implemented through
 regional filament/process selection, bounded changeover/retraction/temperature
 state and clearance, per-tool extrusion interpretation, and layer/filament usage
-generated from actual actions. Physical acceptance remains outstanding.
+generated from actual actions. DUAL-12 physically verified its left/right/left
+commands and 0.4/0.8 setup with the successful reference project. Acceptance of
+fresh generated project metadata and other installations remains outstanding.
 The supplied `twistedbox.2color.gcode.3mf` (SHA-256
 `ddbea3c405b12328990c1aa6f45c106b8e6899a5807d7cc7947c23caa2835a63`)
 contains 124 observed nozzle changes, 126 material-load blocks (including the two

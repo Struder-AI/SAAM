@@ -1,5 +1,93 @@
 # Development log
 
+## 2026-09-21 — Code shape, second pass: dead accessors, parameter mutation, callable closure state
+
+- Deleted `LuaRuntime::getGlobal/setGlobal/hasGlobal` (no caller anywhere;
+  authored membership removed from `flows/export.json`).
+- Rule 3 (a stage does not mutate caller-owned state), 40 sites judged:
+  rewritten in `fitLineWidthToSetup` (returns the plan, a copy when fitted;
+  both resolvers in `resolve-plan.mjs` return it), `toolpath-view.mjs`
+  (display memos moved off view/group records into `createToolpathMemo()`),
+  and `server.mjs` (`annotateSourceSkew` → `noteSourceSkew` +
+  `reportedMessage`, the note kept in a module `WeakMap` instead of on the
+  Error). Left as the controller exception: `createTour::enter/
+  editLessonBaseline/ensure`, `app.mjs::applyProgress`,
+  `createTourUI::acknowledgeView`. Awaiting the owner: `drawMachineCanvas`
+  (Canvas 2D `ctx` property writes, bracketed by save/restore) and the seven
+  sites in `bambu.mjs::completeProgram` (genuine violation, file owned by a
+  concurrent session).
+- Rule 1 (no callable or state in a reassigned binding): 163 written
+  captured bindings across 49 factories enumerated; exactly one held a
+  callable (`geometryProject` in `createViewerRenderer`), now the
+  `picking` record. The rest are controller state, accumulators, caches and
+  cursors and stay as they are (triage table in the worker report).
+- Verified: `node --test` on dobot, export, workflow, studio-material,
+  printer-profiles, studio-generation-control, studio-open, studio-lifetime,
+  studio-tour-lifetime, regional-workflow: 54 pass, 0 fail; A/B checks of
+  the toolpath memo and viewer pick paths identical to HEAD. `check`: 1620
+  pages, 3550 linked, 1079 unresolved, 5807 external, no stale, unplaced or
+  orphan facts. The checkpoint also carries concurrent Bambu hardware
+  regression work from another session.
+
+## 2026-09-21 — AMS-13 fails; stored template family is necessary in the working control
+
+- User reports "AMS-13 is all orange" and asks whether the reusable generator
+  is done. Clarified explicitly: a generator was written, but its v12 metadata
+  fails; the reusable exporter fix is not complete. Guidance and regression
+  updates do not change that status.
+- AMS-13 differs from successful AMS-10 only by clearing nine nonempty stored
+  template fields in project_settings.config. Every other archive entry and
+  serialization is unchanged. That reduction independently breaks colour
+  switching; it does not identify the particular required field or establish
+  that firmware executes template contents. Routing/variant controls remain
+  useful independent tests. User advised to continue AMS-14.
+- Prepared three independent reductions of failed AMS-13, with every executable
+  and other archive entry unchanged: AMS-16 restores only machine_start_gcode;
+  AMS-17 restores only change_filament_gcode; AMS-18 populates only
+  machine_start_gcode with the exact SAAM-authored startup already present in
+  the successful AMS-10 executable. All other stored G-code fields remain
+  empty in AMS-18. This tests a direct authored replacement, not merely which
+  copied field works. No shared exporter behavior changed on an unverified guess.
+- Candidates in Prints/bambu-h2d-ams-template-isolation-16-18; SHA-256 values:
+  - AMS-16-START-ONLY: af72b812579e9b15b2e220a2fb6d15e9472283b9d8fc7356ec23ff55cf2c59c2
+  - AMS-17-CHANGE-ONLY: d6e68ea7822b946ef6042bd392580399d4e25bf761e0dbbf6127ec0296f296da
+  - AMS-18-SAAM-START: 48c6385d14c4d99e5496ad342d971afa9aae376d76c636cfc2e23739be6c64ae
+  D: is unavailable; these have not been copied. Prioritize the authored AMS-18
+  candidate once the USB returns; 16/17 isolate the field if needed. All physical
+  results are pending. A passing generated replacement remains necessary before
+  declaring the ordinary dual/multicolour workflow repaired.
+
+## 2026-09-21 — DUAL-12 physically passes; maker workflow and executable regression
+
+- User reports: "Test 12 is a pass! We have dual-nozzle!" The delivered
+  DUAL-12-PROJECT-CONTROL archive is SHA-256
+  bef010be5cd763a86fecfc6432fc8eeef6ca4d1190e7021bdb1d3d8edb13c036.
+  This establishes the controlled left 0.4/external PLA -> right 0.8/AMS blue ->
+  left sequence, fast startup, separated pads and their expected deposition
+  heights. The user is continuing AMS-13; no result for 13/14/15 is assumed.
+- Preserved fact-only hashes and human observations for AMS-10, DUAL-12 and
+  failed AMS-11 in the H2D hardware fixture. Added the exact DUAL-12 geometry
+  and setup as a reusable test fixture. A regression regenerates both working
+  controls' executable streams through the shared planner/exporter and matches
+  their physically tested SHA-256 values, with the expected filament sequence
+  and dual deposition stages. It passes. It deliberately does not transplant
+  or approve the reference project entry.
+- Added maker dual-nozzle setup/review instructions and a left-first mixed
+  diameter recipe fragment to core/export/bambu.md. It distinguishes logical
+  filaments, nozzle sides, heater selectors and AMS devices; explains per-nozzle
+  process settings, regions/STLs, return switches, fast start, no tower and
+  physical verification. The shared print-tools guide links it, covering the
+  maker-context-map.html onboarding route. Machine-facing limitations now
+  record physical controls passing and the generated project writer failing.
+- The portable exporter is not yet repaired: DUAL-12 used the same substituted
+  project entry as AMS-10; AMS-11's authored project failed. Keep the tested
+  executable unchanged while isolating which project representation changes
+  are necessary. Any required project/header duplicates must still derive from
+  the canonical job, with explicit per-filament/tool/variant projections.
+  Metadata field count or software consistency alone is insufficient evidence.
+  Next: incorporate AMS-13/14/15 results into the project writer and verify
+  fresh generated dual-nozzle and same-nozzle colour files.
+
 ## 2026-09-21 — Dev-map scanner: super, pattern defaults, receivers, callbacks, outside roots, subscribers
 
 - `super(...)` resolves to the extended class (a `construct` edge, or an

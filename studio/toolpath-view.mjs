@@ -80,9 +80,27 @@ export function buildToolpathView(moves) {
   for(let i=0;i<moves.length;){
     const first=i,layer=value(i,'layer'),phase=value(i,'phase');
     while(i+1<moves.length&&value(i+1,'layer')===layer&&value(i+1,'phase')===phase)i++;
-    groups.push({first,last:i,raw:null,reduced:null});i++;
+    groups.push({first,last:i});i++;
   }
-  return {moves,groups};
+  return {moves,groups,memo:createToolpathMemo()};
+}
+// Display memos derived from a view: the per-group segment lists and the last
+// selected frame. They are this module's own cache, held in one boundary the
+// view names, rather than written onto the shared view and group records.
+export function createToolpathMemo(){
+  const perGroup=new Map();
+  let lastFrameKey=null,lastFrame=null;
+  return {
+    group(group){
+      const found=perGroup.get(group);
+      if(found)return found;
+      const made={raw:null,reduced:null};perGroup.set(group,made);return made;
+    },
+    frame(key,select){
+      if(lastFrameKey===key)return lastFrame;
+      const result=select();lastFrameKey=key;lastFrame=result;return result;
+    }
+  };
 }
 export function remainingLayerMs(view,moveIndex,seconds,speed){
   if(!(speed>0))return Infinity;
@@ -116,10 +134,11 @@ export function stepLayerIndex(view,seconds,direction){
   return Math.max(0,Math.min(layerIndexAt(view,seconds)+direction,view.groups.length-1));
 }
 function entries(view,group,reduced) {
-  if(!reduced)return group.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
+  const memo=view.memo.group(group);
+  if(!reduced)return memo.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
     const i=group.first+j,m=view.moves[i];return {first:i,last:i,from:m.from,to:m.to,move:m};
   });
-  if(group.reduced)return group.reduced;
+  if(memo.reduced)return memo.reduced;
   const out=[],moves=view.moves.range?view.moves.range(group.first,group.last+1):view.moves;
   for(let first=group.first;first<=group.last;){
     let last=first;
@@ -128,11 +147,12 @@ function entries(view,group,reduced) {
       &&same(moves[last].to,moves[last+1].from))last++;
     for(const edge of simplify(moves,first,last))out.push(edge);first=last+1;
   }
-  return group.reduced=out;
+  return memo.reduced=out;
 }
 function visible(view,group,count,travel,reduced){
   const key=(reduced?'simple':'exact')+(travel?'All':'Extrusion');
-  const segments=group[key]??=entries(view,group,reduced).filter(s=>travel||s.move.extruding);
+  const memo=view.memo.group(group);
+  const segments=memo[key]??=entries(view,group,reduced).filter(s=>travel||s.move.extruding);
   if(count>group.last)return segments;
   let low=0,high=segments.length;
   while(low<high){const mid=(low+high)>>1;if(segments[mid].last<count)low=mid+1;else high=mid;}
@@ -160,9 +180,7 @@ function localDetail(items,n){
 }
 export function toolpathFrame(view,count,travel,{pointCap=VIEWER_POINT_CAP}={}) {
   const key=count+':'+travel+':'+pointCap;
-  if(view.frameKey===key)return view.frame;
-  const result=selectFrame(view,count,travel,pointCap);
-  view.frameKey=key;view.frame=result;return result;
+  return view.memo.frame(key,()=>selectFrame(view,count,travel,pointCap));
 }
 export function toolpathPresentation(moves,at,detail) {
   const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[at.completed].from}]:detail.segments;

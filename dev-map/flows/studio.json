@@ -202,7 +202,8 @@
                   "members": [
                     "studio/server.mjs::changedSince",
                     "studio/server.mjs::sourceSkewNotice",
-                    "studio/server.mjs::annotateSourceSkew",
+                    "studio/server.mjs::noteSourceSkew",
+                    "studio/server.mjs::reportedMessage",
                     "studio/server.mjs::printDirectory",
                     "studio/server.mjs::listPrints"
                   ]
@@ -336,6 +337,7 @@
                     "studio/toolpath-view.mjs::distance2",
                     "studio/toolpath-view.mjs::simplify",
                     "studio/toolpath-view.mjs::buildToolpathView",
+                    "studio/toolpath-view.mjs::createToolpathMemo",
                     "studio/toolpath-view.mjs::entries",
                     "studio/toolpath-view.mjs::visible",
                     "studio/toolpath-view.mjs::spread",

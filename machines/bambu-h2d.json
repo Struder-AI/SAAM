@@ -13,7 +13,7 @@
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "limitations": [
-    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Tower-free mixed-diameter dual-nozzle output is implemented but awaits physical acceptance; same-nozzle PLA AMS switching is implemented with a firmware chute flush and awaits reference/hardware acceptance.",
+    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles. Physical DUAL-12 passed left 0.4/right 0.8 and return to left; AMS-10 passed same-nozzle colour switching. Both controls used a reference project entry. The generated v12 project writer failed AMS-11 (all orange), so general dual-nozzle/multicolour delivery remains unresolved.",
     "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
   ],
   "capabilities": [
@@ -645,13 +645,13 @@
         "projectSchema": "h2d-full-project-v1",
         "projectSettings": {}
       },
-      "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested; service motion, mixed-nozzle jobs and physical AMS mapping require reference and hardware acceptance."
+      "validation": "Experimental SAAM-authored job metadata with bounded firmware services cross-referenced to Bambu Studio 02.08.02.61. Nozzle, plate, logical filament and temperature repetitions share one resolved source. Software consistency is tested. DUAL-12 and AMS-10 physically passed with a reference project entry. Generated v12 metadata failed AMS-11; a normal regenerated archive still needs physical acceptance."
     }
   ],
   "startup": {
     "protocol": "bambu-h2d-reference-envelope",
     "zAfterStartupMm": 20,
-    "validation": "SAAM bounded H2D startup with initial XY/Z registration restored before filament loading in full and fast modes. Optional calibration, vision and vibration checks are omitted in fast mode; homing, saved compensation, wiping, priming and temperature waits remain. Nozzle, plate and logical filament settings derive from the resolved job. Service motion is not simulated; physical height and nozzle-routing acceptance remain pending."
+    "validation": "SAAM bounded H2D startup with initial XY/Z registration restored before filament loading in full and fast modes. Optional calibration, vision and vibration checks are omitted in fast mode; homing, saved compensation, wiping, priming and temperature waits remain. Nozzle, plate and logical filament settings derive from the resolved job. Service motion is not simulated. DUAL-12 physically passed the fast-start left/right/left control; fresh generated project metadata remains unresolved."
   },
   "nonplanar": {
     "maxAngleDeg": 15,
@@ -665,7 +665,7 @@
     "https://github.com/bambulab/BambuStudio/blob/master/src/libslic3r/Format/bbs_3mf.cpp"
   ],
   "sourceChecked": "2026-09-09",
-  "validation": "Software profile, envelope, package and SAAMpath round-trip checks. Left printable height follows the official inherited profile: 320 mm. Experimental 15 degree draping; no physical print or firmware macro simulation.",
+  "validation": "Software profile, envelope, package and SAAMpath round-trip checks. Left printable height follows the official inherited profile: 320 mm. Planar mixed-nozzle DUAL-12 and same-nozzle AMS-10 controls physically passed with a reference project entry; generated project metadata remains unresolved. Experimental 15 degree draping has no physical validation; firmware macros are not simulated.",
   "referenceExports": [
     {
       "role": "left nozzle reference",

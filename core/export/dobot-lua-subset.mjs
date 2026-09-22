@@ -629,15 +629,6 @@ export class LuaRuntime {
     return this.invoke(fn, args, { file: this.file, line: null, name });
   }
 
-  hasGlobal(name) { return this.globals.has(name); }
-
-  getGlobal(name) {
-    const value = this.globals.get(name);
-    return value === undefined ? null : value;
-  }
-
-  setGlobal(name, value) { this.globals.set(name, value); }
-
   // -- execution -------------------------------------------------------
 
   tick(line) {

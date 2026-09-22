@@ -258,9 +258,6 @@
           "members": [
             "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
             "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::hasGlobal",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::getGlobal",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::setGlobal",
             "core/export/dobot-lua-subset.mjs::LuaRuntime::tick"
           ]
         },

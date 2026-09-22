@@ -48,16 +48,20 @@ export async function sourceSkewNotice(sinceMs=loadedAtMs,{base=root,roots=SOURC
   }
   return null;
 }
-// Appended to a failure that already happened, once per error. A detected skew
-// persists until this process restarts, which is the only cure for it.
+// Recorded against a failure that already happened, once per error, and read
+// back by whoever reports it: the note rides with the error through every
+// rethrow without the error itself being rewritten. A detected skew persists
+// until this process restarts, which is the only cure for it.
+const skewNotes=new WeakMap();
 let skewNotice=null,skewCheckedAt=0;
-export async function annotateSourceSkew(error){
-  if(!(error instanceof Error)||error.sourceSkewChecked)return error;
-  error.sourceSkewChecked=true;
+export async function noteSourceSkew(error){
+  if(!(error instanceof Error)||skewNotes.has(error))return error;
+  skewNotes.set(error,'');
   if(!skewNotice&&Date.now()-skewCheckedAt>=3000){skewCheckedAt=Date.now();skewNotice=await sourceSkewNotice();}
-  if(skewNotice)error.message+=' '+skewNotice;
+  if(skewNotice)skewNotes.set(error,' '+skewNotice);
   return error;
 }
+export function reportedMessage(error){const note=skewNotes.get(error);return note?error.message+note:error.message;}
 // Explicit browser module allowlist; no generic repository/file serving.
 const playerModules=new Set(['studio/source-player.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/export/source-time.mjs','core/export/machine-study.mjs',
@@ -227,13 +231,14 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(error.code==='GENERATION_CANCELLED')throw error;
       // Before the message reaches the page, the event queue and the failure
       // request, say whether this process is behind the files the worker read.
-      await annotateSourceSkew(error);
-      generationFailure={directory:generationDir,generationHash:state.generationHash,message:error.message};
+      await noteSourceSkew(error);
+      const reported=reportedMessage(error);
+      generationFailure={directory:generationDir,generationHash:state.generationHash,message:reported};
       try{const record=await requests.begin({directory:generationDir,source:'studio',studioInstanceId:instanceId,
-        key:'generation-failure:'+generationDir+':'+state.generationHash+':'+error.message,
-        instruction:'Toolpath generation failed for this print. Error: '+error.message+
+        key:'generation-failure:'+generationDir+':'+state.generationHash+':'+reported,
+        instruction:'Toolpath generation failed for this print. Error: '+reported+
           '\nInspect the current recipe and relevant skill limits, diagnose the cause and apply appropriate fixes before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then regenerate and verify the current toolpath is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
-        note('generation-failed',{generationHash:state.generationHash,trigger,error:error.message,requestId:record.id});}
+        note('generation-failed',{generationHash:state.generationHash,trigger,error:reported,requestId:record.id});}
       finally{throw error;} // A notification failure must not hide the generation error.
   };
   const generate=async(current,development,trigger='generate')=>{
@@ -510,7 +515,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
         send({ok:true});
       });
       queue=run.catch(()=>{});await run;
-    } catch(error){if(!res.headersSent){await annotateSourceSkew(error);send({error:error.message,code:error.code},400);}else res.end();}
+    } catch(error){if(!res.headersSent){await noteSourceSkew(error);send({error:reportedMessage(error),code:error.code},400);}else res.end();}
   });
   // Local adapters reopen through the same serialized and validated operation
   // as the picker, including when the person changed this viewer's print.

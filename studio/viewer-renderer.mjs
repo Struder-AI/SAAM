@@ -14,7 +14,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
   setTimer=globalThis.setTimeout,clearTimer=globalThis.clearTimeout,pinnedQuality=null,
   buildGeometry=buildGeometryView,createGeometry=createGeometryRenderer,buildPathView=buildToolpathView,
   buildMaterialView=buildMaterialScene,createMaterial=createMaterialRenderer}={}) {
-  let geometryScene=null,geometryRenderer=null,geometryProject=null,geometryError='';
+  let geometryScene=null,geometryRenderer=null,geometryError='';
   let pathView=null,materialScene=null,materialRenderer=null,materialError='',lastMaterialStats=null;
   let motionQuality=null,lastMotion=0,lastWheel=-Infinity,lastMovingFrame=0,redrawRequested=0,redrawFrame=0,settleTimer=0;
   let scheduleEpoch=0;
@@ -23,6 +23,9 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
   // The latest scheduled snapshot reader and annotation sink. A repeat request
   // before the frame fires replaces them, so one frame serves the newest pair.
   const scheduled={read:null,apply:null};
+  // The projection the last drawn geometry frame used. Picking has to run
+  // against exactly that camera, so the drawn projection is kept here.
+  const picking={project:null};
   const performanceView=createViewPerformance({report:reportPerformance,context:()=>({...lastPerformanceContext,renderer:materialRenderer?.renderer??null,
     material:lastPerformanceContext.tab==='toolpath'?lastMaterialStats:null})});
   const sceneState=()=>({pathView,pathMoves:pathView?.moves,materialMoves:materialScene?.moves,
@@ -30,7 +33,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     groups:pathView?.groups??[],moves:pathView?.moves??[],hasSelectedEdge:id=>geometryScene?.edgeFeatures.has(id)??false,
     edge:id=>geometryScene?.edgeFeatures.get(id),solid:Boolean(materialScene&&materialRenderer)});
   function publishGeometry({geometry,featureEdges=[]}) {
-    geometryScene=buildGeometry(geometry,35,featureEdges);geometryProject=null;geometryError='';
+    geometryScene=buildGeometry(geometry,35,featureEdges);picking.project=null;geometryError='';
     try{geometryRenderer??=createGeometry();if(!geometryRenderer)geometryError='Shading needs WebGL2; showing flat surfaces.';}
     catch(error){geometryError='Shading unavailable: '+error.message;}
     return sceneState();
@@ -72,7 +75,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     const strokeScale={lineWidthMm:shown.plan.process.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity:settings.previousLayerOpacity};
     for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
     for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
-    if(snapshot.showGeometry){geometryProject=project;
+    if(snapshot.showGeometry){picking.project=project;
       if(geometryRenderer)try{const options={project,width,height,ratio,color:TOOLPATH_COLORS.skyBlue,selected};geometryRenderer.draw(geometryScene,{...options,shadow:true});ctx.save();ctx.globalAlpha=.16;ctx.filter='blur(6px)';ctx.drawImage(geometryRenderer.canvas,0,0,width,height);ctx.restore();geometryRenderer.draw(geometryScene,options);ctx.drawImage(geometryRenderer.canvas,0,0,width,height);}catch(error){geometryError=error.message;geometryRenderer.dispose();geometryRenderer=null;}
       if(!geometryRenderer){const pts=state.geometry.vertices.map(project),polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],edges:geometryScene.topology.edgeMasks[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
         for(const polygon of polygons){ctx.beginPath();polygon.points.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.fillStyle=polygon.id===selected?'#83b5d6':TOOLPATH_COLORS.skyBlue;ctx.fill();for(let i=0;i<polygon.points.length;i++)if(polygon.edges[i])segment(polygon.points[i],polygon.points[(i+1)%polygon.points.length],'#5c879e',.6);}}
@@ -107,9 +110,9 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     if(updateUI){const end=now();if(materialStats)lastMaterialStats=materialStats;performanceView.frame(snapshot.interaction??(playing?'playback':end-lastWheel<200?'zoom':null),{start:drawStart,drawMs:end-drawStart,materialMs,quality});if(moving&&motionQuality&&tab==='toolpath'){const cost=playing?(drawStart-lastMovingFrame<1000?drawStart-lastMovingFrame:end-drawStart):end-(redrawRequested||drawStart);motionQuality.sample(cost);lastMovingFrame=drawStart;if(quality>0&&pinnedQuality===null){clearTimer(settleTimer);settleTimer=setTimer(()=>requestDraw(scheduled.read,scheduled.apply),260);}}redrawRequested=0;}
     return annotations;
   }
-  function pick({x,y}){return geometryScene&&geometryProject?pickGeometry(geometryScene,geometryProject,x,y,{edges:true}):null;}
+  function pick({x,y}){return geometryScene&&picking.project?pickGeometry(geometryScene,picking.project,x,y,{edges:true}):null;}
   function flushPerformance(){performanceView.flush();}
   function dispose(){publication++;scheduleEpoch++;if(redrawFrame)cancelFrame(redrawFrame);redrawFrame=0;clearTimer(settleTimer);settleTimer=0;scheduled.read=scheduled.apply=null;
-    performanceView.flush();geometryRenderer?.dispose();materialRenderer?.dispose();geometryRenderer=materialRenderer=null;geometryScene=geometryProject=pathView=materialScene=null;}
+    performanceView.flush();geometryRenderer?.dispose();materialRenderer?.dispose();geometryRenderer=materialRenderer=null;picking.project=null;geometryScene=pathView=materialScene=null;}
   return {publishGeometry,publishProgram,clearProgram,sceneState,requestDraw,draw,pick,noteMotion,flushPerformance,dispose};
 }

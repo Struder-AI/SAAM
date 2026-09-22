@@ -101,11 +101,14 @@ async function proposedPlan(machineId, { setupFile } = {}) {
   const remembered = await rememberedSetup(setupFile ?? setupFor(machine), machine);
   return resolveInitialPlan(machine,{defaults,rememberedSetup:remembered,fit:fitLineWidthToSetup});
 }
+// Returns the plan to use: the given one when its line width already suits the
+// selected tool, otherwise a copy carrying the fitted width.
 function fitLineWidthToSetup(plan,machine) {
-  if(!machine.tools.some(candidate=>candidate.index===plan.setup.tool))return;
+  if(!machine.tools.some(candidate=>candidate.index===plan.setup.tool))return plan;
   const limits=lineWidthLimits(plan,machine);
   if(limits&&(plan.process.lineWidthMm<limits[0]||plan.process.lineWidthMm>limits[1]))
-    plan.process.lineWidthMm=Math.min(limits[1],Math.max(limits[0],plan.setup.nozzleMm));
+    return {...plan,process:{...plan.process,lineWidthMm:Math.min(limits[1],Math.max(limits[0],plan.setup.nozzleMm))}};
+  return plan;
 }
 async function initBundle(directory, plan, { setupFile, machineId, sourceBytes,sourcePath } = {}) {
   const dir = resolve(directory);
