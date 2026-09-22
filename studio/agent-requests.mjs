@@ -34,7 +34,10 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
   const visible=(r,history)=>ownerId?(!r.ownerId||r.ownerId===ownerId):history||!r.studioInstanceId;
   const unfinished=r=>['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
     &&requestReceiptState(r,{view:{ready:true,snapshot:{...r.result,stage:r.target?.stage??'toolpath'}}}).receipt;
-  const wake=()=>{changeVersion++;for(const done of [...waiters])done();};
+  // One record per pending wait owns that wait's timer, event subscription and
+  // resolver, so waking a waiter is a named step rather than a stored callback.
+  const wake=()=>{changeVersion++;for(const waiter of [...waiters])settleWaiter(waiter);};
+  function settleWaiter(waiter){clearTimeout(waiter.timer);waiters.delete(waiter);waiter.stopEvents?.();waiter.resolve();}
   const notify=record=>{
     if(!record)return;
     const key=[record.updatedAt,record.status,record.presented,record.connectionClosed].join(':');
@@ -154,8 +157,8 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
         if(requests.length||remaining<=0||disconnected||events?.pendingDelivery())return {requests,...(events?{events:events.drain()}:{})};
         if(changeVersion!==observed)continue;
         await new Promise(resolve=>{
-          let timer,stopEvents;const done=()=>{clearTimeout(timer);waiters.delete(done);stopEvents?.();resolve();};
-          waiters.add(done);stopEvents=events?.subscribe(done);timer=setTimeout(done,remaining);timer.unref?.();
+          const waiter={timer:null,stopEvents:null,resolve},done=()=>settleWaiter(waiter);
+          waiters.add(waiter);waiter.stopEvents=events?.subscribe(done);waiter.timer=setTimeout(done,remaining);waiter.timer.unref?.();
         });
       }}finally{release();}
     },

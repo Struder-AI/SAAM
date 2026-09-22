@@ -1,5 +1,80 @@
 # Development log
 
+## 2026-09-21 — Code-shape findings resolved where the code hid a relationship
+
+- Owner authorised rewriting the sites the dev-map scanner reports as
+  `mutated-binding`, `unresolved-local-value`, `unsupported-callee-expression`
+  or `unaccounted`, with behaviour preserved. 14 sites reviewed; 8 rewritten,
+  6 left as scanner limits (core/agent's two are now outside the map scope).
+- Rewritten: `surfaceRegion::sample` chooses a named chart once
+  (`splinePatchChart`/`meshStripChart`); `beadSection::end` takes its normal
+  from a named `beadFrame` with four named normals; `createAgentRequests` and
+  `createStudioEvents` hold waiters as records settled by a named
+  `settleWaiter`; `moveStore::push` constructs the two typed arrays
+  explicitly; `LuaRuntime::evalCall` routes host functions through the
+  existing `invoke`; `publishFinishedBoundary` and `createViewerRenderer`
+  keep their late-bound state in explicit owned records. The last two made
+  the ownership visible (`member-mutation`) but the call itself is still
+  unresolved: resolving it would need eager construction or dropping the
+  latest-wins scheduling, both behaviour changes, so they were left there.
+- Scanner limits recorded, not code problems: `super(...)` callees are
+  skipped by `graph.mjs`; a call inside a destructuring pattern
+  (`const {frameNow=now()}=...`) is never collected; `onGeometry` in
+  `runRepairJob` is supplied only by unscanned callers (tests and the
+  worker side); `listener` in `notify`/`record` is a runtime-registered
+  subscriber with no static target.
+- Verified: `node --test` on dobot, studio-material, denso, bambu-dual,
+  studio-open, studio-generation-control, studio-tour-lifetime,
+  regional-workflow and mcp: 57 pass, 0 fail. Differential old/new checks:
+  `surfaceRegion` identical over 121 samples, `beadSection` identical over
+  864 combinations. `check`: 8 regions, 149 files, 1626 pages, 3547 linked,
+  1085 unresolved, 5797 external, no stale, unreached or orphan facts.
+  `dev-map/flows/studio.json` updated for the renamed and new declarations.
+
+## 2026-09-21 — DUAL-12 prepared while AMS-11 runs
+
+- User requested the next test in parallel with AMS-11's physical run. Generated
+  DUAL-12-L04-R08 through the shared v12 exporter: left 0.4 external PLA at
+  215 C, right 0.8 blue PLA via automatic right AMS matching at 225 C. Fast
+  startup, Textured PEI at 60 C, no tower. The left grey swatch is explicitly a
+  placeholder; its actual colour is immaterial to this test.
+- Two 12 mm square coupons: centre (175,160) has left layers Z0.2 and Z0.4;
+  right (235,160) has one right layer Z0.3 between them. This yields exactly
+  left/right/left with two changes, rather than additional alternating layers.
+  Explicit closed meshes represent the thin coupons; normal topology, bounds,
+  motion, extrusion and temperature checks pass. Estimated body time is
+  0.7 minutes, excluding startup and firmware service.
+- Separate source decoding matches the generated program's tool/filament/move
+  sequence. Assertions inspect the three deposition stages, both changeovers'
+  distinct H/temperature values, package mappings, installed diameters and AMS
+  connectivity. The material-change audit reports no issues. No shared code
+  changed and no physical acceptance is inferred from those checks.
+- Artifact: Prints/bambu-h2d-dual-fast-12/DUAL-12-L04-R08.gcode.3mf;
+  SHA-256 0e55143614dd4d5d2c00d0dba10b5aa8718dfc8dfbfc3d7b62263486e16bdce1.
+  D: was unavailable after preparation, so USB copy remains pending. Test after
+  AMS-11 confirms the generated project writer; success must include actual
+  nozzle switching, adhesion at each expected height and the return to left.
+
+## 2026-09-21 — AMS-10 passes with mixed declarations; generated AMS-11 sent to USB
+
+- User reports "AMS-10 works". That archive declares left 0.4 / right 0.8
+  throughout, with the same executable as AMS-09. Unequal installed-diameter
+  declarations are not sufficient to cause the same-nozzle colour failure.
+  This is right-nozzle AMS evidence, not dual-nozzle acceptance.
+- Generated AMS-11-L04-R08 from a fresh plan and the shared v12 exporter, with
+  no substituted reference project entry. Executable bytes exactly match
+  successful AMS-10. Canonical diameters, two colours, right-nozzle routing,
+  A/B/A sequence and tower-disabled setting are checked, as are normal bundle
+  generation/interpretation and material-change audit. No shared code changed.
+- Copied D:/AMS-11-L04-R08.gcode.3mf and verified SHA-256
+  6c159c1ab39d41aa4dced0bc5a5acc987aada98dd46ba7b7a83c1f1c113f9199.
+  Same fast startup, geometry and service commands; this isolates the authored
+  project representation. The unprinted equal-diameter AMS-11 is superseded.
+- Next: observe both AMS-11 colour changes and first-layer contact. On success,
+  return to a separated-pad left/right/left test using the accepted writer.
+  General exporter hardware acceptance and physical dual-nozzle use remain open.
+
+
 ## 2026-09-21 — Agent CLI toolkit moved outside the dev-map scope
 
 - Decision (project owner, this session): the dev map covers core and Studio

@@ -19,7 +19,10 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
   let motionQuality=null,lastMotion=0,lastWheel=-Infinity,lastMovingFrame=0,redrawRequested=0,redrawFrame=0,settleTimer=0;
   let scheduleEpoch=0;
   let lastPerformanceContext={};
-  let scheduledRead=null,scheduledApply=null,publication=0;
+  let publication=0;
+  // The latest scheduled snapshot reader and annotation sink. A repeat request
+  // before the frame fires replaces them, so one frame serves the newest pair.
+  const scheduled={read:null,apply:null};
   const performanceView=createViewPerformance({report:reportPerformance,context:()=>({...lastPerformanceContext,renderer:materialRenderer?.renderer??null,
     material:lastPerformanceContext.tab==='toolpath'?lastMaterialStats:null})});
   const sceneState=()=>({pathView,pathMoves:pathView?.moves,materialMoves:materialScene?.moves,
@@ -47,9 +50,9 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     return {scene:sceneState(),previewMaterialConsumed};
   }
   function clearProgram(){publication++;pathView=null;materialScene=null;materialRenderer?.dispose();materialRenderer=null;materialError='';}
-  function requestDraw(readSnapshot,applyAnnotations){scheduledRead=readSnapshot;scheduledApply=applyAnnotations;if(redrawFrame)return;
+  function requestDraw(readSnapshot,applyAnnotations){scheduled.read=readSnapshot;scheduled.apply=applyAnnotations;if(redrawFrame)return;
     const epoch=scheduleEpoch;let handle;redrawRequested=now();handle=requestFrame(()=>{if(redrawFrame===handle)redrawFrame=0;if(epoch!==scheduleEpoch)return;
-      const annotations=draw(scheduledRead());scheduledApply?.(annotations);});redrawFrame=handle;
+      const annotations=draw(scheduled.read());scheduled.apply?.(annotations);});redrawFrame=handle;
   }
   function noteMotion(kind='orbit'){lastMotion=now();if(kind==='zoom')lastWheel=lastMotion;}
   function draw(snapshot={}) {
@@ -101,12 +104,12 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     const projectedOrigin=referenceProject([0,0,0]),origin=tab==='toolpath'?projectedOrigin:[width-48,height-42];ctx.globalAlpha=tab==='toolpath'?1:.65;ctx.font='10px Segoe UI';
     for(const [point,name,color] of [[[5,0,0],'X','#b26751'],[[0,5,0],'Y','#659a7a'],[[0,0,5],'Z','#638599']]){const p=referenceProject(point),end=tab==='toolpath'?p:[origin[0]+(p[0]-projectedOrigin[0])*5/project.pixelsPerMm,origin[1]+(p[1]-projectedOrigin[1])*5/project.pixelsPerMm];segment(origin,end,color,tab==='toolpath'?1.5:1);if(Math.hypot(end[0]-origin[0],end[1]-origin[1])>1){ctx.fillStyle=color;ctx.fillText(name,end[0]+4,end[1]-4);}}
     ctx.globalAlpha=1;ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
-    if(updateUI){const end=now();if(materialStats)lastMaterialStats=materialStats;performanceView.frame(snapshot.interaction??(playing?'playback':end-lastWheel<200?'zoom':null),{start:drawStart,drawMs:end-drawStart,materialMs,quality});if(moving&&motionQuality&&tab==='toolpath'){const cost=playing?(drawStart-lastMovingFrame<1000?drawStart-lastMovingFrame:end-drawStart):end-(redrawRequested||drawStart);motionQuality.sample(cost);lastMovingFrame=drawStart;if(quality>0&&pinnedQuality===null){clearTimer(settleTimer);settleTimer=setTimer(()=>requestDraw(scheduledRead,scheduledApply),260);}}redrawRequested=0;}
+    if(updateUI){const end=now();if(materialStats)lastMaterialStats=materialStats;performanceView.frame(snapshot.interaction??(playing?'playback':end-lastWheel<200?'zoom':null),{start:drawStart,drawMs:end-drawStart,materialMs,quality});if(moving&&motionQuality&&tab==='toolpath'){const cost=playing?(drawStart-lastMovingFrame<1000?drawStart-lastMovingFrame:end-drawStart):end-(redrawRequested||drawStart);motionQuality.sample(cost);lastMovingFrame=drawStart;if(quality>0&&pinnedQuality===null){clearTimer(settleTimer);settleTimer=setTimer(()=>requestDraw(scheduled.read,scheduled.apply),260);}}redrawRequested=0;}
     return annotations;
   }
   function pick({x,y}){return geometryScene&&geometryProject?pickGeometry(geometryScene,geometryProject,x,y,{edges:true}):null;}
   function flushPerformance(){performanceView.flush();}
-  function dispose(){publication++;scheduleEpoch++;if(redrawFrame)cancelFrame(redrawFrame);redrawFrame=0;clearTimer(settleTimer);settleTimer=0;scheduledRead=scheduledApply=null;
+  function dispose(){publication++;scheduleEpoch++;if(redrawFrame)cancelFrame(redrawFrame);redrawFrame=0;clearTimer(settleTimer);settleTimer=0;scheduled.read=scheduled.apply=null;
     performanceView.flush();geometryRenderer?.dispose();materialRenderer?.dispose();geometryRenderer=materialRenderer=null;geometryScene=geometryProject=pathView=materialScene=null;}
   return {publishGeometry,publishProgram,clearProgram,sceneState,requestDraw,draw,pick,noteMotion,flushPerformance,dispose};
 }
