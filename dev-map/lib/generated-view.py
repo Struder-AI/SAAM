@@ -686,8 +686,45 @@ def node_page(packet, page, unit, port, drawn, dropped):
         invocation_edge(page, w, drawn, dropped)
 
 
+def value_text(value):
+    """A stored value said the way the packet says it. A ledger row prints what is in the JSON,
+    so a boolean is `true` and an absent one is `null`, never Python's spelling of them."""
+    return value if isinstance(value, str) else json.dumps(value)
+
+
 def lists(packet, page, pages):
     """What the stored packet holds beside its boxes and wires, printed as data."""
+    # How this page came to be drawn: whether its wires are relationships rather than execution,
+    # how many call sites are behind them, and where its grouping was authored. A reader who does
+    # not know which kind of drawing this is would read every arrow wrong. A code destination is
+    # not drawn and its read carries none of this, so its panel says none of it either.
+    drawn = packet.get("destination") != "code"
+    if drawn and (packet.get("structural") or packet.get("relationshipSummary") or packet.get("composition")):
+        page.row("head", "this page", "", "")
+    if drawn and packet.get("structural"):
+        page.row("item", "containment view — a wire says the code under one box reaches the code "
+                         "under the other, not that it runs next", "", "structural")
+    if drawn and packet.get("relationshipSummary"):
+        summary = packet["relationshipSummary"]
+        page.row("item", f'{summary["sites"]} sites collapsed into {summary["connections"]} drawn '
+                         f'connections — every site remains under --details on {summary["details"]}',
+                 "", "relationshipSummary")
+    if drawn and packet.get("composition"):
+        c = packet["composition"]
+        counted = (f'  ·  {c["edges"]} relationships, {c["internal"]} inside groups, '
+                   f'{c["crossing"]} crossing') if c.get("edges") is not None else ""
+        page.row("item", f'authored: {", ".join(c["authored"])} — {c["source"]}  ·  '
+                         f'relations {c["relations"]}{counted}', "", "composition")
+    # A field the page lists but owns no box for: a group drawn out of a stateful declaration
+    # names the state its members touch, and the boxes for it stand on the declaration's own page.
+    if drawn and packet.get("stateFields") and not packet.get("state"):
+        page.row("head", f'state fields ({len(packet["stateFields"])}) — touched here, owned above: '
+                         f'the state boxes stand on the declaration that owns them', "", "stateFields")
+        for f in packet["stateFields"]:
+            where = f.get("source") or {}
+            at = f'{packet.get("file", "")}:{where["line"]}' if where.get("line") else ""
+            page.row("item", f'{f["name"]}  {f.get("receiver", "")}  {at}'.rstrip(),
+                     "", f'stateFields#{f["id"]}')
     # The one authored thing on any page: a row of dev-map/facts.tsv about this declaration or file.
     if packet.get("facts"):
         page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv', "", "facts")
@@ -755,7 +792,7 @@ def lists(packet, page, pages):
                     for line in textwrap.wrap(f'{access}: ' + ", ".join(bindings), width=120):
                         page.row("warn", line, target or go, item)
             else:
-                page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()), go, item)
+                page.row("warn", "  ".join(f'{k}: {value_text(v)}' for k, v in u.items()), go, item)
 
     emit = {"unresolved": unresolved_rows, "uncertainty": uncertainty_rows}
     if packet.get("unresolved"):
@@ -792,7 +829,7 @@ def lists(packet, page, pages):
     if packet.get("consumedBy"):
         page.row("head", f'consumedBy ({len(packet["consumedBy"])})', "", "consumedBy")
         for i, c in enumerate(packet["consumedBy"]):
-            page.row("item", "  ".join(f'{k}: {v}' for k, v in c.items()), c.get("index") or "",
+            page.row("item", "  ".join(f'{k}: {value_text(v)}' for k, v in c.items()), c.get("index") or "",
                      f'consumedBy#{i}')
     if packet.get("outsideCallers"):
         page.row("head", f'outside callers ({sum(packet["outsideCallers"].values())}) — not active while making a part',

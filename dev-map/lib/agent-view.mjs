@@ -106,7 +106,15 @@ export function compactPage(page, {code = false} = {}) {
 
   delete packet.flow;
   delete packet.generated;
+  // Per-call-site evidence — argument counts and flags, the callee's traceability, the site's
+  // line — is what the drawing turns into one invocation wire per box, with stub or literal
+  // slots. The wire is what a reader acts on; the sites behind it are --details.
   delete packet.callBindings;
+  delete packet.invocationSites;
+  // A group's boundary list is the bookkeeping that ties each generated port back to the wire it
+  // was cut from on the parent page. The ports themselves are presented, each carrying its
+  // `edgeId` and `parentEndpoint`, and this page is the other end, so the list adds nothing.
+  delete packet.boundary;
   // File/root children repeat the component/region inventory. Region children
   // remain: they are the file route alongside authored conceptual groups.
   if (page.kind === 'file' || page.kind === 'root') {
@@ -115,19 +123,12 @@ export function compactPage(page, {code = false} = {}) {
     packet[inventory] = (page[inventory] ?? []).map(item => ({...children.get(item.index), ...item}));
     packet.children = (page.children ?? []).filter(child => !packet[inventory].some(item => item.index === child.index));
   }
-  // Wires carry producers/consumers and source argument slots. Occurrences keep
-  // source identity and analysis limits; expressions and tracing are --details.
-  const declarations = new Map((page.components ?? []).map(node => [node.path ?? `${node.file}::${node.label}`, node.index]));
-  if (page.callBindings?.length) packet.calls = page.callBindings.map(call => {
-    const {arguments: args = [], resultUses, result, callee, callable, ...occurrence} = call;
-    const argumentFlags=args.map(arg=>Object.fromEntries(['position','unknown','spread','positionUnknown','constant']
-      .filter(key=>arg[key]!==undefined).map(key=>[key,arg[key]])))
-      .filter(arg=>Object.keys(arg).length>1);
-    return {...occurrence, callee: declarations.get(callee) ?? callee,
-      argumentCount:args.length,...(argumentFlags.length?{arguments:argumentFlags}:{}),
-      ...(callable?.unknown?{callableUnknown:true}:{}),
-      ...(result ? {result: {kind: result.kind,
-        ...(result.kind==='binding'&&/^[A-Za-z_$][\w$]*$/.test(result.expression??'')?{binding:result.expression}:{})}} : {})};
-  });
+  // A gate is a lookup table: every other field points at one by number. Where the only items
+  // that pointed at it were the call sites this read no longer carries, the entry is left
+  // dangling, so a table nothing on the page indexes is dropped whole. Numbering is never
+  // rewritten — a surviving reference means the whole table stays.
+  if (packet.gates?.length && !['components', 'operators', 'wires', 'inputs', 'outputs', 'ports']
+    .some(field => (packet[field] ?? []).some(item => item.gate !== undefined && item.gate !== null)))
+    delete packet.gates;
   return clean(packet, undefined, true);
 }

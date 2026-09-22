@@ -3,9 +3,9 @@
 Intent, scope and the reading rules are owned by
 [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), the state of the work by
 [HANDOFF.md](HANDOFF.md). This guide owns the commands, the addresses, what each
-page carries and the authoring mechanics. Generation derives code entities,
-relationships, gates, couplings and source locations; authoring arranges them
-into pages and can add no call, wire or prose.
+page carries and the authoring mechanics. Generation derives entities, relations,
+gates, couplings and source locations; authoring arranges them into pages and can
+add no call, wire or prose.
 
 - `lib/`: source scanning, graph composition, stored pages and rendering;
   `lib/destination.mjs` is the one map-or-code rule.
@@ -62,10 +62,6 @@ selector's id, a binding or a member path) and homes its body. A record is no
 page at any depth, so `.` joins its members, `createStudio::lifetime.onViewers`;
 a module-level table keeps its entry keys.
 
-An address is a map when its drawing shows at least two called declarations with
-a data wire between them; otherwise `destination` is `code` and the read returns
-source with what it would carry. Operators and leaf boxes never make one.
-
 Repeated invocations of one declaration are distinct instances, each with an
 `id` for its local wires and the shared `index`; a call inside a loop is one
 stage with loop feedback, and each binding its body writes is an accumulator of
@@ -75,8 +71,9 @@ the class page, and its methods are separate nodes homed there.
 
 ## What each page carries
 
-Every page: `index`, `kind`, `destination`, `stale` when its inputs moved, `facts`
-when a fact row names it, and `home`/`alsoOn` on components as above.
+Every page: `index`, `kind`, `destination` (`code` when the address is no map,
+the read then source with what the page would carry), `stale` when its inputs
+moved, `facts` when a fact row names it, `home`/`alsoOn` on components as above.
 
 - **root**: `regions` (index, path, files, lines, nodes, roots), `ports` (each
   way into the regions, and `out:<root>` per scanned root they call), and
@@ -85,8 +82,10 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   and the chain of any leaf among them), input and output ports including `in:`
   and `out:` for every scanned root, and one wire per box pair contracted onto
   the root owning each endpoint: `count` sites, `kind` or `kinds`, and what they
-  name in the label or in `names` past three. These are containment maps: a
-  `calls` arrow is a call site, not execution order or dataflow.
+  name in the label or in `names` past three; `structural`,
+  `relationshipSummary` (sites collapsed into the drawn connections) and
+  `composition` (the grouping's source, and edge counts) say so, and a `calls`
+  arrow is a call site, not execution order or dataflow.
 - **node** (function, method, handler, class): `path`, `file`, `range`, `inputs`
   (`parameterTargets` on a port this page calls: each callable a caller passes,
   by `index`, `path` and `from`; its box is on that caller's page), `outputs`
@@ -104,16 +103,17 @@ when a fact row names it, and `home`/`alsoOn` on components as above.
   `stubs`, the slots with no data wire, each a `slot` and either a `literal`,
   the constant written there, cut past 40 characters (a number or boolean as
   itself), or a `reason`, a gap `argument-origin` carries; the rule counts data
-  wires but not a `keptFor` operator's), `gates` (every enclosing condition),
+  wires but not a `keptFor` operator's), `gates` (each enclosing condition an
+  item here names; the call sites behind an invocation wire are `--details`),
   `requires`, `couplings`, `callerReferences` (mapped callers by index; active
   outside callers by path with `unmapped: true`; `callerSummary` with a count
   and canonical index above five), `outsideCallers` (counts per inactive
   directory), `outside` and `platform` (call sites without a mapped target),
   `unresolved` (rows with a `rule`, and `candidates` where callers supply known
   callables), `uncertainty` (rows with a `kind`; repeated `closure-capture` rows
-  share one with `count`), `stateFields` on a class, and `state`, what the
-  holder owns and this page uses: a factory's `let`/`const` bindings and a
-  class's `this.` fields (`field`, `static-field`), each `name`, `owner`,
+  share one with `count`), `stateFields` on a class — a page that owns no box for
+  one writes it as a row — and `state`, what the holder owns and this page uses:
+  a factory's `let`/`const` bindings and a class's `this.` fields (`field`, `static-field`), each `name`, `owner`,
   `ownerIndex`, `binding` kind, `access` and site, drawn but never called and
   outside the map-or-code rule. Its wires carry `owned-state` provenance,
   leaving the node for a read and entering it for a write, from `self` with a
@@ -173,14 +173,14 @@ served paths that are not the path on disk.
 ## Checking
 
 `check` exits non-zero when the store is missing or stale (naming the index to
-regenerate), an authored page is unplaced, or a fact row is malformed. It
-reports `linked`, `unresolved`, `outside` and `platform` totals, `stranded`
-declarations (no root of their region reaches them; they keep their region-page
-box), `unplaced` pages and orphan facts; `--json` the same as data. `--viewer`
-adds coverage: page by page, whether the built drawing carries what the compact
-read presents, naming the fields nothing stands for. It only reports, and is
-opt-in because it reads a view `build` drew; an address scopes it;
-`coverage.mjs` states how each item is matched.
+regenerate), an authored page is unplaced, or a fact row is malformed. It reports
+`linked`, `unresolved`, `outside` and `platform` totals, `stranded` declarations
+(no root of their region reaches them; they keep their region-page box),
+`unplaced` pages and orphan facts; `--json` the same as data. `--viewer` adds
+coverage: page by page, whether the built drawing carries what the compact read
+presents, naming the fields nothing stands for. It only reports and is opt-in,
+reading a view `build` drew; an address scopes it, `coverage.mjs` states how each
+item is matched.
 
 ## The viewer
 

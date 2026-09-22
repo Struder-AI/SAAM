@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-09-22 — Dev map: the compact read carries nothing the drawing does not
+
+- `compactPage` no longer carries per-call-site `calls` and the
+  `invocationSites` flag (the drawing states a call as an invocation wire
+  with its slots; `--details` keeps them in full as `callBindings`),
+  `boundary` (bookkeeping already on the presented ports), or a `gates`
+  table no item on the page indexes (three pages, all the same
+  `peek().type !== "eof"` gate on `parse` and its two groups: its only
+  references were call sites the invocation wire collapses). Compact reads
+  11.45 → 10.52 MB; no other key changed on any page; `--details` proven a
+  superset on ten pages. `structural`, `relationshipSummary` and
+  `composition` stay and are drawn as a "this page" ledger section, since a
+  reader who does not know which kind of drawing this is reads every arrow
+  wrong and the summary is the only statement of how much collapsed; the
+  four group pages that list a class's fields without owning the boxes
+  draw them as rows; ledger values print JSON `true`/`false`/`null`.
+- `check --viewer`: map pages 83,686 of 83,686 items drawn on 0 pages with
+  a gap; code destinations 12,647 of 12,647. Both surfaces now show the
+  same thing, and the check keeps it so. Store byte-identical to the
+  generator change; `build` and `regenerate` exit 0, no dropped wires.
+- The `check` totals moved with the other session's concurrent Denso edits
+  in this checkout, not with this work: 3689 linked, 1084 unresolved, 47
+  outside, 5837 platform. Left for the tracer: an invocation wire does not
+  carry its call site's gate, so a condition guarding only calls is
+  invisible on the drawing.
+
 ## 2026-09-22 — Dev map viewer: a code destination shows its whole context beside the source
 
 - `generated-view.py::code_pane` draws the compact read of a code page as
