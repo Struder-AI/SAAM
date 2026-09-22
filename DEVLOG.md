@@ -1,5 +1,39 @@
 # Development log
 
+## 2026-09-22 — Dev map: loop accumulators carried to the output
+
+- Queue item 5, `flow.mjs` only. A binding declared before a loop and
+  written in its body is that loop's accumulator, the shape `reduce`
+  already drew: `initial` from the pre-loop producer, `current` into the
+  body, `next` from the body's producer, `final` to the post-loop consumers.
+  Nested loops compose by recursion (the inner `final` is the outer `next`);
+  a self-update such as `max = Math.max(max, x)` is an `update` operator; an
+  entered array callback carries accumulators the same way; bindings are
+  demoted one at a time instead of the whole loop giving up; a loop shape
+  that leaves the normal-completion path readable (`break`, `continue`,
+  `throw`, `switch`, `try`, `await`, a nested loop) is carried with a
+  `loop-exception-path` row naming the shape, and only `yield`, a `return`
+  in a non-`for` loop and a branching backedge block it. Residual
+  `loop-data-flow` rows carry a `reason`. `for(;;)` with `break` had been
+  read as never exiting; fixed.
+- Verified on the main store: accumulators carried 191 → 574 over 351 loops;
+  `loop-data-flow` 882 → 129 (54 `unknown-next`, 47 `unsafe-collection`, 15
+  `branching-backedge`, 8 `yield-in-body`, 5 `return-in-body`); all finding
+  rows 12813 → 12187 with the rising kinds naming newly drawn gaps
+  (`iteration-input` `initial`, `iteration-control`, `loop-exception-path`);
+  stub slots 3484 → 3278, `loop-variable` 137 → 87; six pages code → graph
+  because a `final` now wires onto a second called declaration; `check`
+  3553 / 1080 / 47 / 5798 unchanged; floating boxes 0, depth 13, every
+  declaration homed once. Pages read: `sampleTopSurface` (inner and outer
+  accumulators for `samples`, `inside`, `steep`, `maxSlope`, all reaching
+  `out1`, zero residual rows), `orderStrokes` (`while`: `ordered` to `out1`),
+  `selectPrimingPath` (nested `for-of` with a gated `push`), `packZip`
+  (`offset` reaches `requireThat`; its last use is a platform Buffer write
+  the map does not draw).
+- Left: `Set`/`splice`/`get(k).push` collections, backedges with more than
+  one normal path, generators; 557 finding rows name operators the liveness
+  pass drops (680 before), worth a separate look.
+
 ## 2026-09-22 — Dev map: finding rows follow their node onto function pages
 
 - Queue item 6. On every graph page of a function, method, handler or class,

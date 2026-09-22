@@ -70,8 +70,9 @@ boxes a leaf brings make a map: the rule reads the page's own calls.
 
 Repeated invocations of one declaration are distinct instances, each with an
 `id` for its local wires and the shared `index`; a call inside a loop is one
-stage with loop feedback. A class page is its construction plus its members: the
-constructor is not a node, `new X()` reaches the class page, and static and
+stage with loop feedback, and each binding its body writes is an accumulator of
+that loop: `initial` and `next` in, `current` and `final` out. A class page is
+its construction plus its members: the constructor is not a node, `new X()` reaches the class page, and static and
 instance methods are separate nodes homed there.
 
 ## What each page carries

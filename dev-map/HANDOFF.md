@@ -162,9 +162,10 @@ Two consequences of the tree to look at before settling:
    are stages with the item as input (`shapes.mjs::iterationMethods`); 645
    callbacks entered. Not in the table: `Array.from(x, fn)`, `flat()`. A
    throw inside an entered callback is not yet an exit port.
-5. **Loop accumulation.** Accumulators in loops (`samples`, `inside`,
-   `maxSlope` in `sampleTopSurface`) are marked as findings rather than
-   carried to the output. Carrying them closes the last gap on small flow pages.
+5. **Loop accumulation.** Built 2026-09-22: 574 accumulators carried,
+   `loop-data-flow` 882 → 129 with a `reason` each. Left: `Set`, `splice`
+   and `get(k).push` collections; multi-path backedges; generators; finding
+   rows naming operators the liveness pass drops (557).
 6. **Finding rows on function pages.** Built 2026-09-22: `findings` on
    every drawn box, `nodeFindings` sections once per node. Left: chain boxes
    on region pages carry no rows (containment pass runs before

@@ -573,6 +573,15 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     for(const p of list)if(p.end)operatorWires.push({from:p.end,to:op.id,label:p.label??'',kind:'data',
       ...(p.port?{fromPort:p.port}:{}),...(p.site?{sourceSite:p.site}:{}),toPort:port,provenance:`ast-${op.kind}`,...(op.gate?{gate:op.gate}:{}),...extra});
   };
+  // Reading a repetition means guessing what it carries and reading its body; a guess that does
+  // not hold has to be taken back, drawing and findings together, before the body is read again.
+  const checkpoint=()=>({operators:operators.length,wires:operatorWires.length,captures:captureWires.length,
+    findings:uncertainty.length,seen:[...uncertaintySeen],invalid:[...invalidCollections]});
+  const restore=mark=>{
+    operators.splice(mark.operators);operatorWires.splice(mark.wires);captureWires.splice(mark.captures);
+    uncertainty.splice(mark.findings);uncertaintySeen.clear();for(const k of mark.seen)uncertaintySeen.add(k);
+    invalidCollections.clear();for(const id of mark.invalid)invalidCollections.add(id);
+  };
   const choice=(n,branches,details={})=>{
     if(branches.some(b=>!b.values.length||b.values.some(p=>p.unknown)))return null;
     const controlNode=n.test??n.left??(n.callee?.type==='MemberExpression'&&n.callee.optional&&!n.optional?n.callee.object:n.callee);
@@ -887,6 +896,28 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     for(let i=0;i<argPorts.length;i++)invalidateCollections(args[i],env,n,'collection-escape');
     return [{end:op.id,port:'result',...(operation==='set'?{collection}:operation==='map'?{collection:{kind:'array',id:`${node.file}:${n.start}`,owner:null}}:{})}];
   };
+  // What a repeated body does to the bindings around it: the ones it writes, collection
+  // mutations included, and the collections whose identity it does not keep — passed on, held
+  // by a nested function, or reached by an operation this reader has no model for.
+  const bodyEffects=(n,env)=>{
+    const changed=written(n),unsafe=new Set();
+    (function effects(s){
+      if(s!==n&&stop.has(s.start))return;
+      if(s.type==='CallExpression') {
+        const receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
+        const collection=receiver&&collectionOf(env.get(key(receiver))),operation=namedMember(s.callee);
+        if(collection&&(collection.kind==='map'&&operation==='set'||collection.kind==='array'&&operation==='push'))changed.add(key(receiver));
+        for(const arg of s.arguments)for(const root of roots(arg))if(collectionOf(env.get(key(root))))unsafe.add(key(root));
+        if(collection&&!collectionCallSpec(s,env))unsafe.add(key(receiver));
+      }
+      if(s!==n&&functions.has(s.type)) {
+        (function captures(t){if(t.type==='Identifier'&&collectionOf(env.get(key(t))))unsafe.add(key(t));for(const c of kids(t))captures(c);})(s);
+        return;
+      }
+      for(const c of kids(s))effects(c);
+    })(n);
+    return {changed,unsafe};
+  };
   // What a callback leaves: the expression an arrow is, or every return its own body makes.
   const callbackReturns=cb=>{
     if(cb.body.type!=='BlockStatement')return producers(cb.body);
@@ -933,16 +964,47 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     invalidateCollections([...iterable,...(initial??[])],env,n,'collection-escape');
     let returned=[];
     if(inline) {
-      const inner=new Map(env),changed=written(inline);
-      // A binding the callback writes holds a different value on every element, and this tracer
-      // does not carry that around the iteration: it is the loop-accumulation gap, named as one.
-      for(const b of changed)if(env.has(b)){inner.set(b,[]);uncertain('loop-data-flow',n,{binding:bindingName.get(b)??b});}
-      (function captures(s){if(s.type==='Identifier')invalidateCollections(env.get(key(s))??[],env,n,'collection-capture');for(const c of kids(s))captures(c);})(inline.body);
-      inline.params.forEach((p,i)=>put(p,spec.param[i]==='item'?elements:spec.param[i]==='accumulator'&&carried?carried:[{unknown:src(text,p)}],inner));
-      statement(inline.body,inner);
+      // A binding the callback writes holds a different value on every element, which is what
+      // an accumulator is: the same shape a loop body gets, on this operator's own call node.
+      const {changed,unsafe}=bodyEffects(inline,env);
+      const carriable=[...changed].filter(b=>env.has(b)),demoted=new Set();
+      const mark=checkpoint();
+      let accumulators=new Map(),inner=new Map(env);
+      for(;;) {
+        restore(mark);accumulators=new Map();inner=new Map(env);
+        for(const b of carriable) {
+          const incoming=env.get(b)??[],label=bindingName.get(b)??b;
+          if(!demoted.has(b)&&!unsafe.has(b)) {
+            const acc=operator('iteration',n,b,{binding:label,method:spec.method,test:`of ${held.label}`,minIterations:0,
+              ports:{inputs:['initial','next'],outputs:['current','final']}});
+            accumulators.set(b,acc);operatorInput(acc,'initial',incoming);
+            if(!incoming.length||incoming.some(p=>p.unknown)) {
+              acc.initialUnknown=true;uncertain('iteration-input',n,{operator:acc.id,input:'initial'});
+            }
+            const collection=collectionOf(incoming);
+            inner.set(b,[{end:acc.id,port:'current',label,...(collection?{collection}:{})}]);
+          } else {inner.set(b,[]);uncertain('loop-data-flow',n,{binding:label,
+            reason:demoted.has(b)?'unknown-next':'unsafe-collection'});}
+        }
+        // A collection the callback reaches and this stage does not carry loses its identity
+        // there: it is read or written once per element with nothing to say which.
+        (function captures(s){
+          if(s.type==='Identifier'&&!accumulators.has(key(s)))invalidateCollections(env.get(key(s))??[],env,n,'collection-capture');
+          for(const c of kids(s))captures(c);})(inline.body);
+        inline.params.forEach((p,i)=>put(p,spec.param[i]==='item'?elements:spec.param[i]==='accumulator'&&carried?carried:[{unknown:src(text,p)}],inner));
+        statement(inline.body,inner);
+        const failed=[...accumulators.keys()].filter(b=>!(inner.get(b)?.length)||inner.get(b).some(p=>p.unknown));
+        if(!failed.length)break;
+        for(const b of failed)demoted.add(b);
+      }
       values.set(inline,[]);
       returned=callbackReturns(inline);
-      for(const b of changed)if(env.has(b))env.set(b,[]);
+      for(const [b,acc] of accumulators) {
+        operatorInput(acc,'next',inner.get(b));
+        const collection=collectionOf(inner.get(b));
+        env.set(b,[{end:acc.id,port:'final',label:acc.binding,...(collection?{collection}:{})}]);
+      }
+      for(const b of changed)if(env.has(b)&&!accumulators.has(b))env.set(b,[]);
     } else returned=held.callbacks.map(r=>projection.owner.get(r.to))
       .filter(t=>t&&t!==node&&t.kind!=='module').map(t=>({end:t.path,site:sourceSite(n)}));
     if(spec.feed) {
@@ -954,11 +1016,31 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     if(!spec.produces)return [{constant:'undefined'}];
     return [{end:op.id,port:carriedAt<0?'result':'final',label:src(text,n)}];
   };
-  const updateValue=(n,prior,value,binding,prefix=true)=>{
-    const op=operator('update',n,'value',{operation:n.operator,binding,prefix,
+  // An assignment that reads the binding it writes is an update of that binding, whatever
+  // computes it: `max=Math.max(max,d)` has `max+=d`'s shape with another operation, so it is
+  // drawn as one — `prior` what the binding held, `value` the other operands, the expression
+  // as the operation. Only where the expression has no producer of its own, so a call the walk
+  // resolved keeps its own wire into the binding instead of an operator in front of it.
+  const updateOperands=n=>
+    ['CallExpression','NewExpression'].includes(n.type)?{operation:`${expression(n.callee)}()`,operands:n.arguments}
+    :n.type==='BinaryExpression'?{operation:n.operator,operands:[n.left,n.right]}
+    :n.type==='ArrayExpression'?{operation:'[…]',operands:n.elements.filter(Boolean).map(e=>e.type==='SpreadElement'?e.argument:e)}
+    :n.type==='ObjectExpression'?{operation:'{…}',operands:n.properties.map(p=>p.value??p.argument)}
+    :n.type==='TemplateLiteral'?{operation:'`…`',operands:n.expressions}:null;
+  const selfUpdate=n=>{
+    const b=n.left.type==='Identifier'?key(n.left):null,shape=b&&updateOperands(n.right);
+    if(!shape)return null;
+    const reads=o=>roots(o).some(id=>key(id)===b);
+    if(!shape.operands.some(o=>o&&reads(o)))return null;
+    return {operation:shape.operation,expression:expression(n.right),
+      value:unique(shape.operands.filter(o=>o&&!reads(o)).flatMap(producers))};
+  };
+  const updateValue=(n,prior,value,binding,prefix=true,shape=null)=>{
+    const op=operator('update',n,'value',{operation:shape?.operation??n.operator,binding,prefix,
       ports:{inputs:['prior','value'],outputs:['next','result']}});
     addOperatorValue(op,'prior',prior,n);addOperatorValue(op,'value',value,n);
-    op.arguments=[{port:'prior',expression:binding},{port:'value',expression:n.type==='UpdateExpression'?'1':expression(n.right)}];
+    op.arguments=[{port:'prior',expression:binding},
+      {port:'value',expression:shape?.expression??(n.type==='UpdateExpression'?'1':expression(n.right))}];
     return {next:[{end:op.id,port:'next',label:binding}],result:[{end:op.id,port:'result',label:src(text,n)}]};
   };
   const evaluate=(n,env)=>{
@@ -1002,7 +1084,10 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     else if(n.type==='VariableDeclarator') {result=evaluate(n.init,env);put(n.id,result,env);}
     else if(n.type==='AssignmentExpression') {
       const before=evaluate(n.left,env),rhs=evaluate(n.right,env);
-      result=n.operator==='='?rhs:n.left.type==='Identifier'&&!['&&=','||=','??='].includes(n.operator)?updateValue(n,before,rhs,n.left.name).next:[{unknown:src(text,n)}];
+      const self=n.operator==='='&&(!rhs.length||rhs.some(p=>p.unknown))?selfUpdate(n):null;
+      result=self?updateValue(n,before,self.value,n.left.name,true,self).next
+        :n.operator==='='?rhs
+        :n.left.type==='Identifier'&&!['&&=','||=','??='].includes(n.operator)?updateValue(n,before,rhs,n.left.name).next:[{unknown:src(text,n)}];
       if(n.left.type==='MemberExpression')invalidateMember(n.left,env,n);
       else put(n.left,result,env);
     } else if(n.type==='UpdateExpression') {
@@ -1106,96 +1191,57 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       return aliveA||aliveB;
     } else if(['ForStatement','ForOfStatement','ForInStatement','WhileStatement','DoWhileStatement'].includes(n.type)) {
       if(n.init)evaluate(n.init,env);
-      const changed=written(n),loop=new Map(env),unsafeCollections=new Set();
-      (function collectionEffects(s){
-        if(s!==n&&stop.has(s.start))return;
-        if(s.type==='CallExpression') {
-          const receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
-          const collection=receiver&&collectionOf(env.get(key(receiver))),operation=namedMember(s.callee);
-          if(collection&&(collection.kind==='map'&&operation==='set'||collection.kind==='array'&&operation==='push'))changed.add(key(receiver));
-          for(const arg of s.arguments)for(const root of roots(arg))if(collectionOf(env.get(key(root))))unsafeCollections.add(key(root));
-          if(collection&&!collectionCallSpec(s,env))unsafeCollections.add(key(receiver));
-        }
-        if(functions.has(s.type)) {
-          (function captures(t){if(t.type==='Identifier'&&collectionOf(env.get(key(t))))unsafeCollections.add(key(t));for(const c of kids(t))captures(c);})(s);
-          return;
-        }
-        for(const c of kids(s))collectionEffects(c);
-      })(n);
-      let structured=!n.await,hasReturn=false;
-      const nestedLoops=[],nestedAffected=new Set();
+      const {changed,unsafe:unsafeCollections}=bodyEffects(n,env),loop=new Map(env);
+      // Two kinds of shape. A BLOCKER means the value at the backedge is not this walk's to
+      // know at all, so nothing is carried. A PARTIAL shape — a nested loop, break, continue,
+      // throw, switch, try, a write through a member — leaves the normal-completion path
+      // readable: those statements either end the path the walk is on (so the merge drops it)
+      // or blank the bindings they touch, and a binding left without a value at the backedge
+      // is discarded below. The accumulator says so with `backedge: normal-completion`.
+      let hasReturn=false,hasBreak=false;
+      const blockers=new Set(),partial=new Set(n.await?['await-iteration']:[]);
+      const nestedLoops=[];
       (function inspect(s){
         if(s!==n&&(functions.has(s.type)||stop.has(s.start)))return;
         if(s!==n&&['ForStatement','ForOfStatement','ForInStatement','WhileStatement','DoWhileStatement'].includes(s.type)) {
-          if(s.type!=='ForOfStatement'||s.await)structured=false;
+          partial.add(s.await?'await-iteration':'nested-loop');
           nestedLoops.push(s);
         }
         if(s.type==='ReturnStatement'){
           hasReturn=true;
-          if(n.type!=='ForStatement'||nestedLoops.some(loop=>s.start>=loop.start&&s.end<=loop.end))structured=false;
+          if(n.type!=='ForStatement'||nestedLoops.some(loop=>s.start>=loop.start&&s.end<=loop.end))blockers.add('return-in-body');
         }
-        if(['BreakStatement','ContinueStatement','ThrowStatement','SwitchStatement','TryStatement',
-          'AwaitExpression','YieldExpression'].includes(s.type)
-          ||s.type==='AssignmentExpression'&&s.left.type==='MemberExpression')structured=false;
+        if(['BreakStatement','ContinueStatement'].includes(s.type)) {
+          partial.add('control-transfer');if(s.type==='BreakStatement')hasBreak=true;
+        }
+        if(['ThrowStatement','SwitchStatement','TryStatement'].includes(s.type))
+          partial.add(s.type==='ThrowStatement'?'throw-in-body':s.type==='SwitchStatement'?'switch-in-body':'try-in-body');
+        if(s.type==='AwaitExpression')partial.add('await-in-body');
+        if(s.type==='YieldExpression')blockers.add('yield-in-body');
+        if(s.type==='AssignmentExpression'&&s.left.type==='MemberExpression')partial.add('member-write');
         for(const child of kids(s))inspect(child);
       })(n);
-      // Nested for-of emission loops do not destroy unrelated lexical bindings.
-      // Any reference (including an alias/escape) is conservatively affected;
-      // unknown receiver effects remain boundaries, never a purity proof.
-      const aliases=new Map();
-      const closuresByBinding=new Map();
-      if(nestedLoops.length)for(const child of node.children) {
-        const binding=key(childFunctions.get(child.path)?.id)
-          ??[...captureBindings].find(([,info])=>info.source.start===child.start)?.[0];
-        if(binding)closuresByBinding.set(binding,child.path);
-      }
-      if(nestedLoops.length)(function aliasBindings(s){
-        if(s!==fn&&functions.has(s.type))return;
-        const left=s.type==='VariableDeclarator'?s.id:s.type==='AssignmentExpression'&&s.operator==='='?s.left:null;
-        const right=s.type==='VariableDeclarator'?s.init:s.type==='AssignmentExpression'?s.right:null;
-        if(left&&right)for(const id of patternIds(left))if(key(id)) {
-          const sources=aliases.get(key(id))??new Set();
-          for(const root of roots(right))if(key(root))sources.add(key(root));
-          aliases.set(key(id),sources);
-          if(left.type==='Identifier'&&right.type==='Identifier'&&key(right)) {
-            const reverse=aliases.get(key(right))??new Set();reverse.add(key(left));aliases.set(key(right),reverse);
+      let structured=!blockers.size;
+      // A method call on a receiver inside a nested loop runs once per inner element; the
+      // effect it has on that receiver is the boundary, whether or not anything is carried.
+      for(const nested of nestedLoops)(function footprint(s){
+        if(s!==nested&&(functions.has(s.type)||stop.has(s.start)))return;
+        if(s.type==='CallExpression') {
+          const receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
+          if(receiver) {
+            const collection=collectionOf(env.get(key(receiver))),operation=namedMember(s.callee),spec=collectionCallSpec(s,env);
+            uncertain(spec?'nested-collection-effect':'nested-receiver-effect',s,{receiver:receiver.name,operation,
+              ownership:collection?'local':ports.has(key(receiver))?'parameter':'unknown',
+              ...(collection?{collection:collection.kind}:{}),...(!spec?{effectUnknown:true}:{})});
           }
         }
-        for(const child of kids(s))aliasBindings(child);
-      })(fn);
-      const affect=b=>{
-        if(!b||nestedAffected.has(b))return;
-        nestedAffected.add(b);for(const source of aliases.get(b)??[])affect(source);
-        for(const capture of captureUses.get(closuresByBinding.get(b))?.keys()??[])affect(capture);
-      };
-      for(const nested of nestedLoops) {
-        (function footprint(s,parent=null){
-          if(s!==nested&&(functions.has(s.type)||stop.has(s.start))) {
-            // A captured outer binding can escape through a nested callback.
-            (function captures(c){if(c.type==='Identifier')affect(key(c));for(const child of kids(c))captures(child);})(s);
-            return;
-          }
-          if(s.type==='Identifier'&&!(parent?.type==='MemberExpression'&&parent.property===s&&!parent.computed)
-            &&!(parent?.type==='Property'&&parent.key===s&&!parent.computed&&parent.value!==s))affect(key(s));
-          if(s.type==='CallExpression') {
-            const receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
-            if(receiver) {
-              const collection=collectionOf(env.get(key(receiver))),operation=namedMember(s.callee),spec=collectionCallSpec(s,env);
-              uncertain(spec?'nested-collection-effect':'nested-receiver-effect',s,{receiver:receiver.name,operation,
-                ownership:collection?'local':ports.has(key(receiver))?'parameter':'unknown',
-                ...(collection?{collection:collection.kind}:{}),...(!spec?{effectUnknown:true}:{})});
-            }
-            if(s.callee.type==='Identifier')for(const value of env.get(key(s.callee))??[])
-              if(value.port==='callable')for(const b of captureUses.get(value.end)?.keys()??[])affect(b);
-          }
-          for(const child of kids(s))footprint(child,s);
-        })(nested);
-      }
+        for(const child of kids(s))footprint(child);
+      })(nested);
       // A return exits this function; only the surviving normal path reaches the
       // for-update and its backedge. No exception/termination proof is implied.
       const normalPaths=s=>{
         if(!s)return [[]];
-        if(s.type==='ReturnStatement')return [];
+        if(['ReturnStatement','ThrowStatement','BreakStatement'].includes(s.type))return [];
         if(s.type==='BlockStatement') {
           let paths=[[]];
           for(const child of s.body) {
@@ -1210,61 +1256,77 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         return [[]];
       };
       const paths=structured&&hasReturn?normalPaths(n.body):null;
-      if(paths&&paths.length!==1)structured=false;
+      if(paths&&paths.length!==1){structured=false;blockers.add('branching-backedge');}
       const backedge=structured&&hasReturn?paths[0]:[],backedgeGates=backedge.map(({node:test,inverse})=>({
         text:inverse?`!(${src(text,test)})`:src(text,test),kind:inverse?'else':'if',name:src(text,test),
         source:{...sourceSite(test),endLine:test.loc.end.line}}));
       const nextGate=backedgeGates.length?guarded(shown([...(gatesAt.get(n)??[]),...backedgeGates])):null;
-      if(structured&&(hasReturn||nestedLoops.length))uncertain('loop-exception-path',n,{backedge:'normal-completion'});
+      if(structured&&(hasReturn||partial.size))uncertain('loop-exception-path',n,{backedge:'normal-completion',
+        ...(partial.size?{shape:[...partial].sort().join('+')}:{})});
       if(nextGate&&n.update)(function guardUpdate(s){
         gatesAt.set(s,[...(gatesAt.get(s)??[]),...backedgeGates]);
         const site=siteAt.get(`${s.start}:${s.end}`);if(site)site.gates.push(...backedgeGates);
         for(const child of kids(s))guardUpdate(child);
       })(n.update);
-      const beforeOperators=operators.length,beforeWires=operatorWires.length,candidates=new Map();
-      for(const b of changed) {
-        const incoming=env.get(b)??[],binding=bindingName.get(b)??b;
-        if(structured&&!unsafeCollections.has(b)&&!nestedAffected.has(b)&&incoming.length&&incoming.some(p=>p.end||p.constant!==undefined)&&!incoming.some(p=>p.unknown)) {
-          const test=n.right?`${n.type==='ForInStatement'?'in':'of'} ${src(text,n.right)}`:n.test?src(text,n.test):'true';
-          const noNormalExit=n.type==='ForStatement'&&!n.test;
-          const op=operator('iteration',n,b,{binding,test,minIterations:n.type==='DoWhileStatement'||noNormalExit?1:0,
-            ...(hasReturn||nestedLoops.length?{backedge:'normal-completion',exceptionalControlUnknown:true}:{}),
-            ports:{inputs:['initial','next','control'],outputs:noNormalExit?['current']:['current','final']}});
-          candidates.set(b,op);operatorInput(op,'initial',incoming);
-          const constants=incoming.filter(p=>p.constant!==undefined).map(p=>p.constant);if(constants.length)op.initialConstants=constants;
-          const collection=collectionOf(incoming);
-          loop.set(b,[{end:op.id,port:'current',label:binding,...(collection?{collection}:{})}]);
-        } else {loop.set(b,[]);uncertain('loop-data-flow',n,{binding});}
-      }
-      if(n.right){
-        const value=evaluate(n.right,loop),pattern=n.left.declarations?.[0]?.id??n.left;
-        if(n.type==='ForOfStatement'&&value.some(p=>p.end)&&!value.some(p=>p.unknown)) {
-          const item=name(pattern)??src(text,pattern),op=candidates.values().next().value
-            ??operator('iteration',n,'items',{mode:'elements',item,test:`of ${src(text,n.right)}`,minIterations:0,
-              ports:{inputs:['iterable'],outputs:['item']}});
-          op.item=item;
-          if(!op.ports.outputs.includes('item'))op.ports.outputs.push('item');
-          if(!op.ports.inputs.includes('iterable'))op.ports.inputs.push('iterable');
-          operatorInput(op,'iterable',value);put(pattern,[{end:op.id,port:'item',label:item}],loop);
-        } else {
-          put(pattern,[{unknown:src(text,n.right),label:name(pattern)??src(text,pattern)}],loop);
-          for(const op of candidates.values())op.iterationSourceUnknown=true;
-          uncertain('iteration-source',n,{iterable:src(text,n.right)});
+      // What the loop carries: every binding the body writes that already holds a value is an
+      // accumulator — `initial` from before the loop, `current` into the body, `next` from the
+      // body's producer, `final` to whatever reads it after. A binding declared inside the body
+      // is a fresh binding each iteration and carries nothing. A binding whose value at the
+      // backedge the walk cannot name is demoted and the body read again without it, because a
+      // carried `current` feeding it would be a claim the walk cannot make; one demotion can
+      // cost another its `next`, so the reading repeats until nothing more falls.
+      const carriable=[...changed].filter(b=>env.has(b)),demoted=new Set();
+      const mark=checkpoint();
+      let candidates=new Map();
+      for(;;) {
+        restore(mark);
+        candidates=new Map();loop.clear();for(const [b,value] of env)loop.set(b,value);
+        for(const b of carriable) {
+          const incoming=env.get(b)??[],binding=bindingName.get(b)??b;
+          if(!demoted.has(b)&&structured&&!unsafeCollections.has(b)) {
+            const test=n.right?`${n.type==='ForInStatement'?'in':'of'} ${src(text,n.right)}`:n.test?src(text,n.test):'true';
+            const noNormalExit=n.type==='ForStatement'&&!n.test&&!hasBreak;
+            const op=operator('iteration',n,b,{binding,test,minIterations:n.type==='DoWhileStatement'||noNormalExit?1:0,
+              ...(hasReturn||partial.size?{backedge:'normal-completion',exceptionalControlUnknown:true}:{}),
+              ports:{inputs:['initial','next','control'],outputs:noNormalExit?['current']:['current','final']}});
+            candidates.set(b,op);operatorInput(op,'initial',incoming);
+            const constants=incoming.filter(p=>p.constant!==undefined).map(p=>p.constant);if(constants.length)op.initialConstants=constants;
+            // Where the binding started is a gap of its own; what it carries is still carried.
+            if(!incoming.length||incoming.some(p=>p.unknown)) {
+              op.initialUnknown=true;uncertain('iteration-input',n,{operator:op.id,input:'initial'});
+            }
+            const collection=collectionOf(incoming);
+            loop.set(b,[{end:op.id,port:'current',label:binding,...(collection?{collection}:{})}]);
+          } else {loop.set(b,[]);uncertain('loop-data-flow',n,{binding,reason:demoted.has(b)?'unknown-next'
+            :!structured?[...blockers].sort().join('+'):'unsafe-collection'});}
         }
-      }
-      if(n.test&&n.type!=='DoWhileStatement')evaluate(n.test,loop);
-      const bodyAlive=statement(n.body,loop);if(bodyAlive&&n.update)evaluate(n.update,loop);
-      if(n.type==='DoWhileStatement')evaluate(n.test,loop);
-      if([...candidates].some(([b])=>!(loop.get(b)?.length)||loop.get(b).some(p=>p.unknown))) {
-        operators.splice(beforeOperators);operatorWires.splice(beforeWires);candidates.clear();
-        for(const b of changed){loop.set(b,[]);uncertain('loop-data-flow',n,{binding:bindingName.get(b)??b});}
+        if(n.right){
+          const value=evaluate(n.right,loop),pattern=n.left.declarations?.[0]?.id??n.left;
+          if(n.type==='ForOfStatement'&&value.some(p=>p.end)&&!value.some(p=>p.unknown)) {
+            const item=name(pattern)??src(text,pattern),op=candidates.values().next().value
+              ??operator('iteration',n,'items',{mode:'elements',item,test:`of ${src(text,n.right)}`,minIterations:0,
+                ports:{inputs:['iterable'],outputs:['item']}});
+            op.item=item;
+            if(!op.ports.outputs.includes('item'))op.ports.outputs.push('item');
+            if(!op.ports.inputs.includes('iterable'))op.ports.inputs.push('iterable');
+            operatorInput(op,'iterable',value);put(pattern,[{end:op.id,port:'item',label:item}],loop);
+          } else {
+            put(pattern,[{unknown:src(text,n.right),label:name(pattern)??src(text,pattern)}],loop);
+            for(const op of candidates.values())op.iterationSourceUnknown=true;
+            uncertain('iteration-source',n,{iterable:src(text,n.right)});
+          }
+        }
+        if(n.test&&n.type!=='DoWhileStatement')evaluate(n.test,loop);
         const alive=statement(n.body,loop);if(alive&&n.update)evaluate(n.update,loop);
         if(n.type==='DoWhileStatement')evaluate(n.test,loop);
+        const failed=[...candidates.keys()].filter(b=>!(loop.get(b)?.length)||loop.get(b).some(p=>p.unknown));
+        if(!failed.length)break;
+        for(const b of failed)demoted.add(b);
       }
       for(const b of changed) {
         const op=candidates.get(b);
         if(!op){env.set(b,[]);continue;}
-        operatorInput(op,'next',loop.get(b),{...(nextGate?{gate:nextGate}:{}),...(hasReturn||nestedLoops.length?{provenance:'ast-normal-backedge'}:{})});
+        operatorInput(op,'next',loop.get(b),{...(nextGate?{gate:nextGate}:{}),...(hasReturn||partial.size?{provenance:'ast-normal-backedge'}:{})});
         for(const {node:test} of backedge) {
           const control=producers(test);operatorInput(op,'control',control,{...(nextGate?{gate:nextGate}:{})});
           if(!control.length||control.some(p=>p.unknown)) {
@@ -1281,7 +1343,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
         const collection=collectionOf(loop.get(b));
         env.set(b,op.ports.outputs.includes('final')?[{end:op.id,port:'final',label:op.binding,...(collection?{collection}:{})}]:[]);
       }
-      if(structured&&n.type==='ForStatement'&&!n.test)return false;
+      if(structured&&n.type==='ForStatement'&&!n.test&&!hasBreak)return false;
     } else if(n.type==='BreakStatement'||n.type==='ContinueStatement') {
       uncertain('loop-control-transfer',n);return false;
     } else if(n.type==='ReturnStatement'||n.type==='ThrowStatement') {
