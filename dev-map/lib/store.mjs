@@ -13,7 +13,7 @@ import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
 import {readCompositions,compositionFiles,composePages} from './composition.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {attachOverviewAnchors} from './overview.mjs';
-import {treeNumbering,renumber,markRepeats} from './tree.mjs';
+import {treeNumbering,renumber,markRepeats,drawChains} from './tree.mjs';
 import {destinationFor} from './destination.mjs';
 export {drawnShape,destinationFor} from './destination.mjs';
 
@@ -285,7 +285,8 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   // map shows is not published.
   const sourceByPath=Object.fromEntries([...index,...Object.values(groupPages).map(p=>[p.path,p.index])]
     .sort((a,b)=>order(a[0],b[0])));
-  const tree=treeNumbering(destinations);
+  const {tree,chains}=treeNumbering(destinations);
+  drawChains(destinations,chains);
   const placed=new Set([...destinations].filter(([at])=>tree.has(at)).map(([,page])=>page));
   const unplaced=[...destinations.values()].filter(page=>!placed.has(page)).map(page=>page.path??page.file).sort(order);
   renumber([...placed],tree);
@@ -620,7 +621,9 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
   const totals={regions:held.regions.length,files:Object.keys(held.files).length,pages:nodes.length,
     // Every linked call a page holds: a box it draws, plus the callables a caller passes into a
     // parameter this page invokes, which are drawn on the caller's page and named here as rows.
-    linked:nodes.reduce((n,p)=>n+p.components.length
+    // A box a leaf drew onto the map above it repeats a call already counted on the leaf's
+    // own page; it is context there, not a relationship of its own.
+    linked:nodes.reduce((n,p)=>n+p.components.filter(c=>!c.inlined).length
       +(p.inputs??[]).reduce((rows,port)=>rows+(port.parameterTargets?.length??0),0),0),
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
     outside:nodes.reduce((n,p)=>n+(p.outside??0),0),

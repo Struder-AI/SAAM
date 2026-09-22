@@ -137,12 +137,12 @@ Two consequences of the tree to look at before settling:
 
 ## What remains, in order
 
-0. **Leaves drawn on the map above.** Ruled 2026-09-21: what is not a map is
-   drawn on the map above it. A code-destination declaration is a leaf: one
-   box on the map that reaches it, its calls drawn there as boxes wired from
-   it, nothing homed beneath it. Today 368 code pages call a mapped
-   declaration, 107 hold children and 46 graph pages have a code parent that
-   the viewer's tree cannot reach (they are appended after the last group).
+0. **Leaves drawn on the map above.** Built 2026-09-22: the walk never
+   descends into a code destination; a leaf's callees are drawn on its home
+   map wired from its box (`inlined`, `via`); a leaf root's chain is on the
+   region page. Left: a map calling the same leaf twice hangs the chain off
+   the first instance; only leaf data wires with both ends in the chain are
+   carried.
 1. **The invocation edge.** Built 2026-09-21 (`lib/invocation.mjs`): every
    drawn box is wired to its function in call order, untraced argument slots
    are marked stubs with a reason, and a held or referenced declaration gets a

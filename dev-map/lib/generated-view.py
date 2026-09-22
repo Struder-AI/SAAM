@@ -352,7 +352,10 @@ def build_page(packet, ctx):
         for p in packet["ports"]:
             port(p["port"], p["port"], go=port_target(p["port"], pages))
         for w in packet["wires"]:
-            wire(page, w, aggregate(w), "data", drawn, dropped)
+            if w.get("kind") == "invocation":
+                invocation_edge(page, w, drawn, dropped)
+            else:
+                wire(page, w, aggregate(w), "data", drawn, dropped)
     else:
         node_page(packet, page, unit, port, drawn, dropped)
     boundary = packet.get("callerBoundary")
@@ -397,6 +400,15 @@ def invocation_label(w):
     return f'call {w["order"]}' + (f' ×{w["sites"]}' if w.get("sites") else "")
 
 
+def invocation_edge(page, w, drawn, dropped):
+    """The call, drawn from whatever makes it: the page's own function, or a leaf it homes."""
+    source = w["from"]
+    if w["to"] not in drawn or (source != "self" and source not in drawn):
+        dropped.append((page.key, source, w["to"]))
+        return
+    page.e(source, w["to"], invocation_label(w), "invocation", rank=False)
+
+
 def node_page(packet, page, unit, port, drawn, dropped):
     """A function, method, handler or class page: what it takes in, what it calls, what leaves."""
     gates = packet["gates"]
@@ -423,10 +435,12 @@ def node_page(packet, page, unit, port, drawn, dropped):
     invocations = [w for w in packet["wires"] if w["kind"] == "invocation"]
     stubs = {w["to"]: w.get("stubs", []) for w in invocations}
     # Closure-owned state is read and written by this body itself, so the subject box is drawn
-    # for a page that holds state even when it calls nothing.
+    # for a page that holds state even when it calls nothing; an inlined chain wires from the
+    # leaf's box instead, so "self" is drawn only when something actually wires from it.
     state = packet.get("state", [])
-    subject = "self" if invocations or state else packet["index"]
-    if invocations or state:
+    from_self = any(w["from"] == "self" for w in invocations)
+    subject = "self" if from_self or state else packet["index"]
+    if (from_self or state) and packet.get("file"):
         me = unit(subject, packet["path"][len(packet["file"]) + 2:], "this function",
                   f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', "subject",
                   ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', path=packet["path"])
@@ -585,10 +599,7 @@ def node_page(packet, page, unit, port, drawn, dropped):
     # Last, so a box is placed by the values that reach it and not by the call that makes it:
     # the invocation edge states the call, it does not order the drawing.
     for w in invocations:
-        if w["to"] not in drawn:
-            dropped.append((page.key, "self", w["to"]))
-            continue
-        page.e("self", w["to"], invocation_label(w), "invocation", rank=False)
+        invocation_edge(page, w, drawn, dropped)
 
 
 def lists(packet, page, pages):
@@ -913,7 +924,7 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
     const entry=restore||{key:drawing,graph:drawing};
     if(!restore)remember(entry,push);
     backButton.disabled=visitAt<=0;
-    if(p.destination==='code')openCode(p.r,key);});
+    if(p.destination==='code'){if(key!==drawing)hot(key);openCode(p.r,key);}});
   return true;}
 
 /* -- hover: the box, and every wire touching it ---------------------------- */
@@ -1030,7 +1041,10 @@ filter.addEventListener('keydown',e=>{if(e.key!=='Enter')return;
   if(PAGES[q]){show(q);return;}
   const exact=Object.keys(PAGES).find(k=>PAGES[k].d===q);
   if(exact){show(exact);return;}
-  const hit=document.querySelector('#tree a:not(.hide)');if(hit)show(hit.dataset.key);});
+  const hit=document.querySelector('#tree a:not(.hide)');if(hit){show(hit.dataset.key);return;}
+  /* A leaf has no row of its own: it opens as a box on the map that homes it. */
+  const leaf=Object.keys(PAGES).find(k=>PAGES[k].find.toLowerCase().includes(q.toLowerCase()));
+  if(leaf)show(leaf);});
 
 addEventListener('keydown',e=>{
   if(e.key==='Escape'){e.preventDefault();dismissCode();legendPane.classList.remove('on');return;}

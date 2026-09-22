@@ -12,8 +12,12 @@
 //
 // One rule decides whether an address is a map at all: it is, when its drawing would show at
 // least two called declarations with a wire on one of them; otherwise the address opens code
-// (dev-map/lib/destination.mjs). A code address still numbers what it holds, so the walk
-// continues through it.
+// (dev-map/lib/destination.mjs). What is not a map is drawn on the map above it: the walk never
+// descends into a code address. Meeting a leaf on a map, it homes the leaf there and homes the
+// calls the leaf makes there too, drawn as boxes wired from the leaf's box, on and on while
+// each of those is a leaf in its turn. So nothing is numbered beneath a leaf, and a leaf's
+// outgoing chain is drawn once, on the map that homes it.
+import {invocationWires} from './invocation.mjs';
 const containment=new Set(['root','region','group']);
 const byIndex=(a,b)=>{
   const x=a.split('.').map(Number),y=b.split('.').map(Number);
@@ -52,36 +56,81 @@ function holders(pages) {
 }
 
 // `pages` maps each source address to its page. Returns source address → tree index for the
-// pages the walk reaches; any other page belongs to no map.
+// pages the walk reaches (any other page belongs to no map), and, per map, the extra boxes the
+// leaves it homes bring with them: `{index, via}`, the call drawn and the leaf that makes it.
 export function treeNumbering(pages) {
   const {holder,scope}=holders(pages);
-  const tree=new Map([['0','0']]),stack=[['0','0']];
+  const tree=new Map([['0','0']]),chains=new Map(),stack=[['0','0']];
   // A region holds its own code. A call that crosses a region draws the callee here and links
   // to its home; it does not move the callee into the caller's region.
   const regionOf=at=>at.split('.')[0];
+  const leaf=at=>pages.get(at)?.destination==='code';
   while(stack.length) {
     const [at,placed]=stack.pop();
     const page=pages.get(at),here=scope(at);
-    let children=[...new Set(shownOn(page).map(c=>c.index))]
-      .filter(child=>pages.has(child)&&!tree.has(child)&&
-        (at==='0'||regionOf(child)===regionOf(at))&&
-        [undefined,at,here].includes(holder.get(child)));
     // A containment map is an arrangement, so it reads in index order; a flow page is a
     // sequence, so it keeps the call order its components already carry.
-    if(containment.has(page.kind))children=children.sort(byIndex);
-    const placedChildren=children.map((child,i)=>{
-      const index=placed==='0'?String(i+1):`${placed}.${i+1}`;
-      tree.set(child,index);return [child,index];
-    });
-    for(const child of placedChildren.reverse())stack.push(child);
+    let own=[...new Set(shownOn(page).map(c=>c.index))];
+    if(containment.has(page.kind))own=own.sort(byIndex);
+    const drawn=new Set(own),seen=new Set(),numbered=[],maps=[],added=[];
+    const place=(child,holders,via)=>{
+      if(via&&!drawn.has(child)){drawn.add(child);added.push({index:child,via});}
+      if(seen.has(child))return;
+      seen.add(child);
+      if(!pages.has(child)||tree.has(child))return;
+      if(at!=='0'&&regionOf(child)!==regionOf(at))return;
+      // A declaration written inside a leaf is placed by that leaf's authority, here.
+      if(![undefined,at,here,...holders].includes(holder.get(child)))return;
+      tree.set(child,'');numbered.push(child);
+      // A leaf is numbered here and holds nothing: what it calls is drawn and numbered here too.
+      if(leaf(child))for(const c of shownOn(pages.get(child)))place(c.index,[...holders,child],child);
+      else maps.push(child);
+    };
+    for(const child of own)place(child,[],null);
+    numbered.forEach((child,i)=>tree.set(child,placed==='0'?String(i+1):`${placed}.${i+1}`));
+    if(added.length)chains.set(at,added);
+    for(const child of maps.reverse())stack.push([child,tree.get(child)]);
   }
-  return tree;
+  return {tree,chains};
+}
+
+// The drawing that follows. A leaf brings the calls it makes onto the map that homes it: each
+// is a box marked `inlined`, carrying the invocation wire the leaf's own page would draw for
+// it — call order, repeated sites and stub slots alike — and any data wire the leaf draws
+// between two of them. The boxes are the leaf's context, not calls this page's code makes, so
+// the relationship accounting counts them nowhere.
+export function drawChains(pages,chains) {
+  for(const [at,added] of chains) {
+    const page=pages.get(at);
+    if(!page?.components)continue;
+    const drawn=new Set(page.components.map(c=>c.index)),wires=new Map();
+    for(const {index,via} of added) {
+      const from=pages.get(via);
+      if(!from||drawn.has(index))continue;
+      if(!wires.has(via))wires.set(via,new Map(invocationWires(from).map(w=>[w.to,w])));
+      const source=(from.components??[]).find(c=>c.index===index);
+      if(!source)continue;
+      drawn.add(index);
+      const {id,invocation,assertion,binding,gate,alsoOn,home,...box}=source,wire=wires.get(via).get(index);
+      page.components.push({...box,inlined:true,via,
+        ...(wire?{...(wire.order?{viaOrder:wire.order}:{}),...(wire.sites?{viaSites:wire.sites}:{}),
+          ...(wire.stubs?{viaStubs:wire.stubs}:{}),
+          ...(wire.provenance==='call-site'?{}:{viaProvenance:wire.provenance})}:{})});
+    }
+    const chain=new Set(added.map(a=>a.index));
+    for(const via of new Set(added.map(a=>a.via)))for(const w of pages.get(via)?.wires??[]) {
+      if(!chain.has(w.from)||!chain.has(w.to)||!drawn.has(w.from)||!drawn.has(w.to))continue;
+      if((page.wires??[]).some(x=>x.from===w.from&&x.to===w.to&&x.kind===w.kind))continue;
+      const {edgeId,sourceSite,targetSite,...wire}=w;
+      (page.wires??=[]).push({...wire,inlined:true});
+    }
+  }
 }
 
 // Only address-bearing fields are rewritten; a numeric data label is not a map address. Source
 // addresses and tree indexes share one number space, so an object held by several pages is
 // rewritten once: `seen` spans the whole pass.
-const addressKeys=new Set(['index','handle','from','to','region','parent','port','mechanism','outside',
+const addressKeys=new Set(['index','handle','from','to','region','parent','port','mechanism','outside','via',
   'parentEndpoint','parentFrom','parentTo','caller','callee','page','endpoint','id']);
 const address=/^([a-z-]+:)?(\d+(?:\.\d+)*)(@\d+)?$/;
 export function renumber(value,tree,seen=new WeakSet()) {

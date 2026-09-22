@@ -48,9 +48,12 @@ const bySite=(a,b)=>a.file<b.file?-1:a.file>b.file?1:a.line-b.line||a.column-b.c
 // the function holds — a nested helper it passes on, a class member — and says so instead of
 // claiming a call.
 export function invocationWires(page) {
-  if(page.structural||!NODE_PAGE.includes(page.kind))return [];
   const components=page.components??[];
   if(!components.length)return [];
+  // A containment map draws no call of its own — its wires are contracted relationships — but a
+  // leaf it homes still brings the calls it makes, and those boxes hang off the leaf here too.
+  const ownCalls=!page.structural&&NODE_PAGE.includes(page.kind);
+  if(!ownCalls&&!components.some(c=>c.via!==undefined))return [];
   const names={loops:namedBindings(page,['loop-data-flow','iteration-source'],['iteration']),
     joins:namedBindings(page,['branch-data-join','member-mutation'])};
   const wired=new Map();
@@ -65,11 +68,23 @@ export function invocationWires(page) {
     if(box===undefined)continue;
     (sites.get(box)??sites.set(box,[]).get(box)).push(call);
   }
-  const called=[],held=[];
+  const called=[],held=[],chain=[];
   for(const component of components) {
     // An authored cluster is not a call box: it stands for declarations whose own calls are
     // contracted onto it, and the contracted wires already attach it.
     if(component.kind==='group')continue;
+    // A box a leaf drew onto this map is wired from that leaf, with the order and stubs of the
+    // invocation wire the leaf's own page draws. The call is the leaf's, not this page's.
+    if(component.via!==undefined) {
+      const source=components.find(c=>(c.id??c.index)===component.via)
+        ??components.find(c=>typeof c.id==='string'&&c.id.startsWith(`${component.via}@`));
+      chain.push({kind:'invocation',from:source?boxOf(source):'self',to:boxOf(component),
+        provenance:component.viaProvenance??'call-site',order:component.viaOrder??0,
+        ...(component.viaSites?{sites:component.viaSites}:{}),
+        ...(component.viaStubs?{stubs:component.viaStubs}:{})});
+      continue;
+    }
+    if(!ownCalls)continue;
     const box=boxOf(component),calls=sites.get(box);
     if(!calls) {
       held.push({kind:'invocation',from:'self',to:box,
@@ -87,5 +102,20 @@ export function invocationWires(page) {
       ...(calls.length>1?{sites:calls.length}:{}),
       ...(stubs.size?{stubs:[...stubs.values()]}:{})});
   }
-  return [...called.sort((a,b)=>a.order-b.order),...held];
+  // A chain wire reads after the call it hangs from, however deep the chain runs.
+  const rank=new Map(called.map(w=>[w.to,[w.order]]));
+  for(const w of chain)rank.set(w.to,null);
+  const key=box=>{
+    const held=rank.get(box);
+    if(held)return held;
+    const w=chain.find(x=>x.to===box);
+    if(!w)return [Number.MAX_SAFE_INTEGER];
+    rank.set(box,[Number.MAX_SAFE_INTEGER]); // a cycle stops here rather than recurring
+    const value=[...key(w.from),w.order];
+    rank.set(box,value);return value;
+  };
+  const byCall=(a,b)=>{const x=key(a.to),y=key(b.to);
+    for(let i=0;i<Math.max(x.length,y.length);i++)if((x[i]??-1)!==(y[i]??-1))return (x[i]??-1)-(y[i]??-1);
+    return 0;};
+  return [...[...called,...chain].sort(byCall),...held];
 }

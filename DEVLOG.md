@@ -1,5 +1,38 @@
 # Development log
 
+## 2026-09-22 — Dev map: what is not a map is drawn on the map above it
+
+- Queue item 0, the owner's ruling of 2026-09-21. The homing walk
+  (`tree.mjs`) never descends into a code destination: a leaf is homed where
+  it is met, and what it calls or holds is homed and drawn on that same map,
+  wired from the leaf's box, and so on while each of those is a leaf in turn.
+  Nothing is numbered beneath a leaf; a leaf's chain is drawn on its home map
+  only, and a repeat elsewhere is not expanded. Brought-in boxes carry
+  `inlined` and `via`; `invocation.mjs` emits their wires from the leaf's box
+  instead of `self`, on containment pages too; `store.mjs` keeps them out of
+  `linked`. A region root that is itself a leaf has its chain drawn on the
+  region page, the only map above it (studio's region page: 20 → 37 boxes,
+  17 inlined). The viewer's sidebar nests every graph page under a graph
+  page, and the filter finds a leaf and highlights its box on its home map.
+  `destination.mjs` unchanged: the rule reads the page's own calls.
+- Verified on the main store: code pages with children 98 → 0, graph pages
+  with a code parent 46 → 0, sidebar rows appended un-nested 46 → 0 (752
+  rows, none orphaned); max index depth 15 → 13; 189 inlined boxes; floating
+  boxes 0 on node pages (10 pre-existing on 6 group pages, authored members
+  with no crossing wire); every declaration homed once; finding rows 12813
+  and `check` 3553 / 1080 / 47 / 5798 unchanged. Largest map pages:
+  `createStudio` 166 (was 157), `createViewerRenderer::draw` 69,
+  `app.mjs::render` 58. Pages read: `initializeAgentInterface` (11 boxes, 6
+  inlined: `onRequests → needsTourToolpath → hasUnpreparedEdit →
+  requestReceiptState`, `onRequests → scheduleChange`), `scheduleChange` (code,
+  four callers, no children; homed on the session group page where the walk
+  meets it first, with `poll` beside it), `poll`, `exportBambu` (leaf; its
+  callee now a sibling), region `8`.
+- Merged over the closure-state commit: the viewer draws the subject box
+  when a wire leaves `self` or the page holds state; `README.md` 192 lines
+  (was 185): both workers rewrapped it under the cap and the merge keeps the
+  leaf text plus the state clause.
+
 ## 2026-09-22 — Dev map: closure-owned state as state nodes with read and write wires
 
 - Queue item 3. A binding a factory declares and its nested members capture
