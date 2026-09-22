@@ -7,7 +7,6 @@ addresses, what each page carries and the authoring mechanics. Generation
 derives code entities, relationships, gates, couplings and source locations;
 authoring arranges them into pages and can add no call, wire or prose.
 
-- `cli.mjs`: generation, drawing, checking and live freshness commands.
 - `lib/`: source scanning, graph composition, stored pages and rendering;
   `lib/destination.mjs` is the one map-or-code rule.
 - `flows/*.json`, `facts.tsv`, `lib/scope.mjs`: the authored inputs.
@@ -23,22 +22,22 @@ node dev-map/cli.mjs watch-freshness [--once]
 ```
 
 `read-map` returns one stored page and never scans. Its argument is an index or
-its durable path: a region (`core/path`), a declaration
-(`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`); file
-paths are not addresses. `--code` returns a declaration's source span, a group's
-member spans, or every file of a region (`0 --code` is refused); `--details` the
-same page with its stored evidence: expressions, producer traces, byte offsets.
-Responses are otherwise compact JSON: `range` is `[first,last]` inclusive,
-nested locations inherit `file`, empty arrays omitted.
+a durable path: a region (`core/path`), a declaration
+(`core/path/compose.mjs::planComposition`) or a group (`OWNER::@group/ID`); not
+a file path. `--code` returns a declaration's source span, a group's member
+spans, or a region's files (`0 --code` is refused); `--details` the same page
+with its evidence: expressions, traces, byte offsets. Responses are compact
+JSON: `range` is `[first,last]` inclusive, nested locations inherit `file`,
+empty arrays omitted.
 
-`regenerate` is the only command that scans. With no argument or `0` it
-refreshes everything; with an index it refreshes that region and the references
-its changed addresses affect, widening to the whole map when an inventory
-change, a removed declaration or an old store schema requires it, and saying so.
-It also redraws the viewer. `flow-evidence` re-derives one page from source for
-auditing the generator; `build` redraws `view/index.html` from the store without
-scanning (needs Python 3; set `PYTHON` if it is not `python`); `watch-freshness`
-hashes inputs to keep the viewer's live status current.
+`regenerate` is the only command that scans, and it redraws the viewer. No
+argument or `0` refreshes everything; with an index, that region and the
+references its changed addresses affect, widening to the whole map when an
+inventory change, a removed declaration or an old schema requires it, and saying
+so. `flow-evidence` re-derives one page from source, to audit the generator;
+`build` redraws `view/index.html` from the store, no scan (needs Python 3; set
+`PYTHON` otherwise); `watch-freshness` keeps the viewer's live status
+current.
 
 ## Addresses
 
@@ -58,10 +57,12 @@ and carries `home`, and the home node carries `alsoOn`. Indexes are regenerated
 and may change; the declaration path is the durable name. Static methods are
 `file.mjs::Class::@static/method` (URI-encoded), instance methods
 `file.mjs::Class::method`, parameter defaults `OWNER::@default/NAME`, and
-anonymous callbacks a snapshot position that authoring must not reference. A
+anonymous callbacks a snapshot position authoring must not reference. A
 module-level `el.onclick = …` or `addEventListener('x', …)` has no holder, so
 its site names it `file.mjs::@handler/<receiver>.<event>` (URI-encoded; the
-receiver an id selector's id, a binding or a member path) and homes its body.
+receiver an id selector's id, a binding or a member path) and homes its body. A
+module-level record is no page, so `.` joins its function members,
+`file.mjs::viewer.reportPerformance`; a registry table's entries keep their key.
 
 An address is a map when its drawing would show at least two called declarations
 with a data wire between them; otherwise `destination` is `code` and the read
@@ -127,7 +128,8 @@ count as `findings`, a group box the count inside it; a containment map puts the
 rows on the box, a node page lists them under `nodeFindings`, an `index`/`path`
 section per node in drawing order, never its own; each row names its `file`.
 
-Couplings are `file`, `http-route`, `worker-message`, `event-listener` and
+Couplings are `file`, `http-route`, `worker-message`, `event-listener` (a
+callable handed to a registration or held by an `on<event>` property) and
 `registry-entry`, name-keyed dispatch: each entry of a named table of functions
 is reached by key from the declaration naming the table, computed keys and
 spreads being an analysis limit. Unresolved rules include
@@ -151,8 +153,7 @@ lists groups with `id`, optional `label`, `members` and nested `groups`. A
 member is a declaration path; a file path, or a declaration its holder already
 places, is rejected. A group must draw at least two boxes and must not hide a
 path that leaves it and re-enters: that would draw false feedback. Missing or
-duplicate members fail generation, so renaming a declaration means editing its
-membership.
+duplicate members fail generation, so a rename means editing its membership.
 
 ```json
 {"schema": 1, "flows": [{"path": "core/path",
@@ -169,18 +170,17 @@ holds is reported as `orphanFacts`, never dropped; a malformed row fails
 
 **Scope**, `lib/scope.mjs`: `mappedRoots` become regions; `outsideRoots` are
 scanned only so their calls into the map are seen; `unmappedDirs` are outside
-callers inside a mapped root; `activeCallers` are the outside files drawn as
-caller rows on declaration pages, everything else scanned being counted only;
-`importAliases` name served paths that are not the path on disk.
+callers inside a mapped root; `activeCallers` the outside files drawn as caller
+rows on declaration pages, all else scanned being counted; `importAliases` name
+served paths that are not the path on disk.
 
 ## Checking
 
 `check` exits non-zero when the store is missing or stale (naming the index to
-regenerate), when an authored page is unplaced, or when a fact row is malformed.
-It reports `linked`, `unresolved`, `outside` and `platform` totals, `stranded`
-declarations (no root of their region reaches them; they keep a region-page box
-rather than being dropped), `unplaced` pages and orphan facts; `--json` returns
-the same as data.
+regenerate), an authored page is unplaced, or a fact row is malformed. It
+reports `linked`, `unresolved`, `outside` and `platform` totals, `stranded`
+declarations (no root of their region reaches them; they keep their region-page
+box), `unplaced` pages and orphan facts; `--json` the same as data.
 
 ## The viewer
 

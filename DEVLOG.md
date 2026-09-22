@@ -1,5 +1,33 @@
 # Development log
 
+## 2026-09-22 — Dev map: handler-property registrations; record-member names
+
+- A named declaration assigned to an `on<event>` property inside a function
+  (`canvas.onpointerdown = beginCanvasDrag`) is an `event-listener` coupling
+  from that function to the handler (`graph.mjs`, rule `handler-property`),
+  drawn as a wire on the caller's page and a caller row on the handler's,
+  beside the `addEventListener` registrations the scanner already drew. A
+  function written at the site is already a `@handler/` declaration and is
+  not doubled. Census: 19 `addEventListener` sites (18 drawn before and
+  after), 35 handler functions written at the site, 7 named-value
+  assignments (0 → 7 drawn), 4 `tour-ui.mjs` sites assigning an anonymous
+  wrapper `attempt` returns (not drawn; no declaration to open).
+  `connectCanvasPointerEvents` now carries six couplings to its drag
+  handlers, so the input cluster has internal wires. `event-listener`
+  relations 49 → 56; couplings never counted toward `linked`, so `check`
+  is unchanged at 3691 / 1084 / 47 / 5833.
+- A member of a module-level record that is not a node joins its holder
+  with `.` (`studio/app.mjs::viewer.reportPerformance`, `views.facts`,
+  `views.facts::textRows`, `views.settings`; 4 renames); entries a
+  `registry-entry` reaches keep their key segment. Record members under a
+  holder inside a function (37 nodes such as `createStudio::lifetime::
+  onViewers`) still read `::`; the same rule applies and is queued.
+- Verified on the main store: distinct finding rows 12307 unchanged,
+  floating boxes 0, depth 13, every declaration homed once, no forced flow
+  edit. Left: `studio-events.mjs:46` registers a local record's member
+  (`member-receiver-unresolved`); a module-level registration has no
+  declaration at its `from` end and draws against the region's `in:` port.
+
 ## 2026-09-22 — Dev map: literal arguments drawn as values
 
 - The owner ruled literal stubs are drawn, and asked why they exist: a slot

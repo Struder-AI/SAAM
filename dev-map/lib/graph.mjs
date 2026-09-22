@@ -543,6 +543,24 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   // Opt-in, after every other relation, so relation ids and the authored projection are unchanged without it.
   const coupled=literalCouplings?couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,parents,value,choices,location,edge,property,children,functions,importPath}):null;
   if(receiverCalls&&!coupled)throw Error('receiverCalls needs literalCouplings: it reuses that value resolver.');
+  // A module-level record is a holder, not a page. `const viewer={…}` names a value no reader can
+  // open, so `::` before one of its function members promises a page that does not exist; the
+  // member is `file.mjs::viewer.reportPerformance`, one segment, `.` for record membership, and
+  // what is written inside that member keeps `::` after it. A name-keyed dispatch table is the
+  // exception the registry rule already made: a `registry-entry` coupling reaches each entry by
+  // its key, so the key stays a segment of its own and the entry keeps the identity it had.
+  {
+    const keyed=new Set();
+    for(const r of relations)if(r.kind==='registry-entry'){keyed.add(r.from);keyed.add(r.to);}
+    const records=new Map();
+    for(const d of declarations)
+      if(d.kind==='variable'&&!d.parent&&!d.callable&&d.anchor&&declarationPaths.get(d.id).length===1)records.set(d.anchor,d);
+    for(const d of declarations) {
+      const segments=declarationPaths.get(d.id);
+      if(!d.anchor||segments.length<2||keyed.has(d.id)||!records.has(`${d.file}::${segments[0]}`))continue;
+      d.anchor=`${d.file}::${[`${segments[0]}.${segments[1]}`,...segments.slice(2)].join('::')}`;
+    }
+  }
   const accounting=receiverCalls?accountCalls(coupled.origins):null;
   // Every call site in mapped code ends LINKED, EXTERNAL or UNRESOLVED, each with the rule
   // that decided it. Linking follows the receiver's or callee's value through the coupling
@@ -794,6 +812,28 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const d=nodeDecl.get(fn);if(!d||!mappedCode(d.file))continue;
       edge('event-listener',c.owner?.id??`${c.module.file}:<module>`,d.id,[location(c.module,c.node)],
         {label:first.value,receiver:key,rule:accounting.unlinked[`${c.module.file}:${c.node.start}:${c.node.end}`]});
+    }
+  }
+  // The same registration written as a property. `canvas.onpointerdown=beginCanvasDrag` hands the
+  // platform a callable exactly as `addEventListener('pointerdown',…)` does, so the function doing
+  // the assigning reaches the declaration it names and draws a wire to it. The platform's own
+  // property naming decides the shape: `on` and a lower-case event, never a record field, which is
+  // capitalised (`onProgress`). A function written at the site is already a handler declaration the
+  // site homes, and needs no edge to say where it lives.
+  for(const a of assignments) {
+    const n=a.node;
+    if(n.type!=='AssignmentExpression'||n.operator!=='='||n.left.type!=='MemberExpression')continue;
+    const event=property(n.left);
+    if(!event||!/^on[a-z]/.test(event)||!mappedCode(a.module.file))continue;
+    // `a.onx=b.ony=handler` registers the same callable twice; each property is its own site.
+    let held=n.right;while(held.type==='AssignmentExpression'&&held.operator==='=')held=held.right;
+    if(functions.has(held.type))continue;
+    for(const fn of new Set(choices(value(held,a.scope,a.module)).filter(v=>v.fn).map(v=>v.fn))) {
+      const d=nodeDecl.get(fn);
+      // A positional anchor is an anonymous callable; it has no declaration a reader can open.
+      if(!d||!mappedCode(d.file)||!d.anchor||/<callback@\d+:\d+>/.test(d.anchor))continue;
+      edge('event-listener',a.owner?.id??`${a.module.file}:<module>`,d.id,[location(a.module,n)],
+        {label:event.slice(2),receiver:handlerReceiver(n.left.object)??event,rule:'handler-property'});
     }
   }
   // An iteration method calls the function it is handed, once per element. When that function is
