@@ -1,5 +1,38 @@
 # Development log
 
+## 2026-09-22 — Dev map viewer: large function pages read as maps
+
+- The owner's finding on 8.2.2 (`createStudio`, 167 boxes): a vertical
+  column that could not be zoomed to read a label and still see both ends
+  of a wire, so the reader cross-referenced in their head. Drawing only;
+  the JSON is unchanged, the store byte-identical.
+- `leveled.py`: a box's column is the longest path over value wires, with
+  its own call number (ranked densely, in phases of ten) as a lower bound,
+  so a body that threads no values still reads left to right and a producer
+  always sits left of its consumer; state, loop and capture nodes sit just
+  left of their first consumer; the drawing folds to an aspect ratio instead
+  of a wrap width; a wire longer than half a stage at legible zoom (1050 px
+  across, 590 down) is drawn as two named stubs, each naming the other end,
+  a hub with more than six long wires dropping its own tag. `generated-
+  view.py`: semantic zoom (`FAR = 0.5`: below it a box is its name alone and
+  wires thicken; above it notes, ports, stub rows and labels return), a
+  click-to-jump minimap, hover focus that lights a box, its wires and their
+  far ends and dims the rest, `x` to pin, `]` `[` to walk the far ends, a
+  click on an end tag to stand at the other end and `\` to come back; the
+  finding ledger under the drawing in columns. Fixes on the resumed pass: the
+  back-jump popped history twice, a peer outline leaked into nested rects,
+  `fit()` went negative on a narrow stage.
+- Measured (canvas px, wire length centre to centre): 8.2.2 2740×38905 →
+  11042×6216, tallest rank 91 → 25 boxes, median wire 8187 → 1918, p90
+  20161 → 5818, 4 of 263 long wires unnamed at both ends;
+  `createViewerRenderer::draw` 1776×16634 → 7582×5273, median wire 1974 →
+  957; `app.mjs::render` 1180×9796 → 3750×2936; region `8` 1438×10304 →
+  6183×3890; `validatePath` and `regionComponents` still fit on a screen
+  (`regionComponents` p90 wire 919 → 1423, the one measurable regression).
+  Screenshots from Edge headless in the session scratchpad; the live zoom
+  and focus were verified in a browser, not captured. Build reports no
+  dropped wires; viewer 50.2 MB.
+
 ## 2026-09-22 — Dev map: `linked` counts relationships, code reads keep state
 
 - `check`'s `linked` counted drawn boxes, so an authored group on a

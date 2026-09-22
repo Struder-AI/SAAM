@@ -184,10 +184,10 @@ semantics; a change is checked by regenerating and reading the pages.
 
 ## The viewer
 
-`view/index.html` is the drawing of the same stored pages, overwritten in place;
-an open viewer follows a declaration across renumbering. Its index lists map
-pages only: a leaf opens from its box, or from the filter, which highlights it
-on the map that homes it. Boxes that open code have their own colour; callers
-elsewhere and calls leaving the map are red headless arrows with clickable
-addresses; repeats are red links to `home`. Escape closes the source pane; Back
-navigates maps. `generated-map` in `.claude/launch.json` serves port 8765.
+`view/index.html` draws the stored pages in place, following a declaration
+across renumbering; its index lists map pages only. Code boxes have their own
+colour, calls leaving it are red headless arrows, repeats link `home`. Below
+50% a box is its name alone; a minimap says where you are; hover lights a box,
+its wires and far ends and dims the rest, `x` pins, `]` `[` walk the ends, `\`
+returns. A wire too long to see whole is two ends that name and open each
+other. Escape closes pane/focus, Back walks maps, `generated-map` serves 8765.

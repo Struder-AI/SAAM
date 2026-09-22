@@ -214,8 +214,10 @@ unscanned callers (`onGeometry` in `runRepairJob`).
 ## Open questions for the owner
 
 - Should `literal` argument stubs be drawn, or only genuine tracing gaps?
-- A 17-step call chain is a 17-step index; does a very deep chain want a
-  different presentation, or is that clustering's job?
+- The viewer now lays a function page out left to right with semantic zoom
+  and focus (2026-09-22); small pages spread wider than they need
+  (`regionComponents` p90 wire 919 → 1423 px). Tune `RANK_SPREAD`, `ASPECT`
+  and `LONG_DX/DY` in `leveled.py` once the owner has read 8.2.2.
 - Interpreter-style methods (`LuaRuntime::execStatement`: one switch over
   statement kinds, 46 boxes, 43 of them repeats) draw faithfully but read
   badly; a per-kind dispatch table would draw as registry entries. Code

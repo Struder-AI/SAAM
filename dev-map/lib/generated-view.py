@@ -6,14 +6,15 @@ legend, which is stated once and reachable from every page."""
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 import re
 import sys
 import textwrap
 from xml.sax.saxutils import escape
 
-from leveled import (Page, STYLE, EDGE, MARGIN_L, FS_FOOT, FS_NOTE, LH_NOTE, LH_TITLE,
-                     PADX, PADY)
+from leveled import (Page, STYLE, EDGE, ASPECT, MARGIN_L, FS_FOOT, FS_NOTE, LH_NOTE,
+                     LH_TITLE, PADX, PADY)
 from svg import tw
 from flow import MARKERS, kind_of      # importing flow registers its box and wire styles
 from viewer import CSS as BASE_CSS
@@ -31,6 +32,9 @@ STYLE["outside"] = dict(fill="#ecfdf5", stroke="#059669", sw=1.8, rx=7, tc="#065
 EDGE["caller"] = dict(stroke="#dc2626", sw=1.5, head="l-co", dash="2 3")
 EDGE["capture"] = dict(stroke="#0369a1", sw=1.5, head="l-data", dash="3 3")
 ROW = 14.0
+# The ledger under a drawing runs no taller than the map above it and no wider than this many
+# columns; below a screenful of rows it stays in one column, where it reads as a list.
+LIST_ROWS, LIST_COLS_MAX, LIST_GAP = 44, 8, 34
 QUOTE = {chr(34): "&quot;"}
 REGENERATE = "node scripts/agent-toolkit.mjs regenerate"
 WIRE = {"state": "state", "return": "io", "gate": "gate", "capture": "capture"}
@@ -52,6 +56,7 @@ class MapPage(Page):
         super().__init__(**kw)
         self.stale = stale
         self.lists = []                 # (style, text, index-to-open)
+        self.list_cols, self.list_x = [], []
         self.caller_refs = []
 
     def row(self, style, text, go=""):
@@ -70,10 +75,34 @@ class MapPage(Page):
                     for i in range(0, len(self.caller_refs), 3)]
             self.W = max(self.W, 2 * MARGIN_L + 30 + max(tw(row, FS_NOTE) for row in rows))
         self.list_y = self.H
+        self.list_cols = []
         if self.lists:
-            self.H += 24 + ROW * len(self.lists)
-            self.W = max(self.W, 2 * MARGIN_L + 20
-                         + max(tw(t, FS_NOTE) for _s, t, _g in self.lists))
+            # The ledger under the drawing, set in columns rather than one long strip. A
+            # thousand rows in one strip is fifteen thousand pixels of page that the drawing
+            # is then fitted alongside, so the map above it shrinks to nothing; in columns
+            # the block is about as wide as the map and about as tall.
+            rows = len(self.lists)
+            mean = sum(tw(t, FS_NOTE) for _s, t, _g in self.lists) / rows + LIST_GAP
+            # However many columns leave the whole page -- map and ledger together -- closest
+            # to the shape a map is read in. One column while the ledger is short, because a
+            # short list reads as a list; more as it grows past the drawing it belongs to.
+            def shape(c):
+                page = self.list_y + 24 + ROW * -(-rows // c)
+                return abs(math.log(max(self.W, c * mean) / page) - math.log(ASPECT))
+            columns = min(range(1, min(LIST_COLS_MAX, -(-rows // LIST_ROWS)) + 1), key=shape)
+            want = -(-rows // max(1, columns))
+            # A section is never cut, so the cut can land a column over; widening the column
+            # until it does not is what keeps the block inside the width it was given.
+            self.list_cols = self._list_columns(want)
+            while len(self.list_cols) > columns and want < rows:
+                want += max(4, want // 4)
+                self.list_cols = self._list_columns(want)
+            self.H += 24 + ROW * max(len(c) for c in self.list_cols)
+            x = MARGIN_L
+            for col in self.list_cols:
+                self.list_x.append(x)
+                x += max(tw(t, FS_NOTE) for _s, t, _g in col) + LIST_GAP
+            self.W = max(self.W, x + MARGIN_L)
         if self.stale:
             self.W = max(self.W, 2 * MARGIN_L + tw(self.stale_text(), 11.5))
         # A page with one small box is narrower than its own heading; the heading is the page's
@@ -81,6 +110,37 @@ class MapPage(Page):
         self.W = max(self.W, 2 * MARGIN_L + max(tw(self.title, 21), tw(self.subtitle, 12),
                                                 tw(self.key_line, 10)))
         return self
+
+    def _list_columns(self, want):
+        """The ledger split into columns of about `want` rows, cut only between sections — a
+        heading and the rows it names stay together, because a row's section is what says
+        which node the finding is about."""
+        sections, section = [], []
+        for row in self.lists:
+            if row[0] == "head" and section:
+                sections.append(section)
+                section = []
+            section.append(row)
+        if section:
+            sections.append(section)
+        # A section longer than a column carries its heading onto the next one, so a row is
+        # never read without the node it is about.
+        pieces = []
+        for section in sections:
+            if len(section) <= want:
+                pieces.append(section)
+                continue
+            head, rows, step = section[0], section[1:], max(1, want - 1)
+            for k in range(0, len(rows), step):
+                pieces.append([(head[0], head[1] + (" (cont.)" if k else ""), head[2])]
+                              + rows[k:k + step])
+        cols, col = [], []
+        for section in pieces:
+            if col and len(col) + len(section) > want:
+                cols.append(col)
+                col = []
+            col.extend(section)
+        return cols + ([col] if col else [])
 
     def stale_text(self):
         return (f'STALE — generation inputs changed; matching snapshot remains readable. '
@@ -91,24 +151,26 @@ class MapPage(Page):
         return svg.replace("</svg>", self._extras() + "</svg>")
 
     def _extras(self):
-        o, y = [], self.list_y + 22
-        if self.lists:
-            o.append(f'<path d="M{MARGIN_L},{y - 15:.1f} L{self.W - MARGIN_L:.1f},{y - 15:.1f}" '
+        o, top = [], self.list_y + 22
+        if self.list_cols:
+            o.append(f'<path d="M{MARGIN_L},{top - 15:.1f} L{self.W - MARGIN_L:.1f},{top - 15:.1f}" '
                      f'stroke="#cbd5e1" stroke-width="1"/>')
-        for style, text, go in self.lists:
-            x = MARGIN_L + (0 if style == "head" else 14)
-            if go:
-                o.append(f'<g class="fm-go" data-go="{escape(go, QUOTE)}">'
-                         f'<rect x="{x - 4:.1f}" y="{y - 10:.1f}" width="{tw(text, FS_NOTE) + 9:.1f}" '
-                         f'height="{ROW:.1f}" rx="3" fill="#0ea5e9" fill-opacity="0.004"/>'
-                         f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="#0369a1">'
-                         f'{escape(text)}</text></g>')
-            else:
-                fill = {"head": "#0f172a", "warn": "#9f1239"}.get(style, "#475569")
-                weight = ' font-weight="700"' if style == "head" else ""
-                o.append(f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="{fill}"'
-                         f'{weight}>{escape(text)}</text>')
-            y += ROW
+        for left, col in zip(self.list_x, self.list_cols):
+            y = top
+            for style, text, go in col:
+                x = left + (0 if style == "head" else 14)
+                if go:
+                    o.append(f'<g class="fm-go" data-go="{escape(go, QUOTE)}">'
+                             f'<rect x="{x - 4:.1f}" y="{y - 10:.1f}" width="{tw(text, FS_NOTE) + 9:.1f}" '
+                             f'height="{ROW:.1f}" rx="3" fill="#0ea5e9" fill-opacity="0.004"/>'
+                             f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="#0369a1">'
+                             f'{escape(text)}</text></g>')
+                else:
+                    fill = {"head": "#0f172a", "warn": "#9f1239"}.get(style, "#475569")
+                    weight = ' font-weight="700"' if style == "head" else ""
+                    o.append(f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="{fill}"'
+                             f'{weight}>{escape(text)}</text>')
+                y += ROW
         if self.caller_refs:
             x, y = MARGIN_L + 5, self.caller_y
             o.append(f'<rect class="fm-owner-frame" data-owner="{escape(self.key, QUOTE)}" x="20" y="28" '
@@ -406,6 +468,10 @@ def invocation_edge(page, w, drawn, dropped):
     if w["to"] not in drawn or (source != "self" and source not in drawn):
         dropped.append((page.key, source, w["to"]))
         return
+    # The call's own number is what ranks the box when no value wire does; the wire itself
+    # still states the call without ordering the drawing, which is what `rank=False` says.
+    if w.get("order") is not None:
+        page.index[w["to"]].seq = w["order"]
     page.e(source, w["to"], invocation_label(w), "invocation", rank=False)
 
 
@@ -445,6 +511,8 @@ def node_page(packet, page, unit, port, drawn, dropped):
                   f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', "subject",
                   ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', path=packet["path"])
         me.go = ""
+        # The body is where the order starts, so it stands left of everything it calls.
+        me.seq = 0
     for c in packet["components"]:
         if c.get("kind") == "group":
             unit(c["index"], c["label"], f'{c["count"]} declarations · authored grouping',
@@ -818,14 +886,50 @@ body.noside #side{display:none}
 #codepane details summary{cursor:pointer;font-size:12px}
 #codepane details pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 0}
 #back:disabled{opacity:.4;cursor:default}
+
+/* -- semantic zoom: which of a box's two drawings is on ------------------------------
+   Every box is drawn twice, as its name alone at the size the box will hold and as the
+   whole box. Below FAR the page is a shape, so the name is what is on; at or above it the
+   reader is reading, so everything is. Nothing moves between the two. */
+#canvas .fm-far{display:none}
+#canvas.far .fm-far{display:inline}
+#canvas.far .fm-near,#canvas.far .fm-elab,#canvas.far .fm-endtag,#canvas.far .fm-src,
+#canvas.far .fm-owner-callers{display:none}
+#canvas.far .fm-edge{stroke-width:3.2}
+#canvas.far .fm-edge.long{stroke-width:5}
+
+/* -- focus: one box, its wires and what they reach; everything else recessive -------- */
+#canvas.focus .fm-node:not(.sel):not(.peer){opacity:.15}
+#canvas.focus .fm-edge:not(.hot){opacity:.07}
+#canvas.focus .fm-elab:not(.hot),#canvas.focus .fm-endtag:not(.hot){opacity:.12}
+#canvas .fm-node.peer>rect:first-of-type{stroke:#0284c7;stroke-width:3}
+#canvas .fm-node.at>rect:first-of-type{stroke:#c026d3;stroke-width:4.2}
+#canvas .fm-endtag{cursor:pointer}
+#canvas .fm-endtag.hot text{font-weight:700}
+
+/* -- where am I: the whole page, and the rectangle this screen is looking at --------- */
+#minimap{position:absolute;right:16px;top:14px;background:rgba(255,255,255,.93);
+         border:1px solid #cbd5e1;border-radius:7px;padding:4px;display:none;cursor:crosshair;
+         box-shadow:0 3px 14px rgba(15,23,42,.14)}
+#minimap svg{display:block}
+#pin{position:absolute;left:16px;top:14px;font-size:11.5px;color:#0f172a;
+     background:rgba(255,255,255,.93);border:1px solid #cbd5e1;border-radius:6px;
+     padding:3px 9px;display:none;max-width:44%;overflow:hidden;text-overflow:ellipsis;
+     white-space:nowrap}
+#pin b{color:#0284c7}
 """
 
 JS = """
 const stage=document.getElementById('stage'),canvas=document.getElementById('canvas'),
       crumb=document.getElementById('crumb'),zoomLbl=document.getElementById('zoom'),
       codePane=document.getElementById('codepane'),legendPane=document.getElementById('legendpane'),
-      filter=document.getElementById('filter'),backButton=document.getElementById('back');
+      filter=document.getElementById('filter'),backButton=document.getElementById('back'),
+      mini=document.getElementById('minimap'),pinLbl=document.getElementById('pin');
 let view={x:0,y:0,k:1},cur=null,graphCur=null,SVG={},SRC=null,hotId=null,moved=false,down=null;
+/* The zoom at which the drawing stops being a shape and becomes a text: a 14.5px title
+   draws at 7px below it, which is a mark, not a word. */
+const FAR=0.5;
+let pinId=null,peerAt=-1,jumped=[];
 const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
 let liveFreshness=null;
@@ -868,10 +972,36 @@ function svgAt(k,v){SVG[k]=v;}
 function srcAll(v){SRC=v;}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.k})`;
-  zoomLbl.textContent=Math.round(view.k*100)+'%';}
+  zoomLbl.textContent=Math.round(view.k*100)+'%';
+  canvas.classList.toggle('far',view.k<FAR);
+  const box=document.getElementById('mv');
+  if(box){const r=stage.getBoundingClientRect();
+    box.setAttribute('x',(-view.x/view.k).toFixed(1));box.setAttribute('y',(-view.y/view.k).toFixed(1));
+    box.setAttribute('width',(r.width/view.k).toFixed(1));box.setAttribute('height',(r.height/view.k).toFixed(1));}}
+
+/* -- where am I: the whole page in the corner, with this screen drawn on it ---------- */
+function minimap(){const s=canvas.firstElementChild;
+  if(!s){mini.style.display='none';return;}
+  const w=s.width.baseVal.value,h=s.height.baseVal.value;
+  let body='';
+  for(const g of canvas.querySelectorAll('.fm-node')){const r=g.querySelector('rect');if(!r)continue;
+    body+=`<rect x="${r.x.baseVal.value.toFixed(0)}" y="${r.y.baseVal.value.toFixed(0)}" `+
+          `width="${r.width.baseVal.value.toFixed(0)}" height="${r.height.baseVal.value.toFixed(0)}" fill="#64748b"/>`;}
+  mini.innerHTML=`<svg viewBox="0 0 ${w} ${h}" width="200" height="132">${body}`+
+    `<rect id="mv" fill="#0284c7" fill-opacity="0.14" stroke="#0284c7" stroke-width="${(w/200*1.6).toFixed(1)}"/></svg>`;
+  mini.style.display='block';apply();}
+function at(ux,uy){const r=stage.getBoundingClientRect();
+  view.x=r.width/2-ux*view.k;view.y=r.height/2-uy*view.k;apply();}
+mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild,d=canvas.firstElementChild;
+  if(!s||!d)return;e.stopPropagation();
+  const b=s.getBoundingClientRect(),w=d.width.baseVal.value,h=d.height.baseVal.value,
+        k=Math.min(b.width/w,b.height/h);
+  at((e.clientX-b.left-(b.width-w*k)/2)/k,(e.clientY-b.top-(b.height-h*k)/2)/k);});
 function fit(){const s=canvas.firstElementChild;if(!s)return;
   const w=s.width.baseVal.value,h=s.height.baseVal.value,r=stage.getBoundingClientRect();
-  view.k=Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1);
+  /* Never zero or negative: a stage narrower than its own padding would otherwise fold the
+     page inside out, and the drawing would be gone rather than small. */
+  view.k=Math.max(0.02,Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1));
   view.x=(r.width-w*view.k)/2;view.y=Math.max(18,(r.height-h*view.k)/2);apply();}
 function actual(){const s=canvas.firstElementChild;if(!s)return;const r=stage.getBoundingClientRect();
   view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=18;apply();}
@@ -893,7 +1023,7 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
   let drawing=restore?restore.graph:(p.destination==='code'&&graphCur?graphCur:key);
   while(PAGES[drawing]&&PAGES[drawing].destination==='code')drawing=PAGES[drawing].p;
   load(drawing,()=>{if(version!==showVersion)return;
-    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;hot(null);
+    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);
     crumb.innerHTML=trail(drawing);
     const mapped=PAGES[drawing];
     updateFreshness();
@@ -901,23 +1031,50 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
     document.querySelectorAll('#tree a.on').forEach(a=>a.classList.remove('on'));
     const row=document.querySelector(`#tree a[data-key="${CSS.escape(drawing)}"]`);
     if(row){row.classList.add('on');row.scrollIntoView({block:'nearest'});}
-    fit();requestAnimationFrame(fit);
+    fit();requestAnimationFrame(fit);minimap();
     const entry=restore||{key:drawing,graph:drawing};
     if(!restore)remember(entry,push);
     backButton.disabled=visitAt<=0;
     if(p.destination==='code'){if(key!==drawing)hot(key);openCode(p.r,key);}});
   return true;}
 
-/* -- hover: the box, and every wire touching it ---------------------------- */
+/* -- focus: the box, every wire touching it, and what those wires reach -------------
+   Dimming the rest is the point: on a page of two hundred boxes, thickening a wire says
+   nothing unless everything it is not goes quiet. */
+function node(id){return id?canvas.querySelector(`.fm-node[data-id="${CSS.escape(id)}"]`):null;}
+function peers(id){const out=[];
+  for(const el of canvas.querySelectorAll(`.fm-edge[data-a="${CSS.escape(id)}"],.fm-edge[data-b="${CSS.escape(id)}"]`)){
+    const other=el.dataset.a===id?el.dataset.b:el.dataset.a;
+    if(other&&other!==id&&!out.includes(other))out.push(other);}
+  return out;}
 function hot(id){if(id===hotId)return;
-  canvas.querySelectorAll('.hot').forEach(el=>el.classList.remove('hot'));
-  hotId=id;if(!id)return;
+  canvas.querySelectorAll('.hot,.peer,.sel,.at').forEach(el=>el.classList.remove('hot','peer','sel','at'));
+  hotId=id;peerAt=-1;canvas.classList.toggle('focus',!!id);
+  if(!id){pinLbl.style.display='none';return;}
   canvas.querySelectorAll(`[data-a="${CSS.escape(id)}"],[data-b="${CSS.escape(id)}"]`)
-    .forEach(el=>el.classList.add('hot'));}
-stage.addEventListener('pointerover',e=>{
+    .forEach(el=>el.classList.add('hot'));
+  const me=node(id);if(me)me.classList.add('sel');
+  const near=peers(id);
+  for(const other of near){const g=node(other);if(g)g.classList.add('peer');}
+  if(pinId===id){pinLbl.style.display='block';
+    pinLbl.innerHTML=`<b>${esc(me?me.dataset.label:id)}</b> · ${near.length} connected · ] [ to walk them`;}
+  else pinLbl.style.display='none';}
+function centre(id){const g=node(id);if(!g)return;const r=g.querySelector('rect');if(!r)return;
+  at(r.x.baseVal.value+r.width.baseVal.value/2,r.y.baseVal.value+r.height.baseVal.value/2);}
+/* Stand at the other end of a wire, and be able to come back. */
+function standAt(id){if(!node(id))return;
+  if(pinId&&pinId!==id)jumped.push(pinId);
+  pinId=id;hot(null);hot(id);centre(id);}
+function walk(step){const from=pinId||hotId;if(!from)return;
+  const near=peers(from);if(!near.length)return;
+  peerAt=(peerAt+step+near.length*2)%near.length;
+  canvas.querySelectorAll('.at').forEach(el=>el.classList.remove('at'));
+  const g=node(near[peerAt]);if(g)g.classList.add('at');
+  centre(near[peerAt]);}
+stage.addEventListener('pointerover',e=>{if(pinId)return;
   const el=document.elementFromPoint(e.clientX,e.clientY),g=el&&el.closest('.fm-node');
   hot(g?g.dataset.id:null);});
-stage.addEventListener('pointerleave',()=>hot(null));
+stage.addEventListener('pointerleave',()=>{if(!pinId)hot(null);});
 
 /* -- pan / zoom ------------------------------------------------------------ */
 stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane'))return;e.preventDefault();
@@ -938,6 +1095,10 @@ stage.addEventListener('pointerup',()=>{down=null;stage.classList.remove('drag')
 stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')||moved)return;
   const el=document.elementFromPoint(e.clientX,e.clientY);if(!el)return;
   if(el.closest('.fm-caller-unresolved'))return;
+  /* A long wire is drawn as its two ends; its end tag names the other end and is the way
+     to go and stand there. */
+  const jump=el.closest('.fm-endtag[data-jump]');
+  if(jump){standAt(jump.dataset.jump);return;}
   const src=el.closest('.fm-src');
   if(src){const target=PAGES[src.dataset.key];
     if(target&&target.destination==='code')show(src.dataset.key);else openCode(src.dataset.ref);return;}
@@ -1028,10 +1189,20 @@ filter.addEventListener('keydown',e=>{if(e.key!=='Enter')return;
   if(leaf)show(leaf);});
 
 addEventListener('keydown',e=>{
-  if(e.key==='Escape'){e.preventDefault();dismissCode();legendPane.classList.remove('on');return;}
+  if(e.key==='Escape'){e.preventDefault();dismissCode();legendPane.classList.remove('on');
+    if(pinId){pinId=null;jumped=[];hot(null);}return;}
   if(e.target===filter||e.target.closest('input,textarea,[contenteditable="true"]')||!cur)return;
   if(e.key==='f')fit();
   if(e.key==='0')actual();
+  /* Focus, and walking out of it: pin what is under the cursor, step along its wires, come
+     back to the box -- or back to the box a wire's end tag was clicked from. */
+  if(e.key==='x'){if(pinId){pinId=null;jumped=[];hot(null);}else if(hotId)standAt(hotId);}
+  if(e.key===']'){e.preventDefault();walk(1);}
+  if(e.key==='['){e.preventDefault();walk(-1);}
+  if(e.key==='\\\\'){e.preventDefault();
+    if(peerAt>=0){peerAt=-1;canvas.querySelectorAll('.at').forEach(el=>el.classList.remove('at'));
+      if(pinId)centre(pinId);}
+    else if(jumped.length){const back=jumped.pop();pinId=null;standAt(back);}}
   if(e.key==='Backspace'){e.preventDefault();goBack();}
   if(e.key==='u'&&PAGES[cur].p)show(PAGES[cur].p);});
 addEventListener('popstate',e=>{
@@ -1139,8 +1310,12 @@ def emit(out, model, pages, svgs):
     <div id="codepane"></div>
     <div id="legendpane"><div class="lh">Legend<span class="x" onclick="toggleLegend()">&times;</span></div>
       <div class="lb">{legend_html()}</div></div>
+    <div id="minimap"></div>
+    <div id="pin"></div>
     <div id="hint">scroll = zoom · drag = pan · click a box = its page · click a box foot = its
-      source · Back previous map · f fit · 0 actual · u up · esc close</div>
+      source · hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
+      click a wire's end tag = stand at its other end · Back previous map · f fit · 0 actual ·
+      u up · esc close</div>
   </div>
 </div>
 <script>
