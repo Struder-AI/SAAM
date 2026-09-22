@@ -99,12 +99,18 @@ function names(r,byId) {
 // Canonical identity follows source containment, never whichever caller reaches a node first.
 // These region.file.declaration addresses are internal: published indexes are the map tree's
 // (tree.mjs), and these serve scoped reuse only.
+// A nested declaration is placed by the declaration that holds it, never beside it, so only
+// top-level declarations are a file's entries. Every declaration still gets a source address.
 export function numberRegion(m,region) {
   const index=new Map();
   const files=region.files.map((file,i)=>({file,index:`${region.index}.${i+1}`,entries:[],unreached:null}));
-  for(const f of files)for(const n of m.inRegion.get(region.index).filter(n=>n.file===f.file)) {
-    const handle=`${f.index}.${f.entries.length+1}`;
-    index.set(n.path,handle);f.entries.push({index:handle,node:n,children:[]});
+  for(const f of files) {
+    let at=0;
+    for(const n of m.inRegion.get(region.index).filter(n=>n.file===f.file)) {
+      const handle=`${f.index}.${++at}`;
+      index.set(n.path,handle);
+      if(!n.parent)f.entries.push({index:handle,node:n,children:[]});
+    }
   }
   return {entries:m.entries(region.index),index,files};
 }

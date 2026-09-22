@@ -7,6 +7,11 @@ const dirname=file=>file.slice(0,file.lastIndexOf('/'));
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const fail=message=>{throw Error(message);};
 export const qualifies=d=>mapped(d.file)&&!!d.anchor&&!d.ambiguousAnchor&&!positional.test(d.anchor)&&callable(d);
+// A constructor is not a node of its own: `new X(…)` resolves to the class, so the class node
+// is what the constructor's span, calls, wires and findings belong to. Its own helpers become
+// the class's, and static and instance methods stay separate nodes.
+export const isConstructor=(d,byId)=>d.kind==='method'&&/::constructor$/.test(d.anchor??'')
+  &&byId.get(d.parent)?.kind==='class';
 
 // Identity is the declaration path. Anonymous returned/invoked callables receive
 // a generated source-position path rather than borrowing an enclosing function.
@@ -15,10 +20,11 @@ export function projectGraph(graph) {
   const byId=new Map(graph.declarations.map(d=>[d.id,d])),relation=new Map(graph.relations.map(r=>[r.id,r]));
   const files=graph.files.filter(f=>mapped(f.file)).map(f=>f.file).sort(order),lines=new Map(graph.files.map(f=>[f.file,f.lines]));
   const nodes=new Map(),owner=new Map();
+  const isNode=d=>qualifies(d)&&!isConstructor(d,byId);
   const add=node=>{nodes.set(node.path,node);return node;};
   const moduleNode=file=>nodes.get(file)??add({path:file,label:file.slice(file.lastIndexOf('/')+1),kind:'module',file,line:1,endLine:lines.get(file)??null,
     enclosedCount:0,page:dirname(file),parent:null,start:-1,children:[]});
-  for(const d of graph.declarations)if(qualifies(d))owner.set(d.id,add({path:d.anchor,label:d.name,kind:d.kind==='variable'?'function':d.kind,file:d.file,
+  for(const d of graph.declarations)if(isNode(d))owner.set(d.id,add({path:d.anchor,label:d.name,kind:d.kind==='variable'?'function':d.kind,file:d.file,
     line:d.line,endLine:d.endLine,enclosedCount:0,page:dirname(d.file),parent:null,start:d.start,children:[]}));
   function nodeFor(d) {
     if(!mapped(d.file))return {external:d.file};
@@ -26,7 +32,7 @@ export function projectGraph(graph) {
     return owner.get(d.id);
   }
   for(const d of graph.declarations)if(mapped(d.file)) {
-    if(qualifies(d)) {const parent=byId.get(d.parent),node=owner.get(d.id);node.parent=parent?nodeFor(parent):null;if(node.parent?.kind==='module')node.parent=null;
+    if(isNode(d)) {const parent=byId.get(d.parent),node=owner.get(d.id);node.parent=parent?nodeFor(parent):null;if(node.parent?.kind==='module')node.parent=null;
       node.label=node.path.slice((node.parent?.path??node.file).length+2);}
     else nodeFor(d).enclosedCount++;
   }

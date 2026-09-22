@@ -1,5 +1,73 @@
 # Development log
 
+## 2026-09-21 — Dev map: one collapse rule, nested helpers homed with their holder, constructors folded
+
+- One rule decides map or code: an address is a map when its drawing shows at
+  least two boxes with a wire on them. File pages exist only under ungrouped
+  regions and only when they draw; a region page draws a collapsed file's
+  declarations in its place, and a file fact row homes on the region page when
+  the file has no page. A code read also carries the boxes it would have drawn,
+  so the walk continues through it.
+- A declaration written inside another is homed by its holder, on the holder's
+  page, and is rejected as an authored member elsewhere (the rejection names
+  the holder). A class is its construction plus its members: `Class::constructor`
+  is no longer a node; `new X()` reaches the class page, which keeps the
+  constructor's span, calls, wires, findings and `stateFields`.
+- Flows: 374 nested members, 23 never-published file-level flows and 16
+  one-box groups removed from dev-map/flows/*.json; an authored group that
+  would draw fewer than two boxes now fails generation; `check` fails on
+  `unplaced`. The studio fragment was merged with the same-day code-shape
+  renames (`beadFrame` added beside `beadSection`).
+- Measured on the regenerated store: 1775 pages (was 1806); 0 single-box
+  graph pages (was 37); 0 constructor pages (was 8); authored members 625
+  (was 1766), of which 78 nested and all on their holder's page; unattached
+  components on structural pages 14 on 10 pages (was 84 on 41); `unplaced` 0
+  (was 224). `check`: 8 regions, 149 files, 1618 declaration pages, 3538
+  linked, 1085 unresolved, 5797 external, no stale, unreached or orphan facts.
+  Pages read to confirm: `1`, `core/export/griffin.mjs::validatePath`,
+  `core/path/planning.mjs::ActionAccumulator`, the material-view beads group.
+- Judgment recorded by the worker and accepted: "two connected boxes" is read
+  as two boxes with a wire on one of them; the strict reading would collapse
+  243 pages with real navigation.
+
+## 2026-09-21 — AMS-11 fails; dual control and independent reductions delivered
+
+- User reports AMS-11 is fully orange. Its executable is byte-identical to
+  successful AMS-10, but the authored project writer changes 264 project field
+  values. The 580-field vocabulary and passing software checks did not establish
+  firmware compatibility. Maker guidance now records a known physical failure,
+  not a pending first acceptance. No speculative shared-code fix was made.
+  Archive comparison also finds Metadata/saam.json changed between AMS-10/11;
+  the new reductions hold that context entry fixed as well. AMS-11 alone is
+  therefore not a project-entry-only mutation.
+- Held unprinted DUAL-12-L04-R08. Prepared DUAL-12-PROJECT-CONTROL with exactly
+  AMS-10's project entry; every other dual archive entry, including the complete
+  G-code and checksum, is byte-identical to the checked DUAL-12. It still requests
+  actual left 0.4/right 0.8, left/right/left, centre Z0.2/right Z0.3/centre Z0.4,
+  fast startup and no executable tower. This tests the successful project
+  representation directly against the user's physical two-nozzle goal.
+- User explicitly authorized multiple tests together. AMS-13 independently
+  empties nine nonempty stored G-code-template fields in working AMS-10;
+  AMS-14 changes only saved map mode, filament map and nozzle map (three fields);
+  AMS-15 removes unused High Flow rows from variant table families (125 fields),
+  retaining three logical filaments, both physical nozzles and non-variant device,
+  dryer, geometry and flush-matrix/vector lists. These are independent controls,
+  not cumulative changes. JSON serialization was first proven byte-identical
+  before edits. Each changes only the project archive entry; all other entries
+  and the complete executable remain byte-identical to physically working AMS-10.
+- All four files and BAMBU-TESTS-12-15-README.txt copied to D: and checksums
+  verified. SHA-256 values:
+  - DUAL-12-PROJECT-CONTROL: bef010be5cd763a86fecfc6432fc8eeef6ca4d1190e7021bdb1d3d8edb13c036
+  - AMS-13-NO-TEMPLATES: 306622d136817247635c907fb819ce6cb2a344c46b6d5421859492d6f5114403
+  - AMS-14-ROUTING: a5858638575905d21b50c2e0880bee5a8ae79a787ffc73a9b6a9244adfb3662f
+  - AMS-15-STANDARD-VARIANTS: e0879058f837cd649dbf8dd9214bf2eac5ce78c54d160f59a264f40448b3801e
+- These project-substitution/reduction diagnostics retain foreign stored
+  preferences and are not maker templates. The normal strict importer remains
+  unchanged and rejects them. No vendor motion or tower was inserted into the
+  executable. Results are pending. Next: record physical nozzle/height sequence
+  for the dual control and colour-switch results per AMS filename, then isolate
+  the failing field family or interactions before changing the shared writer.
+
 ## 2026-09-21 — Code-shape findings resolved where the code hid a relationship
 
 - Owner authorised rewriting the sites the dev-map scanner reports as

@@ -77,12 +77,23 @@ function overviewDiagnostics(page) {
     if(path)destinations.set(path,component.index);
     for(const member of component.members??[])destinations.set(member,component.index);
   }
+  // A finding inside a nested declaration is summarized under the box that holds it; the row
+  // itself stays whole on that declaration's own page.
+  const destinationOf=path=>{
+    let at=path;
+    while(at&&!destinations.has(at)) {
+      const cut=at.lastIndexOf('::');
+      if(cut<0)return undefined;
+      at=at.slice(0,cut);
+    }
+    return destinations.get(at);
+  };
   for(const field of ['uncertainty','unresolved']) {
     const rows=page[field];
     if(!rows?.length||page[`${field}Summary`])continue;
     const sources=new Map(),local=[];
     for(const row of rows) {
-      const index=destinations.get(row.path)??destinations.get(row.file),count=row.count??1;
+      const index=destinationOf(row.path)??destinations.get(row.file),count=row.count??1;
       // Findings without a child destination remain explicit on their owning
       // page. Never invent a drill-down or conceal local/module evidence.
       if(!index){local.push(row);continue;}

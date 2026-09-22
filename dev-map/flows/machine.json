@@ -37,7 +37,6 @@
                 "core/machine/rules.mjs::validateDobotConfiguration",
                 "core/machine/rules.mjs::requireMachine",
                 "core/machine/rules.mjs::checkMachinePath",
-                "core/machine/rules.mjs::checkMachinePath::point",
                 "core/machine/denso.mjs::validateDensoConfiguration"
               ]
             }
@@ -119,48 +118,6 @@
                 "core/machine/rigid.mjs::validateRigid"
               ]
             }
-          ]
-        }
-      ]
-    },
-    {
-      "path": "core/machine/rigid.mjs",
-      "groups": [
-        {
-          "id": "vectors",
-          "label": "vectors",
-          "members": [
-            "core/machine/rigid.mjs::add",
-            "core/machine/rigid.mjs::sub",
-            "core/machine/rigid.mjs::scale",
-            "core/machine/rigid.mjs::dot",
-            "core/machine/rigid.mjs::cross",
-            "core/machine/rigid.mjs::norm",
-            "core/machine/rigid.mjs::unit"
-          ]
-        },
-        {
-          "id": "matrices",
-          "label": "rotations",
-          "members": [
-            "core/machine/rigid.mjs::identity",
-            "core/machine/rigid.mjs::mv",
-            "core/machine/rigid.mjs::transpose",
-            "core/machine/rigid.mjs::mm",
-            "core/machine/rigid.mjs::rotation"
-          ]
-        },
-        {
-          "id": "transforms",
-          "label": "rigid transforms",
-          "members": [
-            "core/machine/rigid.mjs::rigid",
-            "core/machine/rigid.mjs::point",
-            "core/machine/rigid.mjs::compose",
-            "core/machine/rigid.mjs::invert",
-            "core/machine/rigid.mjs::axisFrame",
-            "core/machine/rigid.mjs::rodFrame",
-            "core/machine/rigid.mjs::validateRigid"
           ]
         }
       ]

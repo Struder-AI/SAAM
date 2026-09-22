@@ -50,11 +50,15 @@ path (`core/path/compose.mjs`) are declaration paths too. A group also has a
 durable path, `OWNER::@group/ID`. `--code` returns the node's source span, a
 whole file, a group's member spans, or all files in a region. Only `0 --code`
 is refused. Multi-file reads return `sources`, with line numbers and locations.
-Declarations with at most one callee and no flow operators, declarations whose
-helper boxes have no generated wires, and empty file graphs have `destination: "code"`:
-reading their address returns source directly, together with port references,
-callers, coupling and uncertainty metadata. The viewer uses the same destination and
-opens source without an intervening one-box drawing.
+One rule decides whether an address is a map or code. An address is a map when its
+drawing would show at least two boxes with a wire on them; otherwise it has
+`destination: "code"` and reading it returns source directly, together with the boxes
+it would have drawn, port references, callers, coupling, facts and uncertainty
+metadata. Boxes are the called declarations and operators of a declaration, the
+declarations of a file, and the members of a region or group; input and return ports
+are not boxes. Root, region and group pages are containment maps and are always
+graphs; an authored group that would draw fewer than two boxes fails generation. The
+viewer uses the same destination and opens source without an intervening one-box drawing.
 The left-hand viewer index lists graph pages only; terminal code addresses remain
 available on their parent boxes and through direct address lookup.
 The source pane displays code. Code-opening boxes have a distinct color.
@@ -176,11 +180,18 @@ does not enter into it.
 A node's home is the first map that shows it, walking every containment map
 (root, region, group) before any call-flow map. Authored grouping therefore
 places every declaration it claims; a declaration's call-flow map homes only its
-own groups. Every other appearance is a repeat: it keeps the home index and
-carries `home` (the map it lives on), and the home node carries `alsoOn` (the
-maps that repeat it). The viewer draws both as red links. A page that no map
-shows, such as a file page under a grouped region or a group authored for one,
-is not published; `regenerate` lists it under `unplaced`.
+own groups. A declaration written inside another — a nested helper, a class member,
+a returned closure — is homed by the declaration that holds it, on that declaration's
+own page, and never beside it on a region or group map. Every other appearance is a
+repeat: it keeps the home index and carries `home` (the map it lives on), and the
+home node carries `alsoOn` (the maps that repeat it). The viewer draws both as red
+links. A code address still numbers what it holds, so the walk continues through it.
+
+A file has a page only under a region with no authored grouping, and only when that
+page would draw at least two connected boxes; otherwise the region map draws the
+file's declarations in its place. A page that no map shows, such as a group authored
+for a page that is not published, is not published either; `regenerate` lists it
+under `unplaced` and `check` fails with that list.
 
 Generation numbers declarations by source position internally
 (region.file.declaration, groups after `.0.`); those addresses serve scoped
@@ -211,10 +222,11 @@ by `--details`; the default response applies the compact conventions above.
   `ports` (every way into the regions from outside them), `wires` between
   regions with their kinds and counts, `children`.
 - **region** — `path`, `files`, `lines`, `nodes`, `components` (its authored
-  groups, or one per file when the region has no grouping), `ports`,
-  `wires`, `children`.
-- **file** — published only under a region with no grouping. `file`, `region`,
-  `lines`, `nodes`, `components` (the file's declarations),
+  groups; or, when the region has no grouping, one per file, replaced by the file's
+  own declarations where the file has no page), `ports`, `wires`, `children`.
+- **file** — published only under a region with no grouping, and only when its
+  drawing shows two connected boxes. `file`, `region`, `lines`, `nodes`,
+  `components` (the file's top-level declarations),
   `ports` (other files, other regions, outside callers), `wires`, `children`.
 - **node** (function, method, handler, class) — `path`, `file`, `line`,
   `endLine`, `lines`, `kind`, `inputs`, `outputs`, `components` (what it calls,
@@ -270,10 +282,16 @@ Execution groups must not hide a path that leaves the group and later re-enters
 it. Generation rejects that contraction because it would draw false feedback.
 Keep those stages visible or reshape the code into an explicit stage first.
 
-`flows.json` uses schema 1. Each flow names an existing region, file or
+`flows.json` uses schema 1. Each flow names a published region, file or
 declaration page and lists groups with `id`, optional `label`, and `members`.
 A member is a generated declaration path, or a file path selecting its
 declarations for a region/file composition. Unlisted entities remain visible.
+A flow for a page that is not published — a file under a grouped region, for
+instance — fails generation, as does a group that would draw fewer than two boxes.
+
+Nested declarations are not authored. A member whose declaration is written inside
+another declaration is rejected, naming the declaration that already places it: only
+that declaration's own page, or a group on it, can group it.
 
 Use named declarations for durable membership. Their paths survive line shifts
 and body edits; renaming or moving a declaration may require a grouping update.
@@ -355,8 +373,13 @@ and analysis limits remain available. A numeric expression with mapped called
 stages does not use this shortcut. Branches, searches and larger algorithms keep
 their existing destination policy.
 
+A class page is its construction together with its members: the constructor is no
+node of its own, so the class node carries the constructor's span, calls, wires and
+findings, its `--code` read returns the class body, and `new X(…)` reaches the class
+page itself. Static and instance methods stay separate nodes, homed on that page.
 Class pages mark source-proven updates after construction as `stateful` and draw
-shared named-field dependencies. These are state dependencies, not execution
+shared named-field dependencies. Fields the constructor sets up name themselves from
+that evidence; a state wire is drawn between members, not from construction. These are state dependencies, not execution
 ordering. Static and instance fields stay separate. Indirect receiver effects
 and dynamic field names remain explicit analysis limits; a method call through
 a stored object is not automatically certified as a field mutation or a pure read.
@@ -389,7 +412,8 @@ declaration	kind	fact	source	date
   heading, as a link to it would write it.
 - `date` — ISO `YYYY-MM-DD`.
 
-`regenerate` attaches the rows to their pages as `facts` and the viewer prints
+`regenerate` attaches the rows to their pages as `facts` — a file row to that file's
+page, or to its region page where the file has no page — and the viewer prints
 them under the drawing, above the other lists and marked as authored. A row
 whose declaration the map no longer holds is reported as `orphanFacts` with the
 row itself, by `regenerate` and by `check`; it is never dropped. A malformed
@@ -399,10 +423,10 @@ named by line.
 ## Checking
 
 `node dev-map/cli.mjs check` exits non-zero when the store is missing, when
-the store is stale (naming the index to regenerate), or when a fact row is
-malformed. It reports the repository's `linked`, `unresolved` and `external`
-totals, the `unreached` declarations, and any orphan facts. `--json` returns the
-same as data.
+the store is stale (naming the index to regenerate), when a page is unplaced, or
+when a fact row is malformed. It reports the repository's `linked`, `unresolved`
+and `external` totals, the `unreached` declarations, the `unplaced` pages — authored
+grouping that no map shows — and any orphan facts. `--json` returns the same as data.
 
 ## Scope
 

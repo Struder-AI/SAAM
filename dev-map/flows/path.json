@@ -21,10 +21,7 @@
                 "core/path/compose.mjs::validateOperationBatch",
                 "core/path/compose.mjs::prepareOperationPriorities",
                 "core/path/compose.mjs::prepareOperationDependencies",
-                "core/path/compose.mjs::orderReadyOperations",
-                "core/path/compose.mjs::orderReadyOperations::compare",
-                "core/path/compose.mjs::orderReadyOperations::push",
-                "core/path/compose.mjs::orderReadyOperations::pop"
+                "core/path/compose.mjs::orderReadyOperations"
               ]
             },
             {
@@ -35,7 +32,6 @@
                 "core/path/compose.mjs::planOperationStart",
                 "core/path/compose.mjs::planOperationEnd",
                 "core/path/compose.mjs::operationTravelPolicy",
-                "core/path/compose.mjs::operationTravelPolicy::isTravelClear",
                 "core/path/compose.mjs::segmentExtras",
                 "core/path/compose.mjs::planStrokeApproach",
                 "core/path/compose.mjs::planStrokeDeposition"
@@ -67,9 +63,6 @@
                 "core/path/planning.mjs::createPlanningState",
                 "core/path/planning.mjs::planningResult",
                 "core/path/planning.mjs::ActionAccumulator",
-                "core/path/planning.mjs::ActionAccumulator::constructor",
-                "core/path/planning.mjs::ActionAccumulator::add",
-                "core/path/planning.mjs::ActionAccumulator::finish",
                 "core/path/planning.mjs::appendAction",
                 "core/path/planning.mjs::planContext",
                 "core/path/planning.mjs::materializeActions",
@@ -86,8 +79,7 @@
                 "core/path/planning.mjs::planTravel",
                 "core/path/planning.mjs::planPoseTravel",
                 "core/path/planning.mjs::planConnection",
-                "core/path/planning.mjs::mergeableMove",
-                "core/path/planning.mjs::mergeableMove::close"
+                "core/path/planning.mjs::mergeableMove"
               ]
             },
             {
@@ -137,113 +129,9 @@
               "label": "travelPolicies",
               "members": [
                 "core/path/builder.mjs::planarPolicy",
-                "core/path/builder.mjs::planarPolicy::clearanceFor",
-                "core/path/builder.mjs::surfacePolicy",
-                "core/path/builder.mjs::surfacePolicy::heightAlong",
-                "core/path/builder.mjs::surfacePolicy::clearanceFor",
-                "core/path/builder.mjs::surfacePolicy::canTravelDirect"
+                "core/path/builder.mjs::surfacePolicy"
               ]
             }
-          ]
-        }
-      ]
-    },
-    {
-      "path": "core/path/compose.mjs",
-      "groups": [
-        {
-          "id": "scheduling",
-          "label": "operationScheduling",
-          "members": [
-            "core/path/compose.mjs::scheduleOperations",
-            "core/path/compose.mjs::validateOperationBatch",
-            "core/path/compose.mjs::prepareOperationPriorities",
-            "core/path/compose.mjs::prepareOperationDependencies",
-            "core/path/compose.mjs::orderReadyOperations",
-            "core/path/compose.mjs::orderReadyOperations::compare",
-            "core/path/compose.mjs::orderReadyOperations::push",
-            "core/path/compose.mjs::orderReadyOperations::pop"
-          ]
-        },
-        {
-          "id": "operations",
-          "label": "operationPlanning",
-          "members": [
-            "core/path/compose.mjs::planOperation",
-            "core/path/compose.mjs::planOperationStart",
-            "core/path/compose.mjs::planOperationEnd",
-            "core/path/compose.mjs::operationTravelPolicy",
-            "core/path/compose.mjs::operationTravelPolicy::isTravelClear",
-            "core/path/compose.mjs::segmentExtras",
-            "core/path/compose.mjs::planStrokeApproach",
-            "core/path/compose.mjs::planStrokeDeposition"
-          ]
-        }
-      ]
-    },
-    {
-      "path": "core/path/planning.mjs",
-      "groups": [
-        {
-          "id": "state-actions",
-          "label": "planningStateAndActions",
-          "members": [
-            "core/path/planning.mjs::createPlanningState",
-            "core/path/planning.mjs::planningResult",
-            "core/path/planning.mjs::ActionAccumulator",
-            "core/path/planning.mjs::ActionAccumulator::constructor",
-            "core/path/planning.mjs::ActionAccumulator::add",
-            "core/path/planning.mjs::ActionAccumulator::finish",
-            "core/path/planning.mjs::appendAction",
-            "core/path/planning.mjs::planContext",
-            "core/path/planning.mjs::materializeActions",
-            "core/path/planning.mjs::planningPath"
-          ]
-        },
-        {
-          "id": "motion",
-          "label": "movementAndTravel",
-          "members": [
-            "core/path/planning.mjs::planMove",
-            "core/path/planning.mjs::travelClearance",
-            "core/path/planning.mjs::canPlanComb",
-            "core/path/planning.mjs::planTravel",
-            "core/path/planning.mjs::planPoseTravel",
-            "core/path/planning.mjs::planConnection",
-            "core/path/planning.mjs::mergeableMove",
-            "core/path/planning.mjs::mergeableMove::close"
-          ]
-        },
-        {
-          "id": "process",
-          "label": "processTransitions",
-          "members": [
-            "core/path/planning.mjs::planSelection",
-                "core/path/planning.mjs::planRetraction",
-            "core/path/planning.mjs::planRecovery",
-            "core/path/planning.mjs::planFan",
-            "core/path/planning.mjs::planNozzle",
-            "core/path/planning.mjs::planExtrusion",
-            "core/path/planning.mjs::planDwell",
-            "core/path/planning.mjs::planPark",
-            "core/path/planning.mjs::planLayerCooling"
-          ]
-        }
-      ]
-    },
-    {
-      "path": "core/path/builder.mjs",
-      "groups": [
-        {
-          "id": "policies",
-          "label": "travelPolicies",
-          "members": [
-            "core/path/builder.mjs::planarPolicy",
-            "core/path/builder.mjs::planarPolicy::clearanceFor",
-            "core/path/builder.mjs::surfacePolicy",
-            "core/path/builder.mjs::surfacePolicy::heightAlong",
-            "core/path/builder.mjs::surfacePolicy::clearanceFor",
-            "core/path/builder.mjs::surfacePolicy::canTravelDirect"
           ]
         }
       ]

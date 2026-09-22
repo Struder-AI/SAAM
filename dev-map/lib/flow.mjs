@@ -207,14 +207,18 @@ function thisFields(ast,start,end) {
 
 // A class page: its members as boxes, the calls and shared fields between them as wires, and
 // every caller outside the class as a port.
-function classPage(node,{graph,projection},ast,head) {
+function classPage(node,{graph,projection},ast,head,built=null) {
   const members=node.children;
   const inside=new Set();
   (function mark(n){inside.add(n.path);for(const c of n.children)mark(c);})(node);
   const spans=byAnchor(graph);
   const fields=new Map(members.map(m=>{const d=spans.get(m.path);return [m.path,d?thisFields(ast,d.start,d.end):{read:new Set(),written:new Set()}];}));
-  const stateful=members.some(m=>!m.path.endsWith('::constructor')&&fields.get(m.path).written.size>0);
-  const uncertainty=members.flatMap(m=>(fields.get(m.path).uncertainty??[]).map(u=>({...u,path:m.path})));
+  // Writing a field while constructing is not state kept between calls; a member that writes
+  // one after construction is. The construction's own field evidence still names those fields.
+  const constructed=built?thisFields(ast,built.start,built.end):null;
+  const stateful=members.some(m=>fields.get(m.path).written.size>0);
+  const uncertainty=[...members.flatMap(m=>(fields.get(m.path).uncertainty??[]).map(u=>({...u,path:m.path}))),
+    ...(constructed?.uncertainty??[]).map(u=>({...u,path:node.path}))];
   const candidates=new Map(),fieldId=(receiver,name)=>`field:${receiver}:${name}`;
   const source=n=>({file:node.file,line:n.loc.start.line,endLine:n.loc.end.line,column:n.loc.start.column+1,
     endColumn:n.loc.end.column+1,start:n.start,end:n.end});
@@ -236,7 +240,10 @@ function classPage(node,{graph,projection},ast,head) {
     for(const child of kids(n))declarations(child);
   })(ast);
   for(const member of members)for(const {field,access,...site} of fields.get(member.path).sites??[])
-    candidate(field,fields.get(member.path).receiver,{file:node.file,...site},access==='write'?(member.path.endsWith('::constructor')?1:2):3);
+    candidate(field,fields.get(member.path).receiver,{file:node.file,...site},access==='write'?2:3);
+  // A field is usually named where construction sets it up, so that evidence is preferred.
+  for(const {field,access,...site} of constructed?.sites??[])
+    candidate(field,constructed.receiver,{file:node.file,...site},access==='write'?1:3);
   const wires=[],seen=new Set();
   const wire=w=>{const k=`${w.from}\n${w.to}\n${w.label}\n${w.kind}\n${w.source?.start??''}`;if(seen.has(k))return;seen.add(k);wires.push(w);};
   const mine=new Set(members.map(m=>m.path));
@@ -250,8 +257,9 @@ function classPage(node,{graph,projection},ast,head) {
       continue;
     }
     if(!from||from.kind==='module')continue;
-    let target=to;
-    if(target===node)target=r.kind==='construct'?members.find(m=>m.path.endsWith('::constructor')):null;
+    // Constructing the class reaches the class itself; that caller is the page's own caller,
+    // carried once as an incoming call rather than repeated as a wire to a member.
+    let target=to===node?null:to;
     while(target&&!mine.has(target.path))target=target.parent;
     if(!target)continue;
     ports.set(from.path,{index:from.handle,path:from.path,label:from.path.slice(from.file.length+2),file:from.file});
@@ -285,11 +293,15 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
   const head=n=>({handle:n.handle,path:n.path,label:n.label,foot:foot(n),file:n.file,line:n.line,endLine:n.endLine,
     lines:n.endLine-n.line+1,kind:n.kind});
 
-  // The function this node is: the declaration's own node, or the function it holds.
-  const fn=functionAt(ast,declaration.start,declaration.end);
-  // A class holds no body of its own; what it is, is the members declared inside it, what they
-  // call in each other, and the fields they share. A field one member writes and another reads is
-  // a state wire between them, read off `this.` in each member's own span.
+  // The function this node is: the declaration's own node, or the function it holds. A class has
+  // no body of its own except its constructor, which is no node of its own: the class page is
+  // that construction flow together with the members.
+  const built=node.kind==='class'?byAnchor(graph).get(`${node.path}::constructor`)??null:null;
+  const fn=functionAt(ast,declaration.start,declaration.end)
+    ??(built?functionAt(ast,built.start,built.end):null);
+  // What a class without a constructor is, is the members declared inside it, what they call in
+  // each other, and the fields they share. A field one member writes and another reads is a
+  // state wire between them, read off `this.` in each member's own span.
   if(!fn)return classPage(node,{graph,projection,asts},ast,head);
   const {binding,parameter}=scopeTree(fn);
   const key=n=>binding(n)?.id??null;
@@ -1313,7 +1325,7 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     call.resultUses.push({kind:exit.kind,port:`out${i+1}`,line:exit.node.loc.start.line});
   }});
   const seenRequire=new Set();
-  return {flow:true,generated:true,authored:[],
+  const page={flow:true,generated:true,authored:[],
     node:{handle:node.handle,path:node.path,label:node.label,foot:foot(node),file:node.file,line:node.line,endLine:node.endLine,
       lines:node.endLine-node.line+1,kind:node.kind},
     inputs:params,outputs,
@@ -1325,6 +1337,18 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     wires:wires.filter(w=>live(w)&&compatibleDefUse(w)),
     external:unlinked.filter(u=>u.state==='external'),
     unresolved:unlinked.filter(u=>u.state==='unresolved'),uncertainty};
+  if(!built)return page;
+  // The class page is this construction flow plus the class itself: its members as boxes, the
+  // fields they share, and each member's callers outside the class.
+  const shared=classPage(node,{graph,projection,asts},ast,head,built);
+  const enclosed=path=>{const d=byAnchor(graph).get(path);return d&&d.start>=built.start&&d.end<=built.end;};
+  const member=c=>c.calls===0&&!enclosed(c.path)
+    ?{...c,links:['ast-member'],provenance:'ast-member',closure:undefined,captures:undefined}:c;
+  return {...page,components:page.components.map(member),ports:shared.ports,
+    wires:[...page.wires,...shared.wires],
+    ...(shared.stateFields?{stateFields:shared.stateFields}:{}),
+    ...(shared.stateful?{stateful:true}:{}),
+    uncertainty:[...uncertainty,...shared.uncertainty??[]]};
 }
 
 // The agent read: components once, everything else by handle or port; gates once; locations in

@@ -128,8 +128,11 @@ and human viewer.
 they are changing alongside its prose manual.** Page `0` is the regions and `N`
 a region. Every map numbers its own nodes under itself (`N.2`, then `N.2.1`,
 down to leaves); a declaration's map shows what it calls, what reaches it and
-what it is coupled to. A node drawn away from its home map keeps its home index
-and names that map as `home`. Read a page with `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`
+what it is coupled to, and a declaration written inside another is shown on the
+page of the declaration that holds it. A node drawn away from its home map keeps
+its home index and names that map as `home`. An address whose drawing would not
+show two connected boxes opens code instead of a map, with the same callers,
+couplings, boxes and findings beside it. Read a page with `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION`
 and its source with `--code`. **Text search across the repository is discouraged
 for orientation**: it finds names, while the walk exposes relationships around
 the thing you are about to change. Inspect unresolved calls and flow uncertainty;

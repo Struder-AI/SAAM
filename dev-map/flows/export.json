@@ -38,12 +38,8 @@
                   "label": "motion to commands",
                   "members": [
                     "core/export/griffin.mjs::exportGriffin",
-                    "core/export/griffin.mjs::exportGriffin::render",
                     "core/export/griffin.mjs::exportMotion",
-                    "core/export/griffin.mjs::exportMotion::field",
-                    "core/export/griffin.mjs::exportMotion::motion",
-                    "core/export/griffin.mjs::validatePath",
-                    "core/export/griffin.mjs::validatePath::point"
+                    "core/export/griffin.mjs::validatePath"
                   ]
                 },
                 {
@@ -59,7 +55,6 @@
                     "core/export/griffin.mjs::readGcodeLine",
                     "core/export/griffin.mjs::parseGcodeCommand",
                     "core/export/griffin.mjs::applyGcodeCommand",
-                    "core/export/griffin.mjs::applyGcodeCommand::only",
                     "core/export/griffin.mjs::validateGcodeCompletion",
                     "core/export/griffin.mjs::gcodeProgram"
                   ]
@@ -72,9 +67,9 @@
               "members": [
                 "core/export/bambu.mjs",
                 "core/export/bambu-job.mjs",
-            "core/export/bambu-body.mjs",
-            "core/export/bambu-change.mjs",
-            "core/export/bambu-x1-change.mjs",
+                "core/export/bambu-body.mjs",
+                "core/export/bambu-change.mjs",
+                "core/export/bambu-x1-change.mjs",
                 "core/export/bambu-player.mjs"
               ],
               "groups": [
@@ -86,7 +81,6 @@
                     "core/export/bambu.mjs::contextFor",
                     "core/export/bambu.mjs::checkContext",
                     "core/export/bambu.mjs::sections",
-                    "core/export/bambu.mjs::sections::render",
                     "core/export/bambu.mjs::header",
                     "core/export/bambu.mjs::completeProgram"
                   ]
@@ -96,9 +90,7 @@
                   "label": "archive and thumbnails",
                   "members": [
                     "core/export/bambu.mjs::packageEntries",
-                    "core/export/bambu.mjs::thumbnail",
-                    "core/export/bambu.mjs::thumbnail::project",
-                    "core/export/bambu.mjs::thumbnail::chunk"
+                    "core/export/bambu.mjs::thumbnail"
                   ]
                 }
               ]
@@ -139,19 +131,6 @@
                   ]
                 },
                 {
-                  "id": "controller-hosts",
-                  "label": "controller hosts",
-                  "members": [
-                    "core/export/dobot-player.mjs::interpretDobotFiles",
-                    "core/export/dobot-player.mjs::interpretDobotFiles::fail",
-                    "core/export/dobot-player.mjs::interpretDobotFiles::need",
-                    "core/export/dobot-player.mjs::interpretDobotFiles::host::DO",
-                    "core/export/dobot-player.mjs::interpretDobotFiles::host::Sync",
-                    "core/export/dobot-player.mjs::interpretDobotFiles::host::Wait",
-                    "core/export/dobot-player.mjs::interpretDobotFiles::host::MovL"
-                  ]
-                },
-                {
                   "id": "coordinates",
                   "label": "coordinates and timing",
                   "members": [
@@ -180,74 +159,8 @@
               "label": "source tokens",
               "members": [
                 "core/export/dobot-lua-subset.mjs::tokenize",
-                "core/export/dobot-lua-subset.mjs::tokenize::fail",
                 "core/export/dobot-lua-subset.mjs::countNewlines",
                 "core/export/dobot-lua-subset.mjs::matchLongBracket"
-              ]
-            },
-            {
-              "id": "syntax",
-              "label": "syntax tree",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::parse",
-                "core/export/dobot-lua-subset.mjs::parse::peek",
-                "core/export/dobot-lua-subset.mjs::parse::fail",
-                "core/export/dobot-lua-subset.mjs::parse::check",
-                "core/export/dobot-lua-subset.mjs::parse::accept",
-                "core/export/dobot-lua-subset.mjs::parse::expect",
-                "core/export/dobot-lua-subset.mjs::parse::parseBlock",
-                "core/export/dobot-lua-subset.mjs::parse::parseStatement",
-                "core/export/dobot-lua-subset.mjs::parse::parseLocal",
-                "core/export/dobot-lua-subset.mjs::parse::parseFunctionStatement",
-                "core/export/dobot-lua-subset.mjs::parse::parseFunctionBody",
-                "core/export/dobot-lua-subset.mjs::parse::parseIf",
-                "core/export/dobot-lua-subset.mjs::parse::parseWhile",
-                "core/export/dobot-lua-subset.mjs::parse::parseFor",
-                "core/export/dobot-lua-subset.mjs::parse::parseExpr",
-                "core/export/dobot-lua-subset.mjs::parse::parseSimple",
-                "core/export/dobot-lua-subset.mjs::parse::parsePrimary",
-                "core/export/dobot-lua-subset.mjs::parse::parseSuffixed",
-                "core/export/dobot-lua-subset.mjs::parse::parseCallArgs",
-                "core/export/dobot-lua-subset.mjs::parse::parseTable"
-              ],
-              "groups": [
-                {
-                  "id": "cursor",
-                  "label": "token cursor",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::parse::peek",
-                    "core/export/dobot-lua-subset.mjs::parse::fail",
-                    "core/export/dobot-lua-subset.mjs::parse::check",
-                    "core/export/dobot-lua-subset.mjs::parse::accept",
-                    "core/export/dobot-lua-subset.mjs::parse::expect"
-                  ]
-                },
-                {
-                  "id": "statements",
-                  "label": "statements",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::parse::parseBlock",
-                    "core/export/dobot-lua-subset.mjs::parse::parseStatement",
-                    "core/export/dobot-lua-subset.mjs::parse::parseLocal",
-                    "core/export/dobot-lua-subset.mjs::parse::parseFunctionStatement",
-                    "core/export/dobot-lua-subset.mjs::parse::parseFunctionBody",
-                    "core/export/dobot-lua-subset.mjs::parse::parseIf",
-                    "core/export/dobot-lua-subset.mjs::parse::parseWhile",
-                    "core/export/dobot-lua-subset.mjs::parse::parseFor"
-                  ]
-                },
-                {
-                  "id": "expressions",
-                  "label": "expressions",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::parse::parseExpr",
-                    "core/export/dobot-lua-subset.mjs::parse::parseSimple",
-                    "core/export/dobot-lua-subset.mjs::parse::parsePrimary",
-                    "core/export/dobot-lua-subset.mjs::parse::parseSuffixed",
-                    "core/export/dobot-lua-subset.mjs::parse::parseCallArgs",
-                    "core/export/dobot-lua-subset.mjs::parse::parseTable"
-                  ]
-                }
               ]
             },
             {
@@ -255,81 +168,7 @@
               "label": "runtime execution",
               "members": [
                 "core/export/dobot-lua-subset.mjs::nodeCount",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::constructor",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::hasGlobal",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::getGlobal",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::setGlobal",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::tick",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::execBlock",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::execStatement",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::assign",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalList",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalMulti",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::eval",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalUnary",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalBinary",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::compare",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::stringify",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::number",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure::call",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalCall",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::invoke",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::enter",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::contextWithStack"
-              ],
-              "groups": [
-                {
-                  "id": "runtime-state",
-                  "label": "runtime state",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::constructor",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::hasGlobal",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::getGlobal",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::setGlobal",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::tick"
-                  ]
-                },
-                {
-                  "id": "control",
-                  "label": "statement execution",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::execBlock",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::execStatement",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::assign"
-                  ]
-                },
-                {
-                  "id": "evaluate",
-                  "label": "value evaluation",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalList",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalMulti",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::eval",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalUnary",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalBinary",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::compare",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::stringify",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::number"
-                  ]
-                },
-                {
-                  "id": "invocation",
-                  "label": "function invocation",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure::call",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::evalCall",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::invoke",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::enter",
-                    "core/export/dobot-lua-subset.mjs::LuaRuntime::contextWithStack"
-                  ]
-                }
+                "core/export/dobot-lua-subset.mjs::LuaRuntime"
               ]
             },
             {
@@ -337,77 +176,15 @@
               "label": "values and scope",
               "members": [
                 "core/export/dobot-lua-subset.mjs::LuaSubsetError",
-                "core/export/dobot-lua-subset.mjs::LuaSubsetError::constructor",
                 "core/export/dobot-lua-subset.mjs::LuaTable",
-                "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-                "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
-                "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
-                "core/export/dobot-lua-subset.mjs::LuaTable::get",
-                "core/export/dobot-lua-subset.mjs::LuaTable::set",
-                "core/export/dobot-lua-subset.mjs::LuaTable::length",
-                "core/export/dobot-lua-subset.mjs::LuaTable::toArray",
                 "core/export/dobot-lua-subset.mjs::Scope",
-                "core/export/dobot-lua-subset.mjs::Scope::constructor",
-                "core/export/dobot-lua-subset.mjs::Scope::declare",
-                "core/export/dobot-lua-subset.mjs::Scope::has",
-                "core/export/dobot-lua-subset.mjs::Scope::get",
-                "core/export/dobot-lua-subset.mjs::Scope::assign",
                 "core/export/dobot-lua-subset.mjs::normalizeReturn",
                 "core/export/dobot-lua-subset.mjs::calleeName",
                 "core/export/dobot-lua-subset.mjs::truthy",
                 "core/export/dobot-lua-subset.mjs::luaTypeName",
                 "core/export/dobot-lua-subset.mjs::luaEquals",
                 "core/export/dobot-lua-subset.mjs::formatLuaNumber",
-                "core/export/dobot-lua-subset.mjs::standardLibrary",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs::__pairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::pairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::pairs::__pairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::tonumber",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::tostring",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::type"
-              ],
-              "groups": [
-                {
-                  "id": "tables",
-                  "label": "Lua tables",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::LuaTable",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::get",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::set",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::length",
-                    "core/export/dobot-lua-subset.mjs::LuaTable::toArray"
-                  ]
-                },
-                {
-                  "id": "scope",
-                  "label": "lexical scope",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::Scope",
-                    "core/export/dobot-lua-subset.mjs::Scope::constructor",
-                    "core/export/dobot-lua-subset.mjs::Scope::declare",
-                    "core/export/dobot-lua-subset.mjs::Scope::has",
-                    "core/export/dobot-lua-subset.mjs::Scope::get",
-                    "core/export/dobot-lua-subset.mjs::Scope::assign"
-                  ]
-                },
-                {
-                  "id": "library",
-                  "label": "standard library",
-                  "members": [
-                    "core/export/dobot-lua-subset.mjs::standardLibrary",
-                    "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs",
-                    "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs::__pairs",
-                    "core/export/dobot-lua-subset.mjs::standardLibrary::pairs",
-                    "core/export/dobot-lua-subset.mjs::standardLibrary::pairs::__pairs",
-                    "core/export/dobot-lua-subset.mjs::standardLibrary::tonumber",
-                    "core/export/dobot-lua-subset.mjs::standardLibrary::tostring",
-                    "core/export/dobot-lua-subset.mjs::standardLibrary::type"
-                  ]
-                }
+                "core/export/dobot-lua-subset.mjs::standardLibrary"
               ]
             }
           ]
@@ -426,246 +203,6 @@
           "label": "ZIP container",
           "members": [
             "core/export/zip.mjs"
-          ]
-        }
-      ]
-    },
-    {
-      "path": "core/export/dobot-lua-subset.mjs",
-      "groups": [
-        {
-          "id": "tokens",
-          "label": "source tokens",
-          "members": [
-            "core/export/dobot-lua-subset.mjs::tokenize",
-            "core/export/dobot-lua-subset.mjs::tokenize::fail",
-            "core/export/dobot-lua-subset.mjs::countNewlines",
-            "core/export/dobot-lua-subset.mjs::matchLongBracket"
-          ]
-        },
-        {
-          "id": "syntax",
-          "label": "syntax tree",
-          "members": [
-            "core/export/dobot-lua-subset.mjs::parse",
-            "core/export/dobot-lua-subset.mjs::parse::peek",
-            "core/export/dobot-lua-subset.mjs::parse::fail",
-            "core/export/dobot-lua-subset.mjs::parse::check",
-            "core/export/dobot-lua-subset.mjs::parse::accept",
-            "core/export/dobot-lua-subset.mjs::parse::expect",
-            "core/export/dobot-lua-subset.mjs::parse::parseBlock",
-            "core/export/dobot-lua-subset.mjs::parse::parseStatement",
-            "core/export/dobot-lua-subset.mjs::parse::parseLocal",
-            "core/export/dobot-lua-subset.mjs::parse::parseFunctionStatement",
-            "core/export/dobot-lua-subset.mjs::parse::parseFunctionBody",
-            "core/export/dobot-lua-subset.mjs::parse::parseIf",
-            "core/export/dobot-lua-subset.mjs::parse::parseWhile",
-            "core/export/dobot-lua-subset.mjs::parse::parseFor",
-            "core/export/dobot-lua-subset.mjs::parse::parseExpr",
-            "core/export/dobot-lua-subset.mjs::parse::parseSimple",
-            "core/export/dobot-lua-subset.mjs::parse::parsePrimary",
-            "core/export/dobot-lua-subset.mjs::parse::parseSuffixed",
-            "core/export/dobot-lua-subset.mjs::parse::parseCallArgs",
-            "core/export/dobot-lua-subset.mjs::parse::parseTable"
-          ],
-          "groups": [
-            {
-              "id": "cursor",
-              "label": "token cursor",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::parse::peek",
-                "core/export/dobot-lua-subset.mjs::parse::fail",
-                "core/export/dobot-lua-subset.mjs::parse::check",
-                "core/export/dobot-lua-subset.mjs::parse::accept",
-                "core/export/dobot-lua-subset.mjs::parse::expect"
-              ]
-            },
-            {
-              "id": "statements",
-              "label": "statements",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::parse::parseBlock",
-                "core/export/dobot-lua-subset.mjs::parse::parseStatement",
-                "core/export/dobot-lua-subset.mjs::parse::parseLocal",
-                "core/export/dobot-lua-subset.mjs::parse::parseFunctionStatement",
-                "core/export/dobot-lua-subset.mjs::parse::parseFunctionBody",
-                "core/export/dobot-lua-subset.mjs::parse::parseIf",
-                "core/export/dobot-lua-subset.mjs::parse::parseWhile",
-                "core/export/dobot-lua-subset.mjs::parse::parseFor"
-              ]
-            },
-            {
-              "id": "expressions",
-              "label": "expressions",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::parse::parseExpr",
-                "core/export/dobot-lua-subset.mjs::parse::parseSimple",
-                "core/export/dobot-lua-subset.mjs::parse::parsePrimary",
-                "core/export/dobot-lua-subset.mjs::parse::parseSuffixed",
-                "core/export/dobot-lua-subset.mjs::parse::parseCallArgs",
-                "core/export/dobot-lua-subset.mjs::parse::parseTable"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "execution",
-          "label": "runtime execution",
-          "members": [
-            "core/export/dobot-lua-subset.mjs::nodeCount",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::constructor",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::hasGlobal",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::getGlobal",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::setGlobal",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::tick",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::execBlock",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::execStatement",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::assign",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalList",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalMulti",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::eval",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalUnary",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalBinary",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::compare",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::stringify",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::number",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure::call",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::evalCall",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::invoke",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::enter",
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::contextWithStack"
-          ],
-          "groups": [
-            {
-              "id": "runtime-state",
-              "label": "runtime state",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::constructor",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::hasGlobal",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::getGlobal",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::setGlobal",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::tick"
-              ]
-            },
-            {
-              "id": "control",
-              "label": "statement execution",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::execBlock",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::execStatement",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::assign"
-              ]
-            },
-            {
-              "id": "evaluate",
-              "label": "value evaluation",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalList",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalMulti",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::eval",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalUnary",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalBinary",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::compare",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::stringify",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::number"
-              ]
-            },
-            {
-              "id": "invocation",
-              "label": "function invocation",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::makeClosure::call",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::evalCall",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::invoke",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::enter",
-                "core/export/dobot-lua-subset.mjs::LuaRuntime::contextWithStack"
-              ]
-            }
-          ]
-        },
-        {
-          "id": "values",
-          "label": "values and scope",
-          "members": [
-            "core/export/dobot-lua-subset.mjs::LuaSubsetError",
-            "core/export/dobot-lua-subset.mjs::LuaSubsetError::constructor",
-            "core/export/dobot-lua-subset.mjs::LuaTable",
-            "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-            "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
-            "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
-            "core/export/dobot-lua-subset.mjs::LuaTable::get",
-            "core/export/dobot-lua-subset.mjs::LuaTable::set",
-            "core/export/dobot-lua-subset.mjs::LuaTable::length",
-            "core/export/dobot-lua-subset.mjs::LuaTable::toArray",
-            "core/export/dobot-lua-subset.mjs::Scope",
-            "core/export/dobot-lua-subset.mjs::Scope::constructor",
-            "core/export/dobot-lua-subset.mjs::Scope::declare",
-            "core/export/dobot-lua-subset.mjs::Scope::has",
-            "core/export/dobot-lua-subset.mjs::Scope::get",
-            "core/export/dobot-lua-subset.mjs::Scope::assign",
-            "core/export/dobot-lua-subset.mjs::normalizeReturn",
-            "core/export/dobot-lua-subset.mjs::calleeName",
-            "core/export/dobot-lua-subset.mjs::truthy",
-            "core/export/dobot-lua-subset.mjs::luaTypeName",
-            "core/export/dobot-lua-subset.mjs::luaEquals",
-            "core/export/dobot-lua-subset.mjs::formatLuaNumber",
-            "core/export/dobot-lua-subset.mjs::standardLibrary",
-            "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs",
-            "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs::__pairs",
-            "core/export/dobot-lua-subset.mjs::standardLibrary::pairs",
-            "core/export/dobot-lua-subset.mjs::standardLibrary::pairs::__pairs",
-            "core/export/dobot-lua-subset.mjs::standardLibrary::tonumber",
-            "core/export/dobot-lua-subset.mjs::standardLibrary::tostring",
-            "core/export/dobot-lua-subset.mjs::standardLibrary::type"
-          ],
-          "groups": [
-            {
-              "id": "tables",
-              "label": "Lua tables",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::LuaTable",
-                "core/export/dobot-lua-subset.mjs::LuaTable::constructor",
-                "core/export/dobot-lua-subset.mjs::LuaTable::@static/from",
-                "core/export/dobot-lua-subset.mjs::LuaTable::@static/fromArray",
-                "core/export/dobot-lua-subset.mjs::LuaTable::get",
-                "core/export/dobot-lua-subset.mjs::LuaTable::set",
-                "core/export/dobot-lua-subset.mjs::LuaTable::length",
-                "core/export/dobot-lua-subset.mjs::LuaTable::toArray"
-              ]
-            },
-            {
-              "id": "scope",
-              "label": "lexical scope",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::Scope",
-                "core/export/dobot-lua-subset.mjs::Scope::constructor",
-                "core/export/dobot-lua-subset.mjs::Scope::declare",
-                "core/export/dobot-lua-subset.mjs::Scope::has",
-                "core/export/dobot-lua-subset.mjs::Scope::get",
-                "core/export/dobot-lua-subset.mjs::Scope::assign"
-              ]
-            },
-            {
-              "id": "library",
-              "label": "standard library",
-              "members": [
-                "core/export/dobot-lua-subset.mjs::standardLibrary",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::ipairs::__pairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::pairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::pairs::__pairs",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::tonumber",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::tostring",
-                "core/export/dobot-lua-subset.mjs::standardLibrary::type"
-              ]
-            }
           ]
         }
       ]
@@ -719,7 +256,6 @@
           "id": "runtime-state",
           "label": "runtime state",
           "members": [
-            "core/export/dobot-lua-subset.mjs::LuaRuntime::constructor",
             "core/export/dobot-lua-subset.mjs::LuaRuntime::load",
             "core/export/dobot-lua-subset.mjs::LuaRuntime::call",
             "core/export/dobot-lua-subset.mjs::LuaRuntime::hasGlobal",

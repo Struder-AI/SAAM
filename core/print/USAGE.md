@@ -262,8 +262,9 @@ physical dual-nozzle acceptance remains outstanding.
 For H2D AMS colours, follow [the two-colour workflow](../export/bambu.md#making-an-h2d-two-colour-print):
 declare two filaments on the same nozzle and assign regions to indices 0, 1, 0.
 AMS-09 physically changed colours using SAAM commands and a reference project
-entry. The reusable v12 project writer still needs a generated-file acceptance
-print; do not copy that diagnostic's foreign project entry into new jobs.
+entry. The reusable v12 project writer failed AMS-11: the part printed entirely
+orange. Multicolour delivery remains unverified and needs builder/developer
+investigation; do not copy that diagnostic's foreign project entry into new jobs.
 For an X1 colour-change test, assign successive height regions to distinct PLA
 filaments on tool 0. The X1 adapter flushes into the rear chute; no tower is added.
 Review the separate service purge allowance and verify actual feed changes on the

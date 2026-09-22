@@ -72,6 +72,12 @@ The map is only as good as the code's shape, so shape the code for it:
 - Give conceptual handlers and stages code binding names so authored grouping
   survives line edits. Small implementation callbacks may remain anonymous;
   authored membership must not depend on their source-position identities.
+- A declaration written inside another is shown on that declaration's page, and
+  is never authored into a group elsewhere. A stage that belongs beside its
+  siblings on a region map has to be a top-level declaration of its file.
+- A class is its construction and its members: the constructor is part of the
+  class node, and only what a caller can reach on its own — the class and its
+  static and instance methods — is a node.
 - Separate uses of the same implementation remain distinct generated stage
   instances. Replacing an entity requires rewiring all consumers and removing
   the superseded entity; do not retain compatibility wrappers or parallel paths.

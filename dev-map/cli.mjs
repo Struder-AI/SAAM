@@ -69,9 +69,9 @@ const {regenerate}=await import('./lib/generated-view.mjs');
 const status=await storeStatus({repo:root});
 const result={store:status.dir,generated:status.generated??null,missing:status.missing,
   stale:status.missing?null:status.stale,totals:status.missing?null:status.totals,
-  unreached:status.missing?[]:status.unreached,orphanFacts:status.orphanFacts,
-  factErrors:status.facts.errors};
-const failed=status.missing||!!status.stale||status.facts.errors.length>0;
+  unreached:status.missing?[]:status.unreached,unplaced:status.missing?[]:status.unplaced,
+  orphanFacts:status.orphanFacts,factErrors:status.facts.errors};
+const failed=status.missing||!!status.stale||status.facts.errors.length>0||(status.unplaced?.length??0)>0;
 
 if(options.json)console.log(JSON.stringify(result,null,1));
 else if(status.missing)console.log(`No stored map at ${status.dir}. Run: ${regenerate}`);
@@ -85,6 +85,9 @@ else {
   }
   console.log(`Unreached: ${status.unreached.length}`);
   for(const node of status.unreached)console.log(`  ${node.index} ${node.path} (${node.lines} lines)`);
+  console.log(`Unplaced: ${status.unplaced.length}`);
+  for(const page of status.unplaced)console.log(`  ${page}`);
+  if(status.unplaced.length)console.log(`No map shows these pages. Remove the authored grouping, or place what it groups.`);
   console.log(`Orphan facts: ${status.orphanFacts.length}`);
   for(const row of status.orphanFacts)console.log(`  ${row.line}\t${row.declaration}\t${row.kind}\t${row.fact}\t${row.source}\t${row.date}`);
   if(status.facts.errors.length) {

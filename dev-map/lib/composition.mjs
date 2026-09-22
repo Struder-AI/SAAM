@@ -28,6 +28,7 @@ export async function readCompositions({repo}={}) {
   return {schema:1,flows};
 }
 const identity=c=>c.path??(c.file&&c.label?`${c.file}::${c.label}`:c.file);
+const outermost=n=>{let node=n;while(node.parent)node=node.parent;return node;};
 const allowed=(value,keys,where)=>{
   for(const key of Object.keys(value))if(!keys.includes(key))throw Error(`Composition ${where}: unsupported field ${key}.`);
 };
@@ -36,7 +37,10 @@ const allowed=(value,keys,where)=>{
 // Calls remain calls (not imaginary returned-value wires); exact evidence survives contraction.
 function structural(page,{model,index,packets}) {
   const files=page.kind==='region'?page.files:[page.file],inside=new Set(files);
-  const nodes=model.nodes.filter(n=>inside.has(n.file));
+  // A nested declaration is placed by the declaration that holds it. Here it is drawn with
+  // that declaration: its links contract to the top-level declaration they run through.
+  const nodes=model.nodes.filter(n=>inside.has(n.file)&&!n.parent);
+  const held=new Map(model.nodes.filter(n=>inside.has(n.file)).map(n=>[n.path,outermost(n).path]));
   const components=nodes.map(n=>({index:index.get(n.path),path:n.path,label:n.path.slice(n.file.length+2),
     file:n.file,line:n.line,endLine:n.endLine,lines:n.endLine-n.line+1,
     leaf:!(packets.get(n.path)?.components.length||packets.get(n.path)?.operators?.length)}));
@@ -51,9 +55,12 @@ function structural(page,{model,index,packets}) {
     if(!list.some(p=>p.port===key))list.push({port:key,name:end,index:index.get(end)??null,path:end});
     return key;
   };
-  const add=(from,to,kind,label,evidence)=>{
+  const add=(end,target,kind,label,evidence)=>{
+    const from=held.get(end)??end,to=held.get(target)??target;
     const a=index.get(from),b=index.get(to),hasA=shown.has(a),hasB=shown.has(b);
     if(!hasA&&!hasB)return;
+    // A declaration calling a helper it holds is that declaration's own page, not a loop here.
+    if(hasA&&hasB&&a===b)return;
     wires.push({from:hasA?a:port(from,'in'),to:hasB?b:port(to,'out'),kind,
       ...(label?{label}:{}),evidence});
   };
@@ -61,7 +68,9 @@ function structural(page,{model,index,packets}) {
     {file:c.fromFile,line:c.line,start:c.start});
   for(const c of model.couplings)add(c.from?.path??c.fromFile??'<external>',c.to?.path??c.toFile??'<external>',c.kind,c.label,
     {file:c.fromFile,line:c.line});
-  const memberPackets=nodes.map(n=>packets.get(n.path)).filter(Boolean);
+  // Findings of a nested declaration belong to this scope too; they summarize under the
+  // top-level declaration that holds them and stay complete on that declaration's own page.
+  const memberPackets=[...held.keys()].map(path=>packets.get(path)).filter(Boolean);
   return {...page,components,inputs,outputs,wires,gates:[],ports:[],requires:[],formulas:[],calledFrom:[],couplings:[],
     unresolved:[...(page.unresolved??[]),...memberPackets.flatMap(p=>(p.unresolved??[]).map(u=>({...u,file:p.file,path:p.path})))],
     uncertainty:[...(page.uncertainty??[]),...memberPackets.flatMap(p=>(p.uncertainty??[]).map(u=>({...u,file:p.file,path:p.path})))],
@@ -102,6 +111,7 @@ export function composePages(pages,config,context) {
   allowed(config,['schema','flows'],'root');
   if(config.schema!==1||!Array.isArray(config.flows))throw Error('Composition needs schema 1 and flows.');
   const result=new Map(pages),groupPages=new Map(),seen=new Set();
+  const holder=new Map((context.model?.nodes??[]).filter(n=>n.parent).map(n=>[n.path,n.parent.path]));
   for(const spec of config.flows) {
     allowed(spec,['path','groups','source'],'flow');
     const requireStableReference=ref=>{
@@ -111,6 +121,7 @@ export function composePages(pages,config,context) {
     requireStableReference(spec.path);
     if(seen.has(spec.path))throw Error(`Duplicate composition ${spec.path}.`);seen.add(spec.path);
     const original=pages.get(spec.path);if(!original)throw Error(`Unknown composition page ${spec.path}.`);
+    const owner=original.owner??spec.path;
     if(!Array.isArray(spec.groups)||!spec.groups.length)throw Error(`Composition ${spec.path} has no groups.`);
     const packet=['region','file'].includes(original.kind)?structural(original,context):structuredClone(original);
     const base=packet.wires.map((w,i)=>({...w,edgeId:w.edgeId??`${spec.path}#${i+1}`}));
@@ -126,6 +137,10 @@ export function composePages(pages,config,context) {
       const members=[];
       for(const ref of g.members) {
         requireStableReference(ref);
+        // A nested declaration is placed by the declaration that holds it, so only that
+        // declaration's own page can group it. Elsewhere it is not a member to author.
+        const parent=holder.get(ref);
+        if(parent&&parent!==owner)throw Error(`Composition member ${ref} in ${spec.path}: ${parent} already places it. Group it on that declaration's page, or group ${parent} here.`);
         const matching=byIdentity.has(ref)?[byIdentity.get(ref)]:packet.components.filter(c=>c.file===ref);
         if(!matching.length)throw Error(`Unknown composition member ${ref} in ${spec.path}.`);
         for(const c of matching) {
@@ -193,6 +208,9 @@ export function composePages(pages,config,context) {
         groupPages.set(g.index,nested.pages.get(g.path));
         for(const [at,child] of nested.groupPages)groupPages.set(at,child);
       }
+      // A group that draws one box is a step the walk passes through without seeing anything.
+      const drawn=(groupPages.get(g.index).components??[]).length;
+      if(drawn<2)throw Error(`Group ${g.path} would draw ${drawn} box${drawn===1?'':'es'}. A group needs at least two boxes; drop it and leave its member at this level.`);
     }
     const projectedPage={...packet,components:projected,wires:parentWires,
       ...(packet.stateFields?{stateFields:packet.stateFields.filter(f=>parentWires.some(w=>w.stateField===f.id))}:{}),

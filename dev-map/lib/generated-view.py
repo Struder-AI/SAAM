@@ -322,6 +322,13 @@ def build_page(packet, ctx):
             wire(page, w, aggregate(w), "data", drawn, dropped)
     elif kind == "region":
         for c in packet["components"]:
+            # A file whose own drawing would show nothing has no page: the region draws its
+            # declarations directly, in the file box's place.
+            if "label" in c:
+                unit(c["index"], c["label"], "",
+                     f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
+                     ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c["path"])
+                continue
             note = f'{c["nodes"]} nodes · {c["entries"]} entry points'
             if c.get("unreached"):
                 note += f' · {c["unreached"]} unreached'
@@ -522,7 +529,9 @@ def lists(packet, page, pages):
     if packet.get("facts"):
         page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv')
         for f in packet["facts"]:
-            page.row("item", f'{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]')
+            # A file's row carried by the region it is part of names that file.
+            about = f'{f["file"]}  ' if f.get("file") else ""
+            page.row("item", f'{about}{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]')
     if packet.get("requires"):
         page.row("head", f'requires ({len(packet["requires"])})')
         for item in packet["requires"]:

@@ -38,9 +38,11 @@ export function compactPage(page, {code = false} = {}) {
     packet.calledFrom = page.calledFrom.filter(ref => !represented.has(ref.index));
   }
   if (sourceOnly) {
+    // A page that opens as code still names the pages it would have drawn: the walk down to a
+    // declaration it holds or calls stays visible without a second read.
     const keys = ['index', 'path', 'file', 'kind', 'line', 'endLine', 'destination',
       'code', 'source', 'sources', 'sourceKind', 'sourceSha256', 'sourceUnavailable', 'regenerate', 'stale',
-      'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
+      'components', 'facts', 'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
     if (!code) keys.push('inputs', 'outputs');
     return clean(Object.fromEntries(keys.filter(key => key in packet).map(key => [key, packet[key]])), undefined, true);
   }
