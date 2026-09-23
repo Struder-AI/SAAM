@@ -5733,3 +5733,16 @@ junction. All flight performance remains unvalidated.
 - Evidence: focused Bambu exporter tests pass for right/left H2D 0.8 mm jobs, explicit slot-4 intent, and X1C intent.
   The regenerated right-nozzle validation archive contains two `M620 S0A H-1` selections and no `M620 S3A`.
   Physical slot selection for a USB-started job remains an operator/printer-start action and is not embedded in 3MF.
+
+## 2026-09-23 — H2D nozzle metadata follows physical-extruder order
+
+- Source: hardware repeatedly raised HMS `05ff-8053 150623`, “The right nozzle is not matched with slicing file,” for
+  a right-side Standard Hardened 0.8 mm print even though SAAM displayed the selected nozzle as right 0.8 mm.
+- Cause: H2D identifies the right nozzle as physical extruder 0 and the left nozzle as physical extruder 1. SAAM wrote
+  `nozzle_diameter` in design-tool order (left, right), producing `[0.4, 0.8]`; the printer's hotend check therefore read
+  the right nozzle as 0.4 mm. The visible preset name alone did not correct the reversed array.
+- Change: Bambu package nozzle arrays are now populated by each tool's `physicalExtruder`. The same package also carries
+  Bambu Studio's standard-hotend declarations (`default_nozzle_volume_type`, `extruder_nozzle_stats`) and filament
+  hardness requirement. The validation job now declares `[0.8, 0.4]`, Standard/Standard and hardened steel.
+- Evidence: the complete Bambu exporter suite passes 11/11, including right-side 0.6 and 0.8 regressions. The corrected
+  package has not yet been validated on hardware; the assumed left nozzle remains 0.4 mm.

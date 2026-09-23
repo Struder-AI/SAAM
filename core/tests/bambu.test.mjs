@@ -58,7 +58,7 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
     const path=generatePath(plan,machine,await rhino());
     const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
     assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
-    const nozzles=tool===0?['0.8','0.4']:['0.4','0.8'];
+    const nozzles=tool===0?['0.4','0.8']:['0.8','0.4'];
     assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.8);
     assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,nozzles);
     const slice=entries.get('Metadata/slice_info.config').toString();
@@ -69,6 +69,9 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
     assert.deepEqual(project.filament_colour,['#8B5A2B']);
     assert.equal(project.printer_settings_id,'Bambu Lab H2D 0.8 nozzle');
     assert.ok(project.nozzle_type.every(type=>type==='hardened_steel'));
+    assert.deepEqual(project.default_nozzle_volume_type,['Standard','Standard']);
+    assert.deepEqual(project.extruder_nozzle_stats,['Standard#1','Standard#1']);
+    assert.deepEqual(project.required_nozzle_HRC,['3']);
     const code=entries.get(GCODE).toString();
     for(const line of ['M620 S'+selector+'A H-1','T'+selector+' H-1','M621 S'+selector+'A'])assert.equal(code.split('\n').filter(l=>l===line).length,2,line);
   }
@@ -96,7 +99,7 @@ test('H2D 0.6 mm setup uses selected right-nozzle metadata and round trips',asyn
   assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
   assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.6);
   const project=JSON.parse(entries.get('Metadata/project_settings.config'));
-  assert.deepEqual(project.nozzle_diameter,['0.4','0.6']);
+  assert.deepEqual(project.nozzle_diameter,['0.6','0.4']);
   assert.equal(project.printer_settings_id,'Bambu Lab H2D 0.6 nozzle');
   assert.match(entries.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.6"/);
 });
