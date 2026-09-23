@@ -5708,3 +5708,14 @@ junction. All flight performance remains unvalidated.
   sequence digest remains in the Node-only Bambu exporter; the browser-safe validator no longer imports Node APIs.
 - Evidence: the focused source-player, playback-cache, and kinematics suites pass (18/18), including a regression with
   large synthetic geometry and line-network strokes. Browser verification against the dice bundle follows separately.
+
+## 2026-09-21 — H2D package preset follows the selected nozzle
+
+- Source: user reported that the H2D still warned that its right nozzle did not match the slicing file, even though
+  the generated plate and slice metadata both named the selected right 0.6 mm nozzle.
+- Cause: `project_settings.config` formed `printer_settings_id` from the first (left) nozzle's diameter. A right-nozzle
+  0.6 mm job therefore simultaneously declared `Bambu Lab H2D 0.4 nozzle` and a right 0.6 mm nozzle.
+- Change: the package preset ID now follows `plan.setup.nozzleMm`, the selected printing nozzle, independently of
+  whether the selected H2D tool is left or right. Per-tool diameter arrays and physical-extruder mapping are unchanged.
+- Evidence: H2D exporter regressions require both right 0.6 and right 0.8 jobs to name their selected preset. Hardware
+  validation remains the next print; the previous warning was observed on hardware, but this corrected file has not yet run.
