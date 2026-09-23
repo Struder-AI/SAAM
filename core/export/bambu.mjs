@@ -99,15 +99,8 @@ function sections(c,plan,machine,output){
   // never descends below the completed path.
   const k=output.constraints,endClearanceZ=fmt(Math.max(c.pathMaxZ,c.bounds.max[2]+k.endLiftMm));
   const parkZ=fmt(Math.max(endClearanceZ,Math.min(k.parkLimitMm,k.parkRiseMm+k.parkHeightFactor*c.bounds.max[2])));
-  // M620/T/M621 select a logical filament in the job, not a physical AMS tray.
-  // The physical tray mapping is supplied by the printer's print-start request.
-  // Encoding plan.setup.ams here makes (for example) a one-filament slot-4 job
-  // request logical filament 4, for which no mapping-table entry exists.
-  feederSelector(plan,machine); // validate the recorded operator intent
-  const filamentTool=usedTools(plan).indexOf(plan.setup.tool);
-  requireThat(filamentTool>=0,'Selected Bambu filament is absent from the job.');
   const values={...plan.setup,physicalTool:toolFor(machine,plan.setup.tool).physicalExtruder,
-    filamentTool,wipeC:plan.setup.nozzleC-20,
+    filamentTool:feederSelector(plan,machine),wipeC:plan.setup.nozzleC-20,
     minX:fmt(c.bounds.min[0]),minY:fmt(c.bounds.min[1]),sizeX:fmt(c.bounds.max[0]-c.bounds.min[0]),sizeY:fmt(c.bounds.max[1]-c.bounds.min[1]),
     endClearanceZ,parkZ,parkSettleZ:fmt(Math.max(endClearanceZ,parkZ-k.parkSettleMm))};
   const render=lines=>lines.map(line=>line.replace(/\{([A-Za-z]+)\}/g,(_,key)=>{
@@ -170,22 +163,31 @@ function completeProgram(program,code,c,s){
 
 function packageEntries(code,c,program,plan,machine,output){
   const tool=plan.setup.tool,used=usedTools(plan),volume=program.volumeMm3,filament=program.summary.filamentMm,weight=volume/1000*1.26;
-  const maps=used.map(t=>t+1).join(' '),colors=used.map(t=>toolColor(plan,t,output.defaultFilamentColor)),color=colors[used.indexOf(tool)];
-  // Each filament's share of the job, from the program itself. A one-nozzle job is the whole.
-  const share=used.map(t=>{
+  // For a USB-started single-material job, preserve the requested AMS position
+  // as a logical filament and declare every preceding position. M620 S3 is then
+  // a real fourth entry rather than an invalid reference in a one-entry table.
+  const selector=feederSelector(plan,machine),directTray=plan.setup.ams!==null&&used.length===1;
+  const filaments=directTray?Array.from({length:selector+1},(_,i)=>({tool,active:i===selector,
+    color:i===selector?toolColor(plan,tool,output.defaultFilamentColor):'#000000'}))
+    :used.map(t=>({tool:t,active:true,color:toolColor(plan,t,output.defaultFilamentColor)}));
+  const maps=filaments.map(f=>f.tool+1).join(' '),colors=filaments.map(f=>f.color),color=colors[selector];
+  // Placeholder logical filaments consume no material.
+  const share=filaments.map(f=>{
+    if(!f.active)return {filament:0,weight:0};
     if(used.length===1)return {filament,weight};
-    const v=program.moves.reduce((sum,m)=>m.tool===t&&m.extruding?sum+m.volumeMm3:sum,0);
+    const v=program.moves.reduce((sum,m)=>m.tool===f.tool&&m.extruding?sum+m.volumeMm3:sum,0);
     return {filament:v/(Math.PI*(plan.setup.filamentMm/2)**2),weight:v/1000*1.26};
   });
-  const order=[tool,...program.events.filter(e=>e.kind==='tool').map(e=>e.tool)];
+  const logicalForTool=t=>directTray?selector:used.indexOf(t);
+  const toolOrder=[tool,...program.events.filter(e=>e.kind==='tool').map(e=>e.tool)],order=toolOrder.map(logicalForTool);
   // An unselected nozzle is recorded as the standard 0.4 mm core. Bambu picks
   // the preset family from the first nozzle; mixed diameters are carried by
   // nozzle_diameter and the slice metadata.
-  const nozzle=plan.setup.nozzleMm,tools=machine.tools,settings=output.package.projectSettings,perTool=value=>tools.map(()=>value),each=value=>used.map(()=>value);
+  const nozzle=plan.setup.nozzleMm,tools=machine.tools,settings=output.package.projectSettings,perTool=value=>tools.map(()=>value),each=value=>filaments.map(()=>value);
   const nozzles=perTool('0.4');for(const t of used)nozzles[t]=String(nozzleOfTool(plan,t));
   const seconds=Math.ceil(program.seconds),bbox=[c.bounds.min[0],c.bounds.min[1],c.bounds.max[0],c.bounds.max[1]];
   const plate={bbox_all:bbox,bbox_objects:[{area:(bbox[2]-bbox[0])*(bbox[3]-bbox[1]),bbox,id:1,layer_height:plan.process.layerMm,name:'SAAM part'}],
-    bed_type:'textured_plate',filament_colors:colors,filament_ids:used.map((_,i)=>i),first_extruder:0,first_layer_time:0,is_seq_print:false,nozzle_diameter:nozzle,version:2};
+    bed_type:'textured_plate',filament_colors:colors,filament_ids:filaments.map((_,i)=>i),first_extruder:selector,first_layer_time:0,is_seq_print:false,nozzle_diameter:nozzle,version:2};
   const entries=new Map([
     [GCODE,code],[GCODE+'.md5',digest(code,'md5')],['Metadata/saam.json',json(c)],
     ['Metadata/plate_1.json',json(plate)],
@@ -194,9 +196,9 @@ function packageEntries(code,c,program,plan,machine,output){
     ['_rels/.rels','<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/><Relationship Target="/Metadata/plate_1.png" Id="rel-2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"/><Relationship Target="/Metadata/plate_1.png" Id="rel-4" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-middle"/><Relationship Target="/Metadata/plate_1_small.png" Id="rel-5" Type="http://schemas.bambulab.com/package/2021/cover-thumbnail-small"/></Relationships>\n'],
     ['Metadata/_rels/model_settings.config.rels','<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/Metadata/plate_1.gcode" Id="rel-1" Type="http://schemas.bambulab.com/package/2021/gcode"/></Relationships>\n'],
     ['Metadata/model_settings.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <plate>\n${meta({plater_id:1,plater_name:'SAAM',locked:false,filament_map_mode:settings.filament_map_mode,filament_maps:maps,filament_volume_maps:0,gcode_file:GCODE,thumbnail_file:'Metadata/plate_1.png',thumbnail_no_light_file:'Metadata/plate_no_light_1.png',top_file:'Metadata/top_1.png',pick_file:'Metadata/pick_1.png',pattern_bbox_file:'Metadata/plate_1.json'})}\n  </plate>\n</config>\n`],
-    ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <header>\n    <header_item key="X-BBL-Client-Type" value="slicer"/>\n    <header_item key="X-BBL-Client-Version" value="${xml(output.package.clientVersion)}"/>\n  </header>\n  <plate>\n${meta({index:1,extruder_type:perTool(0).join(' '),nozzle_volume_type:perTool(0).join(' '),printer_model_id:output.package.printerModelId,nozzle_diameters:nozzles.join(','),timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:maps,limit_filament_maps:0})}\n    <object identify_id="1" name="SAAM part" skipped="false" />\n${used.map((t,i)=>`    <filament id="${i+1}" tray_info_idx="GFA00" type="PLA" color="${xml(colors[i])}" used_m="${fmt(share[i].filament/1000,4)}" used_g="${fmt(share[i].weight,3)}" group_id="${t}" nozzle_diameter="${nozzleOfTool(plan,t).toFixed(2)}" volume_type="Standard" used_for_object="true" used_for_support="false" total_load_time="26.00" total_unload_time="0.00"/>`).join('\n')}\n${used.map(t=>`    <nozzle id="${t}" extruder_id="${t+1}" nozzle_diameter="${nozzleOfTool(plan,t)}" volume_type="Standard"/>`).join('\n')}\n    <layer_filament_lists>\n      <layer_filament_list filament_list="${used.map((_,i)=>i).join(' ')}" layer_ranges="0 ${c.layers-1}" />\n    </layer_filament_lists>\n  </plate>\n</config>\n`],
-    ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:order,optimal_assignment:used.map((_,i)=>i),sequence:order.map(t=>used.indexOf(t)+1)}})],
-    ['Metadata/project_settings.config',json({printer_model:machine.name,printer_settings_id:`${machine.name} ${nozzle} nozzle`,gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:tools.map(t=>String(t.physicalExtruder)),filament_map:used.map(t=>String(t+1)),filament_map_mode:'Manual',filament_nozzle_map:used.map(String),nozzle_diameter:nozzles,nozzle_volume_type:perTool('Standard'),nozzle_type:null,filament_diameter:each('1.75'),filament_type:each('PLA'),filament_ids:each('GFA00'),filament_colour:colors,filament_density:each('1.26'),filament_flow_ratio:each('1'),nozzle_temperature:each(String(plan.setup.nozzleC)),nozzle_temperature_initial_layer:each(String(plan.setup.nozzleC)),hot_plate_temp:each(String(plan.setup.bedC)),hot_plate_temp_initial_layer:each(String(plan.setup.bedC)),chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0',...settings})]
+    ['Metadata/slice_info.config',`<?xml version="1.0" encoding="UTF-8"?>\n<config>\n  <header>\n    <header_item key="X-BBL-Client-Type" value="slicer"/>\n    <header_item key="X-BBL-Client-Version" value="${xml(output.package.clientVersion)}"/>\n  </header>\n  <plate>\n${meta({index:1,extruder_type:perTool(0).join(' '),nozzle_volume_type:perTool(0).join(' '),printer_model_id:output.package.printerModelId,nozzle_diameters:nozzles.join(','),timelapse_type:0,prediction:seconds,weight:fmt(weight,3),pause_count:0,first_layer_time:0,outside:false,support_used:false,label_object_enabled:false,support_material_on_wipe_tower:false,enable_filament_dynamic_map:false,has_filament_switcher:false,filament_maps:maps,limit_filament_maps:0})}\n    <object identify_id="1" name="SAAM part" skipped="false" />\n${filaments.map((f,i)=>`    <filament id="${i+1}" tray_info_idx="GFA00" type="PLA" color="${xml(colors[i])}" used_m="${fmt(share[i].filament/1000,4)}" used_g="${fmt(share[i].weight,3)}" group_id="${f.tool}" nozzle_diameter="${nozzleOfTool(plan,f.tool).toFixed(2)}" volume_type="Standard" used_for_object="${f.active}" used_for_support="false" total_load_time="${f.active?'26.00':'0.00'}" total_unload_time="0.00"/>`).join('\n')}\n${used.map(t=>`    <nozzle id="${t}" extruder_id="${t+1}" nozzle_diameter="${nozzleOfTool(plan,t)}" volume_type="Standard"/>`).join('\n')}\n    <layer_filament_lists>\n      <layer_filament_list filament_list="${filaments.map((f,i)=>f.active?i:null).filter(i=>i!==null).join(' ')}" layer_ranges="0 ${c.layers-1}" />\n    </layer_filament_lists>\n  </plate>\n</config>\n`],
+    ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:toolOrder,optimal_assignment:filaments.map((_,i)=>i),sequence:order.map(i=>i+1)}})],
+    ['Metadata/project_settings.config',json({printer_model:machine.name,printer_settings_id:`${machine.name} ${nozzle} nozzle`,gcode_flavor:'marlin',curr_bed_type:'Textured PEI Plate',physical_extruder_map:tools.map(t=>String(t.physicalExtruder)),filament_map:filaments.map(f=>String(f.tool+1)),filament_map_mode:'Manual',filament_nozzle_map:filaments.map(f=>String(f.tool)),nozzle_diameter:nozzles,nozzle_volume_type:perTool('Standard'),nozzle_type:null,filament_diameter:each('1.75'),filament_type:each('PLA'),filament_ids:each('GFA00'),filament_colour:colors,filament_density:each('1.26'),filament_flow_ratio:each('1'),nozzle_temperature:each(String(plan.setup.nozzleC)),nozzle_temperature_initial_layer:each(String(plan.setup.nozzleC)),hot_plate_temp:each(String(plan.setup.bedC)),hot_plate_temp_initial_layer:each(String(plan.setup.bedC)),chamber_temperatures:['0'],layer_height:String(plan.process.layerMm),initial_layer_print_height:String(plan.process.firstLayerMm),enable_arc_fitting:'0',...settings})]
   ]);
   const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){

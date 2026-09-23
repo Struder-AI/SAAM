@@ -5720,16 +5720,19 @@ junction. All flight performance remains unvalidated.
 - Evidence: H2D exporter regressions require both right 0.6 and right 0.8 jobs to name their selected preset. Hardware
   validation remains the next print; the previous warning was observed on hardware, but this corrected file has not yet run.
 
-## 2026-09-22 — AMS intent no longer masquerades as a logical filament number
+## 2026-09-22 — USB AMS intent declares a complete logical mapping table
 
 - Source: a USB-started one-material H2D validation print configured for AMS slot 4 stopped with HMS
   `07fe-8012 141723`, “Failed to get AMS mapping table.”
-- Cause: SAAM rendered the requested physical tray number into `M620`/`T`/`M621`. Those commands address the job's
-  logical filament index; Bambu supplies the physical AMS tray mapping separately in the print-start request. The
-  one-material archive therefore requested nonexistent logical filament 4 and the printer could not resolve it.
-- Change: startup and shutdown now use the selected material's logical index. `setup.ams` remains validated and shown
-  as operator intent, but is not encoded as a G-code selector. A one-material job uses logical filament zero whether
-  it is intended for AMS slot 1 or slot 4.
-- Evidence: focused Bambu exporter tests pass for right/left H2D 0.8 mm jobs, explicit slot-4 intent, and X1C intent.
-  The regenerated right-nozzle validation archive contains two `M620 S0A H-1` selections and no `M620 S3A`.
-  Physical slot selection for a USB-started job remains an operator/printer-start action and is not embedded in 3MF.
+- Cause: SAAM rendered the requested slot as logical filament 4 in `M620`/`T`/`M621`, but declared only one logical
+  filament in the 3MF metadata. The H2D therefore had no fourth mapping-table entry. A first attempted correction
+  reduced the selector to logical filament 1; hardware then printed brown from AMS slot 1, proving that a USB-started
+  job defaults that lone logical filament to the first tray rather than honoring the descriptive white colour alone.
+- Change: a single-material USB job with explicit AMS intent now declares every logical position through the requested
+  tray. Slot 4 produces four metadata entries; the first three are unused placeholders and the fourth is the used
+  white PLA assigned to the chosen right nozzle. Startup and shutdown may therefore use `M620 S3A` against a real
+  four-entry table.
+- Evidence: exporter regressions require the selector, project arrays, slice usage, nozzle map and filament sequence
+  to agree for slot 4 and later units. The regenerated validation archive has four logical filaments, marks only number
+  4 as used and white, maps all four to the right nozzle, and contains two `M620 S3A H-1` selections. This exact package
+  still requires hardware validation.

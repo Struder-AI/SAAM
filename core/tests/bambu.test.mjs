@@ -52,9 +52,9 @@ test('H2D maps logical material zero to either physical nozzle and round trips a
 test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either tool',async()=>{
   for(const tool of [0,1]){
     const {machine,plan}=fixture(tool,0.8);plan.setup.filamentColor='#8B5A2B';
-    // Physical AMS intent is not a G-code selector. A one-material job always
-    // addresses logical filament zero; the print-start request maps it to a tray.
-    plan.setup.ams=tool===0?{unit:1,slot:4}:{unit:2,slot:3};const selector=0;
+    // USB-started jobs preserve the requested AMS position as a declared
+    // logical filament so the printer can build a complete local map.
+    plan.setup.ams=tool===0?{unit:1,slot:4}:{unit:2,slot:3};const selector=tool===0?3:6;
     const path=generatePath(plan,machine,await rhino());
     const bytes=exportProgram(path,plan,machine,release),entries=unpackZip(bytes);
     assert.deepEqual(interpretProgram(bytes,plan,machine).moves.length,path.actions.filter(a=>a.kind==='move').length);
@@ -66,7 +66,10 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
     assert.match(slice,new RegExp(`nozzle id="${tool}" extruder_id="${tool+1}" nozzle_diameter="0.8"`));
     assert.match(slice,/color="#8B5A2B"/);
     const project=JSON.parse(entries.get('Metadata/project_settings.config'));
-    assert.deepEqual(project.filament_colour,['#8B5A2B']);
+    assert.equal(project.filament_colour.length,selector+1);
+    assert.equal(project.filament_colour[selector],'#8B5A2B');
+    assert.ok(project.filament_colour.slice(0,selector).every(color=>color==='#000000'));
+    assert.deepEqual(project.filament_nozzle_map,Array(selector+1).fill(String(tool)));
     assert.equal(project.printer_settings_id,'Bambu Lab H2D 0.8 nozzle');
     assert.ok(project.nozzle_type.every(type=>type==='hardened_steel'));
     const code=entries.get(GCODE).toString();
@@ -80,8 +83,11 @@ test('H2D needs no colour or AMS choice, and rejects only a malformed one',async
   assert.match(entries.get('Metadata/slice_info.config').toString(),new RegExp('color="'+machine.outputs[0].defaultFilamentColor+'"'));
   assert.equal(code.split('\n').filter(l=>l==='M620 S0A H-1').length,2,'no request keeps the first filament path');
   const asksForSlotFour=structuredClone(plan);asksForSlotFour.setup.ams={unit:1,slot:4};
-  const slotFourCode=unpackZip(exportProgram(path,asksForSlotFour,machine,release)).get(GCODE).toString();
-  assert.equal(slotFourCode.split('\n').filter(l=>l==='M620 S0A H-1').length,2,'physical AMS intent does not invent a fourth logical filament');
+  const slotFourEntries=unpackZip(exportProgram(path,asksForSlotFour,machine,release));
+  const slotFourCode=slotFourEntries.get(GCODE).toString(),slotFourProject=JSON.parse(slotFourEntries.get('Metadata/project_settings.config'));
+  assert.equal(slotFourCode.split('\n').filter(l=>l==='M620 S3A H-1').length,2,'slot four selects declared logical filament four');
+  assert.equal(slotFourProject.filament_colour.length,4,'slot four package declares a four-entry mapping table');
+  assert.deepEqual(slotFourProject.filament_colour.slice(0,3),['#000000','#000000','#000000']);
   for(const ams of [{unit:3,slot:1},{unit:1,slot:5},{unit:1,slot:0},{unit:1.5,slot:1},4]){
     const bad=structuredClone(plan);bad.setup.ams=ams;assert.throws(()=>exportProgram(path,bad,machine,release),/AMS choice/);
   }
@@ -162,7 +168,7 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const bounds=path.summary.boundsMm,top=bounds.max[2];
   assert.ok(!/\{[A-Za-z]+\}/.test(start+end),'every template value is rendered');
   assert.match(start,/^M140 S60\nM190 S60$/m);assert.match(start,/^M109 S195$/m,'wipe temperature follows the nozzle temperature');
-  assert.match(start,/^M620 S0A\n(?:.*\n)*?T0\n(?:.*\n)*?M621 S0A$/m,'physical AMS intent leaves the one material on logical filament zero');
+  assert.match(start,/^M620 S4A\n(?:.*\n)*?T4\n(?:.*\n)*?M621 S4A$/m,'second AMS unit uses declared logical filament five');
   assert.ok(start.includes(`G29 A X${bounds.min[0]} Y${bounds.min[1]} I${bounds.max[0]-bounds.min[0]} J${bounds.max[1]-bounds.min[1]}\n`),'bed leveling covers the placed part');
   assert.ok(!/^M73 P/m.test(start+end),'reference progress estimates are not reused');
   assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
