@@ -5719,3 +5719,17 @@ junction. All flight performance remains unvalidated.
   whether the selected H2D tool is left or right. Per-tool diameter arrays and physical-extruder mapping are unchanged.
 - Evidence: H2D exporter regressions require both right 0.6 and right 0.8 jobs to name their selected preset. Hardware
   validation remains the next print; the previous warning was observed on hardware, but this corrected file has not yet run.
+
+## 2026-09-22 — AMS intent no longer masquerades as a logical filament number
+
+- Source: a USB-started one-material H2D validation print configured for AMS slot 4 stopped with HMS
+  `07fe-8012 141723`, “Failed to get AMS mapping table.”
+- Cause: SAAM rendered the requested physical tray number into `M620`/`T`/`M621`. Those commands address the job's
+  logical filament index; Bambu supplies the physical AMS tray mapping separately in the print-start request. The
+  one-material archive therefore requested nonexistent logical filament 4 and the printer could not resolve it.
+- Change: startup and shutdown now use the selected material's logical index. `setup.ams` remains validated and shown
+  as operator intent, but is not encoded as a G-code selector. A one-material job uses logical filament zero whether
+  it is intended for AMS slot 1 or slot 4.
+- Evidence: focused Bambu exporter tests pass for right/left H2D 0.8 mm jobs, explicit slot-4 intent, and X1C intent.
+  The regenerated right-nozzle validation archive contains two `M620 S0A H-1` selections and no `M620 S3A`.
+  Physical slot selection for a USB-started job remains an operator/printer-start action and is not embedded in 3MF.

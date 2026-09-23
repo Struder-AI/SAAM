@@ -99,8 +99,15 @@ function sections(c,plan,machine,output){
   // never descends below the completed path.
   const k=output.constraints,endClearanceZ=fmt(Math.max(c.pathMaxZ,c.bounds.max[2]+k.endLiftMm));
   const parkZ=fmt(Math.max(endClearanceZ,Math.min(k.parkLimitMm,k.parkRiseMm+k.parkHeightFactor*c.bounds.max[2])));
+  // M620/T/M621 select a logical filament in the job, not a physical AMS tray.
+  // The physical tray mapping is supplied by the printer's print-start request.
+  // Encoding plan.setup.ams here makes (for example) a one-filament slot-4 job
+  // request logical filament 4, for which no mapping-table entry exists.
+  feederSelector(plan,machine); // validate the recorded operator intent
+  const filamentTool=usedTools(plan).indexOf(plan.setup.tool);
+  requireThat(filamentTool>=0,'Selected Bambu filament is absent from the job.');
   const values={...plan.setup,physicalTool:toolFor(machine,plan.setup.tool).physicalExtruder,
-    filamentTool:feederSelector(plan,machine),wipeC:plan.setup.nozzleC-20,
+    filamentTool,wipeC:plan.setup.nozzleC-20,
     minX:fmt(c.bounds.min[0]),minY:fmt(c.bounds.min[1]),sizeX:fmt(c.bounds.max[0]-c.bounds.min[0]),sizeY:fmt(c.bounds.max[1]-c.bounds.min[1]),
     endClearanceZ,parkZ,parkSettleZ:fmt(Math.max(endClearanceZ,parkZ-k.parkSettleMm))};
   const render=lines=>lines.map(line=>line.replace(/\{([A-Za-z]+)\}/g,(_,key)=>{
