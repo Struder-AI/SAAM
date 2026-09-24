@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {repoRoot,storeDir,readIndex,storedFreshness,matchingSource} from './store.mjs';
 import {presentationPage} from './presentation.mjs';
 import {snapshotIdentity} from './freshness.mjs';
+import {writeScorePage,scoreMaps} from './score.mjs';
 
 export const regenerate='node scripts/agent-toolkit.mjs regenerate';
 export const noStore=dir=>`No stored map at ${dir}. Run: ${regenerate}`;
@@ -27,7 +28,9 @@ export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve
     sourceInfo[file]=provenance;
   }
   const stale=Object.fromEntries(freshness?pages.map(p=>[p.index,freshness]):[]);
-  return {generated:held.generated,snapshotId:snapshotIdentity(held),pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
+  // Each map's score and its parts, drawn in the viewer's bar while the owner checks the scorer.
+  const scores=Object.fromEntries((await scoreMaps({repo})).scores.map(s=>[s.index,s]));
+  return {generated:held.generated,scores,snapshotId:snapshotIdentity(held),pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
 }
 
 const bytesUnder=async dir=>{
@@ -59,6 +62,7 @@ export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,'dev-ma
   for(const name of await readdir(resolve(out,'svg')))if(!drawn.has(name))await rm(resolve(out,'svg',name),{force:true});
   for(const name of ['sources.js','index.html','stamp.js'])await copyFile(resolve(next,name),resolve(out,name));
   await rm(next,{recursive:true,force:true});
+  await writeScorePage({repo,out});
   const {bytes,files}=await bytesUnder(out);
   return {out,index:resolve(out,'index.html'),pages:model.pages.length,stale:Object.keys(model.stale).length,
     changed:model.changed,changedInputs:model.changedInputs,ms:Date.now()-started,bytes,files};

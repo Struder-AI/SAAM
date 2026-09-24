@@ -55,14 +55,14 @@ the OS browser when a client opens the returned URL itself or a test is headless
 
 | Command | Operations in order | Result |
 |---|---|---|
-| `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
-| `builder-onboarding [--area AREA]` | Read BUILDERS, maker context, skill authoring and the complete skill digest; add the named area's component manual and, for a region of the map, that region page; inspect entry-point availability. | The same context format, with builder sources and an instruction to read the component manual for what is changed and walk the region for its structure. |
-| `developer-onboarding [--area AREA]` | Read the developer orientation and map page `0`; add the named region’s page, or an outside area’s own references; inspect entry-point availability. Component manuals are maker and builder documentation and are never returned. | The same context format, with the orientation, the map pages and an instruction to walk the map. |
+| `maker-onboarding` | Read MAKERS, the complete skill digest and shared print-tool guidance; inspect Node and dependency entry-point availability; fetch `main` for `environment.sync`, the checkout's one-line sync report. | Current source text, paths, resolved links and content hashes, environment observations, and an instruction to choose further reads. |
+| `builder-onboarding [--area AREA]` | Read BUILDERS, maker context, skill authoring and the complete skill digest; add the named area's component manual and, for a region of the map, that region page; inspect entry-point availability and sync. | The same context format, with builder sources and an instruction to read the component manual for what is changed and walk the region for its structure. |
+| `developer-onboarding [--area AREA]` | Read the developer orientation and map page `0`; add the named region’s page, or an outside area’s own references; inspect entry-point availability and sync. Component manuals are not bundled; a developer opens one when the work calls for it. | The same context format, with the orientation, the map pages and an instruction to walk the map. |
 | `read-skill ID [--maker] [--builder] [--developer]` | Read the selected role manuals for one cataloged skill; default to maker. | Text, source paths, hashes and links, selected `roles`, and `unavailableRoles` for absent optional manuals. |
 | `read-map INDEX|DECLARATION [--code] [--details]` | Read one compact stored page: `0` for the regions, `N` for a region, `N.1…` or a declaration path for a function page. | `maps`: that graph or terminal source. `range` is `[first,last]` inclusive; nested locations inherit `file`; empty arrays are omitted. `--code` returns source and edit-safety metadata; only `0` is refused. `--details` returns the full stored packet and scanner evidence. Reads never scan. |
 | `regenerate [INDEX]` | Scan the source and write the stored map. | No index, or `0`, generates everything; a region or page index regenerates that region. The only command that scans. |
 | `read-guidance PATH#HEADING` | Read one published manual or section chosen by the agent. | The same individual-read format. |
-| `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start an exclusively owned Studio; emit its URL/instance ID; request browser opening; read participation guidance and tour state. | A live bidirectional Studio session, initial recipe summary, MAKERS and tour-participation context, plus event-stream and recovery-listener details. |
+| `start-tour` | Create fresh copies of both examples through the tour API; select lesson one and playback start layer; read geometry; start an exclusively owned Studio; emit its URL/instance ID; request browser opening; read participation guidance, tour state and `sync`. | A live bidirectional Studio session, initial recipe summary, MAKERS and tour-participation context, plus event-stream and recovery-listener details. |
 | `open-print DIRECTORY` | Resolve the folder or a saved file to its bundle; read geometry; launch Studio and request browser opening, or with `--studio URL --agent-owner ID` show the print in that live owned Studio and exit; read current recipe and validate any stored export through the owning adapter. | URL, process ID, recipe/revision, geometry bounds, confirmations and generation status. No regeneration. |
 | `create-preview DIRECTORY` | Initialize a recipe or import an STL through the owning print API; read geometry; launch Studio and request browser opening, or with `--studio URL --agent-owner ID` show the new print in that live owned Studio and exit; return current state. | An unapproved bundle, URL, dimensions, recipe/setup assumptions, and explicit or inferred STL units. |
 | `begin-studio-work [DIRECTORY]` | Resolve only target identity; start or claim the request so Studio marks work pending; read current recipe/revision, geometry state and matching tour instruction without checking the old export. | The exact request ID and edit context, with `programChecked: false`. A context-read failure marks that request failed and reports it. |
@@ -84,9 +84,9 @@ the OS browser when a client opens the returned URL itself or a test is headless
 | Core or cross-cutting development | Run `developer-onboarding` only if developer context is missing; include a known `--area` when useful. | Work map-first: walk from `0` with `read-map INDEX|DECLARATION`, read the source with `--code`, and `regenerate [INDEX]` after an edit. |
 
 Developer onboarding returns `DEVELOPER-CONTEXT.md#orientation`, map page `0`
-and a page for each selected region — and nothing else. It returns no component
-manual, no BUILDERS and no maker workflow: the map and that one orientation file
-are the developer reading. Builder onboarding returns the prose — BUILDERS, maker
+and a page for each selected region. It bundles no component manual, BUILDERS
+or maker workflow: developers are maps-native, and open those when the work
+calls for it. Builder onboarding returns the prose — BUILDERS, maker
 context, skill authoring, the skill digest and the selected area’s component
 manual — and adds a region page only for a map area; `--area skills` loads no
 map. The `maps` array is empty for makers. Repeated areas/regions are
@@ -102,7 +102,7 @@ also reused. No onboarding command belongs before tour launch.
 
 ### Individual follow-up reads
 
-Maker and builder onboarding include the complete [skill digest](../../skills/README.md).
+Maker and builder onboarding include the complete [skill digest](../../skills/DIGEST.md).
 Developers read it when selecting or changing skills. The agent
 must judge which manuals and further references fit the task, then read those
 individually before using or changing a skill. Onboarding is starting context;
@@ -192,7 +192,7 @@ its own Studio instance: one owner may own several instances over time, but an
 instance's owner is fixed and no launch attaches to a running server.
 
 Starting a tour does not conduct the interactive lessons or wake an ended chat.
-Keep the returned live session active and follow [tour participation](../../MAKERS.md#tour-participation).
+Keep the returned live session active and follow [tour participation](../../examples/prints/README.md#maker-agent-participation).
 The first screen is prepared before the remaining manuals are read; skill reads
 and slicing are not prerequisites for that first screen.
 

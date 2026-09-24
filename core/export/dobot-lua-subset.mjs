@@ -37,12 +37,6 @@ export class LuaTable {
     return table;
   }
 
-  static fromArray(values) {
-    const table = new LuaTable();
-    values.forEach((value, index) => table.set(index + 1, value));
-    return table;
-  }
-
   get(key) {
     const value = this.map.get(key);
     return value === undefined ? null : value;
@@ -618,15 +612,6 @@ export class LuaRuntime {
     } finally {
       this.file = previousFile;
     }
-  }
-
-  /** Call a global Lua function by name, e.g. runtime.call("RunPlan"). */
-  call(name, args = []) {
-    const fn = this.globals.get(name);
-    if (fn === undefined || fn === null) {
-      throw new LuaSubsetError(`no global function named "${name}"`, { file: this.file });
-    }
-    return this.invoke(fn, args, { file: this.file, line: null, name });
   }
 
   // -- execution -------------------------------------------------------

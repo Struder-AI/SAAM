@@ -300,7 +300,7 @@ async function describeBundle({dir,plan,machine,geometry,geometryArtifact,review
       ? [...new Set([...plan.composition.regions.flatMap(region=>Object.keys(region.skills)),...['supports','rimming-planar','rimming-normal','wave-overhangs'].filter(name=>plan.skills?.[name]?.enabled)])]
       : plan.skills ? Object.entries(plan.skills).filter(([, settings]) => settings.enabled).map(([name]) => name) : []
   };
-  if(machine.id==='denso-vp6242-rc8'){
+  if(machine.id==='denso-vs068a4-rc8a'){
     state.machineConfiguration=validateDensoConfiguration(plan);
     if(!state.machineConfiguration.configured)state.outputAvailability='DENSO installation is unconfigured. Supply tool/work frames, figure, arm group, relay and the rotary control interface before generation.';
   }

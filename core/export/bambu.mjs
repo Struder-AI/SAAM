@@ -150,24 +150,25 @@ function completeProgram(program,code,c,s,job){
   const begin=code.indexOf(BEGIN);
   requireThat(program.moves.every(m=>m.to[2]<=c.pathMaxZ+1e-5),'Bambu body exceeds declared shutdown clearance.');
   let prefixLines=-1;for(const _line of gcodeLines(code.slice(0,begin+BEGIN.length)))prefixLines++;
-  for(const move of program.moves)move.line+=prefixLines;
-  for(const event of program.events)event.line+=prefixLines;
-  program.code=code;
-  program.envelope={contract:c.contract,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,
-    notice:'Firmware probing, wiping, calibration, purge, tool changes and unload follow bounded service recipes; they are not simulated. Playback and timing cover body motion only.'};
+  const notice='Firmware probing, wiping, calibration, purge, tool changes and unload follow bounded service recipes; they are not simulated. Playback and timing cover body motion only.';
   const tray=job.requestedTray;
   const mapping=tray?`Requested AMS ${tray.unit}, slot ${tray.slot}: confirm the printer maps this job's filament to that tray before starting.`:
     'Material and colour are supplied for automatic matching; review the printer’s proposed feed mapping before starting.';
-  program.envelope.job={tool:job.tool,fast_start:job.fastStart,nozzleMm:job.nozzle,nozzleDiametersMm:job.nozzles.map(Number),plate:job.plate.name,
-    logicalFilament:job.used,filamentColor:job.color,requestedTray:tray,amsConnections:job.amsConnections,
-    filamentUsage:program.filamentUsage,filamentSequence:program.filamentSequence,
-    feeds:job.filaments.map((f,i)=>({filament:i,tool:job.selections[i].setup.tool,material:job.material,colour:f.colour,source:f.source??(job.selections[i].setup.ams?{type:'ams',...job.selections[i].setup.ams}:{type:'auto'})}))};
   const materialChangeCount=program.filamentSequence.slice(1).filter((id,i)=>job.selections[id].setup.tool===job.selections[program.filamentSequence[i]].setup.tool).length;
-  if(job.materialChange&&materialChangeCount)program.envelope.job.materialChanges={...job.materialChange,count:materialChangeCount};
-  program.summary.startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+program.envelope.notice+' '+mapping;
-  if(program.envelope.job.materialChanges)program.summary.startup+=` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`;
-  program.summary.clearance='Deposited-height travel checked; physical head clearance is not modeled.';
-  return program;
+  const materialChanges=job.materialChange&&materialChangeCount?{...job.materialChange,count:materialChangeCount}:null;
+  const envelope={contract:c.contract,simulation:'not simulated',initialPosition:c.initialPosition,endClearanceZ:s.endClearanceZ,notice,
+    job:{tool:job.tool,fast_start:job.fastStart,nozzleMm:job.nozzle,nozzleDiametersMm:job.nozzles.map(Number),plate:job.plate.name,
+      logicalFilament:job.used,filamentColor:job.color,requestedTray:tray,amsConnections:job.amsConnections,
+      filamentUsage:program.filamentUsage,filamentSequence:program.filamentSequence,
+      feeds:job.filaments.map((f,i)=>({filament:i,tool:job.selections[i].setup.tool,material:job.material,colour:f.colour,source:f.source??(job.selections[i].setup.ams?{type:'ams',...job.selections[i].setup.ams}:{type:'auto'})})),
+      ...(materialChanges?{materialChanges}:{})}};
+  const startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+notice+' '+mapping
+    +(materialChanges?` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`:'');
+  return {...program,
+    moves:program.moves.map(move=>({...move,line:move.line+prefixLines})),
+    events:program.events.map(event=>({...event,line:event.line+prefixLines})),
+    summary:{...program.summary,startup,clearance:'Deposited-height travel checked; physical head clearance is not modeled.'},
+    code,envelope};
 }
 
 function packageEntries(code,c,program,plan,output,job,s){

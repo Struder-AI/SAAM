@@ -13,7 +13,7 @@ import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
 import {readCompositions,compositionFiles,composePages} from './composition.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {attachOverviewAnchors} from './overview.mjs';
-import {treeNumbering,renumber,markRepeats} from './tree.mjs';
+import {treeNumbering,renumber,markRepeats,drawChains} from './tree.mjs';
 import {destinationFor} from './destination.mjs';
 export {drawnShape,destinationFor} from './destination.mjs';
 
@@ -93,6 +93,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     packet.index=index.get(packet.path)??packet.index;
     for(const c of packet.components)c.index=index.get(`${c.file}::${c.label}`)??c.index;
     for(const f of packet.formulas)f.index=index.get(`${f.file}::${f.label}`)??f.index;
+    for(const s of packet.state??[])s.ownerIndex=index.get(s.owner)??s.ownerIndex;
     for(const r of packet.requires)r.index=index.get(r.by)??r.index;
   }
   // Incoming calls invert actual call components. Class membership and closure containment
@@ -103,6 +104,12 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     const list=from.get(`${c.file}::${c.label}`)??from.set(`${c.file}::${c.label}`,[]).get(`${c.file}::${c.label}`);
     const labels=[...new Set(packet.wires.filter(w=>w.to===c.index&&w.label).map(w=>w.label))].sort(order);
     list.push({index:packet.index,...(labels.length?{labels}:{})});
+  }
+  // A callable passed into a parameter is invoked by the page that names it as a parameter
+  // target, though that page draws no box for it. The relationship is a caller either way.
+  for(const packet of packets.values())for(const port of packet.inputs??[])for(const row of port.parameterTargets??[]) {
+    const list=from.get(row.path)??from.set(row.path,[]).get(row.path);
+    if(!list.some(entry=>entry.index===packet.index))list.push({index:packet.index,labels:[port.name]});
   }
   // Calls into mapped code from source the map does not cover. An active caller — code that runs
   // while a person makes a part or operates Studio — becomes a row on the callee's page carrying
@@ -254,23 +261,49 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   }
   const rowCount=pages=>pages.reduce((n,p)=>n+[...(p.uncertainty??[]),...(p.unresolved??[])]
     .reduce((rows,row)=>rows+(row.count??1),0),0);
-  for(const page of destinations.values()) {
-    if(page.kind!=='region'&&!(page.kind==='group'&&page.structural))continue;
-    for(const component of page.components??[]) {
-      const path=component.path??(component.file&&component.label?`${component.file}::${component.label}`:null);
-      const node=path&&packets.get(path);
-      if(node) {
-        for(const field of ['uncertainty','unresolved']) {
-          if(node[field]?.length)component[field]=node[field];else delete component[field];
+  const nodeOf=component=>{
+    const path=component.path??(component.file&&component.label?`${component.file}::${component.label}`:null);
+    return path?packets.get(path)??null:null;
+  };
+  const heldRows=component=>rowCount(component.kind==='group'
+    ?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[])
+    :packetsByFile.get(component.file)??[]);
+  // This runs after the chains are drawn, so a box a leaf brought onto a region or group page
+  // carries the rows of the node it draws like every other box on that page.
+  const attachContainmentFindings=pages=>{
+    for(const page of pages) {
+      if(page.kind!=='region'&&!(page.kind==='group'&&page.structural))continue;
+      for(const component of page.components??[]) {
+        const node=nodeOf(component);
+        if(node) {
+          for(const field of ['uncertainty','unresolved']) {
+            if(node[field]?.length)component[field]=node[field];else delete component[field];
+          }
+          continue;
         }
-        continue;
+        const count=heldRows(component);
+        if(count)component.findings=count;else delete component.findings;
       }
-      const held=component.kind==='group'?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[])
-        :packetsByFile.get(component.file)??[];
-      const count=rowCount(held);
-      if(count)component.findings=count;else delete component.findings;
     }
-  }
+  };
+  // A function, method, handler or class page is a drawing too, so the same rule holds there: the
+  // box says how many findings the declaration it draws has, and the rows are listed once per
+  // node below the drawing however many boxes repeat that node. The page's own rows stay where
+  // they are and are never repeated into that list. This runs after the chains are drawn, so a
+  // box a leaf brought onto the map carries its count like every other box.
+  const attachNodeFindings=pages=>{
+    for(const page of pages) {
+      if(['root','region','group'].includes(page.kind)||page.destination!=='graph')continue;
+      const sections=new Map();
+      for(const component of page.components??[]) {
+        const node=nodeOf(component),count=node?rowCount([node]):heldRows(component);
+        if(count)component.findings=count;else delete component.findings;
+        if(node&&count&&node.path!==page.path&&!sections.has(node.path))sections.set(node.path,{index:component.index,path:node.path,
+          ...Object.fromEntries(['uncertainty','unresolved'].filter(field=>node[field]?.length).map(field=>[field,node[field]]))});
+      }
+      if(sections.size)page.nodeFindings=[...sections.values()];else delete page.nodeFindings;
+    }
+  };
 
   attachOverviewAnchors(destinations,index);
 
@@ -278,10 +311,16 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   // map shows is not published.
   const sourceByPath=Object.fromEntries([...index,...Object.values(groupPages).map(p=>[p.path,p.index])]
     .sort((a,b)=>order(a[0],b[0])));
-  const tree=treeNumbering(destinations);
+  const {tree,chains}=treeNumbering(destinations);
+  drawChains(destinations,chains);
+  attachContainmentFindings(destinations.values());
+  attachNodeFindings(destinations.values());
   const placed=new Set([...destinations].filter(([at])=>tree.has(at)).map(([,page])=>page));
   const unplaced=[...destinations.values()].filter(page=>!placed.has(page)).map(page=>page.path??page.file).sort(order);
   renumber([...placed],tree);
+  // A state node names the declaration that owns the binding. That address is the tree's, like
+  // every other address on the page, so it is published with them.
+  for(const page of placed)for(const s of page.state??[])if(tree.has(s.ownerIndex))s.ownerIndex=tree.get(s.ownerIndex);
   for(const [path,page] of packets)if(!placed.has(page))packets.delete(path);
   const publish=pages=>Object.fromEntries([...pages].filter(page=>placed.has(page))
     .map(page=>[page.index,page]).sort((a,b)=>byIndex(a[0],b[0])));
@@ -532,9 +571,9 @@ export async function readGenerated(target,{repo=repoRoot,code=false,readSource=
   if(!held)return {generated:true,stale:{regenerate:'0'}};
   const key=String(target).replaceAll('\\','/').replace(/\/$/,'');
   const at=/^\d+(\.\d+)*$/.test(key)?key:held.byPath[key];
-  if(at===undefined)throw Error(`No generated page for ${key}. Read 0 for the regions.`);
+  if(at===undefined)throw Error(`No node ${key}. Read 0 for the regions.`);
   const page=at==='0'?held.root:held.groupPages?.[at]??held.regionPages[at]??await nodePage(dir,held,at);
-  if(!page)throw Error(`No generated page ${at}. Read 0 for the regions.`);
+  if(!page)throw Error(`No node ${at}. Read 0 for the regions.`);
   const stale=await storedFreshness(held,{repo,readSource,files});
   const described={...page,destination:destinationFor(page),...(stale?{stale}:{})};
   if(code||described.destination==='code')return withSources(
@@ -608,7 +647,14 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
   for(const record of Object.values(held.records))
     nodes.push(...Object.values((await json(resolve(dir,'files',record))).pages));
   const totals={regions:held.regions.length,files:Object.keys(held.files).length,pages:nodes.length,
-    linked:nodes.reduce((n,p)=>n+p.components.length,0),
+    // Every linked call a page holds, whatever the drawing does with it: a box it draws, each
+    // member of an authored group drawn as one box, plus the callables a caller passes into a
+    // parameter this page invokes, which are drawn on the caller's page and named here as rows.
+    // A box a leaf drew onto the map above it repeats a call already counted on the leaf's
+    // own page; it is context there, not a relationship of its own.
+    linked:nodes.reduce((n,p)=>n+p.components.filter(c=>!c.inlined)
+        .reduce((calls,c)=>calls+(c.kind==='group'?(c.members?.length??c.count??1):1),0)
+      +(p.inputs??[]).reduce((rows,port)=>rows+(port.parameterTargets?.length??0),0),0),
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
     outside:nodes.reduce((n,p)=>n+(p.outside??0),0),
     platform:nodes.reduce((n,p)=>n+(p.platform??0),0)};

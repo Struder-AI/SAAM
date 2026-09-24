@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {defaults} from '../../../core/print/plan.mjs';
 import {initBundle,generateBundle} from '../../../core/print/bundle.mjs';
 import {circlePoints} from '../../../core/geom/cylinder.mjs';
-import {loopMotif,tileVaseMotif} from './motif.mjs';
+import {loopTile,tileVasePattern} from './tile.mjs';
 
 // A vase host is normally solid. The recipe creates the hollow printed wall.
 export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
@@ -27,13 +27,13 @@ export function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
 }
 
 export function loopDemoPlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
-  radius=14,motifDepthMm=4.8,motifWidthMm=5.6,exterior='smooth',waveDepthMm=0}={}){
+  radius=14,tileDepthMm=4.8,tileWidthMm=5.6,exterior='smooth',waveDepthMm=0}={}){
   if(!['smooth','scalloped','both-scalloped'].includes(exterior))throw new Error('Choose smooth, scalloped or both-scalloped.');
   const plan=defaults();
   const perimeter=2*Math.PI*(radius-plan.process.lineWidthMm/2),rise=plan.process.layerMm;
-  const pattern={motif:loopMotif({widthCells:motifWidthMm*loopsPerTurn/perimeter,depthMm:motifDepthMm,
+  const pattern={tile:loopTile({widthCells:tileWidthMm*loopsPerTurn/perimeter,depthMm:tileDepthMm,
     samples:samplesPerLoop,beadHeightMm:rise,exterior}),cellsPerTurn:loopsPerTurn,courseRiseMm:rise,repeats:courses,tiltDeg:0};
-  const {points}=tileVaseMotif(pattern).paths[0];
+  const {points}=tileVasePattern(pattern).paths[0];
   const top=plan.process.firstLayerMm+Math.max(...points.map(p=>p[1]))+(courses-1)*rise;
   plan.geometry=loopHost({radius,heightMm:top,waveDepthMm});
   plan.placement={xMm:125,yMm:105};
@@ -46,7 +46,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(resolve(process.argv[1])).hr
   const variant=process.argv[3]??'smooth';
   if(!['smooth','scalloped','both-scalloped','wavy'].includes(variant))throw new Error('Choose smooth, scalloped, both-scalloped or wavy.');
   const directory=resolve(process.argv[2]??`Prints/development/${variant}-loop-vase`);
-  const options=variant==='wavy'?{exterior:'scalloped',waveDepthMm:.6,courses:36,loopsPerTurn:32,motifWidthMm:3.2,motifDepthMm:2.4,samplesPerLoop:40}:
+  const options=variant==='wavy'?{exterior:'scalloped',waveDepthMm:.6,courses:36,loopsPerTurn:32,tileWidthMm:3.2,tileDepthMm:2.4,samplesPerLoop:40}:
     {exterior:variant};
   const plan=loopDemoPlan(options);
   await initBundle(directory,plan);

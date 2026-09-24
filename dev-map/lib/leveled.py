@@ -13,8 +13,44 @@ MIN_W = 96
 
 HGAP = 96           # between columns; GH's median wire dx less its median width
 VGAP = 30           # minimum clear space between stacked boxes
-TARGET_W = 1800     # wrap onto another map row past this, unless the page names its own
+TARGET_W = 1800     # the fallback wrap width, for a page that names its own
 ROW_GAP = 96        # clear space between map rows, for a wrap wire to run in
+
+# How many calls share one rank when the call order is what spreads them. Ten keeps a rank
+# about a viewport tall at a zoom where a label is legible, so a wire between neighbouring
+# ranks has both ends on screen — which is the whole point of ranking them.
+RANK_SPREAD = 10
+# The shape a page is folded to. A drawing taller than it is wide stops being a map and
+# becomes a list, so the number of map rows is chosen to land near this width:height rather
+# than at a fixed pixel width. Wider than the stage, because reading a flow is a pan along
+# its length and a page that needs no vertical pan reads as one picture.
+ASPECT = 2.6
+MAP_ROWS_MAX = 8
+RELAX = 1.6
+# Past this separation a wire's two ends are not on screen together at a zoom where a label
+# is legible, so the wire carries the name of its other end at each end. Half a 1600×900
+# stage at 76% — the zoom at which a 14.5px label draws at 11px.
+LONG_DX, LONG_DY = 1050.0, 590.0
+FS_TAG = 9.0
+STUB = 46.0         # how much of a long wire is drawn at each of its ends
+TAG_LEN = 30        # characters of the other end's name an end tag carries
+# A hub is a box so many long wires meet at that naming each of them there would bury the box.
+# Its own end keeps the stub and drops the name; the far end still carries this box's name,
+# which is the end the reader is standing at when they ask.
+FAN_MAX = 6
+# The far label: the box's name alone, set as large as the box will hold, for the zoom at
+# which the drawing is a shape rather than a text. Never smaller than the near title, because
+# then it would be a second way of saying the same thing worse.
+FAR_MAX = 40.0
+
+# How a wire whose two ends are further apart than one viewport is drawn. REVERTABLE, like
+# WRAP_STYLE: change this one name and every page redraws.
+#
+#   "ends"  only the two ends are stroked, each carrying the name of the other end. A page
+#           whose wires all reach across it is a haystack; a wire you cannot see both ends of
+#           is not followed by eye anyway, so it is drawn as what the reader can use.
+#   "full"  the whole curve is stroked, and the end names are added to it.
+LONG_STYLE = "ends"
 
 # How a wire that crosses from one map row to a later one is drawn. REVERTABLE: change this
 # one name, rebuild, and every page redraws -- nothing else in the tree depends on which is
@@ -76,6 +112,11 @@ class LNode:
         # there to point at in conversation.
         self.num = num
         self.id, self.label, self.kind = nid, label, kind
+        # Where this box stands in the order its page's body invokes things. Set by whoever
+        # builds the page from the invocation wire's own number; it ranks the box when no
+        # value wire does. `None` means the page never said, and the box is placed by its
+        # wires alone.
+        self.seq = None
         self.anchor, self.explodes, self.note, self.tag = anchor, explodes, note, tag
         # Flow numbers that also own this declaration. Drawn as a left-facing stub carrying
         # the number and nothing else -- there is no node standing for the other flow
@@ -266,20 +307,31 @@ class Page:
             for d in fsucc[i]:
                 fpred[d].append(i)
 
-        # 1 - column by longest path over forward edges only
+        # 1 - column: data dependency first, invocation order where there is no data wire.
+        #
+        #     Longest path over the value wires alone answers "who must come before whom",
+        #     and on a body that threads no values between its calls it answers it for every
+        #     box the same way -- zero -- so the page becomes one column as tall as the
+        #     function is long. The call order is the other half of the flow and it is
+        #     already on the page as the invocation wire's number; taking it as a LOWER
+        #     BOUND on the column, in coarse phases of RANK_SPREAD calls, spreads that
+        #     column into a sequence without ever claiming a value moved. A value wire still
+        #     outranks it: a producer is left of its consumer whatever their call numbers.
+        phase = self._phases()
+        order = self._topological(ids, fsucc, fpred)
         column = {}
-
-        def depth(i, seen=()):
-            if i in column:
-                return column[i]
-            if i in seen:
-                return 0
-            v = 0 if not fpred[i] else max(depth(p, seen + (i,)) + 1 for p in fpred[i])
-            column[i] = v
-            return v
-
-        for i in ids:
-            depth(i)
+        for i in order:
+            column[i] = max(max((column[p] + 1 for p in fpred[i] if p in column), default=0),
+                            phase.get(i, 0))
+        # A box with no call number of its own -- owned state, a loop, a captured value --
+        # sits beside what it feeds rather than at the page's left edge, so a state read
+        # stands immediately left of the box that reads it. Moving it right is always legal:
+        # its own producers are further left still.
+        for i in reversed(order):
+            if i in phase or not fsucc[i]:
+                continue
+            column[i] = max(max((column[p] + 1 for p in fpred[i]), default=0),
+                            min(column[s] for s in fsucc[i]) - 1)
         # ports pin the boundary: an in-port is the left edge, an out-port the right
         for n in self.nodes:
             if n.kind == "port" and not fpred[n.id]:
@@ -338,7 +390,22 @@ class Page:
                 map_rows.append(cur)
         else:
             total = sum(lw.values())
-            nb = max(1, math.ceil(total / (self.width or TARGET_W)))
+            if self.width:
+                nb = max(1, math.ceil(total / self.width))
+            else:
+                # Fold to a shape, not to a width. A fixed wrap width turns a page with many
+                # ranks into a stack of short bands -- the taller the page gets, the narrower
+                # it is told to be -- so the count is chosen from what the fold would produce:
+                # a band total/nb wide, nb of them and a gap between each.
+                # The tallest rank, packed, times what the relaxation below opens it out to:
+                # a band ends up about half as tall again as its boxes stacked, because the
+                # boxes move to meet their wires. Measured over the 758 pages, 2026-09-22.
+                tall = RELAX * (max((sum(n.h for n in columns[l]) + VGAP * (len(columns[l]) - 1)
+                                     for l in L), default=1.0) or 1.0)
+                nb = min(range(1, MAP_ROWS_MAX + 1),
+                         key=lambda k: abs(math.log((total / k)
+                                                    / (k * tall + (k - 1) * ROW_GAP))
+                                           - math.log(ASPECT)))
             aim = total / nb      # even map_rows, so one stray column never wraps alone
             map_rows, cur, cw = [], [], 0.0
             for l in L:
@@ -446,6 +513,14 @@ class Page:
         self.right_edge = max((n.x + n.w for n in self.nodes), default=MARGIN_L) + 24
         self.gutter_lane = {}
         self.wrapped = set()
+        # Which wires cannot be seen whole. Decided before routing, because a wire drawn as
+        # its ends carries its label at the arriving end rather than out in the middle of a
+        # curve that is not there.
+        self.long = {k for k, e in enumerate(self.edges) if self._far(e)}
+        self.fan = {}
+        for k in self.long:
+            for end in (self.edges[k]["src"], self.edges[k]["dst"]):
+                self.fan[end] = self.fan.get(end, 0) + 1
         self.routes = [self._route(e, back) for e in self.edges]
         self.W = max((n.x + n.w for n in self.nodes), default=MARGIN_L) + MARGIN_R
         self.H = max((n.y + n.h for n in self.nodes), default=MARGIN_T) + MARGIN_B
@@ -454,6 +529,52 @@ class Page:
                 self.H = max(self.H, lab[1] + 20 + 12 * (len(e["label"].split("\n")) - 1))
         self.zone_rects = self._zones()
         return self
+
+    def _phases(self):
+        """-> {node id: column floor}. A box invoked as the page's Nth call gets a floor of
+        N // RANK_SPREAD, so calls made near each other in the body stand in the same rank and
+        the body reads left to right. The call numbers are ranked densely first: what matters
+        is the sequence, not the gaps a skipped call site leaves in it."""
+        seen = sorted({n.seq for n in self.nodes if n.seq is not None})
+        place = {s: i for i, s in enumerate(seen)}
+        return {n.id: place[n.seq] // RANK_SPREAD
+                for n in self.nodes if n.seq is not None}
+
+    @staticmethod
+    def _topological(ids, fsucc, fpred):
+        """Kahn over the forward (acyclic) edges; anything a cycle held back follows in
+        declaration order, so every node is ranked exactly once."""
+        left = {i: len(fpred[i]) for i in ids}
+        queue = [i for i in ids if not left[i]]
+        out = []
+        while queue:
+            i = queue.pop(0)
+            out.append(i)
+            for d in fsucc[i]:
+                left[d] -= 1
+                if not left[d]:
+                    queue.append(d)
+        placed = set(out)
+        return out + [i for i in ids if i not in placed]
+
+    def _far(self, e):
+        """A wire whose ends are further apart than a viewport at the zoom where a label is
+        legible: the reader cannot hold both ends at once, so it is a wire that needs naming."""
+        a, b = self.index[e["src"]], self.index[e["dst"]]
+        return abs(a.cx - b.cx) > LONG_DX or abs(a.cy - b.cy) > LONG_DY
+
+    @staticmethod
+    def _stub(head, next_point):
+        """The first STUB pixels of a wire, along its own tangent, so a stub leaves the box
+        the way the whole wire would have."""
+        dx, dy = next_point[0] - head[0], next_point[1] - head[1]
+        span = math.hypot(dx, dy) or 1.0
+        return (head[0] + dx / span * STUB, head[1] + dy / span * STUB)
+
+    def _tag(self, nid):
+        node = self.index[nid]
+        text = (node.num + " " if node.num else "") + node.lines[0]
+        return text[:TAG_LEN - 1] + "…" if len(text) > TAG_LEN else text
 
     def _zones(self):
         """-> [(label, x0, x1, fill, ink)]. Zones are ordered by where their members
@@ -581,6 +702,11 @@ class Page:
             dy = self.slot.get(("in", k_i), b.cy)
             k = min(150.0, max(34.0, (dx - sx) * 0.55))
             pts = [(sx, sy), (sx + k, sy), (dx - k, dy), (dx, dy)]
+        if k_i in self.long and LONG_STYLE == "ends" and e["label"]:
+            # The label belongs where the wire arrives, not in the middle of a curve the page
+            # does not draw.
+            end = self._stub(pts[-1], pts[-2])
+            return pts, (end[0] - 4, end[1] - 24)
         lab = bezier_at(pts[:4], 0.5) if e["label"] else None
         return pts, lab
 
@@ -619,15 +745,43 @@ class Page:
             # of the page being folded, not of the flow. Drawn recessive so it reads as
             # "continues below" instead of competing with the band it crosses.
             wrap = ' opacity="0.5"' if k_i in self.wrapped else ""
-            d = f'M{pts[0][0]:.1f},{pts[0][1]:.1f}'
-            for i in range(1, len(pts), 3):
-                d += " C" + " ".join(f"{x:.1f},{y:.1f}" for x, y in pts[i:i + 3])
+            broken = k_i in self.long and LONG_STYLE == "ends"
+            if broken:
+                # Both ends, stroked; the span between them is the end tags below, which say
+                # what the curve would have said and can be clicked to stand at the other end.
+                out, into = self._stub(pts[0], pts[1]), self._stub(pts[-1], pts[-2])
+                d = (f'M{pts[0][0]:.1f},{pts[0][1]:.1f} L{out[0]:.1f},{out[1]:.1f} '
+                     f'M{into[0]:.1f},{into[1]:.1f} L{pts[-1][0]:.1f},{pts[-1][1]:.1f}')
+            else:
+                d = f'M{pts[0][0]:.1f},{pts[0][1]:.1f}'
+                for i in range(1, len(pts), 3):
+                    d += " C" + " ".join(f"{x:.1f},{y:.1f}" for x, y in pts[i:i + 3])
             # The endpoints ride on the path so the viewer can thicken every wire touching
             # a hovered box -- what a box connects to is the question the drawing is for.
-            o.append(f'<path class="fm-edge"{_ends(e)} d="{d}" fill="none" '
-                     f'stroke="{st["stroke"]}" '
+            o.append(f'<path class="fm-edge{" long" if broken else ""}"{_ends(e)} d="{d}" '
+                     f'fill="none" stroke="{st["stroke"]}" '
                      f'stroke-width="{st["sw"]}"{dash}{wrap} '
                      f'marker-end="url(#{st["head"]})"/>')
+        for k_i in sorted(self.long):
+            e = self.edges[k_i]
+            pts, _lab = self.routes[k_i]
+            st = EDGE[e["kind"]]
+            for end, other, mark, pull in ((e["src"], e["dst"], "▸", (pts[0], pts[1])),
+                                           (e["dst"], e["src"], "◂", (pts[-1], pts[-2]))):
+                if self.fan.get(end, 0) > FAN_MAX:
+                    continue
+                at = self._stub(*pull)
+                text = f'{mark} {self._tag(other)}'
+                right = pull[1][0] >= pull[0][0]
+                x = at[0] + (4 if right else -4)
+                o.append(f'<g class="fm-endtag"{_ends(e)} '
+                         f'data-jump="{escape(other, {chr(34): "&quot;"})}">'
+                         f'<rect x="{x - (0 if right else tw(text, FS_TAG)) - 3:.1f}" '
+                         f'y="{at[1] - 16:.1f}" width="{tw(text, FS_TAG) + 6:.1f}" height="13" '
+                         f'rx="3" fill="#ffffff" opacity="0.88"/>'
+                         f'<text x="{x:.1f}" y="{at[1] - 6:.1f}" font-size="{FS_TAG}" '
+                         f'text-anchor="{"start" if right else "end"}" '
+                         f'fill="{st["stroke"]}">{escape(text)}</text></g>')
         for e, (_pts, lab) in zip(self.edges, self.routes):
             if not lab:
                 continue
@@ -658,6 +812,7 @@ class Page:
         dash = f' stroke-dasharray="{s["dash"]}"' if "dash" in s else ""
         o.append(f'<g class="fm-node"{_attrs(n)}>')
         if n.co:
+            o.append('<g class="fm-near">')
             x, y = n.x + 10, n.y + n.box_h
             callers = getattr(n, "co_role", "") == "calledFrom"
             o.append(f'<path class="fm-caller-arrow" d="M{x:.1f},{y:.1f} L{x:.1f},{y + CO_LEN:.1f}" '
@@ -679,9 +834,24 @@ class Page:
                     o.append(f'<text x="{tx:.1f}" y="{ty:.1f}" font-size="{FS_FOOT}" fill="{CO_TC}">{escape(label)}</text>')
                     o.append('</g>')
                     tx += tw(label, FS_FOOT)
+            o.append('</g>')
         o.append(f'<rect x="{n.x:.1f}" y="{n.y:.1f}" width="{n.w:.1f}" height="{n.box_h:.1f}" '
                  f'rx="{s["rx"]}" fill="{s["fill"]}" stroke="{s["stroke"]}" '
                  f'stroke-width="{s["sw"]}"{dash}/>')
+        # Two ways of saying the same box, and the viewer shows one of them: the whole box
+        # when a reader can read it, and the name alone, as large as it will go, when the
+        # page is fitted and the drawing is a shape.
+        far = min(FAR_MAX, (n.w - 2 * PADX) / (max(len(line) for line in n.lines) * 0.60),
+                  (n.box_h - 10) / (len(n.lines) * 1.22))
+        far = max(far, FS_TITLE)
+        fy = n.cy - (len(n.lines) - 1) * far * 0.61 + far * 0.35
+        o.append('<g class="fm-far">')
+        for line in n.lines:
+            o.append(f'<text x="{n.cx:.1f}" y="{fy:.1f}" font-size="{far:.1f}" '
+                     f'font-weight="700" text-anchor="middle" fill="{s["tc"]}">'
+                     f'{escape(line)}</text>')
+            fy += far * 1.22
+        o.append('</g><g class="fm-near">')
         ty = n.y + PADY + LH_TITLE * .75
         for i, line in enumerate(n.lines):
             tx = n.x + PADX
@@ -713,4 +883,4 @@ class Page:
         if foot:
             o.append(f'<text x="{n.x + PADX:.1f}" y="{ty + FS_FOOT:.1f}" '
                      f'font-size="{FS_FOOT}" fill="{col}">{escape(foot)}</text>')
-        o.append("</g>")
+        o.append("</g></g>")

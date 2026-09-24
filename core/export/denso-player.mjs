@@ -5,17 +5,17 @@ import {requireThat,distance} from '../geom/tolerance.mjs';
 import {validateDensoConfiguration} from '../machine/denso.mjs';
 import {rotateZ,bedPoint,validatePose,interpolateDirections} from '../path/pose.mjs';
 export const DENSO_LIMITATIONS=[
-  'RC8 is confirmed; mounting, calibration and rotary installation are stated setup assumptions, not measured facts.',
+  'RC8A is confirmed; mounting, calibration and rotary installation are stated setup assumptions, not measured facts.',
   'Cartesian linear T poses, @0 endpoints, relative EX and TIME are interpreted. IK, reach, singularities, joint and motion limits and collisions are deferred to commissioning/controller behavior.',
   'Playback assumes synchronized linear progress of Cartesian and rotary commands at external speed 100%. Actual acceleration, external-axis interpolation, override, endpoint stops, IO latency and controller acceptance remain unverified.',
   'Relay volume is an estimate from requested duration and configured rate, not measured or metered extrusion. Continuous path geometry does not establish smooth deposition with @0 endpoint commands.',
   'External positioning at the declared start, calibrated tool/work definitions, rotary zero and external heating are prerequisites. No heating, homing or startup positioning is inserted.',
-  'Delivery is a source ZIP for a WINCAPS III project. RC8 compilation/import and physical execution have not been validated.'
+  'Delivery is a source ZIP for a WINCAPS III project. RC8A compilation/import and physical execution have not been validated.'
 ];
 export const toWork=(point,c)=>rotateZ(point,c.workYawDeg).map((v,i)=>v+c.workOffsetMm[i]);
 export const fromWork=(point,c)=>rotateZ(point.map((v,i)=>v-c.workOffsetMm[i]),-c.workYawDeg);
 export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
-  requireThat(machine.id==='denso-vp6242-rc8'&&plan.output==='denso-pacscript','Incompatible DENSO output.');
+  requireThat(machine.id==='denso-vs068a4-rc8a'&&plan.output==='denso-pacscript','Incompatible DENSO output.');
   validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
   requireThat(files['main.pcs']&&Object.values(files).every(x=>typeof x==='string'),'Missing PacScript entry.');
   const functions=new Map(),visited=new Set();
@@ -91,5 +91,5 @@ export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
     materialModel:'relay-estimate',filamentMm:null,motionSeconds:seconds,timing:'Requested TIME at 100% external speed; nominal synchronized progress only.',coordinateFrame:'part-relative deposition; rotating bed in fixed-room view'};
   return {moves,events,seconds,volumeMm3:volume,summary,language:'denso-pacscript',sources:files,finalPosition:bedPoint(room,rotary,c.rotaryCenterMm,true),
     checks:['strict-pacscript-subset','tool-work-frame-identity','relative-rotary-commands','requested-time','relay-state','commanded-volume-intent'],limitations:DENSO_LIMITATIONS,
-    notice:'Experimental RC8 command preview. Nominal timing/rotary interpolation; reach, joint limits, collisions and physical deposition unchecked.'};
+    notice:'Experimental RC8A command preview. Nominal timing/rotary interpolation; reach, joint limits, collisions and physical deposition unchecked.'};
 }

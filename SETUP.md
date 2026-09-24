@@ -37,5 +37,5 @@ Reuse completed setup while its relevant dependencies and environment are
 unchanged. A new agent or print does not require another setup run.
 
 For development demos and print commands, use [print tools](core/print/USAGE.md)
-and the relevant [skill manual](skills/README.md). [Studio](studio/README.md)
+and the relevant [skill manual](skills/DIGEST.md). [Studio](studio/README.md)
 owns launch behavior, print directories and client permissions.

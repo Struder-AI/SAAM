@@ -1,6 +1,6 @@
 ---
 name: rimming-planar
-description: Experiment with thin walls that support selected edges so a planned bridge can span the area between them. A maker-assigned spline surface connects the bed or another edge to the supported edge; paired beads use horizontal offsets.
+description: Experimental. Thin walls that hold up selected edges so a planned bridge can span between them; paired beads offset horizontally from a maker-assigned spline surface.
 ---
 
 # Rimming with horizontal offsets

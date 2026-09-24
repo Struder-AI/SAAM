@@ -32,22 +32,11 @@
           ]
         },
         {
-          "id": "policies-ordering",
-          "label": "travelPoliciesAndStrokeOrdering",
+          "id": "policies",
+          "label": "travelPolicies",
           "members": [
             "core/path/builder.mjs::planarPolicy",
-            "core/path/builder.mjs::surfacePolicy",
-            "core/path/builder.mjs::beadVolume"
-          ],
-          "groups": [
-            {
-              "id": "policies",
-              "label": "travelPolicies",
-              "members": [
-                "core/path/builder.mjs::planarPolicy",
-                "core/path/builder.mjs::surfacePolicy"
-              ]
-            }
+            "core/path/builder.mjs::surfacePolicy"
           ]
         }
       ]

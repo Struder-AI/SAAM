@@ -245,5 +245,3 @@ export function candidateSpans(patch, coefficients) {
   }
   return spans;
 }
-
-export const height = (patch, u, v) => evaluate(patch, u, v, false).point[2];

@@ -1,6 +1,5 @@
 import {TOUR_STEPS,TOUR_LESSONS as L} from './tour-catalog.mjs';
 import {hasUnpreparedEdit} from './work-state.mjs';
-export const needsTourGeometryReview=()=>false;
 export const needsTourToolpath=state=>Boolean(state?.tour?.active&&state.tour.directory===state.localPrintDirectory
   &&state.tour.step>=L.playback&&!state.generationError&&!state.generationCancelled&&!state.outputAvailability
   &&!hasUnpreparedEdit(state.work?.requests?.filter(r=>r.printId===state.work.printId),state.work?.snapshot)&&(!state.program||state.programError));

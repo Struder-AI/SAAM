@@ -2,7 +2,8 @@
 // call-boundary tracing stays in the stored packet, available through --details.
 import {structuralOverview} from './overview.mjs';
 import {invocationInstances} from './instances.mjs';
-const referenceFlags = ['unknown', 'positionUnknown', 'executionUnknown', 'possibleTarget', 'usesUnknown',
+import {invocationWires} from './invocation.mjs';
+const referenceFlags =['unknown', 'positionUnknown', 'executionUnknown', 'possibleTarget', 'usesUnknown',
   'optional', 'omitted', 'defaulted', 'spread', 'rest', 'unmapped'];
 const dataPath=/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/;
 function callerReferences(references) {
@@ -62,6 +63,12 @@ function uncertaintyRows(rows) {
     return {...shared,count:group.length,bindings};
   });
 }
+// Every finding row says which file it is about. A row is read on its node's own page, on a box
+// that draws that node, and in a node section of a page that is not the node's own, so the file
+// is the node's and travels with the row. The compact read drops it again wherever it only
+// repeats the file already in scope.
+const located=(rows,file)=>!file||!rows?.length?rows:rows.map(row=>row.file===undefined?{file,...row}:row);
+const fileOf=path=>path?.includes('::')?path.slice(0,path.indexOf('::')):undefined;
 export function presentationPage(page) {
   page = invocationInstances(structuralOverview(page));
   // Class pages show relationships between members/groups, not execution instances.
@@ -105,15 +112,18 @@ export function presentationPage(page) {
   page = callerFields(visible);
   const component = c => {
     // A box carries the finding rows of the node it draws, reduced exactly as that node's own
-    // page reduces them.
-    if (c.uncertainty) c = {...c, uncertainty: uncertaintyRows(c.uncertainty)};
+    // page reduces them, and located in the node's own file.
+    const nodeFile = c.file ?? page.file;
+    if (c.uncertainty) c = {...c, uncertainty: located(uncertaintyRows(c.uncertainty), nodeFile)};
+    if (c.unresolved?.length) c = {...c, unresolved: located(c.unresolved, nodeFile)};
     c = callerFields(c,true);
     // The group's own page owns its membership. An enclosing page needs only
     // its address, label and count; raw membership remains in --details.
     if(c.kind==='group'){const {members,files,...group}=c;return group;}
-    if (c.captures) c = {...c, captures: c.captures.map(({name,access,reference,valueUnknown,lifetimeUnknown,mutationUnknown}) =>
-      ({name,access,...(reference?{reference:true}:{}),...(valueUnknown?{valueUnknown:true}:{}),...(lifetimeUnknown?{lifetimeUnknown:true}:{}),
-        ...(mutationUnknown?{mutationUnknown:true}:{})}))};
+    // What a closure captures is drawn: the holder's own bindings are state nodes wired to this
+    // box, and the analysis limits on them are finding rows. The box says it is a function
+    // value; it does not also recite the capture list as text.
+    if (c.captures) {const {captures, ...box} = c; c = box;}
     if (c.reference === 'callable') return c;
     const calls = (page.callBindings ?? []).filter(call => c.id
       ? call.instance === c.id : call.callee === (c.path ?? `${c.file}::${c.label}`));
@@ -140,7 +150,7 @@ export function presentationPage(page) {
     // Boxes identify an operation and its source. Its implementation belongs
     // under that source click, not repeated as a second body on the drawing.
     const fields = ['id', 'kind', 'file', 'line', 'endLine', 'column',
-      'binding', 'collection', 'operation', 'callee', 'gate', 'optional', 'scope', 'targets', 'possibleTarget', 'callKind',
+      'binding', 'collection', 'operation', 'callee', 'gate', 'optional', 'scope', 'targets', 'possibleTarget', 'callKind', 'keptFor',
       'receiver', 'member', 'optionalReceiver', 'optionalCall'];
     return {...Object.fromEntries(fields.filter(key => op[key] !== undefined).map(key => [key, op[key]])),
       ...Object.fromEntries(Object.entries(op).filter(([key, value]) => key.endsWith('Unknown') && value === true)),
@@ -157,14 +167,26 @@ export function presentationPage(page) {
       ...(g.terms?{terms:terms.map((term,j)=>({name:term.name??`condition ${i+1}.${j+1}`,branch:term.kind,
         ...(term.source?{file:term.source.file,line:term.source.line,endLine:term.source.endLine??term.source.line,column:term.source.column}:{})}))}:{})};
   };
+  // Every box a function page draws is attached to the function that draws it. These wires are
+  // added last, so nothing above collapses or relabels them, and they carry no value.
+  const invocations = invocationWires(page);
   return {...page,
-    ...(page.uncertainty ? {uncertainty: uncertaintyRows(page.uncertainty)} : {}),
+    ...(page.uncertainty ? {uncertainty: located(uncertaintyRows(page.uncertainty), page.file)} : {}),
+    ...(page.unresolved?.length ? {unresolved: located(page.unresolved, page.file)} : {}),
+    // One section per node this page draws, reduced exactly as that node's own page reduces it
+    // and located in that node's file, which is not always this page's.
+    ...(page.nodeFindings ? {nodeFindings: page.nodeFindings.map(section => {
+      const file = fileOf(section.path) ?? page.file;
+      return {...section,
+        ...(section.uncertainty ? {uncertainty: located(uncertaintyRows(section.uncertainty), file)} : {}),
+        ...(section.unresolved?.length ? {unresolved: located(section.unresolved, file)} : {})};
+    })} : {}),
     ...(page.components ? {components: page.components.map(component)} : {}),
     ...(page.regions ? {regions: page.regions.map(region => callerFields(region))} : {}),
     ...(page.inputs ? {inputs: page.inputs.map(port => boundary(port))} : {}),
     ...(page.outputs ? {outputs: page.outputs.map(port => boundary(port, true))} : {}),
     ...(page.operators ? {operators: page.operators.map(operator)} : {}),
-      ...(page.wires ? {wires: page.wires.map(({expression,...wire})=>{
+      ...(page.wires||invocations.length ? {wires: [...(page.wires??[]).map(({expression,...wire})=>{
         const returned=wire.kind==='return'&&wire.fromPort==='result'
           ? page.outputs?.find(port=>port.port===wire.to):null;
         if(returned?.returnCall)return {...wire,label:`${returned.returnCall} result`};
@@ -172,6 +194,6 @@ export function presentationPage(page) {
       if(wire.kind==='gate'||wire.toPort==='control')return {...wire,label:'condition'};
       if(wire.fromPort==='selected')return {...wire,label:'selected result'};
       return wire;
-    })} : {}),
+    }),...invocations]} : {}),
     ...(page.gates ? {gates: page.gates.map(gate)} : {})};
 }

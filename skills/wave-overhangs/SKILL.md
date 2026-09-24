@@ -1,6 +1,6 @@
 ---
 name: wave-overhangs
-description: Experiment with continuous wave passes on curved bivariate spline slices, including flat slices. Grow from explicitly assigned supported seeds with physical surface spacing. Reject slices requiring disconnected passes; hole-branch continuity remains incomplete. Single regular spline charts; physical printing remains unvalidated.
+description: Experimental. Continuous wave passes grown from assigned supported seeds on curved or flat spline slices.
 ---
 
 # Wave overhangs on spline slices

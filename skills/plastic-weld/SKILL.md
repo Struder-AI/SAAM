@@ -1,6 +1,6 @@
 ---
 name: plastic-weld
-description: Inject molten plastic into blind shafts with wider bottom basins to form experimental rivets across printed layers. Place individual reinforcement points or stagger them through a solid body. Sparse interiors receive explicit solid envelopes and floors; strength and sealing need physical trials.
+description: Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body.
 ---
 
 # Plastic weld / injected rivets

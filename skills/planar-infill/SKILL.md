@@ -1,6 +1,6 @@
 ---
 name: planar-infill
-description: Print conventional flat-layer walls with a patterned interior, varying infill density to control material use or leave a hollow body. Supports closed meshes and supported spline geometry; combine with full-fill for solid tops and bases.
+description: Conventional flat layers, with walls around a patterned sparse interior and density down to a hollow body. Meshes and supported splines; pair with full-fill for solid tops and bases.
 ---
 
 # Planar infill
@@ -9,7 +9,8 @@ Use for conventional flat-layer printing with walls and a sparse interior.
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
 Software tests cover the S5 and H2D profiles,
-mesh and restricted spline inputs. No physical print is validated. Both machines
+mesh and restricted spline inputs. The user reports every infill pattern
+validated in physical prints (2026-09-24). Both machines
 use the shared export/review/delivery workflow. H2D output is experimental; read
 its [machine contract](../../core/export/bambu.md#h2d-output-contract) before use.
 

@@ -6,14 +6,15 @@ legend, which is stated once and reachable from every page."""
 from __future__ import annotations
 
 import json
+import math
 import pathlib
 import re
 import sys
 import textwrap
 from xml.sax.saxutils import escape
 
-from leveled import (Page, STYLE, EDGE, MARGIN_L, FS_FOOT, FS_NOTE, LH_NOTE, LH_TITLE,
-                     PADX, PADY)
+from leveled import (Page, STYLE, EDGE, ASPECT, MARGIN_L, FS_FOOT, FS_NOTE, LH_NOTE,
+                     LH_TITLE, PADX, PADY)
 from svg import tw
 from flow import MARKERS, kind_of      # importing flow registers its box and wire styles
 from viewer import CSS as BASE_CSS
@@ -31,6 +32,9 @@ STYLE["outside"] = dict(fill="#ecfdf5", stroke="#059669", sw=1.8, rx=7, tc="#065
 EDGE["caller"] = dict(stroke="#dc2626", sw=1.5, head="l-co", dash="2 3")
 EDGE["capture"] = dict(stroke="#0369a1", sw=1.5, head="l-data", dash="3 3")
 ROW = 14.0
+# The ledger under a drawing runs no taller than the map above it and no wider than this many
+# columns; below a screenful of rows it stays in one column, where it reads as a list.
+LIST_ROWS, LIST_COLS_MAX, LIST_GAP = 44, 8, 34
 QUOTE = {chr(34): "&quot;"}
 REGENERATE = "node scripts/agent-toolkit.mjs regenerate"
 WIRE = {"state": "state", "return": "io", "gate": "gate", "capture": "capture"}
@@ -51,11 +55,14 @@ class MapPage(Page):
     def __init__(self, stale, **kw):
         super().__init__(**kw)
         self.stale = stale
-        self.lists = []                 # (style, text, index-to-open)
+        self.lists = []                 # (style, text, index-to-open, presented-item marker)
+        self.list_cols, self.list_x = [], []
         self.caller_refs = []
 
-    def row(self, style, text, go=""):
-        self.lists.append((style, clip(text), go))
+    def row(self, style, text, go="", mark=""):
+        """One ledger row. `mark` names the presented item this row is drawn for, so a check
+        can ask the drawing which of them it carried instead of matching its prose."""
+        self.lists.append((style, clip(text), go, mark))
 
     def layout(self):
         super().layout()
@@ -70,10 +77,34 @@ class MapPage(Page):
                     for i in range(0, len(self.caller_refs), 3)]
             self.W = max(self.W, 2 * MARGIN_L + 30 + max(tw(row, FS_NOTE) for row in rows))
         self.list_y = self.H
+        self.list_cols = []
         if self.lists:
-            self.H += 24 + ROW * len(self.lists)
-            self.W = max(self.W, 2 * MARGIN_L + 20
-                         + max(tw(t, FS_NOTE) for _s, t, _g in self.lists))
+            # The ledger under the drawing, set in columns rather than one long strip. A
+            # thousand rows in one strip is fifteen thousand pixels of page that the drawing
+            # is then fitted alongside, so the map above it shrinks to nothing; in columns
+            # the block is about as wide as the map and about as tall.
+            rows = len(self.lists)
+            mean = sum(tw(t, FS_NOTE) for _s, t, _g, _m in self.lists) / rows + LIST_GAP
+            # However many columns leave the whole page -- map and ledger together -- closest
+            # to the shape a map is read in. One column while the ledger is short, because a
+            # short list reads as a list; more as it grows past the drawing it belongs to.
+            def shape(c):
+                page = self.list_y + 24 + ROW * -(-rows // c)
+                return abs(math.log(max(self.W, c * mean) / page) - math.log(ASPECT))
+            columns = min(range(1, min(LIST_COLS_MAX, -(-rows // LIST_ROWS)) + 1), key=shape)
+            want = -(-rows // max(1, columns))
+            # A section is never cut, so the cut can land a column over; widening the column
+            # until it does not is what keeps the block inside the width it was given.
+            self.list_cols = self._list_columns(want)
+            while len(self.list_cols) > columns and want < rows:
+                want += max(4, want // 4)
+                self.list_cols = self._list_columns(want)
+            self.H += 24 + ROW * max(len(c) for c in self.list_cols)
+            x = MARGIN_L
+            for col in self.list_cols:
+                self.list_x.append(x)
+                x += max(tw(t, FS_NOTE) for _s, t, _g, _m in col) + LIST_GAP
+            self.W = max(self.W, x + MARGIN_L)
         if self.stale:
             self.W = max(self.W, 2 * MARGIN_L + tw(self.stale_text(), 11.5))
         # A page with one small box is narrower than its own heading; the heading is the page's
@@ -81,6 +112,37 @@ class MapPage(Page):
         self.W = max(self.W, 2 * MARGIN_L + max(tw(self.title, 21), tw(self.subtitle, 12),
                                                 tw(self.key_line, 10)))
         return self
+
+    def _list_columns(self, want):
+        """The ledger split into columns of about `want` rows, cut only between sections — a
+        heading and the rows it names stay together, because a row's section is what says
+        which node the finding is about."""
+        sections, section = [], []
+        for row in self.lists:
+            if row[0] == "head" and section:
+                sections.append(section)
+                section = []
+            section.append(row)
+        if section:
+            sections.append(section)
+        # A section longer than a column carries its heading onto the next one, so a row is
+        # never read without the node it is about.
+        pieces = []
+        for section in sections:
+            if len(section) <= want:
+                pieces.append(section)
+                continue
+            head, rows, step = section[0], section[1:], max(1, want - 1)
+            for k in range(0, len(rows), step):
+                pieces.append([(head[0], head[1] + (" (cont.)" if k else ""), head[2], head[3])]
+                              + rows[k:k + step])
+        cols, col = [], []
+        for section in pieces:
+            if col and len(col) + len(section) > want:
+                cols.append(col)
+                col = []
+            col.extend(section)
+        return cols + ([col] if col else [])
 
     def stale_text(self):
         return (f'STALE — generation inputs changed; matching snapshot remains readable. '
@@ -91,24 +153,27 @@ class MapPage(Page):
         return svg.replace("</svg>", self._extras() + "</svg>")
 
     def _extras(self):
-        o, y = [], self.list_y + 22
-        if self.lists:
-            o.append(f'<path d="M{MARGIN_L},{y - 15:.1f} L{self.W - MARGIN_L:.1f},{y - 15:.1f}" '
+        o, top = [], self.list_y + 22
+        if self.list_cols:
+            o.append(f'<path d="M{MARGIN_L},{top - 15:.1f} L{self.W - MARGIN_L:.1f},{top - 15:.1f}" '
                      f'stroke="#cbd5e1" stroke-width="1"/>')
-        for style, text, go in self.lists:
-            x = MARGIN_L + (0 if style == "head" else 14)
-            if go:
-                o.append(f'<g class="fm-go" data-go="{escape(go, QUOTE)}">'
-                         f'<rect x="{x - 4:.1f}" y="{y - 10:.1f}" width="{tw(text, FS_NOTE) + 9:.1f}" '
-                         f'height="{ROW:.1f}" rx="3" fill="#0ea5e9" fill-opacity="0.004"/>'
-                         f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="#0369a1">'
-                         f'{escape(text)}</text></g>')
-            else:
-                fill = {"head": "#0f172a", "warn": "#9f1239"}.get(style, "#475569")
-                weight = ' font-weight="700"' if style == "head" else ""
-                o.append(f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="{fill}"'
-                         f'{weight}>{escape(text)}</text>')
-            y += ROW
+        for left, col in zip(self.list_x, self.list_cols):
+            y = top
+            for style, text, go, mark in col:
+                x = left + (0 if style == "head" else 14)
+                carries = f' data-row="{escape(mark, QUOTE)}"' if mark else ""
+                if go:
+                    o.append(f'<g class="fm-go" data-go="{escape(go, QUOTE)}"{carries}>'
+                             f'<rect x="{x - 4:.1f}" y="{y - 10:.1f}" width="{tw(text, FS_NOTE) + 9:.1f}" '
+                             f'height="{ROW:.1f}" rx="3" fill="#0ea5e9" fill-opacity="0.004"/>'
+                             f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="#0369a1">'
+                             f'{escape(text)}</text></g>')
+                else:
+                    fill = {"head": "#0f172a", "warn": "#9f1239"}.get(style, "#475569")
+                    weight = ' font-weight="700"' if style == "head" else ""
+                    o.append(f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="{fill}"'
+                             f'{weight}{carries}>{escape(text)}</text>')
+                y += ROW
         if self.caller_refs:
             x, y = MARGIN_L + 5, self.caller_y
             o.append(f'<rect class="fm-owner-frame" data-owner="{escape(self.key, QUOTE)}" x="20" y="28" '
@@ -123,7 +188,8 @@ class MapPage(Page):
                         tx += tw(" · ", FS_NOTE)
                     if target:
                         o.append(f'<g class="fm-go fm-caller-reference" data-go="{escape(target, QUOTE)}"><rect x="{tx - 2}" y="{ty - 10}" width="{tw(label, FS_NOTE) + 4}" height="13" fill="#0369a1" fill-opacity="0.004"/>')
-                    o.append(f'<text x="{tx}" y="{ty}" font-size="{FS_NOTE}" fill="#0369a1">{escape(label)}</text>')
+                    o.append(f'<text x="{tx}" y="{ty}" font-size="{FS_NOTE}" fill="#0369a1" '
+                             f'data-row="callerReferences#{escape(label, QUOTE)}">{escape(label)}</text>')
                     if target:
                         o.append('</g>')
                     tx += tw(label, FS_NOTE)
@@ -186,7 +252,7 @@ def value_bundles(wires):
     """
     bundles, positions = [], {}
     for w in wires:
-        if w["kind"] not in ("data", "return"):
+        if w.get("kind") not in ("data", "return"):
             bundles.append(dict(w))
             continue
         argument = bool(re.fullmatch(r'arg\d+', w.get("toPort", "")))
@@ -281,7 +347,9 @@ def build_page(packet, ctx):
             label = row.get("index") or row.get("path") or row.get("file") or "external"
             found[label] = row.get("index") if row.get("index") in pages else ""
         return list(found.items())
-    page.caller_refs = references(packet.get("callerReferences", packet.get("calledFrom", [])))
+    # Mapped callers when there are any, the observed call sites otherwise: an empty caller list
+    # is not an answer, and the read falls back the same way.
+    page.caller_refs = references(packet.get("callerReferences") or packet.get("calledFrom", []))
 
     def unit(index, label, note, foot, style, ref=None, path=None, target=None):
         address = target or index
@@ -352,7 +420,10 @@ def build_page(packet, ctx):
         for p in packet["ports"]:
             port(p["port"], p["port"], go=port_target(p["port"], pages))
         for w in packet["wires"]:
-            wire(page, w, aggregate(w), "data", drawn, dropped)
+            if w.get("kind") == "invocation":
+                invocation_edge(page, w, drawn, dropped)
+            else:
+                wire(page, w, aggregate(w), "data", drawn, dropped)
     else:
         node_page(packet, page, unit, port, drawn, dropped)
     boundary = packet.get("callerBoundary")
@@ -382,27 +453,136 @@ def build_page(packet, ctx):
     return page.layout()
 
 
+STUB_LINE = 46      # characters; a long value takes a line rather than widening the box
+
+
+def stub_note(rows):
+    """An argument slot with no wire, said out loud on the box. A constant slot carries the
+    value the call site writes there, drawn on the slot the way a panel feeds an input; every
+    other slot names the gap the tracer could not follow. Values wrap onto further lines so a
+    box grows as wide as its widest slot, not as wide as all of them together."""
+    def said(row):
+        if "literal" not in row:
+            return row["reason"]
+        value = row["literal"]
+        return value if isinstance(value, str) else json.dumps(value)
+    slots = [f'{row["slot"]} {said(row)}' for row in rows[:4]]
+    if len(rows) > 4:
+        slots.append(f'+{len(rows) - 4}')
+    lines = ["stub"]
+    for slot in slots:
+        if len(lines[-1]) + len(slot) + 2 <= STUB_LINE:
+            lines[-1] += (" " if lines[-1] == "stub" else ", ") + slot
+        else:
+            lines.append(slot)
+    return "\n".join(lines)
+
+
+def gate_runs(w, caption):
+    """The conditions the call sites behind one wire stand under, each said once, with the call
+    numbers that share it. A wire whose sites all stand under the same condition carries it
+    whole; one whose sites differ carries them per site, and they are gathered back here."""
+    runs = {}
+    for site in w.get("siteGates", []):
+        text = caption(site["gate"])
+        if text:
+            runs.setdefault(text, []).append(site["order"])
+    return [(text, orders) for text, orders in runs.items()]
+
+
+def invocation_label(w, caption=None):
+    if w.get("provenance") == "declaration":
+        return "declares"
+    if w.get("provenance") == "reference":
+        return "value"
+    # An operation this body performs whose result nothing here takes: no call number to state.
+    if w.get("provenance") == "operation":
+        return "performs"
+    head = f'call {w["order"]}' + (f' ×{w["sites"]}' if w.get("sites") else "")
+    if caption is None:
+        return head
+    # A call reached only under a test says so on its own wire, in the wording every other
+    # drawing of that condition uses — unless the box it arrives at already states it, and then
+    # the caller passes no caption for it. Conditions wrap onto further lines, four of them, so
+    # a wire states the guards a reader can act on rather than the whole table.
+    if w.get("gate") is not None:
+        text = caption(w["gate"])
+        return f'{head} [{text}]' if text else head
+    runs = gate_runs(w, caption)
+    lines = [head] + [f'call {", ".join(str(o) for o in orders)} [{text}]'
+                      for text, orders in runs[:4]]
+    if len(runs) > 4:
+        lines.append(f'+{len(runs) - 4}')
+    return "\n".join(lines)
+
+
+def invocation_edge(page, w, drawn, dropped, caption=None):
+    """The call, drawn from whatever makes it: the page's own function, or a leaf it homes."""
+    source = w["from"]
+    if w["to"] not in drawn or (source != "self" and source not in drawn):
+        dropped.append((page.key, source, w["to"]))
+        return
+    # The call's own number is what ranks the box when no value wire does; the wire itself
+    # still states the call without ordering the drawing, which is what `rank=False` says.
+    if w.get("order") is not None:
+        page.index[w["to"]].seq = w["order"]
+    page.e(source, w["to"], invocation_label(w, caption), "invocation", rank=False)
+
+
+def gate_caption(gates, number):
+    """The condition a gate states, in the one wording every drawing of it uses."""
+    gate = gates[number]
+    if gate.get("terms"):
+        terms = gate["terms"]
+        if len(set(term["name"] for term in terms)) == 1:
+            runs = []
+            for term in terms:
+                if runs and runs[-1][0] == term["branch"]:
+                    runs[-1][1] += 1
+                else:
+                    runs.append([term["branch"], 1])
+            branches = " ∧ ".join(branch + (f' ×{count}' if count > 1 else "") for branch, count in runs)
+            return f'g{number + 1} · {terms[0]["name"]} · {branches}'
+        return f'g{number + 1} · ' + " ∧ ".join(term["name"] + ":" + term["branch"] for term in terms)
+    return gate.get("name", f'condition {number + 1}') + " · " + gate.get("branch", gate["kind"])
+
+
 def node_page(packet, page, unit, port, drawn, dropped):
     """A function, method, handler or class page: what it takes in, what it calls, what leaves."""
     gates = packet["gates"]
     def gate_name(number):
-        gate = gates[number]
-        if gate.get("terms"):
-            terms = gate["terms"]
-            if len(set(term["name"] for term in terms)) == 1:
-                runs = []
-                for term in terms:
-                    if runs and runs[-1][0] == term["branch"]:
-                        runs[-1][1] += 1
-                    else:
-                        runs.append([term["branch"], 1])
-                branches = " ∧ ".join(branch + (f' ×{count}' if count > 1 else "") for branch, count in runs)
-                return f'g{number + 1} · {terms[0]["name"]} · {branches}'
-            return f'g{number + 1} · ' + " ∧ ".join(term["name"] + ":" + term["branch"] for term in terms)
-        return gate.get("name", f'condition {number + 1}') + " · " + gate.get("branch", gate["kind"])
+        return gate_caption(gates, number)
+    def safe_gate_name(number):
+        return gate_caption(gates, number) if number is not None and number < len(gates) else ""
+    # A condition is said once where it is read. The box a call arrives at states its own gate,
+    # so the wire into it stays quiet and says the condition only where the box does not: a box
+    # with no gate of its own, or one whose collapsed sites stand under conditions it cannot
+    # state as a single one.
+    def wire_caption(w):
+        stated = box_gates.get(w["to"], "")
+        return lambda number: "" if safe_gate_name(number) == stated else safe_gate_name(number)
     for p in packet["inputs"]:
         node = port(p["port"], p["name"], go=p.get("index") or "")
         port_context(node, p, page.context_pages)
+    # The function itself. Every box below is something it invokes, so it is drawn and every box
+    # is wired to it; the argument slots the tracer could not source are marked on the box.
+    invocations = [w for w in packet["wires"] if w.get("kind") == "invocation"]
+    stubs = {w["to"]: w.get("stubs", []) for w in invocations}
+    # Closure-owned state is read and written by this body itself, so the subject box is drawn
+    # for a page that holds state even when it calls nothing; an inlined chain wires from the
+    # leaf's box instead, so "self" is drawn only when something actually wires from it.
+    state = packet.get("state", [])
+    from_self = any(w["from"] == "self" for w in invocations)
+    subject = "self" if from_self or state else packet["index"]
+    if (from_self or state) and packet.get("file"):
+        me = unit(subject, packet["path"][len(packet["file"]) + 2:], "this function",
+                  f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', "subject",
+                  ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}', path=packet["path"])
+        me.go = ""
+        # The body is where the order starts, so it stands left of everything it calls.
+        me.seq = 0
+    box_gates = {c.get("id", c["index"]): gate_name(c["gate"])
+                 for c in packet["components"] if c.get("gate") is not None}
     for c in packet["components"]:
         if c.get("kind") == "group":
             unit(c["index"], c["label"], f'{c["count"]} declarations · authored grouping',
@@ -419,13 +599,9 @@ def node_page(packet, page, unit, port, drawn, dropped):
             note.append("possible target")
         if c.get("executionUnknown"):
             note.append("execution unknown")
-        for capture in c.get("captures", []):
-            flags = [label for key, label in (("valueUnknown", "origin unknown"),
-                     ("lifetimeUnknown", "lifetime unknown"), ("mutationUnknown", "mutation unknown")) if capture.get(key)]
-            if capture.get("access") != "read":
-                flags.insert(0, capture["access"])
-            if flags:
-                note.append(capture["name"] + " · " + ", ".join(flags))
+        rows = stubs.get(c.get("id", c["index"]), [])
+        if rows:
+            note.append(stub_note(rows))
         assertion = c.get("assertion", {}).get("condition")
         assertion_row = len(note)
         if assertion:
@@ -450,11 +626,28 @@ def node_page(packet, page, unit, port, drawn, dropped):
                     {"iteration": "loop", "choice": "choose", "invocation": "call"}.get(op["kind"], op["kind"]))
         title = identity + " · " + operation if identity else operation
         uncertainty_label = "argument origin unknown" if op.get("scope") == "outside" and op.get("argumentUnknown") and not op.get("targetUnknown") else "unresolved"
-        note = " · ".join(text for condition, text in ((unresolved, uncertainty_label), (op.get("possibleTarget"), "possible target")) if condition)
-        unit(op["id"], title, note,
+        # An operation reached only under a test says so, on its first line and opening the
+        # condition's own source, exactly as a call box does.
+        note = [gate_name(op["gate"])] if op.get("gate") is not None else []
+        # An operator no call takes the result of is on the page because a finding names it.
+        flags = " · ".join(text for condition, text in ((unresolved, uncertainty_label),
+                           (op.get("possibleTarget"), "possible target"),
+                           (op.get("keptFor"), f'kept for {op.get("keptFor")}')) if condition)
+        if flags:
+            note.append(flags)
+        # An operator kept because a finding names it carries the inputs it could not source as
+        # stub rows, the way a call box carries its untraced argument slots.
+        rows = stubs.get(op["id"], [])
+        if rows:
+            note.append(stub_note(rows))
+        node = unit(op["id"], title, "\n".join(note),
              f'{op["file"]}:{op["line"]}-{op["endLine"]}',
              "outside" if op.get("scope") == "outside" else {"choice": "choice", "invocation": "invocation"}.get(op["kind"], "state"),
              ref=f'{op["file"]}:{op["line"]}-{op["endLine"]}')
+        if op.get("gate") is not None:
+            gate = gates[op["gate"]]
+            if gate.get("file") and gate.get("line"):
+                node.gate_ref = f'{gate["file"]}:{gate["line"]}-{gate.get("endLine", gate["line"])}'
     for p in packet.get("ports", []):
         port(p["index"], p["label"], go=p["index"])
     for p in packet["outputs"]:
@@ -480,33 +673,43 @@ def node_page(packet, page, unit, port, drawn, dropped):
             node.source_path, node.source_line = source["file"], str(source["line"])
         port_context(node, p, page.context_pages)
         drawn.add(p["port"])
+    # A binding the holder declares and its members share: state this body reads and writes,
+    # drawn as its own node rather than recited as text on a box.
+    for s in state:
+        ref = f'{s["file"]}:{s["line"]}-{s["endLine"]}'
+        owner = s.get("ownerIndex") or s["owner"]
+        node = page.n(s["id"], s["name"], kind="state",
+                      note=f'{s["binding"]} · {s["access"]} · owned by {owner}', anchor=ref)
+        node.display_foot = ref
+        node.anchor_ref = ref
+        node.source_path, node.source_line = s["file"], str(s["line"])
+        node.go = owner if owner in page.context_pages else ""
+        drawn.add(s["id"])
     # A body that calls nothing still has a page: itself, what reaches it and what leaves it.
     if not packet["components"] and not packet.get("operators"):
-        me = unit(packet["index"], packet["path"][len(packet["file"]) + 2:], packet["kind"],
-                  f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
-                  "subject", ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
-                  path=packet["path"])
-        me.go = ""
+        if subject not in drawn:
+            me = unit(subject, packet["path"][len(packet["file"]) + 2:], packet["kind"],
+                      f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
+                      "subject", ref=f'{packet["file"]}:{packet["line"]}-{packet["endLine"]}',
+                      path=packet["path"])
+            me.go = ""
         for p in packet["inputs"]:
-            page.e(p["port"], packet["index"], p["name"], "data")
+            page.e(p["port"], subject, p["name"], "data")
         for p in packet["outputs"]:
-            page.e(packet["index"], p["port"], "", "io")
+            page.e(subject, p["port"], "", "io")
         for c in packet["calledFrom"]:
             caller = c.get("index") or c.get("path") or c.get("file") or "external"
             port("from:" + caller, caller, go=c.get("index") or "")
-            page.e("from:" + caller, packet["index"], ", ".join(c.get("labels", [])), "data")
-    # A state wire that is not a thread is a `this.` field two members share, and the store holds
-    # one such wire per writer-reader pair: the field itself becomes the box, so each member is
-    # drawn once against it instead of once per partner. A thread carries its own order and is
-    # left alone.
-    shared = {}
-    fields = {field["id"]: field for field in packet.get("stateFields", [])}
-    for w in value_bundles(packet["wires"]):
-        if w["kind"] == "state" and w.get("provenance") != "state-thread":
-            ends = shared.setdefault(w.get("stateField", w.get("label", "")), ([], []))
-            for side, end in ((0, w["from"]), (1, w["to"])):
-                if end not in ends[side]:
-                    ends[side].append(end)
+            page.e("from:" + caller, subject, ", ".join(c.get("labels", [])), "data")
+    # An owned-state wire names this body as one of its ends; the box for it is `subject`.
+    body = [w if w.get("provenance") != "owned-state" else
+            {**w, "from": subject if w["from"] == "self" else w["from"],
+             "to": subject if w["to"] == "self" else w["to"]}
+            for w in packet["wires"] if w.get("kind") != "invocation"]
+    for w in value_bundles(body):
+        if w.get("provenance") == "owned-state":
+            wire(page, w, " · ".join(x for x in (w.get("label", ""), w.get("stub", "")) if x),
+                 "state", drawn, dropped)
         else:
             gate = gate_name(w["gate"]) if w.get("gate") is not None else ""
             def value_label(value):
@@ -514,118 +717,420 @@ def node_page(packet, page, unit, port, drawn, dropped):
                 flags = ", ".join(text for key, text in (("spread", "spread"), ("positionUnknown", "position unknown")) if value.get(key))
                 return " ".join(x for x in [value.get("label", ""), f'({roles})' if roles else "", flags, f'[{gate}]' if gate else ""] if x)
             label = "\n".join(value_label(value) for value in w.get("argumentValues", [w]))
-            wire(page, w, label, "gate" if gate else WIRE.get(w["kind"], "data"), drawn, dropped)
-    for field in sorted(shared):
-        writers, readers = shared[field]
-        if not all(end in drawn for end in writers + readers):
-            dropped.append((page.key, field, "field"))
-            continue
-        definition = fields.get(field, {})
-        hub_id = definition.get("id", "field:" + field)
-        name = definition.get("name", field)
-        if definition.get("receiver") == "static":
-            name = "static " + name
-        source = definition.get("source")
-        ref = f'{source["file"]}:{source["line"]}-{source["endLine"]}' if source else None
-        hub = page.n(hub_id, name, kind="state", anchor=ref)
-        if ref:
-            hub.anchor_ref = ref
-            hub.source_path, hub.source_line = source["file"], str(source["line"])
-        hub.go = ""
-        drawn.add(hub_id)
-        for end in writers:
-            page.e(end, hub_id, "", "state")
-        for end in readers:
-            page.e(hub_id, end, "", "state")
+            wire(page, w, label, "gate" if gate else WIRE.get(w.get("kind"), "data"), drawn, dropped)
+    # Last, so a box is placed by the values that reach it and not by the call that makes it:
+    # the invocation edge states the call, it does not order the drawing.
+    for w in invocations:
+        invocation_edge(page, w, drawn, dropped, wire_caption(w))
+
+
+def value_text(value):
+    """A stored value said the way the packet says it. A ledger row prints what is in the JSON,
+    so a boolean is `true` and an absent one is `null`, never Python's spelling of them."""
+    return value if isinstance(value, str) else json.dumps(value)
 
 
 def lists(packet, page, pages):
     """What the stored packet holds beside its boxes and wires, printed as data."""
+    # How this page came to be drawn: whether its wires are relationships rather than execution,
+    # how many call sites are behind them, and where its grouping was authored. A reader who does
+    # not know which kind of drawing this is would read every arrow wrong. A code destination is
+    # not drawn and its read carries none of this, so its panel says none of it either.
+    drawn = packet.get("destination") != "code"
+    if drawn and (packet.get("structural") or packet.get("relationshipSummary") or packet.get("composition")):
+        page.row("head", "this page", "", "")
+    if drawn and packet.get("structural"):
+        page.row("item", "containment view — a wire says the code under one box reaches the code "
+                         "under the other, not that it runs next", "", "structural")
+    if drawn and packet.get("relationshipSummary"):
+        summary = packet["relationshipSummary"]
+        page.row("item", f'{summary["sites"]} sites collapsed into {summary["connections"]} drawn '
+                         f'connections — every site remains under --details on {summary["details"]}',
+                 "", "relationshipSummary")
+    if drawn and packet.get("composition"):
+        c = packet["composition"]
+        counted = (f'  ·  {c["edges"]} relationships, {c["internal"]} inside groups, '
+                   f'{c["crossing"]} crossing') if c.get("edges") is not None else ""
+        page.row("item", f'authored: {", ".join(c["authored"])} — {c["source"]}  ·  '
+                         f'relations {c["relations"]}{counted}', "", "composition")
+    # A field the page lists but owns no box for: a group drawn out of a stateful declaration
+    # names the state its members touch, and the boxes for it stand on the declaration's own page.
+    if drawn and packet.get("stateFields") and not packet.get("state"):
+        page.row("head", f'state fields ({len(packet["stateFields"])}) — touched here, owned above: '
+                         f'the state boxes stand on the declaration that owns them', "", "stateFields")
+        for f in packet["stateFields"]:
+            where = f.get("source") or {}
+            at = f'{packet.get("file", "")}:{where["line"]}' if where.get("line") else ""
+            page.row("item", f'{f["name"]}  {f.get("receiver", "")}  {at}'.rstrip(),
+                     "", f'stateFields#{f["id"]}')
     # The one authored thing on any page: a row of dev-map/facts.tsv about this declaration or file.
     if packet.get("facts"):
-        page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv')
-        for f in packet["facts"]:
+        page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv', "", "facts")
+        for i, f in enumerate(packet["facts"]):
             # A file's row carried by the region it is part of names that file.
             about = f'{f["file"]}  ' if f.get("file") else ""
-            page.row("item", f'{about}{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]')
+            page.row("item", f'{about}{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]', "", f'facts#{i}')
     if packet.get("requires"):
-        page.row("head", f'requires ({len(packet["requires"])})')
-        for item in packet["requires"]:
+        page.row("head", f'requires ({len(packet["requires"])})', "", "requires")
+        for i, item in enumerate(packet["requires"]):
             text = f'{item["line"]}: {item["text"]}'
             if item.get("message"):
                 text += "  |  " + item["message"]
-            page.row("item", text + f'  → {item["index"]} {item["by"]}', item.get("index", ""))
+            page.row("item", text + f'  → {item["index"]} {item["by"]}', item.get("index", ""), f'requires#{i}')
     if packet.get("formulas"):
-        page.row("head", f'formulas ({len(packet["formulas"])})')
-        for f in packet["formulas"]:
+        page.row("head", f'formulas ({len(packet["formulas"])})', "", "formulas")
+        for i, f in enumerate(packet["formulas"]):
             page.row("item", f'{f["index"]} {f["label"]}  {f["file"]}  lines '
-                             + ", ".join(str(n) for n in f["lines"]), f["index"])
+                             + ", ".join(str(n) for n in f["lines"]), f["index"], f'formulas#{i}')
     if packet.get("couplings"):
-        page.row("head", f'couplings ({len(packet["couplings"])})')
-        for c in packet["couplings"]:
+        page.row("head", f'couplings ({len(packet["couplings"])})', "", "couplings")
+        for i, c in enumerate(packet["couplings"]):
             end = c.get("index") or c.get("path") or c.get("file") or ""
             page.row("item", f'{c["kind"]} {c["direction"]} {c.get("label", "")}  → {end}'
                              + (f'  {c["path"]}' if c.get("index") and c.get("path") else ""),
-                     c["index"] if c.get("index") in pages else "")
+                     c["index"] if c.get("index") in pages else "", f'couplings#{i}')
+    # A callable a caller passes into a parameter this page invokes. Its box is on the caller's
+    # page, where it is written and wired into the argument slot; here it is one row, so a page
+    # that only invokes its callback stays code rather than a wall of other people's lambdas.
+    targets = [(port, row) for port in packet.get("inputs", []) for row in port.get("parameterTargets", [])]
+    if targets:
+        page.row("head", f'parameter targets ({len(targets)}) — passed in by callers, drawn on the caller page',
+                 "", "parameterTargets")
+        for i, (port, row) in enumerate(targets):
+            supplier = row.get("from") or row.get("fromPath") or row.get("fromFile") or "caller"
+            page.row("item", f'{port["port"]} {port["name"]}  →  {row["index"]} {row["path"]}'
+                             + f'  · from {supplier}' + ("  · possible target" if row.get("possible") else ""),
+                     row["index"] if row["index"] in pages else "", f'parameterTargets#{i}')
     if packet.get("declarationReferences"):
-        page.row("head", "declaration calls — invocation not established")
-        for relation in packet["declarationReferences"]:
-            page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"])
-    def unresolved_rows(rows, go=""):
-        for u in rows:
-            location = (u.get("file", "") + ":" if u.get("file") else "") + str(u["line"])
-            page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}', go)
+        page.row("head", "declaration calls — invocation not established", "", "declarationReferences")
+        for i, relation in enumerate(packet["declarationReferences"]):
+            page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"],
+                     f'declarationReferences#{i}')
+    # A row carries the file it is about, because a section lists the rows of a node this page
+    # only draws. The drawing names that file where it is not the file the page is about.
+    own_file = packet.get("file")
 
-    def uncertainty_rows(rows, go=""):
-        for u in rows:
+    def unresolved_rows(rows, go="", mark=""):
+        for i, u in enumerate(rows):
+            elsewhere = u.get("file") and u.get("file") != own_file
+            location = (u["file"] + ":" if elsewhere else "") + str(u["line"])
+            page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}', go, f'{mark}#{i}' if mark else "")
+
+    def uncertainty_rows(rows, go="", mark=""):
+        for i, u in enumerate(rows):
+            item = f'{mark}#{i}' if mark else ""
+            u = {k: v for k, v in u.items() if k != "file" or v != own_file}
             if u.get("kind") == "closure-capture" and u.get("bindings"):
                 target = next((index for index, meta in pages.items() if meta.get("d") == u["closure"]), "")
                 identity = target or u["closure"]
                 limits = ", ".join(k for k, v in u.items() if k.endswith("Unknown") and v)
-                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}', target or go)
+                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}',
+                         target or go, item)
                 for access, bindings in u["bindings"].items():
                     for line in textwrap.wrap(f'{access}: ' + ", ".join(bindings), width=120):
-                        page.row("warn", line, target or go)
+                        page.row("warn", line, target or go, item)
             else:
-                page.row("warn", "  ".join(f'{k}: {v}' for k, v in u.items()), go)
+                page.row("warn", "  ".join(f'{k}: {value_text(v)}' for k, v in u.items()), go, item)
 
     emit = {"unresolved": unresolved_rows, "uncertainty": uncertainty_rows}
     if packet.get("unresolved"):
-        page.row("head", f'unresolved ({len(packet["unresolved"])})')
-        unresolved_rows(packet["unresolved"])
+        page.row("head", f'unresolved ({len(packet["unresolved"])})', "", "unresolved")
+        unresolved_rows(packet["unresolved"], mark="unresolved")
     if packet.get("uncertainty"):
-        page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})')
-        uncertainty_rows(packet["uncertainty"])
+        page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})',
+                 "", "uncertainty")
+        uncertainty_rows(packet["uncertainty"], mark="uncertainty")
     # A finding belongs to the node it is about, so every page that draws that node shows its
     # rows under that box. A group or file box is not a node and carries its count alone.
+    def section(index, name, category, rows, mark):
+        go = index if index in pages else ""
+        page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {index} {name}', go, mark)
+        emit[category](rows, go, mark)
+
     for category in ("unresolved", "uncertainty"):
         for c in packet.get("components", []):
-            rows = c.get(category)
-            if not rows:
-                continue
-            name = c.get("label") or c.get("path") or c.get("file") or c["index"]
-            page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {c["index"]} {name}',
-                     c["index"] if c["index"] in pages else "")
-            emit[category](rows, c["index"] if c["index"] in pages else "")
+            if c.get(category):
+                section(c["index"], c.get("label") or c.get("path") or c.get("file") or c["index"],
+                        category, c[category], f'components#{c["index"]}#{category}')
+    # A node page draws the same declaration once per call site; its rows are listed once, in
+    # drawing order, under the node they are about.
+    for node in packet.get("nodeFindings", []):
+        for category in ("unresolved", "uncertainty"):
+            if node.get(category):
+                section(node["index"], node["path"].split("::", 1)[-1], category, node[category],
+                        f'nodeFindings#{node["index"]}#{category}')
     if packet.get("analysisContext"):
         context = packet["analysisContext"]
-        page.row("head", "analysis context")
+        page.row("head", "analysis context", "", "analysisContext")
         page.row("item", f'{context["index"]} {context["path"]}  uncertainty: {context["uncertainty"]}  '
-                         f'unresolved: {context["unresolved"]}', context["index"])
+                         f'unresolved: {context["unresolved"]}', context["index"], "analysisContext#0")
     if packet.get("consumedBy"):
-        page.row("head", f'consumedBy ({len(packet["consumedBy"])})')
-        for c in packet["consumedBy"]:
-            page.row("item", "  ".join(f'{k}: {v}' for k, v in c.items()), c.get("index") or "")
+        page.row("head", f'consumedBy ({len(packet["consumedBy"])})', "", "consumedBy")
+        for i, c in enumerate(packet["consumedBy"]):
+            page.row("item", "  ".join(f'{k}: {value_text(v)}' for k, v in c.items()), c.get("index") or "",
+                     f'consumedBy#{i}')
     if packet.get("outsideCallers"):
-        page.row("head", f'outside callers ({sum(packet["outsideCallers"].values())}) — not active while making a part')
+        page.row("head", f'outside callers ({sum(packet["outsideCallers"].values())}) — not active while making a part',
+                 "", "outsideCallers")
         for where, count in packet["outsideCallers"].items():
-            page.row("item", f'{where} · {count}')
+            page.row("item", f'{where} · {count}', "", f'outsideCallers#{where}')
     if packet.get("outside"):
-        page.row("head", f'outside ({packet["outside"]})')
-        page.row("item", f'{packet["outside"]} call sites reaching scanned source the map does not cover')
+        page.row("head", f'outside ({packet["outside"]})', "", "outside")
+        page.row("item", f'{packet["outside"]} call sites reaching scanned source the map does not cover',
+                 "", "outside#0")
     if packet.get("platform"):
-        page.row("head", f'platform ({packet["platform"]})')
-        page.row("item", f'{packet["platform"]} call sites with no target in any scanned root')
+        page.row("head", f'platform ({packet["platform"]})', "", "platform")
+        page.row("item", f'{packet["platform"]} call sites with no target in any scanned root',
+                 "", "platform#0")
+
+
+class RowSink:
+    """Somewhere for `lists` to write that is not a drawing: the ledger of a code destination,
+    which has the same rows under the same headings, set as HTML instead of as text on an SVG."""
+
+    def __init__(self):
+        self.rows = []
+
+    def row(self, style, text, go="", mark=""):
+        self.rows.append((style, clip(text, 400), go, mark))
+
+
+def site_label(record):
+    """A call site, named the way a port's reference rows on a map name it."""
+    label = record.get("index") or record.get("path") or record.get("file") or "unknown caller"
+    if record.get("line") is not None:
+        label += ":" + str(record["line"])
+        if record.get("column") is not None:
+            label += ":" + str(record["column"])
+    return label
+
+
+def code_pane(packet, pages):
+    """The context a code destination's compact read carries, drawn beside its source.
+
+    A leaf that opens as code gets no map, so everything a map page would show — its ports,
+    the boxes it would have drawn and their wires, the state it owns, who calls it and every
+    ledger row — is drawn here instead, in the map page's own order and under the map page's
+    own labels, so a reader learns one vocabulary. Every item the compact read presents
+    carries the marker `check --viewer` counts it by: `data-id` for a box, `data-a`/`data-b`
+    for a wire, `data-row` for a ledger row.
+    """
+    gates = packet.get("gates", [])
+    out = []
+
+    def attrs(ident="", mark="", note="", co="", ends=None, gate=None):
+        a = ""
+        if ident:
+            a += f' data-id="{escape(ident, QUOTE)}"'
+        if mark:
+            a += f' data-row="{escape(mark, QUOTE)}"'
+        if ends:
+            a += f' data-a="{escape(ends[0], QUOTE)}" data-b="{escape(ends[1], QUOTE)}"'
+        if gate is not None:
+            a += f' data-gate="{gate}"'
+        if note:
+            a += f' data-note="{escape(note, QUOTE)}"'
+        if co:
+            a += f' data-co="{escape(co, QUOTE)}"'
+        return a
+
+    def link(text, go=""):
+        return f'<a data-go="{escape(go, QUOTE)}">{escape(text)}</a>' if go and go in pages else escape(text)
+
+    def row(cls, parts, **kw):
+        """One row: its readable text, and the same text in the attribute a check reads, so
+        what is measured is what is drawn."""
+        return f'<div class="{cls}"{attrs(**kw)}>' + "".join(link(*part) for part in parts) + "</div>"
+
+    def section(label, rows, mark=""):
+        if rows:
+            out.append(f'<details open><summary{attrs(mark=mark)}>{escape(label)}</summary>'
+                       + "".join(rows) + "</details>")
+
+    def stubs_said(rows):
+        """Every argument slot with no data wire, said in full: the panel has the room the box
+        does not, so nothing is left at `+3`."""
+        def said(r):
+            if "literal" not in r:
+                return r["reason"]
+            return r["literal"] if isinstance(r["literal"], str) else json.dumps(r["literal"])
+        return "stub " + ", ".join(f'{r["slot"]} {said(r)}' for r in rows)
+
+    def caption(number):
+        return gate_caption(gates, number) if number is not None and number < len(gates) else ""
+
+    def sites(port):
+        """The observed call sites of one port, as the map draws them beside it."""
+        rows = []
+        for ref in port.get("references", []):
+            text = site_label(ref) + (f' · {ref["sites"]} sites' if ref.get("sites", 1) > 1 else "")
+            rows.append(row("fm-sub", [(("from caller " if port.get("role") == "input" else "to caller ") + text,
+                                        ref.get("index", ""))]))
+        return rows
+
+    if packet.get("sourceUnavailable"):
+        out.append(row("fm-warn", [("source snapshot unavailable — run: " + REGENERATE, "")]))
+    if packet.get("stale"):
+        out.append(row("fm-warn", [(f'STALE — generation inputs changed. Run: {REGENERATE} '
+                                    + str(packet["stale"].get("regenerate", "0")), "")]))
+
+    rows = []
+    for p in packet.get("inputs", []):
+        note = caption(p.get("gate"))
+        rows.append(row("fm-row", [(f'{p["port"]}  {p["name"]}', p.get("index", "")),
+                                   (f'  · {p.get("role", "input")}', ""),
+                                   (f'  · {note}' if note else "", "")],
+                        ident=p["port"], note=note, gate=p.get("gate")))
+        rows.extend(sites(p))
+    section(f'inputs ({len(packet.get("inputs", []))})', rows, "inputs")
+
+    rows = []
+    for p in packet.get("outputs", []):
+        note = " · ".join(x for x in [caption(p.get("gate")),
+                                      "spread" if p.get("spread") else "",
+                                      "computed keys" if p.get("computedKeys") else ""] if x)
+        rows.append(row("fm-row", [(f'{p["port"]}  {p["name"]}', p.get("index", "")),
+                                   (f'  · {p.get("kind", p.get("role", "return"))}', ""),
+                                   (f'  · {note}' if note else "", "")],
+                        ident=p["port"], note=note, gate=p.get("gate")))
+        rows.extend(sites(p))
+    section(f'outputs ({len(packet.get("outputs", []))})', rows, "outputs")
+
+    invocations = {w["to"]: w for w in packet.get("wires", []) if w.get("kind") == "invocation"}
+    rows = []
+    for c in packet.get("components", []):
+        ident = c.get("id", c["index"])
+        w = invocations.get(ident, {})
+        note = [invocation_label(w)] if w else []
+        if c.get("gate") is not None:
+            note.append(caption(c["gate"]))
+        if c.get("calls") is not None and c["calls"] != 1:
+            note.append(f'{c["calls"]} call sites')
+        for flag, text in (("possibleTarget", "possible target"), ("executionUnknown", "execution unknown"),
+                           ("closure", "function value")):
+            if c.get(flag):
+                note.append(text)
+        if w.get("stubs"):
+            note.append(stubs_said(w["stubs"]))
+        if c.get("findings"):
+            note.append(f'{c["findings"]} findings')
+        context = []
+        if c.get("home"):
+            context.append(("home " + c["home"], c["home"]))
+        others = c.get("alsoOn", [])
+        context += ([(f'also on {len(others)} maps', "")] if len(others) > 5
+                    else [("also on " + other, other) for other in others])
+        if c.get("via"):
+            context.append(("via " + c["via"], c["via"]))
+        if c.get("callerSummary"):
+            summary = c["callerSummary"]
+            context.append((f'{summary["count"]} callers → {summary.get("index", "")}', summary.get("index", "")))
+        else:
+            for ref in c.get("callerReferences", []):
+                label = ref.get("index") or ref.get("path") or ref.get("file") or "external"
+                context.append((label, ref.get("index", "")))
+        where = f'  {c["file"]}:{c["line"]}-{c["endLine"]}' if c.get("file") and c.get("line") else ""
+        parts = [(f'{c["index"]} {c.get("label") or c.get("path") or ""}', c["index"]), (where, "")]
+        if note:
+            parts.append(("  · " + " · ".join(note), ""))
+        for text, go in context:
+            parts.append(("  · ", ""))
+            parts.append((text, go))
+        rows.append(row("fm-row", parts, ident=ident, note=" · ".join(note),
+                        co=" · ".join(text for text, _go in context), gate=c.get("gate")))
+    section(f'components ({len(packet.get("components", []))}) — in call order', rows, "components")
+
+    # The operations the body performs. The compact read leaves them to the source, but its
+    # wires name them, so a wire on this panel never ends in a name nothing here explains.
+    rows = []
+    for op in packet.get("operators", []):
+        identity = op.get("callee") or op.get("binding") or op.get("collection")
+        operation = op.get("operation") or ("construct" if op.get("callKind") == "construct" else
+                    {"iteration": "loop", "choice": "choose", "invocation": "call"}.get(op["kind"], op["kind"]))
+        note = " · ".join(x for x in [caption(op.get("gate")),
+                                      f'kept for {op["keptFor"]}' if op.get("keptFor") else "",
+                                      stubs_said(invocations[op["id"]]["stubs"])
+                                      if invocations.get(op["id"], {}).get("stubs") else ""] if x)
+        rows.append(row("fm-row", [(f'{op["id"]}  {identity + " · " if identity else ""}{operation}', ""),
+                                   (f'  {op["file"]}:{op["line"]}-{op["endLine"]}' if op.get("file") else "", ""),
+                                   (f'  · {note}' if note else "", "")],
+                        ident=op["id"], note=note, gate=op.get("gate")))
+    section(f'operators ({len(packet.get("operators", []))})', rows, "operators")
+
+    body = packet["path"][len(packet["file"]) + 2:] if packet.get("file") and packet.get("path") else "this function"
+    drawn = [w for w in packet.get("wires", []) if w.get("kind") in ("invocation", "state")]
+    rows = []
+    for w in drawn:
+        name = {w["from"]: body} if w["from"] == "self" else {}
+        name[w["to"]] = body if w["to"] == "self" else w["to"]
+        # The condition the call site stands under. The read carries the number, so the row
+        # carries it too, and the caption beside it is the one the map draws on the wire.
+        numbers = [w["gate"]] if w.get("gate") is not None else [
+            site["gate"] for site in w.get("siteGates", [])]
+        guards = " · ".join(x for x in dict.fromkeys(caption(n) for n in numbers) if x)
+        note = " · ".join(x for x in [guards, w.get("label", ""), w.get("access", ""), w.get("provenance", ""),
+                                      w.get("stub", ""),
+                                      stubs_said(w["stubs"]) if w.get("stubs") else "",
+                                      " ".join(x for x in [w.get("fromPort", ""), "→" if w.get("toPort") else "",
+                                                           w.get("toPort", "")] if x)] if x)
+        label = invocation_label(w) if w.get("kind") == "invocation" else w.get("kind")
+        rows.append(row("fm-wire", [(f'{name.get(w["from"], w["from"])} → ', w["from"]),
+                                    (name.get(w["to"], w["to"]), w["to"]),
+                                    (f'  · {label}', ""), (f'  · {note}' if note else "", "")],
+                        ends=(w["from"], w["to"]), note=note,
+                        gate=",".join(str(n) for n in numbers) if numbers else None))
+    section(f'wires ({len(drawn)}) — invocation and state', rows, "wires")
+
+    rows = [row("fm-row", [(f'g{i + 1} · {gate_caption(gates, i)}', ""),
+                           (f'  {g["file"]}:{g["line"]}' if g.get("file") and g.get("line") else "", "")],
+                mark=f'gates#{i}', gate=i)
+            for i, g in enumerate(gates)]
+    section(f'gates ({len(gates)}) — every enclosing condition', rows, "gates")
+
+    rows = []
+    for s in packet.get("state", []):
+        owner = s.get("ownerIndex") or s.get("owner", "")
+        note = f'{s.get("binding", "")} · {s.get("access", "")} · owned by {owner}'
+        rows.append(row("fm-row", [(f'{s["name"]}  · {s.get("binding", "")} · {s.get("access", "")} · owned by ', ""),
+                                   (str(owner), str(owner)),
+                                   (f'  {s["file"]}:{s["line"]}' if s.get("file") and s.get("line") else "", "")],
+                        ident=s["id"], note=note))
+    section(f'state ({len(packet.get("state", []))}) — owned by the holder, read and written here',
+            rows, "state")
+
+    # Each incoming caller once: an observed call site a mapped caller row or a caller wire
+    # already stands for is that same caller, which is how the compact read carries it too.
+    represented = {ref.get("index") for ref in packet.get("callerReferences", [])}
+    represented |= {w.get("caller") or w.get("from") for w in packet.get("callerWires", [])}
+    represented.discard(None)
+    callers = list(packet.get("callerReferences") or []) + [
+        c for c in packet.get("calledFrom") or [] if c.get("index") not in represented]
+    rows = []
+    for ref in callers:
+        label = ref.get("index") or ref.get("path") or ref.get("file") or "external"
+        rows.append(row("fm-row", [(label, ref.get("index", "")),
+                                   (" · outside the map, active while making a part" if ref.get("unmapped") else "", ""),
+                                   (f'  · {len(ref["labels"])} values' if ref.get("labels") else "", "")],
+                        mark=f'callerReferences#{label}'))
+    for w in packet.get("callerWires", []):
+        rows.append(row("fm-wire", [(f'{w["from"]} → {w["to"]}', w.get("caller", "")),
+                                    (f'  · {w.get("kind", "calls")}', "")], ends=(w["from"], w["to"])))
+    section(f'called from ({len(rows)})', rows, "callerReferences")
+
+    sink = RowSink()
+    lists(packet, sink, pages)
+    open_section = False
+    for style, text, go, mark in sink.rows:
+        if style == "head":
+            if open_section:
+                out.append("</details>")
+            out.append(f'<details open><summary{attrs(mark=mark)}>{link(text, go)}</summary>')
+            open_section = True
+        else:
+            out.append(row("fm-warn" if style == "warn" else "fm-item", [(text, go)], mark=mark))
+    if open_section:
+        out.append("</details>")
+    return f'<div class="cx">{"".join(out)}</div>' if out else ""
 
 
 # ---- the viewer ---------------------------------------------------------------------------
@@ -646,16 +1151,23 @@ LEGEND = [
     ("b", "assertion-code", "an assertion gate. Its condition caption opens the caller's predicate; "
                            "its body opens the assertion implementation. Wires name its inputs, without "
                            "claiming downstream success or exception order."),
-    ("b", "invocation", "an invocation whose concrete target is unresolved. Callable or receiver "
-                        "and argument ports come from source; optional calls retain their nullish gates."),
+    ("b", "invocation", "an invocation whose callee is a parameter or is otherwise unresolved. Callable or "
+                        "receiver and argument ports come from source; optional calls retain their nullish "
+                        "gates. Where callers could be followed to concrete callables, those are listed as "
+                        "parameter-target rows below the drawing and drawn on the caller's own page."),
     ("b", "outside", "a call to a resolved source declaration outside the mapped roots, such as a skill. "
                       "Its wires come from the invocation; clicking opens that invocation's matching source. "
                       "CLI target metadata names the outside declaration without inventing a map index."),
     ("b", "recv", "a callee resolved by following the receiver's or callee's value "
                   "(receiver-value, value-follow)."),
-    ("b", "subject", "the function this page is, drawn when its body calls nothing."),
+    ("b", "subject", "the function this page is. Every box it draws is wired to it by an "
+                     "invocation edge, so no box floats; stub rows on a box name the argument "
+                     "slots the tracer could not source."),
     ("b", "state", "local loop, update or collection state, with initial/current/next/final roles on its wires. "
-                   "A class field instead connects the members that write and read it."),
+                   "A small named state box is owned state: a binding the enclosing declaration "
+                   "owns, or a `this.` field of the class this member belongs to. Its note says "
+                   "the binding kind, the access and which declaration owns it, and clicking it "
+                   "opens that owner."),
     ("h", None, "Ports"),
     ("b", "port", "in: a parameter, or a way in from outside this page — another file, another "
                   "region, an outside caller, or a caller of this function. Out: a return, named "
@@ -679,10 +1191,18 @@ LEGEND = [
                      "not an invocation or an execution-order constraint. Mutable or untraced captures "
                      "retain their analysis limits."),
     ("w", "state", "state-thread: the same receiver at successive call sites, in source order. On "
-                   "a class page: a field one member writes and another reads."),
+                   "owned-state: a binding a factory owns or a field a class owns is a box; the "
+                   "arrow points out of it for a read and into it for a write, so the holder or "
+                   "class page says which members share which state and a member page says what "
+                   "it reads and writes. A write whose value the tracer could not follow leaves "
+                   "this function's own box and names the gap beside the name."),
     ("w", "gate", "ast-guard: the call is reached only under a test. The label names the condition "
                   "and branch; the full predicate remains under source and CLI --details."),
     ("w", "io", "ast-return / ast-throw: what leaves through a return or a throw."),
+    ("w", "invocation", "this function invokes that box, as its Nth call (×N when one "
+                        "declaration is called from several sites that did not separate), or "
+                        "declares it without calling it here. It carries no value: the values "
+                        "are the data wires, and the slots with none are the box's stub rows."),
     ("p", None, "On page 0 and on region and file pages one wire stands for every link between "
                 "those two boxes; its label is the kinds and their counts."),
     ("h", None, "What order means"),
@@ -743,20 +1263,72 @@ body.noside #side{display:none}
 #crumb span.up{color:#0369a1;cursor:pointer}
 #stale{font-size:11.5px;color:#9f1239;background:#fee2e2;border-radius:5px;padding:2px 8px}
 #stale:empty{display:none}
+#score{order:9;flex:1 0 100%;font-size:11.5px;color:#334155;background:#f1f5f9;border-radius:5px;padding:2px 8px;font-variant-numeric:tabular-nums}
+#score:empty{display:none}
+#score b{color:#0f172a}
+#score .bad{color:#9f1239}
 #codepane .cb{min-width:0;min-height:0;overflow:auto}
 #codepane .cb>pre{width:max-content;min-width:100%;box-sizing:border-box;overflow:visible;white-space:pre}
 #codepane details{margin:8px 14px;color:#475569}
 #codepane details summary{cursor:pointer;font-size:12px}
 #codepane details pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 0}
+
+/* -- a code destination's context: the sections a map page's ledger has, under its source -- */
+#codepane .cx{border-top:1px solid #e2e8f0;margin-top:12px;padding:6px 0 44px;
+              position:sticky;left:0;width:620px;max-width:100%}
+#codepane .cx summary{font-weight:650;color:#0f172a;padding:2px 0}
+#codepane .cx div{font-family:ui-monospace,Consolas,monospace;font-size:11.4px;line-height:1.5;
+                  padding:1px 0 1px 14px;color:#475569;overflow-wrap:anywhere}
+#codepane .cx .fm-sub{padding-left:30px;color:#64748b}
+#codepane .cx .fm-warn{color:#9f1239}
+#codepane .cx a{color:#0369a1;cursor:pointer}
+#codepane .cx a:hover{text-decoration:underline}
+#codepane .cx.shut>details{display:none}
 #back:disabled{opacity:.4;cursor:default}
+
+/* -- semantic zoom: which of a box's two drawings is on ------------------------------
+   Every box is drawn twice, as its name alone at the size the box will hold and as the
+   whole box. Below FAR the page is a shape, so the name is what is on; at or above it the
+   reader is reading, so everything is. Nothing moves between the two. */
+#canvas .fm-far{display:none}
+#canvas.far .fm-far{display:inline}
+#canvas.far .fm-near,#canvas.far .fm-elab,#canvas.far .fm-endtag,#canvas.far .fm-src,
+#canvas.far .fm-owner-callers{display:none}
+#canvas.far .fm-edge{stroke-width:3.2}
+#canvas.far .fm-edge.long{stroke-width:5}
+
+/* -- focus: one box, its wires and what they reach; everything else recessive -------- */
+#canvas.focus .fm-node:not(.sel):not(.peer){opacity:.15}
+#canvas.focus .fm-edge:not(.hot){opacity:.07}
+#canvas.focus .fm-elab:not(.hot),#canvas.focus .fm-endtag:not(.hot){opacity:.12}
+#canvas .fm-node.peer>rect:first-of-type{stroke:#0284c7;stroke-width:3}
+#canvas .fm-node.at>rect:first-of-type{stroke:#c026d3;stroke-width:4.2}
+#canvas .fm-endtag{cursor:pointer}
+#canvas .fm-endtag.hot text{font-weight:700}
+
+/* -- where am I: the whole page, and the rectangle this screen is looking at --------- */
+#minimap{position:absolute;right:16px;top:14px;background:rgba(255,255,255,.93);
+         border:1px solid #cbd5e1;border-radius:7px;padding:4px;display:none;cursor:crosshair;
+         box-shadow:0 3px 14px rgba(15,23,42,.14)}
+#minimap svg{display:block}
+#pin{position:absolute;left:16px;top:14px;font-size:11.5px;color:#0f172a;
+     background:rgba(255,255,255,.93);border:1px solid #cbd5e1;border-radius:6px;
+     padding:3px 9px;display:none;max-width:44%;overflow:hidden;text-overflow:ellipsis;
+     white-space:nowrap}
+#pin b{color:#0284c7}
 """
 
 JS = """
 const stage=document.getElementById('stage'),canvas=document.getElementById('canvas'),
       crumb=document.getElementById('crumb'),zoomLbl=document.getElementById('zoom'),
       codePane=document.getElementById('codepane'),legendPane=document.getElementById('legendpane'),
-      filter=document.getElementById('filter'),backButton=document.getElementById('back');
-let view={x:0,y:0,k:1},cur=null,graphCur=null,SVG={},SRC=null,hotId=null,moved=false,down=null;
+      filter=document.getElementById('filter'),backButton=document.getElementById('back'),
+      mini=document.getElementById('minimap'),pinLbl=document.getElementById('pin');
+let view={x:0,y:0,k:1},cur=null,graphCur=null,SVG={},CTX={},SRC=null,hotId=null,moved=false,down=null;
+/* The zoom at which the drawing stops being a shape and becomes a text: a 14.5px title
+   draws at 7px below it, which is a mark, not a word. */
+const FAR=0.5;
+let pinId=null,peerAt=-1,jumped=[];
 const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
 let liveFreshness=null;
@@ -799,10 +1371,36 @@ function svgAt(k,v){SVG[k]=v;}
 function srcAll(v){SRC=v;}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.k})`;
-  zoomLbl.textContent=Math.round(view.k*100)+'%';}
+  zoomLbl.textContent=Math.round(view.k*100)+'%';
+  canvas.classList.toggle('far',view.k<FAR);
+  const box=document.getElementById('mv');
+  if(box){const r=stage.getBoundingClientRect();
+    box.setAttribute('x',(-view.x/view.k).toFixed(1));box.setAttribute('y',(-view.y/view.k).toFixed(1));
+    box.setAttribute('width',(r.width/view.k).toFixed(1));box.setAttribute('height',(r.height/view.k).toFixed(1));}}
+
+/* -- where am I: the whole page in the corner, with this screen drawn on it ---------- */
+function minimap(){const s=canvas.firstElementChild;
+  if(!s){mini.style.display='none';return;}
+  const w=s.width.baseVal.value,h=s.height.baseVal.value;
+  let body='';
+  for(const g of canvas.querySelectorAll('.fm-node')){const r=g.querySelector('rect');if(!r)continue;
+    body+=`<rect x="${r.x.baseVal.value.toFixed(0)}" y="${r.y.baseVal.value.toFixed(0)}" `+
+          `width="${r.width.baseVal.value.toFixed(0)}" height="${r.height.baseVal.value.toFixed(0)}" fill="#64748b"/>`;}
+  mini.innerHTML=`<svg viewBox="0 0 ${w} ${h}" width="200" height="132">${body}`+
+    `<rect id="mv" fill="#0284c7" fill-opacity="0.14" stroke="#0284c7" stroke-width="${(w/200*1.6).toFixed(1)}"/></svg>`;
+  mini.style.display='block';apply();}
+function at(ux,uy){const r=stage.getBoundingClientRect();
+  view.x=r.width/2-ux*view.k;view.y=r.height/2-uy*view.k;apply();}
+mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild,d=canvas.firstElementChild;
+  if(!s||!d)return;e.stopPropagation();
+  const b=s.getBoundingClientRect(),w=d.width.baseVal.value,h=d.height.baseVal.value,
+        k=Math.min(b.width/w,b.height/h);
+  at((e.clientX-b.left-(b.width-w*k)/2)/k,(e.clientY-b.top-(b.height-h*k)/2)/k);});
 function fit(){const s=canvas.firstElementChild;if(!s)return;
   const w=s.width.baseVal.value,h=s.height.baseVal.value,r=stage.getBoundingClientRect();
-  view.k=Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1);
+  /* Never zero or negative: a stage narrower than its own padding would otherwise fold the
+     page inside out, and the drawing would be gone rather than small. */
+  view.k=Math.max(0.02,Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1));
   view.x=(r.width-w*view.k)/2;view.y=Math.max(18,(r.height-h*view.k)/2);apply();}
 function actual(){const s=canvas.firstElementChild;if(!s)return;const r=stage.getBoundingClientRect();
   view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=18;apply();}
@@ -813,6 +1411,14 @@ function load(key,then){if(SVG[key]!==undefined)return then();
   const s=document.createElement('script');s.src='svg/'+key+'.js?'+encodeURIComponent(BUILT);
   s.onload=()=>then();s.onerror=()=>{SVG[key]=null;then();};document.head.appendChild(s);}
 
+/* The scorer's reading of this map (dev-map/lib/score.mjs): each part a penalty, 0 when ideal. */
+function showScore(s){const el=document.getElementById('score');if(!s){el.innerHTML='';return;}
+  const part=(name,v,what)=>`<span class="${v>0?'bad':''}">${name} ${v>0?'-'+v.toFixed(2):'0'}</span> (${what})`;
+  el.innerHTML=`<b>Score ${s.score>0?'-'+s.score.toFixed(2):'0'}</b> · `+[
+    part('size',s.badness.size,`${s.nodes} nodes`),
+    part('crossing',s.badness.crossing,`${s.crossing.links} of ${s.crossing.of} links leave`),
+    part('islands',s.badness.islands,`${s.islands} island${s.islands===1?'':'s'}`),
+    part('backflow',s.badness.backflow,`${s.backflow.links} of ${s.backflow.of} backward`)].join(' · ');}
 function trail(key){const out=[];let k=key;
   while(k!==null&&k!==undefined&&PAGES[k]){out.unshift(k);k=PAGES[k].p;}
   return out.map((k,i)=>i===out.length-1?`<b>${esc(PAGES[k].t)}</b> — ${esc(PAGES[k].s)}`
@@ -824,31 +1430,58 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
   let drawing=restore?restore.graph:(p.destination==='code'&&graphCur?graphCur:key);
   while(PAGES[drawing]&&PAGES[drawing].destination==='code')drawing=PAGES[drawing].p;
   load(drawing,()=>{if(version!==showVersion)return;
-    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;hot(null);
-    crumb.innerHTML=trail(drawing);
+    canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);
+    crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
     const mapped=PAGES[drawing];
     updateFreshness();
     reveal(drawing);paint();
     document.querySelectorAll('#tree a.on').forEach(a=>a.classList.remove('on'));
     const row=document.querySelector(`#tree a[data-key="${CSS.escape(drawing)}"]`);
     if(row){row.classList.add('on');row.scrollIntoView({block:'nearest'});}
-    fit();requestAnimationFrame(fit);
+    fit();requestAnimationFrame(fit);minimap();
     const entry=restore||{key:drawing,graph:drawing};
     if(!restore)remember(entry,push);
     backButton.disabled=visitAt<=0;
-    if(p.destination==='code')openCode(p.r,key);});
+    if(p.destination==='code'){if(key!==drawing)hot(key);openCode(p.r,key);}});
   return true;}
 
-/* -- hover: the box, and every wire touching it ---------------------------- */
+/* -- focus: the box, every wire touching it, and what those wires reach -------------
+   Dimming the rest is the point: on a page of two hundred boxes, thickening a wire says
+   nothing unless everything it is not goes quiet. */
+function node(id){return id?canvas.querySelector(`.fm-node[data-id="${CSS.escape(id)}"]`):null;}
+function peers(id){const out=[];
+  for(const el of canvas.querySelectorAll(`.fm-edge[data-a="${CSS.escape(id)}"],.fm-edge[data-b="${CSS.escape(id)}"]`)){
+    const other=el.dataset.a===id?el.dataset.b:el.dataset.a;
+    if(other&&other!==id&&!out.includes(other))out.push(other);}
+  return out;}
 function hot(id){if(id===hotId)return;
-  canvas.querySelectorAll('.hot').forEach(el=>el.classList.remove('hot'));
-  hotId=id;if(!id)return;
+  canvas.querySelectorAll('.hot,.peer,.sel,.at').forEach(el=>el.classList.remove('hot','peer','sel','at'));
+  hotId=id;peerAt=-1;canvas.classList.toggle('focus',!!id);
+  if(!id){pinLbl.style.display='none';return;}
   canvas.querySelectorAll(`[data-a="${CSS.escape(id)}"],[data-b="${CSS.escape(id)}"]`)
-    .forEach(el=>el.classList.add('hot'));}
-stage.addEventListener('pointerover',e=>{
+    .forEach(el=>el.classList.add('hot'));
+  const me=node(id);if(me)me.classList.add('sel');
+  const near=peers(id);
+  for(const other of near){const g=node(other);if(g)g.classList.add('peer');}
+  if(pinId===id){pinLbl.style.display='block';
+    pinLbl.innerHTML=`<b>${esc(me?me.dataset.label:id)}</b> · ${near.length} connected · ] [ to walk them`;}
+  else pinLbl.style.display='none';}
+function centre(id){const g=node(id);if(!g)return;const r=g.querySelector('rect');if(!r)return;
+  at(r.x.baseVal.value+r.width.baseVal.value/2,r.y.baseVal.value+r.height.baseVal.value/2);}
+/* Stand at the other end of a wire, and be able to come back. */
+function standAt(id){if(!node(id))return;
+  if(pinId&&pinId!==id)jumped.push(pinId);
+  pinId=id;hot(null);hot(id);centre(id);}
+function walk(step){const from=pinId||hotId;if(!from)return;
+  const near=peers(from);if(!near.length)return;
+  peerAt=(peerAt+step+near.length*2)%near.length;
+  canvas.querySelectorAll('.at').forEach(el=>el.classList.remove('at'));
+  const g=node(near[peerAt]);if(g)g.classList.add('at');
+  centre(near[peerAt]);}
+stage.addEventListener('pointerover',e=>{if(pinId)return;
   const el=document.elementFromPoint(e.clientX,e.clientY),g=el&&el.closest('.fm-node');
   hot(g?g.dataset.id:null);});
-stage.addEventListener('pointerleave',()=>hot(null));
+stage.addEventListener('pointerleave',()=>{if(!pinId)hot(null);});
 
 /* -- pan / zoom ------------------------------------------------------------ */
 stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane'))return;e.preventDefault();
@@ -869,6 +1502,10 @@ stage.addEventListener('pointerup',()=>{down=null;stage.classList.remove('drag')
 stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')||moved)return;
   const el=document.elementFromPoint(e.clientX,e.clientY);if(!el)return;
   if(el.closest('.fm-caller-unresolved'))return;
+  /* A long wire is drawn as its two ends; its end tag names the other end and is the way
+     to go and stand there. */
+  const jump=el.closest('.fm-endtag[data-jump]');
+  if(jump){standAt(jump.dataset.jump);return;}
   const src=el.closest('.fm-src');
   if(src){const target=PAGES[src.dataset.key];
     if(target&&target.destination==='code')show(src.dataset.key);else openCode(src.dataset.ref);return;}
@@ -918,13 +1555,13 @@ function need(then){if(SRC)return then();
   s.onload=()=>then();s.onerror=()=>{SRC={};then();};document.head.appendChild(s);}
 function closeCode(){sourceVersion++;codePane.classList.remove('on');codePane.innerHTML='';}
 function dismissCode(){closeCode();}
-function callerEvidence(page){const rows=page?.metadata?.callerReferences||page?.metadata?.calledFrom||[];
-  const counted=page?.metadata?.outsideCallers||{};
-  if(!rows.length&&!Object.keys(counted).length)return '';
-  let body='';for(const row of rows){const label=row.index||row.path||row.file||'external caller';
-    body+=`<div>${row.index&&PAGES[row.index]?`<a data-go="${esc(row.index)}">${esc(label)}</a>`:`<span>${esc(label)}${row.unmapped?' · outside the map':''}</span>`}</div>`;}
-  for(const where in counted)body+=`<div><span>${esc(where)} · ${counted[where]} · not active while making a part</span></div>`;
-  return `<details open><summary>called from · ${rows.length}</summary><div class="caller-evidence">${body}</div></details>`;}
+/* A leaf that opens as code gets the context a map page draws — its ports, the boxes it would
+   have drawn, its state, its callers and its ledger — in a panel under the source, drawn once
+   at build time and fetched with the page the way a drawing is. */
+function ctxAt(k,v){CTX[k]=v;}
+function loadCtx(key,then){if(CTX[key]!==undefined)return then();
+  const s=document.createElement('script');s.src='svg/'+key+'.ctx.js?'+encodeURIComponent(BUILT);
+  s.onload=()=>then();s.onerror=()=>{CTX[key]=null;then();};document.head.appendChild(s);}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
   const version=++sourceVersion;
@@ -935,12 +1572,17 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
       for(let i=0;i<lines.length;i++)rows+=`<span class="ln">${a+i}</span>${esc(lines[i])}\\n`;
       body=`<pre>${rows}</pre>`;}
     const page=key&&PAGES[key];
-    codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
-      `<div class="num">${page?esc(page.t)+' · ':''}${esc(file)}</div><h3>lines ${a}–${b}</h3>`+
-      `<div id="source-freshness">${esc(freshnessMessage().source)}</div>`+
-      `<button onclick="copy('${esc(file)}:${a}')">Copy path:line</button></div>`+
-      `<div class="cb">${body}${callerEvidence(page)}</div>`;
-    codePane.classList.add('on');});}
+    const paint=()=>{if(version!==sourceVersion)return;
+      codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
+        `<div class="num">${page?esc(page.t)+' · ':''}${esc(file)}</div><h3>lines ${a}–${b}</h3>`+
+        `<div id="source-freshness">${esc(freshnessMessage().source)}</div>`+
+        `<button onclick="copy('${esc(file)}:${a}')">Copy path:line</button>`+
+        `<button onclick="toggleContext()">Context</button></div>`+
+        `<div class="cb">${body}${(key&&CTX[key])||''}</div>`;
+      codePane.classList.add('on');};
+    if(page&&page.destination==='code')loadCtx(key,paint);else paint();});}
+/* The source is what the pane is for; the context folds away without leaving it. */
+function toggleContext(){const cx=codePane.querySelector('.cx');if(cx)cx.classList.toggle('shut');}
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
 
@@ -953,13 +1595,26 @@ filter.addEventListener('keydown',e=>{if(e.key!=='Enter')return;
   if(PAGES[q]){show(q);return;}
   const exact=Object.keys(PAGES).find(k=>PAGES[k].d===q);
   if(exact){show(exact);return;}
-  const hit=document.querySelector('#tree a:not(.hide)');if(hit)show(hit.dataset.key);});
+  const hit=document.querySelector('#tree a:not(.hide)');if(hit){show(hit.dataset.key);return;}
+  /* A leaf has no row of its own: it opens as a box on the map that homes it. */
+  const leaf=Object.keys(PAGES).find(k=>PAGES[k].find.toLowerCase().includes(q.toLowerCase()));
+  if(leaf)show(leaf);});
 
 addEventListener('keydown',e=>{
-  if(e.key==='Escape'){e.preventDefault();dismissCode();legendPane.classList.remove('on');return;}
+  if(e.key==='Escape'){e.preventDefault();dismissCode();legendPane.classList.remove('on');
+    if(pinId){pinId=null;jumped=[];hot(null);}return;}
   if(e.target===filter||e.target.closest('input,textarea,[contenteditable="true"]')||!cur)return;
   if(e.key==='f')fit();
   if(e.key==='0')actual();
+  /* Focus, and walking out of it: pin what is under the cursor, step along its wires, come
+     back to the box -- or back to the box a wire's end tag was clicked from. */
+  if(e.key==='x'){if(pinId){pinId=null;jumped=[];hot(null);}else if(hotId)standAt(hotId);}
+  if(e.key===']'){e.preventDefault();walk(1);}
+  if(e.key==='['){e.preventDefault();walk(-1);}
+  if(e.key==='\\\\'){e.preventDefault();
+    if(peerAt>=0){peerAt=-1;canvas.querySelectorAll('.at').forEach(el=>el.classList.remove('at'));
+      if(pinId)centre(pinId);}
+    else if(jumped.length){const back=jumped.pop();pinId=null;standAt(back);}}
   if(e.key==='Backspace'){e.preventDefault();goBack();}
   if(e.key==='u'&&PAGES[cur].p)show(PAGES[cur].p);});
 addEventListener('popstate',e=>{
@@ -1001,13 +1656,20 @@ def legend_html():
     return "".join(o)
 
 
-def emit(out, model, pages, svgs):
+def emit(out, model, pages, svgs, panes):
     (out / "svg").mkdir(parents=True, exist_ok=True)
     inline = 0
     for key, body in svgs.items():
         inline += len(body)
         (out / "svg" / f"{key}.js").write_text(f"svgAt({json.dumps(key)},{json.dumps(body)})",
                                                encoding="utf-8")
+    # A code destination's context panel is fetched the same way its map neighbours are: one
+    # page at a time, so the shell stays the size of the index rather than of every page.
+    context = 0
+    for key, body in panes.items():
+        context += len(body)
+        (out / "svg" / f"{key}.ctx.js").write_text(f"ctxAt({json.dumps(key)},{json.dumps(body)})",
+                                                   encoding="utf-8")
     (out / "sources.js").write_text("srcAll(" + json.dumps(model["sources"]).replace("</", r"<\/")
                                     + ")", encoding="utf-8")
     # A source line holding `</script>` would close the block early, so the sequence is broken
@@ -1057,6 +1719,7 @@ def emit(out, model, pages, svgs):
     <button onclick="document.body.classList.toggle('noside');fit()" title="show or hide the index">&#9776;</button>
     <div id="crumb"></div>
     <span id="stale"></span>
+    <span id="score" title="Map score: 0 is ideal, each part is a penalty from 0 to -1. See scores.html for every map."></span>
     <button onclick="toggleLegend()">Legend</button>
     <button onclick="pageCode()">Source</button>
     <button onclick="fit()">Fit</button>
@@ -1067,8 +1730,12 @@ def emit(out, model, pages, svgs):
     <div id="codepane"></div>
     <div id="legendpane"><div class="lh">Legend<span class="x" onclick="toggleLegend()">&times;</span></div>
       <div class="lb">{legend_html()}</div></div>
+    <div id="minimap"></div>
+    <div id="pin"></div>
     <div id="hint">scroll = zoom · drag = pan · click a box = its page · click a box foot = its
-      source · Back previous map · f fit · 0 actual · u up · esc close</div>
+      source · hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
+      click a wire's end tag = stand at its other end · Back previous map · f fit · 0 actual ·
+      u up · esc close</div>
   </div>
 </div>
 <script>
@@ -1079,7 +1746,7 @@ const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 </script>
 """
     (out / "index.html").write_text(html, encoding="utf-8")
-    return len(html), inline
+    return len(html), inline, context
 
 
 def build(model, out):
@@ -1122,26 +1789,32 @@ def build(model, out):
         source_span = p.get("sourceSpan")
         if source_span:
             ref = f'{source_span["file"]}:{source_span["line"]}-{source_span["endLine"]}'
-        metadata = {key: p[key] for key in ("inputs", "outputs", "requires", "formulas", "gates", "calledFrom",
-                    "consumedBy", "couplings", "unresolved", "uncertainty", "outside", "platform",
-                    "outsideCallers", "callerReferences", "facts") if key in p}
-        if stale:
-            metadata["stale"] = stale
+        # A code destination carries its context in its own panel beside the source, fetched
+        # with the page; the shell holds the index and the way in, not the pages themselves.
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,
-                            destination=destination, metadata=metadata if destination == "code" else None,
+                            destination=destination,
                             x=(stale["regenerate"] if stale else ""))
+        score = model.get("scores", {}).get(index)
+        if score:
+            pages[index]["sc"] = score
     ctx = dict(pages=pages, stale=model["stale"], dropped=[])
-    svgs = {}
+    svgs, panes = {}, {}
     for index in sorted(packets, key=at):
         if pages[index]["destination"] != "code":
             svgs[index] = build_page(packets[index], ctx).render()
-    size, inline = emit(out, model, pages, svgs)
+        else:
+            packet = packets[index]
+            if model["stale"].get(index):
+                packet = {**packet, "stale": model["stale"][index]}
+            panes[index] = code_pane(packet, pages)
+    size, inline, context = emit(out, model, pages, svgs, panes)
     kinds = {}
     for p in packets.values():
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1
     print(f'{out / "index.html"}: {len(pages)} pages ({", ".join(f"{k} {n}" for k, n in sorted(kinds.items()))})')
     print(f'shell {size:,} bytes; {len(svgs)} sidecar drawings, {inline:,} bytes of SVG '
           f'(inlining them would make the shell {size + inline:,} bytes); '
+          f'{len(panes)} code context panels, {context:,} bytes; '
           f'sources {len(model["sources"])} files')
     if ctx["dropped"]:
         print(f'{len(ctx["dropped"])} wires had an endpoint that is not a box on their page: '

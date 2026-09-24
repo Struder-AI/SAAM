@@ -1,6 +1,59 @@
-// Compact encoding of the viewer's information level. --details retains the
-// original packet; this module neither scans nor changes graph relationships.
+// Compact encoding of the viewer's information level. --details is the same page with the
+// stored evidence kept beside it; this module neither scans nor changes graph relationships.
 import {presentationPage} from './presentation.mjs';
+
+// What identifies the same thing in the stored packet and in the presented page. A presented
+// component is one invocation of a stored box, so several presented items share one stored one.
+const identityOf=item=>item&&typeof item==='object'&&!Array.isArray(item)
+  ?['index','port'].map(key=>item[key]).find(value=>typeof value==='string'):undefined;
+// Fields presentation drops entries from, or aggregates: the stored list is the longer one and
+// it says everything the presented one says, so the reading keeps it.
+const stored=new Set(['requires','references']);
+// Finding rows are regrouped and relocated without losing a row, and they carry no identity of
+// their own, so the presented rows are taken whole rather than paired off against the stored.
+const presented=new Set(['uncertainty','unresolved','nodeFindings']);
+function withEvidence(evidence,shown,again=false) {
+  if(Array.isArray(shown)) {
+    if(!Array.isArray(evidence))return shown;
+    // The presented list is the stored one in place when it keeps every stored item. A shorter
+    // one is a second drawing of the same graph — an overview page collapses its ports and
+    // wires into relationships — and then both lists are kept, the drawing first.
+    const aligned=shown.length>=evidence.length;
+    const known=new Map(),used=new Set(),taken=new Set();
+    evidence.forEach((item,i)=>{const id=identityOf(item);if(id!==undefined&&!known.has(id))known.set(id,i);});
+    const paired=shown.map((item,i)=>{
+      const id=identityOf(item);
+      // Without an identity the two lists are the same list in the same order; with one that
+      // the stored packet does not carry, the presented item stands alone.
+      const at=id===undefined?(aligned?i:-1):known.get(id)??-1;
+      const repeat=id!==undefined&&taken.has(id);
+      if(id!==undefined)taken.add(id);
+      if(at<0||at>=evidence.length)return item;
+      used.add(at);
+      return withEvidence(evidence[at],item,repeat);
+    });
+    // Nothing stored is dropped: what no presented item carried is kept behind the drawing.
+    const kept=evidence.filter((item,i)=>!used.has(i));
+    return kept.length?[...paired,...kept]:paired;
+  }
+  if(!shown||typeof shown!=='object'||!evidence||typeof evidence!=='object'||Array.isArray(evidence))return shown;
+  const merged={...evidence};
+  for(const [key,value] of Object.entries(shown))
+    merged[key]=stored.has(key)&&key in evidence?evidence[key]
+      :presented.has(key)?value:withEvidence(evidence[key],value);
+  // A caller list belongs to the declaration, not to each invocation of it: it is carried once,
+  // by the first box the declaration is drawn as, and every later instance of that box counts
+  // its callers as the drawing does.
+  if(again&&merged.callerSummary&&!shown.callerReferences)delete merged.callerReferences;
+  return merged;
+}
+
+// The details read: the page as the map presents it — invocation wires, state nodes, parameter
+// targets, finding rows and counts, the boxes a leaf drew here — over the stored packet it was
+// made from, so the expressions, producer traces and byte offsets are still under it.
+export function detailedPage(page) {
+  return withEvidence(page,presentationPage(page));
+}
 export function compactPage(page, {code = false} = {}) {
   page = presentationPage(page);
   const sourceOnly = code || page.destination === 'code';
@@ -39,17 +92,29 @@ export function compactPage(page, {code = false} = {}) {
   }
   if (sourceOnly) {
     // A page that opens as code still names the pages it would have drawn: the walk down to a
-    // declaration it holds or calls stays visible without a second read.
+    // declaration it holds or calls stays visible without a second read. Its data wires are the
+    // drawing it does not get; its invocation wires say which call each box is and which
+    // argument slots are stubs, which the source alone does not say.
+    // The state it reads and writes is context the source does not name in one place either.
+    packet.wires = (page.wires ?? []).filter(wire => wire.kind === 'invocation' || wire.kind === 'state');
     const keys = ['index', 'path', 'file', 'kind', 'line', 'endLine', 'destination',
       'code', 'source', 'sources', 'sourceKind', 'sourceSha256', 'sourceUnavailable', 'regenerate', 'stale',
-      'components', 'facts', 'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
+      'components', 'state', 'wires', 'facts', 'callerReferences', 'callerWires', 'calledFrom', 'couplings', 'unresolved', 'uncertainty'];
     if (!code) keys.push('inputs', 'outputs');
     return clean(Object.fromEntries(keys.filter(key => key in packet).map(key => [key, packet[key]])), undefined, true);
   }
 
   delete packet.flow;
   delete packet.generated;
+  // Per-call-site evidence — argument counts and flags, the callee's traceability, the site's
+  // line — is what the drawing turns into one invocation wire per box, with stub or literal
+  // slots. The wire is what a reader acts on; the sites behind it are --details.
   delete packet.callBindings;
+  delete packet.invocationSites;
+  // A group's boundary list is the bookkeeping that ties each generated port back to the wire it
+  // was cut from on the parent page. The ports themselves are presented, each carrying its
+  // `edgeId` and `parentEndpoint`, and this page is the other end, so the list adds nothing.
+  delete packet.boundary;
   // File/root children repeat the component/region inventory. Region children
   // remain: they are the file route alongside authored conceptual groups.
   if (page.kind === 'file' || page.kind === 'root') {
@@ -58,19 +123,15 @@ export function compactPage(page, {code = false} = {}) {
     packet[inventory] = (page[inventory] ?? []).map(item => ({...children.get(item.index), ...item}));
     packet.children = (page.children ?? []).filter(child => !packet[inventory].some(item => item.index === child.index));
   }
-  // Wires carry producers/consumers and source argument slots. Occurrences keep
-  // source identity and analysis limits; expressions and tracing are --details.
-  const declarations = new Map((page.components ?? []).map(node => [node.path ?? `${node.file}::${node.label}`, node.index]));
-  if (page.callBindings?.length) packet.calls = page.callBindings.map(call => {
-    const {arguments: args = [], resultUses, result, callee, callable, ...occurrence} = call;
-    const argumentFlags=args.map(arg=>Object.fromEntries(['position','unknown','spread','positionUnknown','constant']
-      .filter(key=>arg[key]!==undefined).map(key=>[key,arg[key]])))
-      .filter(arg=>Object.keys(arg).length>1);
-    return {...occurrence, callee: declarations.get(callee) ?? callee,
-      argumentCount:args.length,...(argumentFlags.length?{arguments:argumentFlags}:{}),
-      ...(callable?.unknown?{callableUnknown:true}:{}),
-      ...(result ? {result: {kind: result.kind,
-        ...(result.kind==='binding'&&/^[A-Za-z_$][\w$]*$/.test(result.expression??'')?{binding:result.expression}:{})}} : {})};
-  });
+  // A gate is a lookup table: every other field points at one by number. An invocation wire
+  // points at the gate of the call site it stands for — whole, or one per site where the sites
+  // differ — so a table the calls reach is a table this read still indexes. Only one nothing on
+  // the page indexes at all is dropped whole. Numbering is never rewritten — a surviving
+  // reference means the whole table stays.
+  const indexed = item => item.gate !== undefined && item.gate !== null
+    || (item.siteGates ?? []).some(site => site.gate !== undefined && site.gate !== null);
+  if (packet.gates?.length && !['components', 'operators', 'wires', 'inputs', 'outputs', 'ports']
+    .some(field => (packet[field] ?? []).some(indexed)))
+    delete packet.gates;
   return clean(packet, undefined, true);
 }

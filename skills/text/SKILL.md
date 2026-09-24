@@ -1,14 +1,14 @@
 ---
 name: text
-description: Add raised or recessed lettering to a part, or create standalone text, using a supplied outline font. Lay out lettering flat, optionally along a spline baseline, then bend its solid onto a part surface or an independent spline guide. The resulting mesh goes through the shared printing and Studio review workflow.
+description: Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface.
 metadata:
-  saam-kind: task
+  saam-kind: geometry
 ---
 
 # Text geometry
 
-Use this preparation skill for lettering, labels, stamps and text inserts.
-It creates actual material geometry; choose printing patterns afterward using
+Use this geometry skill for lettering, labels, stamps and text inserts.
+It creates actual material geometry; choose toolpath skills afterward using
 the [shared print tools](../../core/print/USAGE.md). Text changes invalidate
 geometry and combined settings/toolpath confirmations. The person reviews the resulting solid in
 Studio through the usual workflow.
@@ -142,7 +142,7 @@ insets its perimeters. Use a heavier font, larger lettering or explicit positive
 Abel curved-roof example uses 0.15 mm outline expansion because its unmodified
 C/U strokes disappear with a 0.4 mm bead. Geometry visibility alone is insufficient.
 
-## Material selections and printing patterns
+## Material selections and toolpath skills
 
 Each text edit retains one final solid for review and exposes its material through
 `composition.regions[].part`:
@@ -162,7 +162,7 @@ reinforcement; a cut base uses its resulting mesh. Selecting a whole solid and
 its partitions together needs the shared explicit lower-surface relationship to
 avoid conflicting ownership.
 
-Choose the shape before choosing its printing pattern. Changing only region
+Choose the shape before choosing its toolpath skill. Changing only region
 assignments or their settings retains saved geometry and updates process review.
 Old saved text records still work as whole solids; one text rebuild is needed to
 expose selections they did not save. That rebuild follows normal geometry review.
@@ -289,7 +289,7 @@ settings when needed. Added glyph spacing can separate connected script forms.
 The boolean result is a validated indexed mesh used by both Studio and slicing.
 Spline targets are explicitly tessellated for this operation; their original
 recipes remain editable. Unmodified parts keep their existing representations.
-Printing patterns retain their own geometry limits: lettering can make a convex
+Toolpath skills retain their own geometry limits: lettering can make a convex
 vase section nonconvex or make a roof unsuitable for draped skin.
 
 Request-level `toleranceMm` defaults to 0.02 mm for outline flattening and sampled

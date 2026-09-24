@@ -1,8 +1,8 @@
 ---
 name: heat-set-inserts
-description: Add catalog-sized heat-set insert bores with six local wall loops and radial fins connecting their sleeves to the insertion face. Uses shared planar fill, infill, assemblies, and material regions. Includes SPIROL Series 19/29 metric and imperial inserts; insertion faces must be flat and face up in the build orientation.
+description: Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up.
 metadata:
-  saam-kind: task
+  saam-kind: geometry
 ---
 
 # Heat-set inserts
@@ -57,8 +57,8 @@ settings, and exact toolpath in Studio through the shared tools.
 | `depthMm` | `null`: insert length plus two thread pitches; explicit depth must fit the insert |
 | `diameterAdjustmentMm` | `0`; signed printer/material hole calibration, ±1 mm |
 | `finCount` | `6`; 2–24 radial ribs |
-| `finLengthMm` | `4`; maximum extension beyond the sleeve, at the insertion face |
-| `finWidthMm` | `0.8` at the outer tip, twice that at the sleeve joint; nominal width rounded to at least one whole bead |
+| `finLengthMm` | `4`; maximum extension beyond the bore wall, at the insertion face |
+| `finWidthMm` | `0.8` at the outer tip, twice that at the bore-wall joint; nominal width rounded to at least one whole bead |
 | `finAngleDeg` | `0`; rotates the fin pattern around the bore |
 
 The request can also set `toleranceMm` (default 0.01, maximum 0.1) for compiled
@@ -71,12 +71,12 @@ Each bore layer has **six contiguous loops**, independent of global perimeter
 count and spacing factor. Actual section offsets follow the compiled hole.
 The radial fins are triangular gussets in vertical section: zero radial reach
 at the bore floor, growing linearly to `finLengthMm` at the front insertion face.
-Their thickness tapers from twice `finWidthMm` at the sleeve joint to
+Their thickness tapers from twice `finWidthMm` at the bore-wall joint to
 `finWidthMm` at the outer tip. Layers with less than one bead of radial reach
-retain the sleeve alone. Normal solid top layers supply the front face.
-Shared scanline fill follows each tapered layer footprint. Fins overlap the sleeve to
+retain the bore wall alone. Normal solid top layers supply the front face.
+Shared scanline fill follows each tapered layer footprint. Fins overlap the bore wall to
 weld to it. Shared fill reserves their material, preventing a second interior
-deposition pass through the sleeve or fins. Ordinary exterior walls retain their
+deposition pass through the bore wall or fins. Ordinary exterior walls retain their
 own settings. Select full-fill or planar-infill with solid surface layers for
 the insertion zone.
 

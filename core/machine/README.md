@@ -61,14 +61,31 @@ deterministic wrist winding are model policies. They do not verify the installed
 controller's user/tool frames or coupled interference. The program
 sampler now consumes the shared command-time evaluator.
 
-## DENSO VP-6242
+## DENSO VS-068A4
 
 [denso-kinematics.mjs](./denso-kinematics.mjs) uses the nominal centerlines in
-[DENSO drawing 001050_1](https://www.denso-wave.com/fsys/en/robot/product/five-six/vp/001050_1.pdf):
-280 mm shoulder height, 210 mm upper arm, 210 mm forearm with 75 mm elbow offset,
-and 70 mm wrist-to-flange distance. A separate tool length extends the flange.
+[DENSO VS-068 drawing](https://www.denso-wave.com/fsys/en/robot/product/five-six/vs068-087/en_VS-068-W.pdf):
+395 mm shoulder height with 30 mm radial offset from J1, 340 mm upper arm,
+340 mm forearm with 20 mm elbow offset, and 80 mm standard wrist-to-flange
+length. A separate installed tool length extends the flange. These dimensions
+also agree with the supplied WINCAPS model pivots. The shoulder offset rotates
+with J1; nominal reach margins account for that offset before seeded IK.
 
-These are explicitly **model angles**, not RC8 encoder zeros or FIG values.
+An explicit DENSO `flangeFromTool` rigid transform can replace the scalar
+extension. Its translation is the TCP offset in mechanical flange coordinates;
+its rotation maps tool axes into flange axes, with tool **+Z toward extrusion**.
+The presentation converts that into its own -Z nozzle convention. For the reported
+Tool 6, translation is [155,0,35] mm and rotation is +90 degrees about flange Y.
+The schematic draws the flange-normal leg and the in-plane leg separately, and
+nominal IK/reach calculations use the complete transform. A straight tool length
+alone cannot represent this right-angle tool.
+
+The nominal model defines flange +Z along the model wrist +X, flange +X along
+model wrist -Z, and flange +Y along model wrist +Y. That fixes a model wrist-zero
+convention; it is not evidence of the installed RC8A joint zeros, FIG branch or
+joint-limit mapping. Changing a tool transform does not establish those mappings.
+
+These are explicitly **model angles**, not RC8A encoder zeros or FIG values.
 At model zero, the upper arm points +Z, the forearm points +X with a +Z offset,
 and the flange points +X. The local axes are Z, Y, Y, X, Y, X. The source nozzle
 convention is converted to presentation -Z at the boundary.
@@ -76,8 +93,8 @@ convention is converted to presentation -Z at the boundary.
 Nominal IK uses a damped Jacobian solve from explicit `modelSeedDeg` (six model
 angles in degrees). Each sample starts from that seed and rejects a result on
 the opposite elbow/wrist seed branch; previous rendering order is irrelevant.
-Nonconvergence is visible. This models one nominal solution, not the RC8's
-trajectory, joint limits, winding policy or commissioning. Matching RC8 arm
+Nonconvergence is visible. This models one nominal solution, not the RC8A's
+trajectory, joint limits, winding policy or commissioning. Matching RC8A arm
 motion requires verified installation transforms and an encoder/FIG mapping;
 the [production output contract](../export/denso.md) remains unchanged.
 

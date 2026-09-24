@@ -22,7 +22,7 @@ import {frameAtTime,displayPoint} from '../../studio/playback.mjs';
 import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
-const machine=loadMachine('denso-vp6242-rc8'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
+const machine=loadMachine('denso-vs068a4-rc8a'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 const small=()=>{const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
 
@@ -46,7 +46,7 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
   assert.ok(result.operations[0].strokes.every(s=>s.points[0][2]!==s.points.at(-1)[2]));
 });
 
-test('three-loop pipe body survives shared composition and RC8 source interpretation',async()=>{
+test('three-loop pipe body survives shared composition and RC8A source interpretation',async()=>{
   const plan=small();plan.geometry.outerRadiusMm=9.6;
   plan.skills['full-fill'].perimeters=0;plan.skills['full-fill'].fillOverlap=0;
   const path=generatePath(plan,machine,await rhino());
@@ -65,7 +65,7 @@ test('three-loop pipe body survives shared composition and RC8 source interpreta
   for(const rings of radii.values())assert.equal(rings.size,3);
 });
 
-test('existing mesh/spline regional skills use RC8 at fixed orientation',async()=>{
+test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
     const path=generatePath(plan,machine,await rhino()),program=interpretProgram(exportProgram(path,plan,machine),plan,machine);
@@ -121,7 +121,7 @@ test('pipe export retains substrate, tilted axial/hoop shells and radial ownersh
   assert.ok(pipeCladdingResult({plan:dense,after:['body']}).report.points>500000);
 });
 
-test('RC8 uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{
+test('RC8A uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
   await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');assert.ok(!checks.checks.includes('axis-feed'));
   const state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.review.approvals,{});await assert.rejects(()=>deliver(dir),/approv/);

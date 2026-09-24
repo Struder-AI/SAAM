@@ -21,7 +21,7 @@ let generationStart=0,lastProgress=0;
 function onProgress(progress){
   const elapsedMs=performance.now()-generationStart;
   report.progress={...progress,elapsedMs};
-  if(progress.stage==='Mapping vase motif courses')report.courseProgress={...report.progress};
+  if(progress.stage==='Mapping vase pattern courses')report.courseProgress={...report.progress};
   if(elapsedMs-lastProgress>=5000){report.progressSamples.push(report.progress);console.log(JSON.stringify({event:'progress',...report.progress}));lastProgress=elapsedMs;}
   if(elapsedMs>=maxSeconds*1000)throw new Error(`Benchmark generation time budget reached (${maxSeconds} seconds); no complete output.`);
 }

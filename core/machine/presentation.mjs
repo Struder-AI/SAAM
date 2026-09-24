@@ -1,12 +1,12 @@
 import {frameAtTime} from '../export/source-time.mjs';
 import {rotateZ} from '../path/pose.mjs';
-import {densoGeometry,densoInverse} from './denso-kinematics.mjs';
+import {densoGeometry,densoInverse,densoWristFromPose} from './denso-kinematics.mjs';
 import {dobotGeometry,dobotInverse} from './dobot-kinematics.mjs';
 import {constrainedJog} from './jog.mjs';
 import {rigid,add,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,validateRigid} from './rigid.mjs';
 
 // Gantry machines are drawn from profile data alone; each arm has its own trusted model.
-const ARMS=new Set(['dobot-mg400','denso-vp6242-rc8']);
+const ARMS=new Set(['dobot-mg400','denso-vs068a4-rc8a']);
 const isGantry=machine=>machine.kinematics==='cartesian-fixed-vertical-nozzle';
 const durationOf=p=>p.seconds??p.summary?.motionSeconds??0;
 function buildMachineMechanism({program,machine,setup,config}){
@@ -22,7 +22,7 @@ function buildMachineMechanism({program,machine,setup,config}){
   const bed=[ [bounds.min[0],bounds.min[1],0],[bounds.max[0],bounds.min[1],0],[bounds.max[0],bounds.max[1],0],[bounds.min[0],bounds.max[1],0] ];
   component('bed','bed',{kind:'polyline',pointsMm:bed,closed:true},'part');
   component('tool','tool',{kind:'cone',lengthMm:4,radiusStartMm:0,radiusEndMm:2},'tcp');
-  line('hotend-shaft','link',[0,0,4],[0,0,toolLength],'tcp');
+  if(!config.flangeFromTool)line('hotend-shaft','link',[0,0,4],[0,0,toolLength],'tcp');
 
   if(isGantry(machine)){
     const [w,d,h]=bounds.max,headZ=h+toolLength;
@@ -39,8 +39,8 @@ function buildMachineMechanism({program,machine,setup,config}){
     if(config.worldFromBase)validateRigid(config.worldFromBase);
     const dobot=machine.id==='dobot-mg400',model=dobot?dobotGeometry(config):densoGeometry(config);
     const scaledDobot=dobot&&program.language==='dobot-lua'&&(setup.dobot?.scaleX!==1||setup.dobot?.scaleY!==1);
-    const aligned=config.worldFromBase&&Number.isFinite(config.toolLengthMm)&&(dobot||Array.isArray(config.modelSeedDeg))&&!scaledDobot;
-    limits.push(dobot?'Nominal MG400 linkage; calibrated user/tool orientation and coupled interference are unchecked.':'Nominal VP-6242 drawing centerlines and seeded IK; model angles are not RC8 encoders or FIG.');
+    const aligned=config.worldFromBase&&(Number.isFinite(config.toolLengthMm)||(!dobot&&config.flangeFromTool))&&(dobot||Array.isArray(config.modelSeedDeg))&&!scaledDobot;
+    limits.push(dobot?'Nominal MG400 linkage; calibrated user/tool orientation and coupled interference are unchecked.':'Nominal VS-068A4 drawing centerlines and seeded IK; model angles are not RC8A encoders or FIG.');
     const robotSourcePose=at=>{
       const center=setup.denso?.rotaryCenterMm??[0,0,0],a=at.rotaryDeg??0,R=rotation([0,0,1],a*Math.PI/180),part=rigid(sub(center,mv(R,center)),R);
       const tcp=point(part,at.point),axis=rotateZ(at.toolAxis??[0,0,-1],a),up=rotateZ(at.toolUp??[0,1,0],a);
@@ -48,17 +48,20 @@ function buildMachineMechanism({program,machine,setup,config}){
     };
     if(aligned){
       function densoReachMargins(at){
-        const local=compose(invert(config.worldFromBase),robotSourcePose(at).tcp),wrist=add(local.translationMm,mv(local.rotation,[0,0,model.flangeMm+model.toolLengthMm]));
-        const distance=norm(sub(wrist,[0,0,model.shoulderHeightMm])),fore=Math.hypot(model.forearmMm,model.elbowOffsetMm);
-        return [model.upperMm+fore-distance,distance-Math.abs(model.upperMm-fore)];
+        const local=compose(invert(config.worldFromBase),robotSourcePose(at).tcp),wrist=densoWristFromPose(model,{tcp:local.translationMm,rotation:local.rotation});
+        const radial=Math.hypot(wrist[0],wrist[1]),height=wrist[2]-model.shoulderHeightMm,fore=Math.hypot(model.forearmMm,model.elbowOffsetMm);
+        // The shoulder travels on a circle about J1; these are conservative
+        // annulus margins across azimuths. Seeded IK resolves the actual pose.
+        const nearest=Math.hypot(radial-model.shoulderOffsetMm,height),farthest=Math.hypot(radial+model.shoulderOffsetMm,height);
+        return [model.upperMm+fore-nearest,farthest-Math.abs(model.upperMm-fore)];
       }
       const baseCenter=point(config.worldFromBase,dobot?model.baseOriginMm:[0,0,model.shoulderHeightMm]);
-      const radius=dobot?norm(model.shoulderMm)+model.l1+model.l2+norm(model.wristMm)+model.toolLengthMm:model.upperMm+Math.hypot(model.forearmMm,model.elbowOffsetMm)+model.flangeMm+model.toolLengthMm;
+      const radius=dobot?norm(model.shoulderMm)+model.l1+model.l2+norm(model.wristMm)+model.toolLengthMm:model.shoulderOffsetMm+model.upperMm+Math.hypot(model.forearmMm,model.elbowOffsetMm)+model.flangeMm+model.toolReachMm;
       const center=setup.denso?.rotaryCenterMm??[0,0,0],radial=radius+Math.hypot(baseCenter[0]-center[0],baseCenter[1]-center[1]);
       const armCoordinateBounds={min:[center[0]-radial,center[1]-radial,baseCenter[2]-radius],max:[center[0]+radial,center[1]+radial,baseCenter[2]+radius]};
-      const armAngularLever=dobot?model.toolLengthMm:model.flangeMm+model.toolLengthMm;
+      const armAngularLever=dobot?model.toolLengthMm:model.flangeMm+model.toolReachMm;
       const lengths=dobot?[Math.abs(model.baseOriginMm[2]),norm(model.shoulderMm),norm(model.upperMm),norm(model.forearmMm),norm(model.wristMm),model.toolLengthMm]
-        :[model.shoulderHeightMm,model.upperMm,Math.hypot(model.forearmMm,model.elbowOffsetMm),model.flangeMm,model.toolLengthMm];
+        :[Math.hypot(model.shoulderOffsetMm,model.shoulderHeightMm),model.upperMm,Math.hypot(model.forearmMm,model.elbowOffsetMm),model.flangeMm,...model.toolVectors.map(norm)];
       lengths.forEach((length,i)=>{link('arm-'+i,length);joint('pivot-'+i);});
       box('base','structure',dobot?[100,100,20]:[160,160,20]);
       // No guessed reach cube: explicit fit uses the currently resolved assembly.
@@ -73,7 +76,7 @@ function buildMachineMechanism({program,machine,setup,config}){
       };
       return {components,frameIds:[...frames],limits,machineBoundsWorldMm:null,coordinateBounds:armCoordinateBounds,angularLever:armAngularLever,manualEnabled:true,solve:solveAlignedArmPose,sourcePose:robotSourcePose,probeMargins:dobot?undefined:densoReachMargins,extraStatic:{base:config.worldFromBase}};
     }else{
-      limits.push(scaledDobot?'Arm omitted: non-unit Dobot design calibration cannot be overlaid with rigid physical frames.':'Arm omitted: supply kinematicModel.worldFromBase and installed toolLengthMm'+(dobot?'':', plus modelSeedDeg')+'.');
+      limits.push(scaledDobot?'Arm omitted: non-unit Dobot design calibration cannot be overlaid with rigid physical frames.':'Arm omitted: supply kinematicModel.worldFromBase and installed toolLengthMm (or DENSO flangeFromTool)'+(dobot?'':', plus modelSeedDeg')+'.');
       const solveUnavailableArmPose=at=>({worldFromFrame:robotSourcePose(at),diagnostics:[{code:'arm-unavailable',severity:'info',message:limits.at(-1)}]});
       return {components,frameIds:[...frames],limits,machineBoundsWorldMm:null,coordinateBounds:defaultCoordinateBounds,angularLever:toolLength,manualEnabled:false,solve:solveUnavailableArmPose,sourcePose:robotSourcePose,probeMargins:undefined,extraStatic:{}};
     }

@@ -4,7 +4,7 @@ A proposed self-righting desk cup, 44 mm maximum diameter and 40 mm tall. It pri
 mouth-down and is inverted for use. An open reinforced lip, a light spiral wall,
 a weighted full-fill foot and three curved contact-skin layers belong to one
 continuous object. The component meshes and explicit operation dependency show
-why different printing patterns can be useful in the same part.
+why different toolpath skills can be useful in the same part.
 
 ```sh
 node studio/server.mjs

@@ -3,6 +3,7 @@ import {posix, resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {parse} from 'acorn';
 import {couplings} from './couplings.mjs';
+import {iterationMethods} from './shapes.mjs';
 import {isMapped} from './scope.mjs';
 
 const functions = new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
@@ -23,6 +24,25 @@ const children = node => {
   return out;
 };
 const property = node => !node.computed ? node.property?.name : node.property?.type==='Literal' ? String(node.property.value) : null;
+// The thing a handler is stored on, as the source names it: an id selector by its id, a binding
+// by its name, a static member path by that path. A receiver no static reading names gives null,
+// and the handler keeps the property alone, as before.
+const handlerReceiver = node => {
+  if(node.type==='Identifier')return node.name;
+  if(node.type==='ThisExpression')return 'this';
+  if(node.type==='MemberExpression'&&property(node)) {
+    const outer=handlerReceiver(node.object);return outer?`${outer}.${property(node)}`:null;
+  }
+  if(node.type==='CallExpression'&&node.arguments.length===1&&node.arguments[0].type==='Literal'
+    &&typeof node.arguments[0].value==='string')return node.arguments[0].value.replace(/^#/,'')||null;
+  return null;
+};
+// A callable stored on a platform event property is reached by whatever fires it, never by a name
+// this code calls, so nothing but the site can name it. Inside a holder the holder does. At module
+// level there is no holder, and the property alone repeats for every element of the same page, so
+// the receiver and the event name it: an identity unique in the file that survives line edits,
+// where a source position does not.
+const handlerPath = (receiver,event) => receiver?`@handler/${encodeURIComponent(receiver)}.${event}`:event;
 // Static and instance methods occupy different receiver namespaces in JavaScript. Keep the
 // ordinary source spelling for instance methods and reserve a generated segment for every static
 // method, so adding or removing a same-named counterpart never retargets either declaration.
@@ -53,7 +73,7 @@ const mappedCode=isMapped;
 export async function extractGraph({repo,files,importAliases={},literalCouplings=false,receiverCalls=false,readSource=file=>readFile(resolve(repo,file),'utf8')}) {
   const modules=new Map(), declarations=[], calls=[], assignments=[], relations=[], unresolved=[], declFn=new Map(),declarationPaths=new Map();
   const nodeScope=new WeakMap(), nodeOwner=new WeakMap(), nodeDecl=new WeakMap(), parents=new WeakMap();
-  const parameterDefaultNames=new WeakMap();
+  const parameterDefaultNames=new WeakMap(),listenerNames=new WeakMap();
   const scopes=[], bindings=[];
   const scope=(parent,kind)=>{const s={parent,kind,bindings:new Map()};scopes.push(s);return s;};
   const lookup=(s,name)=>s?.bindings.get(name)??(s?.parent?lookup(s.parent,name):null);
@@ -123,13 +143,14 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     }
     if(functions.has(n.type)) {
       const named=n.type==='FunctionDeclaration'&&!!n.id;
-      const defaultName=parameterDefaultNames.get(n);
+      const defaultName=parameterDefaultNames.get(n),listenerName=listenerNames.get(n);
       const inherited=!!parent&&nodeDecl.has(parent)&&(
         parent.type==='VariableDeclarator'&&parent.init===n||
         ['Property','MethodDefinition'].includes(parent.type)&&parent.value===n||
         parent.type==='AssignmentExpression'&&parent.right===n);
-      const next=named?[...path,n.id.name]:inherited?path:defaultName?[...path,`@default/${encodeURIComponent(defaultName)}`]:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
-      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,'function',owner,named||!!defaultName);
+      const next=named?[...path,n.id.name]:inherited?path:listenerName?[...path,listenerName]
+        :defaultName?[...path,`@default/${encodeURIComponent(defaultName)}`]:[...path,`<callback@${n.loc.start.line}:${n.loc.start.column+1}>`];
+      const d=inherited?nodeDecl.get(parent):declaration(m,n,next,listenerName?'handler':'function',owner,named||!!defaultName||!!listenerName);
       if(!named&&!inherited&&returnedCallable(n,parent))d.generatedRole='returned-callable';
       if(defaultName)d.generatedRole='parameter-default';
       d.callable=true;nodeDecl.set(n,d);nodeOwner.set(n,d);declFn.set(d.id,n);m.functions.push(n);
@@ -156,7 +177,17 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       declaration(m,n,next,'method',owner);visit(m,n.value,s,next,owner,n);return;
     }
     if(n.type==='AssignmentExpression'&&n.left.type==='MemberExpression'&&property(n.left)&&functions.has(n.right.type)) {
-      declaration(m,n,[...path,property(n.left)],'handler',owner);
+      // The handler's body is written inside the handler, so what that body declares is homed by
+      // the handler, not by the module or the function the assignment happens to sit in.
+      path=[...path,owner?property(n.left):handlerPath(handlerReceiver(n.left.object),property(n.left))];
+      declaration(m,n,path,'handler',owner);
+    }
+    // `addEventListener('x', …)` stores a callable the same way, and at module level it is named
+    // the same way, so the listener is a handler declaration rather than a source position.
+    if(n.type==='CallExpression'&&!owner&&n.callee.type==='MemberExpression'&&property(n.callee)==='addEventListener') {
+      const [event,handler]=n.arguments,receiver=handlerReceiver(n.callee.object);
+      if(receiver&&event?.type==='Literal'&&typeof event.value==='string'&&functions.has(handler?.type))
+        listenerNames.set(handler,handlerPath(receiver,event.value));
     }
     if((n.type==='BlockStatement'&&!functions.has(parent?.type))||n.type==='CatchClause'||['ForStatement','ForOfStatement','ForInStatement','SwitchStatement'].includes(n.type)) {
       s=scope(s,'block');nodeScope.set(n,s);if(n.type==='CatchClause')pattern(n.param,s);
@@ -512,6 +543,34 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   // Opt-in, after every other relation, so relation ids and the authored projection are unchanged without it.
   const coupled=literalCouplings?couplings({modules,calls,assignments,lookup,nodeScope,nodeOwner,parents,value,choices,location,edge,property,children,functions,importPath}):null;
   if(receiverCalls&&!coupled)throw Error('receiverCalls needs literalCouplings: it reuses that value resolver.');
+  // A record is a holder, not a page, wherever it is written. `const viewer={…}` names a value no
+  // reader can open, so `::` before one of its function members promises a page that does not
+  // exist; the member joins its holder with `.` for record membership, and what is written inside
+  // that member keeps `::` after it. The same holds for a record declared inside a function
+  // (`createStudio::lifetime.onViewers`): the holder is still a value, not a page. A holder that
+  // is callable — a nested function, a method, a class — is a page, and keeps `::`. A name-keyed
+  // dispatch table at module level is the exception the registry rule already made: a
+  // `registry-entry` coupling reaches each entry of a module-level table by its key, so that key
+  // stays a segment of its own and the entry keeps the identity it had. A table written inside a
+  // function is a local value like any other record, and its entries read `table.key`, which is
+  // how the registry coupling already labels them.
+  {
+    const keyed=new Set();
+    for(const r of relations)if(r.kind==='registry-entry'){keyed.add(r.from);keyed.add(r.to);}
+    const records=new Set();
+    for(const d of declarations)
+      if(d.kind==='variable'&&!d.callable&&d.anchor)records.add(`${d.file}::${declarationPaths.get(d.id).join('::')}`);
+    for(const d of declarations) {
+      const segments=declarationPaths.get(d.id);
+      if(!d.anchor||segments.length<2)continue;
+      const named=[segments[0]];
+      for(let i=1;i<segments.length;i++)
+        if(records.has(`${d.file}::${segments.slice(0,i).join('::')}`)&&!(i===1&&keyed.has(d.id)))
+          named[named.length-1]+=`.${segments[i]}`;
+        else named.push(segments[i]);
+      d.anchor=`${d.file}::${named.join('::')}`;
+    }
+  }
   const accounting=receiverCalls?accountCalls(coupled.origins):null;
   // Every call site in mapped code ends LINKED, EXTERNAL or UNRESOLVED, each with the rule
   // that decided it. Linking follows the receiver's or callee's value through the coupling
@@ -649,6 +708,9 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
     const linked={'ast-call-site':0,'receiver-value':0,'value-follow':0},links={'receiver-value':0,'value-follow':0};
     // Full spans distinguish nested calls that share a starting expression.
     const external={},externalSites=[],unresolved=[],rules={},unlinked={},notes={};
+    // Every call span that reached a target, in any scanned root. A later pass reads it to know
+    // which member calls named no callee at all, which is what an iteration method looks like.
+    const accounted=new Set();
     const count=(table,rule)=>{table[rule]=(table[rule]??0)+1;};
     for(const c of calls) {
       // Receiver and callable resolution runs for every scanned root, so an outside caller
@@ -656,7 +718,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       // The linked/external/unresolved account itself stays an account of mapped code.
       const inside=mappedCode(c.module.file);
       const callee=c.node.callee,key=callee.type==='MemberExpression'?property(callee):null;
-      if(callEdges.has(c.node)) {if(inside) {linked['ast-call-site']++;count(rules,'ast-call-site');}continue;}
+      if(callEdges.has(c.node)) {accounted.add(`${c.module.file}:${c.node.start}:${c.node.end}`);if(inside) {linked['ast-call-site']++;count(rules,'ast-call-site');}continue;}
       const from=c.owner?.id??`${c.module.file}:<module>`,site=location(c.module,c.node);
       const found=new Map();
       // A default expression is one possible value of a parameter, not proof that it was selected
@@ -681,6 +743,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         if(!found.size&&key!==null)for(const {v,at} of valuesOf(callee,c.module))if(v.fn)take(v.fn,'value-follow',at,true);
       }
       if(found.size) {
+        accounted.add(`${site.file}:${site.start}:${site.end}`);
         const route=[...found.values()][0].route;
         // A callable held in a member is whatever was stored there; the store is the evidence,
         // not a proof that this call reaches one particular stored function.
@@ -689,8 +752,12 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         // `evidence` stays the call site alone: other analyses read it as the set of accounted
         // call spans. The argument that supplied the value is provenance, so it goes to
         // `resolution`, where it names the caller this link was proved from.
+        // A call on a parameter says so: the callable is the caller's, followed here through the
+        // argument. The relationship is the same link; where it is drawn is not, so the map
+        // keeps it out of the callee's own boxes and flow (dev-map/lib/flow.mjs, regions.mjs).
         for(const {decl,fn,at} of found.values())
           edge('call',from,decl.id,[site],{resolution:at?.node?[location(at.module,at.node)]:[],resolvedBy:route,...(key?{receiver:key}:{}),possible,
+            ...(directParameter?{viaParameter:true}:{}),
             args:c.node.arguments.map(passed),params:(fn??declFn.get(decl.id))?.params.map(passed)??[]});
         continue;
       }
@@ -708,7 +775,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       if(subscribers||candidates)notes[`${site.file}:${site.start}:${site.end}`]={...(subscribers?{registration:subscribers}:{}),...(candidates?{candidates}:{})};
     }
     return {states:{linked:Object.values(linked).reduce((a,b)=>a+b,0),external:Object.values(external).reduce((a,b)=>a+b,0),unresolved:unresolved.length},
-      linked,links,external,externalSites,rules,unresolved,unlinked,notes};
+      linked,links,external,externalSites,rules,unresolved,unlinked,notes,accounted};
   }
   // A local collection of callables, filled by a registration function in the same closure and
   // iterated at the call site: the value called is whatever was registered. No static target
@@ -755,6 +822,51 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
       const d=nodeDecl.get(fn);if(!d||!mappedCode(d.file))continue;
       edge('event-listener',c.owner?.id??`${c.module.file}:<module>`,d.id,[location(c.module,c.node)],
         {label:first.value,receiver:key,rule:accounting.unlinked[`${c.module.file}:${c.node.start}:${c.node.end}`]});
+    }
+  }
+  // The same registration written as a property. `canvas.onpointerdown=beginCanvasDrag` hands the
+  // platform a callable exactly as `addEventListener('pointerdown',…)` does, so the function doing
+  // the assigning reaches the declaration it names and draws a wire to it. The platform's own
+  // property naming decides the shape: `on` and a lower-case event, never a record field, which is
+  // capitalised (`onProgress`). A function written at the site is already a handler declaration the
+  // site homes, and needs no edge to say where it lives.
+  for(const a of assignments) {
+    const n=a.node;
+    if(n.type!=='AssignmentExpression'||n.operator!=='='||n.left.type!=='MemberExpression')continue;
+    const event=property(n.left);
+    if(!event||!/^on[a-z]/.test(event)||!mappedCode(a.module.file))continue;
+    // `a.onx=b.ony=handler` registers the same callable twice; each property is its own site.
+    let held=n.right;while(held.type==='AssignmentExpression'&&held.operator==='=')held=held.right;
+    if(functions.has(held.type))continue;
+    for(const fn of new Set(choices(value(held,a.scope,a.module)).filter(v=>v.fn).map(v=>v.fn))) {
+      const d=nodeDecl.get(fn);
+      // A positional anchor is an anonymous callable; it has no declaration a reader can open.
+      if(!d||!mappedCode(d.file)||!d.anchor||/<callback@\d+:\d+>/.test(d.anchor))continue;
+      edge('event-listener',a.owner?.id??`${a.module.file}:<module>`,d.id,[location(a.module,n)],
+        {label:event.slice(2),receiver:handlerReceiver(n.left.object)??event,rule:'handler-property'});
+    }
+  }
+  // An iteration method calls the function it is handed, once per element. When that function is
+  // a declaration the call site names, the site is a call of it with the element as its argument,
+  // so it is an ordinary call edge. An inline callback is not: it is the calling flow's own body,
+  // traced there, and giving it an edge would make a box out of a stage.
+  if(accounting)for(const c of calls) {
+    if(c.node.type!=='CallExpression'||callEdges.has(c.node))continue;
+    const callee=c.node.callee,key=callee.type==='MemberExpression'?property(callee):null;
+    const spec=key===null?null:iterationMethods.get(key);
+    if(!spec||accounting.accounted.has(`${c.module.file}:${c.node.start}:${c.node.end}`))continue;
+    const args=c.node.arguments;
+    if(args.length>spec.arity||args.some(a=>a.type==='SpreadElement'))continue;
+    const handed=args[spec.callback];
+    if(!handed||functions.has(handed.type))continue;
+    const held=choices(value(handed,c.scope,c.module)).filter(v=>v.fn).map(v=>v.fn);
+    for(const fn of new Set(held)) {
+      const d=nodeDecl.get(fn);
+      // A positional anchor is an anonymous callable; it has no declaration a reader can open.
+      if(!d||!mappedCode(d.file)||!d.anchor||/<callback@\d+:\d+>/.test(d.anchor))continue;
+      edge('call',c.owner?.id??`${c.module.file}:<module>`,d.id,[location(c.module,c.node)],
+        {resolvedBy:'iteration-callback',iterationMethod:key,possible:held.length>1,
+          args:fn.params.slice(0,spec.param.length).map(passed),params:fn.params.map(passed)});
     }
   }
   // A resolved invocation of an anonymous function must retain that function's

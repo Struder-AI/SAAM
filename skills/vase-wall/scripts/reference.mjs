@@ -76,12 +76,12 @@ export function createVaseMeshReference({shell,settings,start,end,width,onProgre
   const config=settings.meshSleeve;
   if(!config)return null;
   requireThat(shell.kind==='triangle-mesh','Fitted mesh sleeve settings require a mesh component; use the native reference directly for spline geometry.');
-  onProgress?.({stage:'Fitting mesh reference sleeve',completed:0,total:1});
+  onProgress?.({stage:'Fitting mesh sleeve',completed:0,total:1});
   const tolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm),fit=fitMeshSleeve(shell,{
     zMinMm:start,zMaxMm:end,circumferentialControls:config.circumferentialControls,heightControls:config.heightControls,
     circumferentialSamples:Math.max(96,config.circumferentialControls*3),heightSamples:Math.max(25,config.heightControls*2),toleranceMm:tolerance/8
   });
-  onProgress?.({stage:'Fitting mesh reference sleeve',completed:1,total:1});
+  onProgress?.({stage:'Fitting mesh sleeve',completed:1,total:1});
   const frame=prepareLooseSleeveOffsets({patch:fit.patch,rangeMm:fit.rangeMm});
   const beadOffset=(config.contactSide==='inside'?-1:1)*width/2;
   const sourceCurves=new Map();
@@ -113,7 +113,7 @@ export function createVaseMeshReference({shell,settings,start,end,width,onProgre
     pointAt:(u,z,offset=0)=>frame.at(u,z,offset+beadOffset,config.offsetTightness??0),
     map:point=>contact?contact.at(point,config.fidelity):point,
     report:()=>({meshSleeve:{...config,...fit.report,...frame.report(),... (contact?contact.report():{}),contactPreparation:contact?contact.report():null,
-      referenceChart:'Periodic U fitted to normalized source-section arc length; the same U is retained at every motif depth. Z remains the authored height.',
+      referenceChart:'Periodic U fitted to normalized source-section arc length; the same U is retained at every pattern depth. Z remains the authored height.',
       contactMetric:'horizontal radial clamp from fitted centerline; only forbidden-side points move',
       contactTarget:'path-centerline',
       beadEnvelopeScope:'The contact limit constrains path centers. The deposited bead can extend beyond that limit by its half width.',

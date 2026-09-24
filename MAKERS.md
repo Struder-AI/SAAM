@@ -1,356 +1,148 @@
 # Using SAAM
 
-For a tour request, launch `node studio/server.mjs --toolkit start-tour --no-open`
-immediately through the client's managed command session and open its returned
-Studio URL. Read the context returned by that command after opening Studio;
-no maker onboarding or manual read is a prerequisite for tour startup.
+As a maker agent you help a person make their part with skills, print tools and
+Studio; you change no shared code. Adapt questions and explanations to the
+person's experience, gathering missing information as it becomes relevant. When
+a session passes roughly 250k tokens and the next request is unrelated or a
+substantial pivot, suggest a fresh chat. Tour guidance comes with `start-tour`
+in the [tour manual](examples/prints/README.md#maker-agent-participation).
 
-Your task as a maker agent is to help a person make their part. For a new custom
-part with missing maker context, `node scripts/agent-toolkit.mjs maker-onboarding`
-supplies this file, the complete skill digest and shared print tools in one call.
-Use that returned text directly; do not read those sources before the command or
-read them again afterward. If this context is already loaded, continue from it.
-For an existing Studio print, begin/claim work first, before loading missing
-context; [request coordination](#existing-studio-work) defines that operation.
-Clients without the CLI read this file and the digest through their available
-reader before the first maker-facing response. Adapt questions and explanations to
-their experience, gathering missing information as it becomes relevant.
+When the request and a skill support a reasonable initial shape, create an
+unapproved print and open Studio. State the proposed dimensions, defaults and
+assumptions beside that preview so the person can revise them in chat. Ask a
+focused question first only when an essential feature has no reasonable
+supported default.
 
-You use skills, print tools and Studio; you do not change shared code. If a
-request needs a skill changed, Studio extended, or a code change of any kind,
-that is builder work: tell the person you are switching to a builder role, run
-`node scripts/agent-toolkit.mjs builder-onboarding`, and continue from
-[builder context](BUILDERS.md). Core or cross-cutting development needs the
-[developer role](AGENTS.md#choose-your-role) and the person's explicit request.
-When a session grows past roughly 250k tokens and the next request is an
-unrelated task or a substantial pivot, suggest the person start a fresh chat.
-
-When the request and an available skill support a reasonable initial shape,
-create an unapproved print bundle and open SAAM Studio. State the proposed
-dimensions, defaults and assumptions beside that preview so the person can
-revise them in chat. Ask a focused question first when an essential feature
-has no reasonable supported default.
-
-Reuse the existing Studio server and browser tab by default, including when
-switching prints: CLI agents pass `--studio URL --agent-owner ID` from
-`studio-ready` to later `open-print`/`create-preview` calls, and MCP
-`request_review` rebinds your live instance. Create another instance or tab only
-when the person asks, or for a compelling reason that you state to the person
-when you do it.
+Reuse your Studio server and browser tab, including when switching prints: CLI
+agents pass `--studio URL --agent-owner ID` from `studio-ready` to later
+`open-print`/`create-preview` calls, and MCP `request_review` rebinds your live
+instance. Open another only when the person asks, or for a compelling reason you
+tell them.
 
 ## Existing Studio work
 
-For an edit to an existing Studio print, call `begin_studio_work` as early as
-practical. You can acknowledge the person first; the claim it records is what
-later edits and result reports depend on, so make it before you mutate geometry
-or recipe or report a result. Omit MCP printId to use the active tour or sole open Studio. CLI agents use
-`node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "Requested change"`;
-omit the directory for the active tour, or use `--request ID` to claim
-Studio-originated work. Add `--include-geometry` when the edit needs the complete
-geometry recipe. The bundled CLI returns the current recipe and revision after
-marking work pending; use those instead of another status/read call. The returned
-print ID identifies the target; use it instead of an earlier chat reference.
-Beginning an edit reads geometry and recipe context without checking the old
-export; its returned `programChecked: false` is not a failed toolpath check.
+For an edit to an existing Studio print, begin work (`begin_studio_work`, or
+`begin-studio-work` in the toolkit) before you change geometry or recipe or
+report a result; you can acknowledge the person first. MCP may omit `printId`
+for the active tour or sole open Studio. Add `--include-geometry` when the edit
+needs the complete recipe. Use the returned print ID, recipe and revision rather
+than another read or an earlier chat reference; its `programChecked: false` is
+not a failed check.
 
-Use one request through its work, result and response:
+Carry one request through its work, result and response:
 
-| Situation | Agent action |
+| Situation | Action |
 |---|---|
-| Inputs are still being edited | Keep the request working. Combine related changes before publishing a result target. |
-| Saved inputs are ready to show | Bind that request with `status: working` and `resultStage: geometry` or `toolpath`. Bind every request included in a combined result. This is a readiness signal, not an approval. |
-| Only geometry or proposed settings need review now | Target geometry and show it; do not slice merely to finish the request. Complete after acknowledging the displayed change. |
-| The requested result needs a toolpath | Target toolpath. During a confirmed tour toolpath lesson Studio generates after that signal; outside the tour use explicit generation once. Verify the current result is displayed. |
-| A choice or shape confirmation is needed first | Explain what is ready and what input is needed immediately, then mark the request `waiting`. Do not wait silently for a result that requires that input. Resume the same ID when work can continue; its saved target is retained. |
-| A question needs an answer, without an edit | Answer in chat. For Studio-issued guidance, claim and complete its guidance request. Advice does not dim the preview or require generation. |
-| Work finishes, fails or is superseded | Send the concrete outcome in chat, then resolve that ID as completed, failed or cancelled. Do not leave working requests behind. |
+| Inputs still being edited | Keep it working; combine related changes before publishing a result. |
+| Saved inputs ready to show | Bind it (and every request in a combined result) with `status: working` and `resultStage: geometry` or `toolpath`. This signals readiness, not approval. |
+| Only geometry or proposed settings need review | Target geometry; don't slice just to finish. Complete after acknowledging the displayed change. |
+| The result needs a toolpath | Target toolpath and generate once (in a tour toolpath lesson Studio generates). Verify the current result is displayed. |
+| A choice or confirmation is needed first | Say what is ready and what you need, then mark it `waiting`. Resume the same ID later. |
+| A question without an edit | Answer in chat; claim and complete a Studio-issued guidance request. |
+| Work finishes, fails or is superseded | Give the concrete outcome in chat, then resolve the ID as completed, failed or cancelled. Leave nothing working. |
 
-Send the acknowledgement or guidance before a listener wait. Keep tour listeners
-active between lessons; an ordinary preview can be left for the person's next
-chat request.
+Send an acknowledgement or guidance before any listener wait. Renew a working
+request with `record-request-activity` during long work; waiting for the person
+is `waiting`, not repeated claims.
 
-Studio also tells you what the person does in your Studio instances through the
-[Studio event queue](studio/README.md#studio-event-queue): lesson changes, opened
-prints, imports, exports, displayed results and failed or cancelled calculations
-arrive on their own (as `studioEvents` on MCP tool results and listener waits, as
-notifications, or as `studio-events` lines from a live toolkit session), carrying
-quieter events such as approvals, displayed views and calculation start/finish
-with them. Nothing to subscribe to; every owned Studio reports automatically.
-Read the queue yourself with `get_studio_events` (MCP) or `read-studio-events`
-(toolkit) whenever you want to know what happened or the person asks; a read
-during a toolpath calculation reports its progress. Events arrived one after
-another, not at once: act on the latest state, not on each in turn. Optional intermediate previews create no obligation to finish
-superseded results. The [Studio coordination contract](studio/README.md#agent-request-coordination)
-owns the CLI equivalents, result identity and waiting behavior.
-
-## Tour startup
-
-For a tour request in an already set-up checkout, the first useful result is
-Studio showing lesson one. Launch
-`node studio/server.mjs --toolkit start-tour --no-open` through the client's managed command
-session, and open the returned URL with its browser integration. The
-toolkit creates fresh copies, sets playback layer 12,
-returns the URL first, then bundles the remaining participation guidance and
-listener arguments. The direct `node studio/server.mjs --start-at-layer 12`
-launcher remains available. Request an early
-command yield (about one second when supported) so the persistent server does
-not consume the command tool's default wait before its URL can be opened. New tours use
-fresh copies of both bundled examples, regardless of earlier edits. Never resume
-an old lesson for a new tour request. Keep the server session and viewer open.
-Studio supplies the first task; do not add an introductory question in chat.
-
-Reuse completed setup and permissions. Only an unused checkout needs
-[first-use setup](SETUP.md) before launch. Do not put source searches, development
-orientation, regression runs, skill selection or toolpath generation before the
-first screen. Follow any required client/browser instructions when opening it.
-The command returns this maker guidance and the
-[tour manual](examples/prints/README.md#maker-agent-participation). Consume that
-returned context once the screen is visible; do not reread the same files. Then
-keep the returned Studio request listener active. Load the relevant skill
-and adjustment instructions when an edit is requested. The initial launch creates
-the tour print; `begin_studio_work` applies to subsequent work on that print.
-
-## Tour participation
-
-The eight-step tour starts with a
-fin block and then the wavy roof. Use chat for requested changes; keep the tour
-marker in place. Wait for Studio requests between lessons and, as soon as the
-chat lesson starts, briefly explain that the toolpath controls how the confirmed
-shape is built. Offer two or three appropriate toolpath or process changes with
-their likely effects on strength, finish, print time or material use. Use the
-known recipe and choices already made; make at most one current-print read when
-essential context is missing. Do not suggest geometry in this lesson, though an
-independently requested geometry change remains supported. After the final download, promptly congratulate
-her, offer help with any difficulties printing that file, and ask what she wants
-to make next. Do not wait for her to request these
-instructions. Send the congratulations, offer of printing help and next-project
-question together as ordinary chat text. Never use a question box, form or
-request-user-input tool for tour completion. If the client allows questions
-only in a final response, send that complete message as the final response.
-Prioritize it over timing notes, browser inspection and other bookkeeping.
-Selecting the saved print (or an STL in its tour lesson) confirms
-the chosen geometry before toolpath preparation. The final export confirmation
-approves the displayed settings and exact toolpath; preview generation itself
-creates no approval.
-
-Preserve the tour's gradual introduction: Studio provides the early lesson
-guidance. Do not repeat its first task, ask an introductory question, or prompt
-the person to press Play in chat. Respond when the person requests an edit;
-otherwise do preparatory agent work silently. Proactive teaching in chat begins
-only at the designated change-suggestion lesson, followed by the requested congratulations
-after completion. A development status update must not become an extra maker
-instruction or move the participant into the next lesson.
-
-During a toolpath lesson, Studio automatically generates after saved process or
-machine changes have a published request target and keeps its viewport busy through loading. Do not launch a
-second CLI generation alongside it or wait for an unstarted task. Check the
-current rendered toolpath before resolving the request. Outside the tour, use
-the ordinary explicit generation flow.
-
-Studio also queues explicit generation failures with their exact error. Claim
-that request promptly, inspect the current recipe and relevant skill limits, and
-apply an appropriate correction before regenerating. Explain material process
-changes, preserve human confirmations, and verify the current toolpath is visible
-before resolving recovery. Do not blindly retry the same inputs. If recovery
-needs a maker choice, ask for that choice and keep the failure actionable.
-
-During a tour, keep `wait_for_studio_request` active between lessons and repeat
-after its bounded timeout. Send each edit acknowledgement in commentary BEFORE
-starting a wait: a final answer held until the listener ends can arrive a lesson
-late. On the change-suggestion request, teach the toolpath focus and offer the
-short, contextual set of toolpath or process modifications in chat immediately,
-before another listener wait, status check, browser inspection or unrelated
-request bookkeeping. Name the practical effect of each option, then wait for the
-person's choice. Do not suggest geometry or repeat a settled choice; oblige a
-geometry change when the person asks for one independently. This requires an active connected
-agent; Studio does not wake an ended or disconnected chat by itself.
-
-For CLI listeners, `node scripts/agent-toolkit.mjs wait-for-studio-request --studio URL --agent-owner ID --claim`
-(both values from `studio-ready`) runs for up to
-25 seconds and also returns delivered Studio events; a listener without the
-owner ID hears nothing from an owned Studio. If the command tool returns a running session ID, keep reading that
-same session (in Codex, `write_stdin`) until it returns the JSON result. Do not
-start a background listener and end the turn, abandon its session, or treat a
-session ID as an empty result. The flag claims returned requests in the same
-call; do not claim them again. Read each returned request, send its
-guidance or complete silent preparation, and resolve it. Repeat empty bounded
-waits while the tour is active. Only the designated change-suggestion and completion lessons
-initiate chat teaching; the early lessons remain Studio-led.
-
-Signals may accumulate while another request is being handled. Check their
-relevance against the current print and lesson context before acting. Cancel
-obsolete lesson guidance instead of teaching a lesson the participant has left;
-diagnose generation failures against the current recipe rather than blindly
-replaying an old request. Renew a working request before its ten-minute lease
-expires if long-running agent work is still active; waiting for the person uses
-`waiting`, not repeated claims.
-
-Outside the tour, load STL files without a units popup or pre-import units question. The shared
-importer assumes reasonable units from size unless the person specified them;
-show the resulting size and allow later correction through chat. The tour points
-out **Import STL** but keeps it unavailable until the tour is finished or exited.
-[Print-tool guidance](core/print/USAGE.md#import-an-stl)
-owns the provisional heuristic and unit-correction commands.
+Studio reports what the person does in your instances through the
+[Studio event queue](studio/README.md#studio-event-queue): on MCP tool results,
+listener waits and notifications, or as `studio-events` lines from a live
+toolkit session. Read it any time with `get_studio_events` or
+`read-studio-events`; during a calculation that also reports progress. Act on
+the latest state, not on each event in turn. A failed generation arrives as a
+request with the exact error: claim it, fix the cause from the recipe and skill
+limits (`inspect-generation-failure`), regenerate and check the visible result.
+Don't retry the same inputs; ask when the fix needs the person's choice.
+[Studio coordination](studio/README.md#agent-request-coordination) owns the details.
 
 ## Find the instructions for this part
 
-For a new custom part, use the brief [capability digest](skills/README.md) supplied
-by onboarding (read it only if missing), then choose and read the selected skill manual and use its
-packaged tools. Tour startup uses its bundled examples and defers these reads
-until a requested edit needs them. The
-manuals own shape support, settings and process limits.
+Choose skills from the [digest](skills/DIGEST.md) and read each chosen manual; the
+manuals own shape support, settings and limits. Treat skills as building blocks
+and consider combinations that serve the part.
 
-Treat these capabilities as building blocks: the applications described are
-starting points, and you should consider other uses and combinations when they
-serve the person's part, checking the relevant manuals for support and limits.
+Prefer making geometry tailored to the request when that is attractive. When an
+existing mesh serves better, or the person asks to fetch one or gives a
+Thingiverse link, use [thingi10k](skills/thingi10k/SKILL.md).
 
-Prefer creating geometry tailored to the person's request with the available
-tools when making it is an attractive option. When an existing mesh better serves
-the request, or the person asks to fetch a model or supplies a Thingiverse link,
-use the [Thingi10K skill](skills/thingi10k/SKILL.md) to search the mirror and import
-an individual STL. For a supplied Thingiverse link, check mirror membership first;
-if absent, ask the person to download the STL herself and provide it for import.
-For every downloaded mesh, briefly identify its source in chat unless obvious
-from the request, and always provide a clickable link to that file's license.
-Check each model's exact license and intended-use permissions; preserve its
-creator, source link, license and required change notices with shared results.
-Prefer verified public-domain or CC BY models; CC BY-SA also requires compatible
-licensing of shared adaptations. Dataset license labels alone are not sufficient.
-
-For ordinary planar walls, hollow vessels or patterned fill, start with [planar-infill](skills/planar-infill/SKILL.md) and its full-fill composition guidance. These skills match most closely to legacy 3d printing slicers like cura or bambu studio, and your judgement will be required as to whether it's a good opportunity to show off some of SAAM's more advanced capabilities.
-
-For continuous vase mode, normally use a solid model: the printing recipe makes
-the hollow wall, so the model needs no hole. See [vase-wall input geometry](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)
-for the distinction between the solid guide and the printed wall.
-For motifs, authored patterns or fitted mesh sleeves, use the separate
-[advanced vase mode manual](skills/advanced-vase-wall/SKILL.md).
-
-Follow additional references when the part needs them:
+For ordinary planar walls, hollow vessels or patterned fill, start with
+[planar-infill](skills/planar-infill/SKILL.md) and full-fill. These match
+conventional slicers such as Cura or Bambu Studio; judge whether the part is a
+good opportunity to show SAAM's more advanced capabilities. For vase mode,
+normally use a solid model: the recipe makes the hollow wall
+([vase-wall input geometry](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)).
 
 | Need | Read |
 |---|---|
-| Initial installation or Studio access | [Setup and checks](SETUP.md), then [Studio agent permissions](studio/README.md#studio-agent-permissions). |
-| Machine-specific setup, export or playback limits | The relevant contract under [machine interoperability](core/export/README.md#machine-interoperability-design). |
-| Bambu dual nozzles or AMS colours | [Bambu setup](core/export/bambu.md#maker-setup), then the [H2D dual-nozzle](core/export/bambu.md#making-an-h2d-dual-nozzle-print) or [two-colour](core/export/bambu.md#making-an-h2d-two-colour-print) workflow. Use logical filament assignments and the normal exporter; never transplant reference G-code/project entries. |
-| Several printing patterns or material regions in one part | The chosen skill manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces). |
-| Sacrificial or edge supports | [Supports](skills/supports/SKILL.md), [rimming-planar](skills/rimming-planar/SKILL.md) or [rimming-normal](skills/rimming-normal/SKILL.md), as applicable. |
-| Creating or importing a print, changing settings or reusing setup | [Shared print tools](core/print/USAGE.md). |
-| A connected chat client | The [MCP adapter manual](adapters/mcp/README.md), including its connection and local-file access limits. |
-| A saved print | [Opening local prints in Studio](studio/README.md#opening-local-prints-in-studio). |
+| Machine setup, export or playback limits | Before generating, that machine's contract under [machine interoperability](core/export/README.md#machine-interoperability-design) |
+| Bambu dual nozzles or AMS colours | [Bambu maker setup](core/export/bambu.md#maker-setup) and its workflows; use logical filament assignments and the normal exporter, never transplanted reference G-code |
+| Several toolpath skills or material regions | The chosen manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces) |
+| Studio access, launcher or instance ownership | [Studio agent permissions](studio/README.md#studio-agent-permissions) |
+| A connected chat client | The [MCP adapter manual](adapters/mcp/README.md) |
+| A shared term | [GLOSSARY.md](GLOSSARY.md) |
 
-Read missing references relevant to the part and workflow; the onboarding's
-shared print-tool text already satisfies links to its sections. Use
-[GLOSSARY.md](GLOSSARY.md) when a shared term needs clarification.
-
-Use the maker's knowledge and the actual geometry to reason about support,
-bridges, transitions and print order. Show the proposed hollow and solid regions
-and explain choices that affect the result. The selected skill's limits and
-Studio inspection inform this judgment; software checks alone do not establish
+Reason from the person's knowledge and the actual geometry about support,
+bridges, transitions and print order. Show proposed hollow and solid regions and
+explain choices that affect the result. Software checks alone do not establish
 printability.
 
 ## Maker interaction flow
 
-These are review dependencies, not capability restrictions. Outside a tour, a
-person can ask for any supported geometry, process, printer, material, inspection
-or export operation from any view. Apply supported changes when requested and
-invalidate only the affected confirmations. If a requested result depends on a
-human confirmation or missing machine setup, do the independent work now and
-explain that actual dependency. Never refuse supported functionality because the
-person is in the "wrong" step. Tour-only teaching limits live in the
-[tour participation manual](examples/prints/README.md#maker-agent-participation).
+These are review dependencies, not restrictions. Outside a tour the person can
+ask for any supported change from any view: apply it, invalidate only the
+affected confirmations, and never refuse because they are at the "wrong" step.
+If a result depends on a confirmation or missing machine setup, do the
+independent work now and explain the dependency.
 
-Geometry review is guidance, not a gate. The person may inspect and revise the
-shape before or after generation. The one explicit confirmation covers the
-current settings and exact toolpath together in Studio immediately before export.
+1. **First preview.** Show the geometry as soon as a reasonable shape exists,
+   with its proposed dimensions and assumptions.
+2. **Geometry.** Invite changes; geometry review is guidance, not a gate.
+   Generate whenever a toolpath helps. Before toolpath view, name the proposed
+   printer and material and any assumptions; both stay changeable in chat.
+3. **Settings and toolpath.** Present the recipe in plain language beside
+   playback. Apply requested changes, regenerate the affected toolpath and show it
+   in the same view. If generation needs a different process choice, agree it
+   with the person first.
+4. **Confirm and export.** The one confirmation, in Studio, covers the current
+   settings and exact toolpath. Deliver those bytes unchanged and explain the
+   transfer; for the Ultimaker, copy the file to USB and plug it into the printer,
+   not another slicer.
 
-1. **Prepare the first preview.** Initialize the print and show its geometry as
-   soon as a reasonable shape is available. State the proposed dimensions and
-   assumptions, and revise them through conversation.
-2. **Review geometry.** Show the shape and dimensions, invite changes and generate
-   whenever a toolpath helps the review. Establish the printer and material before
-   relying on that toolpath.
-3. **Review settings and toolpath together.** Present the recipe in plain language.
-   Studio shows the printer, material and expandable full settings beside playback
-   of the checked machine commands. The person may request infill, material,
-   printer or other changes here. Apply them, regenerate the affected toolpath
-   and show the result in the same view. While a replacement is prepared, Studio
-   keeps the previous toolpath visible at reduced opacity for continuity; with no
-   previous toolpath it shows the part being sliced at that same reduced opacity,
-   so the toolpath view is never empty.
-4. **Confirm and export.** The final confirmation covers both the current settings
-   and the exact toolpath. Deliver those bytes unchanged. Explain the relevant
-   transfer method: for the Ultimaker example, download the machine file, copy it
-   to USB and plug the USB directly into the printer, not another slicer.
-
-The plan contains the choices needed for direct generation. If generation
-requires a different process choice, revise the plan with the person before
-generating again. Reopening a saved print reads its checked export without
-regenerating it; intermediate motion need not be saved. The
-[shared generation contract](core/print/README.md#generation-and-review) owns these
-implementation requirements.
-
-The person requests recipe adjustments in chat; apply them with the skill's
-adjustment tool and Studio updates automatically. The maker need not edit JSON
-or complete a technical form. Camera, playback speed and travel visibility are
-viewer controls; the [Studio manual](studio/README.md) describes their use.
+The person asks for changes in chat; you apply them and Studio updates. They
+never edit JSON or fill a technical form.
 
 ## Standard parameter policy
 
-Use this policy for geometry, feature, process and machine parameters across
-skills. Updates are cheap: prepare a reasonable preview with stated assumptions
-and let the person revise it through chat instead of asking for every setting.
+Updates are cheap: prepare a reasonable preview with stated assumptions rather
+than asking for every setting. For geometry, feature, process and machine
+parameters, choose in this order:
 
-Choose values in this order:
+1. Values requested for the current work.
+2. Unspecified values already in the print being edited.
+3. Genuine last-used values from the conversation, a saved print or remembered
+   setup, when compatible with the part, skill and machine. Inspect the source;
+   don't invent one.
+4. The skill's or machine's documented default. Ask only when an essential
+   choice has none, or the request conflicts with a capability's limits.
 
-1. Apply values explicitly requested for the current work.
-2. Preserve unspecified values in the current print when editing it.
-3. Otherwise reuse the genuine last-used values available from the conversation,
-   saved print or remembered setup, when compatible with the current part, skill
-   and machine. Inspect the saved source; do not invent a last-used choice.
-4. Where no usable prior value exists, use the relevant skill or machine's
-   documented default as a proposed starting value. Ask a focused question only
-   when an essential choice has no reasonable supported default, or the request
-   conflicts with a capability's limits.
-
-State the selected dimensions, feature options, printer, material and other
-consequential assumptions with the preview, identifying reused values and new
-defaults as applicable. An explicit requested change takes precedence on the next
-revision. Reuse is a starting point and carries no geometry, settings, toolpath
-or manufacturing approval; the ordinary Studio confirmations still apply.
-
-The [shared print tools](core/print/USAGE.md#remember-machine-setup) own persisted
-machine setup. Other parameters can be reused from an actual saved recipe or
-conversation; this policy does not imply that every skill automatically stores
-its last-used values.
-
-## Printer setup and assumptions
-
-Establish the relevant dimensions, intended use, machine, installed tool/nozzle
-and material under the [standard parameter policy](#standard-parameter-policy).
-Before entering toolpath view, identify the proposed printer and material and
-tell the person any assumptions. Both remain changeable through chat from the
-toolpath/settings view.
-
-For a machine requiring installation calibration, use values supplied for that
-installation. Examples and synthetic development settings remain examples.
-Read that machine's output contract before generation and explain relevant
-unchecked behavior in language suited to the person.
+State the chosen dimensions, options, printer, material and other consequential
+assumptions with the preview, marking reused values and new defaults. Reuse
+carries no approval. Only machine setup is remembered
+([remember machine setup](core/print/USAGE.md#remember-machine-setup)); other
+values come from an actual saved recipe or the conversation. A machine that
+needs installation calibration uses values supplied for that installation, not
+examples.
 
 ## Working boundaries
 
 - A maker task authorizes work on the person's print. Changes to SAAM's source,
-  skill policy or publication need their own authorization; advice about a
-  particular print remains guidance for that job.
-- Human job approvals and machine execution belong to the person. A development
-  preview is identified as such and never authorizes a real job. Developers
-  exercising this workflow follow the
-  [development testing boundary](BUILDERS.md#testing-through-the-use-context).
-- Describe assumptions, observed behavior and unsupported results accurately.
-  A software preview establishes no physical print result.
-- Keep personal bundles in ignored `Prints/`. Sharing a curated example requires
-  explicit selection by the person.
-
-Opening, inspecting, restarting and closing your own Studio instances are part
-of authorized project work. Follow the [Studio instructions](studio/README.md#studio-agent-permissions)
-for the launcher, client permissions and instance ownership, and leave a
-requested review open for the person.
+  skill policy or publication need their own authorization.
+- Job approvals and machine execution belong to the person. A development
+  preview is labelled as such and never authorizes a real job.
+- Describe assumptions and results accurately; a software preview establishes
+  no physical result.
+- Keep personal prints in ignored `Prints/`. Sharing a curated example needs the
+  person's explicit selection.
+- Opening, restarting and closing your own Studio instances is authorized work;
+  leave a requested review open for the person.

@@ -81,7 +81,7 @@ are different contracts; do not replace them with one global epsilon.
 | Sampling distance and feature size, mm | Surface stroke steps `0.2` mm; rim sampling `0.5` mm and error `0.01` mm | A step size is not a certified surface-error bound. Report mesh repair shape changes separately from numerical precision. |
 | Coincidence/predicate slack, mm or derived units | Point `1e-6` mm, plane `1e-7` mm; mesh separation `1e-9` mm | Keep numerical degeneracy handling separate from intentional shape simplification. A determinant from two length vectors has units mm²; compare to an area quantity or normalize it to distance/relative conditioning. Do not use a length tolerance as an area cutoff. |
 | Solver parameters and angles | `TOLERANCE.parameter=1e-9` in native UV parameter units; surface `precisionUv=1e-10`; angles in degrees/radians | UV precision maps to physical displacement through surface derivatives and can differ in U and V. A normal dot product is dimensionless. Neither uses an XYZ millimetre tolerance. Record units at conversions and use scale-aware conditioning for singularity decisions. |
-| Machine command quantization | S5/H2D XYZ and filament E currently five decimals; feed three decimals in mm/min; dwell integer milliseconds; Dobot ten decimals and RC8 eight | XYZ, filament length, volume, feed, time and pose need independent error budgets even when a formatter currently shares digits. Relative-E rounding can accumulate per move; absolute E has different accumulation. Reconcile final endpoints, length, volume and duration when removing or coalescing points. |
+| Machine command quantization | S5/H2D XYZ and filament E currently five decimals; feed three decimals in mm/min; dwell integer milliseconds; Dobot ten decimals and RC8A eight | XYZ, filament length, volume, feed, time and pose need independent error budgets even when a formatter currently shares digits. Relative-E rounding can accumulate per move; absolute E has different accumulation. Reconcile final endpoints, length, volume and duration when removing or coalescing points. |
 | Display approximation | Studio bead tessellation, float buffers and distance-based detail | Display budgets are visual only. They must not alter the saved program, geometry identity, deposition volume or machine checks. Printed-looking colors and shading do not establish geometric accuracy. |
 
 Construction must respect the downstream representation. A short segment can
@@ -179,10 +179,10 @@ export delivery. Add equivalent backend tests for each general skill.
 [Contour correspondence](./contour-path.mjs) assigns normalized arc length from a
 fixed projected seam to a closed polygon; it does not require a star-shaped or
 convex section. [Prepared contour families](./prepared-contours.mjs) reuse that
-correspondence over height and signed offset before repeated motifs are mapped.
+correspondence over height and signed offset before repeated tiles are mapped.
 The caller supplies the exact section/offset query and a separate millimetre
 mapping-error allowance. Bilinear cells interpolate both height and offset;
-they never change the source mesh, curve or motif.
+they never change the source mesh, curve or pattern.
 
 Each cell checks edge quarter-points and nine interior points against the exact
 query, targeting half the reserved allowance to leave margin between samples.
@@ -203,7 +203,7 @@ fixed geometry/query instance and must be rebuilt after its inputs change.
 Four height slabs are retained, each with at most 512 cell entries and 512
 source-query cache entries. A successful cell retains four source contours;
 failed cells retain no contours. Memory therefore depends on bounded contour
-complexity and these fixed caches, not the total printed height or motif count.
+complexity and these fixed caches, not the total printed height or tile count.
 
 The mesh section query separately caches edge connectivity in eight vertex-height
 bands. Coordinates are still interpolated on the original triangle edges at
@@ -258,7 +258,7 @@ limited geometry use `at` or `offsetPatch`.
 `prepareLooseSleeveOffsets` in `sleeve-frame.mjs` specializes this API for
 periodic U and a V chart linear in actual Z. Its `at(u, zMm, depth, tightness)`
 preserves authored Z. Vase mapping adds the signed nominal half-bead offset
-to motif depth, evaluates the field, then applies unilateral mesh contact.
+to tile depth, evaluates the field, then applies unilateral mesh contact.
 A loose half-bead offset gives approximate standoff.
 
 ### Geometry contract
@@ -312,10 +312,10 @@ resolved the way slicers resolve them, by displacing the plane by up to 0.1 um
 and re-cutting; the displacement is reported. A section that still will not
 close raises rather than returning a part with a gap in it.
 
-## Mesh reference sleeves
+## Mesh sleeves
 
 `mesh-sleeve.mjs` exposes `fitMeshSleeve(mesh, options)` for an already validated
-triangle mesh. A **reference sleeve** is the open side surface of a vase-like
+triangle mesh. A **sleeve** here is the open side surface of a vase-like
 envelope, with its top and bottom caps excluded. It is independent of material
 coverage: fitting a solid, or the outer side of a hollow vessel, does not fill its
 interior or create another printed wall. The source geometry is unchanged.
@@ -331,7 +331,7 @@ does not certify every intermediate section; the fitter/source queries keep
 checking newly encountered heights. The returned `rangeMm` is absolute Z;
 `report` includes the source range, excluded bottom/top heights, margin, sample
 count, source section count and secondary-feature areas. Set the accepted range
-explicitly in the authored recipe and derive a complete motif count for it.
+explicitly in the authored recipe and derive a complete course count for it.
 Never call this detector to silently shorten an already requested/generated
 path. A valid flat-ended cylinder therefore loses no height, whereas a mesh with
 collapsed extreme caps receives an explicit cap-exclusion proposal.
@@ -389,10 +389,10 @@ continuous surface-validity certificate or a bound on source-mesh fit error.
 tolerance, source classification and ignored reference details. The source query
 continues to check each newly requested height, so an unsupported feature between
 fit observations fails when encountered rather than silently becoming printable.
-Mesh conformance belongs after the regular motif has been mapped onto this smooth
+Mesh conformance belongs after the regular pattern has been mapped onto this smooth
 reference: callers retain the original source query for directional contact.
-Do not stretch every motif point between the smooth and detailed surfaces or
-interpret the reference sleeve as a filled material boundary.
+Do not stretch every pattern point between the smooth and detailed surfaces or
+interpret the sleeve as a filled material boundary.
 
 Focused regressions cover periodic position and tangent continuity, second
 derivative agreement, suppression of fine flutes, leaning envelopes, translated
@@ -428,7 +428,7 @@ boundary is an additional deposited wall.
 
 ## Text and solid modifiers
 
-The [text task skill](../../skills/text/SKILL.md) adds font-derived material,
+The [text geometry skill](../../skills/text/SKILL.md) adds font-derived material,
 removes it, or retains it as a standalone solid. Planar glyph outlines use the
 existing Clipper2 union through [shared intersections](../region/intersection.mjs).
 The [solid boundary](./solid.mjs) uses pinned `manifold-3d@3.5.3` C++/WASM for 3D
@@ -508,7 +508,7 @@ without `materialParts` is rejected, not read as a whole solid.
 [Geometry selections](./selections.mjs) exposes these partitions to regional
 consumers, prefixing their names with the assembly component id where present.
 The final merged mesh remains the default whole-solid selection and review model.
-Changing the selected material or printing pattern leaves the geometry record
+Changing the selected material or toolpath skill leaves the geometry record
 unchanged. The [region contract](../region/README.md#material-regions-and-shared-interfaces)
 owns assignment and overlap rules.
 

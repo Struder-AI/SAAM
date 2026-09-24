@@ -119,17 +119,17 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok((await call('list_skills')).some(skill => skill.id === 'full-fill'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'pipe-cladding'));
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'task'));
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'task'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'geometry'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'geometry'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
   assert.equal(guidance.text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
   assert.equal(guidance.path, 'MAKERS.md');
   assert.ok(guidance.links.some(link => link.guidanceId.startsWith('skills/')));
-  const digestLink = guidance.links.find(link => link.guidanceId === 'skills/README.md');
+  const digestLink = guidance.links.find(link => link.guidanceId === 'skills/DIGEST.md');
   assert.ok(digestLink);
   const digest = await call('read_guidance', { guidanceId: digestLink.guidanceId });
-  assert.equal(digest.path, 'skills/README.md');
+  assert.equal(digest.path, 'skills/DIGEST.md');
   assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
   const section = await call('read_guidance', { guidanceId: 'core/export/griffin.md#s5-startup-observations' });
   assert.match(section.text, /^### S5 startup observations/);
@@ -145,7 +145,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
     assert.ok(machine.outputs.every(output=>output.implemented===false&&output.reason));
   }
   assert.ok(machines.some(machine => machine.id === 'dobot-mg400'));
-  assert.ok(machines.some(machine => machine.id === 'denso-vp6242-rc8'));
+  assert.ok(machines.some(machine => machine.id === 'denso-vs068a4-rc8a'));
   const dobot = await call('get_plan_template', { kind: 'shell', machineId: 'dobot-mg400' });
   assert.equal(dobot.plan.setup.dobot.configurationSource, null);
   await call('read_skill', { skillId: '../DEVELOP' }, /validation|Invalid|format/i);
@@ -331,7 +331,7 @@ test('MCP STL import preserves source/units and remembered setup across native b
   await call('check_print', { printId: 'Projects/Inch Part' }, /source changed/);
 });
 
-test('MCP rejected mesh import retains its diagnostic and routes to a readable task manual', async t => {
+test('MCP rejected mesh import retains its diagnostic and routes to a readable geometry skill manual', async t => {
   const { call, printsRoot } = await fixture(t);
   const mesh = boxMesh();
   mesh.triangles.pop();

@@ -10,7 +10,7 @@ export function skillMetadata(id, manual) {
   const metadata = /^metadata:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/m.exec(frontmatter)?.[1] ?? '';
   return {
     id,
-    kind: /^[ \t]+saam-kind:[ \t]*task[ \t]*$/m.test(metadata) ? 'task' : 'printing',
+    kind: /^[ \t]+saam-kind:[ \t]*geometry[ \t]*$/m.test(metadata) ? 'geometry' : 'toolpath',
     description: frontmatter.match(/^description:[ \t]*(.*)$/m)?.[1]?.trim() ?? ''
   };
 }

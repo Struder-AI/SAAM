@@ -1,5 +1,894 @@
 # Development log
 
+## 2026-09-24 — Tour manual condensed
+
+- `examples/prints/README.md` went from 12,797 to 8,778 characters. The
+  maker-agent participation section, which `start-tour` returns, went from
+  7,560 to 4,129: scope, Studio leads, requests and listener, playback start
+  layer, chat lesson and completion. Repeated rules (Studio leads, no geometry
+  suggestions, send before waiting, completion in chat) now appear once.
+- Studio visual and completion behaviour (slate-blue highlights, blinking,
+  arrows, file naming, final download and Exit tour) moved out of the agent
+  section into a new "Tour presentation" subsection. The lesson table and intro
+  were condensed.
+- Tour agent context (MAKERS plus participation) is 14,800 serialized
+  characters. `check-repo` links pass.
+
+## 2026-09-24 — Dev maps: score in the viewer bar
+
+- User asked for each map's score and breakdown on the map itself. The viewer
+  model carries every map's score (`scoreMaps`), and the bar shows it on its
+  own row as penalties: "Score -2.74 · size -0.80 (2 nodes) · crossing -0.94
+  (16 of 17 links leave) · islands -1.00 (2 islands) · backflow 0 (0 of 0
+  backward)", nonzero parts in red. `scores.html` uses the same sign.
+- Checked in the viewer on 2.2, 4.2 and 6.1.2.19; regenerate clean.
+
+## 2026-09-24 — MAKERS condensed; tour guidance lives in the tour manual
+
+- `MAKERS.md` went from 356 lines / 23,908 characters to 148 / 8,770. The Tour
+  startup and Tour participation sections were removed. They restated AGENTS
+  and the tour manual, which `start-tour` already returns; the few items only
+  MAKERS carried (fresh start, CLI listener session handling, no duplicate
+  generation, stale signals, final-response completion) moved as a short list
+  into `examples/prints/README.md#maker-agent-participation`.
+- Condensed the request table, event queue, reference table, interaction flow,
+  parameter policy and boundaries. Printer setup folded into the flow and the
+  policy. Generation-failure recovery and lease renewal stay in Existing Studio
+  work because they aren't tour-only. The Thingi10K licensing policy moved to its
+  manual, which had deferred to MAKERS.
+- Linked anchors are kept; `core/agent/README.md` now links tour participation
+  in the tour manual.
+- Maker onboarding output is now 22,832 serialized characters (18,127 of text),
+  down from 52,813 this morning. Checks: `mcp.test.mjs`, `mcp-access.test.mjs`
+  and `studio-tour-lifetime.test.mjs` pass; `check-repo` links pass (only
+  concurrent BR/D records fail).
+
+## 2026-09-24 — Shared print tools condensed
+
+- `core/print/USAGE.md` went from 285 lines / 16,826 characters to 98 / 5,422.
+  One command table (CLI and MCP columns) replaces per-operation prose. Removed
+  restatements owned elsewhere: the thingi10k and text sections (skill manuals),
+  the Bambu setup, filament and AMS block (`core/export/bambu.md`), firmware and
+  S5 notes (`griffin.md`), Studio picker and launcher detail (`studio/README.md`),
+  and the legacy `migrate` row.
+- Both creation routes stay: `init`/`import-stl` make geometry without Studio;
+  toolkit `create-preview` does the same and opens Studio. Neither generates.
+  The route question is left open for the user.
+- The development `demo` paragraph, with its robot command-setting links, moved
+  unchanged to BUILDERS "Testing through the use context".
+- The four linked anchors are kept; `inspect-generation-failure` still reads
+  `#check-generate-and-deliver`. Checks: `core/tests/mcp.test.mjs` 17/17;
+  `check-repo` reports only BR-055 from concurrent backlog edits.
+
+## 2026-09-24 — Dev maps: map scorer
+
+- Direction from the owner: leaves and links are generated from scanned code;
+  clusters are authored (eventually solved) to balance map size (6–16),
+  crossing links, flow readability and one-way flow; everything nested under
+  `0`, with repeats. A solver weighs all maps at once. First step: a scorer
+  the owner checks against good and bad maps.
+- `dev-map/lib/score.mjs` and `node dev-map/cli.mjs score [--json]`: per map,
+  size badness, crossing share (and without nodes called from 20+ places),
+  islands and backflow (Eades–Lin–Smyth order), summed; tree energy is the
+  sum. Links are calls, data between calls (through operators) and indirect
+  links, lifted onto the drawn members. Writes `dev-map/view/scores.html`
+  (sortable, filter by kind, each index opening the viewer); viewer builds
+  refresh it.
+- First run: 671 maps, 4368 node links, energy 899.23. Medians: clusters 1.45
+  (27 of 42 with islands), regions 1.45, node maps 1.40; top map 0.38.
+  Checked the page and map links in the viewer; regenerate and `check`
+  unchanged.
+
+## 2026-09-24 — Dev map glossary: ports reserved; no "declaration"
+
+- User rulings: "port" is reserved for the Grasshopper junction of a link and
+  a box (argument slot or result); what the maps drew as region and top-map
+  ports are boundary boxes. "Declaration" is dropped for node, parent map,
+  child map, child node, inner and outer; the durable name is the node path.
+  Code inputs and outputs are not listed separately. Link kinds and the two
+  finding classes are kept.
+- Measured for the region question (store of this date): 117 region entry
+  points, 33 of them called by mapped code in another directory; 351 of 1921
+  repeat boxes exist because a call crosses a directory. From the same call
+  edges, homing each node at its nearest common caller without regions gives
+  93 entry points, depth 10 (mean 2.5, now 13 and 5.3), and 426 nodes on the
+  top map, 333 of them shared helpers (189 leaves) that no single caller
+  owns. No generator change yet; the region pivot awaits the owner.
+
+## 2026-09-24 — Dev maps: glossary in DEVELOPER-CONTEXT; HANDOFF removed
+
+- User asked for a "Dev map glossary" section in DEVELOPER-CONTEXT as the one
+  owner of the terms while they settle. Changed with it: a node is a region,
+  cluster or declaration with one parent map (was home); nesting is the tree of
+  maps; entry point (was entry/flow root), with an example; inner and outer
+  declaration (was nested/enclosing, holder); ports belong to the node and
+  appear on its boxes and at its own map's edge; annotation (was fact). The
+  map guide, tools and read fields are not yet propagated.
+- Deleted `dev-map/HANDOFF.md` (241 lines), a one-use handoff. Its open items,
+  open questions and accepted scanner limits moved into BR-052, which already
+  pointed at it; its rulings are in D-038 and the DEVLOG. Links updated in
+  DEVELOPER-CONTEXT (186 → 225 lines), the map guide and `.local`.
+- Checks: `check-repo` reports only the existing BR-055 and D-038 errors.
+
+## 2026-09-24 — Skill digest trimmed to selection; keyword skills
+
+- User asked for the AGENTS.md treatment on the skill digest. `skills/DIGEST.md`
+  went from 79 lines / 8,360 characters to 41 / 3,885. The intro is three
+  sentences; the onboarding paragraph, special capabilities and shared-workflow
+  sections were removed as restatements of AGENTS, GLOSSARY, MAKERS, USAGE
+  and AUTHORING.
+- Rewrote 19 SKILL.md descriptions (the digest and MCP catalog source) to what
+  the skill does, when to choose it and what rules it out: 4,843 to about 2,500
+  characters. Details that matter after selection stay in the manuals.
+  Unvalidated skills start with "Experimental.". The table column is "Use".
+- User ruling: `gridfinity` keeps its one-word description as a keyword skill,
+  used only when the person names it. Added "Keyword skill" to GLOSSARY and the
+  description rule to skills/AUTHORING.md; fixed its `--builder` file name
+  (BUILDER.md) and a toolkit comment that still barred developers from manuals.
+- Experimental list reviewed with the user. "Experimental." now means a new
+  printing technique whose physical behaviour is still unknown; most manuals
+  also lack validated prints, so "unvalidated" did not distinguish anything.
+  User report 2026-09-24: draped-skin, bridging, advanced-vase-wall and thick-lip
+  have been demonstrated in physical prints. Bridging lost its marker and the
+  four manuals' "no physical print" lines now record that report. Marked:
+  plastic-weld, rimming-planar, rimming-normal, wave-overhangs, and at the
+  user's direction pipe-cladding and line-network. User report: every
+  planar-infill pattern is physically validated (manual updated); supports are
+  not (the freehand spline cat did not need its support), so that manual stands.
+- Checks: digest freshness passes; `core/tests/mcp.test.mjs` and thingi10k
+  library tests 23/23. `check-repo` reports only BR-055 and D-038, from
+  concurrent uncommitted backlog and decision edits.
+
+## 2026-09-24 — Dev maps: terms and finding classes
+
+- User reviewed the dev-map vocabulary. New terms in DEVELOPER-CONTEXT
+  (`#terms`): dev maps (the system) and map (one graph); node (anything with
+  an index: region, cluster, declaration) with a kind and a view, map or code
+  block; box (one drawing of a node; a node may have several on one map);
+  top map, entry (was flow root), cluster (was group), nested/enclosing (was
+  holder); link or wire, as call, data, state or indirect link (was coupling),
+  keyed dispatch (was registry entry); carried value (was accumulator).
+- Findings are uncertain (drawn, the unknown marked on it) or missing (not
+  drawn anywhere); the map guide's `#findings` tables assign all 31 kinds and
+  4 rules. Current store: 5629 uncertain, 5179 missing (10,808).
+- Docs and prose only: map guide rewritten in the terms with a field-name
+  bridge; HANDOFF gains a terms note and queue item 13 (rename fields, store,
+  viewer and `flows/`; class on each finding row), and its commit list moved
+  to a DEVLOG pointer; toolkit onboarding text and CLI/read messages say
+  nodes, maps, clusters. Lines: DEVELOPER-CONTEXT 147 → 186, map guide
+  193 → 220, HANDOFF 245 → 241.
+- Checks: regenerate and `check` unchanged (3177 linked, 977 unresolved, 57
+  outside, 4994 platform); developer onboarding returns the new text; no link
+  errors in the edited docs. The commit also carries another session's
+  uncommitted work in the checkout (vase-wall motif → tile rename, skill and
+  manual edits), at the user's request.
+
+## 2026-09-24 — Dev map: exporters leave the mapped scope
+
+- User ruled that exporters, anything turning a SAAMpath into another
+  language, are outside the dev map and keep their own markdown. In
+  `dev-map/lib/scope.mjs`, `unmappedDirs` became `unmappedAreas`: `core/agent`
+  and `exporters`, which is every `core/export` file except `registry`,
+  `travel-advisory`, `source-time` and `machine-study`. No file moved (another
+  session was editing the DENSO exporter). Exporters are active callers, so
+  99 caller rows now name them on 21 core pages; mapped calls into them are
+  outside arrows (`out:exporters`, 20 sites from registry and Studio's
+  source player).
+- New `core/export/DEVELOP.md` (54 lines): adapter interface, files by
+  dialect, how to add one. Removed the two Lua flows from
+  `flows/export.json` (116 → 27 lines) and the 13 exporter rows from
+  `facts.tsv` (16 → 3); each fact was already stated in its dialect contract
+  or D-036. Scope wording in DEVELOPER-CONTEXT (145 → 147), HANDOFF
+  (249 → 245; the Lua and H2D-exporter items are closed), the map guide and
+  the BUILDERS reference row.
+- Before → after, full regeneration of the same source (before rebuilt in a
+  detached worktree with the old scope): pages 1692 → 1496, maps 764 → 671,
+  code destinations 928 → 825, group pages 49 → 42, drawn boxes 3589 → 3101,
+  repeat boxes 1906 → 1614, finding rows 12,328 → 10,808 (uncertainty
+  11,243 → 9,831, unresolved 1085 → 977), linked 3697 → 3177, outside
+  47 → 57, platform 5843 → 4994, facts 15 → 2. Region `core/export`: 19 → 4
+  files, 213 → 17 pages, 1659 → 141 finding rows. Other regions unchanged;
+  max depth 13. `check`: 0 stranded, unplaced or orphan facts;
+  `check --viewer 2` 827/827 and 145/145.
+
+## 2026-09-24 — Correct DENSO controller to RC8A
+
+- User corrected the controller to RC8A: the reported loads and passing runs were
+  on the RC8A, not an RC8. Renamed the profile to denso-vs068a4-rc8a revision 4
+  and the rotary interface to rc8a-relative-ex, and updated the registry, setup
+  checks, interpreter identity, examples, tools, Studio labels and docs. DENSO
+  document titles and the supplied project's RC8 metadata keep their names.
+- Local bundles under Prints/development/denso-* and Prints/tour/wavy-denso*
+  still snapshot the old ID; they are not migrated. Recreate them to use them.
+- Validation: 33 tests in denso, mcp, mcp-access and printer-profiles passed;
+  map regenerated (3697 linked, 1085 unresolved, 47 outside, 5843 platform;
+  0 stranded or orphan facts).
+
+## 2026-09-24 — AGENTS.md trimmed to role routing; sync report moved into the toolkit
+
+- User asked to cut context read, starting with AGENTS.md, which every role
+  reads. It went from 184 lines / 14,183 characters to 43 lines / 2,343:
+  a role and first-action table, the tour launch, role changes and the
+  `.local/AGENTS.md` pointer. Owner lists, dev-map rules, setup/check policy,
+  documentation placement and evidence rules were removed as restatements of
+  MAKERS, BUILDERS, DEVELOPER-CONTEXT and CONTRIBUTING-AGENTS.
+- Moved the unique pieces: the D-029 withdrawal pointer to BUILDERS selective
+  adoption and DEVELOPER-CONTEXT; the check-reuse rule to DEVELOPER-CONTEXT; the
+  tour's early-yield hint from MAKERS (returned only after launch) to AGENTS.
+  DEVELOPER-CONTEXT, BUILDERS and the toolkit now call developers maps-native
+  without forbidding a component manual when the work calls for one.
+- Onboarding (all roles) and `start-tour` fetch `main` and return
+  `sync.summary` (branch, HEAD, newest main commit included, main's newer
+  commits); maker/builder/tour `nextStep` asks for it to be relayed in one line.
+- Renamed `skills/README.md` to `skills/DIGEST.md`, with the toolkit, digest
+  script, MCP test and links. `.local/AGENTS.md` (preferences, printer notes,
+  no client memories) and `.local/DEVELOPMENT.md` now hold this checkout's former
+  Claude memories, condensed; the originals are in `.local/claude-memory-archive/`.
+  Both context maps show the local file.
+- Checks: `maker-onboarding` run live (sync fetched in ~2 s; three documents
+  returned); `core/tests/mcp.test.mjs` and `review-state.test.mjs` 19/19 pass;
+  digest script regenerated `skills/DIGEST.md` unchanged. Tour launch not run.
+
+## 2026-09-22 — Continuous tube-first DENSO motion in both open studies
+
+- User identified the missing tube, assigned extrusion to a separate controller,
+  requested both existing Studio instances be updated, then required continuous
+  extrusion with no travel for both versions. No process or rotary commands added.
+- Reused shared full-fill substrate operations: 16 mm bore, 18.4 mm OD, 12 mm high,
+  60 layers, three concentric beads. Both combined candidates use 716 quarter arcs
+  before the final tube ring changes orientation while moving; top-first cladding
+  follows via a deposited link. All ring/layer/track joins deposit. The 180-degree
+  track directions reverse; 360 retains the source down/up order.
+- All intermediate moves request @P; only the final target stops. There are no
+  intermediate travels, lifts, dwells or stationary rotations. Explicit starting
+  TCP/posture and external extrusion start/stop are outside the depositing path.
+  Only P10 FIG is inherited; initial tool roll is explicitly defined.
+- Expanded the emitted PacScript loops and checked every route/end coordinate,
+  orientation and stop flag. Nominal Studio checks passed 4909/5639 samples.
+  Both original study directories were updated in place; no controller
+  compilation, physical execution or USB writes occurred.
+
+
+## 2026-09-22 — Both 180- and 360-degree fixed-part cladding candidates
+
+- User requested both versions after identifying possible full-circle collisions.
+  Generated separate motion-only programs from the selected first vertical shell:
+  180 degrees includes 75 boundary-inclusive tracks (151 Move L targets); 360
+  visits all 148 tracks once (297 Move L targets), without a closing return.
+  Both retain T6/W2, inward/downward 45-degree axis, fixed rotary and no process IO.
+- Added cyclic source-sector selection, explicit sector CLI argument, matching
+  Studio studies and per-file setup/staging notes. Every source track and emitted
+  pose was checked; maximum nozzle-axis component error was below 4.8e-9.
+- Full-circle presentation exposed a nominal IK half-turn limitation. Rotation
+  error now recovers the axis from R + I when its antisymmetric part vanishes;
+  the declared elbow/wrist branch checks remain in force. The two studies passed
+  750 and 1480 sampled presentations respectively; four earlier FK/IK and
+  presentation fixtures also passed. Preview angles unwrap across the source seam.
+- Browser inspection could not run (browser tool process exited twice). No claim
+  of visual QA, collision clearance, controller compilation or physical execution.
+  No USB writes. Full production cladding still awaits rotary integration.
+
+## 2026-09-22 — Passing spiral evidence; fixed-part cladding dry run and Tool 6 model
+
+- User confirms the spiral motion demo passed. Read Desktop STRUDER_SPIRAL3 and
+  DENSO_PASSING_REFERENCE.md; the earlier USB snapshot had only Spiral1/2.
+  The record reports Spiral2/3 passed with T6/W2/P10. Spiral3 adds quarter-turn
+  arcs and explicit speed/acceleration. Preserved source/guide hashes privately.
+- User selected the saved development/denso-rc8-pipe recipe from the other SAAM
+  checkout and narrowed hardware scope to a motion-only front ~20% of the first
+  vertical shell, fixed rotary. Full output is deferred until rotary integration.
+  Centre at Work 2 origin, axis +Z; task defines front -Y. User confirms upright
+  mounting/parallel work plane and 45-degree downward, radially inward tool axis.
+- Added tools/denso/create-cladding-dry-run.mjs: selects existing shared-skill
+  strokes, retains the recipe, emits 29 of 148 tracks, 59 stopped linear targets,
+  no IO/rotary commands. Local source hash and copied recipe bind the candidate.
+  Preserves FIG using documented T2P(T(...,Fig(P10))); unlike the spiral, cladding
+  explicitly changes orientation. No controller compilation or run was claimed.
+- Added optional flangeFromTool to the nominal DENSO presentation model so the
+  supplied Tool 6 [155,0,35]/Ry90 offset and axis orientation are represented.
+  FK, seeded IK wrist reconstruction, reach margins and rendered link lengths
+  consume the full transform. Existing straight-tool models remain compatible.
+- A local sampled placement study (143 positions, 2-degree azimuth samples at
+  three heights) found nominal full-circle solutions; best sampled elbow/wrist
+  sine-margin candidate was radial distance 350 mm, height 25 mm, W2 yaw -90.
+  This is not a global optimum, calibrated joint-limit/FIG model or collision
+  result. Keep the hardware trial at the requested front sector.
+- Checks: generated ASCII/CRLF and SHA-256, track count/order, zero IO/EX and
+  inward/downward vectors verified; maximum direction component error 4.8e-9.
+  Tool-6 zero pose checked by independent geometry, legacy model cases retained,
+  and 290 samples of the local Studio sector study resolved without diagnostics.
+
+## 2026-09-22 — Dev map: repeats measured against "only where it gives context"
+
+- Read-only analysis over the 704 node pages (script in the session
+  scratchpad). Drawn boxes 5286, repeats 3128 (56 %). Kinds: a callee with
+  a data wire on the page 2237 (71.5 %); a callee with only its invocation
+  wire but carrying a condition, argument literals or state 705 (22.5 %);
+  pure fan-out with nothing but the wire from `self` 71 (2.3 %, 43 pages,
+  all studio); an inlined chain box repeating a declaration homed
+  elsewhere 115 (3.7 %; none draws its own chain, as the rule says).
+  Instances of one declaration on one page add 2041 boxes (38.6 %), the
+  largest groups `render` × 31 of `$`, `createStudio` × 26 of one callable
+  and × 12 of `note`, `validatePlanSelections` × 22 of `requireThat`.
+  918 repeats (29 %) have their home in another region.
+- Recommendation: no kind becomes a reference row. Only pure fan-out
+  passes the reader-value test, and collapsing it removes 71 boxes (1.3 %)
+  while flipping 8 pages to code; collapsing every no-data repeat removes
+  776 (14.7 %) and flips 50 pages, and buys nothing on the two largest
+  pages (`createStudio` 167 → 154). 96 % of repeats carry a wire, a
+  condition or a literal. The real lever, if fewer boxes are wanted, is
+  per-declaration ubiquity: 15 declarations account for 1168 repeats,
+  `requireThat` alone 682, and each of those still carries its predicate
+  and message.
+
+## 2026-09-22 — Dev map: an invocation wire carries its call site's condition
+
+- A `call-site` invocation wire carries `gate` (an index into the page's
+  `gates`) when every site of its box stands under one condition, or
+  `siteGates: [{order, gate}]` when they differ (`invocation.mjs`); the
+  compact read keeps a `gates` table a wire references (`agent-view.mjs`).
+  2357 of 6031 wires carry a gate on 569 pages. The drawing prints the
+  caption on the wire only where the target box does not already state
+  it: `presentation.mjs` splits a multi-site box into one instance per
+  site and each instance box already carries its caption, so today 0
+  wires draw one and the graph SVG is byte-identical; the code panel
+  carries `data-gate` and the caption on the wire row, since it has no
+  box. `coverage.mjs` accepts either surface for `wires.gate`.
+- Found on the way: the only call gates no surface shows are two guarded
+  calls on `dobot-lua-subset.mjs::parse` whose callees are contracted into
+  the authored `@group/cursor` box, which by rule gets no call wire; the
+  caption is drawn on the instance boxes inside that group's page. Left
+  as is: an authored cluster is not a call box.
+- `check --viewer` 85,848 of 85,848 map items and 12,842 of 12,842 code
+  items, 0 gaps; `check` 3689 / 1084 / 47 / 5837 (moved earlier with the
+  concurrent Denso edits); store byte-identical apart from generator
+  hashes; no dropped wires.
+
+## 2026-09-22 — Correct DENSO target to VS-068A4; preserve USB evidence
+
+- User corrected the robot model to VS-068A4. Replaced the mistaken experimental
+  VP-6242 profile with denso-vs068a4-rc8 revision 3, including registry, setup
+  checks, interpreter identity, examples, Studio labels and documentation.
+  Saved jobs are not silently migrated or reapproved. Robot labels now use the
+  supplied machine snapshot.
+- Updated nominal FK/IK geometry to VS-068 centerlines (395 mm shoulder height,
+  30 mm shoulder offset, 340 mm links, 20 mm elbow offset, 80 mm flange), including
+  presentation reach bounds and the rotating shoulder offset. Supplied WINCAPS
+  model pivots corroborate the dimensions. No encoder/FIG mapping, installed tool
+  or rotary calibration was inferred.
+- Inspected the supplied STRUDER11 project: VS068A4/RC8 metadata, a small WPJ
+  descriptor, companion databases and source/attribute files. User reports
+  STRUDER1_1 and STRUDER1_2 load on the controller; no physical motion or printing
+  result was inferred. Additional supplied arc/spiral sources remain unverified.
+- Copied all 66 files and 12 directories to an ignored local snapshot, including
+  both demonstrated programs. Source-before/copy/source-after SHA-256 inventories
+  matched. This task made no USB writes. Rechecked the local snapshot hashes at
+  completion; new demo files are separate.
+- Recorded the [native-project/USB assessment](core/export/denso-usb-assessment.md):
+  recommend template-based, program-only delivery before a complete project writer.
+  Current SAAM output remains its experimental source ZIP. Prepared a separate
+  local STRUDER_LINE1 P1/P2 Move L candidate and operator notes, without compiling,
+  transferring or running it. It tests controller interpolation, not generated
+  intermediate points or extrusion.
+- Validation: 25 tests in denso.test.mjs and mcp.test.mjs passed; the targeted
+  public-CLI unresolved-robot-setup check passed. On-demand geometry checks matched
+  WINCAPS joint/flange reference positions and rotated shoulder offset; four seeded
+  FK/IK and presentation cases passed (maximum TCP residual 0.0000084 mm).
+  Studio snapshot labels checked. Full development map regenerated, no stale pages
+  or fact errors. These are software/model checks, not hardware commissioning.
+
+## 2026-09-22 — Dev map: the compact read carries nothing the drawing does not
+
+- `compactPage` no longer carries per-call-site `calls` and the
+  `invocationSites` flag (the drawing states a call as an invocation wire
+  with its slots; `--details` keeps them in full as `callBindings`),
+  `boundary` (bookkeeping already on the presented ports), or a `gates`
+  table no item on the page indexes (three pages, all the same
+  `peek().type !== "eof"` gate on `parse` and its two groups: its only
+  references were call sites the invocation wire collapses). Compact reads
+  11.45 → 10.52 MB; no other key changed on any page; `--details` proven a
+  superset on ten pages. `structural`, `relationshipSummary` and
+  `composition` stay and are drawn as a "this page" ledger section, since a
+  reader who does not know which kind of drawing this is reads every arrow
+  wrong and the summary is the only statement of how much collapsed; the
+  four group pages that list a class's fields without owning the boxes
+  draw them as rows; ledger values print JSON `true`/`false`/`null`.
+- `check --viewer`: map pages 83,686 of 83,686 items drawn on 0 pages with
+  a gap; code destinations 12,647 of 12,647. Both surfaces now show the
+  same thing, and the check keeps it so. Store byte-identical to the
+  generator change; `build` and `regenerate` exit 0, no dropped wires.
+- The `check` totals moved with the other session's concurrent Denso edits
+  in this checkout, not with this work: 3689 linked, 1084 unresolved, 47
+  outside, 5837 platform. Left for the tracer: an invocation wire does not
+  carry its call site's gate, so a condition guarding only calls is
+  invisible on the drawing.
+
+## 2026-09-22 — Dev map viewer: a code destination shows its whole context beside the source
+
+- `generated-view.py::code_pane` draws the compact read of a code page as
+  a panel under its source, in the map ledger's order and words: inputs
+  with their call sites, outputs with the return expression, callees as
+  clickable rows with call order and stub or literal slots, operators,
+  invocation and state wires naming both ends, gates, state nodes with
+  their owner linked, callers including active outside ones, then the
+  ledger (facts, requires, couplings, parameter targets, unresolved,
+  uncertainty, per-node sections, outside and platform counts) produced by
+  the map's own `lists()` through a `RowSink`, so headings and markers are
+  the same code. One `view/svg/<index>.ctx.js` sidecar per code page,
+  fetched like a drawing; the shell's page metadata is gone (2.2 → 0.9 MB).
+  A Context button folds the panel; stale and `sourceUnavailable` are warn
+  rows at the top.
+- `coverage.mjs::coverCode` now measures the panel item by item like a map
+  page: code destinations 3,355 of 4,590 fields reaching the shell → 12,649
+  of 12,649 items drawn, 0 pages with a gap; map pages unchanged at 83,559
+  of 89,246. `check --viewer` runs in about 7 s. Store byte-identical,
+  compact read untouched, `check` 3691 / 1084 / 47 / 5833, no dropped wires.
+  Screenshots in the session scratchpad (`code-page-before/after.png`).
+- This checkpoint is narrowed to `dev-map/`: another session is mid-edit on
+  the Denso VS068 profile (machine JSON renamed, kinematics, rules, tests)
+  in the same checkout and its work is left uncommitted for it.
+
+## 2026-09-22 — Dev map: `check --viewer` measures what the drawing does not carry
+
+- `dev-map/coverage.mjs` (outside `lib/`, which is hashed as a generation
+  input) computes the compact read of every page, enumerates its items and
+  asks the built drawing for each: a box by `data-id`, a wire by both
+  endpoints after the drawing's own rewrites, a ledger row by a new
+  `data-row="field#ordinal"` marker, a note by its text. `node dev-map/cli.mjs
+  check --viewer [ADDRESS…]` reports the gaps by field and page; opt-in
+  because it needs `build`'s 46 MB of output, which plain `check` must not
+  require. Runs in about 12 s on the whole store.
+- Drawing gaps closed on the way: operator gate captions (516 items on 178
+  pages), `keptFor` (342), 18 gates referenced only by operators, and three
+  pages whose empty caller list hid `calledFrom`. Map-page coverage 92.6 %
+  → 93.6 % of 89,245 items. Remaining on map pages, all design questions:
+  per-site `calls` evidence (4,488 items: argument counts and flags the
+  compact read carries but the drawing states only as stubs), `boundary`,
+  `composition`, `structural` and `relationshipSummary` descriptors on
+  containment pages, `stateFields` on four group pages, three gates nothing
+  references.
+- The largest divergence is the code destination: the viewer's code pane
+  renders only the caller lists, while the compact read of the same page
+  carries inputs, outputs, couplings, findings, state, invocation and state
+  wires, gates and facts (73 % of 4,590 items reach the shell, and the pane
+  shows a fraction of those). Queued as the next viewer task.
+- `check` 3691 / 1084 / 47 / 5833, clean; the JSON agents read is
+  byte-identical; `build` and `regenerate` exit 0 with no dropped wires.
+
+## 2026-09-22 — Dev map: finding rows keep their operator drawn; nested record members
+
+- Every finding row that names an operator (`iteration-control`,
+  `iteration-input`, `collection-input`, `update-input`, `choice-control`,
+  `iteration-backedge-control`) is about that operator's own input or
+  control, so the operator stays drawn when the liveness pass would drop it
+  (`flow.mjs`, `keptFor: "finding"`, 504 operators). One with no data wire
+  at all is attached to the function by an `invocation` wire with
+  `provenance: "operation"` and its unknown inputs as stubs (116), so
+  nothing floats; `destination.mjs` ignores kept operators and their wires
+  so no page changes destination. Rows naming a missing operator 559 → 0.
+- A record member joins its holder with `.` at any depth when the holder is
+  a non-callable variable (`graph.mjs`): 33 renames such as
+  `createStudio::lifetime.onViewers`, `moveStore::methods.reader`,
+  `exportMovie::encoder.output`. Callable holders keep `::`; the four
+  `PreparedGenerationJob::constructor::…` children are fields, defaults and
+  an anonymous callable, not record members. A registry table inside a
+  function folds like any record; module-level tables keep their key
+  segment, an asymmetry for the owner. Forced flow edit: one member path in
+  `flows/studio.json` (`performanceView.context`).
+- Verified on the main store: `skillSettingsRows` 41 operators, 29 kept, 46
+  rows all resolving; distinct finding rows 12307 unchanged; `check` 3691 /
+  1084 / 47 / 5833, clean; floating boxes 0, depth 13, every declaration
+  homed once, destinations unchanged. Noted: `destination.mjs::wired` tests
+  "a wire on one of the two declarations", not "between them" as the guide
+  says.
+
+## 2026-09-22 — Dev map: handler-property registrations; record-member names
+
+- A named declaration assigned to an `on<event>` property inside a function
+  (`canvas.onpointerdown = beginCanvasDrag`) is an `event-listener` coupling
+  from that function to the handler (`graph.mjs`, rule `handler-property`),
+  drawn as a wire on the caller's page and a caller row on the handler's,
+  beside the `addEventListener` registrations the scanner already drew. A
+  function written at the site is already a `@handler/` declaration and is
+  not doubled. Census: 19 `addEventListener` sites (18 drawn before and
+  after), 35 handler functions written at the site, 7 named-value
+  assignments (0 → 7 drawn), 4 `tour-ui.mjs` sites assigning an anonymous
+  wrapper `attempt` returns (not drawn; no declaration to open).
+  `connectCanvasPointerEvents` now carries six couplings to its drag
+  handlers, so the input cluster has internal wires. `event-listener`
+  relations 49 → 56; couplings never counted toward `linked`, so `check`
+  is unchanged at 3691 / 1084 / 47 / 5833.
+- A member of a module-level record that is not a node joins its holder
+  with `.` (`studio/app.mjs::viewer.reportPerformance`, `views.facts`,
+  `views.facts::textRows`, `views.settings`; 4 renames); entries a
+  `registry-entry` reaches keep their key segment. Record members under a
+  holder inside a function (37 nodes such as `createStudio::lifetime::
+  onViewers`) still read `::`; the same rule applies and is queued.
+- Verified on the main store: distinct finding rows 12307 unchanged,
+  floating boxes 0, depth 13, every declaration homed once, no forced flow
+  edit. Left: `studio-events.mjs:46` registers a local record's member
+  (`member-receiver-unresolved`); a module-level registration has no
+  declaration at its `from` end and draws against the region's `in:` port.
+
+## 2026-09-22 — Dev map: literal arguments drawn as values
+
+- The owner ruled literal stubs are drawn, and asked why they exist: a slot
+  fed by a constant at the call site has no producer to wire from, so the
+  invocation edge marked it `literal` to keep no slot silent. The stub now
+  carries the value instead of the word (`invocation.mjs::literalValue`):
+  the call site's own text on one line, cut past 40 characters, a plain
+  number or boolean as that scalar, strings with their quotes, object,
+  array, `null` and `undefined` as written; `reason` is gone from literal
+  stubs. The reason is derived first, so a constant hidden by a spread
+  stays `spread`/`position-unknown`. The box prints the value on the slot
+  and wraps slots at 46 characters.
+- Verified on the main store: 1882 slots carry `literal`, 0 carry the
+  reason; every other reason count identical; string 1360, number 258,
+  object 84, boolean 83, array 41, null 14, undefined 6, 36 constant-valued
+  expressions drawn as their source; compact reads +0.25 %. `check` 3691 /
+  1084 / 47 / 5833, clean; floating boxes 0, depth 13, every declaration
+  homed once. `validatePath` draws each `requireThat` message on `arg2`.
+- Not a literal slot: `setTimeout(…, 75)` in `scheduleChange`, a platform
+  call with no box, so the `75` is in the platform count only; the
+  expression-operator work draws platform calls as producers.
+
+## 2026-09-22 — Dev map: module-level handlers are declarations; one wire per pair
+
+- A callable stored at module level on a platform event property
+  (`el.onclick = …`, `addEventListener`) is a `handler` declaration named
+  `file.mjs::@handler/<receiver>.<event>` (`graph.mjs`), the receiver being
+  an id selector's id, a binding or a static member path; a handler's body
+  homes what it declares. The six studio artefacts are gone from the region
+  page: the three position-named `onclick`/`onchange` lambdas are homed
+  under `@handler/confirm.onclick` and `@handler/stl-file.onchange`,
+  `blob::draw` and `blob::onProgress` under `@handler/export-movie.onclick`;
+  `viewer::reportPerformance` stays, a genuine root (record member, not
+  ambiguous). 26 declarations renamed in all; every one homed once; no root
+  carries a position identity.
+- Containment wires merge per pair of boxes (`overview.mjs`): one wire with
+  a summed `count`, `kind` or `kinds` by mechanism, names in the label up to
+  three. Pairs carrying more than one row 45 → 0; region `2` draws `2.1 →
+  2.4` once as `call ×13, construct ×19`.
+- The totals moved, and rightly: the 22 handler bodies in `studio/app.mjs`
+  had no page before (ambiguous `onclick` anchor), so every call inside
+  them was counted nowhere. `check` 3614 → 3691 linked, 1080 → 1084
+  unresolved, 5798 → 5833 platform, pages 1611 → 1633, distinct finding
+  rows 12187 → 12307; `outside` 47, floating boxes 0, depth 13, every
+  declaration homed once. Region `8` draws 57 boxes: 21 named handler roots
+  joined it while `clock`, `stepLayer`, `exportMovie` and `createLayerFade`
+  moved under the handler flows that reach them.
+- Forced authored edits in `flows/studio.json`: three paths renamed
+  (`onkeydown`, `onsubmit`, `onmessage`), four members no longer roots
+  removed, and the `playback` subgroup dropped below two boxes and was
+  deleted; the authoring pass rebuilds it from the handler roots.
+
+## 2026-09-22 — Dev map viewer: large function pages read as maps
+
+- The owner's finding on 8.2.2 (`createStudio`, 167 boxes): a vertical
+  column that could not be zoomed to read a label and still see both ends
+  of a wire, so the reader cross-referenced in their head. Drawing only;
+  the JSON is unchanged, the store byte-identical.
+- `leveled.py`: a box's column is the longest path over value wires, with
+  its own call number (ranked densely, in phases of ten) as a lower bound,
+  so a body that threads no values still reads left to right and a producer
+  always sits left of its consumer; state, loop and capture nodes sit just
+  left of their first consumer; the drawing folds to an aspect ratio instead
+  of a wrap width; a wire longer than half a stage at legible zoom (1050 px
+  across, 590 down) is drawn as two named stubs, each naming the other end,
+  a hub with more than six long wires dropping its own tag. `generated-
+  view.py`: semantic zoom (`FAR = 0.5`: below it a box is its name alone and
+  wires thicken; above it notes, ports, stub rows and labels return), a
+  click-to-jump minimap, hover focus that lights a box, its wires and their
+  far ends and dims the rest, `x` to pin, `]` `[` to walk the far ends, a
+  click on an end tag to stand at the other end and `\` to come back; the
+  finding ledger under the drawing in columns. Fixes on the resumed pass: the
+  back-jump popped history twice, a peer outline leaked into nested rects,
+  `fit()` went negative on a narrow stage.
+- Measured (canvas px, wire length centre to centre): 8.2.2 2740×38905 →
+  11042×6216, tallest rank 91 → 25 boxes, median wire 8187 → 1918, p90
+  20161 → 5818, 4 of 263 long wires unnamed at both ends;
+  `createViewerRenderer::draw` 1776×16634 → 7582×5273, median wire 1974 →
+  957; `app.mjs::render` 1180×9796 → 3750×2936; region `8` 1438×10304 →
+  6183×3890; `validatePath` and `regionComponents` still fit on a screen
+  (`regionComponents` p90 wire 919 → 1423, the one measurable regression).
+  Screenshots from Edge headless in the session scratchpad; the live zoom
+  and focus were verified in a browser, not captured. Build reports no
+  dropped wires; viewer 50.2 MB.
+
+## 2026-09-22 — Dev map: `linked` counts relationships, code reads keep state
+
+- `check`'s `linked` counted drawn boxes, so an authored group on a
+  declaration page lowered it by one per member beyond the first (found by
+  the authoring worker: the `createBundleWorkflow` grouping alone hid 23).
+  `store.mjs::storeStatus` now counts each group member as the call it is;
+  drawing no longer moves the total. New baseline 3614 linked (was 3553),
+  1080 unresolved, 47 outside, 5798 platform.
+- The compact read of a code-destination page kept a fixed key list that
+  dropped `state`; it now returns `state` and the `state` wires beside the
+  invocation wires, so the 28 field-state and 263 closure-state member
+  pages that open as code carry their state (`SegmentIndex::add`: four
+  fields, six wires).
+- Authoring phase 1 (studio, core/print) is written in the worktree and
+  awaits the owner's review before it lands.
+
+## 2026-09-22 — Dev map: class instance fields as state nodes
+
+- A class's `this.` fields are `state` nodes with `binding: "field"`
+  (`static-field` implemented, unexercised: the scope has no static field),
+  one convention with closure-owned bindings: on each method page a node per
+  field read or written, wired into the consuming port or from the producer,
+  from `self` with a stub where only the write is known; on the class page
+  one node per field wired from the constructor's producer or its stub and
+  to and from every member touching it. The old member-to-member field hubs
+  are gone; `stateFields` stays and names exactly the drawn fields. Wire
+  provenance renamed `closure-state` → `owned-state` everywhere. Private
+  methods were briefly drawn as fields (`#name` never matched the member
+  path); fixed, 21 spurious nodes removed. `this` aliased into a returned
+  object literal (`LuaRuntime::makeClosure`) is not followed, per the
+  accepted-limits list.
+- Verified on the main store: 45 method pages draw 110 field nodes, 7 class
+  pages 43; state read wires 1916 → 2124, write 1396 → 1530; closure state
+  unchanged; distinct finding rows 12187 unchanged by kind; `check` 3553 /
+  1080 / 47 / 5798, clean; floating boxes 0, depth 13, every declaration
+  homed once. Pages read: `LuaRuntime` (6 fields, 23 wires),
+  `LuaRuntime::execStatement` (`file` read into three `LuaSubsetError`
+  arguments), `LuaRuntime::invoke` (no fields, correctly), `SegmentIndex`
+  (4 fields, 19 wires), `PreparedGenerationJob::fail` (`#failure` written
+  from a traced producer). The drawings carry the "owned by" state boxes.
+- Gap found: the compact read of a code-destination page keeps a fixed key
+  list and drops `state`, so 28 of the 45 member pages with field state, and
+  263 of 565 with closure state, show it only in source. Queued.
+
+## 2026-09-22 — Dev map: chain boxes carry rows, rows carry files, `--details` is a superset
+
+- The containment findings pass (`store.mjs::attachContainmentFindings`) now
+  runs after `drawChains`, so a leaf's chain boxes on region and group pages
+  carry their rows like every other box: 39 of 65 chain boxes gained 338
+  rows, 15 containment pages changed in `components` only, 43 byte-identical.
+- Every finding row is stamped with its node's file at presentation
+  (`presentation.mjs::located`); the compact read elides it where it only
+  repeats the file in scope, so a `nodeFindings` row from another file is
+  self-contained and box rows inherit the box's file. Compact reads 10.31 →
+  10.59 MB.
+- `read-map --details` returns `agent-view.mjs::detailedPage`, the presented
+  page laid over the stored packet: invocation wires, `state`,
+  `parameterTargets`, `findings`, `nodeFindings`, `inlined`/`via` plus the
+  raw `flow`, `callBindings`, expressions and producers. Nothing stored is
+  dropped; a caller list is carried by the first instance of a box only;
+  overview pages carry both the drawn and the stored wire lists. Two lines
+  in `core/agent/toolkit.mjs::readMaps`. Details reads 1.11× the store.
+- Verified on the main store: region `8` chain boxes 17, 14 with rows;
+  `validatePath --details` 11 invocation wires, 11 boxes with counts, 3
+  sections, `flow` and `callBindings` present; `initializeAgentInterface`
+  cross-file section rows all carry `file`; `check` 3553 / 1080 / 47 / 5798,
+  clean; distinct rows 12187, floating boxes 0, depth 13, every declaration
+  homed once.
+
+## 2026-09-22 — Dev map: loop accumulators carried to the output
+
+- Queue item 5, `flow.mjs` only. A binding declared before a loop and
+  written in its body is that loop's accumulator, the shape `reduce`
+  already drew: `initial` from the pre-loop producer, `current` into the
+  body, `next` from the body's producer, `final` to the post-loop consumers.
+  Nested loops compose by recursion (the inner `final` is the outer `next`);
+  a self-update such as `max = Math.max(max, x)` is an `update` operator; an
+  entered array callback carries accumulators the same way; bindings are
+  demoted one at a time instead of the whole loop giving up; a loop shape
+  that leaves the normal-completion path readable (`break`, `continue`,
+  `throw`, `switch`, `try`, `await`, a nested loop) is carried with a
+  `loop-exception-path` row naming the shape, and only `yield`, a `return`
+  in a non-`for` loop and a branching backedge block it. Residual
+  `loop-data-flow` rows carry a `reason`. `for(;;)` with `break` had been
+  read as never exiting; fixed.
+- Verified on the main store: accumulators carried 191 → 574 over 351 loops;
+  `loop-data-flow` 882 → 129 (54 `unknown-next`, 47 `unsafe-collection`, 15
+  `branching-backedge`, 8 `yield-in-body`, 5 `return-in-body`); all finding
+  rows 12813 → 12187 with the rising kinds naming newly drawn gaps
+  (`iteration-input` `initial`, `iteration-control`, `loop-exception-path`);
+  stub slots 3484 → 3278, `loop-variable` 137 → 87; six pages code → graph
+  because a `final` now wires onto a second called declaration; `check`
+  3553 / 1080 / 47 / 5798 unchanged; floating boxes 0, depth 13, every
+  declaration homed once. Pages read: `sampleTopSurface` (inner and outer
+  accumulators for `samples`, `inside`, `steep`, `maxSlope`, all reaching
+  `out1`, zero residual rows), `orderStrokes` (`while`: `ordered` to `out1`),
+  `selectPrimingPath` (nested `for-of` with a gated `push`), `packZip`
+  (`offset` reaches `requireThat`; its last use is a platform Buffer write
+  the map does not draw).
+- Left: `Set`/`splice`/`get(k).push` collections, backedges with more than
+  one normal path, generators; 557 finding rows name operators the liveness
+  pass drops (680 before), worth a separate look.
+
+## 2026-09-22 — Dev map: finding rows follow their node onto function pages
+
+- Queue item 6. On every graph page of a function, method, handler or class,
+  each drawn declaration box carries `findings`, the count of that
+  declaration's own `uncertainty` and `unresolved` rows (a group box keeps
+  its group count), and the page carries `nodeFindings`: one section per
+  distinct drawn node in drawing order, never the page's own path, after the
+  page's own rows. `store.mjs::attachNodeFindings` runs after `drawChains`
+  so inlined chain boxes are included, and before `renumber`;
+  `presentation.mjs` reduces the rows the way the node's own page does so
+  box count and rows agree; the viewer shows the count on the box and
+  clickable section heads below the drawing. Root, region and group pages
+  are byte-identical.
+- Verified on the main store: 678 node pages carry counts, 677 have
+  sections (`LuaRuntime` draws only group boxes); distinct finding rows
+  12813 unchanged, shown rows sum to 20579; `check` 3553 / 1080 / 47 / 5798,
+  clean; floating boxes 0, depth 13, every declaration homed once. Pages
+  read: `validatePath` (eight `requireThat` boxes each `findings: 2`, one
+  section), `LuaRuntime::execStatement` (46 boxes, 10 sections, 72 rows
+  once), `initializeAgentInterface` (inlined chain boxes carry counts),
+  region `7` unchanged. Size: compact reads 8.41 → 10.31 MB, viewer 32.4 →
+  40.0 MB; `createStudio` is the one page over 300 rows (527 over 73
+  nodes, compact read 222 KB), for the owner to look at.
+- Left: inlined chain boxes on region pages carry no rows because the
+  containment pass runs before `drawChains`; finding rows carry no `file`
+  of their own (the section's `path` names it).
+
+## 2026-09-22 — Dev map: what is not a map is drawn on the map above it
+
+- Queue item 0, the owner's ruling of 2026-09-21. The homing walk
+  (`tree.mjs`) never descends into a code destination: a leaf is homed where
+  it is met, and what it calls or holds is homed and drawn on that same map,
+  wired from the leaf's box, and so on while each of those is a leaf in turn.
+  Nothing is numbered beneath a leaf; a leaf's chain is drawn on its home map
+  only, and a repeat elsewhere is not expanded. Brought-in boxes carry
+  `inlined` and `via`; `invocation.mjs` emits their wires from the leaf's box
+  instead of `self`, on containment pages too; `store.mjs` keeps them out of
+  `linked`. A region root that is itself a leaf has its chain drawn on the
+  region page, the only map above it (studio's region page: 20 → 37 boxes,
+  17 inlined). The viewer's sidebar nests every graph page under a graph
+  page, and the filter finds a leaf and highlights its box on its home map.
+  `destination.mjs` unchanged: the rule reads the page's own calls.
+- Verified on the main store: code pages with children 98 → 0, graph pages
+  with a code parent 46 → 0, sidebar rows appended un-nested 46 → 0 (752
+  rows, none orphaned); max index depth 15 → 13; 189 inlined boxes; floating
+  boxes 0 on node pages (10 pre-existing on 6 group pages, authored members
+  with no crossing wire); every declaration homed once; finding rows 12813
+  and `check` 3553 / 1080 / 47 / 5798 unchanged. Largest map pages:
+  `createStudio` 166 (was 157), `createViewerRenderer::draw` 69,
+  `app.mjs::render` 58. Pages read: `initializeAgentInterface` (11 boxes, 6
+  inlined: `onRequests → needsTourToolpath → hasUnpreparedEdit →
+  requestReceiptState`, `onRequests → scheduleChange`), `scheduleChange` (code,
+  four callers, no children; homed on the session group page where the walk
+  meets it first, with `poll` beside it), `poll`, `exportBambu` (leaf; its
+  callee now a sibling), region `8`.
+- Merged over the closure-state commit: the viewer draws the subject box
+  when a wire leaves `self` or the page holds state; `README.md` 192 lines
+  (was 185): both workers rewrapped it under the cap and the merge keeps the
+  leaf text plus the state clause.
+
+## 2026-09-22 — Dev map: closure-owned state as state nodes with read and write wires
+
+- Queue item 3. A binding a factory declares and its nested members capture
+  is a `state` node: on the member page (`name`, `owner`, `ownerIndex`,
+  `binding`, `access`, declaration site) with read wires from the node into
+  the consuming instance or operator port and write wires from the producer
+  into the node, or from `self` with a stub reason (`collection-mutation`,
+  `member-write`, `update`, `deleted-member`, `untraced`) when only the
+  write is known; on the holder page once, wired from its initialisation and
+  to and from every member that touches it. A mutating method call (`set`,
+  `push`, `delete`) counts as a write, which the capture analysis alone did
+  not see. The closure reference box keeps "function value" and loses its
+  capture text; `presentation.mjs` drops the box's `captures`,
+  `destination.mjs` ignores `closure-state` wires, `instances.mjs` no longer
+  invents an invocation producer for them (92 spurious `invocation-origin`
+  rows gone), `store.mjs` remaps `ownerIndex` on renumbering. The viewer
+  draws state boxes with an "owned by" link and directional state wires.
+- Verified on the main store: 1562 state nodes (980 on 425 member pages, 582
+  on 156 holder pages), 1971 read and 1439 write wires, no floating node;
+  reference boxes with capture text 529 → 0; `closure-capture` rows 701
+  unchanged, all finding rows 12813 unchanged; `check` 3553 / 1080 / 47 /
+  5798, clean; destinations 752 graph, 918 code; depth 15; every declaration
+  homed once. Pages read: `createAgentRequests::accept` (`records`,
+  `pending`, `byPrint`, `latest`; `pending` write-only), `createAgentRequests`
+  (13 nodes, 56 wires), `interpretDensoFiles` (19 nodes, `execute` box with
+  no text) and `::execute` (62 wires), `sourceSession::acceptPose`.
+- Not done: class instance state (`this.x` on classes with `stateFields`)
+  keeps the class page's field hubs only; captures inside a member's
+  anonymous callbacks stay `closure-capture` rows. `README.md` at 185 lines
+  by rewrapping.
+
+## 2026-09-21 — Dev map: callback targets as references; array-method callbacks entered
+
+- Callback targets (queue item 2). A callable a caller passes into a parameter
+  is drawn on the caller's page, wired `callable → argN` into the call, and
+  the callee's input port lists it as a `parameterTargets` row (`index`,
+  `path`, `from`, `possible`); the callee collapses to code when nothing else
+  makes it a map. Parameter-target boxes 94 → 9 (the nine remaining are
+  callables destructured out of a parameter record), 85 reference rows on 44
+  pages; 15 pages graph → code (`perTool`, `perFilament`, `watchStudioChanges`,
+  `adoptProgramState` among them); 188 declarations changed home; a callable
+  reached only as a callback is a flow root of its region (`regions.mjs`),
+  so studio's region page went from 4 boxes to 20 and awaits clustering.
+  `linked` now counts the reference rows so the total stays 3540 for the same
+  relationships; flagged for the owner. Finding rows 13800 → 13804.
+- Array-method callbacks (queue item 4). `map`, `flatMap`, `filter`,
+  `forEach`, `find*`, `some`, `every`, `sort`, `toSorted`, `reduce*` callbacks
+  are stages of the enclosing flow (`shapes.mjs::iterationMethods`): an
+  inline callback is traced with its parameter bound to the iteration
+  operator's `item`, a named callback is an ordinary call instance with the
+  element as `arg1` (`graph.mjs`, `resolvedBy: iteration-callback`), and the
+  method's result leaves the operator. 645 callbacks entered (620 inline, 25
+  named). `linked` 3540 → 3553; `unresolved`, `outside` and `platform`
+  unchanged by choice (entering a callback does not prove the receiver is an
+  array). Finding rows 13804 → 12813: `callback-execution` 1010 → 172,
+  `argument-origin` 2717 → 2284; two kinds rise because the gap is now named
+  (`iteration-source` 221 → 496, `iteration-input` 0 → 345). Islands from
+  the triage now called: `toPlanar`, `addFace`, `componentFromRoot`,
+  `normalized`, `read`. `toPlanar` stopped being a root, so `spline-shells`
+  in `flows/geometry.json` lost that member and its now-identical nested
+  group.
+- Merged store: 1611 pages (752 graph, 918 code), 0 floating boxes, every
+  declaration homed once, max depth 18 → 15, stub slots 3994 → 3484,
+  `check` 3553 linked, 1080 unresolved, 47 outside, 5798 platform, clean.
+  Pages read: `perTool` (code, 13 rows), `resolveBambuProject` (its 13
+  lambdas as boxes with callable wires), `regionComponents` (code → graph,
+  `componentFromRoot` wired from the item), `toPlanar` (caller `joinChains`),
+  `createAgentRequests::query` (filter, map, sort chain), `watchStudioChanges`.
+- Ruling recorded in DEVELOPER-CONTEXT: what is not a map is drawn on the map
+  above it; a code-destination declaration is a leaf with nothing homed
+  beneath it. Today 368 code pages call a mapped declaration and 46 graph
+  pages have a code parent, which the viewer's tree cannot reach.
+
+## 2026-09-21 — Dev map: the invocation edge; no box floats
+
+- `lib/invocation.mjs` derives one `invocation` wire per drawn box from the
+  call sites, in call order (`order`), from a `self` node to the instance;
+  argument slots the tracer could not source are `stubs` with a reason
+  (`literal`, `nested-call`, `untraced-binding`, `property-path`,
+  `loop-variable`, `branch-join`, `computed-expression`, `constructed-value`,
+  `composed-literal`, `spread`, `position-unknown`, `awaited-value`). A box the
+  function holds or names without calling gets a `declaration` or `reference`
+  edge; authored clusters get none. Appended in `presentation.mjs` after every
+  collapse; `agent-view.mjs` returns them on code pages too; the viewer draws
+  them dashed indigo with the stub rows on the box. `destination.mjs` is
+  untouched: a page with no data wire is still code.
+- Verified on the regenerated main store: floating boxes 1434 → 0 (471 pages,
+  316 drawn); 5601 invocation edges (call-site 4996, declaration 485,
+  reference 120); 2669 boxes carry 3994 stubs, 1778 of them `literal`; pages
+  by kind and destination, max depth 18 and one home per declaration
+  unchanged. Pages read: `createAgentRequests::accept` (8 edges in line
+  order, 3 stubs matching its 3 `argument-origin` rows), `griffin.mjs::
+  validatePath` (11 edges, eight `requireThat` each `arg1 nested-call, arg2
+  literal`), `initializeStudio` (5 boxes that floated, now wired),
+  `regionComponents` (`componentFromRoot` as a `declaration` edge: the
+  array-callback gap made visible), `dobot-lua-subset.mjs::parse`.
+- `--details` still returns the stored packet without the wires; `README.md`
+  held at 185 lines by removing sentences duplicated elsewhere. Rulings
+  recorded in the handoff: repeated assertion boxes stay; the two code-shape
+  sites are settled.
+
+## 2026-09-21 — Code shape, third pass: `completeProgram` returns; ten dead declarations
+
+- `core/export/bambu.mjs::completeProgram` no longer mutates its `program`
+  parameter: it returns `{...program, moves, events, summary, code, envelope}`
+  with shifted `line` values on new move and event records and the envelope
+  built as one literal. Key order preserved. A/B over eight Bambu cases
+  (H2D tools and nozzles, fast start, H2D and X1 colour change, mixed nozzle,
+  dual verification): package bytes, program JSON, move and event line arrays
+  and key orders identical, total `960aad380bd61d367b614d48fc7e6454` before
+  and after. On the regenerated map the page's return reaches both callers.
+- Island review (declaration pages with no caller and no coupling: 137; 41
+  are defaults, anonymous callables, statics and DOM handlers; 96 triaged).
+  Deleted as dead, no reference anywhere: `builder.mjs::beadVolume`,
+  `reservation.mjs::intersectsReservation`, `tolerance.mjs::lerp`,
+  `tessellate.mjs::lerp`, `nurbs.mjs::height`, `field.mjs::sampleTopSurface`
+  (superseded by `query.mjs::sampleTopSurface`), `tour-ui.mjs::
+  needsTourGeometryReview`, `app.mjs::toolpathPlaceholder` (its behaviour
+  lives in `showingGeometry`), `LuaTable.fromArray`, `LuaRuntime::call`.
+  Their authored memberships were pruned; `path.json` lost the one-box
+  wrapper `policies-ordering`. 36 islands are entry points called from
+  skills, scripts, adapters or tests; 48 are scanner limits: array-method
+  callbacks not entered, module-level call sites, callbacks registered on
+  platform objects or passed in records, getters read by property access or
+  spread, members on instance receivers, the schema-keyed dynamic bundle
+  table. Flagged, not deleted: `SegmentIndex::distanceTo` (test-only caller).
+- Verified: `npm test` 210 pass, 0 fail before and after (the earlier
+  known failures are gone at this head); `check` 1611 pages, 3540 linked,
+  1080 unresolved, 47 outside, 5798 platform, no stale, stranded, unplaced
+  or orphan facts.
+
 ## 2026-09-21 — Dev map: functional tree
 
 - Operators no longer count toward the map-or-code rule (`lib/destination.mjs`,
@@ -7817,3 +8706,24 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   flow, matching first layers, attachment controls, and 1,160 standard wall loops.
   Generated estimate: 46.4 minutes. Exact program identity and compact report are
   in PT-001 Array 02; physical success is still to be assessed.
+
+## 2026-09-23 — USB orientation test and 180-degree staging package
+
+- User requested a simple vertical orientation test on D: while preparation of the
+  full current 180-degree export continued. Added SAAM_ORIENT1.pcs to the existing
+  STRUDER11 source/test folder and appended its ordinary-program manifest entry.
+  Before/after SHA-256 inventory proved those were the only two changed USB files.
+- The test captures CurPos after selecting T6/W2, rises 20 mm while tilting 45
+  degrees toward +Y, returns to the captured pose, then repeats toward +X. Four
+  stopped Move L commands, no process/rotary output, no taught-position mutation.
+  CurPos and component extractors were checked against the DENSO command manual
+  and preserved controller source. Controller compilation/run awaits user report.
+- Preserved the current USB source template locally, then stopped USB access so
+  the user can test. Prepared a local 180-degree staging ZIP containing the existing
+  continuous tube/first-shell source, a separate extrusion-off positioning helper,
+  checked program hashes, instructions and a manifest-preserving staging script.
+  The positioning endpoint exactly matches the continuous program's first pose.
+- ZIP round trip preserves all six files. Local staging fixture verified original
+  manifest bytes/unrelated files, idempotence and rejection of conflicting output.
+  No full-job files were staged on USB. Full path and helper still await controller
+  syntax checks and Teach Check; the software model has no controller joint limits.

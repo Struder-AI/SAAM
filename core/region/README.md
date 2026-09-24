@@ -11,8 +11,8 @@ and travel across those regions.
 positive bead width using the shared Clipper2 kernel, round joins and round caps.
 The returned nonzero-winding region unions crossings while preserving unfilled
 spaces. It is a nominal XY bead footprint, not a measured deposited surface or
-support guarantee. Level motif rims use only final-course segments with positive
-extrusion; they never substitute the filled reference sleeve. Coordinate grid
+support guarantee. Level pattern rims use only final-course segments with positive
+extrusion; they never substitute a filled sleeve. Coordinate grid
 and arc-tolerance options remain separate, as for closed region offsets.
 
 ## Shared offset functions
@@ -212,7 +212,7 @@ selected material's minimum Z. Disjoint partitions may share height ranges;
 whole/partition or repeated-partition overlap needs the same explicit consumed
 lower-surface relationship as overlapping whole-component assignments. Selection
 is a process choice and does not change saved geometry. The
-[text manual](../../skills/text/SKILL.md#material-selections-and-printing-patterns)
+[text manual](../../skills/text/SKILL.md#material-selections-and-toolpath-skills)
 owns creation and editing of these prepared partitions.
 
 `core/print/regions.mjs` resolves those assignments through the existing skill

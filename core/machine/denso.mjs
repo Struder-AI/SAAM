@@ -5,7 +5,7 @@ export function validateDensoConfiguration(plan,{required=false}={}){
   for(const key of ['toolFrame','workFrame','armGroup','figure','extrusionOutput'])
     requireThat(c[key]===null||(Number.isInteger(c[key])&&c[key]>=0),'Invalid DENSO '+key+'.');
   requireThat([7,8].includes(c.rotaryAxis)&&[-1,1].includes(c.rotarySign),'Invalid external rotary axis/sign.');
-  requireThat(c.rotaryInterface===null||c.rotaryInterface==='rc8-relative-ex','Only the declared RC8 EX rotary interface is implemented; a separate rotary controller needs its own adapter.');
+  requireThat(c.rotaryInterface===null||c.rotaryInterface==='rc8a-relative-ex','Only the declared RC8A EX rotary interface is implemented; a separate rotary controller needs its own adapter.');
   for(const key of ['rotaryCenterMm','workOffsetMm','initialPositionMm'])requireThat(Array.isArray(c[key])&&c[key].length===3&&c[key].every(Number.isFinite),'Invalid DENSO '+key+'.');
   for(const key of ['workYawDeg','rotaryZeroDeg'])requireThat(Number.isFinite(c[key]),'Invalid DENSO frame/rotary offset.');
   for(const key of ['retreatMm','transitionSeconds'])requireThat(Number.isFinite(c[key])&&c[key]>0,'Invalid DENSO transition setting.');

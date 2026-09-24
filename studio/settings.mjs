@@ -73,16 +73,16 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){
-        const tiled=Boolean(v.motif),paths=tiled?[v.motif]:v.paths;
-        rows.push([prefix+' · Pattern','Repeated motif on the selected solid or sleeve'],
-          [prefix+' · Deposition','Motif strokes only; the guide surface is not printed'],
+        const tiled=Boolean(v.tile),paths=tiled?[v.tile]:v.paths;
+        rows.push([prefix+' · Pattern','Repeated tile on the selected solid or sleeve'],
+          [prefix+' · Deposition','Pattern strokes only; the sleeve is not printed'],
           [prefix+' · Repetitions',String(v.repeats)],
           [prefix+' · Advance',tiled?'1 perimeter turn / '+v.courseRiseMm+' mm rise':v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
           [prefix+' · Mapping',settings.meshSleeve?'Smooth fitted sleeve, followed by one-sided mesh contact':'Actual inset contour at each height; fraction of perimeter length']);
-        if(tiled)rows.push([prefix+' · Motif tiling',v.cellsPerTurn+' cells per course × '+v.repeats+' courses'],
-          [prefix+' · Motif tilt',v.tiltDeg+'° about the cell advance direction']);
+        if(tiled)rows.push([prefix+' · Tiling',v.cellsPerTurn+' cells per course × '+v.repeats+' courses'],
+          [prefix+' · Tile tilt',v.tiltDeg+'° about the cell advance direction']);
         for(const [i,path] of paths.entries())rows.push(
-          [prefix+' · Motif path '+(i+1),path.points.length+' points'],
+          [prefix+' · Pattern path '+(i+1),path.points.length+' points'],
           [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+(tiled?' (cell fraction, mm)':' (turns, mm)')],
           [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
         for(const [i,path] of paths.entries())if(path.offsetMm!==undefined){
@@ -124,7 +124,7 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     const rendered=key==='pattern'&&name==='pipe-cladding'?claddingPatternName(settings)
       :key==='maxAngleDegOverride'&&v===null?'Machine profile limit'
       :key==='zEndMm'&&v===null?'Geometry top'
-      :key==='endTransition'?(settings.pattern?({'level':'Flat motif courses at both ends','spiral':'Authored motif ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
+      :key==='endTransition'?(settings.pattern?({'level':'Flat pattern courses at both ends','spiral':'Authored pattern ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
       :value(v)+unit;
     rows.push([prefix+' · '+label,rendered]);
   }
@@ -172,10 +172,10 @@ export function recipeRows(plan,machine){
   }
   return rows;
 }
-export function robotRows(plan){
+export function robotRows(plan,machine){
   const c=plan.setup.denso;
   if(c)return [
-    ['Robot / controller','DENSO VP-6242 / RC8'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
+    ['Robot / controller',machine?.name??'DENSO / RC8A'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
     ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
     ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
     ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],

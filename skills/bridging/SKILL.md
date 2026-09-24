@@ -1,6 +1,6 @@
 ---
 name: bridging
-description: Generate experimental straight XYZ bridge spans between two sampled supporting rims, with alternating continuous or one-way diagnostic paths and independently controlled attachment motions. Compose with existing wall producers; this skill generates no walls and has no physical validation.
+description: Straight XYZ spans between two supporting rims, with separately controlled attachment motions. Makes no walls; compose with a wall producer.
 ---
 
 # Bridging
@@ -74,6 +74,7 @@ Unsupported spans are not automatically checked for intervening objects or
 swept-head clearance. No temperature sweep or endpoint dwell control is exposed
 yet; temperature and fan use the common process settings.
 
-Physical sag, tension, attachment and pressure behavior remain untested. Save
+The user reports bridging demonstrated in physical prints (2026-09-24); sag,
+tension, attachment and pressure have not been measured. Save
 the exact recipe, generated-program hash, photos and operator report per run.
 Review geometry, process and generated paths in Studio before ordinary delivery.
