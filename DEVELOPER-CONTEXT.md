@@ -23,20 +23,18 @@ rules under [Code shape](#code-shape).
 ### Dev map glossary
 
 These terms are still settling and this list owns them. The map guide, the
-tools and the read fields still use some older names. Regions and entry
-points describe the current generator and are under review.
+tools and the read fields still use some older names. Nothing in the maps
+comes from files or directories.
 
 - **Dev maps**: the whole system: every map, the viewer and the tools that
   read and regenerate them. A **map** is one graph in it.
 - **Node**: anything with an index: a function, method, event handler or
-  class, a cluster, or a region. It has exactly one **parent map**, which
+  class, or a cluster. It has exactly one **parent map**, which
   numbers it and draws it as a box; it is a **child node** there, and its own
   map, if it opens as one, is a **child map**. A node's map draws what it
   calls, in call order, and the data between.
 - **Cluster**: an authored node that groups boxes on a map under a label. Its
   map draws its members and the links between them.
-- **Region**: one mapped directory, such as `core/geom` or `studio`. Regions
-  are the top map's child nodes, and a region's map draws its entry points.
 - **Top map**: `0`, the root of the nesting and no node's box.
 - **Nesting**: the tree of maps. A node is nested in its parent map: `2.1.3`
   in `2.1`. Clusters are the authored part of the nesting; everything else is
@@ -49,9 +47,9 @@ points describe the current generator and are under review.
 - **Box**: one drawing of a node on a map. A node can have many boxes, on
   several maps or on one, since each call site is its own box. A box on any
   map other than the node's parent map is a **repeat**.
-- **Entry point**: a node that nothing else in its region calls by name. A
-  region's map draws only its entry points, some grouped into clusters; every
-  other node of the region is reached through them and nested deeper.
+- **Entry point**: a top-level declaration that no mapped code calls by name.
+  The top map draws only the entry points, some grouped into clusters; every
+  other node is reached through them and nested deeper.
 - **Inner** and **outer**: a function written inside another's body is inner
   to that outer one. It is nested in the outer node's map, whatever else calls
   it.
@@ -67,7 +65,7 @@ points describe the current generator and are under review.
   **data link** carrying a value between ports; a **state link**, state read
   or written; or an **indirect link**, reached through a medium rather than a
   call: a file, an HTTP route, a worker message, an event listener, or **keyed
-  dispatch**, a function looked up by key in a named table. On a region or
+  dispatch**, a function looked up by key in a named table. On the top map or a
   cluster map, one link stands for every call between two boxes, with a count.
 - **Operator**: a step on a map that is not a call: a choice, a loop, an
   update, a collection or a member call. **State**: bindings and fields that
@@ -86,8 +84,8 @@ points describe the current generator and are under review.
   outside caller is **active** when it runs while a person makes a part or
   operates Studio. A call to outside code is drawn as a headless arrow naming
   its target; a call to nothing scanned is **platform**.
-- **Stranded**: a node that no entry point of its region reaches. It keeps its
-  box on the region map.
+- **Stranded**: a node that no entry point reaches. It keeps its box on the
+  top map.
 - **Node path**: the durable name of a node, `file.mjs::name`, as against its
   index, which changes on regeneration.
 - **Authored inputs**: clusters, annotations and scope. Everything else is
@@ -113,13 +111,13 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
 
 ### The tree
 
-- The walk is `0`, a region, maps down to a leaf, then its code block, the
-  edit, `regenerate`, and the read again. Where the code lives does not enter
-  into it below the regions: the nesting is functional, never a file tree.
-- A region map draws its entry points, optionally clustered; a link between
+- The walk is `0`, maps down to a leaf, then its code block, the edit,
+  `regenerate`, and the read again. Where the code lives does not enter into
+  it: the nesting is functional, never a file tree.
+- The top map draws the entry points, optionally clustered; a link between
   them says the code under one reaches the code under the other. Every other
-  node in the region is nested in the first map of that region that reaches
-  it, so a deep call chain is a deep index. An inner function is nested in its
+  node is nested in the first map that reaches it, so a deep call chain is a
+  deep index. An inner function is nested in its
   outer one's map; a class is its construction and its
   members.
 - A leaf is drawn as a box on its parent map with its links there, and its

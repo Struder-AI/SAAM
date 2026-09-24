@@ -69,11 +69,9 @@ export function nodeLinks(nodes) {
   return links;
 }
 
-// Every map: the top map, regions, clusters and each node whose view is a map.
+// Every map: the top map, clusters and each node whose view is a map.
 export function storedMaps(held,nodes) {
-  const maps=[{index:'0',kind:'top',label:'top map',members:held.root.regions.map(r=>r.index)}];
-  for(const page of Object.values(held.regionPages))
-    maps.push({index:page.index,kind:'region',label:page.path,members:(page.components??[]).map(c=>c.index)});
+  const maps=[{index:'0',kind:'top',label:'top map',members:(held.root.components??[]).map(c=>c.index)}];
   for(const page of Object.values(held.groupPages??{}))
     maps.push({index:page.index,kind:'cluster',label:page.label??page.path,members:(page.components??[]).map(c=>c.index)});
   for(const [at,page] of nodes)if(destinationFor(page)==='graph')
@@ -196,7 +194,7 @@ td.label{white-space:normal;word-break:break-all}a{color:var(--accent)}label{mar
 <p>Store ${esc(result.generated)} · ${result.maps} maps · ${result.links} node links · energy -${result.energy}. Each part is a penalty from 0 (ideal) to -1, and a map's score is their sum; the viewer shows each map's score in its bar.
 Size: nodes drawn outside ${SIZE.min}–${SIZE.max}. Crossing: share of links touching this map's nested content that leave it (and without nodes called from ${UBIQUITOUS}+ places).
 Islands: groups of members with no link between them. Backflow: share of links between members against the best left-to-right order. Click a heading to sort; an index opens the map.</p>
-<p>${['top','region','cluster','node'].map(k=>`<label><input type="checkbox" checked data-filter="${k}"> ${k}</label>`).join('')}</p>
+<p>${['top','cluster','node'].map(k=>`<label><input type="checkbox" checked data-filter="${k}"> ${k}</label>`).join('')}</p>
 <div class="wrap"><table><thead><tr><th class="n">score</th><th>map</th><th>kind</th><th>label</th><th class="n">nodes</th><th class="n">repeats</th>
 <th class="n">crossing</th><th class="n">w/o ubiquitous</th><th class="n">islands</th><th class="n">backflow</th><th class="n">size</th></tr></thead>
 <tbody>${rows}</tbody></table></div>

@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadFlow,flowPacket} from './flow.mjs';
-import {model,numberRegion} from './regions.mjs';
+import {model,numberNodes} from './entries.mjs';
 import {readFacts,bindFacts} from './facts.mjs';
 import {sourceFiles} from './graph.mjs';
 import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
@@ -31,64 +31,25 @@ const byIndex=(a,b)=>{
 };
 
 // ---- generation -------------------------------------------------------------------------
-export async function generate({repo=repoRoot,region=null,readSource,files}={}) {
+export async function generate({repo=repoRoot,readSource,files}={}) {
   const timings={},clock=async(key,run)=>{const t=Date.now();const out=await run();timings[key]=Date.now()-t;return out;};
   const generationInputs=await inputHashes(repo);
   const config=await readCompositions({repo});
   const context=await clock('load',()=>loadFlow({repo,...(readSource?{readSource}:{}),...(files?{files}:{})}));
   Object.assign(timings,context.timings);
-  const {graph,projection}=context,lines=new Map(graph.files.map(f=>[f.file,f.lines]));
-  const dir=storeDir(repo),held=await readIndex(dir);
+  const {graph,projection}=context;
+  const dir=storeDir(repo);
   const m=model(graph,projection);
-  // Region numbers belong to the current directory inventory. A partial write cannot safely
-  // reuse old addresses when that inventory changes, or when its provenance predates this schema.
-  const requestedRegion=region;
-  let widened=null;
-  if(region&&(!held||held.schema<4||JSON.stringify(held.regions.map(r=>r.path))!==JSON.stringify(m.regions.map(r=>r.path)))) {
-    widened='region-inventory-or-store-schema';region=null;
-  }
-  if(region&&!m.regions.some(r=>r.index===region))throw Error(`Unknown region ${region}; regions are ${m.regions.map(r=>r.index).join(', ')}.`);
-  // Removing a declaration can invalidate an arbitrary incoming reference. Rebuild the complete
-  // already-scanned graph rather than publish an address that now names a different declaration.
-  if(region&&Object.entries(held.nodes).some(([at,node])=>at.split('.')[0]===region&&!projection.nodes.has(node.path))) {
-    widened='removed-declaration';region=null;
-  }
-  if(region) {
-    const scanned=new Map(graph.files.map(f=>[f.file,f.sha256]));
-    const structuralChanged=(config.flows??[]).some(spec=>{
-      const at=held.sourceByPath[spec.path],page=held.sourceRegionPages?.[at]??held.regionPages[at];
-      if(!page)return false;
-      const contained=page.kind==='region'?[...page.files,...(m.regions.find(r=>r.path===spec.path)?.files??[])]:[page.file];
-      return contained.some(file=>held.files[file]?.region!==region&&m.regionOf.get(file)?.index!==region&&held.fingerprint.sources[file]!==scanned.get(file));
-    });
-    if(structuralChanged){widened='composition-source-dependencies';region=null;}
-  }
-  const scoped=region?m.regions.filter(r=>r.index===region):m.regions;
 
-  // Numbering. A scoped run keeps every index the store already holds outside the region.
-  const index=new Map();
-  if(region&&held)for(const [path,at] of Object.entries(held.sourceByPath))if(at.split('.')[0]!==region)index.set(path,at);
-  for(const r of scoped) {
-    const numbered=numberRegion(m,r);
-    index.set(r.path,r.index);
-    for(const f of numbered.files)index.set(f.file,f.index);
-    for(const [path,at] of numbered.index)index.set(path,at);
-  }
+  // Numbering: internal identities, renumbered into the map tree before publishing.
+  const index=numberNodes(m);
   for(const n of projection.nodes.values())if(index.has(n.path))n.handle=index.get(n.path);
 
-  // Packets. A scoped run reuses the stored packet of every node outside the region.
   const packets=new Map();
-  const mine=new Set(scoped.flatMap(r=>r.files));
-  const oldRecords=region&&held?new Map((await Promise.all(Object.values(held.records).map(f=>json(resolve(dir,'files',f))))).map(r=>[r.file,r])):new Map();
-  await clock('pages',async()=>{for(const n of m.nodes)if(mine.has(n.file))packets.set(n.path,flowPacket(context,n.path));});
-  if(region&&held)for(const record of oldRecords.values())
-    for(const packet of Object.values(record.sourcePages??record.pages))if(!mine.has(packet.file)) {
-      remapReferences(packet,held,index,projection,mine);
-      packets.set(packet.path,packet);
-    }
+  await clock('pages',async()=>{for(const n of m.nodes)packets.set(n.path,flowPacket(context,n.path));});
 
   // A stored component names its node by file and label; its index is read back from the map so
-  // a renumbered region is followed everywhere it is referenced.
+  // a renumbered declaration is followed everywhere it is referenced.
   for(const packet of packets.values()) {
     packet.index=index.get(packet.path)??packet.index;
     for(const c of packet.components)c.index=index.get(`${c.file}::${c.label}`)??c.index;
@@ -152,45 +113,30 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
 
   attachPortReferences(packets,index);
 
-  // Root and region pages, and the file records the node pages are stored in. A file is where
-  // code is written, not a place in the map: it is no box, no page and no member.
-  const regionPages=new Map(region&&held?Object.entries(held.sourceRegionPages??held.regionPages??{}):[]);
-  if(region)for(const page of regionPages.values())remapReferences(page,held,index,projection,mine);
-  for(const r of scoped)regionPages.set(r.index,regionPage(m,r,index,packets,lines));
-  const root=rootPage(m,lines);
+  // The top map. A file is where code is written, not a place in the map: it is no box, no page
+  // and no member.
+  const root=topPage(m,index,packets);
 
-  // External facts. A row names a declaration this scan holds or a file of the map; anything else
-  // is an orphan, carried in the store so a read and `check` both report it.
+  // External facts. A row names a declaration this scan holds; anything else is an orphan,
+  // carried in the store so a read and `check` both report it.
   const facts=await readFacts({repo});
-  // A file fact belongs to the region page that holds that file, so no authored row is left
-  // without a reader now that a file is no page of its own.
-  const known=new Set([...packets.keys(),...m.regions.flatMap(r=>r.files)]);
-  const {byTarget,orphans}=bindFacts(facts.rows,known);
+  const {byTarget,orphans}=bindFacts(facts.rows,new Set(packets.keys()));
   for(const packet of packets.values()) {
     const held=byTarget.get(packet.path);
     if(held)packet.facts=held;else delete packet.facts;
   }
-  for(const page of regionPages.values()) {
-    const rows=(m.regions.find(r=>r.path===page.path)?.files??[])
-      .flatMap(file=>(byTarget.get(file)??[]).map(fact=>({file,...fact})));
-    if(rows.length)page.facts=rows;else delete page.facts;
-  }
 
-  // Keep canonical packets beside their presentation. Scoped generation must recompose from
-  // those packets, not from an already collapsed drawing that has lost its internal wires.
+  // Keep canonical packets beside their presentation: a drawing collapsed by clusters has lost
+  // the internal wires a cluster solver reads.
   const sourcePackets=new Map([...packets].map(([path,page])=>[path,structuredClone(page)]));
-  const sourceRegionPages=structuredClone(Object.fromEntries([...regionPages].sort(([a],[b])=>byIndex(a,b))));
-  const allPages=new Map([...packets,...[...regionPages.values()].map(p=>[p.path,p])]);
-  const composed=composePages(allPages,config,{model:m,index,packets});
-  for(const [path,page] of composed.pages) {
-    if(packets.has(path))packets.set(path,page);
-    else if(page.kind==='region')regionPages.set(page.index,page);
-  }
+  const composed=composePages(new Map([...packets,[root.path,root]]),config,{model:m,index,packets});
+  for(const [path,page] of composed.pages)if(packets.has(path))packets.set(path,page);
+  const top=composed.pages.get(root.path);
   const groupPages=Object.fromEntries(composed.groupPages);
-  const destinations=new Map([root,...regionPages.values(),...packets.values(),...Object.values(groupPages)].map(page=>[page.index,page]));
+  const destinations=new Map([top,...packets.values(),...Object.values(groupPages)].map(page=>[page.index,page]));
   for(const page of destinations.values()) {
     page.destination=destinationFor(page);
-    if(!['root','region','group'].includes(page.kind)) {
+    if(!['root','group'].includes(page.kind)) {
       if(page.destination==='code')page.leaf=true;else delete page.leaf;
     }
     if(page.destination==='code')page.sourceSpan={file:page.file,line:page.line,endLine:page.endLine};
@@ -249,11 +195,10 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
 
   // Findings follow the node. A containment map draws a node; that node's own rows are attached
   // to its box, exactly as the node's own page shows them, and nothing is rolled up into a count
-  // by kind. A group or file box is not a node: it carries the number of findings inside it, for
+  // by kind. A group box is not a node: it carries the number of findings inside it, for
   // navigation, and nothing else.
-  const packetsByFile=new Map(),packetsUnder=new Map();
+  const packetsUnder=new Map();
   for(const packet of packets.values()) {
-    (packetsByFile.get(packet.file)??packetsByFile.set(packet.file,[]).get(packet.file)).push(packet);
     // A declaration written inside another is homed on that declaration's page, so its findings
     // are inside any group that holds the holder; the count a group box carries says so.
     for(let at=packet.path;at.includes('::');at=at.slice(0,at.lastIndexOf('::')))
@@ -266,13 +211,12 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
     return path?packets.get(path)??null:null;
   };
   const heldRows=component=>rowCount(component.kind==='group'
-    ?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[])
-    :packetsByFile.get(component.file)??[]);
-  // This runs after the chains are drawn, so a box a leaf brought onto a region or group page
+    ?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[]):[]);
+  // This runs after the chains are drawn, so a box a leaf brought onto the top map or a group
   // carries the rows of the node it draws like every other box on that page.
   const attachContainmentFindings=pages=>{
     for(const page of pages) {
-      if(page.kind!=='region'&&!(page.kind==='group'&&page.structural))continue;
+      if(page.kind!=='root'&&!(page.kind==='group'&&page.structural))continue;
       for(const component of page.components??[]) {
         const node=nodeOf(component);
         if(node) {
@@ -293,7 +237,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   // box a leaf brought onto the map carries its count like every other box.
   const attachNodeFindings=pages=>{
     for(const page of pages) {
-      if(['root','region','group'].includes(page.kind)||page.destination!=='graph')continue;
+      if(['root','group'].includes(page.kind)||page.destination!=='graph')continue;
       const sections=new Map();
       for(const component of page.components??[]) {
         const node=nodeOf(component),count=node?rowCount([node]):heldRows(component);
@@ -307,10 +251,7 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
 
   attachOverviewAnchors(destinations,index);
 
-  // Publish tree indexes. Source addresses stay behind only for scoped reuse; a page that no
-  // map shows is not published.
-  const sourceByPath=Object.fromEntries([...index,...Object.values(groupPages).map(p=>[p.path,p.index])]
-    .sort((a,b)=>order(a[0],b[0])));
+  // Publish tree indexes. A page that no map shows is not published.
   const {tree,chains}=treeNumbering(destinations);
   drawChains(destinations,chains);
   attachContainmentFindings(destinations.values());
@@ -322,81 +263,39 @@ export async function generate({repo=repoRoot,region=null,readSource,files}={}) 
   // every other address on the page, so it is published with them.
   for(const page of placed)for(const s of page.state??[])if(tree.has(s.ownerIndex))s.ownerIndex=tree.get(s.ownerIndex);
   for(const [path,page] of packets)if(!placed.has(page))packets.delete(path);
-  const publish=pages=>Object.fromEntries([...pages].filter(page=>placed.has(page))
+  const publishedGroups=Object.fromEntries(Object.values(groupPages).filter(page=>placed.has(page))
     .map(page=>[page.index,page]).sort((a,b)=>byIndex(a[0],b[0])));
-  const publishedRegions=publish(regionPages.values()),publishedGroups=publish(Object.values(groupPages));
   markRepeats(new Map([...placed].map(page=>[page.index,page])));
+  // Source pages keep internal addresses; the cluster solver reads them by declaration path.
   const records=new Map();
-  const recordFiles=new Map(graph.files.filter(f=>mine.has(f.file)).map(f=>[f.file,f]));
-  for(const record of oldRecords.values())if(!mine.has(record.file))recordFiles.set(record.file,record);
-  for(const [,f] of [...recordFiles].sort(([a],[b])=>order(a,b))) {
+  for(const f of graph.files.filter(f=>m.mapped.has(f.file)).sort((a,b)=>order(a.file,b.file))) {
     const file=f.file;
     const pages=Object.fromEntries([...packets.values()].filter(p=>p.file===file).map(p=>[p.index,p]));
     const sourcePages=Object.fromEntries([...sourcePackets.values()].filter(p=>p.file===file).map(p=>[p.index,p]));
     // Retained declaration spans must keep the source bytes that produced them.
-    const source=mine.has(file)?context.sources.get(file):f.source;
-    records.set(file,{file,sha256:f.sha256,lines:f.lines,region:m.regionOf.get(file)?.index??f.region,
-      ...(typeof source==='string'?{source}:{}),pages,sourcePages});
+    const source=context.sources.get(file);
+    records.set(file,{file,sha256:f.sha256,lines:f.lines,...(typeof source==='string'?{source}:{}),pages,sourcePages});
   }
-  const currentSources=Object.fromEntries(graph.files.map(f=>[f.file,f.sha256]));
-  const sourceHashes=region?{...held.fingerprint.sources}:currentSources;
-  if(region) {
-    for(const file of Object.keys(sourceHashes))if(held.files[file]?.region===region)delete sourceHashes[file];
-    for(const file of mine)sourceHashes[file]=currentSources[file];
-  }
-  const fingerprint={sources:Object.fromEntries(Object.entries(sourceHashes).sort(([a],[b])=>order(a,b))),inventory:files?'explicit':'disk',
-    inputs:region?held.fingerprint.inputs:generationInputs};
-  const stored={schema:4,generated:new Date().toISOString().slice(0,10),fingerprint,
-    regions:m.regions.map(r=>({index:r.index,path:r.path,files:r.files})),
-    files:Object.fromEntries([...records.values()].map(r=>[r.file,{sha256:r.sha256,lines:r.lines,region:r.region}])),
+  const fingerprint={sources:Object.fromEntries(graph.files.map(f=>[f.file,f.sha256]).sort(([a],[b])=>order(a,b))),
+    inventory:files?'explicit':'disk',inputs:generationInputs};
+  const stored={schema:5,generated:new Date().toISOString().slice(0,10),fingerprint,
+    files:Object.fromEntries([...records.values()].map(r=>[r.file,{sha256:r.sha256,lines:r.lines}])),
     records:Object.fromEntries([...records.keys()].map(f=>[f,`${slug(f)}.json`])),
     nodes:Object.fromEntries([...packets.values()].map(p=>[p.index,{path:p.path,file:p.file}]).sort((a,b)=>byIndex(a[0],b[0]))),
-    // A page is reachable by the durable name of what it is about: a declaration path, a group
-    // path, or — for a region — the directory the region is.
+    // A page is reachable by the durable name of what it is about: a declaration or cluster path.
     byPath:Object.fromEntries([...[...packets.values()].map(p=>[p.path,p.index]),
-      ...Object.values(publishedGroups).map(p=>[p.path,p.index]),
-      ...m.regions.map(r=>[r.path,r.index])].sort((a,b)=>order(a[0],b[0]))),
-    sourceByPath,
-    root,regionPages:publishedRegions,sourceRegionPages,groupPages:publishedGroups,
+      ...Object.values(publishedGroups).map(p=>[p.path,p.index])].sort((a,b)=>order(a[0],b[0]))),
+    root:top,groupPages:publishedGroups,
     unplaced,orphanFacts:orphans,factErrors:facts.errors};
   await clock('write',async()=>{
-    if(!region)await rm(resolve(dir,'files'),{recursive:true,force:true});
+    await rm(resolve(dir,'files'),{recursive:true,force:true});
     await mkdir(resolve(dir,'files'),{recursive:true});
     for(const record of records.values())await write(resolve(dir,'files',`${slug(record.file)}.json`),record);
     await write(resolve(dir,'index.json'),stored);
   });
-  return {timings,regions:m.regions.length,pages:packets.size,files:records.size,scope:region??'0',
+  return {timings,entries:m.entries.length,pages:packets.size,files:records.size,
     ...(unplaced.length?{unplaced}:{}),
-    ...(widened?{requestedScope:requestedRegion,widened}:{}),
     facts:facts.rows.length-orphans.length,orphanFacts:orphans,factErrors:facts.errors};
-}
-
-// Only address-bearing fields are rewritten: a numeric data label is not a map address. Keep
-// a durable declaration identity while changing every endpoint that refers to its old address.
-function remapReferences(page,held,index,projection,refreshedFiles) {
-  const paths=new Map(Object.entries(held.sourceByPath).map(([path,at])=>[at,path]));
-  const address=value=>{
-    if(typeof value!=='string')return value;
-    const prefix=/^(file:|region:)/.exec(value)?.[0]??'';
-    const at=value.slice(prefix.length),path=paths.get(at);
-    return path&&index.has(path)?prefix+index.get(path):value;
-  };
-  const visit=value=>{
-    if(!value||typeof value!=='object')return;
-    if(Array.isArray(value)){value.forEach(visit);return;}
-    for(const [key,item] of Object.entries(value)) {
-      if(['index','handle','from','to','region','parent','port','mechanism'].includes(key))value[key]=address(item);
-      else visit(item);
-    }
-    const path=value.path??(value.file&&value.label?`${value.file}::${value.label}`:null);
-    const node=path&&projection.nodes.get(path);
-    if(node&&refreshedFiles.has(node.file)) {
-      if('index' in value)value.index=index.get(path)??value.index;
-      for(const key of ['line','endLine'])if(key in value)value[key]=node[key];
-      if('lines' in value)value.lines=node.endLine-node.line+1;
-    }
-  };
-  visit(page);
 }
 
 // A fingerprint covers the scanner itself, its dependency resolution and the authored inputs.
@@ -437,50 +336,6 @@ export async function storedFreshness(held,{repo=repoRoot,readSource=file=>readF
     ...(changed.length?{changed:changed.sort(order)}:{}),...(inputChanges.length?{inputs:inputChanges}:{})};
 }
 
-// Page 0: the regions as components, the cross-region links as wires, and every way in from
-// outside the regions as a port.
-function rootPage(m,lines) {
-  const components=m.regions.map(r=>({index:r.index,path:r.path,files:r.files.length,
-    lines:r.files.reduce((sum,f)=>sum+(lines.get(f)??0),0),nodes:m.inRegion.get(r.index).length,
-    roots:m.regionBoxes.get(r.index).length}));
-  const wires=new Map(),ports=new Map();
-  const add=(from,to,kind,label)=>{
-    const key=`${from}\n${to}`,w=wires.get(key)??wires.set(key,{from,to,kinds:{},count:0,labels:new Set()}).get(key);
-    w.kinds[kind]=(w.kinds[kind]??0)+1;w.count++;if(label)w.labels.add(label);
-  };
-  for(const c of m.calls) {
-    const to=m.regionOf.get(c.to.file);if(!to)continue;
-    if(c.atModule||!c.from) {
-      const port=c.atModule?'module':(c.fromFile?outsideRootOf(c.fromFile):'unmapped');
-      ports.set(port,{port,mechanism:port});add(port,to.index,c.atModule?'module':'call',null);
-    } else {
-      const fromRegion=m.regionOf.get(c.from.file);
-      if(!fromRegion){const outside=outsideRootOf(c.fromFile);ports.set(outside,{port:outside,mechanism:outside});add(outside,to.index,'call',null);}
-      else if(fromRegion!==to)add(fromRegion.index,to.index,c.relation.kind,c.label||null);
-    }
-  }
-  // Where the mapped code reaches out of the map: one wire per region to each scanned root it
-  // calls into. The target names a root, not a box; nothing on page 0 stands for outside code.
-  for(const c of m.outsideCalls) {
-    const from=m.regionOf.get(c.from?.file??c.fromFile);if(!from)continue;
-    const port=`out:${c.root}`;
-    ports.set(port,{port,mechanism:c.root,direction:'out',outside:true});
-    add(from.index,port,'call',null);
-  }
-  for(const c of m.couplings) {
-    const from=c.fromFile&&m.regionOf.get(c.fromFile),to=c.toFile&&m.regionOf.get(c.toFile);
-    if(!to)continue;
-    if(!from){ports.set(c.kind,{port:c.kind,mechanism:c.kind});add(c.kind,to.index,c.kind,c.label);}
-    else if(from!==to)add(from.index,to.index,c.kind,c.label);
-  }
-  return {flow:true,generated:true,index:'0',kind:'root',
-    regions:components,
-    ports:[...ports.values()].sort((a,b)=>order(a.port,b.port)),
-    wires:[...wires.values()].sort((a,b)=>order(a.from,b.from)||order(a.to,b.to))
-      .map(w=>({from:w.from,to:w.to,kinds:w.kinds,count:w.count,...(w.count===1&&w.labels.size===1?{label:[...w.labels][0]}:{})})),
-    children:components.map(c=>({index:c.index,path:c.path,files:c.files,lines:c.lines,nodes:c.nodes}))};
-}
-
 const links=()=>{
   const wires=new Map(),ports=new Map();
   const add=(from,to,kind,label)=>{
@@ -502,44 +357,38 @@ const links=()=>{
   return {add,port,portOut,drawn};
 };
 
-// A region page: the flow roots it holds as components, the links between the flows those roots
-// begin as wires, and every way into the region from outside it as a port. The region owes an
-// account of where its work starts, not of which file holds which declaration.
+// The top map: the entry points as components, the links between the flows they begin as wires,
+// and every way in from outside the map as a port. Module-level code belongs to no declaration:
+// what it calls is reached through the `module` port, and its own findings are this page's.
 // `platform` is a call site with no target in any scanned root — a library, runtime or DOM
 // operation. `outside` is a call site whose target is scanned source the map does not cover.
-function moduleDiagnostics(m,files) {
-  const held=new Set(files);
-  const sites=files.flatMap(file=>(m.moduleCallSites?.get(file)??[]).map(({state,...site})=>({...site,file,module:true,state})));
+function moduleDiagnostics(m) {
+  const sites=m.files.flatMap(file=>(m.moduleCallSites?.get(file)??[]).map(({state,...site})=>({...site,file,module:true,state})));
   return {unresolved:sites.filter(s=>s.state==='unresolved').map(({state,...s})=>s),
     platform:sites.filter(s=>s.state==='external').length,
-    outside:m.outsideCalls.filter(c=>held.has(c.fromFile)).length,
+    outside:m.outsideCalls.filter(c=>!c.from).length,
     moduleCallSites:sites};
 }
-function regionPage(m,r,index,packets,lines) {
-  const components=m.regionBoxes.get(r.index).map(n=>declarationBox(n,index,packets));
-  // Every link of the region contracts onto the root whose flow holds it, so a declaration that
-  // is no root is drawn on that root's flow instead of a second time here. A nested declaration
-  // goes with the top-level declaration that holds it.
-  const inside=new Set(r.files);
+function topPage(m,index,packets) {
+  const components=m.entries.map(n=>declarationBox(n,index,packets));
+  // Every link contracts onto the entry point whose flow holds it, so a declaration that is no
+  // entry point is drawn on that flow instead of a second time here. A nested declaration goes
+  // with the top-level declaration that holds it.
   const box=n=>index.get(m.ownerRoot.get(n.path)??outermost(n).path);
   const {add,port,portOut,drawn}=links();
-  for(const n of m.inRegion.get(r.index))for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,box(n),mechanism,label);
-  for(const c of m.outsideCalls) {
-    if(m.regionOf.get(c.fromFile)!==r||!c.from)continue;
-    portOut(c.root,box(c.from),'call',null);
-  }
+  for(const n of m.nodes)for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,box(n),mechanism,label);
+  for(const c of m.outsideCalls)if(c.from)portOut(c.root,box(c.from),'call',null);
   for(const c of m.calls) {
-    if(!c.from||m.regionOf.get(c.from.file)!==r||m.regionOf.get(c.to.file)!==r)continue;
+    if(!c.from||!m.mapped.has(c.from.file)||!m.mapped.has(c.to.file))continue;
     add(box(c.from),box(c.to),c.relation.kind,c.label||null);
   }
   for(const c of m.couplings) {
-    if(!c.from||!c.to||!inside.has(c.fromFile)||!inside.has(c.toFile))continue;
+    if(!c.from||!c.to||!m.mapped.has(c.fromFile)||!m.mapped.has(c.toFile))continue;
     add(box(c.from),box(c.to),c.kind,c.label||null);
   }
-  return {flow:true,generated:true,index:r.index,kind:'region',path:r.path,
-    files:r.files,lines:r.files.reduce((sum,f)=>sum+(lines.get(f)??0),0),nodes:m.inRegion.get(r.index).length,
-    ...drawn(),...moduleDiagnostics(m,r.files),components,
-    ...(m.stranded.get(r.index).length?{stranded:m.stranded.get(r.index).map(n=>n.path)}:{}),
+  return {flow:true,generated:true,index:'0',path:'0',kind:'root',nodes:m.nodes.length,entries:m.entries.length,
+    ...drawn(),...moduleDiagnostics(m),components,
+    ...(m.stranded.length?{stranded:m.stranded.map(n=>n.path)}:{}),
     children:components.map(c=>({index:c.index,path:c.path,label:c.label,file:c.file,lines:c.lines}))};
 }
 const outermost=n=>{let node=n;while(node.parent)node=node.parent;return node;};
@@ -571,9 +420,9 @@ export async function readGenerated(target,{repo=repoRoot,code=false,readSource=
   if(!held)return {generated:true,stale:{regenerate:'0'}};
   const key=String(target).replaceAll('\\','/').replace(/\/$/,'');
   const at=/^\d+(\.\d+)*$/.test(key)?key:held.byPath[key];
-  if(at===undefined)throw Error(`No node ${key}. Read 0 for the regions.`);
-  const page=at==='0'?held.root:held.groupPages?.[at]??held.regionPages[at]??await nodePage(dir,held,at);
-  if(!page)throw Error(`No node ${at}. Read 0 for the regions.`);
+  if(at===undefined)throw Error(`No node ${key}. Read 0 for the entry points.`);
+  const page=at==='0'?held.root:held.groupPages?.[at]??await nodePage(dir,held,at);
+  if(!page)throw Error(`No node ${at}. Read 0 for the entry points.`);
   const stale=await storedFreshness(held,{repo,readSource,files});
   const described={...page,destination:destinationFor(page),...(stale?{stale}:{})};
   if(code||described.destination==='code')return withSources(
@@ -588,14 +437,13 @@ async function nodePage(dir,held,at) {
 }
 
 // The root cannot return the entire codebase. Every other scope returns exactly its contained
-// code: complete files for a region, source spans for a contextual group, or its own declaration.
+// code: source spans for a cluster, or its own declaration.
 async function codeFor(page,held,dir) {
   if(page.kind==='root')
-    throw Error(`Page ${page.index} is a root page; --code takes a region, group or node. Read 0 without --code for its regions.`);
-  if(page.kind==='region'||page.kind==='group') {
+    throw Error(`Page ${page.index} is the top map; --code takes a cluster or node. Read 0 without --code for its entry points.`);
+  if(page.kind==='group') {
     const spans=[];
-    if(page.kind==='region')for(const file of page.files)spans.push({file,line:1,endLine:held.files[file].lines});
-    else for(const path of page.codeTargets??[]) {
+    for(const path of page.codeTargets??[]) {
       const target=await nodePage(dir,held,held.byPath[path]);
       if(!target)throw Error(`Group ${page.index} refers to missing code ${path}; regenerate 0.`);
       spans.push({file:target.file,line:target.line,endLine:target.endLine});
@@ -646,7 +494,7 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
   const nodes=[];
   for(const record of Object.values(held.records))
     nodes.push(...Object.values((await json(resolve(dir,'files',record))).pages));
-  const totals={regions:held.regions.length,files:Object.keys(held.files).length,pages:nodes.length,
+  const totals={entries:held.root.entries,files:Object.keys(held.files).length,pages:nodes.length,
     // Every linked call a page holds, whatever the drawing does with it: a box it draws, each
     // member of an authored group drawn as one box, plus the callables a caller passes into a
     // parameter this page invokes, which are drawn on the caller's page and named here as rows.
@@ -658,9 +506,9 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
     outside:nodes.reduce((n,p)=>n+(p.outside??0),0),
     platform:nodes.reduce((n,p)=>n+(p.platform??0),0)};
-  // A declaration whose region reaches it through no flow root: it keeps a box on the region
-  // page, and `check` names it so the cycle behind it can be looked at.
-  const stranded=Object.values(held.regionPages).flatMap(p=>(p.stranded??[]).map(path=>({region:p.path,path})));
+  // A declaration no entry point reaches: it keeps a box on the top map, and `check` names it so
+  // the cycle behind it can be looked at.
+  const stranded=held.root.stranded??[];
   return {dir,missing:false,generated:held.generated,
     stale,
     totals,stranded,

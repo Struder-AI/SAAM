@@ -9,7 +9,7 @@ For builder work with missing context, run
 `node scripts/agent-toolkit.mjs builder-onboarding` directly; use `--area AREA`
 when the affected component is already known. The command returns this manual,
 maker context, skill authoring and the complete skill digest, plus the selected
-area's component manual and, for a region of the map, that region's page. Use that returned text without
+area's component manual and, for a node index or declaration path, that map. Use that returned text without
 reading the same sources before or after the command. If builder context is
 already loaded, continue from it and read only missing task-specific references.
 Individual skill manuals remain separate choices. A client without command access
@@ -20,7 +20,7 @@ reads the same sources directly once.
 Developers orient by the map and DEVELOPER-CONTEXT.md, and load this file, maker
 workflow or skill authoring when their task needs it. Reuse prior reads.
 **Read the component manual for what you are changing before changing core or
-Studio, or investigating their internals**, and walk that region of the dev map
+Studio, or investigating their internals**, and walk the dev map
 when you need to see everything that calls it. The manuals are listed under
 [implementation reference](#implementation-reference); they own behaviour,
 contracts and limits, and the map owns structure. Changes
@@ -119,7 +119,7 @@ The dev map is the generated account of core and Studio structure. Its intent,
 scope and reading rules are owned by [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md);
 the commands, page fields and authoring mechanics by the
 [map guide](dev-map/README.md). Developers orient by walking it from `0`;
-builders may walk the region they are changing alongside its prose manual;
+builders may walk the code they are changing alongside its prose manual;
 makers need no maps. Read a page with
 `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION` and its source with
 `--code`. **Text search for orientation is discouraged**: it finds names, while
@@ -171,7 +171,7 @@ changed, rather than labeling an entire mixed component manual developer-only.
 ### Implementation reference
 
 One manual per component, beside the code it describes. Read the one you are
-changing; walk that region of the map when you need its structure.
+changing; walk the map when you need its structure.
 
 | Component | Manual |
 |---|---|
@@ -355,7 +355,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Checkpointing and remote contribution | [Contribution guidance](CONTRIBUTING-AGENTS.md), at that stage |
 | Test design and coverage selection | [Test reference](core/tests/README.md) |
 | Core/Studio behaviour, contracts and limits | The [component manuals](#implementation-reference); skill callers may read them independently |
-| Core/Studio structure — what exists and what calls what | The generated map: `read-map 0`, then the region, file and declaration the change touches |
+| Core/Studio structure — what exists and what calls what | The generated map: `read-map 0`, then the declarations the change touches |
 | Adapter implementation | [MCP development](adapters/mcp/DEVELOP.md) |
 | Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/DIGEST.md) |
 | Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
@@ -395,7 +395,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then the [test reference](core/tests/README.md) |
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
 | Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
-| Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the region the change touches |
+| Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the declarations the change touches |
 | Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md); `read-map core/geom` for structure |
 | Offsets, intersections or material ownership | [Regions](core/region/README.md); `read-map core/region` for structure |
 | Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/DIGEST.md); `read-map core/path` for structure |

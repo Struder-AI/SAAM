@@ -32,7 +32,7 @@ body{display:flex;font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;
 #crumb{font-size:12.5px;color:#64748b;flex:1;min-width:0;white-space:normal;
        line-height:1.5;padding-top:2px}
 #crumb b{color:#0f172a;font-weight:650}
-/* What binds this region, beside its own map: the decisions that outrank the code and the
+/* What binds this node, beside its own map: the decisions that outrank the code and the
    numbers that came off hardware. The only two prose sections a spec may carry, and the only
    prose that belongs next to the drawing rather than behind a toggle. */
 #binds{margin-top:6px;padding:7px 11px;background:#fff;border:1px solid #e2e8f0;

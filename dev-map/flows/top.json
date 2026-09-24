@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "flows": [
+    {
+      "path": "0",
+      "groups": [
+        {
+          "id": "dialect-routing",
+          "label": "dialect routing",
+          "members": [
+            "core/export/registry.mjs::exportProgram"
+          ]
+        },
+        {
+          "id": "mesh-backend",
+          "label": "triangleMesh",
+          "members": [
+            "core/geom/mesh-distance.mjs::createMeshDistanceQuery",
+            "core/geom/solid.mjs::solidKernel",
+            "core/geom/solid.mjs::discardSolidKernel",
+            "core/geom/solid.mjs::solidFromMesh",
+            "core/geom/solid.mjs::meshFromSolid",
+            "core/geom/solid.mjs::combineSolids"
+          ],
+          "groups": [
+            {
+              "id": "spatial",
+              "label": "spatialQueries",
+              "members": [
+                "core/geom/mesh-distance.mjs::createMeshDistanceQuery"
+              ]
+            },
+            {
+              "id": "solid",
+              "label": "solidBooleanKernel",
+              "members": [
+                "core/geom/solid.mjs::solidKernel",
+                "core/geom/solid.mjs::discardSolidKernel",
+                "core/geom/solid.mjs::solidFromMesh",
+                "core/geom/solid.mjs::meshFromSolid",
+                "core/geom/solid.mjs::combineSolids"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "spline-shells",
+          "label": "splineShells",
+          "members": [
+            "core/geom/cylinder.mjs::cylindricalPoint",
+            "core/geom/cylinder.mjs::cylindricalPose"
+          ]
+        },
+        {
+          "id": "contours-contact",
+          "label": "contoursAndContact",
+          "members": [
+            "core/geom/directional-contour.mjs::prepareRegularizedSleeveContact",
+            "core/geom/mesh-sleeve.mjs::detectMeshSleeveInterval",
+            "core/geom/mesh-sleeve.mjs::fitMeshSleeve",
+            "core/geom/prepared-contours.mjs::prepareContourFamily",
+            "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact",
+            "core/geom/sleeve-frame.mjs::prepareLooseSleeveOffsets"
+          ],
+          "groups": [
+            {
+              "id": "mesh-sleeves",
+              "label": "meshSleeveContact",
+              "members": [
+                "core/geom/directional-contour.mjs::prepareRegularizedSleeveContact",
+                "core/geom/mesh-sleeve.mjs::detectMeshSleeveInterval",
+                "core/geom/mesh-sleeve.mjs::fitMeshSleeve",
+                "core/geom/prepared-radial-contact.mjs::prepareRadialSleeveContact"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "surface-fields",
+          "label": "surfaceFields",
+          "members": [
+            "core/geom/reference-surface.mjs::referenceSurface",
+            "core/geom/support-surface.mjs::supportSurface",
+            "core/geom/support-surface.mjs::supportSurfaceSection",
+            "core/geom/support-surface.mjs::supportBoundaryAt",
+            "core/geom/tessellate.mjs::tessellateShell"
+          ],
+          "groups": [
+            {
+              "id": "surface-build",
+              "label": "surfaceConstruction",
+              "members": [
+                "core/geom/reference-surface.mjs::referenceSurface",
+                "core/geom/support-surface.mjs::supportSurface",
+                "core/geom/support-surface.mjs::supportSurfaceSection",
+                "core/geom/support-surface.mjs::supportBoundaryAt",
+                "core/geom/tessellate.mjs::tessellateShell"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "text",
+          "label": "textGeometry",
+          "members": [
+            "core/geom/text-layout.mjs::textLayout",
+            "core/geom/text-outline.mjs::textOutlines"
+          ]
+        },
+        {
+          "id": "query-numerics",
+          "label": "geometryQueriesAndNumerics",
+          "members": [
+            "core/geom/query.mjs::sampleTopSurface"
+          ]
+        },
+        {
+          "id": "setup",
+          "label": "setup and limits",
+          "members": [
+            "core/machine/rules.mjs::checkMachinePath"
+          ],
+          "groups": [
+            {
+              "id": "validation",
+              "label": "setup and path checks",
+              "members": [
+                "core/machine/rules.mjs::checkMachinePath"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "deposition",
+          "label": "depositionGeometry",
+          "members": [
+            "core/path/deposition.mjs::depositionStroke",
+            "core/path/deposition.mjs::trimVanishingEnd",
+            "core/path/deposition.mjs::maximumPathAngle"
+          ]
+        },
+        {
+          "id": "policies",
+          "label": "travelPolicies",
+          "members": [
+            "core/path/builder.mjs::surfacePolicy"
+          ]
+        },
+        {
+          "id": "lifecycle",
+          "label": "reviewed print lifecycle",
+          "members": [
+            "core/print/file-snapshot.mjs::createFileSnapshot",
+            "core/print/program-handoff.mjs::createCheckedProgramHandoff",
+            "core/print/workflow.mjs::createBundleWorkflow"
+          ],
+          "groups": [
+            {
+              "id": "worker-identity",
+              "label": "worker and file identity",
+              "members": [
+                "core/print/file-snapshot.mjs::createFileSnapshot",
+                "core/print/program-handoff.mjs::createCheckedProgramHandoff"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fill",
+          "label": "regionQueriesAndFill",
+          "members": [
+            "core/region/perimeters.mjs::perimeterLoops",
+            "core/region/region2d.mjs::scanlineFill"
+          ]
+        },
+        {
+          "id": "surface",
+          "label": "surfaceRegions",
+          "members": [
+            "core/region/normal-surface.mjs::sampleSurfaceCurve",
+            "core/region/reservation.mjs::clipReservedRegion",
+            "core/region/reservation.mjs::clipAboveSurface",
+            "core/region/reservation.mjs::surfaceStroke",
+            "core/region/section-offset.mjs::offsetSurfaceSection",
+            "core/region/surface-offset.mjs::offsetSurfaceRegion"
+          ],
+          "groups": [
+            {
+              "id": "reservation",
+              "label": "materialReservation",
+              "members": [
+                "core/region/reservation.mjs::clipReservedRegion",
+                "core/region/reservation.mjs::clipAboveSurface",
+                "core/region/reservation.mjs::surfaceStroke"
+              ]
+            },
+            {
+              "id": "offset",
+              "label": "surfaceOffset",
+              "members": [
+                "core/region/normal-surface.mjs::sampleSurfaceCurve",
+                "core/region/section-offset.mjs::offsetSurfaceSection",
+                "core/region/surface-offset.mjs::offsetSurfaceRegion"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "app",
+          "label": "app",
+          "members": [
+            "studio/app.mjs::initializeAgentInterface",
+            "studio/app.mjs::connectViewPersistence",
+            "studio/app.mjs::beginCanvasDrag",
+            "studio/app.mjs::moveCanvasDrag",
+            "studio/app.mjs::endCanvasDrag",
+            "studio/app.mjs::cancelCanvasDrag",
+            "studio/app.mjs::suppressCanvasContextMenu",
+            "studio/app.mjs::connectCanvasPointerEvents",
+            "studio/app.mjs::@handler/canvas.onkeydown",
+            "studio/app.mjs::@handler/open-path.onsubmit",
+            "studio/app.mjs::animate",
+            "studio/app.mjs::studioUpdate",
+            "studio/app.mjs::studioVisible",
+            "studio/app.mjs::disposeStudioSession",
+            "studio/app.mjs::restoreStudioSession",
+            "studio/app.mjs::initializeStudio"
+          ],
+          "groups": [
+            {
+              "id": "session",
+              "label": "Session and interaction",
+              "members": [
+                "studio/app.mjs::initializeAgentInterface",
+                "studio/app.mjs::connectViewPersistence",
+                "studio/app.mjs::beginCanvasDrag",
+                "studio/app.mjs::moveCanvasDrag",
+                "studio/app.mjs::endCanvasDrag",
+                "studio/app.mjs::cancelCanvasDrag",
+                "studio/app.mjs::suppressCanvasContextMenu",
+                "studio/app.mjs::connectCanvasPointerEvents",
+                "studio/app.mjs::@handler/canvas.onkeydown",
+                "studio/app.mjs::studioUpdate",
+                "studio/app.mjs::studioVisible",
+                "studio/app.mjs::disposeStudioSession",
+                "studio/app.mjs::restoreStudioSession",
+                "studio/app.mjs::initializeStudio"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "service",
+          "label": "Studio service",
+          "members": [
+            "studio/browser.mjs::openBrowser",
+            "studio/server.mjs::createStudio",
+            "studio/viewer-session.mjs::connect"
+          ]
+        },
+        {
+          "id": "generation",
+          "label": "Generation and source loading",
+          "members": [
+            "studio/generation-worker.mjs::startGenerationWorker",
+            "studio/machine-study.mjs::bundleFingerprints",
+            "studio/machine-study.mjs::loadBundle",
+            "studio/machine-study.mjs::unavailable",
+            "studio/source-worker.mjs::@handler/self.onmessage"
+          ]
+        },
+        {
+          "id": "presentation",
+          "label": "Geometry and playback",
+          "members": [
+            "studio/machine-session.mjs::machineCameras",
+            "studio/viewer-renderer.mjs::createViewerRenderer"
+          ]
+        }
+      ]
+    }
+  ]
+}

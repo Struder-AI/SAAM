@@ -22,20 +22,16 @@ node dev-map/cli.mjs score [--json]
 node dev-map/cli.mjs watch-freshness [--once]
 ```
 
-An ADDRESS is a node's index or its durable path: a region (`core/path`), a
-declaration (`core/path/compose.mjs::planComposition`) or a cluster
-(`OWNER::@group/ID`), never a file path. `read-map` returns one node's read and
-never scans: its map, or its code block when that is its view; `--code`
-returns a declaration's source span, a cluster's member spans or a region's
-files (`0 --code` is refused), `--details` the read with its evidence:
+An ADDRESS is a node's index or its durable path: a declaration
+(`core/path/compose.mjs::planComposition`) or a cluster (`OWNER::@group/ID`),
+never a file or directory. `read-map` returns one node's read and never scans:
+its map, or its code block when that is its view; `--code` returns a
+declaration's source span or a cluster's member spans (`0 --code` is refused), `--details` the read with its evidence:
 expressions, traces, byte offsets. Reads are compact JSON: `range` is
 `[first,last]` inclusive, nested locations inherit `file`, empty arrays omitted.
 
-`regenerate` is the only command that scans, and it redraws the viewer. No
-argument or `0` refreshes everything; with an index, that region and the
-references its changed addresses affect, widening to everything when an
-inventory change, a removed declaration or an old schema requires it, and saying
-so. `flow-evidence` re-derives one node from source, to audit the generator;
+`regenerate` is the only command that scans; it always regenerates everything
+(about a minute) and redraws the viewer. `flow-evidence` re-derives one node from source, to audit the generator;
 `build` redraws `view/index.html` from the store, no scan (needs Python 3; set
 `PYTHON` otherwise); `watch-freshness` keeps the viewer's live status current.
 
@@ -70,10 +66,7 @@ boxes, `wires` the links, `couplings` the indirect links, a `group` a cluster,
 Every read: `index`, `kind`, `destination`, `stale` when its inputs moved,
 `facts` when a fact row names it, `home` on a repeat and `alsoOn` on the home.
 
-- **Top map** (`0`): `regions` (index, path, files, lines, nodes, entries as
-  `roots`), `ports` (each way into the regions, and `out:<root>` per outside
-  root they call), and `wires` with kinds and counts.
-- **Region** and **cluster**: `components` (entries or clusters, a cluster's
+- **Top map** (`0`) and **cluster**: `components` (entry points or clusters, a cluster's
   members, and the chain of any leaf among them), ports including `in:` and
   `out:` for every outside root, and one link per box pair contracted onto the
   entry owning each end: `count` sites, `kind` or `kinds`, and what they name
@@ -127,7 +120,7 @@ analysis limit.
 ## Findings
 
 Every box, chain boxes included, carries its node's finding count as
-`findings`, a cluster box the count inside it; a region or cluster map puts the
+`findings`, a cluster box the count inside it; the top map or a cluster map puts the
 rows on the box, a declaration's map lists them under `nodeFindings`, an
 `index`/`path` section per drawn node in drawing order, never its own; each row
 names its `file`. `uncertainty` rows name a `kind`, `unresolved` rows a
@@ -171,7 +164,7 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 ## Authoring
 
 **Clusters**, `flows/*.json` (schema 1, fragments merged in sorted order, a
-duplicated node fails). A flow names a region or declaration whose map is
+duplicated node fails). A flow names `0` or a declaration whose map is
 published and lists clusters as `groups` with `id`, optional `label`,
 `members` and nested `groups`. A member is a declaration path; a file path, or
 a nested declaration its encloser already places, is rejected. Missing or
@@ -180,7 +173,7 @@ How well a cluster reads (its size, the loops it draws) is the score's to judge,
 not a rule.
 
 ```json
-{"schema": 1, "flows": [{"path": "core/path",
+{"schema": 1, "flows": [{"path": "0",
   "groups": [{"id": "travel", "label": "travel between operations",
     "members": ["core/path/comb.mjs::prepareCombCorners", "core/path/material.mjs::materialRegion"]}]}]}
 ```
@@ -191,7 +184,7 @@ what the code cannot state. `kind` is `measurement`, `vendor` or `decision`
 node as `facts`; one naming a declaration no map holds any more is
 `orphanFacts`, never dropped; a malformed row fails `check`.
 
-**Scope**, `lib/scope.mjs`: `mappedRoots` become regions; `outsideRoots` are
+**Scope**, `lib/scope.mjs`: `mappedRoots` are mapped; `outsideRoots` are
 scanned only so their calls into the maps are seen; `unmappedAreas` are
 outside code inside a mapped root, each under its port name; `activeCallers`
 the outside files listed as callers on declarations, all else outside being
@@ -202,8 +195,8 @@ counted; `importAliases` name served paths that are not the path on disk.
 `check` exits non-zero when the store is missing or stale (naming the index to
 regenerate), an authored node is unplaced, or a fact row is malformed. It
 reports `linked`, `unresolved`, `outside` and `platform` totals, `stranded`
-declarations (no entry of their region reaches them; they keep their box on
-the region map), `unplaced` nodes and orphan facts; `--json` the same as data.
+declarations (no entry point reaches them; they keep their box on the top
+map), `unplaced` nodes and orphan facts; `--json` the same as data.
 `--viewer` adds coverage: map by map, whether the built drawing carries what
 the read presents, naming the fields nothing stands for. It only reports and
 is opt-in, reading a view `build` drew; an address scopes it, `coverage.mjs`

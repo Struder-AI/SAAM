@@ -3,7 +3,7 @@
 // cluster maps and nothing else: the maps nested below keep their content, so the tree's energy
 // is a sum over independent sites.
 //
-// A site is a map whose members can be clustered: a region, or a node whose view is a map. A
+// A site is a map whose members can be clustered: the top map, or a node whose view is a map. A
 // unit is what a cluster takes: one node the site draws, with the chain its leaf brings (the
 // calls a leaf makes are drawn beside it, wherever it is drawn). A grouping is the site's
 // clusters as a tree: `{units, groups:[{id, label, units, groups}]}`.
@@ -15,7 +15,7 @@ const under=(at,box)=>at===box||at.startsWith(`${box}.`);
 // Every site with its units and its stored grouping.
 export function readSites(held,nodes) {
   const groupPages=held.groupPages??{},sites=[];
-  const pages=[...Object.values(held.regionPages).map(page=>({page,kind:'region',self:false})),
+  const pages=[{page:held.root,kind:'top',self:false},
     ...[...nodes.values()].filter(page=>destinationFor(page)==='graph').map(page=>({page,kind:'node',self:true}))];
   for(const {page,kind,self} of pages) {
     const units=new Map();
@@ -155,7 +155,7 @@ export function groupableUnits(site,sourcePacket) {
     if(u.fixed||!u.path.includes('::')||/<(?:callback|callable|return)@\d+:\d+>/.test(u.path))return false;
     const parts=u.path.split('::'),parent=parts.length>2?parts.slice(0,-1).join('::'):null;
     if(parent&&parent!==site.path)return false;
-    return site.kind==='region'||known?.has(u.path);
+    return site.kind==='top'||known?.has(u.path);
   }).map(u=>u.id));
 }
 const identity=c=>c.path??(c.file&&c.label?`${c.file}::${c.label}`:c.file);

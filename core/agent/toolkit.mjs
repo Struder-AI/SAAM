@@ -11,9 +11,9 @@ import {SKILL_IDS} from '../../skills/catalog.mjs';
 import {lifecycleReview} from '../print/review-state.mjs';
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-// Areas outside the map: skills, adapters, setup, the tests and this toolkit are not core/Studio
-// regions, so they have their own guidance instead of a region page. Every other `--area` value
-// is a map target — a region path like `core/path`, or its index.
+// Areas outside the map: skills, adapters, setup, the tests and this toolkit are not mapped, so
+// they have their own guidance. An `--area` value that names no manual area is a map target: a
+// node's index or declaration path.
 export const outsideAreas = {
   mcp: ['adapters/mcp/DEVELOP.md', 'adapters/mcp/README.md'],
   skills: ['skills/AUTHORING.md'], setup: ['SETUP.md'],
@@ -107,28 +107,28 @@ export async function readMaps(keys, options = {}) {
 }
 
 // Scanning is a choice, and this is the only command that makes it. With no index, or `0`, it
-// generates everything; with a region or page index it regenerates that region.
-export async function regenerateMap(target) {
+// generates everything; an index is accepted and generates everything too, since any change can
+// move what nests where.
+export async function regenerateMap() {
   const {generate} = await import('../../dev-map/lib/store.mjs');
-  const region = target === undefined || target === '0' ? null : String(target).split('.')[0];
-  const result = await generate({region});
+  const result = await generate();
   // The person's viewer follows every regenerate, so it always shows the latest stored map.
   const {drawView} = await import('../../dev-map/lib/generated-view.mjs');
   return {...result, view: await drawView()};
 }
 
 // Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
-// manual, skill authoring and the component manual for the area — and may walk that region. A
+// manual, skill authoring and the component manual for the area — and may walk the map. A
 // developer reads the map from `0` and one orientation file, and opens a manual when the work calls for it.
 export async function onboarding({role, areas = []}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
   const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));
-  const regions = [...new Set(areas.filter(area => !Object.hasOwn(outsideAreas, area) && area !== 'tests'))];
+  const targets = [...new Set(areas.filter(area => !Object.hasOwn(developmentAreas, area)))];
   const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
   const ids = role === 'maker' ? ['MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md']
     : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...builderAreaIds]
     : ['DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
-  const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...regions];
+  const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...targets];
   if (mapKeys.length) {
     const {readIndex, storeDir} = await import('../../dev-map/lib/store.mjs');
     if (!await readIndex(storeDir(root))) await regenerateMap();
@@ -136,7 +136,7 @@ export async function onboarding({role, areas = []}) {
   const [context, environment, maps] = await Promise.all([contextPacket(ids), environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
   return {role, environment, ...context, maps,
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them.'
-      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. The component manual for the area you are changing owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk the returned region map for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
+      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. The component manual for the area you are changing owns its behaviour, contracts and limits; read the one for the code you touch. The dev maps own structure: walk them from 0, or from a node you name with --area, for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
       : 'Reuse the returned context. Walk the dev maps from the returned top map: every map numbers the nodes it homes under itself, down to leaves; a declaration’s map shows what it calls, and a repeat box names its node’s home. Read a node with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a node, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The dev maps and DEVELOPER-CONTEXT.md are your orientation; open a component manual when the work calls for it, as when a change needs it rewritten.'};
 }
 

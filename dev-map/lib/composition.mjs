@@ -33,25 +33,15 @@ const allowed=(value,keys,where)=>{
   for(const key of Object.keys(value))if(!keys.includes(key))throw Error(`Composition ${where}: unsupported field ${key}.`);
 };
 
-// A region composition operates on the flow roots of that region: where its work starts. Every
-// other declaration belongs to the flow that reaches it, and its links here contract onto the
-// root that owns that flow. Calls remain calls (not imaginary returned-value wires); exact
+// A composition of the top map operates on the entry points: where the work starts. Every other
+// declaration belongs to the flow that reaches it, and its links here contract onto the entry
+// point that owns that flow. Calls remain calls (not imaginary returned-value wires); exact
 // evidence survives contraction.
 function structural(page,{model,index,packets}) {
-  const region=model.regions.find(r=>r.path===page.path);
-  const files=page.files,inside=new Set(files);
-  const nodes=model.regionBoxes.get(region.index);
-  const held=new Map(model.nodes.filter(n=>inside.has(n.file))
-    .map(n=>[n.path,model.ownerRoot.get(n.path)??outermost(n).path]));
-  const components=nodes.map(n=>({index:index.get(n.path),path:n.path,label:n.path.slice(n.file.length+2),
+  const held=new Map(model.nodes.map(n=>[n.path,model.ownerRoot.get(n.path)??outermost(n).path]));
+  const components=model.entries.map(n=>({index:index.get(n.path),path:n.path,label:n.path.slice(n.file.length+2),
     file:n.file,line:n.line,endLine:n.endLine,lines:n.endLine-n.line+1,
     ...(packets.has(n.path)&&destinationFor(packets.get(n.path))==='graph'?{}:{leaf:true})}));
-  // Module-only source declares nothing, so no flow root can stand for it. It is still part of
-  // the region: its recorded module-level calls/couplings use the file endpoint, and missing
-  // callback analysis stays explicit.
-  for(const file of files)if(!model.nodes.some(n=>n.file===file))components.push({
-    index:index.get(file),path:file,file,label:file.slice(file.lastIndexOf('/')+1),kind:'file',
-    line:1,endLine:contextLines(model,file),leaf:true,moduleOnly:true});
   const shown=new Set(components.map(c=>c.index)),inputs=[],outputs=[],wires=[];
   const port=(end,direction)=>{
     const list=direction==='in'?inputs:outputs,key=`${direction}:${end}`;
@@ -71,11 +61,10 @@ function structural(page,{model,index,packets}) {
     {file:c.fromFile,line:c.line,start:c.start});
   for(const c of model.couplings)add(c.from?.path??c.fromFile??'<external>',c.to?.path??c.toFile??'<external>',c.kind,c.label,
     {file:c.fromFile,line:c.line});
-  // Where this scope's code reaches out of the map. The port names the scanned root, not a box:
+  // Where the mapped code reaches out of the map. The port names the scanned root, not a box:
   // outside code has no address here, and the wire ends in that name.
   for(const c of model.outsideCalls) {
-    if(!inside.has(c.fromFile))continue;
-    const from=index.get(held.get(c.from?.path)??c.from?.path??c.fromFile);
+    const from=index.get(held.get(c.from?.path)??c.from?.path);
     if(!shown.has(from))continue;
     const key=`out:${c.root}`;
     if(!outputs.some(p=>p.port===key))outputs.push({port:key,name:c.root,unmapped:true,outside:true});
@@ -83,15 +72,11 @@ function structural(page,{model,index,packets}) {
   }
   // A finding belongs to the node it is about. It is drawn on that node's box here, and the
   // rows themselves stay whole on the node's own page; nothing is rolled up into a count.
-  const memberPackets=[...held.keys()].map(path=>packets.get(path)).filter(Boolean);
   return {...page,components,inputs,outputs,wires,gates:[],ports:[],requires:[],formulas:[],calledFrom:[],couplings:[],
     unresolved:page.unresolved??[],...(page.uncertainty?{uncertainty:page.uncertainty}:{}),
-    platform:(page.platform??0)+memberPackets.reduce((n,p)=>n+(p.platform??0),0),
-    outside:page.outside??memberPackets.reduce((n,p)=>n+(p.outside??0),0),files,structural:true};
+    platform:(page.platform??0)+[...packets.values()].reduce((n,p)=>n+(p.platform??0),0),
+    outside:page.outside??[...packets.values()].reduce((n,p)=>n+(p.outside??0),0),structural:true};
 }
-
-function contextLines(model,file) { return model.fileLines?.get(file)??1; }
-
 export function composePages(pages,config,context) {
   allowed(config,['schema','flows'],'root');
   if(config.schema!==1||!Array.isArray(config.flows))throw Error('Composition needs schema 1 and flows.');
@@ -108,7 +93,7 @@ export function composePages(pages,config,context) {
     const original=pages.get(spec.path);if(!original)throw Error(`Unknown composition page ${spec.path}.`);
     const owner=original.owner??spec.path;
     if(!Array.isArray(spec.groups)||!spec.groups.length)throw Error(`Composition ${spec.path} has no groups.`);
-    const packet=original.kind==='region'?structural(original,context):structuredClone(original);
+    const packet=original.kind==='root'?structural(original,context):structuredClone(original);
     const base=packet.wires.map((w,i)=>({...w,edgeId:w.edgeId??`${spec.path}#${i+1}`}));
     packet.wires=base;
     const byIdentity=new Map(packet.components.map(c=>[identity(c),c]));

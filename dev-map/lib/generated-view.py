@@ -230,9 +230,8 @@ def aggregate(w):
 
 
 def port_target(name, pages):
-    """A port that names another page: `region:6`, `file:6.3`, or a caller's own index."""
-    target = name.split(":", 1)[1] if name.split(":", 1)[0] in ("region", "file") and ":" in name else name
-    return target if target in pages else ""
+    """A port that names another page: a caller's own index."""
+    return name if name in pages else ""
 
 
 def wire(page, w, label, kind, drawn, dropped):
@@ -398,25 +397,11 @@ def build_page(packet, ctx):
     if packet.get("composition") or kind == "group":
         node_page(packet, page, unit, port, drawn, dropped)
     elif kind == "root":
-        for r in packet["regions"]:
-            unit(r["index"], r["path"],
-                 f'{r["files"]} files · {r["nodes"]} nodes · {r["roots"]} flow roots',
-                 f'{r["lines"]} lines', "stage")
-        for p in packet["ports"]:
-            port(p["port"], p["port"], go=port_target(p["port"], pages))
-        for w in packet["wires"]:
-            wire(page, w, aggregate(w), "data", drawn, dropped)
-    elif kind == "region":
-        # A region draws the flow roots it holds; module-only source keeps its file box.
+        # The top map draws the entry points.
         for c in packet["components"]:
-            if c.get("kind") == "file":
-                unit(c["index"], c["file"].rsplit("/", 1)[-1], "module only",
-                     f'{c["file"]} · {c["lines"]} lines', "stage",
-                     ref=f'{c["file"]}:1-{c["lines"]}', path=c["file"])
-                continue
             unit(c["index"], c["label"], "",
                  f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
-                 ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c["path"])
+                 ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')
         for p in packet["ports"]:
             port(p["port"], p["port"], go=port_target(p["port"], pages))
         for w in packet["wires"]:
@@ -763,13 +748,11 @@ def lists(packet, page, pages):
             at = f'{packet.get("file", "")}:{where["line"]}' if where.get("line") else ""
             page.row("item", f'{f["name"]}  {f.get("receiver", "")}  {at}'.rstrip(),
                      "", f'stateFields#{f["id"]}')
-    # The one authored thing on any page: a row of dev-map/facts.tsv about this declaration or file.
+    # The one authored thing on any page: a row of dev-map/facts.tsv about this declaration.
     if packet.get("facts"):
         page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv', "", "facts")
         for i, f in enumerate(packet["facts"]):
-            # A file's row carried by the region it is part of names that file.
-            about = f'{f["file"]}  ' if f.get("file") else ""
-            page.row("item", f'{about}{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]', "", f'facts#{i}')
+            page.row("item", f'{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]', "", f'facts#{i}')
     if packet.get("requires"):
         page.row("head", f'requires ({len(packet["requires"])})', "", "requires")
         for i, item in enumerate(packet["requires"]):
@@ -1144,7 +1127,6 @@ LEGEND = [
                 "vendor behaviour or a recorded decision; each such list says so above itself. "
                 "This legend is the only other writing in the viewer."),
     ("h", None, "Boxes"),
-    ("b", "stage", "a page one level down: a region on page 0, a file on a region page."),
     ("b", "ast", "a callee read straight from the AST (ast-call-site, ast-closure, ast-member)."),
     ("b", "code", "opens the matching source directly. Other declaration boxes open a graph. "
                   "The index and source span remain the same in the CLI and viewer."),
@@ -1169,8 +1151,7 @@ LEGEND = [
                    "the binding kind, the access and which declaration owns it, and clicking it "
                    "opens that owner."),
     ("h", None, "Ports"),
-    ("b", "port", "in: a parameter, or a way in from outside this page — another file, another "
-                  "region, an outside caller, or a caller of this function. Out: a return, named "
+    ("b", "port", "in: a parameter, or a way in from outside this page — an outside caller, or a caller of this function. Out: a return, named "
                   "as the source writes it. From/to caller rows link each observed call site. "
                   "Unknown positions and origins stay explicit; full argument and result traces "
                   "remain available through CLI --details. Throws do not imply a traced catcher."),
@@ -1203,7 +1184,7 @@ LEGEND = [
                         "declaration is called from several sites that did not separate), or "
                         "declares it without calling it here. It carries no value: the values "
                         "are the data wires, and the slots with none are the box's stub rows."),
-    ("p", None, "On page 0 and on region and file pages one wire stands for every link between "
+    ("p", None, "On page 0 and on its clusters one wire stands for every link between "
                 "those two boxes; its label is the kinds and their counts."),
     ("h", None, "What order means"),
     ("p", None, "Boxes are possible callees at a call site, ordered by first call site and placed "
@@ -1522,7 +1503,7 @@ document.addEventListener('click',e=>{
   const go=e.target.closest('#bar [data-go],#tree [data-go]');
   if(go&&PAGES[go.dataset.go])show(go.dataset.go);});
 
-/* -- the index: a tree of pages, closed below the regions until a page is opened -- */
+/* -- the index: a tree of pages, closed below the top map until a page is opened -- */
 const ROWS=[...document.querySelectorAll('#tree a')];
 const collapsed=new Set(ROWS.filter(a=>a.querySelector('.tw')&&a.dataset.key!=='0').map(a=>a.dataset.key));
 function reveal(key){collapsed.delete(key);
@@ -1756,16 +1737,7 @@ def build(model, out):
         kind = p["kind"]
         if kind == "root":
             title, detail, ref = "0", "", None
-            sub = (f'{len(p["regions"])} regions · {sum(r["files"] for r in p["regions"])} files · '
-                   f'{sum(r["nodes"] for r in p["regions"])} nodes')
-        elif kind == "region":
-            title = f'{index} {p["path"]}'
-            sub = f'{p["fileCount"]} files · {p["lines"]} lines · {p["nodes"]} nodes'
-            detail, ref = p["path"], None
-        elif kind == "file":
-            title = f'{index} {p["file"]}'
-            sub = f'{p["lines"]} lines · {p["nodes"]} nodes · region {p["region"]}'
-            detail, ref = p["file"], f'{p["file"]}:1-{p["lines"]}'
+            sub = f'{p.get("entries", len(p["components"]))} entry points · {p["nodes"]} nodes'
         elif kind == "group":
             title = f'{index} {p["label"]}'
             sub = f'{p["owner"]} · {len(p["components"])} declarations · generated boundary'

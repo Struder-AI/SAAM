@@ -1,3 +1,3 @@
 declaration	kind	fact	source	date
-core/machine/filaments.mjs	vendor	Bambu documents H2D capacity of four AMS 2 Pro and eight AMS HT units, 24 slots in total; this does not establish physical routing by SAAM.	https://eu.store.bambulab.com/products/h2d	2026-09-21
-core/machine/filaments.mjs	vendor	The AMS HT FAQ specifies up to four HT connections on X1/P1. SAAM retains a conservative four-device combined X1 limit; larger mixed topologies are unverified.	https://asia.store.bambulab.com/collections/bambu-lab-ams/products/ams-ht	2026-09-21
+core/machine/filaments.mjs::validateBambuConnections	vendor	Bambu documents H2D capacity of four AMS 2 Pro and eight AMS HT units, 24 slots in total; this does not establish physical routing by SAAM.	https://eu.store.bambulab.com/products/h2d	2026-09-21
+core/machine/filaments.mjs::validateBambuConnections	vendor	The AMS HT FAQ specifies up to four HT connections on X1/P1. SAAM retains a conservative four-device combined X1 limit; larger mixed topologies are unverified.	https://asia.store.bambulab.com/collections/bambu-lab-ams/products/ams-ht	2026-09-21

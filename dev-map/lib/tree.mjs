@@ -1,11 +1,10 @@
-// The published index is a place in the map tree: `0`, then its regions, then the Nth node
-// whose home is that map, and so on down. Generation numbers declarations by source position
-// (region.file.declaration); that address stays internal, for scoped reuse only.
+// The published index is a place in the map tree: `0`, then the Nth node whose home is that map,
+// and so on down. Generation gives each declaration an internal number (entries.mjs); that
+// address never leaves generation.
 //
-// The walk is one depth-first pass, and a page's home is the first map of its own region that
-// reaches it: `0` lists the regions in index order; a region page lists its flow roots and the
-// authored clusters of them, in index order; a group lists its members in index order; a flow
-// page lists its components in call order. Each child is numbered where it is met and then
+// The walk is one depth-first pass, and a page's home is the first map that reaches it: `0`
+// lists the entry points and the clusters of them, in index order; a group lists its members in
+// index order; a flow page lists its components in call order. Each child is numbered where it is met and then
 // expanded in full before its next sibling. A nested declaration is homed by the declaration
 // that holds it, never beside it. Every other appearance is a repeat: it keeps the home index
 // and names its home, and the home names each map that repeats it.
@@ -18,13 +17,13 @@
 // each of those is a leaf in its turn. So nothing is numbered beneath a leaf, and a leaf's
 // outgoing chain is drawn once, on the map that homes it.
 import {invocationWires} from './invocation.mjs';
-const containment=new Set(['root','region','group']);
+const containment=new Set(['root','group']);
 const byIndex=(a,b)=>{
   const x=a.split('.').map(Number),y=b.split('.').map(Number);
   for(let i=0;i<Math.max(x.length,y.length);i++)if((x[i]??-1)!==(y[i]??-1))return (x[i]??-1)-(y[i]??-1);
   return 0;
 };
-export const shownOn=page=>page.kind==='root'?page.regions:page.components??[];
+export const shownOn=page=>page.components??[];
 export const homeOf=at=>at.includes('.')?at.slice(0,at.lastIndexOf('.')):'0';
 
 // What a page belongs to: a nested declaration belongs to the declaration that holds it, and a
@@ -61,9 +60,6 @@ function holders(pages) {
 export function treeNumbering(pages) {
   const {holder,scope}=holders(pages);
   const tree=new Map([['0','0']]),chains=new Map(),stack=[['0','0']];
-  // A region holds its own code. A call that crosses a region draws the callee here and links
-  // to its home; it does not move the callee into the caller's region.
-  const regionOf=at=>at.split('.')[0];
   const leaf=at=>pages.get(at)?.destination==='code';
   while(stack.length) {
     const [at,placed]=stack.pop();
@@ -78,7 +74,6 @@ export function treeNumbering(pages) {
       if(seen.has(child))return;
       seen.add(child);
       if(!pages.has(child)||tree.has(child))return;
-      if(at!=='0'&&regionOf(child)!==regionOf(at))return;
       // A declaration written inside a leaf is placed by that leaf's authority, here.
       if(![undefined,at,here,...holders].includes(holder.get(child)))return;
       tree.set(child,'');numbered.push(child);
@@ -130,7 +125,7 @@ export function drawChains(pages,chains) {
 // Only address-bearing fields are rewritten; a numeric data label is not a map address. Source
 // addresses and tree indexes share one number space, so an object held by several pages is
 // rewritten once: `seen` spans the whole pass.
-const addressKeys=new Set(['index','handle','from','to','region','parent','port','mechanism','outside','via',
+const addressKeys=new Set(['index','handle','from','to','parent','port','mechanism','outside','via',
   'parentEndpoint','parentFrom','parentTo','caller','callee','page','endpoint','id']);
 const address=/^([a-z-]+:)?(\d+(?:\.\d+)*)(@\d+)?$/;
 export function renumber(value,tree,seen=new WeakSet()) {

@@ -754,7 +754,7 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
         // `resolution`, where it names the caller this link was proved from.
         // A call on a parameter says so: the callable is the caller's, followed here through the
         // argument. The relationship is the same link; where it is drawn is not, so the map
-        // keeps it out of the callee's own boxes and flow (dev-map/lib/flow.mjs, regions.mjs).
+        // keeps it out of the callee's own boxes and flow (dev-map/lib/flow.mjs, entries.mjs).
         for(const {decl,fn,at} of found.values())
           edge('call',from,decl.id,[site],{resolution:at?.node?[location(at.module,at.node)]:[],resolvedBy:route,...(key?{receiver:key}:{}),possible,
             ...(directParameter?{viaParameter:true}:{}),

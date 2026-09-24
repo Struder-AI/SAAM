@@ -19,12 +19,7 @@ export function attachOverviewAnchors(pages, index) {
         if(outer)return anchor(outer,parent,seen);
       }
       const at=port.index??index.get(port.path),target=pages.get(at);
-      if(target) {
-        const region=pages.get(at.split('.')[0]);
-        if(region&&region.index!==page.index.split('.')[0])return describe(region);
-        const file=target.file&&pages.get(index.get(target.file));
-        return describe(file??target);
-      }
+      if(target)return describe(target);
       // Source outside the mapped roots has no invented navigable address. `outside` separates
       // that from a mapped path this drawing simply has no box for: only the former is a scope
       // edge, and only the former is drawn as an arrow ending in a name.

@@ -98,7 +98,7 @@ export function presentationPage(page) {
   // Keep the address of each visible box, without also emitting the inventory
   // of descendants hidden behind it. Source expansion uses the stored packet.
   const childByIndex=new Map((children??[]).map(child=>[child.index,child]));
-  for(const field of ['components','regions'])if(visible[field])visible[field]=visible[field].map(item=>{
+  for(const field of ['components'])if(visible[field])visible[field]=visible[field].map(item=>{
     const child=childByIndex.get(item.index);
     const navigation=Object.fromEntries(['index','path','file','label','lines','nodes','destination']
       .filter(key=>child?.[key]!==undefined).map(key=>[key,child[key]]));
@@ -182,7 +182,6 @@ export function presentationPage(page) {
         ...(section.unresolved?.length ? {unresolved: located(section.unresolved, file)} : {})};
     })} : {}),
     ...(page.components ? {components: page.components.map(component)} : {}),
-    ...(page.regions ? {regions: page.regions.map(region => callerFields(region))} : {}),
     ...(page.inputs ? {inputs: page.inputs.map(port => boundary(port))} : {}),
     ...(page.outputs ? {outputs: page.outputs.map(port => boundary(port, true))} : {}),
     ...(page.operators ? {operators: page.operators.map(operator)} : {}),

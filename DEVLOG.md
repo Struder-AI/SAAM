@@ -1,5 +1,26 @@
 # Development log
 
+## 2026-09-24 — Dev maps: no regions; nothing comes from files
+
+- Owner direction: no region maps; nothing in the maps comes from files. The
+  top map `0` draws the entry points of all mapped code (top-level
+  declarations no mapped code calls), ordered by how much each reaches; every
+  mapped call nests, with no directory edge. `lib/regions.mjs` became
+  `lib/entries.mjs`; internal addresses are plain numbers, not
+  region.file.declaration.
+- Scoped regeneration is gone: `regenerate` always does everything (~1 min).
+  Module-level findings sit on `0`; module-only files are no boxes. The two
+  file-level facts now name `filaments.mjs::validateBambuConnections`.
+- Region clusters merged into one flow on `0` (`flows/top.json`, 17 clusters);
+  57 memberships dropped because those declarations now nest under a caller.
+  Empty region flow files removed.
+- Result: 99 entry points (146 region roots before), 1445 declarations, 0
+  stranded, 0 unplaced, 0 orphan facts; 655 maps, energy 868.58 (899.34).
+  The solver model reproduces all 655 map scores. Viewer checked on `0`.
+- Docs: map guide 232→225 lines, DEVELOPER-CONTEXT 220→218 (Region removed from
+  the glossary, entry point and the tree redefined), toolkit README 264→263,
+  BUILDERS 410→410.
+
 ## 2026-09-24 — Dev maps: cluster solver (first run)
 
 - `dev-map/lib/solve.mjs`: a model of every site (a region or a node whose view

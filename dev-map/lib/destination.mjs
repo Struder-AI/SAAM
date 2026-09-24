@@ -23,9 +23,9 @@ export const drawnShape=page=>{
 // A declaration page is a map when its drawing shows at least two called declarations with a
 // wire on one of them, and code otherwise. Iteration, update, choice, collection and
 // member-invocation operators do not make a map; they stay in the stored page and `--details`.
-// Root, region and group pages are containment maps and are always graphs.
+// The top map and group pages are containment maps and are always graphs.
 export const destinationFor=page=>{
-  if(['root','region','group'].includes(page.kind))return 'graph';
+  if(['root','group'].includes(page.kind))return 'graph';
   const {called,wired}=drawnShape(page);
   return called>1&&wired?'graph':'code';
 };

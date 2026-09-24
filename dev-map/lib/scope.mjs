@@ -1,6 +1,6 @@
 // The one authored input to the generated map: which top-level roots are mapped, and which are
 // scanned only so the calls they make into the mapped roots are seen. Nothing else about the map
-// is chosen here; regions, files, entries, numbering and every box come from the code.
+// is chosen here; entry points, numbering and every box come from the code.
 import {SKILL_IDS} from '../../skills/catalog.mjs';
 export const mappedRoots=['core','studio'];
 export const outsideRoots=['skills','adapters','scripts'];

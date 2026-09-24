@@ -2,32 +2,6 @@
   "schema": 1,
   "flows": [
     {
-      "path": "core/print",
-      "groups": [
-        {
-          "id": "lifecycle",
-          "label": "reviewed print lifecycle",
-          "members": [
-            "core/print/file-snapshot.mjs::createFileSnapshot",
-            "core/print/generation-control.mjs::generationControl",
-            "core/print/program-handoff.mjs::createCheckedProgramHandoff",
-            "core/print/workflow.mjs::createBundleWorkflow"
-          ],
-          "groups": [
-            {
-              "id": "worker-identity",
-              "label": "worker and file identity",
-              "members": [
-                "core/print/file-snapshot.mjs::createFileSnapshot",
-                "core/print/generation-control.mjs::generationControl",
-                "core/print/program-handoff.mjs::createCheckedProgramHandoff"
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
       "path": "core/print/workflow.mjs::createBundleWorkflow",
       "groups": [
         {
