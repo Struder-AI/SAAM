@@ -156,7 +156,7 @@ Use `create_print` / `adjust_print`, the shared approvals and `generate_print`;
 `check_print` verifies the persisted print and `deliver_print` delivers its
 checked export. Legacy `compile_plan`, `validate_plan` and `post_process`
 are unsupported.
-The fixed catalog also includes `denso-vp6242-rc8` and
+The fixed catalog also includes `denso-vs068a4-rc8` and
 [pipe-cladding](../../skills/pipe-cladding/SKILL.md). This experimental rotary
 demo uses the same tools and Studio. Actual installation setup is unresolved;
 synthetic development calibration is not a hardware configuration.

@@ -1,7 +1,7 @@
 # Shared print tools
 
 Use this manual to create, import, revise, review and deliver a print. The
-[selected skill](../../skills/README.md) owns its geometry support, settings and
+[selected skill](../../skills/DIGEST.md) owns its geometry support, settings and
 process limits; [MAKERS](../../MAKERS.md) owns the conversation and human review.
 The [lifecycle reference](README.md) explains implementation contracts.
 

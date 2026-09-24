@@ -15,7 +15,7 @@ export const DENSO_LIMITATIONS=[
 export const toWork=(point,c)=>rotateZ(point,c.workYawDeg).map((v,i)=>v+c.workOffsetMm[i]);
 export const fromWork=(point,c)=>rotateZ(point.map((v,i)=>v-c.workOffsetMm[i]),-c.workYawDeg);
 export function interpretDensoFiles(files,plan,machine,{moves=[]}={}){
-  requireThat(machine.id==='denso-vp6242-rc8'&&plan.output==='denso-pacscript','Incompatible DENSO output.');
+  requireThat(machine.id==='denso-vs068a4-rc8'&&plan.output==='denso-pacscript','Incompatible DENSO output.');
   validateDensoConfiguration(plan,{required:true});const c=plan.setup.denso;
   requireThat(files['main.pcs']&&Object.values(files).every(x=>typeof x==='string'),'Missing PacScript entry.');
   const functions=new Map(),visited=new Set();

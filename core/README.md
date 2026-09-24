@@ -18,7 +18,7 @@ The [developer orientation](../DEVELOPER-CONTEXT.md#orientation) indexes region
 maps and their caller contracts. Maps own the generation/review flow and source
 entry points; shared interfaces and the exceptions below remain caller context.
 
-[Skill manuals](../skills/README.md) own pattern-specific tools and limits. Client
+[Skill manuals](../skills/DIGEST.md) own pattern-specific tools and limits. Client
 adapters use the same lifecycle; see [MCP implementation](../adapters/mcp/DEVELOP.md).
 
 The [machine presentation boundary](../studio/KINEMATICS.md) lets the

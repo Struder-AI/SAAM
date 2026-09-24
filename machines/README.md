@@ -53,7 +53,7 @@ to the operator; no general 15° clearance rating is claimed.
 Standard S5 startup is assumed; firmware version is optional metadata.
 Physical printing remains unvalidated.
 
-[denso-vp6242-rc8.json](./denso-vp6242-rc8.json) describes the six-axis VP-6242 with
+[denso-vs068a4-rc8.json](./denso-vs068a4-rc8.json) describes the six-axis VS-068A4 with
 RC8 and an external rotary for the [pipe demo](../skills/pipe-cladding/SKILL.md).
 Installation fields start unresolved. Its experimental PacScript source ZIP uses
 the shared Studio/review/delivery pipeline. The profile's display bounds are not

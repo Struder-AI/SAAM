@@ -35,9 +35,9 @@ export async function updatedSkillIndex(repoRoot) {
       `| [${skill.id}](${skill.id}/SKILL.md) | ${skill.description.replaceAll('|', '&#124;')} |`)
   ].join('\n');
   const block = `${start}\n\n## Printing patterns\n\n${table('printing')}\n\n## Geometry processing\n\n${table('task')}\n\n${end}`;
-  const current = await readFile(resolve(skillsRoot, 'README.md'), 'utf8');
+  const current = await readFile(resolve(skillsRoot, 'DIGEST.md'), 'utf8');
   if (current.split(start).length !== 2 || current.split(end).length !== 2 || current.indexOf(end) < current.indexOf(start)) {
-    throw new Error('skills/README.md needs exactly one ordered pair of generated skill digest markers.');
+    throw new Error('skills/DIGEST.md needs exactly one ordered pair of generated skill digest markers.');
   }
   const eol = current.includes('\r\n') ? '\r\n' : '\n';
   return current.slice(0, current.indexOf(start)) + block.replaceAll('\n', eol) + current.slice(current.indexOf(end) + end.length);
@@ -45,12 +45,12 @@ export async function updatedSkillIndex(repoRoot) {
 
 export async function checkSkillDigest(repoRoot) {
   const expected = await updatedSkillIndex(repoRoot);
-  if (expected !== await readFile(resolve(repoRoot, 'skills/README.md'), 'utf8')) {
-    throw new Error('skills/README.md capability digest is stale. Run node scripts/skill-digest.mjs to refresh it from the skill descriptions.');
+  if (expected !== await readFile(resolve(repoRoot, 'skills/DIGEST.md'), 'utf8')) {
+    throw new Error('skills/DIGEST.md capability digest is stale. Run node scripts/skill-digest.mjs to refresh it from the skill descriptions.');
   }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  await writeFile(resolve(root, 'skills/README.md'), await updatedSkillIndex(root));
-  console.log('Updated the capability digest in skills/README.md.');
+  await writeFile(resolve(root, 'skills/DIGEST.md'), await updatedSkillIndex(root));
+  console.log('Updated the capability digest in skills/DIGEST.md.');
 }

@@ -126,10 +126,10 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.equal(guidance.text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
   assert.equal(guidance.path, 'MAKERS.md');
   assert.ok(guidance.links.some(link => link.guidanceId.startsWith('skills/')));
-  const digestLink = guidance.links.find(link => link.guidanceId === 'skills/README.md');
+  const digestLink = guidance.links.find(link => link.guidanceId === 'skills/DIGEST.md');
   assert.ok(digestLink);
   const digest = await call('read_guidance', { guidanceId: digestLink.guidanceId });
-  assert.equal(digest.path, 'skills/README.md');
+  assert.equal(digest.path, 'skills/DIGEST.md');
   assert.equal((await call('read_guidance', { guidanceId: 'print-tools' })).path, 'core/print/USAGE.md');
   const section = await call('read_guidance', { guidanceId: 'core/export/griffin.md#s5-startup-observations' });
   assert.match(section.text, /^### S5 startup observations/);
@@ -145,7 +145,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
     assert.ok(machine.outputs.every(output=>output.implemented===false&&output.reason));
   }
   assert.ok(machines.some(machine => machine.id === 'dobot-mg400'));
-  assert.ok(machines.some(machine => machine.id === 'denso-vp6242-rc8'));
+  assert.ok(machines.some(machine => machine.id === 'denso-vs068a4-rc8'));
   const dobot = await call('get_plan_template', { kind: 'shell', machineId: 'dobot-mg400' });
   assert.equal(dobot.plan.setup.dobot.configurationSource, null);
   await call('read_skill', { skillId: '../DEVELOP' }, /validation|Invalid|format/i);

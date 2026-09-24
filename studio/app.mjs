@@ -167,7 +167,7 @@ function machineSettings(state,rows){
   const d=state.plan.setup.dobot??state.plan.setup.denso;
   if(!d)return rows;
   const omitted=new Set(['Bed temperature','Build volume temperature','Retraction','Cooling fan','Filament diameter','Material flow limit']);
-  return [...rows.filter(([name])=>!omitted.has(name)),...robotRows(state.plan)];
+  return [...rows.filter(([name])=>!omitted.has(name)),...robotRows(state.plan,state.machine)];
 }
 function stop(){if(playing)void tourUI?.playback('pause');playing=false;playbackEpoch++;lastFrame=0;cancelAnimationFrame(frame);$('#play').textContent='Play';}
 function activity(text='',fraction=null){
@@ -231,7 +231,7 @@ const views={
         return [materialSetup(state),['Substrate',claddingSubstrateName(state.plan)],
           ['Exterior',clad.shells+' shells · '+claddingPatternName(clad)],[surface?'Normal thickness per shell':'Radial thickness per shell',clad.normalMm+' mm'],
           ['Nozzle tilt',clad.tiltDeg+(surface?'° from the downward surface tangent toward the surface':'° inward from downward')],
-          ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes',surface?'Local surface spacing with partial passes':'Full height']]),['Between passes','Extrusion off'],...robotRows(state.plan)];
+          ...(clad.pattern==='crossed-helices'?[['Helices','Opposite winding on successive shells; each rises from bottom to top']]:[['Axial passes',surface?'Local surface spacing with partial passes':'Full height']]),['Between passes','Extrusion off'],...robotRows(state.plan,state.machine)];
       }
       if(tab==='plan')return [materialSetup(state),['Nozzle',(state.machine.tools.find(t=>t.index===s.tool)?.label??'#'+(s.tool+1))+' · '+s.core],['Layer height',p.layerMm+' mm'],
         ['Body',network?.enabled?network.networks.length+' independent line networks · '+network.layers+' courses':normal?.enabled?normal.perimeters+' walls · '+(normal.density===0?'hollow':Math.round(normal.density*100)+'% '+(normal.pattern??'rectilinear')+' infill'):fill.enabled?fill.perimeters+' perimeters + solid fill':'Not printed'],...vaseSettings(state),

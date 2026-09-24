@@ -2,10 +2,10 @@
 
 ## Orientation
 
-A developer's orientation is the **dev map** and this file, nothing else. The
-component manuals under `core/` and `studio/` are maker and builder
-documentation; read one only when a person asks about the behaviour it
-describes, never to find your way around the code.
+A developer is maps-native: the **dev map** and this file are the orientation
+a developer relies on. The component manuals under `core/` and `studio/` are
+written for makers and builders; open one when the work calls for it, as when a
+change alters the behaviour it describes and it needs rewriting.
 
 ### What the map is for
 
@@ -134,7 +134,11 @@ and the [agent CLI toolkit](core/agent/README.md) are outside the mapped scope
 and keep their own references. [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md)
 owns checkpoint and publication rules; read it immediately before committing.
 Source is authoritative for implementation; software checks do not establish
-physical results.
+physical results. Run a check to settle a concrete uncertainty and reuse its
+result until its inputs change; commits and task completion add no test gate.
+Work from older repositories or conversations is reference only, and the
+[September 12 withdrawal](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission)
+names work that must not be restored wholesale.
 
 ## Status note
 

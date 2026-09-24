@@ -22,7 +22,7 @@ import {frameAtTime,displayPoint} from '../../studio/playback.mjs';
 import {decodeSource,fetchSources} from '../../studio/source-player.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
-const machine=loadMachine('denso-vp6242-rc8'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
+const machine=loadMachine('denso-vs068a4-rc8'),near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 const small=()=>{const p=developmentPipePlan();p.geometry.heightMm=1.2;p.skills['pipe-cladding'].shells=2;return p;};
 const sources=bytes=>Object.fromEntries([...unpackZip(bytes)].filter(([name])=>name.endsWith('.pcs')).map(([name,b])=>[name,b.toString()]));
 

@@ -92,9 +92,7 @@ session, and open the returned URL with its browser integration. The
 toolkit creates fresh copies, sets playback layer 12,
 returns the URL first, then bundles the remaining participation guidance and
 listener arguments. The direct `node studio/server.mjs --start-at-layer 12`
-launcher remains available. Request an early
-command yield (about one second when supported) so the persistent server does
-not consume the command tool's default wait before its URL can be opened. New tours use
+launcher remains available. New tours use
 fresh copies of both bundled examples, regardless of earlier edits. Never resume
 an old lesson for a new tour request. Keep the server session and viewer open.
 Studio supplies the first task; do not add an introductory question in chat.
@@ -194,7 +192,7 @@ owns the provisional heuristic and unit-correction commands.
 
 ## Find the instructions for this part
 
-For a new custom part, use the brief [capability digest](skills/README.md) supplied
+For a new custom part, use the brief [capability digest](skills/DIGEST.md) supplied
 by onboarding (read it only if missing), then choose and read the selected skill manual and use its
 packaged tools. Tour startup uses its bundled examples and defers these reads
 until a requested edit needs them. The

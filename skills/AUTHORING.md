@@ -30,7 +30,7 @@ read; the existing `read-guidance PATH#HEADING` command supports section reads.
 Task manuals declare `metadata.saam-kind: task` in frontmatter. The explicit
 [catalog](catalog.mjs) controls discovery and ordering; each manual owns its
 description and classification. Its description explains the capability, value
-and essential selection boundaries, and is reused by the [digest](README.md) and
+and essential selection boundaries, and is reused by the [digest](DIGEST.md) and
 MCP catalog. After changing descriptions or catalog membership, run
 `node scripts/skill-digest.mjs` from the repository root to refresh the digest.
 Generated agreement does not establish that capability claims are true.

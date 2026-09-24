@@ -172,10 +172,10 @@ export function recipeRows(plan,machine){
   }
   return rows;
 }
-export function robotRows(plan){
+export function robotRows(plan,machine){
   const c=plan.setup.denso;
   if(c)return [
-    ['Robot / controller','DENSO VP-6242 / RC8'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
+    ['Robot / controller',machine?.name??'DENSO / RC8'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
     ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
     ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
     ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],

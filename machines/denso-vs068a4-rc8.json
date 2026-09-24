@@ -1,5 +1,5 @@
 {
-  "schema":"saam-machine/1", "id":"denso-vp6242-rc8", "name":"DENSO VP-6242 / RC8 + rotary", "revision": 2, "units":"mm",
+  "schema":"saam-machine/1", "id":"denso-vs068a4-rc8", "name":"DENSO VS-068A4 / RC8 + rotary", "revision": 3, "units":"mm",
   "planarWallToleranceMm":0.01,
   "kinematics":"six-axis-arm-plus-external-rotary; controller-owned inverse kinematics",
   "motionChecks":"deferred",
@@ -18,6 +18,6 @@
   "startup":{"protocol":"externally-positioned-and-heated","zAfterStartupMm":20,"validation":"Declared start, tool/work frames, rotary zero and external heat; commissioning remains unverified."},
   "nonplanar":{"maxAngleDeg":15,"basis":"Legacy fixed-axis skills retain their existing process limit; not a tool tilt limit."},
   "clearance":{"model":null,"validatedInclinationDeg":null},
-  "validation":"RC8 confirmed by user. Ceiling mounting and coaxial bed placement remain provisional. Actual rotary interface, calibration and IO are unresolved. Reach, singularities, joint/motion limits, collisions, timing, vendor import and physical printing are unchecked.",
-  "sources":["https://www.denso-wave.com/en/robot/product/five-six/vp.html","https://www.denso-wave.com/ja/robot/support/learning/d-learning/lesson3/l3-1/modals.html","https://www.fa-manuals.denso-wave.com/subfolder/en/usermanuals/img/001511/RC8_ProvGuide_en.pdf"]
+  "validation":"VS-068A4 confirmed by user and supplied RC8 project metadata. Ceiling mounting and coaxial bed placement remain provisional. Actual rotary interface, calibration and IO are unresolved. Reach, singularities, joint/motion limits, collisions, timing, vendor import and physical printing are unchecked.",
+  "sources":["https://www.denso-wave.com/en/robot/product/five-six/vs068-087.html","https://www.denso-wave.com/ja/robot/support/learning/d-learning/lesson3/l3-1/modals.html","https://www.fa-manuals.denso-wave.com/subfolder/en/usermanuals/img/001511/RC8_ProvGuide_en.pdf"]
 }

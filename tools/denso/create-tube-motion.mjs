@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir,stat} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
+import {defaults} from '../../core/print/plan.mjs';
+import {loadMachine} from '../../core/machine/profile.mjs';
+import {pipeMesh} from '../../core/geom/cylinder.mjs';
+import {fullFillResult} from '../../skills/full-fill/scripts/fill.mjs';
+import {substrateSection,substrateLoops} from '../../skills/pipe-cladding/scripts/clad.mjs';
+const number=n=>String(Number(n.toFixed(8)));
+export async function createTubeMotion(sourceFile,directory){
+ const dir=resolve(directory);try{await stat(dir);throw Error('Choose a new output directory');}catch(e){if(e.code!=='ENOENT')throw e;}
+ const bytes=await readFile(sourceFile),saved=JSON.parse(bytes),machine=loadMachine('denso-vs068a4-rc8'),base=defaults(machine);
+ const plan={...base,...saved,placement:{xMm:0,yMm:0},process:{...base.process,...saved.process},skills:Object.fromEntries(Object.entries(base.skills).map(([key,value])=>[key,{...value,...saved.skills[key]}]))};
+ assert.equal(plan.geometry.shape,'pipe');assert.equal(plan.skills['pipe-cladding'].enabled,true);assert.equal(plan.skills['full-fill'].perimeters,0);
+ const shell=pipeMesh(plan.geometry),result=fullFillResult({shell,plan,machine,sectionAt:substrateSection(shell,plan),interiorStrokes:()=>substrateLoops(plan)});
+ const layers=result.operations.map(o=>({z:o.strokes[0].points[0][2],rings:o.strokes.map(s=>{const radius=Math.hypot(...s.points[0].slice(0,2));assert.ok(s.closed);for(const p of s.points)assert.ok(Math.abs(Math.hypot(...p.slice(0,2))-radius)<1e-7&&Math.abs(p[2]-s.points[0][2])<1e-7);return {radius,beadAreaMm2:s.beadAreaMm2,speedMmS:s.speedMmS};})}));
+ const first=layers[0],radii=first.rings.map(r=>r.radius),pitch=radii[1]-radii[0];assert.ok(layers.length>1&&radii.length>1);
+ for(const [i,layer] of layers.entries()){assert.ok(Math.abs(layer.z-(first.z+i*plan.process.layerMm))<1e-7);assert.equal(layer.rings.length,radii.length);layer.rings.forEach((r,j)=>assert.ok(Math.abs(r.radius-(radii[0]+j*pitch))<1e-7));}
+ const safeZ=plan.geometry.heightMm+20;
+ const lines=[`' !TITLE "SAAM_TUBE"`,"' Tube substrate motion only; extrusion is owned by a separate controller.","' W2 origin is pipe centre/base; P10 is taught nozzle-down with T6/W2.","' Three concentric rings per layer; no cladding, IO, heat or rotary commands.","' Offline candidate: controller compilation and execution not performed.",`#define LAYERS ${layers.length}`,`#define RINGS ${radii.length}`,`#define FIRST_Z ${number(first.z)}`,`#define LAYER_MM ${number(plan.process.layerMm)}`,`#define INNER_R ${number(radii[0])}`,`#define RADIAL_STEP ${number(pitch)}`,`#define SAFE_Z ${number(safeZ)}`,'','Sub Main','  Dim layerNo As Integer','  Dim ringNo As Integer','  Dim quarterNo As Integer','  Dim layerZ As Single','  Dim ringRadius As Single','  Dim routeAngle As Single','  Dim endAngle As Single','  Dim ptR As Position','  Dim ptT As Position','  TakeArm Keep = 0','  Tool 6, P(155, 0, 35, 0, 90, 0)','  ChangeTool 6','  ChangeWork 2','  Speed 50','  Accel 100, 100','  ptR = P10','  ptT = P10','  LetX ptT = INNER_R','  LetY ptT = 0','  LetZ ptT = SAFE_Z','  Move P, @E ptT','  Delay 300','  For layerNo = 0 To LAYERS - 1','    layerZ = FIRST_Z + layerNo * LAYER_MM','    For ringNo = 0 To RINGS - 1','      ringRadius = INNER_R + ringNo * RADIAL_STEP','      LetX ptT = ringRadius','      LetY ptT = 0','      LetZ ptT = layerZ','      Move L, @E ptT',"      ' First three quarter circles pass into the next arc.",'      For quarterNo = 0 To 2','        routeAngle = 90.0 * quarterNo + 45.0','        endAngle = 90.0 * quarterNo + 90.0','        LetX ptR = ringRadius * Cos(routeAngle)','        LetY ptR = ringRadius * Sin(routeAngle)','        LetZ ptR = layerZ','        LetX ptT = ringRadius * Cos(endAngle)','        LetY ptT = ringRadius * Sin(endAngle)','        LetZ ptT = layerZ','        Move C, ptR, @P ptT','      Next quarterNo',"      ' Complete the ring before changing radius or layer.",'      LetX ptR = ringRadius * Cos(315.0)','      LetY ptR = ringRadius * Sin(315.0)','      LetZ ptR = layerZ','      LetX ptT = ringRadius','      LetY ptT = 0','      LetZ ptT = layerZ','      Move C, ptR, @E ptT','    Next ringNo','  Next layerNo',"  ' Straight lift at the final ring; no automatic cladding start.",'  LetZ ptT = SAFE_Z','  Move L, @E ptT','  Delay 300','  GiveArm','End Sub',''];
+ const pcs=lines.join('\r\n'),motion={schema:'saam-machine-study-source/1',orientation:'euler-xyz',initial:{tcp:[radii[0],0,safeZ],anglesDeg:[0,0,-90]},moves:[]};let from=motion.initial.tcp;
+ const push=(tcp,{seconds,volumeMm3=0,phase='travel',layer=0}={})=>{motion.moves.push({tcp,anglesDeg:[0,0,-90],seconds,volumeMm3,phase,layer,operation:phase==='planar'?'tube-substrate':'tube-travel'});from=tcp;};
+ for(const [i,layer] of layers.entries())for(const ring of layer.rings){
+  const start=[ring.radius,0,layer.z],distance=Math.hypot(...start.map((v,k)=>v-from[k]));
+  if(distance>1e-9)push(start,{seconds:Math.max(.1,distance/(i?20:5)),layer:i});
+  const steps=4*Math.ceil((Math.PI/2)/(2*Math.acos(1-plan.geometry.toleranceMm/ring.radius)));
+  for(let j=1;j<=steps;j++){const a=j*2*Math.PI/steps,arc=ring.radius*2*Math.PI/steps;push([ring.radius*Math.cos(a),ring.radius*Math.sin(a),layer.z],{seconds:arc/ring.speedMmS,volumeMm3:arc*ring.beadAreaMm2,phase:'planar',layer:i});}
+ }
+ push([radii.at(-1),0,safeZ],{seconds:(safeZ-layers.at(-1).z)/5,layer:layers.length-1});
+ const manifest={schema:'saam-denso-tube-motion/1',file:'SAAM_TUBE.pcs',sourcePlan:resolve(sourceFile),sourcePlanSha256:createHash('sha256').update(bytes).digest('hex'),sha256:createHash('sha256').update(pcs).digest('hex'),boreMm:plan.geometry.innerRadiusMm*2,outerDiameterMm:(plan.geometry.outerRadiusMm-plan.skills['pipe-cladding'].shells*plan.skills['pipe-cladding'].normalMm)*2,heightMm:plan.geometry.heightMm,layers:layers.length,layerHeightMm:plan.process.layerMm,radiiMm:radii,totalRings:layers.length*radii.length,arcMoves:layers.length*radii.length*4,tool:6,work:2,posture:'Runtime P10 nozzle-down; preview assumes downward axis and -90-degree roll',extrusion:'Separate controller; no SAAM commands',rotary:'fixed; no commands',sourceSpeedPercent:50,previewTiming:'Recipe speeds for illustration; not RC8 percent-speed timing',initialApproach:motion.initial.tcp,finalPosition:from,controllerCompilation:'not performed',physicalExecution:'not performed'};
+ await mkdir(dir,{recursive:true});for(const [file,data] of [['SAAM_TUBE.pcs',pcs],['source-plan.json',bytes],['tube.json',JSON.stringify(manifest,null,2)+'\n'],['layers.json',JSON.stringify(layers,null,2)+'\n'],['motion.json',JSON.stringify(motion,null,2)+'\n'],['PacAttri-entry.txt','test\\SAAM_TUBE.pcs,0,-2\r\n']])await writeFile(resolve(dir,file),data);
+ return manifest;
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){const [source,dir]=process.argv.slice(2);if(!source||!dir)throw Error('Usage: node tools/denso/create-tube-motion.mjs <source-plan.json> <new-directory>');console.log(JSON.stringify(await createTubeMotion(source,dir)));}

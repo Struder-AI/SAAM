@@ -40,7 +40,7 @@ how changes extend this shared system.
 ## What works today
 
 This is a development checkout. Choose a pattern through the [skill
-index](skills/README.md); each manual owns its current shapes, settings and limits.
+index](skills/DIGEST.md); each manual owns its current shapes, settings and limits.
 [Machine support and output contracts](core/export/README.md#machine-interoperability-design)
 describe what each machine's export and playback cover, including the scope of
 reported physical observations. Software checks do not establish physical print

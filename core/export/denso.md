@@ -6,7 +6,7 @@ The experimental PacScript output contract and unresolved installation requireme
 
 The [pipe-cladding implementation](../../skills/pipe-cladding/SKILL.md) targets RC8;
 [BR-033](../../DEVLOG.md#br-033--denso-rc8-rotary-pipe-demo) records the user's scope.
-The [VP-6242 profile](../../machines/denso-vp6242-rc8.json) represents
+The [VS-068A4 profile](../../machines/denso-vs068a4-rc8.json) represents
 a six-joint arm plus one external rotary; the printing task's position/direction
 control is not a claim that the robot has only five joints. Ceiling mounting
 with J1 coaxial with the rotary is provisional. At a chosen outward radius the
@@ -18,7 +18,7 @@ inaccessible or singular. No single cylindrical reach envelope establishes
 feasibility. Operator judgment and the configured RC8 handle these limitations
 for production output; SAAM does not use IK to validate export, check
 reach/joint/motion limits or avoid collisions. A separate
-[nominal presentation model](../machine/README.md#denso-vp-6242) supplies
+[nominal presentation model](../machine/README.md#denso-vs-068a4) supplies
 drawing-based FK/seeded IK when its display installation is explicit; it does
 not establish the RC8 encoder/FIG mapping or authorize output.
 Profile bounds are display/design coordinates, not enforced robot reach.
@@ -53,8 +53,10 @@ relative `EX((axis,delta))` and requested `Time` milliseconds. `TakeArm`,
 `ChangeTool`, `ChangeWork`, `Set/Reset IO` and off-state `Delay` form the rest of
 the bounded source subset. A program of any length is written: helpers split it
 into source blocks of at most 2,000 statements each, called in order, which
-changes no motion; installed compiler/project limits are not verified. The source must be added
-to a correctly configured WINCAPS III RC8 project and compiled/transferred there.
+changes no motion; installed compiler/project limits are not verified. The current source ZIP must be imported into a correctly configured WINCAPS III
+RC8 project for vendor verification. Direct USB program import through a
+controller-created project is a scoped candidate, not an implemented SAAM
+export; see the [USB/project assessment](./denso-usb-assessment.md).
 RC8 solves Cartesian IK using its installed tool/work definitions and figure.
 
 All installation selectors start unresolved. The implemented rotary interface
@@ -117,7 +119,7 @@ identity. This changes transport, not interpretation or approval requirements.
 
 Primary technical references used for this experimental command contract:
 
-- [DENSO VP specifications](https://www.denso-wave.com/en/robot/product/five-six/vp.html).
+- [DENSO VS-068 specifications](https://www.denso-wave.com/en/robot/product/five-six/vs068-087.html).
 - [RC8 Provider Guide: position types and motion options](https://www.fa-manuals.denso-wave.com/subfolder/en/usermanuals/img/001511/RC8_ProvGuide_en.pdf).
 - [DENSO TIME motion lesson](https://www.denso-wave.com/ja/robot/support/learning/d-learning/lesson3/l3-1/modals.html).
 - [DENSO RC8 extended-joint option](https://support.densorobotics.com/en/support/solutions/articles/60000698512-extended-joint-option-for-rc8-rc8a).

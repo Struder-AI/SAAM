@@ -26,7 +26,7 @@ export function validateSetup(plan,machine,{required=false}={}) {
   requireThat(machine.schema==='saam-machine/1'&&machine.units==='mm','Unsupported machine schema or units.');
   requireThat(Number.isFinite(planarWallTolerance(machine))&&planarWallTolerance(machine)>=0,'Machine planar wall tolerance must be finite and nonnegative.');
   const s=plan.setup,p=plan.process,t=toolFor(machine,s.tool),profile=machine.materials?.[s.material];
-  if(machine.id==='denso-vp6242-rc8')validateDensoConfiguration(plan,{required});
+  if(machine.id==='denso-vs068a4-rc8')validateDensoConfiguration(plan,{required});
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
   requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');
   requireThat(s.filamentMm===machine.filamentDiameterMm,'Filament diameter does not match the machine.');

@@ -15,7 +15,7 @@ export async function createStudy(directory,machineId='ultimaker-s5',{source,mod
   let center=[0,0,25],angles=[0,0,0];
   if(machineId==='dobot-mg400'){
     center=[250,0,150];setup.kinematicModel={worldFromBase:rigid(),toolLengthMm:100,basis:'Synthetic base/design alignment for a nominal mechanism study.'};
-  }else if(machineId==='denso-vp6242-rc8'){
+  }else if(machineId==='denso-vs068a4-rc8'){
     const pose=densoForward(densoGeometry(),seed);center=pose.tcp;angles=euler(pose.rotation);
     setup.kinematicModel={worldFromBase:rigid(),toolLengthMm:70,modelSeedDeg:seed,basis:'Synthetic floor installation; drawing-based model angles, not RC8 FIG or calibration.'};
   }else if(['ultimaker-s5','bambu-h2d'].includes(machineId))center=[150,110,25];

@@ -8,7 +8,7 @@ import {nudgeCupPlan} from './nudge-cup/recipe.mjs';
 
 export const demos=Object.freeze({
   'surface-drape':{machineId:'ultimaker-s5',plan:surfaceDrapePlan},
-  'wavy-denso':{machineId:'denso-vp6242-rc8',plan:wavyDensoPlan},
+  'wavy-denso':{machineId:'denso-vs068a4-rc8',plan:wavyDensoPlan},
   'nudge-cup':{machineId:'ultimaker-s5',plan:nudgeCupPlan}
 });
 

@@ -7,7 +7,7 @@ description: Wrap a substrate with alternating lengthwise and helical cladding, 
 
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
-This is a bounded development implementation for the DENSO VP-6242 with RC8 and
+This is a bounded development implementation for the DENSO VS-068A4 with RC8 and
 an external rotary. RC8 is user-confirmed; ceiling mounting with the robot base
 axis coaxial with the rotary remains provisional. No physical print is validated.
 
@@ -145,7 +145,7 @@ installation values are labeled in the plan and never remembered by this script.
 It creates no human manufacturing approvals and executes no hardware.
 For any new provisional RC8 part, call `developmentPipePlan()` from
 [demo.mjs](scripts/demo.mjs), replace its geometry and selected skills, then
-`initBundle(directory, plan, {machineId:'denso-vp6242-rc8'})` and generate in
+`initBundle(directory, plan, {machineId:'denso-vs068a4-rc8'})` and generate in
 development mode; the labeled setup is reusable across shapes and is not remembered.
 Disable pipe-cladding when selecting only ordinary fixed-orientation skills.
 For an existing development bundle, use `node core/print/cli.mjs demo <directory>`;

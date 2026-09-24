@@ -17,8 +17,8 @@ reads the same sources directly once.
 
 **Builders inherit maker responsibilities.** Builder onboarding includes
 [MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
-Developer onboarding supplies this engineering baseline; developers load maker
-workflow and skill-authoring guidance when their task needs it. Reuse prior reads.
+Developers orient by the map and DEVELOPER-CONTEXT.md, and load this file, maker
+workflow or skill authoring when their task needs it. Reuse prior reads.
 **Read the component manual for what you are changing before changing core or
 Studio, or investigating their internals**, and walk that region of the dev map
 when you need to see everything that calls it. The manuals are listed under
@@ -233,7 +233,9 @@ The current checkout's instructions, shared contracts and the user's authorizati
 govern development. Older repositories, transcripts and saved branches are
 reference material; their past requirements do not become current requirements
 by entering an agent's context. Resolve a conflict with current scope before
-silently importing an older design.
+silently importing an older design. The
+[September 12 withdrawal](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission)
+names work that must not be restored wholesale.
 
 Before admitting a component or method from superseded or outside work, identify
 its purpose and provenance, compare actual producers and consumers with current
@@ -346,7 +348,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Core/Studio behaviour, contracts and limits | The [component manuals](#implementation-reference); skill callers may read them independently |
 | Core/Studio structure — what exists and what calls what | The generated map: `read-map 0`, then the region, file and declaration the change touches |
 | Adapter implementation | [MCP development](adapters/mcp/DEVELOP.md) |
-| Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/README.md) |
+| Print operations and skill tools | [Print tools](core/print/USAGE.md) and relevant [skill manuals](skills/DIGEST.md) |
 | Skill authorship and catalog maintenance | [Skill development](skills/AUTHORING.md) |
 | Map commands, page fields, the scan scope and external facts | [Map guide](dev-map/README.md) and the [map contract](#maps-and-local-documentation) |
 | Developer entry instructions | [Developer context](DEVELOPER-CONTEXT.md); the generated map owns technical navigation |
@@ -387,7 +389,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the region the change touches |
 | Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md); `read-map core/geom` for structure |
 | Offsets, intersections or material ownership | [Regions](core/region/README.md); `read-map core/region` for structure |
-| Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/README.md); `read-map core/path` for structure |
+| Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/DIGEST.md); `read-map core/path` for structure |
 | Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md); `read-map core/print` for structure |
 | Using shared print commands or changing their task guidance | [Print tools](core/print/USAGE.md) |
 | Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [machine files](machines/README.md); `read-map core/export` and `read-map core/machine` for structure |

@@ -1,5 +1,99 @@
 # Development log
 
+## 2026-09-24 — AGENTS.md trimmed to role routing; sync report moved into the toolkit
+
+- User asked to cut context read, starting with AGENTS.md, which every role
+  reads. It went from 184 lines / 14,183 characters to 43 lines / 2,343:
+  a role and first-action table, the tour launch, role changes and the
+  `.local/AGENTS.md` pointer. Owner lists, dev-map rules, setup/check policy,
+  documentation placement and evidence rules were removed as restatements of
+  MAKERS, BUILDERS, DEVELOPER-CONTEXT and CONTRIBUTING-AGENTS.
+- Moved the unique pieces: the D-029 withdrawal pointer to BUILDERS selective
+  adoption and DEVELOPER-CONTEXT; the check-reuse rule to DEVELOPER-CONTEXT; the
+  tour's early-yield hint from MAKERS (returned only after launch) to AGENTS.
+  DEVELOPER-CONTEXT, BUILDERS and the toolkit now call developers maps-native
+  without forbidding a component manual when the work calls for one.
+- Onboarding (all roles) and `start-tour` fetch `main` and return
+  `sync.summary` (branch, HEAD, newest main commit included, main's newer
+  commits); maker/builder/tour `nextStep` asks for it to be relayed in one line.
+- Renamed `skills/README.md` to `skills/DIGEST.md`, with the toolkit, digest
+  script, MCP test and links. `.local/AGENTS.md` (preferences, printer notes,
+  no client memories) and `.local/DEVELOPMENT.md` now hold this checkout's former
+  Claude memories, condensed; the originals are in `.local/claude-memory-archive/`.
+  Both context maps show the local file.
+- Checks: `maker-onboarding` run live (sync fetched in ~2 s; three documents
+  returned); `core/tests/mcp.test.mjs` and `review-state.test.mjs` 19/19 pass;
+  digest script regenerated `skills/DIGEST.md` unchanged. Tour launch not run.
+
+## 2026-09-22 — Continuous tube-first DENSO motion in both open studies
+
+- User identified the missing tube, assigned extrusion to a separate controller,
+  requested both existing Studio instances be updated, then required continuous
+  extrusion with no travel for both versions. No process or rotary commands added.
+- Reused shared full-fill substrate operations: 16 mm bore, 18.4 mm OD, 12 mm high,
+  60 layers, three concentric beads. Both combined candidates use 716 quarter arcs
+  before the final tube ring changes orientation while moving; top-first cladding
+  follows via a deposited link. All ring/layer/track joins deposit. The 180-degree
+  track directions reverse; 360 retains the source down/up order.
+- All intermediate moves request @P; only the final target stops. There are no
+  intermediate travels, lifts, dwells or stationary rotations. Explicit starting
+  TCP/posture and external extrusion start/stop are outside the depositing path.
+  Only P10 FIG is inherited; initial tool roll is explicitly defined.
+- Expanded the emitted PacScript loops and checked every route/end coordinate,
+  orientation and stop flag. Nominal Studio checks passed 4909/5639 samples.
+  Both original study directories were updated in place; no controller
+  compilation, physical execution or USB writes occurred.
+
+
+## 2026-09-22 — Both 180- and 360-degree fixed-part cladding candidates
+
+- User requested both versions after identifying possible full-circle collisions.
+  Generated separate motion-only programs from the selected first vertical shell:
+  180 degrees includes 75 boundary-inclusive tracks (151 Move L targets); 360
+  visits all 148 tracks once (297 Move L targets), without a closing return.
+  Both retain T6/W2, inward/downward 45-degree axis, fixed rotary and no process IO.
+- Added cyclic source-sector selection, explicit sector CLI argument, matching
+  Studio studies and per-file setup/staging notes. Every source track and emitted
+  pose was checked; maximum nozzle-axis component error was below 4.8e-9.
+- Full-circle presentation exposed a nominal IK half-turn limitation. Rotation
+  error now recovers the axis from R + I when its antisymmetric part vanishes;
+  the declared elbow/wrist branch checks remain in force. The two studies passed
+  750 and 1480 sampled presentations respectively; four earlier FK/IK and
+  presentation fixtures also passed. Preview angles unwrap across the source seam.
+- Browser inspection could not run (browser tool process exited twice). No claim
+  of visual QA, collision clearance, controller compilation or physical execution.
+  No USB writes. Full production cladding still awaits rotary integration.
+
+## 2026-09-22 — Passing spiral evidence; fixed-part cladding dry run and Tool 6 model
+
+- User confirms the spiral motion demo passed. Read Desktop STRUDER_SPIRAL3 and
+  DENSO_PASSING_REFERENCE.md; the earlier USB snapshot had only Spiral1/2.
+  The record reports Spiral2/3 passed with T6/W2/P10. Spiral3 adds quarter-turn
+  arcs and explicit speed/acceleration. Preserved source/guide hashes privately.
+- User selected the saved development/denso-rc8-pipe recipe from the other SAAM
+  checkout and narrowed hardware scope to a motion-only front ~20% of the first
+  vertical shell, fixed rotary. Full output is deferred until rotary integration.
+  Centre at Work 2 origin, axis +Z; task defines front -Y. User confirms upright
+  mounting/parallel work plane and 45-degree downward, radially inward tool axis.
+- Added tools/denso/create-cladding-dry-run.mjs: selects existing shared-skill
+  strokes, retains the recipe, emits 29 of 148 tracks, 59 stopped linear targets,
+  no IO/rotary commands. Local source hash and copied recipe bind the candidate.
+  Preserves FIG using documented T2P(T(...,Fig(P10))); unlike the spiral, cladding
+  explicitly changes orientation. No controller compilation or run was claimed.
+- Added optional flangeFromTool to the nominal DENSO presentation model so the
+  supplied Tool 6 [155,0,35]/Ry90 offset and axis orientation are represented.
+  FK, seeded IK wrist reconstruction, reach margins and rendered link lengths
+  consume the full transform. Existing straight-tool models remain compatible.
+- A local sampled placement study (143 positions, 2-degree azimuth samples at
+  three heights) found nominal full-circle solutions; best sampled elbow/wrist
+  sine-margin candidate was radial distance 350 mm, height 25 mm, W2 yaw -90.
+  This is not a global optimum, calibrated joint-limit/FIG model or collision
+  result. Keep the hardware trial at the requested front sector.
+- Checks: generated ASCII/CRLF and SHA-256, track count/order, zero IO/EX and
+  inward/downward vectors verified; maximum direction component error 4.8e-9.
+  Tool-6 zero pose checked by independent geometry, legacy model cases retained,
+  and 290 samples of the local Studio sector study resolved without diagnostics.
+
 ## 2026-09-22 — Dev map: repeats measured against "only where it gives context"
 
 - Read-only analysis over the 704 node pages (script in the session
@@ -8408,3 +8502,24 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   flow, matching first layers, attachment controls, and 1,160 standard wall loops.
   Generated estimate: 46.4 minutes. Exact program identity and compact report are
   in PT-001 Array 02; physical success is still to be assessed.
+
+## 2026-09-23 — USB orientation test and 180-degree staging package
+
+- User requested a simple vertical orientation test on D: while preparation of the
+  full current 180-degree export continued. Added SAAM_ORIENT1.pcs to the existing
+  STRUDER11 source/test folder and appended its ordinary-program manifest entry.
+  Before/after SHA-256 inventory proved those were the only two changed USB files.
+- The test captures CurPos after selecting T6/W2, rises 20 mm while tilting 45
+  degrees toward +Y, returns to the captured pose, then repeats toward +X. Four
+  stopped Move L commands, no process/rotary output, no taught-position mutation.
+  CurPos and component extractors were checked against the DENSO command manual
+  and preserved controller source. Controller compilation/run awaits user report.
+- Preserved the current USB source template locally, then stopped USB access so
+  the user can test. Prepared a local 180-degree staging ZIP containing the existing
+  continuous tube/first-shell source, a separate extrusion-off positioning helper,
+  checked program hashes, instructions and a manifest-preserving staging script.
+  The positioning endpoint exactly matches the continuous program's first pose.
+- ZIP round trip preserves all six files. Local staging fixture verified original
+  manifest bytes/unrelated files, idempotence and rejection of conflicting output.
+  No full-job files were staged on USB. Full path and helper still await controller
+  syntax checks and Teach Check; the software model has no controller joint limits.

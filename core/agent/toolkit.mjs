@@ -3,6 +3,8 @@
 import {readFile, access} from 'node:fs/promises';
 import {resolve, dirname, relative, isAbsolute} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {createHash,randomUUID} from 'node:crypto';
 import {readGuidance} from './manuals.mjs';
 import {SKILL_IDS} from '../../skills/catalog.mjs';
@@ -18,8 +20,8 @@ export const outsideAreas = {
   'core/agent': ['core/agent/README.md']
 };
 // One prose manual per component, beside the code it describes. A builder gets the manual for the
-// area it names; a developer gets none of them, because the map and DEVELOPER-CONTEXT are the
-// developer's whole orientation.
+// area it names; a developer gets none bundled, because the map and DEVELOPER-CONTEXT are the
+// developer's orientation.
 export const componentManuals = {
   core: ['core/README.md'],
   'core/export': ['core/export/README.md'], 'core/geom': ['core/geom/README.md'],
@@ -40,6 +42,24 @@ export async function contextPacket(ids) {
   return {documents};
 }
 
+// What of main this checkout holds, for the one-line report a maker or builder gives at session
+// start. It fetches main first so the count is current; offline it counts against the last fetch.
+export async function syncStatus() {
+  const git = async (...args) => (await promisify(execFile)('git', args,
+    {cwd: root, timeout: 15000, env: {...process.env, GIT_TERMINAL_PROMPT: '0'}})).stdout.trim();
+  const fetched = await git('fetch', '--quiet', 'origin', 'main').then(() => true, () => false);
+  try {
+    const [branch, commit, base] = await Promise.all([git('branch', '--show-current'),
+      git('rev-parse', '--short', 'HEAD'), git('merge-base', 'HEAD', 'origin/main')]);
+    const [[baseCommit, baseDate], ahead] = await Promise.all([
+      git('log', '-1', '--format=%h %cs', base).then(line => line.split(' ')),
+      git('rev-list', '--count', 'HEAD..origin/main').then(Number)]);
+    return {branch, commit, mainIncluded: {commit: baseCommit, date: baseDate}, mainAhead: ahead, fetched,
+      summary: `${branch || 'Detached HEAD'} at ${commit} includes main through ${baseCommit} (${baseDate}); `
+        + `main has ${ahead} newer commit${ahead === 1 ? '' : 's'}${fetched ? '' : ' as of the last fetch (fetch failed)'}.`};
+  } catch (error) { return {fetched, error: error.message.split('\n')[0]}; }
+}
+
 async function environmentStatus() {
   const manifest = await json(resolve(root, 'package.json'));
   const missingDependencies = [];
@@ -50,7 +70,7 @@ async function environmentStatus() {
     } catch { missingDependencies.push(name); }
   }
   return {node: process.version, nodeSupported: Number(process.versions.node.split('.')[0]) >= 22,
-    missingDependencies, setupCheck: 'Not run by onboarding. Reuse prior evidence for this environment; follow SETUP.md on first use.',
+    missingDependencies, sync: await syncStatus(), setupCheck: 'Not run by onboarding. Reuse prior evidence for this environment; follow SETUP.md on first use.',
     clientPermissions: 'Not inspected; follow studio/README.md#studio-agent-permissions.'};
 }
 
@@ -105,8 +125,8 @@ export async function onboarding({role, areas = []}) {
   const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));
   const regions = [...new Set(areas.filter(area => !Object.hasOwn(outsideAreas, area) && area !== 'tests'))];
   const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
-  const ids = role === 'maker' ? ['MAKERS.md', 'skills/README.md', 'core/print/USAGE.md']
-    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/README.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...builderAreaIds]
+  const ids = role === 'maker' ? ['MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md']
+    : role === 'builder' ? ['BUILDERS.md', 'MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md', 'skills/AUTHORING.md', ...builderAreaIds]
     : ['DEVELOPER-CONTEXT.md#orientation', ...new Set(outside.flatMap(area => outsideAreas[area]))];
   const mapKeys = role === 'maker' ? [] : [...(role === 'developer' ? ['0'] : []), ...regions];
   if (mapKeys.length) {
@@ -115,9 +135,9 @@ export async function onboarding({role, areas = []}) {
   }
   const [context, environment, maps] = await Promise.all([contextPacket(ids), environmentStatus(), mapKeys.length ? readMaps(mapKeys) : []]);
   return {role, environment, ...context, maps,
-    nextStep: role === 'maker' ? 'Reuse the returned context and choose individual skill manuals when an edit needs them.'
-      : role === 'builder' ? 'Reuse the returned context. The component manual for the area you are changing owns its behaviour, contracts and limits; read the one for the code you touch. The map owns structure: walk the returned region page for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
-      : 'Reuse the returned context. Walk the map from the returned page: every map numbers its own nodes under itself, down to leaves; a declaration’s map shows what it calls, and a node drawn away from its home map names it as home. Read a page with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a page, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The component manuals are maker and builder documentation; the map and DEVELOPER-CONTEXT.md are your orientation.'};
+    nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them.'
+      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. The component manual for the area you are changing owns its behaviour, contracts and limits; read the one for the code you touch. The map owns structure: walk the returned region page for what calls what, with read-map INDEX|DECLARATION and --code, and run regenerate [INDEX] after an edit. Skills and adapters keep their own authoring references.'
+      : 'Reuse the returned context. Walk the map from the returned page: every map numbers its own nodes under itself, down to leaves; a declaration’s map shows what it calls, and a node drawn away from its home map names it as home. Read a page with read-map INDEX|DECLARATION, and its source with --code. After an edit run regenerate [INDEX] and read again. Indexes are for talking about a page, not for writing down; the declaration path is the durable name. Skills and adapters keep their own authoring references. The map and DEVELOPER-CONTEXT.md are your orientation; open a component manual when the work calls for it, as when a change needs it rewritten.'};
 }
 
 function libraryPath(library) { return resolve(library ?? resolve(root, 'Prints')); }
@@ -321,8 +341,9 @@ export async function preview({command, target, library, recipe, stl, kind = 'sh
     partial.listener=previewListener(libraryRoot,studio,ownerId);
     if (command === 'start-tour') {
       partial.tour = await tour.info();
-      partial.context = await contextPacket(['MAKERS.md', 'examples/prints/README.md#maker-agent-participation']);
-      partial.nextStep = 'Use the returned participation context directly; no maker-onboarding or repeated manual reads are needed. Keep the returned listener active, let Studio lead lesson one, and choose individual skill reads when an edit needs them.';
+      [partial.context, partial.sync] = await Promise.all([
+        contextPacket(['MAKERS.md', 'examples/prints/README.md#maker-agent-participation']), syncStatus()]);
+      partial.nextStep = 'Include sync.summary as one line in your first chat message. Use the returned participation context directly; no maker-onboarding or repeated manual reads are needed. Keep the returned listener active, let Studio lead lesson one, and choose individual skill reads when an edit needs them.';
     } else {
       partial.print = await readPrint(partial.directory);
     }
