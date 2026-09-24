@@ -78,6 +78,28 @@ introductory questions or repeating the UI's tasks. Local CLI equivalents are in
 or disconnected chat is not automatically awakened. Local agents can read
 `node studio/tour.mjs status Prints` and choose the layer with
 `node studio/tour.mjs start-at Prints 12`.
+
+- A new tour request always starts fresh; never resume an old lesson for it.
+  Keep the server session and viewer open.
+- Don't prompt the person to press Play or repeat Studio's task in chat. A
+  development status update must not become a maker instruction or advance the
+  lesson.
+- Send each acknowledgement in commentary before starting a wait; a final answer
+  held until the listener ends arrives a lesson late.
+- CLI listener: `node scripts/agent-toolkit.mjs wait-for-studio-request --studio URL
+  --agent-owner ID --claim`, with both values from `studio-ready`; without the
+  owner ID it hears nothing. It runs up to 25 seconds and also returns delivered
+  Studio events; `--claim` claims returned requests, so don't claim them again.
+  If the command tool returns a running session ID, keep reading that session
+  (in Codex, `write_stdin`) until it returns JSON. Never start a background
+  listener and end the turn, or treat a session ID as an empty result.
+- In a toolpath lesson Studio generates once a saved change has a published
+  target. Don't start a second generation or wait for one that hasn't started.
+- Signals can pile up while you handle another request. Check each against the
+  current print and lesson, and cancel lesson guidance the person has already
+  left.
+- If the client allows questions only in a final response, send the whole
+  completion message as the final response.
 At the chat lesson, briefly explain that the toolpath controls how the confirmed
 shape is built. Immediately offer two or three toolpath or process changes suited
 to the selected print's recipe and choices already made, and describe each likely

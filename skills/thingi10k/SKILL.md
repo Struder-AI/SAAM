@@ -8,10 +8,18 @@ metadata:
 # Find and import existing meshes
 
 Use this geometry skill when an existing model serves the request, including
-"fetch me a bunny" or a supplied Thingiverse link. Follow the creation preference
-and licensing policy in [MAKERS](../../MAKERS.md#find-the-instructions-for-this-part).
-Prefer making tailored geometry when that is an attractive option. An explicit
-request to fetch a model or use a supplied link is a reason to search directly.
+"fetch me a bunny" or a supplied Thingiverse link. Prefer making tailored
+geometry when that is an attractive option; an explicit request to fetch a model
+or use a supplied link is a reason to search directly. For a supplied link, check
+mirror membership first; if it is absent, ask the person to download the STL and
+provide it for import.
+
+For every downloaded mesh, briefly identify its source in chat unless obvious
+from the request, and always give a clickable link to that file's license. Check
+its exact license and intended-use permissions, and preserve its creator, source
+link, license and required change notices with shared results. Prefer verified
+public-domain or CC BY models; CC BY-SA also requires compatible licensing of
+shared adaptations. Dataset license labels alone are not sufficient.
 
 ## Search and select
 

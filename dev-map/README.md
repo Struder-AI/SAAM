@@ -214,11 +214,11 @@ states how each item is matched.
 `score` rates every map (`lib/score.mjs` states the measures): nodes drawn
 outside 6–16, the share of links touching the map's nested content that leave
 it, islands of boxes with no link between them, and links against the best
-left-to-right order. Each is 0 when ideal; a map's score is their sum and the
-tree's energy the sum over maps, the objective a clustering solver would
-minimise. It prints the worst and best maps and writes `view/scores.html`,
-which every viewer build also refreshes, ranking all maps with links into the
-viewer.
+left-to-right order. Each is a penalty from 0 (ideal) to -1; a map's score is
+their sum and the tree's energy the sum over maps, the objective a clustering
+solver would minimise. The viewer shows each map's score and parts in its bar.
+`score` prints the worst and best maps and writes `view/scores.html`, which
+every viewer build also refreshes, ranking all maps with links into the viewer.
 
 ## The viewer
 

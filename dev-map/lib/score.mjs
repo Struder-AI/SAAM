@@ -162,12 +162,13 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 // the ranking against their own reading.
 export function scorePage(result) {
   const pct=v=>`${Math.round(v*100)}%`;
-  const rows=result.scores.map(s=>`<tr data-kind="${s.kind}"><td class="n">${s.score.toFixed(2)}</td>`
+  const neg=v=>v>0?`-${v.toFixed(2)}`:'0';
+  const rows=result.scores.map(s=>`<tr data-kind="${s.kind}"><td class="n">${neg(s.score)}</td>`
     +`<td><a href="index.html#${esc(s.index)}" target="map">${esc(s.index)}</a></td><td>${s.kind}</td><td class="label">${esc(s.label)}</td>`
     +`<td class="n">${s.nodes}</td><td class="n">${s.repeats}</td>`
     +`<td class="n" title="${s.crossing.links} of ${s.crossing.of}">${pct(s.badness.crossing)}</td><td class="n">${pct(s.crossing.withoutUbiquitous)}</td>`
     +`<td class="n">${s.islands}</td><td class="n" title="${s.backflow.links} of ${s.backflow.of}">${pct(s.badness.backflow)}</td>`
-    +`<td class="n">${s.badness.size.toFixed(2)}</td></tr>`).join('\n');
+    +`<td class="n">${neg(s.badness.size)}</td></tr>`).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Map scores</title><style>
 :root{--bg:#fbfbfa;--fg:#1f2328;--muted:#656d76;--line:#d8dee4;--hover:#eef2f6;--accent:#0b62c4}
@@ -179,7 +180,7 @@ h1{font-size:18px;margin:0 0 4px}p{color:var(--muted);margin:0 0 12px;max-width:
 th{cursor:pointer;position:sticky;top:0;background:var(--bg)}tr:hover td{background:var(--hover)}td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 td.label{white-space:normal;word-break:break-all}a{color:var(--accent)}label{margin-right:12px}
 </style></head><body><h1>Map scores</h1>
-<p>Store ${esc(result.generated)} · ${result.maps} maps · ${result.links} node links · energy ${result.energy}. Higher is worse; each part is 0 when ideal.
+<p>Store ${esc(result.generated)} · ${result.maps} maps · ${result.links} node links · energy -${result.energy}. Each part is a penalty from 0 (ideal) to -1, and a map's score is their sum; the viewer shows each map's score in its bar.
 Size: nodes drawn outside ${SIZE.min}–${SIZE.max}. Crossing: share of links touching this map's nested content that leave it (and without nodes called from ${UBIQUITOUS}+ places).
 Islands: groups of members with no link between them. Backflow: share of links between members against the best left-to-right order. Click a heading to sort; an index opens the map.</p>
 <p>${['top','region','cluster','node'].map(k=>`<label><input type="checkbox" checked data-filter="${k}"> ${k}</label>`).join('')}</p>

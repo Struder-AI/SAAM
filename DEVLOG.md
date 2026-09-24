@@ -1,5 +1,51 @@
 # Development log
 
+## 2026-09-24 — Dev maps: score in the viewer bar
+
+- User asked for each map's score and breakdown on the map itself. The viewer
+  model carries every map's score (`scoreMaps`), and the bar shows it on its
+  own row as penalties: "Score -2.74 · size -0.80 (2 nodes) · crossing -0.94
+  (16 of 17 links leave) · islands -1.00 (2 islands) · backflow 0 (0 of 0
+  backward)", nonzero parts in red. `scores.html` uses the same sign.
+- Checked in the viewer on 2.2, 4.2 and 6.1.2.19; regenerate clean.
+
+## 2026-09-24 — MAKERS condensed; tour guidance lives in the tour manual
+
+- `MAKERS.md` went from 356 lines / 23,908 characters to 148 / 8,770. The Tour
+  startup and Tour participation sections were removed. They restated AGENTS
+  and the tour manual, which `start-tour` already returns; the few items only
+  MAKERS carried (fresh start, CLI listener session handling, no duplicate
+  generation, stale signals, final-response completion) moved as a short list
+  into `examples/prints/README.md#maker-agent-participation`.
+- Condensed the request table, event queue, reference table, interaction flow,
+  parameter policy and boundaries. Printer setup folded into the flow and the
+  policy. Generation-failure recovery and lease renewal stay in Existing Studio
+  work because they aren't tour-only. The Thingi10K licensing policy moved to its
+  manual, which had deferred to MAKERS.
+- Linked anchors are kept; `core/agent/README.md` now links tour participation
+  in the tour manual.
+- Maker onboarding output is now 22,832 serialized characters (18,127 of text),
+  down from 52,813 this morning. Checks: `mcp.test.mjs`, `mcp-access.test.mjs`
+  and `studio-tour-lifetime.test.mjs` pass; `check-repo` links pass (only
+  concurrent BR/D records fail).
+
+## 2026-09-24 — Shared print tools condensed
+
+- `core/print/USAGE.md` went from 285 lines / 16,826 characters to 98 / 5,422.
+  One command table (CLI and MCP columns) replaces per-operation prose. Removed
+  restatements owned elsewhere: the thingi10k and text sections (skill manuals),
+  the Bambu setup, filament and AMS block (`core/export/bambu.md`), firmware and
+  S5 notes (`griffin.md`), Studio picker and launcher detail (`studio/README.md`),
+  and the legacy `migrate` row.
+- Both creation routes stay: `init`/`import-stl` make geometry without Studio;
+  toolkit `create-preview` does the same and opens Studio. Neither generates.
+  The route question is left open for the user.
+- The development `demo` paragraph, with its robot command-setting links, moved
+  unchanged to BUILDERS "Testing through the use context".
+- The four linked anchors are kept; `inspect-generation-failure` still reads
+  `#check-generate-and-deliver`. Checks: `core/tests/mcp.test.mjs` 17/17;
+  `check-repo` reports only BR-055 from concurrent backlog edits.
+
 ## 2026-09-24 — Dev maps: map scorer
 
 - Direction from the owner: leaves and links are generated from scanned code;

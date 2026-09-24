@@ -192,7 +192,7 @@ its own Studio instance: one owner may own several instances over time, but an
 instance's owner is fixed and no launch attaches to a running server.
 
 Starting a tour does not conduct the interactive lessons or wake an ended chat.
-Keep the returned live session active and follow [tour participation](../../MAKERS.md#tour-participation).
+Keep the returned live session active and follow [tour participation](../../examples/prints/README.md#maker-agent-participation).
 The first screen is prepared before the remaining manuals are read; skill reads
 and slicing are not prerequisites for that first screen.
 

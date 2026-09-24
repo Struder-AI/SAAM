@@ -1263,6 +1263,10 @@ body.noside #side{display:none}
 #crumb span.up{color:#0369a1;cursor:pointer}
 #stale{font-size:11.5px;color:#9f1239;background:#fee2e2;border-radius:5px;padding:2px 8px}
 #stale:empty{display:none}
+#score{order:9;flex:1 0 100%;font-size:11.5px;color:#334155;background:#f1f5f9;border-radius:5px;padding:2px 8px;font-variant-numeric:tabular-nums}
+#score:empty{display:none}
+#score b{color:#0f172a}
+#score .bad{color:#9f1239}
 #codepane .cb{min-width:0;min-height:0;overflow:auto}
 #codepane .cb>pre{width:max-content;min-width:100%;box-sizing:border-box;overflow:visible;white-space:pre}
 #codepane details{margin:8px 14px;color:#475569}
@@ -1407,6 +1411,14 @@ function load(key,then){if(SVG[key]!==undefined)return then();
   const s=document.createElement('script');s.src='svg/'+key+'.js?'+encodeURIComponent(BUILT);
   s.onload=()=>then();s.onerror=()=>{SVG[key]=null;then();};document.head.appendChild(s);}
 
+/* The scorer's reading of this map (dev-map/lib/score.mjs): each part a penalty, 0 when ideal. */
+function showScore(s){const el=document.getElementById('score');if(!s){el.innerHTML='';return;}
+  const part=(name,v,what)=>`<span class="${v>0?'bad':''}">${name} ${v>0?'-'+v.toFixed(2):'0'}</span> (${what})`;
+  el.innerHTML=`<b>Score ${s.score>0?'-'+s.score.toFixed(2):'0'}</b> · `+[
+    part('size',s.badness.size,`${s.nodes} nodes`),
+    part('crossing',s.badness.crossing,`${s.crossing.links} of ${s.crossing.of} links leave`),
+    part('islands',s.badness.islands,`${s.islands} island${s.islands===1?'':'s'}`),
+    part('backflow',s.badness.backflow,`${s.backflow.links} of ${s.backflow.of} backward`)].join(' · ');}
 function trail(key){const out=[];let k=key;
   while(k!==null&&k!==undefined&&PAGES[k]){out.unshift(k);k=PAGES[k].p;}
   return out.map((k,i)=>i===out.length-1?`<b>${esc(PAGES[k].t)}</b> — ${esc(PAGES[k].s)}`
@@ -1419,7 +1431,7 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
   while(PAGES[drawing]&&PAGES[drawing].destination==='code')drawing=PAGES[drawing].p;
   load(drawing,()=>{if(version!==showVersion)return;
     canvas.innerHTML=SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);
-    crumb.innerHTML=trail(drawing);
+    crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
     const mapped=PAGES[drawing];
     updateFreshness();
     reveal(drawing);paint();
@@ -1707,6 +1719,7 @@ def emit(out, model, pages, svgs, panes):
     <button onclick="document.body.classList.toggle('noside');fit()" title="show or hide the index">&#9776;</button>
     <div id="crumb"></div>
     <span id="stale"></span>
+    <span id="score" title="Map score: 0 is ideal, each part is a penalty from 0 to -1. See scores.html for every map."></span>
     <button onclick="toggleLegend()">Legend</button>
     <button onclick="pageCode()">Source</button>
     <button onclick="fit()">Fit</button>
@@ -1781,6 +1794,9 @@ def build(model, out):
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,
                             destination=destination,
                             x=(stale["regenerate"] if stale else ""))
+        score = model.get("scores", {}).get(index)
+        if score:
+            pages[index]["sc"] = score
     ctx = dict(pages=pages, stale=model["stale"], dropped=[])
     svgs, panes = {}, {}
     for index in sorted(packets, key=at):

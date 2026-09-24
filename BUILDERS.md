@@ -325,6 +325,15 @@ Use isolated projects, fixtures and machine simulators. Synthetic approvals are
 test data and must not authorize real jobs. Hardware execution and human print
 approvals remain with the person. Report software and physical results separately.
 
+For an explicitly developmental preview, `node core/print/cli.mjs demo
+Prints/development/my-part` creates or reopens a shell bundle and generates
+without human approvals; an existing recipe can be initialized first. Development
+output cannot authorize delivery, and MCP does not expose this mode. It still
+needs explicit robot command settings; for a new provisional part use the
+reusable setup instructions for
+[DENSO](skills/pipe-cladding/SKILL.md#public-workflow-and-development-demo) or
+[Dobot](core/export/dobot.md#dobot-output-contract), independently of its shape.
+
 A demo's setup, assets and recipe assumptions must be reachable from its skill
 manual for a fresh part. Put reusable preparation in packaged tools and describe
 necessary settings there, rather than relying on the originating conversation.

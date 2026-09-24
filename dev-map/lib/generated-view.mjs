@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {repoRoot,storeDir,readIndex,storedFreshness,matchingSource} from './store.mjs';
 import {presentationPage} from './presentation.mjs';
 import {snapshotIdentity} from './freshness.mjs';
-import {writeScorePage} from './score.mjs';
+import {writeScorePage,scoreMaps} from './score.mjs';
 
 export const regenerate='node scripts/agent-toolkit.mjs regenerate';
 export const noStore=dir=>`No stored map at ${dir}. Run: ${regenerate}`;
@@ -28,7 +28,9 @@ export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve
     sourceInfo[file]=provenance;
   }
   const stale=Object.fromEntries(freshness?pages.map(p=>[p.index,freshness]):[]);
-  return {generated:held.generated,snapshotId:snapshotIdentity(held),pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
+  // Each map's score and its parts, drawn in the viewer's bar while the owner checks the scorer.
+  const scores=Object.fromEntries((await scoreMaps({repo})).scores.map(s=>[s.index,s]));
+  return {generated:held.generated,scores,snapshotId:snapshotIdentity(held),pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
 }
 
 const bytesUnder=async dir=>{

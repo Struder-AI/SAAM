@@ -1,285 +1,98 @@
 # Shared print tools
 
-Use this manual to create, import, revise, review and deliver a print. The
-[selected skill](../../skills/DIGEST.md) owns its geometry support, settings and
-process limits; [MAKERS](../../MAKERS.md) owns the conversation and human review.
-The [lifecycle reference](README.md) explains implementation contracts.
+The commands every skill shares: create or import a print, revise its recipe,
+open it for review, generate and deliver. Skill manuals own their settings;
+[machine contracts](../export/README.md) own printer setup and limits.
 
-Apply the [standard parameter policy](../../MAKERS.md#standard-parameter-policy)
-when choosing or revising geometry, feature, process and machine settings.
+## Commands
 
-## Choose the tool entry point
+Run from the repository root with a directory under ignored `Prints/`; quote
+paths containing spaces. MCP tools mirror the commands; their `printId` is
+relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 
-The [agent CLI toolkit](../agent/README.md) bundles onboarding, print
-creation/import plus Studio opening, saved-print opening, work context and
-failure inspection. It delegates to the operations described here.
+| Operation | CLI (`node core/print/cli.mjs …` unless shown) | MCP |
+|---|---|---|
+| Create from a recipe | `init Prints/my-part plan.json --machine ultimaker-s5` | `get_plan_template`, `create_print` |
+| Import an STL | `import-stl Prints/my-part source.stl auto ultimaker-s5` | `import_stl_print` |
+| Open in Studio | `node studio/server.mjs --toolkit open-print Prints/my-part` | `list_prints`, `get_print`, `request_review` |
+| Adjust the recipe | `adjust Prints/my-part patch.json --revision REV` | `adjust_print` |
+| Change printer | `change-machine Prints/my-part MACHINE --revision REV` | `change_machine` |
+| Correct STL units | `stl-units Prints/my-part mm` (or `inch`) | `set_stl_units` |
+| Read checked state | `check Prints/my-part` | `check_print`, `get_approval_status` |
+| Investigate path feasibility, when needed | `check-path Prints/my-part` | `check_path` |
+| Generate for review | `generate Prints/my-part` | `generate_print` |
+| Deliver the approved export | `deliver Prints/my-part` | `deliver_print` |
+| Save setup as the machine's default | `remember-setup Prints/my-part` | `remember_setup` |
 
-Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
-Use a named directory under ignored `Prints/`; quote paths containing spaces.
-The shell CLI, [cli.mjs](cli.mjs), handles composed toolpath skills.
+Creating or importing makes geometry only. `node studio/server.mjs --toolkit
+create-preview Prints/my-part --recipe plan.json` (or `--stl source.stl`) does the
+same and opens Studio on it, for when the person should see the geometry
+([agent CLI toolkit](../agent/README.md)). Generation is a separate step, in the
+CLI or in Studio.
 
-Connected agents use the corresponding MCP tools below. Their `printId` is
-relative to the configured Prints root, so `Prints/my-part` in a CLI example is
-normally `printId: "my-part"` through MCP. The [adapter manual](../../adapters/mcp/README.md)
-owns connection setup, local-file access and tool schemas. `list_machines` and
-`list_skills` identify this checkout's catalog; each skill and machine manual
-defines the compatible combinations.
+## Recipes
 
-## Create or import a print
+`init` without `plan.json` uses the proposed recipe and remembered machine
+setup: a starting point to evaluate against the request. For a complete recipe,
+use `await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) in a script,
+or MCP `get_plan_template`. The template enables full-fill **and draped-skin**;
+disable what the part doesn't need. STL imports and Gridfinity start with
+draped-skin off.
 
-### Create from a recipe
-
-```sh
-node core/print/cli.mjs init Prints/my-part plan.json --machine ultimaker-s5
-```
-
-Supply a complete recipe suited to the requested part, including geometry and
-selected skills. Omitting `plan.json` uses the shell adapter's proposed recipe
-and remembered machine setup. That default is a starting point to evaluate
-against the request. An explicit recipe supplies its own setup.
-
-For a complete recipe in a local authoring script, use
-`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs), then change its
-geometry and skill settings before passing it to `initBundle` or saving JSON.
-The shell template enables full-fill **and draped-skin**; explicitly disable
-unwanted patterns when choosing another recipe (STL and Gridfinity
-creation already disable draped-skin).
-
-Through MCP, get a complete editable recipe with `get_plan_template` for the
-machine, then pass the proposed recipe to `create_print`.
-Creation stores unapproved geometry and settings; open Studio for review.
+A patch is a JSON object in the recipe's field names: nested objects merge,
+arrays replace, unknown fields are rejected. The editable recipe is the
+top-level of `plan.json`; don't copy its `bundle` envelope into a patch. After
+a stale-revision error, reload state and reassess. Reads omit geometry unless
+asked (`get_print` `includeGeometry: true`, `--include-geometry`). Any geometry,
+process or setup change invalidates the final confirmation. Changing printer
+applies its declared process defaults and keeps other choices; an incompatible
+recipe is rejected, not overridden.
 
 ### Import an STL
 
-```sh
-node core/print/cli.mjs import-stl Prints/my-part source.stl mm ultimaker-s5
-```
-
-Units default to `auto`: load without a units question or popup, then assume a
-reasonable scale from the part size. Explicit `mm` or `inch` overrides that
-assumption. The provisional heuristic prefers mm; it chooses inches only when the
-raw longest dimension is below 10, conversion makes it at least 10 mm, and the
-converted model fits the printer (with 5 mm XY margin). This is a revisable
-assumption, not information encoded by STL; see [D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption).
-The importer accepts ASCII or binary STL, preserves its
-source bytes and hash, checks the mesh, and translates it onto the bed. It reuses
-remembered machine setup and creates a shell recipe with draped skin disabled.
-Adjust toolpath skills for the intended result, then show size and placement
-in Studio for review.
-
-MCP `import_stl_print` takes `printId`, `sourcePath`, optional `units` (default
-`auto`) and `machineId`. Studio shows assumed units beside the dimensions.
-Correct a plain imported mesh later with `stl-units Prints/my-part mm` (or
-`inch`), or MCP `set_stl_units` with the current `expectedRevision`. This rescales
-the current mesh, preserves mesh edits and settings, retains source bytes, and
-invalidates the current toolpath confirmation. Text-wrapped or composed geometry
-requires a geometry-specific edit instead.
-The source must be an absolute local `.stl` file on the SAAM computer and no
-larger than 64 MiB. A path on a remote chat device is not a local source.
-
-### Find and download an existing mesh
-
-The [Thingi10K skill](../../skills/thingi10k/SKILL.md) owns keyword search,
-Thingiverse-link lookup and individual downloads. MCP `search_thingi10k` finds
-files and `import_thingi10k_print` downloads on the SAAM host before using this
-same STL importer. The skill supplies CLI equivalents, license/source reporting
-and recovery. Successful imports preserve attribution with the original source;
-delivery includes a neighboring `source-attribution.json` for shared results.
-
-### When mesh validation fails
-
-If import or reopening reports invalid mesh geometry, read the
-[mesh-tools manual](../../skills/mesh-tools/SKILL.md) with the reported failure.
-It explains how to assess the available correction tools and their effect on
-the part. Import itself preserves the supplied geometry; repair is a
-separate operation whose result needs geometry review. Studio's file-picker flow
-automatically invokes that operation for recognized mesh defects, preserves both
-files and the report, and requires confirmation of the repaired geometry before
-continuing. CLI/MCP import retains strict validation. Missing files, wrong
-units and machine incompatibility need their own corrections.
-
-### Add or remove text material
-
-Use the [text skill](../../skills/text/SKILL.md) for raised or recessed lettering,
-standalone text and independent spline guides. `shell text` / MCP `apply_text`
-rebuild the selected part through the same geometry and review lifecycle. Its
-manual owns font input, placement, reference-surface and relief settings.
-Prepared lettering exposes separate base and raised-feature material selections
-for regional toolpath skills. Changing those assignments preserves the reviewed
-geometry; see [text material selections](../../skills/text/SKILL.md#material-selections-and-toolpath-skills).
-
-## Open and resume review
-
-```sh
-node studio/server.mjs Prints/my-part
-```
-
-Open the printed local URL. `npm run studio -- Prints/my-part` is the equivalent
-human-facing alias; agent launcher permissions use the direct command above.
-MCP `request_review` starts or reuses Studio and returns its local URL. Keep the
-viewer available while the person reviews. [Studio access and lifetime](../../studio/README.md#studio-agent-permissions)
-explain client permissions and how to close or resume your instance.
-
-Studio's **Open print** selects saved bundles or a file inside a bundle. Opening
-resumes the current review stage without generating new output or granting
-approval. See [opening local prints](../../studio/README.md#opening-local-prints-in-studio)
-for picker behavior and unsupported standalone program files.
-
-Read current CLI status with `check` below. Through MCP, `list_prints` finds
-saved IDs, `get_print` reads state and recipe settings, and
-`get_approval_status` reads the final confirmation state. Set `includeGeometry:true`
-on `get_print` when you need the complete editable recipe; the default omits
-geometry and reports `planComplete:false`.
-CLI `adjust` returns a compact checked summary and revision instead of echoing
-the entire geometry-bearing plan. The editable recipe is the top-level portion
-of `plan.json`; its reserved `bundle` envelope is lifecycle metadata, not recipe
-input. Do not copy `bundle` into an adjustment patch. Initialization accepts a
-saved manifest as a recipe source by stripping that envelope and starting with
-fresh review state.
-
-## Adjust the recipe
-
-```sh
-node core/print/cli.mjs adjust Prints/my-part patch.json --revision <current-revision>
-```
-
-Write the requested changes as a JSON object, using field names from the current
-recipe and selected skill manual. Nested objects merge; arrays replace the
-whole array. Unknown fields are rejected. The CLI revision argument is optional
-and protects against applying an edit to a version that has changed since you
-read it. MCP `adjust_print` requires that fresh `expectedRevision` and the patch.
-After a stale-revision error, reload state and reassess the change.
-
-Studio picks up the revised bundle. Any geometry, process or setup change
-invalidates final settings/toolpath approval. The maker requests revisions in chat; the agent handles
-the recipe files. Manual replacement of bundle internals can break consistency.
-
-### Change printer
-
-`node core/print/cli.mjs change-machine Prints/my-part <machine-id> --revision <revision>`
-(or MCP `change_machine`) selects a compatible machine snapshot and its remembered
-or default setup. It invalidates final settings/toolpath confirmation. The target printer's declared process defaults
-(such as retraction) replace the corresponding old values; other recipe choices
-are retained. Compatibility is checked before saving; a rejected
-recipe needs adjustment rather than a silent machine-capability override. Change
-material through the ordinary setup patch. Establish both choices before entering
-toolpath view, and allow later chat changes from that view.
+Units default to `auto`: SAAM assumes mm unless the raw size only fits the
+printer in inches ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)),
+and Studio shows the assumption. `stl-units` rescales a plain imported mesh,
+keeping edits and settings; text-wrapped or composed geometry needs its own edit.
+The source must be a local `.stl` on the SAAM computer, at most 64 MiB. If the
+mesh fails validation, read [mesh-tools](../../skills/mesh-tools/SKILL.md) with
+the reported failure.
 
 ### Line spacing
 
-For an intentionally open pattern, set only `skills.<skill>.spacingFactor` in
-the usual recipe patch. It defaults to `1`; `3` requests three times the nominal
-line spacing without tripling bead width or extrusion per unit length:
+For an open pattern, set `skills.<skill>.spacingFactor` (default `1`): `3`
+spaces lines three times wider without widening the bead or its extrusion per
+length. It applies to full-fill, planar-infill, draped-skin, supports, both
+rimming skills and pipe-cladding, including regional overrides where supported,
+but not to single-wall vase spirals. See the
+[spacing contract](../path/README.md#line-spacing).
 
 ```json
 {"skills":{"pipe-cladding":{"spacingFactor":3}}}
 ```
 
-This applies to full-fill, planar-infill, draped-skin, supports, both rimming
-patterns and pipe-cladding, including regional overrides where supported.
-Single-wall vase spirals do not use this setting.
-Ordinary recipes need no additional setting. Studio shows a nondefault factor
-in plan review; changing it follows the existing process review lifecycle.
-See the [shared spacing contract](../path/README.md#line-spacing) for density,
-surface fitting and composition behavior.
-
 ## Check, generate and deliver
 
-Every interpreted toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory).
-Read `shortTravel` in generation checks/MCP print state or the program summary
-in CLI/toolkit state. Studio also sends an `advisory` through the existing request
-listener once per displayed export with findings. Producers connect nearby
-strokes, so an ordinary print reports none. Whenever `shortTravel.count` is
-nonzero, however you read it, tell the person: how many travels, which
-operations, and whether they were lifted over a blocked line or moved directly.
-Preserve its source/operation evidence, acknowledge a Studio advisory as
-completed, and continue the user's task. It requests no repair, regeneration or
-extra approval.
+Every toolpath carries a [short-travel advisory](../export/README.md#short-travel-advisory),
+read as `shortTravel` from checks, print state or the program summary. When its
+count is nonzero, tell the person how many travels, which operations, and
+whether they were lifted over a blocked line or moved directly; acknowledge a
+Studio advisory as completed. It asks for no repair, regeneration or extra
+approval.
 
-| Operation | CLI suffix after `node core/print/cli.mjs` | MCP tool | Result |
-|---|---|---|---|
-| Migrate a legacy split bundle | `migrate Prints/my-part` | — | Explicitly preflights and converts `plan.json` to the current manifest; retains legacy and unknown files and reports all file effects. Current bundles are no-ops. |
-| Read checked state | `check Prints/my-part` | `check_print` | Checks saved inputs and any stored export; reports approval state without generation. |
-| Investigate path feasibility | `check-path Prints/my-part` | `check_path` | Runs shared generation and machine checks without approval or persisted output. Use when feasibility needs investigation; it is not a mandatory extra step. |
-| Generate for review | `generate Prints/my-part` | `generate_print` | Creates and checks the export for combined settings/toolpath review; geometry review is advisory. |
-| Deliver approved output | `deliver Prints/my-part` | `deliver_print` | Requires toolpath approval and copies the exact checked export into `delivery/`. |
-
-Studio also supports generation and final export in its review flow. Read the
-current state before repeating a timed-out operation: work may have completed.
-Changed inputs or a stale/edited export require the affected generation and
-reviews again. Final settings/toolpath confirmation belongs in Studio. Delivery preserves
-the selected machine's filename and extension and does not send a job to hardware.
-An unchanged checked development export can become production without slicing
-again; final settings/toolpath confirmation remains
-required. During tour toolpath lessons Studio generates saved setting changes
-automatically, so agents should not start a duplicate CLI generation.
-
-For an explicitly developmental preview, `demo Prints/development/my-part`
-creates or reopens a shell bundle and generates without human approvals. An
-existing recipe can be initialized first. Development output cannot authorize
-delivery, and MCP does not expose this mode. Follow the
-[development testing context](../../BUILDERS.md#testing-through-the-use-context)
-when exercising maker tools during development.
-
-Development generation still needs explicit robot command settings; for a new
-provisional part use the reusable setup instructions for
-[DENSO](../../skills/pipe-cladding/SKILL.md#public-workflow-and-development-demo)
-or [Dobot](../export/dobot.md#dobot-output-contract), independently of its shape.
-CLI `check` reports `outputAvailability` and missing `machineConfiguration`
-fields from the saved state, without attempting generation.
+Final settings/toolpath confirmation happens in Studio, which can also generate
+and export. Delivery copies the exact checked export into `delivery/`, keeps the
+machine's filename and extension, and sends nothing to hardware. Changed inputs
+need generation and review again; an unchanged checked development export can
+become production without slicing again. Before repeating a timed-out operation,
+read state: it may have finished. During tour toolpath lessons Studio generates,
+so don't start another generation. `check` reports `outputAvailability` and any
+missing `machineConfiguration` fields without generating.
 
 ## Remember machine setup
 
-```sh
-node core/print/cli.mjs remember-setup Prints/my-part
-```
-
-MCP uses `remember_setup`. Both save this print's setup as editable defaults for
-new prints on that machine; `adjust` / `adjust_print` also save setup changes.
-The normal store is `.local/machine-setups/<machine-id>.json`, with source and
-update time. MCP with a custom Prints root uses its own setup store. Setup
-reuse follows the [standard parameter policy](../../MAKERS.md#standard-parameter-policy)
-and does not change existing prints. This store contains machine setup; obtain
-prior geometry, process and skill values from the relevant saved recipe or
-conversation when reusing those parameters.
-
-A firmware-version change clears startup verification unless verification is
-explicitly supplied with it. Keep user-reported findings distinct from assumed
-profile behavior. The [S5 setup guidance](../export/griffin.md#s5-setup-and-troubleshooting)
-and other [machine contracts](../export/README.md) own installation-specific
-questions and required calibration.
-
-Bambu agents must read [maker setup and the startup inventory](../export/bambu.md#maker-setup)
-before selecting output. The recipe records the actual other H2D nozzle diameter,
-plate and startup choices in `setup.bambu`. For repeated tests on an unchanged,
-already calibrated H2D or X1, set `setup.bambu.fast_start: true` to omit optional
-calibration, scans, music and vibration tests while retaining homing, heating,
-loading, cleaning and priming. It defaults to false; explicit calibration `on`
-conflicts with fast start. Assign a region's `filament` to use
-the matching `setup.bambu.filaments` entry: its nozzle, temperature and optional
-process settings. Follow [the dual-nozzle workflow](../export/bambu.md#making-an-h2d-dual-nozzle-print)
-for mixed diameters and independent feeds. Fresh generated DUAL-20 physically
-passed left 0.4 → right 0.8 → left 0.4, external-left/AMS-right, correct-height
-deposition, Textured PEI and fast startup. Use the normal exporter; no reference
-project substitution or stored-template editing is required.
-For H2D AMS colours, follow [the two-colour workflow](../export/bambu.md#making-an-h2d-two-colour-print):
-declare two filaments on the same nozzle and assign regions to indices 0, 1, 0.
-AMS-19 physically passed the ordinary v13 exporter: right 0.8, installed left
-0.4, PLA blue/orange/blue, right four-slot AMS, Textured PEI, fast startup, no
-tower. Stored startup and shutdown reuse the executable's exact rendered
-strings; the other stored template fields are empty. Makers use the normal
-plan/generate/review/deliver workflow, without copying a reference project or
-editing template fields. Other installations need their own physical evidence.
-X1 AMS output has not passed physically; its earlier test printed one colour.
-Treat X1 colour changes as development verification, not the accepted H2D workflow.
-For an X1 colour-change test, assign successive height regions to distinct PLA
-filaments on tool 0. The X1 adapter flushes into the rear chute; no tower is added.
-Review the separate service purge allowance and verify actual feed changes on the
-machine; software playback is not physical routing evidence.
-
-Supply material identity and colour for normal automatic AMS matching; a physical
-slot request is optional. External/auto/requested AMS source and declared device
-connections stay separate from logical filament/nozzle IDs. Review the printer's
-proposed mapping before printing; the exporter does not force physical routing.
-Reference slicer presets may declare equal diameters even when the installed
-hardware differs. Do not copy those declarations over the actual setup.
+`remember-setup`, and any setup change through `adjust`, saves this print's
+setup as the default for new prints on that machine; existing prints don't
+change. Only setup is remembered: reuse other values from the saved recipe or
+the conversation. Bambu output needs its [maker setup](../export/bambu.md#maker-setup)
+first; each [machine contract](../export/README.md) owns its own setup questions.
