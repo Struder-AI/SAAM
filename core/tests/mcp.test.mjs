@@ -145,7 +145,7 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
     assert.ok(machine.outputs.every(output=>output.implemented===false&&output.reason));
   }
   assert.ok(machines.some(machine => machine.id === 'dobot-mg400'));
-  assert.ok(machines.some(machine => machine.id === 'denso-vs068a4-rc8'));
+  assert.ok(machines.some(machine => machine.id === 'denso-vs068a4-rc8a'));
   const dobot = await call('get_plan_template', { kind: 'shell', machineId: 'dobot-mg400' });
   assert.equal(dobot.plan.setup.dobot.configurationSource, null);
   await call('read_skill', { skillId: '../DEVELOP' }, /validation|Invalid|format/i);

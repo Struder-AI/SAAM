@@ -1,5 +1,46 @@
 # Development log
 
+## 2026-09-24 — Dev map: exporters leave the mapped scope
+
+- User ruled that exporters, anything turning a SAAMpath into another
+  language, are outside the dev map and keep their own markdown. In
+  `dev-map/lib/scope.mjs`, `unmappedDirs` became `unmappedAreas`: `core/agent`
+  and `exporters`, which is every `core/export` file except `registry`,
+  `travel-advisory`, `source-time` and `machine-study`. No file moved (another
+  session was editing the DENSO exporter). Exporters are active callers, so
+  99 caller rows now name them on 21 core pages; mapped calls into them are
+  outside arrows (`out:exporters`, 20 sites from registry and Studio's
+  source player).
+- New `core/export/DEVELOP.md` (54 lines): adapter interface, files by
+  dialect, how to add one. Removed the two Lua flows from
+  `flows/export.json` (116 → 27 lines) and the 13 exporter rows from
+  `facts.tsv` (16 → 3); each fact was already stated in its dialect contract
+  or D-036. Scope wording in DEVELOPER-CONTEXT (145 → 147), HANDOFF
+  (249 → 245; the Lua and H2D-exporter items are closed), the map guide and
+  the BUILDERS reference row.
+- Before → after, full regeneration of the same source (before rebuilt in a
+  detached worktree with the old scope): pages 1692 → 1496, maps 764 → 671,
+  code destinations 928 → 825, group pages 49 → 42, drawn boxes 3589 → 3101,
+  repeat boxes 1906 → 1614, finding rows 12,328 → 10,808 (uncertainty
+  11,243 → 9,831, unresolved 1085 → 977), linked 3697 → 3177, outside
+  47 → 57, platform 5843 → 4994, facts 15 → 2. Region `core/export`: 19 → 4
+  files, 213 → 17 pages, 1659 → 141 finding rows. Other regions unchanged;
+  max depth 13. `check`: 0 stranded, unplaced or orphan facts;
+  `check --viewer 2` 827/827 and 145/145.
+
+## 2026-09-24 — Correct DENSO controller to RC8A
+
+- User corrected the controller to RC8A: the reported loads and passing runs were
+  on the RC8A, not an RC8. Renamed the profile to denso-vs068a4-rc8a revision 4
+  and the rotary interface to rc8a-relative-ex, and updated the registry, setup
+  checks, interpreter identity, examples, tools, Studio labels and docs. DENSO
+  document titles and the supplied project's RC8 metadata keep their names.
+- Local bundles under Prints/development/denso-* and Prints/tour/wavy-denso*
+  still snapshot the old ID; they are not migrated. Recreate them to use them.
+- Validation: 33 tests in denso, mcp, mcp-access and printer-profiles passed;
+  map regenerated (3697 linked, 1085 unresolved, 47 outside, 5843 platform;
+  0 stranded or orphan facts).
+
 ## 2026-09-24 — AGENTS.md trimmed to role routing; sync report moved into the toolkit
 
 - User asked to cut context read, starting with AGENTS.md, which every role

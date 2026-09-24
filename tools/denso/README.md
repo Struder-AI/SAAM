@@ -1,4 +1,4 @@
-# Bounded RC8 cladding dry run
+# Bounded RC8A cladding dry run
 
 This development utility extracts a selected sector of the first axial
 shell from an existing circular-pipe recipe (72 degrees by default; up to 360). It calls the shared pipe-cladding

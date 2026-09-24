@@ -70,11 +70,15 @@ These are the concrete rulings, each from a page the owner looked at.
   containment maps; function pages do not yet list the rows of the nodes they
   draw (ruled on 2026-09-21: they should, once per node). See the queue.
 - **Scope is product code.** The agent CLI toolkit is not core; it is scanned
-  as an outside caller. The Lua interpreter stays in scope: name-keyed
-  function tables are a normal boundary pattern here (eight of them in core
-  and Studio), so they became `registry-entry` couplings rather than an
-  exclusion. Its three uncalled global accessors were dead code and were
-  deleted.
+  as an outside caller. Name-keyed function tables are a normal boundary
+  pattern, so they became `registry-entry` couplings rather than an exclusion.
+- **Exporters are not mapped** (2026-09-24). Everything that turns a SAAMpath
+  into another language, with the interpreter that reads it back, is an
+  active outside caller `exporters`, documented in
+  [core/export/DEVELOP.md](../core/export/DEVELOP.md) and the dialect
+  contracts; their facts rows went there. Their dialect code (a Lua
+  interpreter, G-code and PacScript writers, vendor packages) dominated
+  region 2 and changed with every printer session.
 
 ## The code-shape criterion
 
@@ -130,8 +134,7 @@ Two consequences of the tree to look at before settling:
   read as a flow. The owner set no cap; decide whether a very deep chain wants
   a different presentation.
 - **Lost labels.** Whole named layers fell below two roots and vanished:
-  studio's interaction, requests and per-view groups; core/export's gcode,
-  robot-commands and lua; most of core/print, which now shows one cluster and
+  studio's interaction, requests and per-view groups; most of core/print, which now shows one cluster and
   four loose roots. That is the mechanical result of the rule and the reason
   the thoughtful clustering pass (queue item 8) is next.
 
@@ -220,9 +223,6 @@ unscanned callers (`onGeometry` in `runRepairJob`).
   pages by kind, index depth, single-box graph pages, unattached boxes on
   structural pages, declarations published exactly once as home, authored
   members, unresolved rows by rule, and `check` totals.
-- Another session was editing the Bambu H2D exporter throughout; its files
-  were never touched by map workers and `check` reported them stale whenever
-  they moved. Expect the same.
 
 ## Open questions for the owner
 
@@ -243,7 +243,3 @@ unscanned callers (`onGeometry` in `runRepairJob`).
   and focus (2026-09-22); small pages spread wider than they need
   (`regionComponents` p90 wire 919 → 1423 px). Tune `RANK_SPREAD`, `ASPECT`
   and `LONG_DX/DY` in `leveled.py` once the owner has read 8.2.2.
-- Interpreter-style methods (`LuaRuntime::execStatement`: one switch over
-  statement kinds, 46 boxes, 43 of them repeats) draw faithfully but read
-  badly; a per-kind dispatch table would draw as registry entries. Code
-  shape or leave it?

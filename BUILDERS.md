@@ -177,7 +177,7 @@ changing; walk that region of the map when you need its structure.
 |---|---|
 | Core architecture and shared boundaries | [core/README.md](core/README.md) |
 | Agent CLI toolkit | [core/agent/README.md](core/agent/README.md) |
-| Machine interfaces and program output | [core/export/README.md](core/export/README.md), with [Bambu](core/export/bambu.md), [DENSO](core/export/denso.md), [Dobot](core/export/dobot.md) and [Griffin](core/export/griffin.md) |
+| Machine interfaces and program output | [core/export/README.md](core/export/README.md), with [Bambu](core/export/bambu.md), [DENSO](core/export/denso.md), [Dobot](core/export/dobot.md), [Griffin](core/export/griffin.md) and the [exporter implementation](core/export/DEVELOP.md), which is off the map |
 | Geometry and numerical contracts | [core/geom/README.md](core/geom/README.md), with [native mesh repair](core/geom/native/README.md) |
 | Machine presentation models | [core/machine/README.md](core/machine/README.md) |
 | Skill composition and travel | [core/path/README.md](core/path/README.md), with the [collision-planning proposal](core/path/collision-proposal.md) |

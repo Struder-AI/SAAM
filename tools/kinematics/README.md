@@ -8,7 +8,7 @@ node tools/kinematics/create-study.mjs ultimaker-s5 Prints/development/s5-studio
 node studio/server.mjs Prints/development/s5-studio
 ```
 
-Supported IDs are `dobot-mg400`, `denso-vs068a4-rc8`,
+Supported IDs are `dobot-mg400`, `denso-vs068a4-rc8a`,
 `ultimaker-s5` and `bambu-h2d`. Use **Machine view** to fit the assembly and
 **Play** or the scrubber to inspect motion. Enable **Show travel** to display
 the default study's non-depositing path. Geometry and process approval are

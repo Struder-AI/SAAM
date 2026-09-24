@@ -1,4 +1,4 @@
-# VS-068A4 / RC8: native project and USB assessment
+# VS-068A4 / RC8A: native project and USB assessment
 
 Assessment date: 2026-09-22. Direct native-project/USB export is scoped here;
 SAAM currently emits the experimental PacScript source ZIP described in
@@ -36,7 +36,8 @@ estimates; basic generated-coordinate and USB proof is now complete.
 
 ## Evidence and decision
 
-The user corrected the installed robot to **VS-068A4**. The supplied controller
+The user corrected the installed robot to **VS-068A4** and the controller to
+**RC8A**; the reported loads and passing runs were on the RC8A. The supplied controller
 project independently names VS068A4-AV6-NNN-NNN A, RC8 and VS-A4 definition files.
 Its WPJ records minimum WINCAPS version 3.52.0 and RC8 version family 2.3.x;
 these are project metadata, not verified installed software versions.
@@ -98,7 +99,7 @@ not establish that complete path.
 
 ## Corrected SAAM target
 
-The mistaken experimental profile is replaced by **denso-vs068a4-rc8**, revision 3,
+The mistaken experimental profile is replaced by **denso-vs068a4-rc8a**, revision 4,
 rather than maintaining two profiles for one installation. Registry, examples,
 setup validation, interpretation and Studio use the corrected identity. Existing
 saved job snapshots are not rewritten or granted fresh approvals: recreate/review

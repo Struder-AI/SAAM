@@ -6,7 +6,7 @@ import {constrainedJog} from './jog.mjs';
 import {rigid,add,sub,scale,norm,mv,mm,axisFrame,rodFrame,rotation,point,invert,compose,validateRigid} from './rigid.mjs';
 
 // Gantry machines are drawn from profile data alone; each arm has its own trusted model.
-const ARMS=new Set(['dobot-mg400','denso-vs068a4-rc8']);
+const ARMS=new Set(['dobot-mg400','denso-vs068a4-rc8a']);
 const isGantry=machine=>machine.kinematics==='cartesian-fixed-vertical-nozzle';
 const durationOf=p=>p.seconds??p.summary?.motionSeconds??0;
 function buildMachineMechanism({program,machine,setup,config}){
@@ -40,7 +40,7 @@ function buildMachineMechanism({program,machine,setup,config}){
     const dobot=machine.id==='dobot-mg400',model=dobot?dobotGeometry(config):densoGeometry(config);
     const scaledDobot=dobot&&program.language==='dobot-lua'&&(setup.dobot?.scaleX!==1||setup.dobot?.scaleY!==1);
     const aligned=config.worldFromBase&&(Number.isFinite(config.toolLengthMm)||(!dobot&&config.flangeFromTool))&&(dobot||Array.isArray(config.modelSeedDeg))&&!scaledDobot;
-    limits.push(dobot?'Nominal MG400 linkage; calibrated user/tool orientation and coupled interference are unchecked.':'Nominal VS-068A4 drawing centerlines and seeded IK; model angles are not RC8 encoders or FIG.');
+    limits.push(dobot?'Nominal MG400 linkage; calibrated user/tool orientation and coupled interference are unchecked.':'Nominal VS-068A4 drawing centerlines and seeded IK; model angles are not RC8A encoders or FIG.');
     const robotSourcePose=at=>{
       const center=setup.denso?.rotaryCenterMm??[0,0,0],a=at.rotaryDeg??0,R=rotation([0,0,1],a*Math.PI/180),part=rigid(sub(center,mv(R,center)),R);
       const tcp=point(part,at.point),axis=rotateZ(at.toolAxis??[0,0,-1],a),up=rotateZ(at.toolUp??[0,1,0],a);

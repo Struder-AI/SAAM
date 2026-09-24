@@ -165,8 +165,8 @@ attaches to its page as `facts`; one naming a declaration the map no longer
 holds is `orphanFacts`, never dropped; a malformed row fails `check`.
 
 **Scope**, `lib/scope.mjs`: `mappedRoots` become regions; `outsideRoots` are
-scanned only so their calls into the map are seen; `unmappedDirs` are outside
-callers inside a mapped root; `activeCallers` the outside files drawn as caller
+scanned only so their calls into the map are seen; `unmappedAreas` are outside
+callers inside a mapped root, each under its port name; `activeCallers` the outside files drawn as caller
 rows on declaration pages, all else scanned being counted; `importAliases` name
 served paths that are not the path on disk.
 

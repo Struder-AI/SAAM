@@ -1,5 +1,5 @@
 {
-  "schema":"saam-machine/1", "id":"denso-vs068a4-rc8", "name":"DENSO VS-068A4 / RC8 + rotary", "revision": 3, "units":"mm",
+  "schema":"saam-machine/1", "id":"denso-vs068a4-rc8a", "name":"DENSO VS-068A4 / RC8A + rotary", "revision": 4, "units":"mm",
   "planarWallToleranceMm":0.01,
   "kinematics":"six-axis-arm-plus-external-rotary; controller-owned inverse kinematics",
   "motionChecks":"deferred",
@@ -11,13 +11,13 @@
   "tools":[{"index":0,"label":"External relay extruder","cores":["external 0.4"],"nozzleDiametersMm":[0.4],"layerHeightMm":[0.06,0.3],"startupXY":[30,0]}],
   "capabilities":["xyz-extrusion","planar","nonplanar","tool-orientation","coordinated-rotary","relay-extrusion"],
   "materials":{"PLA":{"maxFlowMm3S":4,"maxRetractMm":0,"nozzleC":[0,230],"bedC":[0,70]}},
-  "outputs":[{"id":"denso-pacscript","extension":".zip","implemented":true,"experimental":true,"flavor":"RC8 Cartesian T poses, relative EX and TIME; bounded source subset","extrusionUnits":"relay-on-off; volume is intent"}],
-  "defaultSetup":{"tool":0,"core":"external 0.4","nozzleMm":0.4,"material":"PLA","filamentMm":1.75,"nozzleC":0,"bedC":0,"buildVolumeC":0,"materialGuid":null,"firmwareVersion":"RC8","startupVerified":false,
+  "outputs":[{"id":"denso-pacscript","extension":".zip","implemented":true,"experimental":true,"flavor":"RC8A Cartesian T poses, relative EX and TIME; bounded source subset","extrusionUnits":"relay-on-off; volume is intent"}],
+  "defaultSetup":{"tool":0,"core":"external 0.4","nozzleMm":0.4,"material":"PLA","filamentMm":1.75,"nozzleC":0,"bedC":0,"buildVolumeC":0,"materialGuid":null,"firmwareVersion":"RC8A","startupVerified":false,
     "denso":{"configurationSource":null,"mounting":"ceiling-coaxial-provisional","toolFrame":null,"workFrame":null,"armGroup":null,"figure":null,"rotaryAxis":7,"rotaryInterface":null,"rotarySign":1,"rotaryZeroDeg":0,"rotaryCenterMm":[0,0,0],"workOffsetMm":[0,0,0],"workYawDeg":0,"initialPositionMm":[30,0,20],"initialPose":{"rotaryDeg":0,"toolAxis":[0,0,-1],"toolUp":[0,1,0]},"extrusionOutput":null,"extrusionRateMm3S":null,"temperatureControl":"external-preheated","retreatMm":5,"transitionSeconds":1}},
   "defaultProcess":{"retractMm":0,"fanPercent":0,"minimumLayerSeconds":0},
   "startup":{"protocol":"externally-positioned-and-heated","zAfterStartupMm":20,"validation":"Declared start, tool/work frames, rotary zero and external heat; commissioning remains unverified."},
   "nonplanar":{"maxAngleDeg":15,"basis":"Legacy fixed-axis skills retain their existing process limit; not a tool tilt limit."},
   "clearance":{"model":null,"validatedInclinationDeg":null},
-  "validation":"VS-068A4 confirmed by user and supplied RC8 project metadata. Ceiling mounting and coaxial bed placement remain provisional. Actual rotary interface, calibration and IO are unresolved. Reach, singularities, joint/motion limits, collisions, timing, vendor import and physical printing are unchecked.",
+  "validation":"VS-068A4 and RC8A controller confirmed by user; supplied project metadata names VS068A4 and RC8. Reported loads and passing runs were on the RC8A. Ceiling mounting and coaxial bed placement remain provisional. Actual rotary interface, calibration and IO are unresolved. Reach, singularities, joint/motion limits, collisions, timing, vendor import and physical printing are unchecked.",
   "sources":["https://www.denso-wave.com/en/robot/product/five-six/vs068-087.html","https://www.denso-wave.com/ja/robot/support/learning/d-learning/lesson3/l3-1/modals.html","https://www.fa-manuals.denso-wave.com/subfolder/en/usermanuals/img/001511/RC8_ProvGuide_en.pdf"]
 }

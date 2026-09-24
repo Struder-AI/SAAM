@@ -53,13 +53,13 @@ to the operator; no general 15° clearance rating is claimed.
 Standard S5 startup is assumed; firmware version is optional metadata.
 Physical printing remains unvalidated.
 
-[denso-vs068a4-rc8.json](./denso-vs068a4-rc8.json) describes the six-axis VS-068A4 with
-RC8 and an external rotary for the [pipe demo](../skills/pipe-cladding/SKILL.md).
+[denso-vs068a4-rc8a.json](./denso-vs068a4-rc8a.json) describes the six-axis VS-068A4 with
+RC8A and an external rotary for the [pipe demo](../skills/pipe-cladding/SKILL.md).
 Installation fields start unresolved. Its experimental PacScript source ZIP uses
 the shared Studio/review/delivery pipeline. The profile's display bounds are not
 robot reach limits; production kinematic validation, motion limits and collisions
-remain deferred. Its nominal presentation model does not establish RC8 branch parity.
-See the [RC8 contract](../core/export/denso.md#denso-rc8-output-contract) for calibration,
+remain deferred. Its nominal presentation model does not establish RC8A branch parity.
+See the [RC8A contract](../core/export/denso.md#denso-rc8a-output-contract) for calibration,
 rotary assumptions, relay behavior and unverified vendor execution.
 
 See [GLOSSARY.md](../GLOSSARY.md) and [build requests](../build_request.md).

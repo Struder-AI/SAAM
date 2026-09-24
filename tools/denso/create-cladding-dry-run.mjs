@@ -75,7 +75,7 @@ export async function createCladdingDryRun(sourcePlan,directory,{sectorDeg=72}={
   // Refuse to overwrite any existing print or previous candidate.
   try{await stat(dir);throw Error('Choose a new output directory');}catch(error){if(error.code!=='ENOENT')throw error;}
   const bytes=await readFile(input),plan=JSON.parse(bytes),sector=claddingSector(plan,{sectorDeg}),output=emitCladdingDryRun(sector,{name:sectorDeg===72?'SAAM_CLAD_FRONT':'SAAM_CLAD_'+number(sectorDeg).replace('.','_')});
-  const manifest={schema:'saam-denso-cladding-dry-run/1',sourcePlan:input,sourcePlanSha256:digest(bytes),machine:'denso-vs068a4-rc8',
+  const manifest={schema:'saam-denso-cladding-dry-run/1',sourcePlan:input,sourcePlanSha256:digest(bytes),machine:'denso-vs068a4-rc8a',
     status:'offline candidate; not controller compiled or physically run',rotary:'fixed; no commands',extrusion:'none; no IO commands',
     coordinateFrame:'Work 2: pipe centre at origin, base Z0, axis +Z, front -Y',toolDefinition:[155,0,35,0,90,0],
     figure:'runtime Fig(P10); P10 taught with Tool 6 / Work 2',posture:'generated 45-degree inward/downward axis; P10 orientation used only for initial approach',

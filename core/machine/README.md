@@ -82,10 +82,10 @@ alone cannot represent this right-angle tool.
 
 The nominal model defines flange +Z along the model wrist +X, flange +X along
 model wrist -Z, and flange +Y along model wrist +Y. That fixes a model wrist-zero
-convention; it is not evidence of the installed RC8 joint zeros, FIG branch or
+convention; it is not evidence of the installed RC8A joint zeros, FIG branch or
 joint-limit mapping. Changing a tool transform does not establish those mappings.
 
-These are explicitly **model angles**, not RC8 encoder zeros or FIG values.
+These are explicitly **model angles**, not RC8A encoder zeros or FIG values.
 At model zero, the upper arm points +Z, the forearm points +X with a +Z offset,
 and the flange points +X. The local axes are Z, Y, Y, X, Y, X. The source nozzle
 convention is converted to presentation -Z at the boundary.
@@ -93,8 +93,8 @@ convention is converted to presentation -Z at the boundary.
 Nominal IK uses a damped Jacobian solve from explicit `modelSeedDeg` (six model
 angles in degrees). Each sample starts from that seed and rejects a result on
 the opposite elbow/wrist seed branch; previous rendering order is irrelevant.
-Nonconvergence is visible. This models one nominal solution, not the RC8's
-trajectory, joint limits, winding policy or commissioning. Matching RC8 arm
+Nonconvergence is visible. This models one nominal solution, not the RC8A's
+trajectory, joint limits, winding policy or commissioning. Matching RC8A arm
 motion requires verified installation transforms and an encoder/FIG mapping;
 the [production output contract](../export/denso.md) remains unchanged.
 

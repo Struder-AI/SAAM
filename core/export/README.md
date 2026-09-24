@@ -8,7 +8,7 @@ Read the contract for the output being changed:
 | UltiMaker S5 / Griffin G-code | [Griffin](./griffin.md) |
 | Bambu H2D and X1 Carbon / sliced 3MF | [Bambu](./bambu.md) |
 | Dobot MG400 / Lua source ZIP | [Dobot](./dobot.md) |
-| DENSO VS-068A4 / RC8 PacScript ZIP | [DENSO](./denso.md) |
+| DENSO VS-068A4 / RC8A PacScript ZIP | [DENSO](./denso.md) |
 
 [Machine files](../../machines/README.md) hold capabilities and setup declarations.
 [Print lifecycle](../print/README.md) owns review and delivery of the checked output.
@@ -71,7 +71,7 @@ bounds, feeds and flow.
 | Bambu H2D | Fill, planar-infill, drape and bounded vase-wall on mesh/splines | Experimental sliced-3MF exporter, checked firmware envelope and print-body interpreter; same-file review/delivery. |
 | Bambu X1 Carbon | Fill, planar-infill and drape on mesh/splines within an experimental user-chosen 10° nonplanar limit (no clearance rating); PLA output | The H2D exporter, interpreter and package writer with the X1's own pinned envelope and machine-file package facts; same-file review/delivery. |
 | Dobot MG400 | Shared fill, planar-infill, drape and vase-wall paths with synthetic configured installation checks | Experimental Lua source ZIP and bounded interpreter; same-file review/delivery. Setup is unconfigured by default; vendor project import is unverified. |
-| DENSO VS-068A4 / RC8 + rotary | Native pipe body/cladding plus fixed-orientation mesh/spline regional skills, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
+| DENSO VS-068A4 / RC8A + rotary | Native pipe body/cladding plus fixed-orientation mesh/spline regional skills, with synthetic setup | Experimental PacScript source ZIP and bounded interpreter; same Studio/lifecycle. Actual rotary/calibration and vendor execution unresolved; feasibility deferred. |
 
 The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
 non-planar limit. The profile records official hardware/slicer sources, separate

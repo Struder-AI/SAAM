@@ -3,7 +3,7 @@ import {add,sub,scale,dot,cross,norm,mv,mm,transpose,identity,rotation,rigid,val
 // Nominal VS-068A4 standard-flange centerlines from DENSO's VS-068 drawing:
 // https://www.denso-wave.com/fsys/en/robot/product/five-six/vs068-087/en_VS-068-W.pdf
 // Cross-checked against the supplied WINCAPS VS068 model joint pivots.
-// These are MODEL angles, not calibrated RC8 encoders/FIG. At zero: shoulder
+// These are MODEL angles, not calibrated RC8A encoders/FIG. At zero: shoulder
 // offset +X, upper arm +Z, forearm +X with +20 mm Z offset, flange +X.
 export const DENSO_MODEL_DEFAULTS=Object.freeze({shoulderHeightMm:395,shoulderOffsetMm:30,upperMm:340,forearmMm:340,
   elbowOffsetMm:20,flangeMm:80,toolLengthMm:70});

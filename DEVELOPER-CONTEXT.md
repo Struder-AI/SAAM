@@ -21,13 +21,15 @@ the code is written, within the rules under [Code shape](#code-shape).
 
 ### Scope
 
-- Mapped: core and Studio product code. The agent CLI toolkit, `core/agent`, is
-  scanned as an outside caller and never mapped. The Lua interpreter stays in
-  scope; its library table, like every named table of functions, is drawn as
-  registry entries.
+- Mapped: core and Studio product code. Two areas inside core are scanned as
+  outside callers and never mapped: the agent CLI toolkit, `core/agent`, and
+  the exporters, every dialect under `core/export` that turns a SAAMpath into
+  a machine program and reads it back ([exporter implementation](core/export/DEVELOP.md)).
+  Output routing, the travel advisory and playback timing stay mapped.
 - Scanned, not mapped: skills, adapters, scripts. A caller is **active** when it
   runs while a person makes a part or operates Studio: a catalogued skill's
-  implementation scripts, the MCP adapter, the agent toolkit and its CLI entry.
+  implementation scripts, the MCP adapter, the agent toolkit and its CLI entry,
+  the exporters.
   Active callers are drawn on the declaration pages they call; everything else
   scanned (skill tests and demos, benchmarks, audits) is counted, never drawn.
 - The scope edge is drawn both ways: outside callers as ports and caller rows,
@@ -90,7 +92,7 @@ for a compelling case:
 3. A stage does not mutate caller-owned state; it returns its result, so the
    effect is on a wire rather than invisible on the caller's page. The
    exception is an explicit stateful controller (a UI controller, a session,
-   the tour, the Lua runtime) operating on state it owns.
+   the tour) operating on state it owns.
 
 A rewrite counts as a code-shape fix only when it preserves behaviour and,
 after regeneration, the map draws what was hidden. Anything the scanner cannot
@@ -129,8 +131,8 @@ work and what remains.
 ### What keeps its own owner
 
 Repository policy, setup, contribution procedures, decisions and historical
-evidence keep their owners. Skills, [client adapters](adapters/mcp/DEVELOP.md)
-and the [agent CLI toolkit](core/agent/README.md) are outside the mapped scope
+evidence keep their owners. Skills, [client adapters](adapters/mcp/DEVELOP.md),
+[exporters](core/export/DEVELOP.md) and the [agent CLI toolkit](core/agent/README.md) are outside the mapped scope
 and keep their own references. [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md)
 owns checkpoint and publication rules; read it immediately before committing.
 Source is authoritative for implementation; software checks do not establish
