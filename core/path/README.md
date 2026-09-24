@@ -125,14 +125,14 @@ endpoints, adds rise, and feeds the existing mapper one connected stroke per
 course. The skill manual owns cell coordinates, placement and tilt semantics.
 Advanced ordered [perimeter turns, height] paths also repeat around a required solid or closed
 sleeve through the same actual-Z contour query. Optional signed contour offsets
-give a motif depth relative to the wall; inward tilted loops can retain the
+give a tile depth relative to the wall; inward tilted loops can retain the
 host's exterior. The host is only a mapping reference: no guide wall, foundation
 ring or lead-in is deposited in patterned mode. Pattern tilt and overlap remain recipe judgments. Continuous mode joins mapped
 endpoints, including the periodic seam and repetition boundaries; explicit
-segmented mode permits shared travel. Motifs contain deposition only and are
+segmented mode permits shared travel. Patterns contain deposition only and are
 never independent XYZ shapes. [deposition.mjs](./deposition.mjs) constructs volumes
-for plain spirals and motifs; [contour-path.mjs](../geom/contour-path.mjs) owns
-arc-length traversal. Motifs publish no assumed area, rim or finished side surface.
+for plain spirals and patterns; [contour-path.mjs](../geom/contour-path.mjs) owns
+arc-length traversal. Patterns publish no assumed area, rim or finished side surface.
 
 ## Finished surfaces
 
@@ -168,7 +168,7 @@ boundaries, not reconstructed bead textures or measured physical surfaces.
 The shared whole-component and regional adapters publish ordinary fill/infill,
 automatic vase walls and draped roofs. Vase side queries exclude the hollow
 center and cap; an unfinished spiral rim reduces the fully supplied side height.
-Mapped motifs retain their no-implicit-surface contract. Top queries
+Mapped patterns retain their no-implicit-surface contract. Top queries
 respect the producing roof's slope limit. Sparse material retains its coverage
 classification and does not become a verified continuous support surface.
 
@@ -271,7 +271,7 @@ wall centerlines lie on that standoff less the offset kernel's arc chords.
 Oriented strokes have no footprint query; they connect only across the
 producer's declared `poseJoinMm` index within one operation. Full-fill and its
 callers (planar-infill, supports, regional fill), draped-skin, thick-lip and
-axial pipe/surface cladding opt in. Line networks, mapped vase motifs, rims,
+axial pipe/surface cladding opt in. Line networks, mapped vase patterns, rims,
 waves and welds do not: their gaps are authored. A short distance never permits
 crossing an opening or bypassing an earlier operation's clearance restriction.
 

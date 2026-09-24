@@ -1,13 +1,13 @@
 ---
 name: vase-wall
-description: Print a conventional hollow vase or tube with one continuous rising spiral wall and an optional solid base. Use advanced vase mode for motifs, authored patterns and fitted mesh sleeves.
+description: A hollow vase or tube as one continuous rising spiral wall, with an optional solid base.
 ---
 
 # Standard vase mode
 
 Use for conventional vase printing: one continuous spiral wall, an open top,
 and an optional solid base. The input describes the vessel's exterior; the
-recipe leaves the interior hollow. No motif or fitted reference sleeve is needed.
+recipe leaves the interior hollow. No pattern or `meshSleeve` preparation is needed.
 For repeated loops, authored patterns or adjustable mesh conformance, choose
 [advanced vase mode](../advanced-vase-wall/SKILL.md).
 
@@ -41,7 +41,8 @@ closed loop. Multiple islands, split/collapsed contours, arbitrary trimmed CAD
 faces and open uncapped meshes are unsupported.
 
 Standard mode follows changing-height geometry sections. On a mesh it fits one
-periodic NURBS sleeve to the wall interval and follows its loose offset, which
+periodic NURBS **sleeve** (a surface periodic around the part and open along its
+height, the side of a tube; never itself deposited) to the wall interval and follows its loose offset, which
 avoids rebuilding a section, offset and contour at every rising sample and is
 dramatically faster on curved walls. `sleeveToleranceMm` (default 0.08 mm) is the
 target deviation from the true section: the fit scales its resolution toward it

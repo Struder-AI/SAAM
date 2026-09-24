@@ -36,6 +36,17 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 
 ## Outstanding work
 
+### BR-057 — SAAMpath context labels on change, not on every action
+
+- Status: open
+- Contributor: `remettub`, inferred from the checkout's contributor branch and account; attribution unconfirmed.
+- Authorization: human requested — "we need phase as an enclosing tag or equivalent, not an entry for every point … write it as a build request"; "timing doesn't need a separate data column, we just derive if we ever need"; "labels only when it changes is the general gist of the BR." Scope is the SAAMpath representation and its consumers; no change to deposition, ordering or exported machine behavior.
+- Session: Claude Code, 2026-09-24 context-reduction session; exact chat title and ID unavailable.
+- Source: current conversation, 2026-09-24, after measuring regenerated SAAMpath against Bambu G-code.
+- Context: `core/path/planning.mjs` copies `phase`, `layer`, `operation` and the stroke's `region`, `role`, `connector` and gap diagnostics onto every action. On `bambu-x1-ams-white-grey-black-fast-01` (954 moves) SAAMpath is 261 KB against 41 KB of G-code: motion (`to`, volume, speed, kind) about 99 KB, repeated labels about 98 KB, gap diagnostics (`gapMm`, `lowerSurfaceGap*`, `sampledGapErrorMm`) about 60 KB. `layer` is the producer's own index, keyed with `phase`; exporters write both as program labels (`;SAAM_PHASE:`/`;LAYER:`, DENSO/Dobot labels), Bambu counts layers by them, and Studio colours and layer-steps playback from them. Pose moves (DENSO) also carry `durationSeconds`, computed from the flow-limited speed while `speedMmS` keeps the requested speed; ordinary moves store the limited speed and no duration.
+- Remaining: Carry context as a change record, such as an enclosing span or a `context` action emitted only when phase, layer, operation, region, role or connector changes, and have every consumer (exporters, players, travel advisory, Studio, tests) read context from the current span. Drop per-action `durationSeconds`: derive time from length and effective speed where needed, keeping an explicit duration only for zero-length pose moves (reorientation in place), which speed cannot express; store the effective speed on pose moves as on others. Decide whether gap diagnostics stay on moves, move to a span, or leave SAAMpath for a diagnostic record.
+- Completion: Exported machine programs are byte-identical before and after for the existing export tests; Studio playback, layer stepping and phase colours are unchanged; SAAMpath size on the measured part is reported before and after.
+
 ### BR-055 — Extend Bambu hardware acceptance beyond the verified H2D installation
 
 - Status: in progress; H2D two-colour and mixed-nozzle exporter/guidance work is complete for the physically tested installation.

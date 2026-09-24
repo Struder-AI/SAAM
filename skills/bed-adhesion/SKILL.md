@@ -1,6 +1,6 @@
 ---
 name: bed-adhesion
-description: Hold a part down when its own first layer is too small or too thin to grip the bed, as on an open-bottom vase-mode print. One entry so far - a single-layer brim of concentric loops printed around the part outline, wider and slower than the part itself.
+description: A single-layer brim around the outline, for a first layer too small or thin to grip the bed, such as an open-bottom vase.
 ---
 
 # Bed adhesion

@@ -1,7 +1,14 @@
 # SAAM agent entry point
 
-SAAM makes 3D printed parts through conversation: the agent runs the tools and
-settings; the person reviews geometry, plan and toolpath in SAAM Studio.
+SAAM makes 3D printed parts through conversation. The agent works on a **print
+bundle** (a "print" in command and tool names), the local folder for one part:
+its geometry, **recipe** (`plan.json`: skills, settings, machine and setup),
+review records and checked machine program. **Geometry skills** make or change
+the geometry; **toolpath skills** deposit material, and their results are
+composed into one **SAAMpath**, the machine-independent toolpath that each
+machine's exporter translates into its program. The person reviews in SAAM
+Studio and gives one **confirmation** of the current settings and exact
+toolpath together before export.
 
 If `.local/AGENTS.md` exists, read it at session start (for a tour, just after
 launch): it holds this checkout's user

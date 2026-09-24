@@ -16,7 +16,7 @@ failure inspection. It delegates to the operations described here.
 
 Run CLI examples from the repository root after [checkout setup](../../SETUP.md).
 Use a named directory under ignored `Prints/`; quote paths containing spaces.
-The shell CLI, [cli.mjs](cli.mjs), handles composed printing patterns.
+The shell CLI, [cli.mjs](cli.mjs), handles composed toolpath skills.
 
 Connected agents use the corresponding MCP tools below. Their `printId` is
 relative to the configured Prints root, so `Prints/my-part` in a CLI example is
@@ -64,7 +64,7 @@ assumption, not information encoded by STL; see [D-030](../../DECISIONS.md#d-030
 The importer accepts ASCII or binary STL, preserves its
 source bytes and hash, checks the mesh, and translates it onto the bed. It reuses
 remembered machine setup and creates a shell recipe with draped skin disabled.
-Adjust printing patterns for the intended result, then show size and placement
+Adjust toolpath skills for the intended result, then show size and placement
 in Studio for review.
 
 MCP `import_stl_print` takes `printId`, `sourcePath`, optional `units` (default
@@ -105,8 +105,8 @@ standalone text and independent spline guides. `shell text` / MCP `apply_text`
 rebuild the selected part through the same geometry and review lifecycle. Its
 manual owns font input, placement, reference-surface and relief settings.
 Prepared lettering exposes separate base and raised-feature material selections
-for regional printing patterns. Changing those assignments preserves the reviewed
-geometry; see [text material selections](../../skills/text/SKILL.md#material-selections-and-printing-patterns).
+for regional toolpath skills. Changing those assignments preserves the reviewed
+geometry; see [text material selections](../../skills/text/SKILL.md#material-selections-and-toolpath-skills).
 
 ## Open and resume review
 

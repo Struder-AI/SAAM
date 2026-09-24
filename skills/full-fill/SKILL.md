@@ -1,6 +1,6 @@
 ---
 name: full-fill
-description: Fill an entire body with solid planar layers, or add solid bases, caps and surface regions around sparse infill. Works on closed meshes and supported spline shells, providing solid material where the part needs it.
+description: Solid planar layers for a whole body, or solid bases, caps and surface regions around sparse infill. Meshes and supported spline shells.
 ---
 
 # Full fill

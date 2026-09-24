@@ -157,7 +157,7 @@ const vaseSettings=state=>{
   if(state.plan.composition?.regions?.length)return [];
   const vase=state.plan.skills?.['vase-wall'];
   return vase?.enabled?[
-    [vase.pathMode==='segmented'?'Segmented paths':'Vase wall',vase.pattern?(vase.pathMode==='segmented'?'Repeated sleeve motif with travel between gaps':'Continuous motif wrapped around the sleeve'):'One continuous spiral; '+(vase.endTransition==='level'?'level rim':'spiral rim')],
+    [vase.pathMode==='segmented'?'Segmented paths':'Vase wall',vase.pattern?(vase.pathMode==='segmented'?'Repeated sleeve pattern with travel between gaps':'Continuous pattern wrapped around the sleeve'):'One continuous spiral; '+(vase.endTransition==='level'?'level rim':'spiral rim')],
     ['Path component',vase.part??'Part'],
     ['Path height range',vase.zStartMm+'–'+(vase.zEndMm??'geometry top')+' mm above component base'],
     ['Path sampling',vase.sampleStepMm+' mm maximum step'+(vase.pattern?'':' · '+vase.toleranceMm+' mm tolerance')]
@@ -249,7 +249,7 @@ const views={
       if(hasSkill(state.plan,'vase-wall')){
         const regions=state.plan.composition?.regions??[];
         const selections=regions.length?regions.filter(r=>r.skills['vase-wall']).map(r=>({...state.plan.skills['vase-wall'],...r.skills['vase-wall']})):[state.plan.skills['vase-wall']];
-        rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous motif wrapped around the sleeve':'Continuous spiral within its assigned region']);
+        rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous pattern wrapped around the sleeve':'Continuous spiral within its assigned region']);
       }
       if(hasSkill(state.plan,'pipe-cladding'))rows.push(['Exterior shells',state.plan.skills['pipe-cladding'].shells+' · '+claddingPatternName(state.plan.skills['pipe-cladding'])],['Motion model','Nominal Cartesian + rotary; robot feasibility deferred']);
       if(state.pathSummary?.pipeCladding?.partialAxialPasses!==undefined&&state.plan.skills['pipe-cladding'].pattern!=='crossed-helices')rows.push(['Partial vertical passes',String(state.pathSummary.pipeCladding.partialAxialPasses)],['Full vertical passes',String(state.pathSummary.pipeCladding.fullAxialPasses)]);

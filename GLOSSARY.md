@@ -1,6 +1,9 @@
 # SAAM glossary
 
-Terms whose SAAM meaning is not the everyday one.
+Terms whose SAAM meaning is not the everyday one. This is a reference: agents
+meet each term where they need it. [AGENTS.md](AGENTS.md) defines print bundle,
+recipe, SAAMpath, toolpath and geometry skills and confirmation; the vase and
+pipe-cladding manuals define sleeve, tile, course and pattern.
 
 | Term | Meaning |
 |---|---|
@@ -10,6 +13,7 @@ Terms whose SAAM meaning is not the everyday one.
 | SAAMpath | SAAM's one machine-independent toolpath: moves with deposition volume, speed and context, plus process actions. The composer builds it from skill results; each machine's exporter translates it into that machine's program. It is not saved in the print bundle. |
 | Toolpath skill | A skill whose result is deposition: strokes the composer combines with other toolpath skills' results into one SAAMpath. |
 | Geometry skill | A skill that makes, fetches or changes the part's geometry before any toolpath exists. Each change is a new geometry revision. |
+| Keyword skill | A skill whose digest description is only its keyword, such as `gridfinity`. The agent uses it only when the person names that keyword, and reads its manual only then. |
 | Sleeve | A surface that is periodic in one direction, closing on a seam, and open in the other: the side of a tube. Paths are laid out on it; it is never deposited. |
 | Tile | One continuous curve drawn in one cell of a sleeve's unwrapped strip, repeated to make a pattern. |
 | Course | One full circuit of tiles around a sleeve. |

@@ -87,7 +87,7 @@ queries. Start by checking/reporting; automatic travel repair comes afterward.
 Deposition is checked too, not just non-extruding travel. Generation already uses the shared XYZ travel builder with its documented
 bounded direct-move policy; general collision queries remain proposed.
 
-The approved process plan locks clearance margins, allowed contact, orientation
+The confirmed recipe locks clearance margins, allowed contact, orientation
 freedom, motion limits, planner/version, search budget and any seed, and permitted
 travel/reordering rules. Generation solves those choices directly. If a valid
 solution requires changing deposition geometry, exceeding allowed tilt or changing

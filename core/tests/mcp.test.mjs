@@ -119,8 +119,8 @@ test('MCP SDK lists known manuals and profiles; creates persistent isolated bund
   assert.ok((await call('list_skills')).some(skill => skill.id === 'full-fill'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'supports'));
   assert.ok((await call('list_skills')).some(skill => skill.id === 'pipe-cladding'));
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'task'));
-  assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'task'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'mesh-tools' && skill.kind === 'geometry'));
+  assert.ok((await call('list_skills')).some(skill => skill.id === 'text' && skill.kind === 'geometry'));
   assert.equal((await call('read_skill', {skillId:'supports'})).skillId,'supports');
   const guidance = await call('read_guidance', { guidanceId: 'makers' });
   assert.equal(guidance.text, await readFile(resolve(root, 'MAKERS.md'), 'utf8'));
@@ -331,7 +331,7 @@ test('MCP STL import preserves source/units and remembered setup across native b
   await call('check_print', { printId: 'Projects/Inch Part' }, /source changed/);
 });
 
-test('MCP rejected mesh import retains its diagnostic and routes to a readable task manual', async t => {
+test('MCP rejected mesh import retains its diagnostic and routes to a readable geometry skill manual', async t => {
   const { call, printsRoot } = await fixture(t);
   const mesh = boxMesh();
   mesh.triangles.pop();

@@ -1,6 +1,6 @@
 ---
 name: rimming-normal
-description: Experiment with edge-support walls whose paired beads follow 3D surface-normal offsets, allowing nonplanar paths on a curved reference surface. Compare with rimming-planar to explore how offset direction affects bead spacing and edge contact; physical behavior remains unvalidated.
+description: Experimental. Rimming with beads offset along 3D surface normals, for nonplanar paths on a curved reference surface.
 ---
 
 # Rimming with surface-normal offsets

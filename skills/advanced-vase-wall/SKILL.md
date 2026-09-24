@@ -1,11 +1,11 @@
 ---
 name: advanced-vase-wall
-description: Print repeating motifs and authored patterns mapped onto a reference sleeve, with optional smooth mesh fitting, adjustable mesh fidelity and loose offsets. Use standard vase mode for a conventional continuous spiral.
+description: Vase walls patterned with repeated tiles or authored paths on a sleeve, with optional smooth mesh fitting.
 ---
 
 # Advanced vase mode
 
-Use for motifs, authored patterns and fitted mesh sleeves. For a conventional
+Use for tiled or authored patterns and fitted mesh sleeves. For a conventional
 continuous spiral, choose [standard vase mode](../vase-wall/SKILL.md).
 The two manuals share the existing `skills.vase-wall` recipe and slicer;
 `advanced-vase-wall` is a discovery/manual ID, not a separate recipe key.
@@ -13,8 +13,17 @@ The two manuals share the existing `skills.vase-wall` recipe and slicer;
 Use for an open single-wall vessel or tube. The selected solid or closed sleeve
 is a reference envelope; vase-wall deposits the wall and leaves the interior and
 roof open. A modeled bore is unnecessary. A base is a separate full-fill choice.
-A looping motif can resemble a gyroid; it is a self-crossing toolpath, not an
-implicit gyroid solid. The motif may leave openings between deposited strokes.
+A looping tile can resemble a gyroid; it is a self-crossing toolpath, not an
+implicit gyroid solid. The pattern may leave openings between deposited strokes.
+
+**Terms.** A **sleeve** is a surface periodic in one direction, closing on a seam,
+and open in the other: the side of a tube. Paths are laid out on it; it is
+never deposited. A **tile** is one continuous curve drawn in one cell of the
+sleeve's unwrapped strip. A **course** is one full circuit of tiles. The
+**pattern** is the whole arrangement: courses of a repeated tile, or authored
+paths. People say "pattern" for the tile too; changing the tile changes the
+pattern. Read "bigger", "denser" or "tilted" by which one they mean: tile size
+and `tiltDeg` belong to the tile, `cellsPerTurn` and `courseRiseMm` to the pattern.
 
 ## Workflow
 
@@ -51,7 +60,7 @@ Example `mesh-vase-options.json` for a dense, wide-loop fit:
 }
 ```
 
-Omitting `repeats` on a newly selected motif derives a complete course count for
+Omitting `repeats` on a newly selected tile derives a complete course count for
 the detected interval; omitting `courseRiseMm` uses the process layer height.
 The helper derives a base from the process settings unless `baseHeightMm` is
 specified. These are example shape choices, not universal print settings.
@@ -59,7 +68,7 @@ specified. These are example shape choices, not universal print settings.
 The preparation command detects one dominant outer sleeve, chooses an explicit
 usable height interval, preserves the source mesh, and writes a normal recipe
 revision. `--expected-revision REV` protects a caller's revision. Preparation
-does not generate a program or grant approval. Existing motif/repeat choices are
+does not generate a program or grant approval. Existing tile/repeat choices are
 retained unless explicitly replaced; conflicting producers and regional plans
 must be changed through the ordinary recipe tools.
 
@@ -81,8 +90,8 @@ trimmed CAD faces and open uncapped mesh surfaces are unsupported.
 | Setting | Meaning |
 |---|---|
 | `zStartMm`, `zEndMm` | Wall interval above the selected component base; `zEndMm: null` uses the geometry top. |
-| `endTransition` | `level` adds complete flat motif courses at both ends; `spiral` retains the authored rising ending. Plain spirals use a level rim by default. |
-| `pattern` | `null` for a plain spiral, one regular repeated motif, or advanced authored paths. |
+| `endTransition` | `level` adds complete flat pattern courses at both ends; `spiral` retains the authored rising ending. Plain spirals use a level rim by default. |
+| `pattern` | `null` for a plain spiral, one regular repeated `tile`, or advanced authored paths. |
 | `pathMode` | `continuous` requires connected deposition; `segmented` permits explicit travel between authored gaps. |
 | `sampleStepMm`, `toleranceMm` | Emitted segment and contour subdivision limits. |
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
@@ -114,9 +123,9 @@ This limiting is separate from source-mesh contact and does not remove source fo
 
 ## Sleeve patterns
 
-### One motif, a regular tiler, then sleeve mapping
+### One tile, a regular tiler, then sleeve mapping
 
-Author one motif in the regular, unwrapped perimeter/height strip. A motif is a
+Author one tile in the regular, unwrapped perimeter/height strip: a
 continuous curve in one cell, with points `[cell fraction, local height mm]`.
 The first and last cell fractions must be 0 and 1, with equal height, offset
 and bead height so tiled joins meet exactly. `offsetMm` is signed depth and
@@ -124,28 +133,28 @@ and bead height so tiled joins meet exactly. `offsetMm` is signed depth and
 point. Interior cell fractions may go outside 0–1 to overlap adjacent cells.
 The mapper then queries actual host
 sections at sampled Z and flow-maps the strip to normalized perimeter phase.
-Motif points are not world XYZ.
+Tile points are not world XYZ.
 
 One regular course is one complete circuit around the sleeve. The tiler repeats
-the authored motif row across the fixed `cellsPerTurn`, applies `courseRiseMm`,
+the authored tile across the fixed `cellsPerTurn`, applies `courseRiseMm`,
 and repeats the requested number of complete courses. A smaller perimeter makes
-each fixed cell narrower; motif depth remains an independent millimetre value
-and is not rescaled with cell width. The motif is deposited; the strip and
-reference sleeve are not extra material.
+each fixed cell narrower; tile depth remains an independent millimetre value
+and is not rescaled with cell width. The tile is deposited; the strip and
+sleeve are not extra material.
 
-Continuous mode requires endpoints to meet between motif paths and repeat
+Continuous mode requires endpoints to meet between pattern paths and repeat
 boundaries. It adds no guide wall, connector, ring, hidden travel or automatic
 support solver. Segmented mode is the explicit alternative when travel across
 gaps is intended.
 
-For a reusable loop, `skills/vase-wall/scripts/motif.mjs` provides
-`loopMotif({widthCells, depthMm, samples, beadHeightMm, exterior})`; place that
-motif in a pattern with `cellsPerTurn`, `courseRiseMm`, `repeats` and `tiltDeg`.
+For a reusable loop, `skills/vase-wall/scripts/tile.mjs` provides
+`loopTile({widthCells, depthMm, samples, beadHeightMm, exterior})`; place that
+tile in a pattern with `cellsPerTurn`, `courseRiseMm`, `repeats` and `tiltDeg`.
 The mesh preparation helper accepts the same loop through its `--options` JSON,
 or accepts a complete `pattern` for an authored layout.
 
 `widthCells` controls how far loops overlap neighboring cells; increase it for
-more crossings. `tiltDeg` rotates motif depth and local height before adding
+more crossings. `tiltDeg` rotates tile depth and local height before adding
 the course rise. `exterior` accepts `smooth`, `scalloped` or `both-scalloped`;
 mesh preparation chooses the first for inside contact and the second for outside
 contact unless overridden. For native geometry, set the same pattern through
@@ -154,12 +163,12 @@ provides a reproducible irregular native sleeve example.
 
 Advanced `pattern: {paths, advance, repeats}` accepts explicit strokes using
 the same point/depth/bead-height fields, with perimeter phase measured in turns.
-`advance: [turns, riseMm]` translates successive repeats. Prefer a single tiled
-motif when that expresses the requested shape.
+`advance: [turns, riseMm]` translates successive repeats. Prefer a single tile
+when that expresses the requested shape.
 
-With the default `endTransition: level`, the wall has a complete flat motif
+With the default `endTransition: level`, the wall has a complete flat pattern
 course at its starting height, the requested body courses, and a complete flat
-motif course at its ending height. Boundary transitions taper nominal bead
+pattern course at its ending height. Boundary transitions taper nominal bead
 height to fill the remaining gap without doubling the boundary bead. Level
 patterns publish only their actual final deposited footprint for later regions;
 they do not publish a filled guide surface. `spiral` preserves authored endings
@@ -190,7 +199,7 @@ and transitions only; they do not certify every unsampled height, global mesh
 error, or physical contact.
 
 The source mesh remains authoritative for contact queries. Small detached detail
-may be excluded under the [sleeve detector's section-area threshold](../../core/geom/README.md#mesh-reference-sleeves)
+may be excluded under the [sleeve detector's section-area threshold](../../core/geom/README.md#mesh-sleeves)
 (0.1% by default); significant branches, islands, multiple bores or separated
 usable height intervals fail. The fitted
 sleeve and contact preparation use bounded caches and report fit residuals,

@@ -1,6 +1,6 @@
 ---
 name: supports
-description: Add conventional supports beneath selected areas or explicitly placed tree branches at local contacts. Choose their placement to balance support, surface contact and removal access; the agent and maker assign areas through judgment.
+description: Conventional supports under selected areas, or tree branches at placed contacts; placement trades support against surface contact and removal access.
 ---
 
 # Assigned supports

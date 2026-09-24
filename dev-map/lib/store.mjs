@@ -571,9 +571,9 @@ export async function readGenerated(target,{repo=repoRoot,code=false,readSource=
   if(!held)return {generated:true,stale:{regenerate:'0'}};
   const key=String(target).replaceAll('\\','/').replace(/\/$/,'');
   const at=/^\d+(\.\d+)*$/.test(key)?key:held.byPath[key];
-  if(at===undefined)throw Error(`No generated page for ${key}. Read 0 for the regions.`);
+  if(at===undefined)throw Error(`No node ${key}. Read 0 for the regions.`);
   const page=at==='0'?held.root:held.groupPages?.[at]??held.regionPages[at]??await nodePage(dir,held,at);
-  if(!page)throw Error(`No generated page ${at}. Read 0 for the regions.`);
+  if(!page)throw Error(`No node ${at}. Read 0 for the regions.`);
   const stale=await storedFreshness(held,{repo,readSource,files});
   const described={...page,destination:destinationFor(page),...(stale?{stale}:{})};
   if(code||described.destination==='code')return withSources(

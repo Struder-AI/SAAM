@@ -32,7 +32,7 @@ This is the product direction; the references below describe implemented scope.
 Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md).
 
 Skills should work across geometry types and machines through shared interfaces,
-with explicit, narrow exceptions. Prints keep geometry, the process plan,
+with explicit, narrow exceptions. Print bundles keep geometry, the recipe,
 the checked export, and review records together locally. The
 [developer principles](core/README.md#interoperability-and-one-workflow) explain
 how changes extend this shared system.

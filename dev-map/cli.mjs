@@ -54,9 +54,9 @@ if(command==='build') {
   let result;
   try {result=await buildGeneratedView({repo:root,out:resolve(root,'dev-map/view')});}
   catch(error){console.error(error.message);process.exit(1);}
-  console.log(`${result.index}: ${result.pages} pages, ${result.files} files, ${result.bytes.toLocaleString('en-US')} bytes, ${result.ms} ms`);
+  console.log(`${result.index}: ${result.pages} nodes, ${result.files} files, ${result.bytes.toLocaleString('en-US')} bytes, ${result.ms} ms`);
   if(result.stale) {
-    console.log(`${result.stale} pages are stale; generation dependencies changed or lack a matching fingerprint:`);
+    console.log(`${result.stale} nodes are stale; generation dependencies changed or lack a matching fingerprint:`);
     for(const file of [...result.changed,...result.changedInputs??[]])console.log(`  ${file}`);
     console.log(`Run: ${regenerate}`);
   }
@@ -85,7 +85,7 @@ if(options.viewer&&!status.missing) {
 if(options.json)console.log(JSON.stringify(result,null,1));
 else if(status.missing)console.log(`No stored map at ${status.dir}. Run: ${regenerate}`);
 else {
-  console.log(`Stored ${status.generated}: ${status.totals.regions} regions, ${status.totals.files} files, ${status.totals.pages} pages.`);
+  console.log(`Stored ${status.generated}: ${status.totals.regions} regions, ${status.totals.files} files, ${status.totals.pages} declarations.`);
   console.log(`Links: ${status.totals.linked} linked, ${status.totals.unresolved} unresolved, ${status.totals.outside} outside, ${status.totals.platform} platform.`);
   if(status.stale) {
     console.log(`Stale: ${status.stale.reason}. ${status.stale.files.length} source files; ${status.stale.inputs?.length??0} generator/configuration inputs changed.`);
@@ -97,7 +97,7 @@ else {
   if(status.stranded.length)console.log(`No flow root of the region reaches these; they keep a box on the region page.`);
   console.log(`Unplaced: ${status.unplaced.length}`);
   for(const page of status.unplaced)console.log(`  ${page}`);
-  if(status.unplaced.length)console.log(`No map shows these pages. Remove the authored grouping, or place what it groups.`);
+  if(status.unplaced.length)console.log(`No map shows these clusters. Remove the authored cluster, or place what it clusters.`);
   console.log(`Orphan facts: ${status.orphanFacts.length}`);
   for(const row of status.orphanFacts)console.log(`  ${row.line}\t${row.declaration}\t${row.kind}\t${row.fact}\t${row.source}\t${row.date}`);
   if(status.facts.errors.length) {
@@ -107,13 +107,13 @@ else {
   if(result.viewer?.undrawnView)console.log(`No drawing at ${result.viewer.undrawnView}. Run: node dev-map/cli.mjs build`);
   else if(result.viewer) {
     const {graph,code,drawing,shell,undrawn}=result.viewer;
-    console.log(`Viewer coverage: ${graph.drawn}/${graph.presented} presented items drawn on ${drawing.length?graph.pages:0} of the map pages with a gap; ${code.drawn}/${code.presented} carried beside the source of ${code.pages} code destinations.`);
+    console.log(`Viewer coverage: ${graph.drawn}/${graph.presented} presented items drawn on ${drawing.length?graph.pages:0} of the maps with a gap; ${code.drawn}/${code.presented} carried beside the source of ${code.pages} code destinations.`);
     for(const [where,table] of [['drawing',drawing],['code destination',shell]]) {
       const short=table.filter(row=>row.drawn<row.presented);
       console.log(`Not on the ${where}: ${short.length}`);
-      for(const row of short)console.log(`  ${row.field}\t${row.presented-row.drawn} of ${row.presented}\t${row.gapPages} pages\t${row.examples.join(' ')}`);
+      for(const row of short)console.log(`  ${row.field}\t${row.presented-row.drawn} of ${row.presented}\t${row.gapPages} maps\t${row.examples.join(' ')}`);
     }
-    if(undrawn.length)console.log(`No drawing built for ${undrawn.length} map pages: ${undrawn.slice(0,5).join(' ')}. Run: node dev-map/cli.mjs build`);
+    if(undrawn.length)console.log(`No drawing built for ${undrawn.length} maps: ${undrawn.slice(0,5).join(' ')}. Run: node dev-map/cli.mjs build`);
   }
 }
 if(failed)process.exit(1);

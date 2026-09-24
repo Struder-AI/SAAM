@@ -121,7 +121,7 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   // inward offset, so a near-collinear patch/triangle seam — quantized to the
   // offset grid — split a degenerate sliver off the inset and a healthy section
   // was rejected as "empty, split or collapsed". The wall now removes those seams
-  // before offsetting, matching what the motif path already did. The fitted-sleeve
+  // before offsetting, matching what the pattern path already did. The fitted-sleeve
   // fast path sidesteps this; sleeveToleranceMm=0 exercises the exact path.
   const machine=loadMachine(),r=await rhino();
   // The raw seam-stepped loop really does split under the inward bead-half-width

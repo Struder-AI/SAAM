@@ -1,4 +1,4 @@
-// Smooth open reference sleeves estimated from validated closed mesh geometry.
+// Smooth open sleeves estimated from validated closed mesh geometry.
 // This is a fit, not a mesh repair or replacement of printable source geometry.
 import {createSectionQuery} from './query.mjs';
 import {contourPath} from './contour-path.mjs';

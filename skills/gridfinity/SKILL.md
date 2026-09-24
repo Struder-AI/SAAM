@@ -2,7 +2,7 @@
 name: gridfinity
 description: gridfinity
 metadata:
-  saam-kind: task
+  saam-kind: geometry
 ---
 
 # Gridfinity
@@ -149,7 +149,7 @@ for a ring. The actual deformed glyph outlines, including stroke expansion,
 determine clearance; the baseline radius alone does not.
 
 For a custom upper body, put a Gridfinity blank and the authored body into a
-shared assembly, then select printing skills by component. A one-unit-high blank
+shared assembly, then select toolpath skills by component. A one-unit-high blank
 ends at Z = 7 mm; place a supported body on that foundation and align the
 deposition interface with the layer grid. The assembly does not automatically
 union intersecting components or remove duplicate deposition, so assign distinct

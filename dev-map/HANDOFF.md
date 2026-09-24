@@ -1,11 +1,16 @@
-# Dev map handoff
+# Dev maps handoff
 
-State of the dev-map work as of 2026-09-21, for whoever continues it. Intent is
+State of the dev-maps work as of 2026-09-21, for whoever continues it. Intent is
 owned by [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md); this file explains
 the reasoning behind that intent, records what has been built against it, and
 lists what remains, in priority order, with the rationale for each item. It is
 not a manual and not a record of evidence; dated evidence is in
 [DEVLOG.md](../DEVLOG.md) under the 2026-09-21 entries.
+
+Terms follow [DEVELOPER-CONTEXT](../DEVELOPER-CONTEXT.md#terms) since
+2026-09-24. Older text here says page for a node or its map, flow root for
+entry, group for cluster, coupling for indirect link, holder for the enclosing
+declaration, instance for a box and accumulator for a carried value.
 
 ## Why the map exists, in the owner's words
 
@@ -105,27 +110,11 @@ Both sites are settled (2026-09-21): `studio/machine-view.mjs::drawMachineCanvas
 keeps its Canvas 2D property writes bracketed by save and restore, and
 `core/export/bambu.mjs::completeProgram` now returns a new program record.
 
-## What has been built (dev branch, 2026-09-21)
+## What has been built
 
-In commit order. Each has a DEVLOG entry with the measurements.
-
-1. `32c8b40` core/agent moved outside the scope (`unmappedDirs`).
-2. `4fc5a3b` first code-shape pass: 8 sites rewritten, 6 recorded as scanner limits.
-3. `cdb6cb2` one collapse rule; nested helpers homed by holder; constructors folded; 374 nested members, 23 dead file flows and 16 one-box groups removed; `check` fails on unplaced.
-4. `c494be0` scanner: `super`, pattern defaults, instance and record receivers, callback provenance and candidates, resolution for outside roots, `registered-subscriber`.
-5. `5f8941b` second code-shape pass: dead Lua accessors deleted; parameter mutation judged at 40 sites, 4 declarations rewritten; closure state triaged (163 bindings, one callable rewritten).
-6. `c7f1ad7` active callers on declaration pages; scope-edge arrows at every level; `outside`/`platform`; findings on the boxes that draw them.
-7. `86c37cf` function tables become registry entries (48 tables; islands 187 to 117).
-
-8. The functional tree (DEVLOG 2026-09-21, "Dev map: functional tree"):
-   operators no longer count toward the collapse rule (129 pages became code);
-   region pages home flow roots only, with wires contracted onto the owning
-   root; the walk is confined to a declaration's own region; file pages and
-   file addresses are gone, `stranded` replaces `unreached`; file members
-   rejected and the flows converted, which dropped 96 of 148 groups and left
-   52 clusters over 266 members. No relationship or finding row changed.
-
-Two consequences of the tree to look at before settling:
+The DEVLOG entries from 2026-09-21 on record each step with its commit and
+measurements; the queue below says what each left open. The functional tree
+had two consequences to look at before settling:
 
 - **Depth.** Max page depth went from 7 to 18. The deepest index is a genuine
   17-step call chain inside studio (`studio/machine-view.mjs::require`), not
@@ -204,6 +193,13 @@ unscanned callers (`onGeometry` in `runRepairJob`).
    `expression` operator wired from each identifier it reads, a join
    operator for `?:`/`&&`/`||`/`??` and branch-assigned bindings, and
    platform calls as producer boxes. Awaiting the owner's go.
+13. **Identifiers in the new terms.** The 2026-09-24 terms are in the docs and
+   the toolkit's prose; the read fields, the store and the viewer still use
+   the old names (the map guide lists them). Rename them together, with
+   `flows/` as the cluster files, and give each finding row its class,
+   `uncertain` or `missing`, from the kind table in the map guide, so a read
+   states the class instead of relying on the table. About 850 references
+   across `lib/`, the Python viewer and `coverage.mjs`. Awaiting the owner's go.
 
 ## How the work was run
 

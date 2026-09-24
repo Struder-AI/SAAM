@@ -51,7 +51,7 @@ All file names in the core column are relative to `core/tests/`.
 | Large move counts and G-code/ZIP size boundaries (explicit stress run) | 3 | [stress/large-export.test.mjs](./stress/large-export.test.mjs), [stress/large-program.test.mjs](./stress/large-program.test.mjs) |
 | `adapters/mcp/`: stdio tools, shared import/setup, CLI access, bounded manual and section reading | 4 | [mcp.test.mjs](./mcp.test.mjs), [mcp-access.test.mjs](./mcp-access.test.mjs) |
 | Skill surfaces on the public adapter | 4 | [heat-set MCP](../../skills/heat-set-inserts/tests/mcp.test.mjs), [gridfinity access](../../skills/gridfinity/tests/access.test.mjs), [thingi10k library](../../skills/thingi10k/tests/library.test.mjs) |
-| Vase-wall seam, near-straight-corner and retired-budget regressions; wavy-seam motif mapping | 3 | [vase.test.mjs](../../skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](../../skills/vase-wall/tests/paths.test.mjs) |
+| Vase-wall seam, near-straight-corner and retired-budget regressions; wavy-seam pattern mapping | 3 | [vase.test.mjs](../../skills/vase-wall/tests/vase.test.mjs), [paths.test.mjs](../../skills/vase-wall/tests/paths.test.mjs) |
 | Canopy-rim wave residue; lettering past the retired triangle ceiling | 3 | [wave.test.mjs](../../skills/wave-overhangs/tests/wave.test.mjs), [text.test.mjs](../../skills/text/tests/text.test.mjs) |
 | Documentation links, build-request structure, devlog presence, digest freshness, private-file exclusions | — | `node scripts/check-repo.mjs` |
 

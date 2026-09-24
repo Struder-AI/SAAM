@@ -220,7 +220,7 @@ For ordinary planar walls, hollow vessels or patterned fill, start with [planar-
 For continuous vase mode, normally use a solid model: the printing recipe makes
 the hollow wall, so the model needs no hole. See [vase-wall input geometry](skills/vase-wall/SKILL.md#input-geometry-normally-a-solid)
 for the distinction between the solid guide and the printed wall.
-For motifs, authored patterns or fitted mesh sleeves, use the separate
+For tiled or authored patterns or fitted mesh sleeves, use the separate
 [advanced vase mode manual](skills/advanced-vase-wall/SKILL.md).
 
 Follow additional references when the part needs them:
@@ -230,7 +230,7 @@ Follow additional references when the part needs them:
 | Initial installation or Studio access | [Setup and checks](SETUP.md), then [Studio agent permissions](studio/README.md#studio-agent-permissions). |
 | Machine-specific setup, export or playback limits | The relevant contract under [machine interoperability](core/export/README.md#machine-interoperability-design). |
 | Bambu dual nozzles or AMS colours | [Bambu setup](core/export/bambu.md#maker-setup), then the [H2D dual-nozzle](core/export/bambu.md#making-an-h2d-dual-nozzle-print) or [two-colour](core/export/bambu.md#making-an-h2d-two-colour-print) workflow. Use logical filament assignments and the normal exporter; never transplant reference G-code/project entries. |
-| Several printing patterns or material regions in one part | The chosen skill manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces). |
+| Several toolpath skills or material regions in one part | The chosen skill manuals and [material regions](core/region/README.md#material-regions-and-shared-interfaces). |
 | Sacrificial or edge supports | [Supports](skills/supports/SKILL.md), [rimming-planar](skills/rimming-planar/SKILL.md) or [rimming-normal](skills/rimming-normal/SKILL.md), as applicable. |
 | Creating or importing a print, changing settings or reusing setup | [Shared print tools](core/print/USAGE.md). |
 | A connected chat client | The [MCP adapter manual](adapters/mcp/README.md), including its connection and local-file access limits. |

@@ -7,7 +7,7 @@ operations and checked program used by this lifecycle.
 
 ## Downloaded mesh attribution
 
-The [Thingi10K preparation skill](../../skills/thingi10k/SKILL.md) downloads a
+The [Thingi10K geometry skill](../../skills/thingi10k/SKILL.md) downloads a
 selected STL and calls the shared importer with hash-matched attribution.
 The importer retains that record in `geometry.source.attribution`, alongside
 the original source hash and bytes. Unit corrections and wrappers retaining
@@ -53,7 +53,7 @@ recipe. Reopening checks the saved result without rerunning its construction;
 text edits reconstruct from the retained source and invalidate geometry review.
 
 The [mesh vase preparation tool](../../skills/advanced-vase-wall/SKILL.md#mesh-input-workflow)
-authors sleeve-fit, motif and base settings on an imported mesh through
+authors sleeve-fit, tile and base settings on an imported mesh through
 `adjustBundle`, using the expected revision. It preserves the source geometry
 and selected machine, and rejects conflicting composition instead of replacing
 it. The resulting recipe uses the same generation, review and delivery lifecycle.

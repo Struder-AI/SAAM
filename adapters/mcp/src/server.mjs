@@ -189,7 +189,7 @@ export function createMcpAdapter({ printsRoot = resolve(root, 'Prints'), autoOpe
       outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
       defaultSetup: m.defaultSetup };
   }));
-  tool('list_skills', 'List the known local printing and task skill manuals. This fixed list does not establish recipe compatibility; task skills are not deposition operations. Select the manual relevant to the requested task.', {}, skills);
+  tool('list_skills', 'List the known local toolpath and geometry skill manuals. This fixed list does not establish recipe compatibility; geometry skills are not deposition operations. Select the manual relevant to the requested task.', {}, skills);
   tool('read_skill', 'Read a known skill manual by ID. Follow its relevant documentation links with read_guidance.', { skillId: idSchema }, async ({ skillId }) => {
     if (!SKILL_IDS.includes(skillId)) {
       const local=await localExtension.readSkill?.(skillId);if(local)return local;

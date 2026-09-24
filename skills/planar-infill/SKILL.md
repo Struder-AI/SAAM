@@ -1,6 +1,6 @@
 ---
 name: planar-infill
-description: Print conventional flat-layer walls with a patterned interior, varying infill density to control material use or leave a hollow body. Supports closed meshes and supported spline geometry; combine with full-fill for solid tops and bases.
+description: Conventional flat layers, with walls around a patterned sparse interior and density down to a hollow body. Meshes and supported splines; pair with full-fill for solid tops and bases.
 ---
 
 # Planar infill

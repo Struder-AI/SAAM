@@ -80,7 +80,7 @@ footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
     <h2>Caveats: where "capabilities skills can call" doesn't quite fit</h2>
     <ol>
       <li><b>There is no declared skill API.</b> Skills import core modules by relative path (<code class="i">../../../core/…</code>). This list is what they actually import, so it's the <i>de facto</i> surface. Only parts of it have written contracts: shared offsets and intersections (<code class="i">core/region/README.md</code>, which skills are <i>required</i> to use), skill-result composition (<code class="i">core/path/README.md</code>) and geometry for skill authors (<code class="i">core/geom/README.md</code>).</li>
-      <li><b>Calls go both ways.</b> Core calls printing skills too: <code class="i">core/print/generate.mjs</code> statically imports each producer (<code class="i">fullFillResult</code>, <code class="i">vaseWallResult</code>, <code class="i">waveResults</code> …) and dispatches it. Producers return <code class="i">{id, operations, report}</code> to the composer. <code class="i">core/print/bundle.mjs</code> also imports pipe-cladding directly.</li>
+      <li><b>Calls go both ways.</b> Core calls toolpath skills too: <code class="i">core/print/generate.mjs</code> statically imports each producer (<code class="i">fullFillResult</code>, <code class="i">vaseWallResult</code>, <code class="i">waveResults</code> …) and dispatches it. Producers return <code class="i">{id, operations, report}</code> to the composer. <code class="i">core/print/bundle.mjs</code> also imports pipe-cladding directly.</li>
       <li><b>Some skills are mostly core.</b> mesh-tools and advanced-vase-wall have no scripts of their own. Repair lives in <code class="i">core/print/repair-stl.mjs</code> plus native CGAL, and advanced vase is part of vase-wall. text and heat-set-inserts put their main work in <code class="i">core/print/text.mjs</code> and <code class="i">heat-set.mjs</code>. rimming-normal reuses rimming-planar's producer.</li>
       <li><b>Two import paths for the same booleans.</b> <code class="i">core/region/boolean.mjs</code> re-exports <code class="i">union / intersect / difference</code> from <code class="i">intersection.mjs</code>, and skills use both paths.</li>
       <li><b>Not included:</b> imports from skill tests only, such as <code class="i">core/tests/fixtures/*</code> and <code class="i">core/export/registry|griffin|bambu</code>. gridfinity's catalog description is literally "gridfinity" (its manual says this is intentional), so its description here is taken from the manual body.</li>
@@ -92,41 +92,41 @@ footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
 <script>
 const SKILLS = [
   // [id, kind, description, core modules imported (non-test), note]
-  ['planar-infill','printing','Flat-layer walls with a patterned, variable-density or hollow interior.',
+  ['planar-infill','toolpath','Flat-layer walls with a patterned, variable-density or hollow interior.',
     ['geom/query','geom/tolerance','path/spacing','region/boolean','region/intersection','region/offset','region/region2d','region/reservation']],
-  ['full-fill','printing','Solid planar layers for a whole body, or solid bases, caps and surface regions around sparse infill.',
+  ['full-fill','toolpath','Solid planar layers for a whole body, or solid bases, caps and surface regions around sparse infill.',
     ['geom/polyline','geom/query','geom/tolerance','machine/rules','path/builder','path/compose','path/spacing','region/boolean','region/offset','region/perimeters','region/region2d','region/reservation']],
-  ['line-network','printing','Sparse planar frames and trusses printed directly from explicit centerline polylines.',
+  ['line-network','toolpath','Sparse planar frames and trusses printed directly from explicit centerline polylines.',
     ['geom/tolerance','path/builder']],
-  ['plastic-weld','printing','Experimental rivets: molten plastic injected into blind shafts with wider basins across layers.',
+  ['plastic-weld','toolpath','Experimental rivets: molten plastic injected into blind shafts with wider basins across layers.',
     ['geom/tolerance','path/process-controls','print/bundle','region/boolean','region/region2d']],
-  ['supports','printing','Conventional area supports or explicitly placed tree branches at local contacts.',
+  ['supports','toolpath','Conventional area supports or explicitly placed tree branches at local contacts.',
     ['geom/query','geom/tolerance','path/spacing','region/intersection','region/offset','region/region2d']],
-  ['rimming-planar','printing','Experimental thin walls, with horizontally offset paired beads, that support edges so a bridge can span between them.',
+  ['rimming-planar','toolpath','Experimental thin walls, with horizontally offset paired beads, that support edges so a bridge can span between them.',
     ['geom/support-surface','geom/tolerance','path/spacing','region/section-offset']],
-  ['rimming-normal','printing','Rimming walls whose paired beads follow 3D surface-normal offsets (nonplanar).',
+  ['rimming-normal','toolpath','Rimming walls whose paired beads follow 3D surface-normal offsets (nonplanar).',
     ['geom/support-surface','geom/tolerance','path/spacing','region/section-offset'],'via rimming-planar producer'],
-  ['draped-skin','printing','Nonplanar top-skin strokes that follow a sloped or curved roof instead of flat-layer steps.',
+  ['draped-skin','toolpath','Nonplanar top-skin strokes that follow a sloped or curved roof instead of flat-layer steps.',
     ['geom/query','geom/tolerance','path/builder','path/compose','path/spacing','region/boolean','region/offset','region/region2d']],
-  ['wave-overhangs','printing','Experimental continuous wave passes over spline slices, grown from assigned supported seeds.',
+  ['wave-overhangs','toolpath','Experimental continuous wave passes over spline slices, grown from assigned supported seeds.',
     ['geom/reference-surface','geom/surface-derivatives','geom/tolerance','machine/profile','print/bundle','print/plan','region/intersection','region/offset','region/region2d','region/surface-offset']],
-  ['vase-wall','printing','Hollow vase or tube printed as one continuous rising spiral, with an optional solid base.',
+  ['vase-wall','toolpath','Hollow vase or tube printed as one continuous rising spiral, with an optional solid base.',
     ['geom/contour-path','geom/cylinder','geom/mesh-distance','geom/mesh-sleeve','geom/mesh','geom/polyline','geom/prepared-contours','geom/prepared-radial-contact','geom/query','geom/sleeve-frame','geom/tolerance','path/deposition','print/bundle','print/plan','region/intersection','region/offset','region/region2d']],
-  ['advanced-vase-wall','printing','Motifs and authored patterns on a reference sleeve, with optional fitted mesh sleeves and loose offsets.',
+  ['advanced-vase-wall','toolpath','Tiled and authored patterns on a sleeve, with optional fitted mesh sleeves and loose offsets.',
     ['geom/contour-path','geom/cylinder','geom/mesh-distance','geom/mesh-sleeve','geom/mesh','geom/polyline','geom/prepared-contours','geom/prepared-radial-contact','geom/query','geom/sleeve-frame','geom/tolerance','path/deposition','print/bundle','print/plan','region/intersection','region/offset','region/region2d'],'manual only; runs vase-wall scripts'],
-  ['thick-lip','printing','Thickens a vase-wall top edge into a rigid, optionally rolled rim.',
+  ['thick-lip','toolpath','Thickens a vase-wall top edge into a rigid, optionally rolled rim.',
     ['geom/polyline','geom/query','geom/tolerance','path/builder','region/offset','region/region2d']],
-  ['pipe-cladding','printing','Lengthwise and helical cladding wrapped around a substrate (DENSO RC8A and rotary).',
+  ['pipe-cladding','toolpath','Lengthwise and helical cladding wrapped around a substrate (DENSO RC8A and rotary).',
     ['geom/cylinder','geom/query','geom/spline-tube','geom/surface-offset','geom/surface-region','geom/tolerance','machine/profile','path/spacing','print/bundle','print/plan','region/intersection','region/normal-surface']],
-  ['thingi10k','task','Find and download STL meshes from the Thingi10K mirror, keeping attribution and license.',
+  ['thingi10k','geometry','Find and download STL meshes from the Thingi10K mirror, keeping attribution and license.',
     ['file-write','machine/profile','print/import-stl']],
-  ['mesh-tools','task','Diagnose import failures, clean facets, repair self-intersections (CGAL) and fill bounded holes.',
+  ['mesh-tools','geometry','Diagnose import failures, clean facets, repair self-intersections (CGAL) and fill bounded holes.',
     [],'manual only; core/print/repair-stl.mjs + native CGAL'],
-  ['text','task','Raised or recessed lettering, or standalone text, from an outline font, optionally bent onto a surface.',
+  ['text','geometry','Raised or recessed lettering, or standalone text, from an outline font, optionally bent onto a surface.',
     ['geom/reference-surface','geom/solid','geom/tessellate','geom/text-layout','geom/text-outline','geom/text-record','geom/tolerance','print/bundle','print/plan','print/text','region/intersection']],
-  ['gridfinity','task','Parametric Gridfinity open bins, solid insert blanks and baseplates, output as closed meshes.',
+  ['gridfinity','geometry','Parametric Gridfinity open bins, solid insert blanks and baseplates, output as closed meshes.',
     ['geom/solid','geom/tolerance','print/bundle','print/generate','print/geometry']],
-  ['heat-set-inserts','task','Catalog-sized heat-set insert bores with local wall loops and radial fins.',
+  ['heat-set-inserts','geometry','Catalog-sized heat-set insert bores with local wall loops and radial fins.',
     ['geom/query','geom/selections','geom/solid','geom/tessellate','geom/tolerance','print/bundle','print/heat-set','region/boolean','region/offset','region/region2d']],
 ];
 
@@ -246,8 +246,8 @@ const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
 const usersOf = mod => SKILLS.filter(s => s[3].includes(mod)).map(s => s[0]);
 
 const skillsBox = document.getElementById('skills');
-for (const kind of ['printing','task']) {
-  skillsBox.append(el('h3', null, kind === 'printing' ? 'Printing patterns' : 'Geometry and task skills'));
+for (const kind of ['toolpath','geometry']) {
+  skillsBox.append(el('h3', null, kind === 'toolpath' ? 'Toolpath skills' : 'Geometry skills'));
   for (const [id, k, desc, mods, via] of SKILLS.filter(s => s[1] === kind)) {
     const row = el('div', 'skill');
     row.dataset.id = id;

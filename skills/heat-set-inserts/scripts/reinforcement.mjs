@@ -17,25 +17,25 @@ export function heatSetDetails(features){
         const hole=region.find(loop=>loopArea(loop)<0&&pointInRegion([x,y],[loop]));
         requireThat(hole,`Heat-set ${f.id}: the layer no longer contains its complete bore; revise overlapping geometry or material reservations.`);
         holes.push(hole);
-        const inner=[[...hole].reverse()],outer=offsetRegion(inner,6*widthMm),sleeve=difference(outer,inner);
-        requireThat(regionArea(difference(sleeve,region))<0.001,`Heat-set ${f.id}: insufficient material for six complete loops.`);
-        requireThat(regionArea(intersect(sleeve,reservation))<0.001,'Heat-set sleeves overlap; separate the holes.');
+        const inner=[[...hole].reverse()],outer=offsetRegion(inner,6*widthMm),boreWall=difference(outer,inner);
+        requireThat(regionArea(difference(boreWall,region))<0.001,`Heat-set ${f.id}: insufficient material for six complete loops.`);
+        requireThat(regionArea(intersect(boreWall,reservation))<0.001,'Heat-set bore walls overlap; separate the holes.');
         for(let ring=0;ring<6;ring++){
           const loops=offsetRegion(inner,(ring+0.5)*widthMm);
           requireThat(loops.length===1,'Heat-set bore must have one complete loop.');
           walls.push({role:'heat-set-loop',closed:true,points:loops[0]});
         }
-        // A gusset joins the full sleeve depth to the insertion face. Its
+        // A gusset joins the full bore-wall depth to the insertion face. Its
         // radial reach grows linearly from zero at the floor to full length
         // at the face: a right triangle in the radial/Z plane. Width tapers
-        // from twice the nominal fin width at the sleeve to nominal at the tip.
+        // from twice the nominal fin width at the bore wall to nominal at the tip.
         const finWidth=Math.max(widthMm,Math.round(f.finWidthMm/widthMm)*widthMm);
         const progress=(z-(mouth-depthMm))/depthMm,length=f.finLengthMm*Math.min(1,progress);
         const rootWidth=2*finWidth,tipWidth=finWidth*(2-length/f.finLengthMm);
         const radial=Math.max(...hole.map(p=>Math.hypot(p[0]-x,p[1]-y)))+6*widthMm;
         let finRegion=[];
         // Features below one bead of radial reach cannot form a separate fin.
-        // The six sleeve loops still support the first printable gusset layer.
+        // The six bore-wall loops still support the first printable gusset layer.
         for(let n=0;length>=widthMm&&n<f.finCount;n++){
           const angle=(f.finAngleDeg+n*360/f.finCount)*Math.PI/180,u=[Math.cos(angle),Math.sin(angle)],v=[-u[1],u[0]];
           const at=(r,t)=>[x+r*u[0]+t*v[0],y+r*u[1]+t*v[1]];
@@ -57,11 +57,11 @@ export function heatSetDetails(features){
         // inside them so additional global perimeters cannot double-deposit.
         const otherBoundaries=region.filter(loop=>loop!==hole);
         const exteriorInterior=offsetRegion(otherBoundaries,-Math.max(0,widthMm+(perimeters-1)*pitchMm));
-        const owned=union(sleeve,finRegion);
+        const owned=union(boreWall,finRegion);
         requireThat(perimeters===0||regionArea(difference(owned,exteriorInterior))<0.001,`Heat-set ${f.id}: reinforcement meets ordinary walls; shorten fins, move the hole, or reduce exterior loops.`);
         reservation=union(reservation,owned);
         fillExclusion=union(fillExclusion,union(outer,finRegion));
-        wallRegion=union(wallRegion,sleeve);allFinRegion=union(allFinRegion,finRegion);
+        wallRegion=union(wallRegion,boreWall);allFinRegion=union(allFinRegion,finRegion);
       }
       return {walls,fins,reservation,fillExclusion,wallRegion,finRegion:allFinRegion,interiorBoundary:region.filter(loop=>!holes.includes(loop)),ownsWall:loop=>loopArea(loop)<0&&holes.some(h=>pointInRegion(h[0],[loop]))};
     }

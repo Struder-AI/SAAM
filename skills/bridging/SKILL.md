@@ -1,6 +1,6 @@
 ---
 name: bridging
-description: Generate experimental straight XYZ bridge spans between two sampled supporting rims, with alternating continuous or one-way diagnostic paths and independently controlled attachment motions. Compose with existing wall producers; this skill generates no walls and has no physical validation.
+description: Experimental. Straight XYZ spans between two supporting rims, with separately controlled attachment motions. Makes no walls; compose with a wall producer.
 ---
 
 # Bridging

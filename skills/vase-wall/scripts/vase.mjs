@@ -1,4 +1,4 @@
-// Section-derived spirals and sleeve-relative motifs share stroke semantics.
+// Section-derived spirals and sleeve-relative patterns share stroke semantics.
 import {createSectionQuery} from '../../../core/geom/query.mjs';
 import {cleanPlanarLoop} from '../../../core/geom/polyline.mjs';
 import {loopArea,dedupe,pointSegmentDistance,pointInRegion} from '../../../core/region/region2d.mjs';
@@ -30,7 +30,7 @@ export function convexLoop(loops) {
   }
   return loop;
 }
-function motifContour(outer,toleranceMm){
+function patternContour(outer,toleranceMm){
   // Start simplification at a geometric extreme, not an arbitrary triangle
   // seam that can slide along an edge as Z changes.
   let first=0;
@@ -68,7 +68,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
   const cacheSection=(key,value)=>{
     // Keeping every distinct height plus all its offset contours would make
     // memory grow with the entire print. The spiral visits heights in order
-    // and motifs revisit only recent ones, so a short window suffices.
+    // and patterns revisit only recent ones, so a short window suffices.
     if(cache.size>=256)cache.delete(cache.keys().next().value);
     cache.set(key,value);return value;
   };
@@ -95,15 +95,15 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     // offset rebuilds. Keep its original contour; mesh cuts still need removal
     // of collinear triangle seams before quantization and offsets: a raw
     // tessellation seam is a near-collinear step that an inward offset can split
-    // off as a degenerate sliver, leaving the inset with two loops. Motifs
-    // re-anchor and grid-round for phase stability through motifContour; the
+    // off as a degenerate sliver, leaving the inset with two loops. Patterns
+    // re-anchor and grid-round for phase stability through patternContour; the
     // standard wall only needs the seam removed. Fitted-sleeve and native spline
     // cuts are already chord-controlled and keep their exact contour.
     const rawOuter=outerLoop(cut.loops),seamTolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4;
     const meshCut=!reference&&shell.kind==='triangle-mesh';
-    const outer=settings.pattern&&!reference?motifContour(rawOuter,seamTolerance):meshCut?cleanPlanarLoop(rawOuter,seamTolerance):rawOuter;
+    const outer=settings.pattern&&!reference?patternContour(rawOuter,seamTolerance):meshCut?cleanPlanarLoop(rawOuter,seamTolerance):rawOuter;
     const offsetLoops=offsetRegion([outer],centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
-    // A motif follows only the outer boundary. Interior offset holes do not
+    // A pattern follows only the outer boundary. Interior offset holes do not
     // supply another wall; multiple outer components still cannot be mapped.
     const inset=settings.pattern?offsetLoops.filter(loop=>loopArea(loop)>0):offsetLoops;
     requireThat(inset.length===1&&loopArea(inset[0])>0,`Vase wall ${centerlineOffset<0?'inward':'outward'} offset is empty, split or collapsed at Z ${z} mm for bead width ${width} mm.`);
@@ -114,7 +114,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
     // can lie inside later, expanding contours, where its nearest projection
     // switches between opposite edges of a corner and makes phase discontinuous.
     // A +X anchor preserves the initial maximum-X seam and remains exterior as
-    // the wall changes height. Offset motifs translate this same anchor below.
+    // the wall changes height. Offset patterns translate this same anchor below.
     seam??=[shell.bounds.max[0]+width,curve.seam[1]];
     const holes=cut.loops.filter(loop=>loopArea(loop)<0);
     const value={outer,loop,curve,holes};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
@@ -134,7 +134,7 @@ export function vaseWallResult({shell,plan,machine,id='vase-wall',after=[],zStar
       let parallel=curves.get(offsetMm);
       if(!parallel){
         const loops=offsetRegion([outer],offsetMm+centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4}).filter(loop=>loopArea(loop)>0);
-        requireThat(loops.length===1&&loopArea(loops[0])>0,`Motif offset contour split or collapsed at Z ${z} mm, offset ${offsetMm} mm; revise offsetMm or the host.`);
+        requireThat(loops.length===1&&loopArea(loops[0])>0,`Pattern offset contour split or collapsed at Z ${z} mm, offset ${offsetMm} mm; revise offsetMm or the host.`);
         parallel=contourPath(dedupe(loops[0]),[seam[0]+offsetMm,seam[1]]);
         if(curves.size>=32)curves.delete(curves.keys().next().value);
         curves.set(offsetMm,parallel);

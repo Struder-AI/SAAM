@@ -1,5 +1,29 @@
 # Development log
 
+## 2026-09-24 — Dev maps: terms and finding classes
+
+- User reviewed the dev-map vocabulary. New terms in DEVELOPER-CONTEXT
+  (`#terms`): dev maps (the system) and map (one graph); node (anything with
+  an index: region, cluster, declaration) with a kind and a view, map or code
+  block; box (one drawing of a node; a node may have several on one map);
+  top map, entry (was flow root), cluster (was group), nested/enclosing (was
+  holder); link or wire, as call, data, state or indirect link (was coupling),
+  keyed dispatch (was registry entry); carried value (was accumulator).
+- Findings are uncertain (drawn, the unknown marked on it) or missing (not
+  drawn anywhere); the map guide's `#findings` tables assign all 31 kinds and
+  4 rules. Current store: 5629 uncertain, 5179 missing (10,808).
+- Docs and prose only: map guide rewritten in the terms with a field-name
+  bridge; HANDOFF gains a terms note and queue item 13 (rename fields, store,
+  viewer and `flows/`; class on each finding row), and its commit list moved
+  to a DEVLOG pointer; toolkit onboarding text and CLI/read messages say
+  nodes, maps, clusters. Lines: DEVELOPER-CONTEXT 147 → 186, map guide
+  193 → 220, HANDOFF 245 → 241.
+- Checks: regenerate and `check` unchanged (3177 linked, 977 unresolved, 57
+  outside, 4994 platform); developer onboarding returns the new text; no link
+  errors in the edited docs. The commit also carries another session's
+  uncommitted work in the checkout (vase-wall motif → tile rename, skill and
+  manual edits), at the user's request.
+
 ## 2026-09-24 — Dev map: exporters leave the mapped scope
 
 - User ruled that exporters, anything turning a SAAMpath into another

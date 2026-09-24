@@ -1,6 +1,6 @@
 ---
 name: thick-lip
-description: Thicken a vase-wall's top edge into a rigid, optionally rolled rim instead of leaving a single spiral or level-ended bead. Use when the operator asks for a rim, brim, bead, rolled edge, round-over or a more durable/rigid lip on a vase-mode print.
+description: A vase wall's top edge thickened into a rigid, optionally rolled rim.
 ---
 
 # Thick lip

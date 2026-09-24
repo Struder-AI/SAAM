@@ -1,13 +1,13 @@
 ---
 name: thingi10k
-description: Find meshes by descriptive keywords or a Thingiverse link, then download individual STL files from the Thingi10K mirror for Studio review. Preserve attribution and always link the file's license in chat; prefer tailored geometry when making it is attractive.
+description: Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license.
 metadata:
-  saam-kind: task
+  saam-kind: geometry
 ---
 
 # Find and import existing meshes
 
-Use this preparation skill when an existing model serves the request, including
+Use this geometry skill when an existing model serves the request, including
 "fetch me a bunny" or a supplied Thingiverse link. Follow the creation preference
 and licensing policy in [MAKERS](../../MAKERS.md#find-the-instructions-for-this-part).
 Prefer making tailored geometry when that is an attractive option. An explicit
@@ -74,7 +74,7 @@ labels are not permission. Prefer another suitable model with verifiable terms.
 On `imported: true`, use `request_review` through MCP, or
 `node scripts/agent-toolkit.mjs open-print Prints/bunny` through CLI, and follow
 the [shared STL workflow](../../core/print/USAGE.md#import-an-stl). Show dimensions
-and assumptions, choose printing patterns, and review the geometry in Studio.
+and assumptions, choose toolpath skills, and review the geometry in Studio.
 Download/import creates no approvals. It does not silently repair, simplify or
 rescale a model to fit the bed; shared provisional unit inference still applies.
 

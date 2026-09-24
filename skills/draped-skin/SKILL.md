@@ -1,6 +1,6 @@
 ---
 name: draped-skin
-description: Follow a sloping or curved roof with top-skin strokes instead of approximating it with flat-layer steps. Works on continuous accessible mesh or supported spline roofs within the machine's nonplanar angle limit; excluded steep areas are reported.
+description: Top-skin strokes that follow a sloping or curved roof instead of flat-layer steps, within the machine's nonplanar angle limit; steep areas are reported.
 ---
 
 # Draped skin

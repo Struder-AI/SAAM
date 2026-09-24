@@ -1,6 +1,6 @@
 ---
 name: pipe-cladding
-description: Wrap a substrate with alternating lengthwise and helical cladding, or opposite-handed helices for a crossed exterior pattern. Supports circular pipes and explicitly mapped periodic spline or mesh surfaces; this development capability requires a configured DENSO RC8A robot and external rotary.
+description: Lengthwise, helical or crossed-helix cladding around a pipe, a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary.
 ---
 
 # Pipe cladding
@@ -51,7 +51,7 @@ on successive shells. Each runs bottom to top; the shared transition retreats
 and returns to the next shell's lower end with extrusion off. Wider
 [line spacing](../../core/print/USAGE.md#line-spacing) opens the crossed pattern
 without increasing bead width. This works on circular pipes and the selected
-periodic surfaces below. It remains substrate cladding, not a free-standing
+sleeves below. It remains substrate cladding, not a free-standing
 mesh generator or a physically validated TPU process.
 
 The nozzle points inward and downward, at `tiltDeg` from downward vertical.
@@ -221,7 +221,9 @@ This is deliberately different from the legacy pipe recipe, where the pipe's
 outer radius includes the cladding and its band is reserved inward. Nothing in
 this example implements arbitrary inward surface-volume reservations.
 
-Set `skills.pipe-cladding.surface` to an explicit selection:
+Set `skills.pipe-cladding.surface` to an explicit **sleeve**: a surface periodic in
+one direction, closing on a seam, and open in the other (the side of a tube).
+Cladding is laid out on it; the sleeve itself is not deposited. Select one:
 
 - Native spline: `{kind:'spline', patch:'outer', periodicU:true, normalSide:1,
   uvBounds:[[0,16],[0,1]]}`. Bounds are native patch parameters. Positive V runs
@@ -273,7 +275,7 @@ bring each contact azimuth to the working side. The same interpreted tool frame
 drives Studio's bead orientation; neither playback nor material display guesses
 a cylindrical normal for the new mode.
 
-Current limits: one selected component and one rectangular periodic surface chart;
+Current limits: one selected component and one rectangular sleeve chart;
 no arbitrary face-region unwrapping, holes in the chart, multi-patch seam routing,
 open-patch cladding or general inward material reservation. The substrate's
 Z-regions can compose through their published boundaries.

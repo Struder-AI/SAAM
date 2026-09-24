@@ -1,4 +1,4 @@
-// Process plan for shell-based prints: geometry, placement, setup, shared
+// Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
 //
 // A locked plan must carry everything generation needs, so generation makes no

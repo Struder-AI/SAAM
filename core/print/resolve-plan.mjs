@@ -16,7 +16,7 @@ function mergeRecord(previous,changes,{geometryTemplate,key}={}){
     const variant=field==='surface'&&record(value)&&Object.hasOwn(value,'kind')
       ||field==='primeLine'&&record(value)
       ||field==='pattern'&&record(value)&&record(current)
-        &&(Object.hasOwn(value,'motif')!==Object.hasOwn(current,'motif'));
+        &&(Object.hasOwn(value,'tile')!==Object.hasOwn(current,'tile'));
     if(record(value)&&(variant||current===null||current===undefined))target[field]=structuredClone(value);
     else if(record(value))target[field]=mergeRecord(current,value,{geometryTemplate,key:field});
     else target[field]=structuredClone(value);
