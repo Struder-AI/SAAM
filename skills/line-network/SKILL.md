@@ -1,6 +1,6 @@
 ---
 name: line-network
-description: Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area.
+description: Experimental. Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area.
 ---
 
 # Line network

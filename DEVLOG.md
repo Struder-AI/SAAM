@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-09-24 — Dev maps: map scorer
+
+- Direction from the owner: leaves and links are generated from scanned code;
+  clusters are authored (eventually solved) to balance map size (6–16),
+  crossing links, flow readability and one-way flow; everything nested under
+  `0`, with repeats. A solver weighs all maps at once. First step: a scorer
+  the owner checks against good and bad maps.
+- `dev-map/lib/score.mjs` and `node dev-map/cli.mjs score [--json]`: per map,
+  size badness, crossing share (and without nodes called from 20+ places),
+  islands and backflow (Eades–Lin–Smyth order), summed; tree energy is the
+  sum. Links are calls, data between calls (through operators) and indirect
+  links, lifted onto the drawn members. Writes `dev-map/view/scores.html`
+  (sortable, filter by kind, each index opening the viewer); viewer builds
+  refresh it.
+- First run: 671 maps, 4368 node links, energy 899.23. Medians: clusters 1.45
+  (27 of 42 with islands), regions 1.45, node maps 1.40; top map 0.38.
+  Checked the page and map links in the viewer; regenerate and `check`
+  unchanged.
+
 ## 2026-09-24 — Dev map glossary: ports reserved; no "declaration"
 
 - User rulings: "port" is reserved for the Grasshopper junction of a link and
@@ -52,7 +71,10 @@
   User report 2026-09-24: draped-skin, bridging, advanced-vase-wall and thick-lip
   have been demonstrated in physical prints. Bridging lost its marker and the
   four manuals' "no physical print" lines now record that report. Marked:
-  plastic-weld, rimming-planar, rimming-normal, wave-overhangs.
+  plastic-weld, rimming-planar, rimming-normal, wave-overhangs, and at the
+  user's direction pipe-cladding and line-network. User report: every
+  planar-infill pattern is physically validated (manual updated); supports are
+  not (the freehand spline cat did not need its support), so that manual stands.
 - Checks: digest freshness passes; `core/tests/mcp.test.mjs` and thingi10k
   library tests 23/23. `check-repo` reports only BR-055 and D-038, from
   concurrent uncommitted backlog and decision edits.

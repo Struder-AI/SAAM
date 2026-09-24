@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {repoRoot,storeDir,readIndex,storedFreshness,matchingSource} from './store.mjs';
 import {presentationPage} from './presentation.mjs';
 import {snapshotIdentity} from './freshness.mjs';
+import {writeScorePage} from './score.mjs';
 
 export const regenerate='node scripts/agent-toolkit.mjs regenerate';
 export const noStore=dir=>`No stored map at ${dir}. Run: ${regenerate}`;
@@ -59,6 +60,7 @@ export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,'dev-ma
   for(const name of await readdir(resolve(out,'svg')))if(!drawn.has(name))await rm(resolve(out,'svg',name),{force:true});
   for(const name of ['sources.js','index.html','stamp.js'])await copyFile(resolve(next,name),resolve(out,name));
   await rm(next,{recursive:true,force:true});
+  await writeScorePage({repo,out});
   const {bytes,files}=await bytesUnder(out);
   return {out,index:resolve(out,'index.html'),pages:model.pages.length,stale:Object.keys(model.stale).length,
     changed:model.changed,changedInputs:model.changedInputs,ms:Date.now()-started,bytes,files};

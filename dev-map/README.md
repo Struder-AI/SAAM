@@ -18,6 +18,7 @@ call, link or prose.
 node scripts/agent-toolkit.mjs read-map ADDRESS [--code] [--details]
 node scripts/agent-toolkit.mjs regenerate [INDEX]
 node dev-map/cli.mjs check [--json] [--viewer [ADDRESS…]] | build | flow-evidence ADDRESS
+node dev-map/cli.mjs score [--json]
 node dev-map/cli.mjs watch-freshness [--once]
 ```
 
@@ -207,6 +208,17 @@ the region map), `unplaced` nodes and orphan facts; `--json` the same as data.
 the read presents, naming the fields nothing stands for. It only reports and
 is opt-in, reading a view `build` drew; an address scopes it, `coverage.mjs`
 states how each item is matched.
+
+## Scoring
+
+`score` rates every map (`lib/score.mjs` states the measures): nodes drawn
+outside 6–16, the share of links touching the map's nested content that leave
+it, islands of boxes with no link between them, and links against the best
+left-to-right order. Each is 0 when ideal; a map's score is their sum and the
+tree's energy the sum over maps, the objective a clustering solver would
+minimise. It prints the worst and best maps and writes `view/scores.html`,
+which every viewer build also refreshes, ranking all maps with links into the
+viewer.
 
 ## The viewer
 

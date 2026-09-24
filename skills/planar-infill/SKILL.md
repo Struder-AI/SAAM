@@ -9,7 +9,8 @@ Use for conventional flat-layer printing with walls and a sparse interior.
 For maker work, read [MAKERS.md](../../MAKERS.md). For development, start with the
 [builder orientation](../../BUILDERS.md) and follow its task-specific references.
 Software tests cover the S5 and H2D profiles,
-mesh and restricted spline inputs. No physical print is validated. Both machines
+mesh and restricted spline inputs. The user reports every infill pattern
+validated in physical prints (2026-09-24). Both machines
 use the shared export/review/delivery workflow. H2D output is experimental; read
 its [machine contract](../../core/export/bambu.md#h2d-output-contract) before use.
 

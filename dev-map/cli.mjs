@@ -6,9 +6,24 @@ import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {repoRoot as root} from './lib/store.mjs';
 
-const usage='Use: node dev-map/cli.mjs build | regenerate [INDEX] | flow-evidence INDEX|DECLARATION | check [--json] | watch-freshness [--once] [--interval-ms 2000]';
+const usage='Use: node dev-map/cli.mjs build | regenerate [INDEX] | flow-evidence INDEX|DECLARATION | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=process.argv.slice(2);
-if(!['build','check','regenerate','flow-evidence','watch-freshness'].includes(command))throw Error(usage);
+if(!['build','check','regenerate','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
+
+// How well each map reads (lib/score.mjs), ranked worst first beside the viewer as scores.html.
+if(command==='score') {
+  const {values}=parseArgs({args,options:{json:{type:'boolean'}}});
+  const {writeScorePage}=await import('./lib/score.mjs');
+  const result=await writeScorePage({repo:root,out:resolve(root,'dev-map/view')});
+  if(values.json){console.log(JSON.stringify(result,null,1));process.exit(0);}
+  const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} nodes, crossing ${Math.round(s.badness.crossing*100)}%, ${s.islands} islands, backflow ${Math.round(s.badness.backflow*100)}%  ${s.label}`;
+  console.log(`${result.maps} maps, ${result.links} node links, energy ${result.energy}. Worst:`);
+  for(const s of result.scores.slice(0,10))console.log(line(s));
+  console.log('Best:');
+  for(const s of result.scores.slice(-10))console.log(line(s));
+  console.log(`All maps: ${resolve(root,'dev-map/view/scores.html')}`);
+  process.exit(0);
+}
 
 if(command==='watch-freshness') {
   const {values}=parseArgs({args,options:{once:{type:'boolean'},'interval-ms':{type:'string',default:'2000'}}});

@@ -14,7 +14,7 @@ still unknown. A description that is only a keyword marks a
 |---|---|
 | [planar-infill](planar-infill/SKILL.md) | Conventional flat layers, with walls around a patterned sparse interior and density down to a hollow body. Meshes and supported splines; pair with full-fill for solid tops and bases. |
 | [full-fill](full-fill/SKILL.md) | Solid planar layers for a whole body, or solid bases, caps and surface regions around sparse infill. Meshes and supported spline shells. |
-| [line-network](line-network/SKILL.md) | Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area. |
+| [line-network](line-network/SKILL.md) | Experimental. Sparse planar frames and trusses from explicit centerline polylines, with per-layer reinforcement strokes; fills no enclosed area. |
 | [bridging](bridging/SKILL.md) | Straight XYZ spans between two supporting rims, with separately controlled attachment motions. Makes no walls; compose with a wall producer. |
 | [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
 | [supports](supports/SKILL.md) | Conventional supports under selected areas, or tree branches at placed contacts; placement trades support against surface contact and removal access. |
@@ -26,7 +26,7 @@ still unknown. A description that is only a keyword marks a
 | [vase-wall](vase-wall/SKILL.md) | A hollow vase or tube as one continuous rising spiral wall, with an optional solid base. |
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Vase walls patterned with repeated tiles or authored paths on a sleeve, with optional smooth mesh fitting. |
 | [thick-lip](thick-lip/SKILL.md) | A vase wall's top edge thickened into a rigid, optionally rolled rim. |
-| [pipe-cladding](pipe-cladding/SKILL.md) | Lengthwise, helical or crossed-helix cladding around a pipe, a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary. |
+| [pipe-cladding](pipe-cladding/SKILL.md) | Experimental. Lengthwise, helical or crossed-helix cladding around a pipe, a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary. |
 
 ## Geometry skills
 

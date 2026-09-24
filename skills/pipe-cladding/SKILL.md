@@ -1,6 +1,6 @@
 ---
 name: pipe-cladding
-description: Lengthwise, helical or crossed-helix cladding around a pipe, a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary.
+description: Experimental. Lengthwise, helical or crossed-helix cladding around a pipe, a spline or mesh sleeve, or a finished vase wall. Development only; needs a configured DENSO RC8A robot with external rotary.
 ---
 
 # Pipe cladding
