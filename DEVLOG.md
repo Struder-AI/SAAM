@@ -1,5 +1,19 @@
 # Development log
 
+## 2026-09-24 — Tour manual condensed
+
+- `examples/prints/README.md` went from 12,797 to 8,778 characters. The
+  maker-agent participation section, which `start-tour` returns, went from
+  7,560 to 4,129: scope, Studio leads, requests and listener, playback start
+  layer, chat lesson and completion. Repeated rules (Studio leads, no geometry
+  suggestions, send before waiting, completion in chat) now appear once.
+- Studio visual and completion behaviour (slate-blue highlights, blinking,
+  arrows, file naming, final download and Exit tour) moved out of the agent
+  section into a new "Tour presentation" subsection. The lesson table and intro
+  were condensed.
+- Tour agent context (MAKERS plus participation) is 14,800 serialized
+  characters. `check-repo` links pass.
+
 ## 2026-09-24 — Dev maps: score in the viewer bar
 
 - User asked for each map's score and breakdown on the map itself. The viewer
