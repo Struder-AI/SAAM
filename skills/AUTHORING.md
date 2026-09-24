@@ -31,7 +31,8 @@ Geometry skill manuals declare `metadata.saam-kind: geometry` in frontmatter. Th
 [catalog](catalog.mjs) controls discovery and ordering; each manual owns its
 description and classification. The description is one line that helps an agent
 choose: one or two sentences on what the skill does, when to choose it and any
-boundary that rules it out, starting with "Experimental." when unvalidated. A
+boundary that rules it out, starting with "Experimental." for a new printing technique whose physical
+behaviour is still unknown. A
 [keyword skill](../GLOSSARY.md)'s description is only its keyword. Details that
 matter once the skill is chosen belong in the manual. The description is reused
 by the [digest](DIGEST.md) and MCP catalog. After changing descriptions or catalog membership, run

@@ -23,78 +23,73 @@ rules under [Code shape](#code-shape).
 ### Dev map glossary
 
 These terms are still settling and this list owns them. The map guide, the
-tools and the read fields still use some older names.
+tools and the read fields still use some older names. Regions and entry
+points describe the current generator and are under review.
 
 - **Dev maps**: the whole system: every map, the viewer and the tools that
   read and regenerate them. A **map** is one graph in it.
-- **Node**: anything with an index. It has exactly one **parent map**, which
-  numbers it and draws it as a box. It is one of three kinds:
-  - **Region**: one mapped directory, such as `core/geom` or `studio`
-    (`core` holds only the files directly in `core/`). Regions are nested in
-    the top map, and this is the only place where the file tree shapes the
-    maps. A region's map draws its entry points.
-  - **Cluster**: an authored node that groups boxes on a region's or a
-    declaration's map under a label. Its map draws its members.
-  - **Declaration**: a function, method, event handler or class in source.
-    Its map draws what it calls, in call order, and the data between.
-- **Top map**: `0`, the map of the regions. It is the root of the nesting and
-  no node's box.
+- **Node**: anything with an index: a function, method, event handler or
+  class, a cluster, or a region. It has exactly one **parent map**, which
+  numbers it and draws it as a box; it is a **child node** there, and its own
+  map, if it opens as one, is a **child map**. A node's map draws what it
+  calls, in call order, and the data between.
+- **Cluster**: an authored node that groups boxes on a map under a label. Its
+  map draws its members and the links between them.
+- **Region**: one mapped directory, such as `core/geom` or `studio`. Regions
+  are the top map's child nodes, and a region's map draws its entry points.
+- **Top map**: `0`, the root of the nesting and no node's box.
 - **Nesting**: the tree of maps. A node is nested in its parent map: `2.1.3`
   in `2.1`. Clusters are the authored part of the nesting; everything else is
   nested by calls, as [the tree](#the-tree) says.
-- **View**: how a node opens: its **map**, or its **code block**, the source
-  with the same callers, links and findings beside it. A node opens as a map
-  only when that map would draw at least two declarations it calls with a link
-  between them (the **map-or-code rule**). A **leaf** is a declaration whose
-  view is a code block.
+- **View**: how a node opens: its map, or its **code block**, the source with
+  the same callers, links and findings beside it. A node opens as a map only
+  when that map would draw at least two nodes it calls with a link between
+  them (the **map-or-code rule**). A **leaf** is a node whose view is a code
+  block.
 - **Box**: one drawing of a node on a map. A node can have many boxes, on
   several maps or on one, since each call site is its own box. A box on any
   map other than the node's parent map is a **repeat**.
-- **Entry point**: a declaration that no other declaration of its region calls
-  by name. Other regions, outside code or a registration reach the region
-  through it. A region's map draws only its entry points, some grouped into
-  clusters; every other declaration of the region is reached through them and
-  nested deeper. In `core/export`, `exportAndInterpretProgram` is an entry
-  point because only `core/print` calls it; `outputAdapter`, which all three
-  registry entry points call, is nested in the first of their maps,
-  `exportProgram`'s.
-- **Inner declaration**: a declaration written inside another's body, its
-  **outer declaration**. It is nested in the outer declaration's map, whatever
-  else calls it.
-- **Port**: one of a node's inputs or outputs. The same ports appear on every
-  box of the node, where the parent map's links attach, and, when the node
-  opens as a map, at that map's edge, where its inner links start and end. A
-  declaration's inputs are its parameters and its outputs its returns and
-  throws; a region's or cluster's are one per region or outside code its
-  links cross to; the top map's inputs are the ways outside code enters. A
-  **stub** is an input port on a box that no link reaches, showing its literal
-  value or why the value could not be traced.
-- **Link** (or wire): a **call link** from a function to each box it calls, in
+- **Entry point**: a node that nothing else in its region calls by name. A
+  region's map draws only its entry points, some grouped into clusters; every
+  other node of the region is reached through them and nested deeper.
+- **Inner** and **outer**: a function written inside another's body is inner
+  to that outer one. It is nested in the outer node's map, whatever else calls
+  it.
+- **Port**: reserved for the junction where a link meets a box, as in
+  Grasshopper: an argument slot a data link enters, or the result it leaves
+  from. A **stub** is a port no link reaches, showing its literal value or why
+  the value could not be traced.
+- **Boundary box**: a box at a map's edge that stands for something outside
+  that map: a node on another map, outside code, or a way in such as an HTTP
+  route or module load.
+- **Link** (or wire): a **call link** from a node to each box it calls, in
   call order, under its **gate**, the condition the call stands under; a
   **data link** carrying a value between ports; a **state link**, state read
   or written; or an **indirect link**, reached through a medium rather than a
   call: a file, an HTTP route, a worker message, an event listener, or **keyed
   dispatch**, a function looked up by key in a named table. On a region or
   cluster map, one link stands for every call between two boxes, with a count.
-- **Operator**: a step on a declaration's map that is not a call: a choice, a
-  loop, an update, a collection or a member call. **State**: bindings and
-  fields that an outer declaration or class owns and its members read or
-  write. A **carried value** is a variable a loop updates on every pass, drawn
-  on the loop operator: `initial` and `next` in, `current` and `final` out.
-  Operators and state are drawn but are not nodes and have no index.
+- **Operator**: a step on a map that is not a call: a choice, a loop, an
+  update, a collection or a member call. **State**: bindings and fields that
+  an outer function or class owns and its inner ones or members read or write.
+  A **carried value** is a variable a loop updates on every pass, drawn on the
+  loop operator: `initial` and `next` in, `current` and `final` out. Operators
+  and state are drawn but are not nodes and have no index.
 - **Finding**: the scanner's record of something it could not represent in
   full, in one of two classes. An **uncertain** finding is about something
   drawn, with the unknown part marked on the drawing. A **missing** finding is
   something the code does that no map draws; the finding is its only record.
-- **Annotation**: a sourced, dated statement about a declaration that the code
-  cannot make: a `measurement`, `vendor` behaviour or a recorded `decision`.
-  Annotations are kept in `dev-map/facts.tsv`.
+- **Annotation**: a sourced, dated statement about a node that the code cannot
+  make: a `measurement`, `vendor` behaviour or a recorded `decision`, kept in
+  `dev-map/facts.tsv`.
 - **Outside**: code that is scanned but not mapped ([scope](#scope)). An
   outside caller is **active** when it runs while a person makes a part or
   operates Studio. A call to outside code is drawn as a headless arrow naming
   its target; a call to nothing scanned is **platform**.
-- **Stranded**: a declaration that no entry point of its region reaches. It
-  keeps its box on the region map.
+- **Stranded**: a node that no entry point of its region reaches. It keeps its
+  box on the region map.
+- **Node path**: the durable name of a node, `file.mjs::name`, as against its
+  index, which changes on regeneration.
 - **Authored inputs**: clusters, annotations and scope. Everything else is
   generated.
 
@@ -110,7 +105,7 @@ tools and the read fields still use some older names.
   scripts, the MCP adapter, the agent toolkit and its CLI entry, and the
   exporters. They are listed on the nodes they call; everything else outside
   (skill tests and demos, benchmarks, audits) is counted, never drawn.
-- The scope edge is drawn both ways: outside callers as ports and caller rows,
+- The scope edge is drawn both ways: outside callers as boundary boxes and caller rows,
   and every call that leaves the maps as a headless arrow naming its target,
   at every level.
 
@@ -123,9 +118,9 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
   into it below the regions: the nesting is functional, never a file tree.
 - A region map draws its entry points, optionally clustered; a link between
   them says the code under one reaches the code under the other. Every other
-  declaration in the region is nested in the first map of that region that
-  reaches it, so a deep call chain is a deep index. An inner declaration is
-  nested in its outer declaration's map; a class is its construction and its
+  node in the region is nested in the first map of that region that reaches
+  it, so a deep call chain is a deep index. An inner function is nested in its
+  outer one's map; a class is its construction and its
   members.
 - A leaf is drawn as a box on its parent map with its links there, and its
   **chain**, what it calls while each of those is a leaf in turn, is drawn
@@ -139,8 +134,8 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
 ### Findings
 
 Findings are never hidden. An uncertain finding is marked where it is drawn: a
-stub with its reason, an operator whose test or input is unknown, a port no
-link feeds, a callback whose timing is unknown. A missing finding is a call
+stub with its reason, an operator whose test or input is unknown, a result
+no link carries, a callback whose timing is unknown. A missing finding is a call
 with no resolved target, a write to an object, a value chosen between
 branches, an early exit or caught exception, a collection's contents after it
 escapes: the absence of a link is no evidence of absence.
@@ -196,11 +191,11 @@ node dev-map/cli.mjs check
 
 Reads come from the stored map and never scan; `regenerate` scans, and a read
 whose inputs have moved says `stale` and names the index to regenerate. Use the
-index when talking about the current map and the declaration path
+index when talking about the current map and the node path
 (`file.mjs::name`) when something must keep pointing at it. **Text search for
 orientation is discouraged**: it finds names; the walk shows who calls and
 consumes what you are about to change. The authored inputs are clusters in
-`dev-map/flows/*.json` (declaration members only), annotations in
+`dev-map/flows/*.json` (node paths only), annotations in
 `dev-map/facts.tsv`, and the scope. The
 [map guide](dev-map/README.md) owns the commands, read fields and authoring
 mechanics; [BR-052](build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent)

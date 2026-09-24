@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-24 — Dev map glossary: ports reserved; no "declaration"
+
+- User rulings: "port" is reserved for the Grasshopper junction of a link and
+  a box (argument slot or result); what the maps drew as region and top-map
+  ports are boundary boxes. "Declaration" is dropped for node, parent map,
+  child map, child node, inner and outer; the durable name is the node path.
+  Code inputs and outputs are not listed separately. Link kinds and the two
+  finding classes are kept.
+- Measured for the region question (store of this date): 117 region entry
+  points, 33 of them called by mapped code in another directory; 351 of 1921
+  repeat boxes exist because a call crosses a directory. From the same call
+  edges, homing each node at its nearest common caller without regions gives
+  93 entry points, depth 10 (mean 2.5, now 13 and 5.3), and 426 nodes on the
+  top map, 333 of them shared helpers (189 leaves) that no single caller
+  owns. No generator change yet; the region pivot awaits the owner.
+
 ## 2026-09-24 — Dev maps: glossary in DEVELOPER-CONTEXT; HANDOFF removed
 
 - User asked for a "Dev map glossary" section in DEVELOPER-CONTEXT as the one
@@ -30,6 +46,13 @@
   used only when the person names it. Added "Keyword skill" to GLOSSARY and the
   description rule to skills/AUTHORING.md; fixed its `--builder` file name
   (BUILDER.md) and a toolkit comment that still barred developers from manuals.
+- Experimental list reviewed with the user. "Experimental." now means a new
+  printing technique whose physical behaviour is still unknown; most manuals
+  also lack validated prints, so "unvalidated" did not distinguish anything.
+  User report 2026-09-24: draped-skin, bridging, advanced-vase-wall and thick-lip
+  have been demonstrated in physical prints. Bridging lost its marker and the
+  four manuals' "no physical print" lines now record that report. Marked:
+  plastic-weld, rimming-planar, rimming-normal, wave-overhangs.
 - Checks: digest freshness passes; `core/tests/mcp.test.mjs` and thingi10k
   library tests 23/23. `check-repo` reports only BR-055 and D-038, from
   concurrent uncommitted backlog and decision edits.

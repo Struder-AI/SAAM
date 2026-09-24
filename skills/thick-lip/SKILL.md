@@ -87,7 +87,7 @@ even though the vase-wall underneath needs `nonplanar`.
 
 ## Limitations
 
-No physical print has validated this skill. Adjacent rings of one step are
+The user reports this skill demonstrated in physical prints (2026-09-24). Adjacent rings of one step are
 joined by a short printed connector inside that step's own ring band, checked
 by the same shared travel policy as every other planar skill; it is
 not specially modeled for the hollow interior beneath a single-wall vase.

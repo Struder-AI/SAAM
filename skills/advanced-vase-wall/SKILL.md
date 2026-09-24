@@ -210,8 +210,9 @@ physical bead overlap still require Studio and maker judgment.
 Use a machine profile that supports XYZ extrusion and the required nonplanar
 motion. The nominal angle and slope reports are software checks, not clearance
 ratings. Dobot relay output stops at segment boundaries and does not establish
-continuous robot motion or calibrated variable flow. No physical vase print has
-been validated; software generation, review and export do not approve hardware.
+continuous robot motion or calibrated variable flow. The user reports advanced
+vase walls demonstrated in physical prints (2026-09-24); software generation,
+review and export do not approve hardware.
 
 ### Quality and generation cost
 

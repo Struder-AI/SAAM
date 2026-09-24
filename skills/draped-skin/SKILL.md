@@ -113,7 +113,8 @@ delivery. H2D uses the same workflow with experimental sliced-3MF output and
 strict interpretation of the print body. Its firmware service routines are not
 simulated; read the [machine contract](../../core/export/bambu.md#h2d-output-contract).
 
-No physical print, head-clearance or surface-finish validation has been performed.
+The user reports draped skin demonstrated in physical prints (2026-09-24); head
+clearance and surface finish have not been measured.
 Beads, skin offsets and first-skin bridging are approximate. Curvature convergence,
 automatic supports, pressure/adhesion and second-nozzle collision are not modeled.
 A direct turnaround permits up to a quarter-skin thickness of surface sag (capped
