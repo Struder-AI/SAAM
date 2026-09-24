@@ -2,7 +2,6 @@
 // comes from a generated packet or scanner relation; boundaries are cut from those edges.
 import {readFile,readdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {invocationInstances} from './instances.mjs';
 import {destinationFor} from './destination.mjs';
 
 export async function compositionFiles(repo) {
@@ -93,34 +92,6 @@ function structural(page,{model,index,packets}) {
 
 function contextLines(model,file) { return model.fileLines?.get(file)??1; }
 
-// Contracting a stage around an outside operation would turn a straight flow
-// into apparent feedback. Check actual occurrences, including repeated callees.
-function assertConvex(packet,groups) {
-  if(packet.structural||packet.kind==='class')return;
-  const expanded=invocationInstances(packet),outgoing=new Map();
-  for(const wire of expanded.wires??[]) {
-    // Capturing or passing a function value does not execute that function, and a
-    // shared-state dependency does not establish which accessor runs first. These
-    // edges can cross closure groups in both directions without creating execution
-    // feedback. Keep them and their boundary evidence; exclude only from this walk.
-    if(wire.kind==='capture'||wire.kind==='state'||wire.provenance==='ast-closure-value')continue;
-    if(!outgoing.has(wire.from))outgoing.set(wire.from,[]);
-    outgoing.get(wire.from).push(wire.to);
-  }
-  for(const group of groups) {
-    const declarations=new Set(group.members.map(c=>c.index));
-    const inside=new Set(expanded.components.filter(c=>declarations.has(c.index)).map(c=>c.id??c.index));
-    const pending=[...inside].flatMap(id=>(outgoing.get(id)??[]).filter(to=>!inside.has(to)));
-    const seen=new Set();
-    while(pending.length) {
-      const next=pending.pop();
-      if(inside.has(next))throw Error(`Non-convex composition ${group.path}: execution leaves the group and re-enters it. Keep the intervening flow visible.`);
-      if(seen.has(next))continue;seen.add(next);
-      pending.push(...(outgoing.get(next)??[]));
-    }
-  }
-}
-
 export function composePages(pages,config,context) {
   allowed(config,['schema','flows'],'root');
   if(config.schema!==1||!Array.isArray(config.flows))throw Error('Composition needs schema 1 and flows.');
@@ -168,7 +139,6 @@ export function composePages(pages,config,context) {
       const at=`${packet.index}${packet.kind==='group'?'':'.0'}.${i+1}`,path=`${spec.path}::@group/${g.id}`;
       groups.push({index:at,path,label:g.label??g.id,members,...(g.groups?{groups:g.groups}:{})});
     }
-    assertConvex(packet,groups);
     const groupOf=new Map(groups.flatMap(g=>g.members.map(c=>[c.index,g])));
     const endpoint=end=>groupOf.get(end)?.index??end;
     const parentWires=base.filter(w=>!groupOf.has(w.from)||groupOf.get(w.from)!==groupOf.get(w.to))
@@ -220,9 +190,6 @@ export function composePages(pages,config,context) {
         groupPages.set(g.index,nested.pages.get(g.path));
         for(const [at,child] of nested.groupPages)groupPages.set(at,child);
       }
-      // A group that draws one box is a step the walk passes through without seeing anything.
-      const drawn=(groupPages.get(g.index).components??[]).length;
-      if(drawn<2)throw Error(`Group ${g.path} would draw ${drawn} box${drawn===1?'':'es'}. A group needs at least two boxes; drop it and leave its member at this level.`);
     }
     const projectedPage={...packet,components:projected,wires:parentWires,
       ...(packet.stateFields?{stateFields:packet.stateFields.filter(f=>parentWires.some(w=>w.stateField===f.id))}:{}),

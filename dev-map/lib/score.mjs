@@ -24,7 +24,7 @@ export const UBIQUITOUS=20;
 const nodeOf=box=>String(box).split('@')[0];
 const inside=(at,holder)=>holder==='0'||at===holder||at.startsWith(`${holder}.`);
 
-// Every node with its own code, by index.
+// Every node with its own code, by index, and the file records that hold them.
 export async function readNodes(repo) {
   const dir=storeDir(repo),held=await readIndex(dir);
   if(!held)throw Error(`No stored map at ${dir}. Run: node scripts/agent-toolkit.mjs regenerate`);
@@ -34,7 +34,7 @@ export async function readNodes(repo) {
     const page=records.get(file).pages[at];
     if(page)nodes.set(at,page);
   }
-  return {held,nodes};
+  return {held,nodes,records};
 }
 
 // Links between nodes, once per pair and kind: each call a node makes, each value passed from
@@ -86,8 +86,10 @@ export function storedMaps(held,nodes) {
 
 // The order that puts the fewest links backwards, by the greedy rule of Eades, Lin and Smyth:
 // take sinks to the end and sources to the front, else the member sending most more than it
-// receives.
-function flowOrder(members,edges) {
+// receives. Ties go by index, so the order members are listed in does not change the score.
+const byAt=(a,b)=>a.localeCompare(b,undefined,{numeric:true});
+function flowOrder(unordered,edges) {
+  const members=[...unordered].sort(byAt);
   const out=new Map(members.map(m=>[m,new Set()])),into=new Map(members.map(m=>[m,new Set()]));
   for(const [a,b] of edges){out.get(a).add(b);into.get(b).add(a);}
   const left=new Set(members),front=[],back=[];
@@ -104,12 +106,18 @@ function flowOrder(members,edges) {
   return new Map([...front,...back].map((m,i)=>[m,i]));
 }
 
+// A map is scored from what it draws, so a drawing that is not stored (a solver's proposal) is
+// scored the same way. By default a member holds the nodes nested under its index and the map's
+// content is what is nested under the map's index; a proposal passes `covers` (member → the
+// indexes it holds) and `inside` (node → whether it is nested in this map) instead.
 export function scoreMap(map,links,callers) {
   const members=map.self?[map.index,...map.members]:map.members;
-  // The member holding a node: the deepest member it is nested under.
+  const inMap=map.inside??(at=>inside(at,map.index));
+  const prefixes=members.flatMap(m=>(map.covers?.get(m)??[m]).map(p=>[p,m]));
+  // The member holding a node: the one holding the deepest index it is nested under.
   const holder=at=>{
-    let found=null;
-    for(const m of members)if((at===m||at.startsWith(`${m}.`))&&(!found||m.length>found.length))found=m;
+    let found=null,depth=-1;
+    for(const [p,m] of prefixes)if((at===p||at.startsWith(`${p}.`))&&p.length>depth){found=m;depth=p.length;}
     return found;
   };
   let crossing=0,crossingPlain=0,touching=0,touchingPlain=0;
@@ -118,16 +126,21 @@ export function scoreMap(map,links,callers) {
     // A link between two drawn boxes is on this map, whichever map the boxes are nested in.
     const x=holder(from),y=holder(to);
     if(x&&y&&x!==y)between.add(`${x}>${y}`);
-    const a=inside(from,map.index),b=inside(to,map.index);
+    const a=inMap(from),b=inMap(to);
     if(!a&&!b)continue;
     const outer=a?to:from,ubiquitous=a!==b&&(callers.get(outer)??0)>=UBIQUITOUS;
     touching++;if(!ubiquitous)touchingPlain++;
     if(a!==b){crossing++;if(!ubiquitous)crossingPlain++;}
   }
+  return rateMap(map,members,[...between].map(pair=>pair.split('>')),{crossing,crossingPlain,touching,touchingPlain});
+}
+
+// A map's score from what its links were counted to be: `edges`, the member pairs linked on it,
+// and the links touching its content and leaving it.
+export function rateMap(map,members,edges,{crossing,crossingPlain,touching,touchingPlain}) {
   // Islands: members joined by any link in either direction.
   const parent=new Map(members.map(m=>[m,m]));
   const find=m=>parent.get(m)===m?m:find(parent.get(m));
-  const edges=[...between].map(pair=>pair.split('>'));
   for(const [a,b] of edges)parent.set(find(a),find(b));
   const islands=new Set(members.map(find)).size;
   const order=flowOrder(members,edges);

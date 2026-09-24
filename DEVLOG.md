@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-09-24 — Dev maps: cluster solver (first run)
+
+- `dev-map/lib/solve.mjs`: a model of every site (a region or a node whose view
+  is a map) as units a cluster can take, each carrying the chain its leaf
+  draws. It reproduces every stored map's score exactly (670 of 670 plus the top
+  map). A compiled scorer scores proposals by lookups. `solveTree` anneals the
+  whole tree's energy with one temperature and random moves across all sites,
+  and stops when a stage freezes.
+- `score.mjs`: `scoreMap` scores any drawing (`covers`, `inside`); counting and
+  rating are split (`rateMap`); backflow ties go by index, so list order doesn't
+  change a score (energy 899.23 → 899.34).
+- Owner direction: the score judges cluster quality, so generation no longer
+  refuses a non-convex or one-box cluster (`composition.mjs`, map guide).
+- First solve: 84 s, froze at stage 29, energy 897.8 → 830.9 by dissolving
+  every cluster. Under this energy every cluster is a net cost: flattening the
+  nine clustered sites takes them from 76.2 to 9.3, because size is capped at 1
+  and each cluster map adds its own crossing. The energy needs the owner's
+  decision before any flows are written. Flows unchanged.
+
 ## 2026-09-24 — Tour manual condensed
 
 - `examples/prints/README.md` went from 12,797 to 8,778 characters. The

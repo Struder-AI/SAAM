@@ -174,10 +174,10 @@ read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 duplicated node fails). A flow names a region or declaration whose map is
 published and lists clusters as `groups` with `id`, optional `label`,
 `members` and nested `groups`. A member is a declaration path; a file path, or
-a nested declaration its encloser already places, is rejected. A cluster must
-draw at least two boxes and must not hide a path that leaves it and re-enters:
-that would draw false feedback. Missing or duplicate members fail generation,
-so a rename means editing its membership.
+a nested declaration its encloser already places, is rejected. Missing or
+duplicate members fail generation, so a rename means editing its membership.
+How well a cluster reads (its size, the loops it draws) is the score's to judge,
+not a rule.
 
 ```json
 {"schema": 1, "flows": [{"path": "core/path",
