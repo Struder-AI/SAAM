@@ -119,7 +119,7 @@ export async function regenerateMap(target) {
 
 // Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
 // manual, skill authoring and the component manual for the area — and may walk that region. A
-// developer reads the map from `0` and one orientation file, and no manual at all.
+// developer reads the map from `0` and one orientation file, and opens a manual when the work calls for it.
 export async function onboarding({role, areas = []}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
   const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));

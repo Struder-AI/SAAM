@@ -1,8 +1,8 @@
 # Dev maps
 
 Intent, scope, terms and the reading rules are owned by
-[DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), the state of the work by
-[HANDOFF.md](HANDOFF.md). This guide owns the commands, the addresses, what each
+[DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), what remains by
+[BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent). This guide owns the commands, the addresses, what each
 read carries and the authoring mechanics. Generation derives nodes, links,
 gates and source locations; authoring arranges them into maps and can add no
 call, link or prose.
@@ -60,7 +60,7 @@ reaches the class, and its methods are nodes homed there.
 
 ## What each read carries
 
-Field names predate the [terms](../DEVELOPER-CONTEXT.md#terms): `destination`
+Field names predate the [glossary](../DEVELOPER-CONTEXT.md#dev-map-glossary): `destination`
 is the view (`graph` for a map, `code` for a code block), `components` are the
 boxes, `wires` the links, `couplings` the indirect links, a `group` a cluster,
 `inlined`/`via` a leaf's chain, and `uncertainty` and `unresolved` rows the

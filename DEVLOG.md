@@ -1,5 +1,39 @@
 # Development log
 
+## 2026-09-24 — Dev maps: glossary in DEVELOPER-CONTEXT; HANDOFF removed
+
+- User asked for a "Dev map glossary" section in DEVELOPER-CONTEXT as the one
+  owner of the terms while they settle. Changed with it: a node is a region,
+  cluster or declaration with one parent map (was home); nesting is the tree of
+  maps; entry point (was entry/flow root), with an example; inner and outer
+  declaration (was nested/enclosing, holder); ports belong to the node and
+  appear on its boxes and at its own map's edge; annotation (was fact). The
+  map guide, tools and read fields are not yet propagated.
+- Deleted `dev-map/HANDOFF.md` (241 lines), a one-use handoff. Its open items,
+  open questions and accepted scanner limits moved into BR-052, which already
+  pointed at it; its rulings are in D-038 and the DEVLOG. Links updated in
+  DEVELOPER-CONTEXT (186 → 225 lines), the map guide and `.local`.
+- Checks: `check-repo` reports only the existing BR-055 and D-038 errors.
+
+## 2026-09-24 — Skill digest trimmed to selection; keyword skills
+
+- User asked for the AGENTS.md treatment on the skill digest. `skills/DIGEST.md`
+  went from 79 lines / 8,360 characters to 41 / 3,885. The intro is three
+  sentences; the onboarding paragraph, special capabilities and shared-workflow
+  sections were removed as restatements of AGENTS, GLOSSARY, MAKERS, USAGE
+  and AUTHORING.
+- Rewrote 19 SKILL.md descriptions (the digest and MCP catalog source) to what
+  the skill does, when to choose it and what rules it out: 4,843 to about 2,500
+  characters. Details that matter after selection stay in the manuals.
+  Unvalidated skills start with "Experimental.". The table column is "Use".
+- User ruling: `gridfinity` keeps its one-word description as a keyword skill,
+  used only when the person names it. Added "Keyword skill" to GLOSSARY and the
+  description rule to skills/AUTHORING.md; fixed its `--builder` file name
+  (BUILDER.md) and a toolkit comment that still barred developers from manuals.
+- Checks: digest freshness passes; `core/tests/mcp.test.mjs` and thingi10k
+  library tests 23/23. `check-repo` reports only BR-055 and D-038, from
+  concurrent uncommitted backlog and decision edits.
+
 ## 2026-09-24 — Dev maps: terms and finding classes
 
 - User reviewed the dev-map vocabulary. New terms in DEVELOPER-CONTEXT
