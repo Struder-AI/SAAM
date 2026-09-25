@@ -10,7 +10,7 @@ const usage='Use: node dev-map/cli.mjs build | regenerate [INDEX] | solve [--see
 const [command='build',...args]=process.argv.slice(2);
 if(!['build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
 
-// The cluster solver (lib/solve.mjs): anneal the stored tree toward the lowest mean map score,
+// The cluster solver (lib/solve.mjs): anneal the stored tree toward the lowest energy,
 // write it to tree.json, then regenerate so the maps and the viewer show it.
 if(command==='solve') {
   const {values}=parseArgs({args,options:{seed:{type:'string',default:'1'}}});
@@ -34,7 +34,7 @@ if(command==='score') {
   const {writeScorePage}=await import('./lib/score.mjs');
   const result=await writeScorePage({repo:root,out:resolve(root,'dev-map/view')});
   if(values.json){console.log(JSON.stringify(result,null,1));process.exit(0);}
-  const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} boxes, ${s.interface.entries} in/${s.interface.exits} out, ${s.islands} islands, ${s.backflow.links} backward, balance ${s.balance}  ${s.label}`;
+  const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} boxes, edge ${s.edge.boundary}+${s.edge.externals}, hub ${s.hubs.max}/${s.hubs.mean}, ${s.islands} islands, ${s.backflow.links} backward, balance ${s.balance}  ${s.label}`;
   console.log(`${result.leaves} leaves, ${result.maps} maps, ${result.links} links, energy ${result.energy} (weighted map score per leaf). Worst:`);
   for(const s of result.scores.slice(0,10))console.log(line(s));
   console.log('Best:');

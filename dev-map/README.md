@@ -72,7 +72,7 @@ Every read: `index`, `kind`, `destination`, `stale` when its inputs moved,
   `leaves` nested, `ports` (a `boundary:` box for each node on another map a
   link crosses to, shown where the two maps meet), and one link per box pair
   lifted onto the boxes holding each end, with `kinds` and `count`. External
-  boxes count toward size and interface like any box. A link is a call, a value passed between calls or an indirect link.
+  boxes count toward the map's edge. A link is a call, a value passed between calls or an indirect link.
 - **Leaf** (function, method, handler, class): `path`, `file`, `range`,
   `folded` (declarations written inside it and folded into it),
   `inputs` (`parameterTargets` on a port this node calls: each callable a
@@ -190,12 +190,12 @@ states how each item is matched.
 ## Scoring
 
 `score` rates every map, `0` and each cluster, as weights times squared
-excesses (`lib/score.mjs`): 0.025 per box outside 6–20 (external boxes do not
-count); 0.025 per nested leaf beyond four reached from outside, and per one
-beyond four linking out (the interface); 0.2 per extra island; 0.05 per box
-pair against the best left-to-right order; and 2 × balance, the biggest home
-box's share of the nested leaves beyond an even share. The energy, which
-`solve` minimises, sums the map scores, each weighted by 1 + log₂ of its
+excesses (`lib/score.mjs`): 1 per box short of 6 and 0.025 per box beyond 20
+(edge boxes do not count); 0.01 per edge box, boundary or external; 0.1 per
+wire a box has beyond 3 more than the map's mean (hubs); 0.2 per extra island;
+0.05 per box pair against the best left-to-right order; and 2 × balance, the
+biggest home box's share of the nested leaves beyond an even share. The energy,
+which `solve` minimises, sums the map scores, each weighted by 1 + log₂ of its
 nested leaves, per leaf mapped.
 Crossing is reported, not scored. The viewer shows each map's score and parts in its bar.
 `score` prints the worst and best maps and writes `view/scores.html`, which

@@ -56,8 +56,8 @@ comes from files or directories.
   Grasshopper: an argument slot a data link enters, or the result it leaves
   from. A **stub** is a port no link reaches, showing its literal value or why
   the value could not be traced.
-- **Boundary box**: a box at a map's edge that stands for a node on another
-  map that a link crosses to.
+- **Boundary box**: a box at a map's **edge** (its boundary and external
+  boxes) that stands for a node on another map that a link crosses to.
 - **External**: what outside the maps links to a leaf: an active outside
   declaration, the browser (DOM events) or module load. `0` draws every
   external; a cluster map draws those linked to what it nests. Externals a map
@@ -94,8 +94,8 @@ comes from files or directories.
   changes whenever the tree does: `file.mjs::name` for a leaf (a folded
   declaration's path reads its leaf), `@cluster/ID` for a cluster.
 - **Score** and **energy**: a map's score is the sum of its penalties for
-  size, interface (the nested leaves links reach from outside or leave from),
-  islands, backflow and balance (`dev-map/lib/score.mjs`), each squared; the
+  size, edge, hubs (a box with far more wires than the map's mean), islands,
+  backflow and balance (`dev-map/lib/score.mjs`), each squared; the
   energy, the solver's goal, sums the scores of `0` and every cluster, each
   weighted by 1 + log₂ of its nested leaves, per leaf.
 - **Authored inputs**: the tree (clusters by the solver, labels by a label

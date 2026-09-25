@@ -354,11 +354,9 @@ function containmentPage(map,{m,tree,access,set,at,packets,leafOf,treeIndex}) {
   for(const {from,to,link} of drawn.lifted)add(at(from),at(to),link.kind,null);
   // The other end of a crossing link is shown where this map and it meet: the box on their
   // nearest shared map that holds it.
-  const chain=new Set();for(let p=map;p!==undefined;p=access.parentOf(p))chain.add(p);chain.add(TOP);
-  const boundaryOf=leaf=>{let box=leaf;for(let p=access.parentOf(leaf);!chain.has(p);p=access.parentOf(p))box=p;return box;};
   const boundaries=new Map();
-  for(const {link,inside,outside,out} of drawn.crossing) {
-    const box=boundaryOf(outside),name=`boundary:${at(box)}`;
+  for(const {link,inside,out,boundary:box} of drawn.crossing) {
+    const name=`boundary:${at(box)}`;
     boundaries.set(name,{port:name,mechanism:'boundary',index:at(box),
       label:isCluster(box)?tree.clusters.get(box).label??NEEDS_LABEL:box.slice(packets.get(box).file.length+2)});
     out?add(at(inside),name,link.kind,null):add(name,at(inside),link.kind,null);

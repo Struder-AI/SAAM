@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-09-25 — Dev maps: edge and hubs; the size minimum weighted up
+
+- Owner direction: every map's edge counts against it: 0.01 × (boundary boxes +
+  external boxes)², no allowance. `drawMap` names each crossing link's boundary
+  box (the box on the nearest shared map holding its other end); store,
+  scorer and solver share it. Interface is dropped: counted in leaves it grew
+  with cluster size and charged for gathering the leaves an external touches.
+- Owner direction: link balance. Hubs: 0.1 × the square of each drawn box's
+  wires beyond 3 more than the map's mean (0.4 at 5 above, 4.9 at 10).
+- Solver: a move also rescores the maps whose edge it changes (the other
+  end's chain below where the moved node's chains meet, and the maps inside a
+  moved cluster). 1700 random moves matched a full rescore exactly; about 5 ms
+  a move. The best tree is written to `tree.json` every tenth stage.
+- Solve from the 1b532c5 tree (74.54): stage 80 at 1.88, 238 clusters, 83
+  repeats, depth median 7 max 12, cluster edge mean 5.6 max 12 (was 10 and
+  75), `0` 2 homes and 8 external boxes (was 118 and 129). Stopped there: the
+  6-box minimum cost `0` 0.4 and 135 clusters sat below it.
+- Owner direction: the minimum weighs 1 per squared box short of 6 (the
+  maximum stays 0.025 beyond 20). The stage-80 tree scores 5.911 under it,
+  size 4.133 of that. Rescoring a written tree shifts backflow slightly
+  (74.54 → 74.43 at the start), since flow-order ties go by cluster id and
+  labels carried across a write rename clusters.
+- Docs: map guide 211→211, DEVELOPER-CONTEXT 216→216 (edge defined with the
+  boundary box).
+
 ## 2026-09-25 — Dev maps: squared parts, summed energy, size on non-externals
 
 - Owner direction: the energy is a sum with a fixed denominator (weighted map

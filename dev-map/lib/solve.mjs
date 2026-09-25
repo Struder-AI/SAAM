@@ -5,6 +5,7 @@
 // met to dev-map/tree.json. Labels are authored in a label pass, never here; a cluster that
 // survives a solve keeps its label, matched by the leaves it holds, and a new one needs a label.
 import {writeFile} from 'node:fs/promises';
+import {writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {TOP,treeFile,drawMap,linkSet,numberTree,treeFileOf} from './tree.mjs';
 import {scoreDrawn,callersOf,readModel,weightOf} from './score.mjs';
@@ -15,9 +16,10 @@ const pick=(rand,list)=>list[Math.floor(rand()*list.length)];
 
 // The live tree the annealer owns and changes in place. Every change is journalled, so a
 // rejected move is undone exactly, and a move rescores only the maps it can have changed: along
-// each moved node's old and new chains up to where they meet, the maps a cluster whose leaves
-// changed is repeated on, and the maps whose repeats or clusters changed.
-function createAnnealer(start,links,externalLinks) {
+// each moved node's old and new chains up to where they meet, the maps whose edge it changes, the
+// maps a cluster whose leaves changed is repeated on, and the maps whose repeats or clusters
+// changed.
+export function createAnnealer(start,links,externalLinks) {
   const parent=new Map(start.parent),clusters=new Map([...start.clusters].map(([id,c])=>[id,{...c}]));
   const children=new Map([[TOP,new Set()],...[...clusters.keys()].map(id=>[id,new Set()])]);
   for(const [id,p] of parent)children.get(p).add(id);
@@ -37,7 +39,8 @@ function createAnnealer(start,links,externalLinks) {
     if(!under.has(id))under.set(id,[...children.get(id)].flatMap(leavesOf));
     return under.get(id);
   };
-  const access={childrenOf:id=>children.get(id)??[],repeatsOn:id=>repeats.get(id)??[],isCluster:id=>clusters.has(id),leavesOf};
+  const access={childrenOf:id=>children.get(id)??[],repeatsOn:id=>repeats.get(id)??[],isCluster:id=>clusters.has(id),leavesOf,
+    parentOf:id=>parent.get(id)};
   const rate=map=>{const drawn=drawMap(map,access,set);
     return {score:scoreDrawn(drawn,callers).score,weight:weightOf(drawn.nested.size)};};
   const chain=id=>{const found=[];for(let p=parent.get(id);p!==undefined;p=parent.get(p))found.push(p);return found;};
@@ -100,7 +103,23 @@ function createAnnealer(start,links,externalLinks) {
     }
   }
 
-  // Which maps the move can have changed.
+  // Which maps the move can have changed. A link crossing a map is drawn at its edge as the box,
+  // under the lowest map holding both ends, that holds its outside end; moving a node changes that
+  // box only for links from its leaves to leaves under where its old and new chains meet. Such a
+  // link changes the maps on the other end's chain below the meeting point, and the maps inside
+  // the moved node that hold its own end.
+  function edgeMaps(id,lca,maps) {
+    const own=leavesOf(id),inside=new Set(own);
+    for(const leaf of own)for(const other of neighbours.get(leaf)) {
+      if(inside.has(other))continue;
+      const path=[];
+      let p=parent.get(other);
+      for(;p!==undefined&&p!==lca;p=parent.get(p))path.push(p);
+      if(p!==lca)continue;
+      for(const map of path)maps.add(map);
+      if(clusters.has(id))for(let q=parent.get(leaf);q!==undefined;q=parent.get(q)){maps.add(q);if(q===id)break;}
+    }
+  }
   function affected() {
     const maps=new Set([...repeatChanged,...created,...deleted.values()]),changedLeaves=new Set();
     for(const id of created)maps.add(parent.get(id));
@@ -111,7 +130,7 @@ function createAnnealer(start,links,externalLinks) {
       const lca=old[meet];
       for(const p of old.slice(0,meet))changedLeaves.add(p);
       for(const p of now.slice(0,now.indexOf(lca)))changedLeaves.add(p);
-      maps.add(lca);
+      maps.add(lca);edgeMaps(id,lca,maps);
     }
     for(const p of changedLeaves){maps.add(p);for(const map of repeatedOn.get(p)??[])maps.add(map);}
     for(const id of deleted.keys())maps.delete(id);
@@ -233,7 +252,7 @@ export function solveTree(start,links,{externalLinks=[],seed=1,onStage}={}) {
     }
     const now=annealer.energy();
     if(now<best.energy-1e-12)best={energy:now,tree:annealer.snapshot()};
-    onStage?.({stage,temperature,energy:now,best:best.energy,accepted,changed,moves,shape:annealer.shape});
+    onStage?.({stage,temperature,energy:now,best:best.energy,bestTree:()=>best.tree,accepted,changed,moves,shape:annealer.shape});
     if(!changed)break;
     temperature*=0.93;
   }
@@ -274,14 +293,18 @@ export function carryLabels(from,to) {
     carried:[...renamed].filter(([,old])=>used.has(old)).length};
 }
 
-// Solve the stored tree and write it to tree.json.
+// Solve the stored tree and write it to tree.json. Every tenth stage the best tree so far is
+// written too, marked with its stage, so a long solve can be regenerated and read while it runs.
 export async function solve({repo,seed=1,onStage}={}) {
   const {held,tree,links,externalLinks}=await readModel({repo});
-  const result=solveTree(tree,links,{externalLinks,seed,onStage});
-  const solved=carryLabels(tree,result.tree);
-  const index=numberTree(solved,linkSet(links));
-  const file={...treeFileOf(solved,index),solved:{from:held.generated,seed,start:result.start,energy:result.energy}};
-  await writeFile(resolve(repo,treeFile),JSON.stringify(file,null,1)+'\n');
+  const fileOf=(best,solved)=>{const named=carryLabels(tree,best);
+    return {named,text:JSON.stringify({...treeFileOf(named,numberTree(named,linkSet(links))),
+      solved:{from:held.generated,seed,...solved}},null,1)+'\n'};};
+  const result=solveTree(tree,links,{externalLinks,seed,onStage:s=>{
+    if(s.stage%10===0)writeFileSync(resolve(repo,treeFile),fileOf(s.bestTree(),{stage:s.stage,energy:s.best}).text);
+    onStage?.(s);}});
+  const {named:solved,text}=fileOf(result.tree,{start:result.start,energy:result.energy});
+  await writeFile(resolve(repo,treeFile),text);
   return {start:result.start,energy:result.energy,clusters:solved.clusters.size,carried:solved.carried,
     repeats:[...solved.repeats.values()].reduce((n,s)=>n+s.size,0),file:treeFile};
 }
