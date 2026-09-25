@@ -4,10 +4,9 @@
 // by simulated annealing from the tree as placed (tree.mjs). It writes the lowest-energy tree it
 // met to dev-map/tree.json. Labels are authored in a label pass, never here; a cluster that
 // survives a solve keeps its label, matched by the leaves it holds, and a new one needs a label.
-import {writeFile} from 'node:fs/promises';
-import {writeFileSync} from 'node:fs';
+import {readFileSync,writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
-import {TOP,treeFile,drawMap,linkSet,numberTree,treeFileOf} from './tree.mjs';
+import {TOP,treeFile,drawMap,linkSet,numberTree,treeFileOf,placeTree} from './tree.mjs';
 import {scoreDrawn,callersOf,readModel,weightOf} from './score.mjs';
 
 const random=seed=>()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);
@@ -293,18 +292,37 @@ export function carryLabels(from,to) {
     carried:[...renamed].filter(([,old])=>used.has(old)).length};
 }
 
-// Solve the stored tree and write it to tree.json. Every tenth stage the best tree so far is
-// written too, marked with its stage, so a long solve can be regenerated and read while it runs.
+// The tree in tree.json, placed, and the text it was read from; null when it is unreadable.
+function fileTree(repo,leaves,links) {
+  let text;
+  try{text=readFileSync(resolve(repo,treeFile),'utf8');}catch{return null;}
+  const file=JSON.parse(text);
+  return {text,tree:placeTree({clusters:file.clusters??[],leaves:file.leaves??{},repeats:file.repeats??{}},leaves,links)};
+}
+
+// Solve the stored tree and write it to tree.json. Labels follow the best tree every stage, so a
+// cluster that drifts a little each stage keeps its label; a label authored in tree.json while the
+// solve runs is taken up at the next stage. Every tenth stage the best tree so far is written,
+// marked with its stage, so a long solve can be regenerated and read while it runs.
 export async function solve({repo,seed=1,onStage}={}) {
-  const {held,tree,links,externalLinks}=await readModel({repo});
-  const fileOf=(best,solved)=>{const named=carryLabels(tree,best);
-    return {named,text:JSON.stringify({...treeFileOf(named,numberTree(named,linkSet(links))),
-      solved:{from:held.generated,seed,...solved}},null,1)+'\n'};};
+  const {held,leaves,tree,links,externalLinks}=await readModel({repo});
+  let labelled=tree,written=fileTree(repo,leaves,links)?.text;
+  const follow=best=>{
+    const file=fileTree(repo,leaves,links);
+    if(file&&file.text!==written){labelled=file.tree;written=file.text;}
+    labelled=carryLabels(labelled,best);
+    return labelled;
+  };
+  const write=(named,solved)=>{
+    written=JSON.stringify({...treeFileOf(named,numberTree(named,linkSet(links))),solved:{from:held.generated,seed,...solved}},null,1)+'\n';
+    writeFileSync(resolve(repo,treeFile),written);
+  };
   const result=solveTree(tree,links,{externalLinks,seed,onStage:s=>{
-    if(s.stage%10===0)writeFileSync(resolve(repo,treeFile),fileOf(s.bestTree(),{stage:s.stage,energy:s.best}).text);
+    const named=follow(s.bestTree());
+    if(s.stage%10===0)write(named,{stage:s.stage,energy:s.best});
     onStage?.(s);}});
-  const {named:solved,text}=fileOf(result.tree,{start:result.start,energy:result.energy});
-  await writeFile(resolve(repo,treeFile),text);
+  const solved=follow(result.tree);
+  write(solved,{start:result.start,energy:result.energy});
   return {start:result.start,energy:result.energy,clusters:solved.clusters.size,carried:solved.carried,
     repeats:[...solved.repeats.values()].reduce((n,s)=>n+s.size,0),file:treeFile};
 }

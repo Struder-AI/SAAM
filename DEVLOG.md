@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-09-25 — Dev maps: second solve, labels follow every stage, title pass
+
+- Solve from the stage-80 tree under the weighted-up minimum (5.911): stopped
+  at stage 90 on the owner's word at 1.061 with 133 clusters, depth median 6
+  max 9, cluster boxes mean 9.6 (2 outside 6–20), cluster edge mean 5.9 max
+  12. `0` homes 5: two clusters of 449 and 489 leaves and three stray leaves
+  that meet the minimum. Splitting a giant raises `0`'s hubs (2.4 → 20–137),
+  because the mean counts its external boxes, mostly 1–2 wires; a mean over
+  the map's own boxes makes the split downhill (5.343 → 5.295). Open for the
+  owner.
+- Owner direction: labels carry every stage. The solver carries labels from
+  the previous stage's labelled tree onto each stage's best, taking up
+  `tree.json` whenever it was changed from outside, so a title authored while
+  a solve runs survives (checked: authored at stage 0, on the same cluster at
+  the stage-10 write). Maps regenerate at every checkpoint (local note).
+- Title pass on the stage-90 tree: all 133 clusters titled from their homes,
+  deepest first; 44 hold unrelated code and are marked `(mixed)`, most of them
+  mixing Studio handlers or shared helpers into geometry or planning.
+
 ## 2026-09-25 — Dev maps: edge and hubs; the size minimum weighted up
 
 - Owner direction: every map's edge counts against it: 0.01 × (boundary boxes +
