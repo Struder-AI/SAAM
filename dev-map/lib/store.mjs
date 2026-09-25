@@ -13,7 +13,7 @@ import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {TOP,treeFile,readTreeFile,placeTree,treeAccess,drawMap,numberTree,linkSet,treeFileOf,renumber,markRepeats} from './tree.mjs';
 import {destinationFor} from './destination.mjs';
-import {classifyFindings,mapFindings,missingCounts} from './findings.mjs';
+import {classifyFindings,effects,mapFindings,missingCounts,writtenBinding} from './findings.mjs';
 export {destinationFor} from './destination.mjs';
 
 export const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
@@ -113,7 +113,7 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
   // The leaves, the links between them, and the tree the solver authored, placed in full.
   const leafOf=m.leafOf,leafPaths=new Set(leafOf.values());
   const pathAt=new Map([...index].map(([path,at])=>[at,path]));
-  const links=leafLinks(packets,leafOf,pathAt);
+  const links=leafLinks(packets,leafOf,pathAt,heldState(packets,leafOf));
   const tree=placeTree(await readTreeFile(repo),leafPaths,links);
   const access=treeAccess(tree),set=linkSet(links,m.externalLinks);
   const treeIndex=numberTree(tree,set);
@@ -219,7 +219,8 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
   // Findings follow the leaf. A map draws a leaf's box with the rows that belong on a map
   // (findings.mjs): what no leaf or link there stands for. A cluster box carries the number of
   // those nested in it, for navigation. The leaf's own read keeps every row.
-  for(const page of leafPages.values())classifyFindings(page,leafOf);
+  const held=heldState(packets,leafOf);
+  for(const page of leafPages.values())classifyFindings(page,leafOf,held);
   const onMaps=new Map([...leafPages].map(([path,page])=>[path,mapFindings(page)]));
   const rowsOf=rows=>[...rows.uncertainty,...rows.unresolved];
   for(const page of [root,...groupPages.values()])for(const component of page.components) {
@@ -388,7 +389,19 @@ const clusterPath=id=>`@cluster/${id}`;
 // Links between leaves, once per pair and kind: each call a declaration makes, each value passed
 // from one call's result into another call (directly or through operators), each indirect link.
 // A declaration folded into a leaf links as that leaf, and a leaf's links to itself are dropped.
-function leafLinks(packets,leafOf,pathAt) {
+// The owned state each leaf uses, by name, with the owner's internal index: its own and that of
+// every declaration folded into it. A declaration's path reads its leaf.
+function heldState(packets,leafOf) {
+  const byLeaf=new Map();
+  for(const [path,page] of packets) {
+    const leaf=leafOf.get(path)??path,names=byLeaf.get(leaf)??byLeaf.set(leaf,new Map()).get(leaf);
+    for(const s of page.state??[])names.set(s.name,s.ownerIndex);
+  }
+  const held=path=>byLeaf.get(leafOf.get(path)??path)??new Map();
+  return Object.assign(path=>new Set(held(path).keys()),{owner:(path,name)=>held(path).get(name)});
+}
+
+function leafLinks(packets,leafOf,pathAt,held) {
   const seen=new Set(),found=[];
   const add=(fromAt,toAt,kind)=>{
     const from=leafOf.get(pathAt.get(fromAt)),to=leafOf.get(pathAt.get(toAt)),key=`${from}>${to}>${kind}`;
@@ -401,6 +414,16 @@ function leafLinks(packets,leafOf,pathAt) {
     for(const box of page.components??[])add(at,box.index,'call');
     for(const link of page.couplings??[])if(link.index)
       link.direction==='in'?add(link.index,at,link.kind):add(at,link.index,link.kind);
+    // Owned state: a read is a link from the owner that holds it, a write a link into it. A write
+    // through a member of the binding (`report.rows=…`, `this.rows.push(…)`) writes it too.
+    for(const s of page.state??[]) {
+      if(s.access?.includes('read'))add(s.ownerIndex,at,'state');
+      if(s.access?.includes('write'))add(at,s.ownerIndex,'state');
+    }
+    for(const row of page.uncertainty??[])if(effects.has(row.kind)) {
+      const owner=held.owner(page.path,writtenBinding(row));
+      if(owner!==undefined)add(at,owner,'state');
+    }
     const next=new Map();
     for(const wire of page.wires??[])if(wire.kind==='data')
       (next.get(wire.from)??next.set(wire.from,[]).get(wire.from)).push(wire.to);

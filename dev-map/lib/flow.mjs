@@ -14,6 +14,30 @@ import {importAliases,scanRoots,isMapped} from './scope.mjs';
 
 const functions=new Set(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']);
 const kids=n=>Object.entries(n).flatMap(([k,v])=>['loc','start','end'].includes(k)?[]:Array.isArray(v)?v.filter(x=>x?.type):v?.type?[v]:[]);
+// Every name a file binds anywhere: declarations, parameters, imports, catch clauses. A name it
+// never binds is a platform global (`Math`, `JSON`, `console`), which holds no mapped state.
+const boundNames=new WeakMap();
+function namesBoundIn(ast) {
+  if(boundNames.has(ast))return boundNames.get(ast);
+  const names=new Set();
+  const pattern=p=>{if(!p)return;if(p.type==='Identifier')names.add(p.name);else if(p.type==='ObjectPattern')p.properties.forEach(q=>pattern(q.value??q.argument));
+    else if(p.type==='ArrayPattern')p.elements.forEach(pattern);else if(p.type==='RestElement')pattern(p.argument);else if(p.type==='AssignmentPattern')pattern(p.left);};
+  (function walk(n){
+    if(n.type==='VariableDeclarator')pattern(n.id);
+    if(functions.has(n.type)||n.type==='ClassDeclaration'||n.type==='ClassExpression')pattern(n.id);
+    if(functions.has(n.type))n.params.forEach(pattern);
+    if(n.type==='CatchClause')pattern(n.param);
+    if(['ImportSpecifier','ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(n.type))pattern(n.local);
+    kids(n).forEach(walk);
+  })(ast);
+  boundNames.set(ast,names);return names;
+}
+const writingStatics=new Set(['assign','defineProperty','defineProperties','setPrototypeOf']);
+// Methods of the built-in collections and strings that read their receiver and never write it.
+const readingMethods=new Set(['at','concat','entries','every','filter','find','findIndex','findLast','findLastIndex','flat','flatMap',
+  'get','has','includes','indexOf','join','keys','lastIndexOf','map','slice','some','toSorted','toReversed','values','with',
+  'endsWith','startsWith','split','trim','padStart','padEnd','toFixed','toString','charAt','charCodeAt','codePointAt','localeCompare',
+  'match','replace','replaceAll','repeat','substring','toLowerCase','toUpperCase','subarray']);
 const clip=(s,n=72)=>s.length>n?s.slice(0,n-1)+'…':s;
 const src=(text,n)=>clip(text.slice(n.start,n.end).replace(/\s+/g,' ').trim());
 const name=p=>p.type==='Identifier'?p.name:p.type==='AssignmentPattern'?name(p.left):p.type==='RestElement'?`...${name(p.argument)}`
@@ -1327,11 +1351,19 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
       for(const nested of nestedLoops)(function footprint(s){
         if(s!==nested&&(functions.has(s.type)||stop.has(s.start)))return;
         if(s.type==='CallExpression') {
-          const receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
+          let receiver=s.callee.type==='MemberExpression'&&s.callee.object.type==='Identifier'?s.callee.object:null;
+          // `Object.assign(target,…)` and its kin write their first argument, not `Object`.
+          if(receiver?.name==='Object'&&writingStatics.has(namedMember(s.callee))&&!namesBoundIn(ast).has('Object'))
+            receiver=s.arguments[0]?.type==='Identifier'?s.arguments[0]:receiver;
           if(receiver) {
             const collection=collectionOf(env.get(key(receiver))),operation=namedMember(s.callee),spec=collectionCallSpec(s,env);
+            // Whose object the call reaches, as for a member write: this body's own binding, a
+            // parameter, a binding from outside it, or a platform global the file never binds.
+            const bound=binding(receiver);
+            const ownership=collection?'local':ports.has(key(receiver))||bound&&parameter(receiver.name)===bound?'parameter'
+              :bound?'local':namesBoundIn(ast).has(receiver.name)?'outer':'global';
             uncertain(spec?'nested-collection-effect':'nested-receiver-effect',s,{receiver:receiver.name,operation,
-              ownership:collection?'local':ports.has(key(receiver))?'parameter':'unknown',
+              ownership,...(readingMethods.has(operation)?{reads:true}:{}),
               ...(collection?{collection:collection.kind}:{}),...(!spec?{effectUnknown:true}:{})});
           }
         }

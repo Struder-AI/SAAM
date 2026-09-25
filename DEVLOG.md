@@ -1,5 +1,29 @@
 # Development log
 
+## 2026-09-25 — Dev maps: state links drawn, holders followed (orange 2041 → 649)
+
+- Owner direction: a finding that knows what to draw is drawn. Owned state is
+  now a map link (`state`): a read links from the owner, a write (including
+  through a member, `report.rows=…`, `this.rows.push(…)`) into it. A capture
+  or write whose binding those links name is no longer missing. All 212
+  cross-leaf captures and ~150 writes were already named by leaf state.
+- `nested-receiver-effect` gets a real ownership (`global` for a name the
+  file never binds, such as `Math`; `local`, `parameter`, `outer`) and
+  `reads` for non-mutating methods; `Object.assign` and kin take their first
+  argument's. 220 false effects gone.
+- New `holders.mjs`: a member call no value names is settled by following
+  every mapped holder of that member (object literal or class instance)
+  forward, flow-insensitively, through bindings, imports, parameters,
+  returns, property keys and collection elements; functions are followed as
+  values to find their callers. A reached receiver draws a possible link
+  (`holder-reach`), an unreached one is the platform's
+  (`no-holder-reaches-receiver`), and an escaped holder leaves the call
+  unresolved. `moveStore`'s Proxy made `map`/`every`/`some` ambiguous
+  everywhere; its real uses (`range`, `value`, `findLast`, `reader`,
+  `snapshot`) now link to it. 874 → 75; the remaining escapes are through a
+  registered subscriber and a parameter callback, both orange kinds of their
+  own. 34 object members proved called from outside became leaves.
+
 ## 2026-09-25 — Dev maps: missing findings in two colours; module code reported
 
 - Owner direction: a missing finding is either code outside every leaf (red,
