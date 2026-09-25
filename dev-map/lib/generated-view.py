@@ -398,12 +398,15 @@ def build_page(packet, ctx):
         # The top map and each cluster draw leaves and clusters, and at the edge a boundary box
         # for each node on another map that a link crosses to.
         for c in packet["components"]:
+            # A box whose code is in no single source file (a cluster, or externals from several
+            # files) draws no line naming where it is: the list would outgrow the box.
             if c.get("kind") == "group":
-                unit(c["index"], c["label"], f'{c["count"]} leaves', "", "stage", path=c["path"])
+                unit(c["index"], c["label"], f'{c["count"]} leaves', "", "stage", path=c["path"]).show_foot = False
                 continue
             if c.get("kind") == "external":
                 node = port(c["index"], c["label"], "recv")
-                if c["count"] > 1:
+                files = {e.split("::")[0] for e in c["externals"]}
+                if c["count"] > 1 and len(files) == 1 and next(iter(files)).endswith((".mjs", ".js")):
                     node.note = " · ".join(c["externals"][:6]) + (f' · +{c["count"] - 6}' if c["count"] > 6 else "")
                 continue
             unit(c["index"], c["label"], "",

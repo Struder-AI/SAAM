@@ -18,6 +18,10 @@
 - Title pass on the stage-90 tree: all 133 clusters titled from their homes,
   deepest first; 44 hold unrelated code and are marked `(mixed)`, most of them
   mixing Studio handlers or shared helpers into geometry or planning.
+- Owner direction: a box whose code is in no single source file draws no
+  location line: clusters lose `@cluster/ID`, and an external box grouping
+  externals from several files loses its list (one external, or several in
+  one file, keeps it). Checked on `1.3`.
 
 ## 2026-09-25 — Dev maps: edge and hubs; the size minimum weighted up
 

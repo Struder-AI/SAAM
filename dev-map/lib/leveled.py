@@ -125,6 +125,9 @@ class LNode:
         self.co = tuple(co)
         self.reference_rows = []        # [(text, destination)] segments, attached port evidence
         self.anchor_ref = None
+        # A box that stands for code in no single file (a cluster) keeps its anchor, which pages
+        # follow across renumbering, but draws no foot line.
+        self.show_foot = True
         self.x = self.y = 0.0
         self.column = 0
         self.children = ()          # leveled pages never nest; kept for shared checks
@@ -146,7 +149,7 @@ class LNode:
     def foot(self):
         if self.explodes:
             return f"▸ {self.explodes}", EXPLODE_TC
-        if self.anchor:
+        if self.anchor and self.show_foot:
             return getattr(self, "display_foot", None) or self.anchor_ref or self.anchor, ANCHOR_TC
         return None, None
 
