@@ -56,9 +56,14 @@ comes from files or directories.
   Grasshopper: an argument slot a data link enters, or the result it leaves
   from. A **stub** is a port no link reaches, showing its literal value or why
   the value could not be traced.
-- **Boundary box**: a box at a map's edge that stands for something outside
-  that map: a node on another map, outside code, or a way in such as an HTTP
-  route or module load.
+- **Boundary box**: a box at a map's edge that stands for a node on another
+  map that a link crosses to.
+- **External**: what outside the maps links to a leaf: an active outside
+  declaration, the browser (DOM events) or module load. `0` draws every
+  external; a cluster map draws those linked to what it nests. Externals a map
+  cannot tell apart (linked, in the same directions, to exactly the same boxes
+  there) share one box, so a parent map may group externals its child maps
+  draw apart.
 - **Link** (or wire): a relationship between two leaves, generated from the
   scan: a **call link**; a **data link** carrying a value from one call's
   result into another call; or an **indirect link**, reached through a medium
@@ -83,8 +88,8 @@ comes from files or directories.
   `dev-map/facts.tsv`.
 - **Outside**: code that is scanned but not mapped ([scope](#scope)). An
   outside caller is **active** when it runs while a person makes a part or
-  operates Studio. A call to outside code is drawn as a headless arrow naming
-  its target; a call to nothing scanned is **platform**.
+  operates Studio. Active outside code is drawn as externals; a call to
+  nothing scanned is **platform**.
 - **Node path**: the durable name of a node, as against its index, which
   changes whenever the tree does: `file.mjs::name` for a leaf (a folded
   declaration's path reads its leaf), `@cluster/ID` for a cluster.
@@ -108,9 +113,8 @@ comes from files or directories.
   scripts, the MCP adapter, the agent toolkit and its CLI entry, and the
   exporters. They are listed on the nodes they call; everything else outside
   (skill tests and demos, benchmarks, audits) is counted, never drawn.
-- The scope edge is drawn both ways: outside callers as boundary boxes and caller rows,
-  and every call that leaves the maps as a headless arrow naming its target,
-  at every level.
+- The scope edge is drawn both ways, as externals: outside code calling in
+  and every call that leaves the maps, at every level.
 
 All of this is authored in one place, `dev-map/lib/scope.mjs`.
 

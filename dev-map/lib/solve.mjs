@@ -17,7 +17,7 @@ const pick=(rand,list)=>list[Math.floor(rand()*list.length)];
 // rejected move is undone exactly, and a move rescores only the maps it can have changed: along
 // each moved node's old and new chains up to where they meet, the maps a cluster whose leaves
 // changed is repeated on, and the maps whose repeats or clusters changed.
-function createAnnealer(start,links) {
+function createAnnealer(start,links,externalLinks) {
   const parent=new Map(start.parent),clusters=new Map([...start.clusters].map(([id,c])=>[id,{...c}]));
   const children=new Map([[TOP,new Set()],...[...clusters.keys()].map(id=>[id,new Set()])]);
   for(const [id,p] of parent)children.get(p).add(id);
@@ -26,7 +26,7 @@ function createAnnealer(start,links) {
   function linkRepeat(map,id){(repeats.get(map)??repeats.set(map,new Set()).get(map)).add(id);(repeatedOn.get(id)??repeatedOn.set(id,new Set()).get(id)).add(map);}
   function unlinkRepeat(map,id){repeats.get(map)?.delete(id);repeatedOn.get(id)?.delete(map);}
   const leaves=[...parent.keys()].filter(id=>!clusters.has(id));
-  const set=linkSet(links),callers=callersOf(links);
+  const set=linkSet(links,externalLinks),callers=callersOf(links);
   const neighbours=new Map(leaves.map(leaf=>[leaf,[]]));
   for(const {from,to} of links){neighbours.get(from).push(to);neighbours.get(to).push(from);}
   let next=1+Math.max(0,...[...clusters.keys()].map(id=>Number(/^c(\d+)$/.exec(id)?.[1]??0)));
@@ -203,15 +203,21 @@ function createAnnealer(start,links) {
   const snapshot=()=>({parent:new Map(parent),clusters:new Map([...clusters].map(([id,c])=>[id,{...c}])),
     repeats:new Map([...repeats].filter(([,s])=>s.size).map(([map,s])=>[map,new Set(s)]))});
   const energy=()=>{sum=0;total=0;for(const r of scores.values())add(r,1);return sum/total;};
-  return {propose,snapshot,energy,size:()=>leaves.length+clusters.size};
+  // The tree's shape, for watching a solve: boxes the top map homes, clusters, and leaf depths.
+  const shape=()=>{
+    const depths=leaves.map(leaf=>chain(leaf).length).sort((a,b)=>a-b);
+    return {top:children.get(TOP).size,topClusters:[...children.get(TOP)].filter(id=>clusters.has(id)).length,
+      clusters:clusters.size,depth:{median:depths[depths.length>>1],max:depths.at(-1)}};
+  };
+  return {propose,snapshot,energy,shape,size:()=>leaves.length+clusters.size};
 }
 
 // Anneal. The temperature starts where half the average uphill moves are taken and cools
 // geometrically; a stage is as many moves as there are nodes, and the solve ends when a whole
 // stage takes no move that changes the energy (the tree has frozen). Returns the lowest-energy
 // tree seen.
-export function solveTree(start,links,{seed=1,onStage}={}) {
-  const rand=random(seed),annealer=createAnnealer(start,links);
+export function solveTree(start,links,{externalLinks=[],seed=1,onStage}={}) {
+  const rand=random(seed),annealer=createAnnealer(start,links,externalLinks);
   const first=annealer.energy();
   const uphill=[];
   for(let i=0;i<annealer.size();i++){const t=annealer.propose(rand);if(!t)continue;if(t.delta>0)uphill.push(t.delta);t.undo();}
@@ -227,7 +233,7 @@ export function solveTree(start,links,{seed=1,onStage}={}) {
     }
     const now=annealer.energy();
     if(now<best.energy-1e-12)best={energy:now,tree:annealer.snapshot()};
-    onStage?.({stage,temperature,energy:now,best:best.energy,accepted,changed,moves});
+    onStage?.({stage,temperature,energy:now,best:best.energy,accepted,changed,moves,shape:annealer.shape});
     if(!changed)break;
     temperature*=0.93;
   }
@@ -270,8 +276,8 @@ export function carryLabels(from,to) {
 
 // Solve the stored tree and write it to tree.json.
 export async function solve({repo,seed=1,onStage}={}) {
-  const {held,tree,links}=await readModel({repo});
-  const result=solveTree(tree,links,{seed,onStage});
+  const {held,tree,links,externalLinks}=await readModel({repo});
+  const result=solveTree(tree,links,{externalLinks,seed,onStage});
   const solved=carryLabels(tree,result.tree);
   const index=numberTree(solved,linkSet(links));
   const file={...treeFileOf(solved,index),solved:{from:held.generated,seed,start:result.start,energy:result.energy}};

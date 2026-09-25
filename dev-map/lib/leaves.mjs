@@ -1,7 +1,7 @@
 // The mapped code as one call graph. Nothing about the map comes from where code is written: no
 // directory or file is a place, a box or a boundary. A declaration's durable name still says
 // which file holds it, and scope (scope.mjs) says which code is mapped at all.
-import {isMapped,outsideRootOf} from './scope.mjs';
+import {isMapped,outsideRootOf,activeCallers} from './scope.mjs';
 const order=(a,b)=>a<b?-1:a>b?1:0;
 const COUPLINGS=new Set(['file','http-route','worker-message','registry-entry','event-listener']);
 // A declaration written as `x.onthing = function` is reached by the host that fires it. At module
@@ -68,8 +68,42 @@ export function model(graph,projection) {
     const rows=moduleCallSites.get(file)??moduleCallSites.set(file,[]).get(file);
     rows.push({state,call:site.text,line:site.line,column:site.column,start:site.start,end:site.end,rule:record.rule??record.reason});
   }
-  return {files,mapped,nodes,calls,outsideCalls,couplings,reached,moduleCallSites,leafOf:leaves(nodes,calls,couplings,mapped),
+  const leafOf=leaves(nodes,calls,couplings,mapped);
+  return {files,mapped,nodes,calls,outsideCalls,couplings,reached,moduleCallSites,leafOf,
+    ...externals({calls,outsideCalls,couplings,reached,leafOf}),
     fileLines:new Map(graph.files.map(f=>[f.file,f.lines]))};
+}
+
+// Externals: what outside the maps links to a leaf. Each outside declaration that calls in, is
+// called, or couples in is one external; so are the browser, firing DOM events, and module load,
+// running module-level code. Inactive outside code (tests, demos, benchmarks) is counted on the
+// leaf and never drawn, and a platform call reaches no scanned code. `externalLinks` are
+// {external, leaf, out}, `out` when the leaf reaches the external.
+function externals({calls,outsideCalls,couplings,reached,leafOf}) {
+  const known=new Map(),seen=new Set(),externalLinks=[];
+  const add=(external,label,root,path,out)=>{
+    const leaf=leafOf.get(path);if(!leaf)return;
+    if(!known.has(external))known.set(external,{id:external,label,root});
+    const key=`${external}\n${leaf}\n${out}`;
+    if(!seen.has(key)){seen.add(key);externalLinks.push({external,leaf,out});}
+  };
+  const declaration=(path,file)=>[path,path.includes('::')?path.slice(path.indexOf('::')+2):path.slice(path.lastIndexOf('/')+1),outsideRootOf(file)];
+  for(const c of calls) {
+    if(c.from&&isMapped(c.from.file))continue;
+    if(c.fromFile&&isMapped(c.fromFile)){if(c.atModule)add('module load','module load','module load',c.to.path,false);continue;}
+    if(!c.fromFile||!activeCallers(c.fromFile))continue;
+    const [id,label,root]=declaration(c.fromPath??c.fromFile,c.fromFile);
+    add(id,label,root,c.to.path,false);
+  }
+  for(const c of outsideCalls)if(c.from){const [id,label,root]=declaration(c.to.path,c.to.file);add(id,label,root,c.from.path,true);}
+  for(const c of couplings) {
+    if(c.to&&!c.from&&c.fromFile&&!isMapped(c.fromFile)){const [id,label,root]=declaration(c.fromFile,c.fromFile);add(id,label,root,c.to.path,false);}
+    if(c.from&&!c.to&&c.toFile&&!isMapped(c.toFile)){const [id,label,root]=declaration(c.toFile,c.toFile);add(id,label,root,c.from.path,true);}
+  }
+  for(const [path,list] of reached)if(list.some(r=>r.mechanism==='dom-event'))add('browser','browser','browser',path,false);
+  const order=(a,b)=>a<b?-1:a>b?1:0;
+  return {externals:[...known.values()].sort((a,b)=>order(a.id,b.id)),
+    externalLinks:externalLinks.sort((a,b)=>order(a.external,b.external)||order(a.leaf,b.leaf)||Number(a.out)-Number(b.out))};
 }
 
 // Every scoped declaration is drawn by exactly one leaf. A declaration written inside another is

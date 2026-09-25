@@ -115,7 +115,7 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
   const pathAt=new Map([...index].map(([path,at])=>[at,path]));
   const links=leafLinks(packets,leafOf,pathAt);
   const tree=placeTree(await readTreeFile(repo),leafPaths,links);
-  const access=treeAccess(tree),set=linkSet(links);
+  const access=treeAccess(tree),set=linkSet(links,m.externalLinks);
   const treeIndex=numberTree(tree,set);
   const clusterAt=new Map([...tree.clusters.keys()].map((id,i)=>[id,String(index.size+i+1)]));
   const at=id=>id===TOP?TOP:clusterAt.get(id)??index.get(id);
@@ -222,6 +222,7 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
   const onMaps=new Map([...leafPages].map(([path,page])=>[path,mapFindings(page,leafOf)]));
   const rowCount=rows=>[...rows.uncertainty,...rows.unresolved].reduce((n,row)=>n+(row.count??1),0);
   for(const page of [root,...groupPages.values()])for(const component of page.components) {
+    if(component.kind==='external')continue;
     if(component.kind==='group'){
       const count=access.leavesOf(component.cluster).reduce((n,leaf)=>n+rowCount(onMaps.get(leaf)),0);
       if(count)component.findings=count;
@@ -263,7 +264,7 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
     // What the scorer and the solver read: every leaf, the links between them, and the tree as
     // placed, with each cluster's index.
     leaves:Object.fromEntries([...leafPaths].sort(order).map(path=>[path,treeIndex.get(path)])),
-    links,tree:treeFileOf(tree,treeIndex),
+    links,externals:m.externals,externalLinks:m.externalLinks,tree:treeFileOf(tree,treeIndex),
     treeIndex:Object.fromEntries([...tree.clusters.keys()].map(id=>[id,treeIndex.get(id)])),
     orphanFacts:orphans,factErrors:facts.errors};
   await clock('write',async()=>{
@@ -315,24 +316,16 @@ export async function storedFreshness(held,{repo=repoRoot,readSource=file=>readF
 }
 
 const links=()=>{
-  const wires=new Map(),ports=new Map();
+  const wires=new Map();
   const add=(from,to,kind,label)=>{
     if(from===undefined||to===undefined||from===to)return;
     const key=`${from}\n${to}`,w=wires.get(key)??wires.set(key,{from,to,kinds:{},count:0,labels:new Set()}).get(key);
     w.kinds[kind]=(w.kinds[kind]??0)+1;w.count++;if(label)w.labels.add(label);
   };
-  const port=(name,to,kind,label)=>{ports.set(name,{port:name,mechanism:name});add(name,to,kind,label);};
-  // A call that leaves the mapped scope: the port names the scanned root it reaches, and the wire
-  // runs out of the box. There is no box for outside code on this page.
-  const portOut=(root,from,kind,label)=>{
-    if(from===undefined)return;
-    const name=`out:${root}`;
-    ports.set(name,{port:name,mechanism:root,direction:'out',outside:true});add(from,name,kind,label);
-  };
-  const drawn=()=>({ports:[...ports.values()].sort((a,b)=>order(a.port,b.port)),
+  const drawn=()=>({ports:[],
     wires:[...wires.values()].sort((a,b)=>order(a.from,b.from)||order(a.to,b.to))
       .map(w=>({from:w.from,to:w.to,kinds:w.kinds,count:w.count,...(w.count===1&&w.labels.size===1?{label:[...w.labels][0]}:{})}))});
-  return {add,port,portOut,drawn};
+  return {add,drawn};
 };
 
 // Module-level code belongs to no declaration: what it calls is reached through the `module`
@@ -357,7 +350,7 @@ function containmentPage(map,{m,tree,access,set,at,packets,leafOf,treeIndex}) {
   const clusterBox=id=>({index:at(id),path:clusterPath(id),cluster:id,kind:'group',label:tree.clusters.get(id).label??NEEDS_LABEL,
     count:access.leavesOf(id).length});
   const components=drawn.members.map(id=>isCluster(id)?clusterBox(id):leafBox(id));
-  const {add,port,portOut,drawn:ported}=links();
+  const {add,drawn:ported}=links();
   for(const {from,to,link} of drawn.lifted)add(at(from),at(to),link.kind,null);
   // The other end of a crossing link is shown where this map and it meet: the box on their
   // nearest shared map that holds it.
@@ -370,13 +363,16 @@ function containmentPage(map,{m,tree,access,set,at,packets,leafOf,treeIndex}) {
       label:isCluster(box)?tree.clusters.get(box).label??NEEDS_LABEL:box.slice(packets.get(box).file.length+2)});
     out?add(at(inside),name,link.kind,null):add(name,at(inside),link.kind,null);
   }
-  // Ways in and calls out, from the leaves this map holds.
-  const holds=path=>drawn.holder.get(leafOf.get(path));
-  for(const n of m.nodes) {
-    const box=holds(n.path);if(box===undefined)continue;
-    for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,at(box),mechanism,label);
-  }
-  for(const c of m.outsideCalls)if(c.from){const box=holds(c.from.path);if(box!==undefined)portOut(c.root,at(box),'call',null);}
+  // Externals: a box for each group of externals this map cannot tell apart (tree.mjs), named for
+  // its one external or for the outside roots its externals share.
+  const named=new Map(m.externals.map(e=>[e.id,e]));
+  drawn.outside.forEach(({externals,into,from},i)=>{
+    const id=`external:e${i+1}`,roots=[...new Set(externals.map(e=>named.get(e).root))].sort();
+    components.push({index:id,kind:'external',externals,count:externals.length,
+      label:externals.length===1?named.get(externals[0]).label:`${roots.join(' + ')} ×${externals.length}`});
+    for(const box of into)add(id,at(box),'call',null);
+    for(const box of from)add(at(box),id,'call',null);
+  });
   const {ports,wires}=ported();
   const children=components.map(c=>({index:c.index,path:c.path,label:c.label}));
   if(map===TOP)return {flow:true,generated:true,index:TOP,path:TOP,kind:'root',leaves:access.leavesOf(TOP).length,

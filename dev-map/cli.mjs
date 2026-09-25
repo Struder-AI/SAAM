@@ -17,7 +17,8 @@ if(command==='solve') {
   const {solve}=await import('./lib/solve.mjs');
   const started=Date.now();
   const result=await solve({repo:root,seed:Number(values.seed),onStage:s=>{
-    if(s.stage%10===0||!s.changed)console.log(`stage ${s.stage}: T ${s.temperature.toExponential(2)}, energy ${s.energy.toFixed(4)}, best ${s.best.toFixed(4)}, ${s.accepted}/${s.moves} taken, ${s.changed} changed it`);}});
+    if(s.stage%10===0||!s.changed){const {top,topClusters,clusters,depth}=s.shape();
+      console.log(`stage ${s.stage}: T ${s.temperature.toExponential(2)}, energy ${s.energy.toFixed(4)}, best ${s.best.toFixed(4)}, ${s.accepted}/${s.moves} taken, ${s.changed} changed it; 0 homes ${top} (${topClusters} clusters), ${clusters} clusters, leaf depth median ${depth.median} max ${depth.max}`);}}});
   console.log(`Solved in ${Math.round((Date.now()-started)/1000)} s: energy ${result.start.toFixed(4)} → ${result.energy.toFixed(4)}, ${result.clusters} clusters (${result.carried} kept their labels), ${result.repeats} repeats. Wrote ${result.file}.`);
   const {generate}=await import('./lib/store.mjs');
   const {drawView}=await import('./lib/generated-view.mjs');

@@ -68,11 +68,11 @@ Every read: `index`, `kind`, `destination`, `stale` when its inputs moved,
 
 - **Top map** (`0`) and **cluster**: `components`, the leaves and clusters it
   draws (a cluster box with its `label`, `[needs label]` until a label pass,
-  and `count` of leaves), `leaves` nested, `ports` (ways in by mechanism,
-  `out:` for every outside root, and a `boundary:` box for each node on
-  another map a link crosses to, shown where the two maps meet), and one link
-  per box pair lifted onto the boxes holding each end, with `kinds` and
-  `count`. A link is a call, a value passed between calls or an indirect link.
+  and `count` of leaves; an `external` box with its `externals` and `count`),
+  `leaves` nested, `ports` (a `boundary:` box for each node on another map a
+  link crosses to, shown where the two maps meet), and one link per box pair
+  lifted onto the boxes holding each end, with `kinds` and `count`. External
+  boxes count toward size and interface like any box. A link is a call, a value passed between calls or an indirect link.
 - **Leaf** (function, method, handler, class): `path`, `file`, `range`,
   `folded` (declarations written inside it and folded into it),
   `inputs` (`parameterTargets` on a port this node calls: each callable a
@@ -205,7 +205,7 @@ every viewer build also refreshes, ranking all maps with links into the viewer.
 
 `view/index.html` draws the stored maps in place, following declarations
 across renumbering; its index lists the top map and clusters.
-A leaf opens its source alone. Cluster boxes, leaf boxes and boundary boxes
-have their own colours, calls out are red headless arrows, repeats link
+A leaf opens its source alone. Cluster, leaf, external and boundary boxes
+have their own colours, repeats link
 `home`; below 50% a box is its name alone, hover lights and dims, the minimap
 and hint bar orient you; `generated-map` serves 8765.

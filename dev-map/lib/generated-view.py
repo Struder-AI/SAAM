@@ -401,6 +401,11 @@ def build_page(packet, ctx):
             if c.get("kind") == "group":
                 unit(c["index"], c["label"], f'{c["count"]} leaves', "", "stage", path=c["path"])
                 continue
+            if c.get("kind") == "external":
+                node = port(c["index"], c["label"], "recv")
+                if c["count"] > 1:
+                    node.note = " · ".join(c["externals"][:6]) + (f' · +{c["count"] - 6}' if c["count"] > 6 else "")
+                continue
             unit(c["index"], c["label"], "",
                  f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
                  ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')

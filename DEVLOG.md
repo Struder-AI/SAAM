@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-09-25 — Dev maps: externals drawn as boxes
+
+- Owner direction: every external is shown from `0`, in place of the way-in
+  ports and outside-call arrows ("hair"). Externals (`leaves.mjs`): each
+  active outside declaration linked to a leaf, the browser (DOM events) and
+  module load; 220, from 642 links. On any map, externals linked to what it
+  nests are drawn, and those it cannot tell apart (same boxes, same
+  directions) share one box, labelled by their outside roots. External boxes
+  count toward size, islands, backflow and interface.
+- Solve from the weighted tree (5.5 min): 0.539 → 0.340, 554 clusters, 1836
+  repeats. `0` homes 118 boxes and draws 129 external boxes (247 in all);
+  leaf depth median 4, max 12. `0` did not shrink: under the log weighting it
+  carries about 0.7% of the energy, so each box there is worth 0.0007 while
+  small near-perfect clusters multiply (359 → 554). Leaf-count weighting is
+  proposed to the owner.
+- The solve reports the tree's shape each stage. A broad `taskkill` of
+  `node.exe` was run while restarting the solver; it appears to have matched
+  nothing, but other node processes may have been stopped at 20:30.
+
 ## 2026-09-25 — Dev maps: maps show only missing findings; weighted energy
 
 - Owner review of the third solve: coherent, followable, better than the

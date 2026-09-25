@@ -112,9 +112,14 @@ function settle(tree) {
 // holds its own leaves. `links` is every link by number and `linksOf` a leaf's link numbers.
 // A link touches the map when an end is nested in it, and crosses it when its other end is held
 // by no box the map draws. A cluster's interface is its nested leaves that links from outside
-// reach (`entries`) and that link outside (`exits`); `largest` is how many nested leaves its
-// biggest home box holds.
-export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf},{links,linksOf}) {
+// reach (`entries`) and that link outside (`exits`), externals included; `largest` is how many
+// nested leaves its biggest home box holds.
+//
+// Externals linked to what a map nests are drawn on it as boxes, and externals the map cannot
+// tell apart share one: those linked, in the same directions, to exactly the same boxes. The top
+// map nests everything, so it draws every external. `outside` is each such box: its externals
+// and the boxes it links to (`into`, boxes it reaches; `from`, boxes that reach it).
+export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf},{links,linksOf,externalsOf=()=>[]}) {
   const homes=[...childrenOf(map)],repeated=[...repeatsOn(map)],members=[...homes,...repeated];
   const held=members.map((m,i)=>({m,leaves:leavesOf(m),rank:i<homes.length?0:1,cluster:isCluster(m)?0:1}))
     .sort((a,b)=>b.leaves.length-a.leaves.length||a.rank-b.rank||a.cluster-b.cluster);
@@ -133,8 +138,21 @@ export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf},{links,lin
     touching++;
     if(x===undefined||y===undefined)crossing.push({link,inside:a?x:y,outside:a?link.to:link.from,out:a});
   }
+  const reach=new Map();
+  for(const leaf of nested)for(const {external,out} of externalsOf(leaf)) {
+    (reach.get(external)??reach.set(external,new Set()).get(external)).add(`${out?'>':'<'}${holder.get(leaf)}`);
+    if(map!==TOP)(out?exits:entries).add(leaf);
+  }
+  const alike=new Map();
+  for(const [external,ends] of reach) {
+    const key=[...ends].sort().join('\n');
+    (alike.get(key)??alike.set(key,{externals:[],ends:[...ends].sort()}).get(key)).externals.push(external);
+  }
+  const outside=[...alike.values()].map(({externals,ends})=>({externals:externals.sort(),
+    into:ends.filter(e=>e[0]==='<').map(e=>e.slice(1)),from:ends.filter(e=>e[0]==='>').map(e=>e.slice(1))}))
+    .sort((a,b)=>a.externals[0]<b.externals[0]?-1:1);
   const largest=Math.max(0,...held.filter(h=>h.rank===0).map(h=>h.leaves.length));
-  return {homes,repeated,members,holder,nested,lifted,crossing,touching,entries,exits,largest};
+  return {homes,repeated,members,holder,nested,lifted,crossing,touching,entries,exits,largest,outside};
 }
 
 // The order that puts the fewest links backwards, by the greedy rule of Eades, Lin and Smyth:
@@ -187,11 +205,12 @@ export function numberTree(tree,linkSet) {
   return index;
 }
 
-// Links numbered, with each leaf's link numbers, for drawMap.
-export function linkSet(links) {
-  const linksOf=new Map();
+// Links numbered, with each leaf's link numbers and its externals, for drawMap.
+export function linkSet(links,externalLinks=[]) {
+  const linksOf=new Map(),externalsOf=new Map();
   links.forEach((link,n)=>{for(const end of [link.from,link.to])(linksOf.get(end)??linksOf.set(end,[]).get(end)).push(n);});
-  return {links,linksOf:leaf=>linksOf.get(leaf)??[]};
+  for(const e of externalLinks)(externalsOf.get(e.leaf)??externalsOf.set(e.leaf,[]).get(e.leaf)).push(e);
+  return {links,linksOf:leaf=>linksOf.get(leaf)??[],externalsOf:leaf=>externalsOf.get(leaf)??[]};
 }
 
 // Only address-bearing fields are rewritten; a numeric data label is not a map address. Source

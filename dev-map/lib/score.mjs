@@ -3,9 +3,9 @@
 // per measure and their sum, and the tree's energy is the mean over its maps, each weighted by
 // the log of the leaves nested in it. The cluster solver (solve.mjs) lowers it.
 //
-// A map's members are the boxes it draws, homes and repeats. Each member stands for the leaves
-// nested under it, and links between leaves (calls, data between calls, indirect links) are
-// lifted onto the members holding their two ends. Every part is a count times a weight, with no
+// A map's members are the boxes it draws: homes, repeats and its external boxes (tree.mjs). Each
+// member stands for the leaves nested under it, and links between leaves (calls, data between
+// calls, indirect links) are lifted onto the members holding their two ends. Every part is a count times a weight, with no
 // share and no cap, so no part can be diluted by a large map or saturated by one:
 //   size       0.1 per box drawn outside 6–16
 //   interface  0.1 per nested leaf beyond 4 that links from outside reach, and 0.1 per nested
@@ -42,8 +42,10 @@ export function scoreDrawn(drawn,callers) {
   for(const {from,to} of drawn.lifted)pairs.set(`${from}
 ${to}`,[from,to]);
   const ubiquitous=drawn.crossing.filter(c=>(callers.get(c.outside)??0)>=UBIQUITOUS).length;
-  const homes=drawn.homes.length;
-  return rateMap(drawn.members,[...pairs.values()],{crossing:drawn.crossing.length,
+  const homes=drawn.homes.length,outside=drawn.outside.map((box,i)=>`external:${i}`);
+  drawn.outside.forEach((box,i)=>{for(const m of box.into)pairs.set(`${outside[i]}\n${m}`,[outside[i],m]);
+    for(const m of box.from)pairs.set(`${m}\n${outside[i]}`,[m,outside[i]]);});
+  return rateMap([...drawn.members,...outside],[...pairs.values()],{crossing:drawn.crossing.length,
     crossingPlain:drawn.crossing.length-ubiquitous,touching:drawn.touching,touchingPlain:drawn.touching-ubiquitous,
     entries:drawn.entries.size,exits:drawn.exits.size,
     balance:homes>1&&drawn.nested.size?drawn.largest/drawn.nested.size-1/homes:0});
@@ -73,8 +75,8 @@ export function rateMap(members,edges,{crossing,crossingPlain,touching,touchingP
 }
 
 // Every map of a tree scored: the top map and each cluster, and the weighted mean.
-export function scoreTree(tree,links) {
-  const access=treeAccess(tree),set=linkSet(links),callers=callersOf(links);
+export function scoreTree(tree,links,externalLinks=[]) {
+  const access=treeAccess(tree),set=linkSet(links,externalLinks),callers=callersOf(links);
   const scores=[TOP,...tree.clusters.keys()].map(map=>{const drawn=drawMap(map,access,set);
     return {map,weight:weightOf(drawn.nested.size),...scoreDrawn(drawn,callers)};});
   return {energy:scores.reduce((sum,s)=>sum+s.weight*s.score,0)/scores.reduce((sum,s)=>sum+s.weight,0),scores};
@@ -85,13 +87,13 @@ export async function readModel({repo}) {
   const held=await readIndex(storeDir(repo));
   if(!held)throw Error(`No stored map at ${storeDir(repo)}. Run: node scripts/agent-toolkit.mjs regenerate`);
   const leaves=new Set(Object.keys(held.leaves));
-  return {held,leaves,links:held.links,tree:placeTree(held.tree,leaves,held.links)};
+  return {held,leaves,links:held.links,externalLinks:held.externalLinks??[],tree:placeTree(held.tree,leaves,held.links)};
 }
 
 const round=v=>Math.round(v*1000)/1000;
 export async function scoreMaps({repo}) {
-  const {held,tree,links}=await readModel({repo});
-  const {energy,scores}=scoreTree(tree,links);
+  const {held,tree,links,externalLinks}=await readModel({repo});
+  const {energy,scores}=scoreTree(tree,links,externalLinks);
   const index=id=>id===TOP?TOP:held.treeIndex[id];
   const rows=scores.map(s=>({index:index(s.map),kind:s.map===TOP?'top':'cluster',
     label:s.map===TOP?'top map':tree.clusters.get(s.map).label??'[needs label]',nodes:s.nodes,weight:round(s.weight),
