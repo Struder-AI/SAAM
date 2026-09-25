@@ -1,125 +1,193 @@
-// The published index is a place in the map tree: `0`, then the Nth node whose home is that map,
-// and so on down. Generation gives each declaration an internal number (entries.mjs); that
-// address never leaves generation.
+// The nesting: the tree of maps. The leaves are given (leaves.mjs) and so is the top map `0`;
+// everything between them is clusters, authored by the cluster solver (solve.mjs) in
+// dev-map/tree.json, whose labels a label pass authors. Leaves and clusters are the nodes. Each
+// has exactly one home, the map that numbers it, and may be drawn on other maps as repeats.
 //
-// The walk is one depth-first pass, and a page's home is the first map that reaches it: `0`
-// lists the entry points and the clusters of them, in index order; a group lists its members in
-// index order; a flow page lists its components in call order. Each child is numbered where it is met and then
-// expanded in full before its next sibling. A nested declaration is homed by the declaration
-// that holds it, never beside it. Every other appearance is a repeat: it keeps the home index
-// and names its home, and the home names each map that repeats it.
+// Placement is total: every leaf is placed whatever the file says or leaves out, and what the
+// file names that no longer exists is dropped. Two rules make a tree legal, and placement
+// enforces them rather than failing: a cluster homes at least one node and draws at least two
+// boxes, and a repeat is never on its node's home map or inside the cluster it repeats.
 //
-// One rule decides whether an address is a map at all: it is, when its drawing would show at
-// least two called declarations with a wire on one of them; otherwise the address opens code
-// (dev-map/lib/destination.mjs). What is not a map is drawn on the map above it: the walk never
-// descends into a code address. Meeting a leaf on a map, it homes the leaf there and homes the
-// calls the leaf makes there too, drawn as boxes wired from the leaf's box, on and on while
-// each of those is a leaf in its turn. So nothing is numbered beneath a leaf, and a leaf's
-// outgoing chain is drawn once, on the map that homes it.
-import {invocationWires} from './invocation.mjs';
-const containment=new Set(['root','group']);
-const byIndex=(a,b)=>{
-  const x=a.split('.').map(Number),y=b.split('.').map(Number);
-  for(let i=0;i<Math.max(x.length,y.length);i++)if((x[i]??-1)!==(y[i]??-1))return (x[i]??-1)-(y[i]??-1);
-  return 0;
-};
-export const shownOn=page=>page.components??[];
-export const homeOf=at=>at.includes('.')?at.slice(0,at.lastIndexOf('.')):'0';
+// A tree is a record: `parent` (node → the map that homes it), `clusters` (id → {label}) and
+// `repeats` (map → the nodes it repeats). A leaf's id is its declaration path; a cluster's is the
+// id the solver gave it.
+import {readFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
 
-// What a page belongs to: a nested declaration belongs to the declaration that holds it, and a
-// group to the page it groups. Only that page may place it; everywhere else it is a repeat.
-function holders(pages) {
-  const byPath=new Map();
-  for(const [at,page] of pages)if(page.path&&!byPath.has(page.path))byPath.set(page.path,at);
-  const holder=new Map();
-  for(const [at,page] of pages) {
-    const cut=page.path?.lastIndexOf('::')??-1;
-    if(cut<0)continue;
-    const parent=byPath.get(page.path.slice(0,cut));
-    if(parent!==undefined&&parent!==at)holder.set(at,parent);
-  }
-  // A group is part of the page it groups, so grouping a nested declaration on its holder's
-  // page still places it there.
-  const scopes=new Map();
-  const scope=at=>{
-    if(scopes.has(at))return scopes.get(at);
-    let page=pages.get(at),found=at;
-    while(page?.kind==='group'&&page.owner!==undefined) {
-      const next=byPath.get(page.owner);
-      if(next===undefined||next===found)break;
-      found=next;page=pages.get(found);
-    }
-    scopes.set(at,found);return found;
+export const TOP='0';
+export const treeFile='dev-map/tree.json';
+const order=(a,b)=>a<b?-1:a>b?1:0;
+
+export async function readTreeFile(repo) {
+  const text=await readFile(resolve(repo,treeFile),'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+  const file=text===null?{}:JSON.parse(text);
+  return {schema:1,clusters:file.clusters??[],leaves:file.leaves??{},repeats:file.repeats??{}};
+}
+
+// The file a tree is written back as: clusters in index order when an index is given, leaves by
+// path, and each map's repeats.
+export function treeFileOf(tree,index=new Map()) {
+  const at=id=>index.get(id)??id,byAt=(a,b)=>/^[\d.]+$/.test(at(a))&&/^[\d.]+$/.test(at(b))?byIndex(at(a),at(b)):order(at(a),at(b));
+  const clusters=[...tree.clusters.keys()].sort(byAt).map(id=>({id,label:tree.clusters.get(id).label??null,parent:tree.parent.get(id)}));
+  const leaves=Object.fromEntries([...tree.parent].filter(([id])=>!tree.clusters.has(id)).sort(([a],[b])=>order(a,b)));
+  const repeats=Object.fromEntries([...tree.repeats].filter(([,set])=>set.size).sort(([a],[b])=>byAt(a,b))
+    .map(([map,set])=>[map,[...set].sort(order)]));
+  return {schema:1,clusters,leaves,repeats};
+}
+
+// The navigation a map needs from a tree, as accessors, so a solver's live state and a settled
+// tree are read the same way.
+export function treeAccess(tree) {
+  const children=new Map([[TOP,[]],...[...tree.clusters.keys()].map(id=>[id,[]])]);
+  for(const [id,p] of tree.parent)children.get(p).push(id);
+  const leavesUnder=new Map();
+  const under=id=>{
+    if(!tree.clusters.has(id)&&id!==TOP)return [id];
+    if(!leavesUnder.has(id))leavesUnder.set(id,children.get(id).flatMap(under));
+    return leavesUnder.get(id);
   };
-  return {holder,scope};
+  return {childrenOf:id=>children.get(id)??[],repeatsOn:id=>tree.repeats.get(id)??new Set(),
+    isCluster:id=>tree.clusters.has(id),leavesOf:under,parentOf:id=>tree.parent.get(id)};
 }
 
-// `pages` maps each source address to its page. Returns source address → tree index for the
-// pages the walk reaches (any other page belongs to no map), and, per map, the extra boxes the
-// leaves it homes bring with them: `{index, via}`, the call drawn and the leaf that makes it.
-export function treeNumbering(pages) {
-  const {holder,scope}=holders(pages);
-  const tree=new Map([['0','0']]),chains=new Map(),stack=[['0','0']];
-  const leaf=at=>pages.get(at)?.destination==='code';
+// Place every leaf and make the tree legal. `file` is what readTreeFile returns; `links` are
+// {from, to} between leaf paths.
+export function placeTree(file,leaves,links) {
+  const clusters=new Map(),parent=new Map(),repeats=new Map();
+  for(const c of file.clusters)if(c?.id&&!clusters.has(c.id)&&c.id!==TOP&&!leaves.has(c.id))clusters.set(c.id,{label:c.label??null});
+  const isMap=id=>id===TOP||clusters.has(id);
+  for(const c of file.clusters)if(clusters.has(c.id)&&!parent.has(c.id))parent.set(c.id,isMap(c.parent)&&c.parent!==c.id?c.parent:TOP);
+  // A parent chain that comes back to itself is broken at the first cluster met twice.
+  for(const id of clusters.keys()) {
+    const seen=new Set([id]);
+    for(let at=parent.get(id);at!==TOP;at=parent.get(at)){if(seen.has(at)){parent.set(at,TOP);break;}seen.add(at);}
+  }
+  for(const leaf of [...leaves].sort(order))if(isMap(file.leaves[leaf]))parent.set(leaf,file.leaves[leaf]);
+  // A leaf the file does not place goes where most of its links already are, else to 0.
+  const neighbours=new Map();
+  for(const {from,to} of links){(neighbours.get(from)??neighbours.set(from,[]).get(from)).push(to);(neighbours.get(to)??neighbours.set(to,[]).get(to)).push(from);}
+  let unplaced=[...leaves].filter(leaf=>!parent.has(leaf)).sort(order);
+  for(let placed=true;placed&&unplaced.length;) {
+    placed=false;
+    for(const leaf of unplaced) {
+      const votes=new Map();
+      for(const n of neighbours.get(leaf)??[])if(parent.has(n))votes.set(parent.get(n),(votes.get(parent.get(n))??0)+1);
+      if(!votes.size)continue;
+      parent.set(leaf,[...votes].sort((a,b)=>b[1]-a[1]||order(a[0],b[0]))[0][0]);placed=true;
+    }
+    unplaced=unplaced.filter(leaf=>!parent.has(leaf));
+  }
+  for(const leaf of unplaced)parent.set(leaf,TOP);
+  for(const [map,ids] of Object.entries(file.repeats))if(isMap(map))
+    repeats.set(map,new Set(ids.filter(id=>leaves.has(id)||clusters.has(id))));
+  return settle({parent,clusters,repeats});
+}
+
+// The two rules, applied until the tree holds them. Local mutation of the tree being built.
+function settle(tree) {
+  const {parent,clusters,repeats}=tree;
+  const inside=(map,id)=>{for(let at=map;at!==undefined;at=parent.get(at)){if(at===id)return true;if(at===TOP)return false;}return false;};
+  for(let changed=true;changed;) {
+    changed=false;
+    for(const [map,set] of repeats)for(const id of set)
+      if(parent.get(id)===map||clusters.has(id)&&inside(map,id)||!parent.has(id)){set.delete(id);changed=true;}
+    const homes=new Map();
+    for(const [id,p] of parent)homes.set(p,(homes.get(p)??0)+1);
+    for(const id of clusters.keys()) {
+      const home=homes.get(id)??0,drawn=home+(repeats.get(id)?.size??0);
+      if(home>=1&&drawn>=2)continue;
+      // Dissolved: what it homes goes to its parent, and every repeat of it or on it goes.
+      const up=parent.get(id);
+      for(const [child,p] of parent)if(p===id)parent.set(child,up);
+      clusters.delete(id);parent.delete(id);repeats.delete(id);
+      for(const set of repeats.values())set.delete(id);
+      changed=true;break;
+    }
+  }
+  return tree;
+}
+
+// What a map draws and where each link lands on it. A member stands for the leaves nested under
+// it; a link end is held by the deepest member holding it, so a repeat inside a home member
+// holds its own leaves. `links` is every link by number and `linksOf` a leaf's link numbers.
+// A link touches the map when an end is nested in it, and crosses it when its other end is held
+// by no box the map draws.
+export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf},{links,linksOf}) {
+  const homes=[...childrenOf(map)],repeated=[...repeatsOn(map)],members=[...homes,...repeated];
+  const held=members.map((m,i)=>({m,leaves:leavesOf(m),rank:i<homes.length?0:1,cluster:isCluster(m)?0:1}))
+    .sort((a,b)=>b.leaves.length-a.leaves.length||a.rank-b.rank||a.cluster-b.cluster);
+  const holder=new Map(),nested=new Set();
+  for(const {m,leaves,rank} of held)for(const leaf of leaves){holder.set(leaf,m);if(rank===0)nested.add(leaf);}
+  const lifted=[],crossing=[],seen=new Set();
+  let touching=0;
+  for(const leaf of holder.keys())for(const n of linksOf(leaf)) {
+    if(seen.has(n))continue;
+    seen.add(n);
+    const link=links[n],x=holder.get(link.from),y=holder.get(link.to);
+    if(x!==undefined&&y!==undefined&&x!==y)lifted.push({from:x,to:y,link});
+    const a=map===TOP||nested.has(link.from),b=map===TOP||nested.has(link.to);
+    if(!a&&!b)continue;
+    touching++;
+    if(x===undefined||y===undefined)crossing.push({link,inside:a?x:y,outside:a?link.to:link.from,out:a});
+  }
+  return {homes,repeated,members,holder,nested,lifted,crossing,touching};
+}
+
+// The order that puts the fewest links backwards, by the greedy rule of Eades, Lin and Smyth:
+// sinks to the end and sources to the front, else the member sending most more than it receives.
+// Ties go by `compare`, so the order members are listed in changes nothing. Heaps with stale
+// entries skipped keep it near linear on a large map.
+export function flowOrder(unordered,edges,compare=order) {
+  const members=[...unordered].sort(compare),rank=new Map(members.map((m,i)=>[m,i]));
+  const out=new Map(members.map(m=>[m,new Set()])),into=new Map(members.map(m=>[m,new Set()]));
+  for(const [a,b] of edges){out.get(a).add(b);into.get(b).add(a);}
+  const heap=less=>{
+    const a=[];
+    return {push(x){a.push(x);for(let i=a.length-1;i>0;){const p=(i-1)>>1;if(!less(a[i],a[p]))break;[a[i],a[p]]=[a[p],a[i]];i=p;}},
+      pop(){const top=a[0],last=a.pop();if(a.length){a[0]=last;for(let i=0;;){const l=2*i+1,r=l+1;let m=i;
+        if(l<a.length&&less(a[l],a[m]))m=l;if(r<a.length&&less(a[r],a[m]))m=r;if(m===i)break;[a[i],a[m]]=[a[m],a[i]];i=m;}}return top;},
+      get size(){return a.length;}};
+  };
+  const byRank=(x,y)=>rank.get(x)<rank.get(y);
+  const sinks=heap(byRank),sources=heap(byRank),best=heap((x,y)=>x[1]>y[1]||x[1]===y[1]&&rank.get(x[0])<rank.get(y[0]));
+  const left=new Set(members),front=[],back=[];
+  const touch=m=>{if(!left.has(m))return;if(!out.get(m).size)sinks.push(m);if(!into.get(m).size)sources.push(m);best.push([m,out.get(m).size-into.get(m).size]);};
+  const drop=m=>{left.delete(m);
+    for(const b of out.get(m)){into.get(b).delete(m);touch(b);}
+    for(const a of into.get(m)){out.get(a).delete(m);touch(a);}};
+  const next=(h,valid)=>{while(h.size){const x=h.pop();if(valid(x))return x;}return undefined;};
+  members.forEach(touch);
+  while(left.size) {
+    let m=next(sinks,x=>left.has(x)&&!out.get(x).size);
+    if(m!==undefined){back.push(m);drop(m);continue;}
+    m=next(sources,x=>left.has(x)&&!into.get(x).size);
+    if(m!==undefined){front.push(m);drop(m);continue;}
+    const [pick]=next(best,([x,d])=>left.has(x)&&d===out.get(x).size-into.get(x).size);
+    front.push(pick);drop(pick);
+  }
+  return new Map([...front,...back.reverse()].map((m,i)=>[m,i]));
+}
+
+// Published indexes: `0`, then the Nth node a map homes, in the map's left-to-right flow order,
+// and so on down.
+export function numberTree(tree,linkSet) {
+  const access=treeAccess(tree),index=new Map([[TOP,TOP]]),stack=[TOP];
   while(stack.length) {
-    const [at,placed]=stack.pop();
-    const page=pages.get(at),here=scope(at);
-    // A containment map is an arrangement, so it reads in index order; a flow page is a
-    // sequence, so it keeps the call order its components already carry.
-    let own=[...new Set(shownOn(page).map(c=>c.index))];
-    if(containment.has(page.kind))own=own.sort(byIndex);
-    const drawn=new Set(own),seen=new Set(),numbered=[],maps=[],added=[];
-    const place=(child,holders,via)=>{
-      if(via&&!drawn.has(child)){drawn.add(child);added.push({index:child,via});}
-      if(seen.has(child))return;
-      seen.add(child);
-      if(!pages.has(child)||tree.has(child))return;
-      // A declaration written inside a leaf is placed by that leaf's authority, here.
-      if(![undefined,at,here,...holders].includes(holder.get(child)))return;
-      tree.set(child,'');numbered.push(child);
-      // A leaf is numbered here and holds nothing: what it calls is drawn and numbered here too.
-      if(leaf(child))for(const c of shownOn(pages.get(child)))place(c.index,[...holders,child],child);
-      else maps.push(child);
-    };
-    for(const child of own)place(child,[],null);
-    numbered.forEach((child,i)=>tree.set(child,placed==='0'?String(i+1):`${placed}.${i+1}`));
-    if(added.length)chains.set(at,added);
-    for(const child of maps.reverse())stack.push([child,tree.get(child)]);
+    const map=stack.pop(),drawn=drawMap(map,access,linkSet);
+    const edges=[...new Set(drawn.lifted.map(l=>`${l.from}\n${l.to}`))].map(key=>key.split('\n'));
+    const flow=flowOrder(drawn.members,edges);
+    const homes=drawn.homes.sort((a,b)=>flow.get(a)-flow.get(b));
+    homes.forEach((id,i)=>index.set(id,map===TOP?String(i+1):`${index.get(map)}.${i+1}`));
+    for(const id of homes)if(tree.clusters.has(id))stack.push(id);
   }
-  return {tree,chains};
+  return index;
 }
 
-// The drawing that follows. A leaf brings the calls it makes onto the map that homes it: each
-// is a box marked `inlined`, carrying the invocation wire the leaf's own page would draw for
-// it — call order, repeated sites and stub slots alike — and any data wire the leaf draws
-// between two of them. The boxes are the leaf's context, not calls this page's code makes, so
-// the relationship accounting counts them nowhere.
-export function drawChains(pages,chains) {
-  for(const [at,added] of chains) {
-    const page=pages.get(at);
-    if(!page?.components)continue;
-    const drawn=new Set(page.components.map(c=>c.index)),wires=new Map();
-    for(const {index,via} of added) {
-      const from=pages.get(via);
-      if(!from||drawn.has(index))continue;
-      if(!wires.has(via))wires.set(via,new Map(invocationWires(from).map(w=>[w.to,w])));
-      const source=(from.components??[]).find(c=>c.index===index);
-      if(!source)continue;
-      drawn.add(index);
-      const {id,invocation,assertion,binding,gate,alsoOn,home,...box}=source,wire=wires.get(via).get(index);
-      page.components.push({...box,inlined:true,via,
-        ...(wire?{...(wire.order?{viaOrder:wire.order}:{}),...(wire.sites?{viaSites:wire.sites}:{}),
-          ...(wire.stubs?{viaStubs:wire.stubs}:{}),
-          ...(wire.provenance==='call-site'?{}:{viaProvenance:wire.provenance})}:{})});
-    }
-    const chain=new Set(added.map(a=>a.index));
-    for(const via of new Set(added.map(a=>a.via)))for(const w of pages.get(via)?.wires??[]) {
-      if(!chain.has(w.from)||!chain.has(w.to)||!drawn.has(w.from)||!drawn.has(w.to))continue;
-      if((page.wires??[]).some(x=>x.from===w.from&&x.to===w.to&&x.kind===w.kind))continue;
-      const {edgeId,sourceSite,targetSite,...wire}=w;
-      (page.wires??=[]).push({...wire,inlined:true});
-    }
-  }
+// Links numbered, with each leaf's link numbers, for drawMap.
+export function linkSet(links) {
+  const linksOf=new Map();
+  links.forEach((link,n)=>{for(const end of [link.from,link.to])(linksOf.get(end)??linksOf.set(end,[]).get(end)).push(n);});
+  return {links,linksOf:leaf=>linksOf.get(leaf)??[]};
 }
 
 // Only address-bearing fields are rewritten; a numeric data label is not a map address. Source
@@ -140,16 +208,23 @@ export function renumber(value,tree,seen=new WeakSet()) {
   return value;
 }
 
+export const homeOf=at=>at.includes('.')?at.slice(0,at.lastIndexOf('.')):TOP;
+const byIndex=(a,b)=>{
+  const x=a.split('.').map(Number),y=b.split('.').map(Number);
+  for(let i=0;i<Math.max(x.length,y.length);i++)if((x[i]??-1)!==(y[i]??-1))return (x[i]??-1)-(y[i]??-1);
+  return 0;
+};
+
 // Mark repeats on published pages (already renumbered): a repeat names its home map; a home
 // node names every other map it appears on.
 export function markRepeats(published) {
   const elsewhere=new Map();
-  for(const page of published.values())for(const c of shownOn(page)) {
+  for(const page of published.values())for(const c of page.components??[]) {
     if(!published.has(c.index)||homeOf(c.index)===page.index)continue;
     const list=elsewhere.get(c.index)??elsewhere.set(c.index,new Set()).get(c.index);
     list.add(page.index);
   }
-  for(const page of published.values())for(const c of shownOn(page)) {
+  for(const page of published.values())for(const c of page.components??[]) {
     delete c.home;delete c.alsoOn;
     if(!published.has(c.index))continue;
     if(homeOf(c.index)!==page.index)c.home=homeOf(c.index);

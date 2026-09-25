@@ -3,13 +3,14 @@
 Intent, scope, terms and the reading rules are owned by
 [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md), what remains by
 [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent). This guide owns the commands, the addresses, what each
-read carries and the authoring mechanics. Generation derives nodes, links,
-gates and source locations; authoring arranges them into maps and can add no
-call, link or prose.
+read carries and the authoring mechanics. Generation derives leaves, links,
+gates and source locations; the cluster solver arranges leaves into maps and
+can add no call, link or prose.
 
-- `lib/`: source scanning, graph composition, the store and rendering;
-  `lib/destination.mjs` is the one map-or-code rule.
-- `flows/*.json`, `facts.tsv`, `lib/scope.mjs`: the authored inputs.
+- `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
+  store, scoring, the solver and rendering.
+- `tree.json` (the solver's clusters, with authored labels), `facts.tsv`,
+  `lib/scope.mjs`: the authored inputs.
 - `store/`, `view/`: generated snapshots and the viewer; git-ignored.
 
 ## Commands
@@ -18,30 +19,30 @@ call, link or prose.
 node scripts/agent-toolkit.mjs read-map ADDRESS [--code] [--details]
 node scripts/agent-toolkit.mjs regenerate [INDEX]
 node dev-map/cli.mjs check [--json] [--viewer [ADDRESS…]] | build | flow-evidence ADDRESS
-node dev-map/cli.mjs score [--json]
+node dev-map/cli.mjs score [--json] | solve [--seed N]
 node dev-map/cli.mjs watch-freshness [--once]
 ```
 
 An ADDRESS is a node's index or its durable path: a declaration
-(`core/path/compose.mjs::planComposition`) or a cluster (`OWNER::@group/ID`),
-never a file or directory. `read-map` returns one node's read and never scans:
-its map, or its code block when that is its view; `--code` returns a
-declaration's source span or a cluster's member spans (`0 --code` is refused), `--details` the read with its evidence:
+(`core/path/compose.mjs::planComposition`, which reads its leaf when it is
+folded into one) or a cluster (`@cluster/ID`), never a file or directory.
+`read-map` returns one node's read and never scans: a cluster's map or a
+leaf's code block; `--code` returns a leaf's source span or the spans of every
+leaf in a cluster (`0 --code` is refused), `--details` the read with its evidence:
 expressions, traces, byte offsets. Reads are compact JSON: `range` is
 `[first,last]` inclusive, nested locations inherit `file`, empty arrays omitted.
 
 `regenerate` is the only command that scans; it always regenerates everything
-(about a minute) and redraws the viewer. `flow-evidence` re-derives one node from source, to audit the generator;
+(about a minute) and redraws the viewer. `solve` anneals the tree, writes
+`tree.json` and regenerates. `flow-evidence` re-derives one node from source, to audit the generator;
 `build` redraws `view/index.html` from the store, no scan (needs Python 3; set
 `PYTHON` otherwise); `watch-freshness` keeps the viewer's live status current.
 
 ## Addresses
 
-Numbering follows [the tree](../DEVELOPER-CONTEXT.md#the-tree): each map numbers
-the nodes it homes `N.1`, `N.2`, and so on under its own index, entries and
-clusters first in index order, then each map's boxes in call order, depth first.
-Indexes are regenerated and may change; the declaration path is the durable
-name. Static methods are `file.mjs::Class::@static/method` (URI-encoded),
+Each map numbers the nodes it homes `N.1`, `N.2`, and so on under its own
+index, in its left-to-right flow order. Indexes change whenever the tree does;
+the declaration path is the durable name. Static methods are `file.mjs::Class::@static/method` (URI-encoded),
 instance methods `file.mjs::Class::method`, parameter defaults
 `OWNER::@default/NAME`, and anonymous callbacks a snapshot position authoring
 must not reference. A module-level `el.onclick = …` or `addEventListener('x', …)`
@@ -50,60 +51,57 @@ receiver an id selector's id, a binding or a member path) and is homed there. A
 record is no node at any depth, so `.` joins its members,
 `createStudio::lifetime.onViewers`; a module-level table keeps its entry keys.
 
-Each call site is its own box, with an `id` for its local links and the node's
-shared `index`; a call inside a loop is one box with loop feedback. A class is
-its construction plus its members: the constructor is no node, `new X()`
-reaches the class, and its methods are nodes homed there.
+A leaf is a declaration with every declaration written inside it that only it
+reaches; one that other code calls or links to directly, or outside code
+calls, is a leaf of its own (`lib/leaves.mjs`). A class is its construction
+plus its members: the constructor is no node and `new X()` reaches the class.
 
 ## What each read carries
 
 Field names predate the [glossary](../DEVELOPER-CONTEXT.md#dev-map-glossary): `destination`
 is the view (`graph` for a map, `code` for a code block), `components` are the
 boxes, `wires` the links, `couplings` the indirect links, a `group` a cluster,
-`inlined`/`via` a leaf's chain, and `uncertainty` and `unresolved` rows the
-[findings](#findings).
+and `uncertainty` and `unresolved` rows the [findings](#findings).
 
 Every read: `index`, `kind`, `destination`, `stale` when its inputs moved,
 `facts` when a fact row names it, `home` on a repeat and `alsoOn` on the home.
 
-- **Top map** (`0`) and **cluster**: `components` (entry points or clusters, a cluster's
-  members, and the chain of any leaf among them), ports including `in:` and
-  `out:` for every outside root, and one link per box pair contracted onto the
-  entry owning each end: `count` sites, `kind` or `kinds`, and what they name
-  in the label or in `names` past three; `structural`, `relationshipSummary`
-  (sites collapsed into the drawn links) and `composition` (the clusters'
-  source, and link counts) say so, and a `calls` arrow is a call site, not
-  execution order or dataflow.
-- **Declaration** (function, method, handler, class): `path`, `file`, `range`,
+- **Top map** (`0`) and **cluster**: `components`, the leaves and clusters it
+  draws (a cluster box with its `label`, `[needs label]` until a label pass,
+  and `count` of leaves), `leaves` nested, `ports` (ways in by mechanism,
+  `out:` for every outside root, and a `boundary:` box for each node on
+  another map a link crosses to, shown where the two maps meet), and one link
+  per box pair lifted onto the boxes holding each end, with `kinds` and
+  `count`. A link is a call, a value passed between calls or an indirect link.
+- **Leaf** (function, method, handler, class): `path`, `file`, `range`,
+  `folded` (declarations written inside it and folded into it),
   `inputs` (`parameterTargets` on a port this node calls: each callable a
   caller passes, by `index`, `path` and `from`; its box is on that caller's
   map), `outputs` (each return and throw), `components` (what it calls, in call
   order, outside calls naming their target included; an iteration method's
-  callback is a step of this flow, traced inline or called by name; a box a
-  leaf's chain brought carries `inlined` and `via`, the leaf calling it, and
-  counts toward no link total), `operators` (choices, iterations, updates,
+  callback is a step of this flow, traced inline or called by name), `operators` (choices, iterations, updates,
   collections, member calls; one only a finding names carries `keptFor`),
   `wires` (data links between boxes, with `fromPort` and `toPort`; `argN` for
   argument slots, `positionUnknown` after a spread; one call link, `kind:
-  invocation`, per box, so none floats: `from`, the function itself (`"self"`)
-  or the leaf whose chain drew it, the call's `order`, `provenance`
+  invocation`, per box, so none floats: `from`, the function itself (`"self"`),
+  the call's `order`, `provenance`
   (`call-site`, `declaration`/`reference` for a box held or named, not called,
   `operation` for a `keptFor` operator), the `gate` its sites stand under, or
   `siteGates` where they differ, and `stubs`, each a `slot` and either a
   `literal`, the constant written there, cut past 40 characters (a number or
-  boolean as itself), or a `reason`; the map-or-code rule counts data links,
-  not a `keptFor` operator's), `gates` (each condition an item names, by
+  boolean as itself), or a `reason`), `gates` (each condition an item names, by
   number), `requires`, `couplings`, `callerReferences` (mapped callers by
   index; active outside callers by path with `unmapped: true`;
   `callerSummary` with a count and canonical index above five),
   `outsideCallers` (counts per inactive directory), `outside` and `platform`
   (call sites with no mapped target), the findings `unresolved` and
-  `uncertainty` (repeated `closure-capture` rows share one with `count`),
+  `uncertainty` (repeated `closure-capture` rows share one with `count`; a
+  folded declaration's rows name it as `declaration`),
   `stateFields` on a class, a node that owns no box for one writing it as a
   row, and `state`, what the enclosing declaration owns and this node uses: a
   factory's `let`/`const` bindings and a class's `this.` fields (`field`,
   `static-field`), each `name`, `owner`, `ownerIndex`, `binding` kind, `access`
-  and site, drawn but never called and outside the map-or-code rule. State
+  and site, never called. State
   links carry `owned-state` provenance, leaving the node for a read and
   entering it for a write, from `self` with a `stub` where the write has no
   traced producer; the owner links each one to its initialisation and to every
@@ -119,11 +117,8 @@ analysis limit.
 
 ## Findings
 
-Every box, chain boxes included, carries its node's finding count as
-`findings`, a cluster box the count inside it; the top map or a cluster map puts the
-rows on the box, a declaration's map lists them under `nodeFindings`, an
-`index`/`path` section per drawn node in drawing order, never its own; each row
-names its `file`. `uncertainty` rows name a `kind`, `unresolved` rows a
+A leaf box carries its leaf's finding rows, a cluster box the count of rows
+nested in it as `findings`; each row names its `file`. `uncertainty` rows name a `kind`, `unresolved` rows a
 `rule`; each belongs to one class.
 
 **Uncertain**, drawn with the unknown marked on it:
@@ -156,27 +151,26 @@ map does not draw, and is missing.
 ## Staleness
 
 Reads hash the recorded inputs: mapped and scanned source, generator modules,
-the lockfile, facts and clusters. Any change produces `stale` with the reason
+the lockfile, facts and `tree.json`. Any change produces `stale` with the reason
 and how to regenerate; the viewer marks stale maps. Each mapped file's source
 is stored beside its graph, so a code block shows the snapshot that made the
 read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
 
 ## Authoring
 
-**Clusters**, `flows/*.json` (schema 1, fragments merged in sorted order, a
-duplicated node fails). A flow names `0` or a declaration whose map is
-published and lists clusters as `groups` with `id`, optional `label`,
-`members` and nested `groups`. A member is a declaration path; a file path, or
-a nested declaration its encloser already places, is rejected. Missing or
-duplicate members fail generation, so a rename means editing its membership.
-How well a cluster reads (its size, the loops it draws) is the score's to judge,
-not a rule.
+**Clusters**, `tree.json`, written by `solve` (`lib/solve.mjs`): `clusters`
+(`id`, `label`, `parent`), `leaves` (leaf path → the cluster or `0` homing
+it) and `repeats` (map → the leaves and clusters it repeats). The solver
+anneals the mean map score from the current tree: it forms, dissolves, merges
+and moves clusters, re-homes leaves and adds or drops repeats. Placement is
+total (`lib/tree.mjs`): a leaf the file leaves out goes where most of its
+links are, else to `0`; what no longer exists is dropped; a cluster homing
+nothing or drawing fewer than two boxes is dissolved, and a repeat on its
+node's home map or inside the cluster it repeats is dropped. Nothing fails.
 
-```json
-{"schema": 1, "flows": [{"path": "0",
-  "groups": [{"id": "travel", "label": "travel between operations",
-    "members": ["core/path/comb.mjs::prepareCombCorners", "core/path/material.mjs::materialRegion"]}]}]}
-```
+**Labels** are authored in `tree.json` by a label pass, on request, never by
+the solver. A cluster keeps its label and id across a solve while it shares
+more than half its leaves with the cluster it was; any other is `[needs label]`.
 
 **Facts**, `facts.tsv`: tab-separated `declaration kind fact source date`, for
 what the code cannot state. `kind` is `measurement`, `vendor` or `decision`
@@ -192,11 +186,9 @@ counted; `importAliases` name served paths that are not the path on disk.
 
 ## Checking
 
-`check` exits non-zero when the store is missing or stale (naming the index to
-regenerate), an authored node is unplaced, or a fact row is malformed. It
-reports `linked`, `unresolved`, `outside` and `platform` totals, `stranded`
-declarations (no entry point reaches them; they keep their box on the top
-map), `unplaced` nodes and orphan facts; `--json` the same as data.
+`check` exits non-zero when the store is missing or stale, or a fact row is
+malformed. It reports leaves, clusters, links, the `linked`, `unresolved`,
+`outside` and `platform` totals and orphan facts; `--json` the same as data.
 `--viewer` adds coverage: map by map, whether the built drawing carries what
 the read presents, naming the fields nothing stands for. It only reports and
 is opt-in, reading a view `build` drew; an address scopes it, `coverage.mjs`
@@ -204,22 +196,23 @@ states how each item is matched.
 
 ## Scoring
 
-`score` rates every map (`lib/score.mjs` states the measures): nodes drawn
-outside 6–16, the share of links touching the map's nested content that leave
-it, islands of boxes with no link between them, and links against the best
-left-to-right order. Each is a penalty from 0 (ideal) to -1; a map's score is
-their sum and the tree's energy the sum over maps, the objective a clustering
-solver would minimise. The viewer shows each map's score and parts in its bar.
+`score` rates every map, `0` and each cluster (`lib/score.mjs` states the
+measures): 0.1 per box drawn outside 6–16, the share of links touching the
+map's nested content whose other end no box on it holds (a repeat keeps a
+link on the map), islands of boxes with no link between them, and links
+against the best left-to-right order, the last three from 0 to 1. A map's
+score is their sum and the tree's energy the mean over maps, which `solve`
+minimises. The viewer shows each map's score and parts in its bar.
 `score` prints the worst and best maps and writes `view/scores.html`, which
 every viewer build also refreshes, ranking all maps with links into the viewer.
 
 ## The viewer
 
 `view/index.html` draws the stored maps in place, following declarations
-across renumbering; its index lists maps only. A code block opens its source
+across renumbering; its index lists maps only. A leaf opens its source
 beside a panel of what its read carries — ports, callees, state, links,
 callers, ledger — in the map's sections, each row marked for `check --viewer`
-and opening what it names. Code-block boxes have their own colour, calls out
-are red headless arrows, repeats link `home`; below 50% a box is its name
+and opening what it names. Cluster boxes, leaf boxes and boundary boxes have
+their own colours, calls out are red headless arrows, repeats link `home`; below 50% a box is its name
 alone, hover lights and dims, the minimap and hint bar orient you;
 `generated-map` serves 8765.

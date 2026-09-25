@@ -6,9 +6,26 @@ import {resolve} from 'node:path';
 import {parseArgs} from 'node:util';
 import {repoRoot as root} from './lib/store.mjs';
 
-const usage='Use: node dev-map/cli.mjs build | regenerate [INDEX] | flow-evidence INDEX|DECLARATION | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
+const usage='Use: node dev-map/cli.mjs build | regenerate [INDEX] | solve [--seed N] | flow-evidence INDEX|DECLARATION | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=process.argv.slice(2);
-if(!['build','check','regenerate','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
+if(!['build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
+
+// The cluster solver (lib/solve.mjs): anneal the stored tree toward the lowest mean map score,
+// write it to tree.json, then regenerate so the maps and the viewer show it.
+if(command==='solve') {
+  const {values}=parseArgs({args,options:{seed:{type:'string',default:'1'}}});
+  const {solve}=await import('./lib/solve.mjs');
+  const started=Date.now();
+  const result=await solve({repo:root,seed:Number(values.seed),onStage:s=>{
+    if(s.stage%10===0||!s.changed)console.log(`stage ${s.stage}: T ${s.temperature.toExponential(2)}, energy ${s.energy.toFixed(4)}, best ${s.best.toFixed(4)}, ${s.accepted}/${s.moves} taken, ${s.changed} changed it`);}});
+  console.log(`Solved in ${Math.round((Date.now()-started)/1000)} s: energy ${result.start.toFixed(4)} → ${result.energy.toFixed(4)}, ${result.clusters} clusters (${result.carried} kept their labels), ${result.repeats} repeats. Wrote ${result.file}.`);
+  const {generate}=await import('./lib/store.mjs');
+  const {drawView}=await import('./lib/generated-view.mjs');
+  const generated=await generate({repo:root});
+  const view=await drawView({repo:root});
+  console.log(`Regenerated: ${generated.leaves} leaves, ${generated.clusters} clusters, ${generated.links} links.${view.error?` Viewer: ${view.error}`:` Viewer: ${view.index}`}`);
+  process.exit(0);
+}
 
 // How well each map reads (lib/score.mjs), ranked worst first beside the viewer as scores.html.
 if(command==='score') {
@@ -17,7 +34,7 @@ if(command==='score') {
   const result=await writeScorePage({repo:root,out:resolve(root,'dev-map/view')});
   if(values.json){console.log(JSON.stringify(result,null,1));process.exit(0);}
   const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} nodes, crossing ${Math.round(s.badness.crossing*100)}%, ${s.islands} islands, backflow ${Math.round(s.badness.backflow*100)}%  ${s.label}`;
-  console.log(`${result.maps} maps, ${result.links} node links, energy ${result.energy}. Worst:`);
+  console.log(`${result.leaves} leaves, ${result.maps} maps, ${result.links} links, energy ${result.energy} (mean map score). Worst:`);
   for(const s of result.scores.slice(0,10))console.log(line(s));
   console.log('Best:');
   for(const s of result.scores.slice(-10))console.log(line(s));
@@ -85,9 +102,8 @@ const {regenerate}=await import('./lib/generated-view.mjs');
 const status=await storeStatus({repo:root});
 const result={store:status.dir,generated:status.generated??null,missing:status.missing,
   stale:status.missing?null:status.stale,totals:status.missing?null:status.totals,
-  stranded:status.missing?[]:status.stranded,unplaced:status.missing?[]:status.unplaced,
   orphanFacts:status.orphanFacts,factErrors:status.facts.errors};
-const failed=status.missing||!!status.stale||status.facts.errors.length>0||(status.unplaced?.length??0)>0;
+const failed=status.missing||!!status.stale||status.facts.errors.length>0;
 
 // The owner reads the drawing and an agent reads the compact page, and the intent is that they
 // say the same thing. This asks the built drawing, item by item, whether it carried what the
@@ -100,19 +116,13 @@ if(options.viewer&&!status.missing) {
 if(options.json)console.log(JSON.stringify(result,null,1));
 else if(status.missing)console.log(`No stored map at ${status.dir}. Run: ${regenerate}`);
 else {
-  console.log(`Stored ${status.generated}: ${status.totals.entries} entry points, ${status.totals.files} files, ${status.totals.pages} declarations.`);
+  console.log(`Stored ${status.generated}: ${status.totals.leaves} leaves, ${status.totals.clusters} clusters, ${status.totals.links} links between leaves, ${status.totals.files} files.`);
   console.log(`Links: ${status.totals.linked} linked, ${status.totals.unresolved} unresolved, ${status.totals.outside} outside, ${status.totals.platform} platform.`);
   if(status.stale) {
     console.log(`Stale: ${status.stale.reason}. ${status.stale.files.length} source files; ${status.stale.inputs?.length??0} generator/configuration inputs changed.`);
     for(const file of [...status.stale.files,...status.stale.inputs??[]])console.log(`  ${file}`);
     console.log(`Run: ${regenerate} ${status.stale.regenerate}`);
   }
-  console.log(`Stranded: ${status.stranded.length}`);
-  for(const path of status.stranded)console.log(`  ${path}`);
-  if(status.stranded.length)console.log(`No entry point reaches these; they keep a box on the top map.`);
-  console.log(`Unplaced: ${status.unplaced.length}`);
-  for(const page of status.unplaced)console.log(`  ${page}`);
-  if(status.unplaced.length)console.log(`No map shows these clusters. Remove the authored cluster, or place what it clusters.`);
   console.log(`Orphan facts: ${status.orphanFacts.length}`);
   for(const row of status.orphanFacts)console.log(`  ${row.line}\t${row.declaration}\t${row.kind}\t${row.fact}\t${row.source}\t${row.date}`);
   if(status.facts.errors.length) {

@@ -394,16 +394,21 @@ def build_page(packet, ctx):
         drawn.add(nid)
         return node
 
-    if packet.get("composition") or kind == "group":
-        node_page(packet, page, unit, port, drawn, dropped)
-    elif kind == "root":
-        # The top map draws the entry points.
+    if kind in ("root", "group"):
+        # The top map and each cluster draw leaves and clusters, and at the edge a boundary box
+        # for each node on another map that a link crosses to.
         for c in packet["components"]:
+            if c.get("kind") == "group":
+                unit(c["index"], c["label"], f'{c["count"]} leaves', "", "stage", path=c["path"])
+                continue
             unit(c["index"], c["label"], "",
                  f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
                  ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')
         for p in packet["ports"]:
-            port(p["port"], p["port"], go=port_target(p["port"], pages))
+            if p.get("mechanism") == "boundary":
+                port(p["port"], f'{p["index"]} {p["label"]}', "caller", p["index"] if p["index"] in pages else "")
+            else:
+                port(p["port"], p["port"], go=port_target(p["port"], pages))
         for w in packet["wires"]:
             if w.get("kind") == "invocation":
                 invocation_edge(page, w, drawn, dropped)
@@ -1737,10 +1742,10 @@ def build(model, out):
         kind = p["kind"]
         if kind == "root":
             title, detail, ref = "0", "", None
-            sub = f'{p.get("entries", len(p["components"]))} entry points · {p["nodes"]} nodes'
+            sub = f'top map · {len(p["components"])} boxes · {p["leaves"]} leaves'
         elif kind == "group":
             title = f'{index} {p["label"]}'
-            sub = f'{p["owner"]} · {len(p["components"])} declarations · generated boundary'
+            sub = f'cluster · {len(p["components"])} boxes · {p["leaves"]} leaves'
             detail, ref = p["path"], None
         else:
             title = f'{index} {p["path"][len(p["file"]) + 2:]}'

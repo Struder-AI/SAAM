@@ -1,5 +1,46 @@
 # Development log
 
+## 2026-09-25 — Dev maps: the solver authors the whole tree
+
+- Owner direction: the maps are leaves, clusters and `0`. Every scoped
+  declaration is drawn by exactly one leaf, which opens as its code block;
+  call maps and the map-or-code rule are gone. The cluster solver authors
+  every cluster, home and repeat; the goal is the mean map score. Labels are
+  authored only in a label pass and carried across solves by leaf overlap
+  (more than half, Jaccard), else `[needs label]`.
+- Leaves (`lib/leaves.mjs`, was `entries.mjs`; entry points and stranded
+  gone): an inner declaration folds into its outer leaf unless code outside
+  the outer calls or links to it, or outside code calls it. 504 of 660 fold;
+  156 stay leaves (factory methods and returned closures called elsewhere);
+  941 leaves, 3208 links between them.
+- `lib/tree.mjs`: `tree.json` placed in full (an unmentioned leaf goes where
+  most of its links are, else `0`; unknown names dropped), the two rules
+  enforced (a cluster homes a node and draws two boxes; no repeat on its
+  home or inside the cluster it repeats), numbering by each map's flow order,
+  and `drawMap`, shared by generation, scoring and the solver. Composition
+  and `flows/` removed; `tree.json` bootstrapped from the af5cc42 tree (each
+  call map a cluster holding its leaf, authored clusters kept with labels).
+- `score.mjs`: maps are `0` and clusters; crossing counts a link whose other
+  end no box on the map holds, so a repeat keeps a link on the map; energy is
+  the mean. `solve.mjs`: annealing with undo and rescoring of only the maps a
+  move reaches; `node dev-map/cli.mjs solve` writes `tree.json` and
+  regenerates.
+- First solve (17 min): mean 1.037 → 0.177 by dumping leaves into two
+  clusters of 488 and 283 boxes, since size badness was capped at 1. Owner
+  direction: size is 0.1 per box outside 6–16, uncapped. Flow order now uses
+  heaps (7 ms for 900 boxes). Current-state baseline under it: 0.859.
+- Second solve (11 min, from the current-state tree): 0.859 → 0.249, 93
+  clusters (11 kept labels), 186 repeats, every map 6–16 boxes (mean parts:
+  crossing 0.158, backflow 0.077, islands 0.014, size 0). But the tree is a
+  chain 70 deep: each map homes about five leaves and one cluster holding all
+  the rest, and repeats fill it to 16. Nothing in the score resists depth or
+  one box holding nearly everything; open for the owner.
+- Docs: glossary and The tree rewritten (DEVELOPER-CONTEXT 218→213), map guide
+  225→218, toolkit README and onboarding hint. Checks: regenerate, `check`,
+  `read-map` on a cluster and a folded declaration, viewer on `0` and a
+  cluster. `check --viewer` gaps: ports on the largest maps, and the new
+  `leaves`/`cluster` fields.
+
 ## 2026-09-24 — Dev maps: no regions; nothing comes from files
 
 - Owner direction: no region maps; nothing in the maps comes from files. The

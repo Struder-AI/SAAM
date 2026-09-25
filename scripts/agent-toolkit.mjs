@@ -44,7 +44,7 @@ export const help = {
     'inspect-generation-failure DIRECTORY [--request ID] [--include-geometry]': 'Saved errors/requests, checked state or invalid recipe, generation guidance and skill links.'
   },
   developmentAreas: Object.keys(developmentAreas),
-  notes: ['--area takes a node index or declaration path (read-map 0 lists the entry points), or one of the areas above.',
+  notes: ['--area takes a node index or declaration path (read-map 0 reads the top map), or one of the areas above.',
     'Map indexes are regenerated and may change. Use just the index when talking about the current map; write the declaration path when something must keep pointing at it.',
     '--library DIRECTORY selects a print/request library (default: this checkout’s Prints).',
     'Relaunching a Studio with --agent-owner ID, the agentOwnerId from an earlier studio-ready line, resumes that owner so its in-flight requests stay visible. The relaunch always gets a new Studio instance.',

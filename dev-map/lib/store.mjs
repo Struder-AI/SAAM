@@ -6,16 +6,14 @@ import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadFlow,flowPacket} from './flow.mjs';
-import {model,numberNodes} from './entries.mjs';
+import {model,numberNodes} from './leaves.mjs';
 import {readFacts,bindFacts} from './facts.mjs';
 import {sourceFiles} from './graph.mjs';
 import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
-import {readCompositions,compositionFiles,composePages} from './composition.mjs';
 import {attachPortReferences} from './port-references.mjs';
-import {attachOverviewAnchors} from './overview.mjs';
-import {treeNumbering,renumber,markRepeats,drawChains} from './tree.mjs';
+import {TOP,treeFile,readTreeFile,placeTree,treeAccess,drawMap,numberTree,linkSet,treeFileOf,renumber,markRepeats} from './tree.mjs';
 import {destinationFor} from './destination.mjs';
-export {drawnShape,destinationFor} from './destination.mjs';
+export {destinationFor} from './destination.mjs';
 
 export const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
 export const storeDir=repo=>resolve(repo,'dev-map/store');
@@ -34,14 +32,14 @@ const byIndex=(a,b)=>{
 export async function generate({repo=repoRoot,readSource,files}={}) {
   const timings={},clock=async(key,run)=>{const t=Date.now();const out=await run();timings[key]=Date.now()-t;return out;};
   const generationInputs=await inputHashes(repo);
-  const config=await readCompositions({repo});
   const context=await clock('load',()=>loadFlow({repo,...(readSource?{readSource}:{}),...(files?{files}:{})}));
   Object.assign(timings,context.timings);
   const {graph,projection}=context;
   const dir=storeDir(repo);
   const m=model(graph,projection);
 
-  // Numbering: internal identities, renumbered into the map tree before publishing.
+  // Internal identities: one number per declaration, then one per cluster. Published indexes
+  // are the tree's, given below.
   const index=numberNodes(m);
   for(const n of projection.nodes.values())if(index.has(n.path))n.handle=index.get(n.path);
 
@@ -94,7 +92,6 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
     };
     add(c.from,c.to,'out');add(c.to,c.from,'in');
   }
-  const leafOf=path=>packets.has(path)&&destinationFor(packets.get(path))==='code';
   const dirOf=file=>file.slice(0,file.lastIndexOf('/'));
   for(const packet of packets.values()) {
     packet.calledFrom=(from.get(packet.path)??[]).sort((a,b)=>byIndex(a.index,b.index));
@@ -108,39 +105,64 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
     if(Object.keys(counted).length)packet.outsideCallers=Object.fromEntries(Object.entries(counted).sort(([a],[b])=>order(a,b)));
     else delete packet.outsideCallers;
     packet.couplings=coupled.get(packet.path)??[];
-    for(const c of packet.components){if(leafOf(`${c.file}::${c.label}`))c.leaf=true;else delete c.leaf;}
   }
 
   attachPortReferences(packets,index);
 
-  // The top map. A file is where code is written, not a place in the map: it is no box, no page
-  // and no member.
-  const root=topPage(m,index,packets);
+  // The leaves, the links between them, and the tree the solver authored, placed in full.
+  const leafOf=m.leafOf,leafPaths=new Set(leafOf.values());
+  const pathAt=new Map([...index].map(([path,at])=>[at,path]));
+  const links=leafLinks(packets,leafOf,pathAt);
+  const tree=placeTree(await readTreeFile(repo),leafPaths,links);
+  const access=treeAccess(tree),set=linkSet(links);
+  const treeIndex=numberTree(tree,set);
+  const clusterAt=new Map([...tree.clusters.keys()].map((id,i)=>[id,String(index.size+i+1)]));
+  const at=id=>id===TOP?TOP:clusterAt.get(id)??index.get(id);
 
   // External facts. A row names a declaration this scan holds; anything else is an orphan,
   // carried in the store so a read and `check` both report it.
   const facts=await readFacts({repo});
   const {byTarget,orphans}=bindFacts(facts.rows,new Set(packets.keys()));
-  for(const packet of packets.values()) {
-    const held=byTarget.get(packet.path);
-    if(held)packet.facts=held;else delete packet.facts;
+
+  // A leaf opens as its declaration's code, and a declaration folded into it adds its findings
+  // and facts there, each row naming the declaration it is about.
+  const leafPages=new Map();
+  for(const path of [...leafPaths].sort(order)) {
+    const page=packets.get(path);
+    const held=byTarget.get(path);
+    if(held)page.facts=held;else delete page.facts;
+    leafPages.set(path,page);
+  }
+  for(const [path,leaf] of [...leafOf].sort(([a],[b])=>order(a,b))) {
+    if(path===leaf)continue;
+    const page=leafPages.get(leaf),inner=packets.get(path);
+    (page.folded??=[]).push(path);
+    page.calledFrom.push(...inner.calledFrom);
+    for(const field of ['uncertainty','unresolved'])for(const row of inner[field]??[])(page[field]??=[]).push({...row,declaration:path});
+    for(const fact of byTarget.get(path)??[])(page.facts??=[]).push({...fact,declaration:path});
+  }
+  // A leaf's callers are other leaves: its own code calling itself is no caller, and several
+  // declarations of one calling leaf are that leaf once.
+  for(const [path,page] of leafPages) {
+    const callers=new Map();
+    for(const ref of page.calledFrom) {
+      const caller=leafOf.get(pathAt.get(ref.index));
+      if(caller===path)continue;
+      const at=index.get(caller)??ref.index,held=callers.get(at);
+      if(held)held.labels=[...new Set([...held.labels??[],...ref.labels??[]])].sort(order);
+      else callers.set(at,{...ref,index:at});
+    }
+    page.calledFrom=[...callers.values()].sort((a,b)=>byIndex(a.index,b.index));
   }
 
-  // Keep canonical packets beside their presentation: a drawing collapsed by clusters has lost
-  // the internal wires a cluster solver reads.
-  const sourcePackets=new Map([...packets].map(([path,page])=>[path,structuredClone(page)]));
-  const composed=composePages(new Map([...packets,[root.path,root]]),config,{model:m,index,packets});
-  for(const [path,page] of composed.pages)if(packets.has(path))packets.set(path,page);
-  const top=composed.pages.get(root.path);
-  const groupPages=Object.fromEntries(composed.groupPages);
-  const destinations=new Map([top,...packets.values(),...Object.values(groupPages)].map(page=>[page.index,page]));
+  // The top map and every cluster draw their homes and repeats and the links between them.
+  const shared={m,tree,access,set,at,packets,leafOf,treeIndex};
+  const root=containmentPage(TOP,shared);
+  const groupPages=new Map([...tree.clusters.keys()].map(id=>[id,containmentPage(id,shared)]));
+  const destinations=new Map([root,...leafPages.values(),...groupPages.values()].map(page=>[page.index,page]));
   for(const page of destinations.values()) {
     page.destination=destinationFor(page);
-    if(!['root','group'].includes(page.kind)) {
-      if(page.destination==='code')page.leaf=true;else delete page.leaf;
-    }
-    if(page.destination==='code')page.sourceSpan={file:page.file,line:page.line,endLine:page.endLine};
-    else delete page.sourceSpan;
+    if(page.destination==='code'){page.leaf=true;page.sourceSpan={file:page.file,line:page.line,endLine:page.endLine};}
   }
   for(const page of destinations.values()) {
     const owner=packets.get(page.owner)?.index??page.index;
@@ -193,108 +215,61 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
     page.callerWires=callerWires;
   }
 
-  // Findings follow the node. A containment map draws a node; that node's own rows are attached
-  // to its box, exactly as the node's own page shows them, and nothing is rolled up into a count
-  // by kind. A group box is not a node: it carries the number of findings inside it, for
-  // navigation, and nothing else.
-  const packetsUnder=new Map();
-  for(const packet of packets.values()) {
-    // A declaration written inside another is homed on that declaration's page, so its findings
-    // are inside any group that holds the holder; the count a group box carries says so.
-    for(let at=packet.path;at.includes('::');at=at.slice(0,at.lastIndexOf('::')))
-      (packetsUnder.get(at)??packetsUnder.set(at,[]).get(at)).push(packet);
+  // Findings follow the leaf. A map draws a leaf's box with its own rows attached, exactly as the
+  // leaf shows them; a cluster box carries the number of findings nested in it, for navigation.
+  const rowCount=page=>[...(page.uncertainty??[]),...(page.unresolved??[])].reduce((rows,row)=>rows+(row.count??1),0);
+  for(const page of [root,...groupPages.values()])for(const component of page.components) {
+    if(component.kind==='group'){
+      const count=access.leavesOf(component.cluster).reduce((n,leaf)=>n+rowCount(leafPages.get(leaf)),0);
+      if(count)component.findings=count;
+      continue;
+    }
+    const leaf=leafPages.get(component.path);
+    for(const field of ['uncertainty','unresolved'])if(leaf[field]?.length)component[field]=leaf[field];
   }
-  const rowCount=pages=>pages.reduce((n,p)=>n+[...(p.uncertainty??[]),...(p.unresolved??[])]
-    .reduce((rows,row)=>rows+(row.count??1),0),0);
-  const nodeOf=component=>{
-    const path=component.path??(component.file&&component.label?`${component.file}::${component.label}`:null);
-    return path?packets.get(path)??null:null;
-  };
-  const heldRows=component=>rowCount(component.kind==='group'
-    ?(component.members??[]).flatMap(member=>packetsUnder.get(member)??[]):[]);
-  // This runs after the chains are drawn, so a box a leaf brought onto the top map or a group
-  // carries the rows of the node it draws like every other box on that page.
-  const attachContainmentFindings=pages=>{
-    for(const page of pages) {
-      if(page.kind!=='root'&&!(page.kind==='group'&&page.structural))continue;
-      for(const component of page.components??[]) {
-        const node=nodeOf(component);
-        if(node) {
-          for(const field of ['uncertainty','unresolved']) {
-            if(node[field]?.length)component[field]=node[field];else delete component[field];
-          }
-          continue;
-        }
-        const count=heldRows(component);
-        if(count)component.findings=count;else delete component.findings;
-      }
-    }
-  };
-  // A function, method, handler or class page is a drawing too, so the same rule holds there: the
-  // box says how many findings the declaration it draws has, and the rows are listed once per
-  // node below the drawing however many boxes repeat that node. The page's own rows stay where
-  // they are and are never repeated into that list. This runs after the chains are drawn, so a
-  // box a leaf brought onto the map carries its count like every other box.
-  const attachNodeFindings=pages=>{
-    for(const page of pages) {
-      if(['root','group'].includes(page.kind)||page.destination!=='graph')continue;
-      const sections=new Map();
-      for(const component of page.components??[]) {
-        const node=nodeOf(component),count=node?rowCount([node]):heldRows(component);
-        if(count)component.findings=count;else delete component.findings;
-        if(node&&count&&node.path!==page.path&&!sections.has(node.path))sections.set(node.path,{index:component.index,path:node.path,
-          ...Object.fromEntries(['uncertainty','unresolved'].filter(field=>node[field]?.length).map(field=>[field,node[field]]))});
-      }
-      if(sections.size)page.nodeFindings=[...sections.values()];else delete page.nodeFindings;
-    }
-  };
 
-  attachOverviewAnchors(destinations,index);
-
-  // Publish tree indexes. A page that no map shows is not published.
-  const {tree,chains}=treeNumbering(destinations);
-  drawChains(destinations,chains);
-  attachContainmentFindings(destinations.values());
-  attachNodeFindings(destinations.values());
-  const placed=new Set([...destinations].filter(([at])=>tree.has(at)).map(([,page])=>page));
-  const unplaced=[...destinations.values()].filter(page=>!placed.has(page)).map(page=>page.path??page.file).sort(order);
-  renumber([...placed],tree);
+  // Publish tree indexes. A folded declaration's internal address is its leaf's.
+  const published=new Map([[TOP,TOP],...[...index].map(([path,internal])=>[internal,treeIndex.get(leafOf.get(path))]),
+    ...[...clusterAt].map(([id,internal])=>[internal,treeIndex.get(id)])]);
+  const pages=[...destinations.values()];
+  renumber(pages,published);
   // A state node names the declaration that owns the binding. That address is the tree's, like
   // every other address on the page, so it is published with them.
-  for(const page of placed)for(const s of page.state??[])if(tree.has(s.ownerIndex))s.ownerIndex=tree.get(s.ownerIndex);
-  for(const [path,page] of packets)if(!placed.has(page))packets.delete(path);
-  const publishedGroups=Object.fromEntries(Object.values(groupPages).filter(page=>placed.has(page))
-    .map(page=>[page.index,page]).sort((a,b)=>byIndex(a[0],b[0])));
-  markRepeats(new Map([...placed].map(page=>[page.index,page])));
-  // Source pages keep internal addresses; the cluster solver reads them by declaration path.
+  for(const page of pages)for(const s of page.state??[])if(published.has(s.ownerIndex))s.ownerIndex=published.get(s.ownerIndex);
+  markRepeats(new Map(pages.map(page=>[page.index,page])));
+  const publishedGroups=Object.fromEntries([...groupPages.values()].map(page=>[page.index,page]).sort((a,b)=>byIndex(a[0],b[0])));
   const records=new Map();
   for(const f of graph.files.filter(f=>m.mapped.has(f.file)).sort((a,b)=>order(a.file,b.file))) {
     const file=f.file;
-    const pages=Object.fromEntries([...packets.values()].filter(p=>p.file===file).map(p=>[p.index,p]));
-    const sourcePages=Object.fromEntries([...sourcePackets.values()].filter(p=>p.file===file).map(p=>[p.index,p]));
+    const filePages=Object.fromEntries([...leafPages.values()].filter(p=>p.file===file).map(p=>[p.index,p]));
     // Retained declaration spans must keep the source bytes that produced them.
     const source=context.sources.get(file);
-    records.set(file,{file,sha256:f.sha256,lines:f.lines,...(typeof source==='string'?{source}:{}),pages,sourcePages});
+    records.set(file,{file,sha256:f.sha256,lines:f.lines,...(typeof source==='string'?{source}:{}),pages:filePages});
   }
   const fingerprint={sources:Object.fromEntries(graph.files.map(f=>[f.file,f.sha256]).sort(([a],[b])=>order(a,b))),
     inventory:files?'explicit':'disk',inputs:generationInputs};
-  const stored={schema:5,generated:new Date().toISOString().slice(0,10),fingerprint,
+  const stored={schema:6,generated:new Date().toISOString().slice(0,10),fingerprint,
     files:Object.fromEntries([...records.values()].map(r=>[r.file,{sha256:r.sha256,lines:r.lines}])),
     records:Object.fromEntries([...records.keys()].map(f=>[f,`${slug(f)}.json`])),
-    nodes:Object.fromEntries([...packets.values()].map(p=>[p.index,{path:p.path,file:p.file}]).sort((a,b)=>byIndex(a[0],b[0]))),
-    // A page is reachable by the durable name of what it is about: a declaration or cluster path.
-    byPath:Object.fromEntries([...[...packets.values()].map(p=>[p.path,p.index]),
+    nodes:Object.fromEntries([...leafPages.values()].map(p=>[p.index,{path:p.path,file:p.file}]).sort((a,b)=>byIndex(a[0],b[0]))),
+    // A page is reachable by the durable name of what it is about: a declaration, whether its own
+    // leaf or folded into one, or a cluster.
+    byPath:Object.fromEntries([...[...leafOf].map(([path,leaf])=>[path,treeIndex.get(leaf)]),
       ...Object.values(publishedGroups).map(p=>[p.path,p.index])].sort((a,b)=>order(a[0],b[0]))),
-    root:top,groupPages:publishedGroups,
-    unplaced,orphanFacts:orphans,factErrors:facts.errors};
+    root,groupPages:publishedGroups,
+    // What the scorer and the solver read: every leaf, the links between them, and the tree as
+    // placed, with each cluster's index.
+    leaves:Object.fromEntries([...leafPaths].sort(order).map(path=>[path,treeIndex.get(path)])),
+    links,tree:treeFileOf(tree,treeIndex),
+    treeIndex:Object.fromEntries([...tree.clusters.keys()].map(id=>[id,treeIndex.get(id)])),
+    orphanFacts:orphans,factErrors:facts.errors};
   await clock('write',async()=>{
     await rm(resolve(dir,'files'),{recursive:true,force:true});
     await mkdir(resolve(dir,'files'),{recursive:true});
     for(const record of records.values())await write(resolve(dir,'files',`${slug(record.file)}.json`),record);
     await write(resolve(dir,'index.json'),stored);
   });
-  return {timings,entries:m.entries.length,pages:packets.size,files:records.size,
-    ...(unplaced.length?{unplaced}:{}),
+  return {timings,leaves:leafPaths.size,clusters:tree.clusters.size,links:links.length,files:records.size,
     facts:facts.rows.length-orphans.length,orphanFacts:orphans,factErrors:facts.errors};
 }
 
@@ -305,7 +280,7 @@ async function inputHashes(repo) {
   const generator=await readdir(resolve(repoRoot,'dev-map/lib'));
   const entries=await Promise.all(generator.filter(f=>f.endsWith('.mjs')).sort(order).map(async file=>
     [`generator:dev-map/lib/${file}`,sha(await readFile(resolve(repoRoot,'dev-map/lib',file)))]));
-  for(const file of ['package-lock.json','dev-map/facts.tsv',...await compositionFiles(repo),'DECISIONS.md']) {
+  for(const file of ['package-lock.json','dev-map/facts.tsv',treeFile,'DECISIONS.md']) {
     const contents=await readFile(resolve(repo,file)).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
     entries.push([file,contents===null?null:sha(contents)]);
   }
@@ -357,9 +332,8 @@ const links=()=>{
   return {add,port,portOut,drawn};
 };
 
-// The top map: the entry points as components, the links between the flows they begin as wires,
-// and every way in from outside the map as a port. Module-level code belongs to no declaration:
-// what it calls is reached through the `module` port, and its own findings are this page's.
+// Module-level code belongs to no declaration: what it calls is reached through the `module`
+// port, and its own findings are the top map's.
 // `platform` is a call site with no target in any scanned root — a library, runtime or DOM
 // operation. `outside` is a call site whose target is scanned source the map does not cover.
 function moduleDiagnostics(m) {
@@ -369,32 +343,82 @@ function moduleDiagnostics(m) {
     outside:m.outsideCalls.filter(c=>!c.from).length,
     moduleCallSites:sites};
 }
-function topPage(m,index,packets) {
-  const components=m.entries.map(n=>declarationBox(n,index,packets));
-  // Every link contracts onto the entry point whose flow holds it, so a declaration that is no
-  // entry point is drawn on that flow instead of a second time here. A nested declaration goes
-  // with the top-level declaration that holds it.
-  const box=n=>index.get(m.ownerRoot.get(n.path)??outermost(n).path);
-  const {add,port,portOut,drawn}=links();
-  for(const n of m.nodes)for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,box(n),mechanism,label);
-  for(const c of m.outsideCalls)if(c.from)portOut(c.root,box(c.from),'call',null);
-  for(const c of m.calls) {
-    if(!c.from||!m.mapped.has(c.from.file)||!m.mapped.has(c.to.file))continue;
-    add(box(c.from),box(c.to),c.relation.kind,c.label||null);
+// The top map or a cluster: the boxes it draws, homes and repeats, the links between them, and
+// at its edge a boundary box for each node on another map that a link crosses to, the ways in
+// from outside the map, and calls that leave the mapped scope. Module-level findings are the top
+// map's. Addresses are internal here and published with every other page.
+function containmentPage(map,{m,tree,access,set,at,packets,leafOf,treeIndex}) {
+  const drawn=drawMap(map,access,set),isCluster=id=>tree.clusters.has(id);
+  const leafBox=path=>{const n=packets.get(path);
+    return {index:at(path),path,label:path.slice(n.file.length+2),file:n.file,line:n.line,endLine:n.endLine,lines:n.endLine-n.line+1,leaf:true};};
+  const clusterBox=id=>({index:at(id),path:clusterPath(id),cluster:id,kind:'group',label:tree.clusters.get(id).label??NEEDS_LABEL,
+    count:access.leavesOf(id).length});
+  const components=drawn.members.map(id=>isCluster(id)?clusterBox(id):leafBox(id));
+  const {add,port,portOut,drawn:ported}=links();
+  for(const {from,to,link} of drawn.lifted)add(at(from),at(to),link.kind,null);
+  // The other end of a crossing link is shown where this map and it meet: the box on their
+  // nearest shared map that holds it.
+  const chain=new Set();for(let p=map;p!==undefined;p=access.parentOf(p))chain.add(p);chain.add(TOP);
+  const boundaryOf=leaf=>{let box=leaf;for(let p=access.parentOf(leaf);!chain.has(p);p=access.parentOf(p))box=p;return box;};
+  const boundaries=new Map();
+  for(const {link,inside,outside,out} of drawn.crossing) {
+    const box=boundaryOf(outside),name=`boundary:${at(box)}`;
+    boundaries.set(name,{port:name,mechanism:'boundary',index:at(box),
+      label:isCluster(box)?tree.clusters.get(box).label??NEEDS_LABEL:box.slice(packets.get(box).file.length+2)});
+    out?add(at(inside),name,link.kind,null):add(name,at(inside),link.kind,null);
   }
-  for(const c of m.couplings) {
-    if(!c.from||!c.to||!m.mapped.has(c.fromFile)||!m.mapped.has(c.toFile))continue;
-    add(box(c.from),box(c.to),c.kind,c.label||null);
+  // Ways in and calls out, from the leaves this map holds.
+  const holds=path=>drawn.holder.get(leafOf.get(path));
+  for(const n of m.nodes) {
+    const box=holds(n.path);if(box===undefined)continue;
+    for(const {mechanism,label} of m.reached.get(n.path)??[])port(mechanism,at(box),mechanism,label);
   }
-  return {flow:true,generated:true,index:'0',path:'0',kind:'root',nodes:m.nodes.length,entries:m.entries.length,
-    ...drawn(),...moduleDiagnostics(m),components,
-    ...(m.stranded.length?{stranded:m.stranded.map(n=>n.path)}:{}),
-    children:components.map(c=>({index:c.index,path:c.path,label:c.label,file:c.file,lines:c.lines}))};
+  for(const c of m.outsideCalls)if(c.from){const box=holds(c.from.path);if(box!==undefined)portOut(c.root,at(box),'call',null);}
+  const {ports,wires}=ported();
+  const children=components.map(c=>({index:c.index,path:c.path,label:c.label}));
+  if(map===TOP)return {flow:true,generated:true,index:TOP,path:TOP,kind:'root',leaves:access.leavesOf(TOP).length,
+    ports:[...ports,...boundaries.values()],wires,...moduleDiagnostics(m),components,children};
+  return {flow:true,generated:true,index:at(map),path:clusterPath(map),kind:'group',cluster:map,label:tree.clusters.get(map).label??NEEDS_LABEL,
+    parent:at(access.parentOf(map)),leaves:access.leavesOf(map).length,codeTargets:access.leavesOf(map),ports:[...ports,...boundaries.values()],wires,components,children,
+    unresolved:[],platform:0,outside:0};
 }
-const outermost=n=>{let node=n;while(node.parent)node=node.parent;return node;};
-const declarationBox=(n,index,packets)=>({index:index.get(n.path),path:n.path,label:n.path.slice(n.file.length+2),
-  file:n.file,line:n.line,endLine:n.endLine,lines:n.endLine-n.line+1,
-  ...(packets.has(n.path)&&destinationFor(packets.get(n.path))==='graph'?{}:{leaf:true})});
+export const NEEDS_LABEL='[needs label]';
+const clusterPath=id=>`@cluster/${id}`;
+
+// Links between leaves, once per pair and kind: each call a declaration makes, each value passed
+// from one call's result into another call (directly or through operators), each indirect link.
+// A declaration folded into a leaf links as that leaf, and a leaf's links to itself are dropped.
+function leafLinks(packets,leafOf,pathAt) {
+  const seen=new Set(),found=[];
+  const add=(fromAt,toAt,kind)=>{
+    const from=leafOf.get(pathAt.get(fromAt)),to=leafOf.get(pathAt.get(toAt)),key=`${from}>${to}>${kind}`;
+    if(!from||!to||from===to||seen.has(key))return;
+    seen.add(key);found.push({from,to,kind});
+  };
+  const nodeOf=box=>String(box).split('@')[0];
+  for(const page of packets.values()) {
+    const at=page.index;
+    for(const box of page.components??[])add(at,box.index,'call');
+    for(const link of page.couplings??[])if(link.index)
+      link.direction==='in'?add(link.index,at,link.kind):add(at,link.index,link.kind);
+    const next=new Map();
+    for(const wire of page.wires??[])if(wire.kind==='data')
+      (next.get(wire.from)??next.set(wire.from,[]).get(wire.from)).push(wire.to);
+    const isBox=id=>pathAt.has(nodeOf(id));
+    for(const start of next.keys()) {
+      if(!isBox(start))continue;
+      const stack=[...next.get(start)],passed=new Set();
+      while(stack.length) {
+        const to=stack.pop();
+        if(passed.has(to))continue;
+        passed.add(to);
+        if(isBox(to))add(nodeOf(start),nodeOf(to),'data');
+        else if(/^op\d/.test(to))stack.push(...next.get(to)??[]);
+      }
+    }
+  }
+  return found.sort((a,b)=>order(a.from,b.from)||order(a.to,b.to)||order(a.kind,b.kind));
+}
 
 // ---- reading ----------------------------------------------------------------------------
 export async function readIndex(dir) {
@@ -420,9 +444,9 @@ export async function readGenerated(target,{repo=repoRoot,code=false,readSource=
   if(!held)return {generated:true,stale:{regenerate:'0'}};
   const key=String(target).replaceAll('\\','/').replace(/\/$/,'');
   const at=/^\d+(\.\d+)*$/.test(key)?key:held.byPath[key];
-  if(at===undefined)throw Error(`No node ${key}. Read 0 for the entry points.`);
+  if(at===undefined)throw Error(`No node ${key}. Read 0 for the top map.`);
   const page=at==='0'?held.root:held.groupPages?.[at]??await nodePage(dir,held,at);
-  if(!page)throw Error(`No node ${at}. Read 0 for the entry points.`);
+  if(!page)throw Error(`No node ${at}. Read 0 for the top map.`);
   const stale=await storedFreshness(held,{repo,readSource,files});
   const described={...page,destination:destinationFor(page),...(stale?{stale}:{})};
   if(code||described.destination==='code')return withSources(
@@ -440,12 +464,12 @@ async function nodePage(dir,held,at) {
 // code: source spans for a cluster, or its own declaration.
 async function codeFor(page,held,dir) {
   if(page.kind==='root')
-    throw Error(`Page ${page.index} is the top map; --code takes a cluster or node. Read 0 without --code for its entry points.`);
+    throw Error(`Page ${page.index} is the top map; --code takes a cluster or leaf. Read 0 without --code.`);
   if(page.kind==='group') {
     const spans=[];
     for(const path of page.codeTargets??[]) {
       const target=await nodePage(dir,held,held.byPath[path]);
-      if(!target)throw Error(`Group ${page.index} refers to missing code ${path}; regenerate 0.`);
+      if(!target)throw Error(`Cluster ${page.index} refers to missing code ${path}; regenerate 0.`);
       spans.push({file:target.file,line:target.line,endLine:target.endLine});
     }
     const merged=[];
@@ -494,7 +518,8 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
   const nodes=[];
   for(const record of Object.values(held.records))
     nodes.push(...Object.values((await json(resolve(dir,'files',record))).pages));
-  const totals={entries:held.root.entries,files:Object.keys(held.files).length,pages:nodes.length,
+  const totals={leaves:Object.keys(held.leaves).length,clusters:Object.keys(held.groupPages).length,
+    links:held.links.length,files:Object.keys(held.files).length,
     // Every linked call a page holds, whatever the drawing does with it: a box it draws, each
     // member of an authored group drawn as one box, plus the callables a caller passes into a
     // parameter this page invokes, which are drawn on the caller's page and named here as rows.
@@ -506,13 +531,5 @@ export async function storeStatus({repo=repoRoot,readSource=file=>readFile(resol
     unresolved:nodes.reduce((n,p)=>n+p.unresolved.length,0),
     outside:nodes.reduce((n,p)=>n+(p.outside??0),0),
     platform:nodes.reduce((n,p)=>n+(p.platform??0),0)};
-  // A declaration no entry point reaches: it keeps a box on the top map, and `check` names it so
-  // the cycle behind it can be looked at.
-  const stranded=held.root.stranded??[];
-  return {dir,missing:false,generated:held.generated,
-    stale,
-    totals,stranded,
-    // A page no map shows, which for an authored group means grouping that nothing reads.
-    unplaced:held.unplaced??[],
-    facts,orphanFacts:held.orphanFacts??[]};
+  return {dir,missing:false,generated:held.generated,stale,totals,facts,orphanFacts:held.orphanFacts??[]};
 }
