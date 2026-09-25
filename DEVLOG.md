@@ -35,6 +35,20 @@
   chain 70 deep: each map homes about five leaves and one cluster holding all
   the rest, and repeats fill it to 16. Nothing in the score resists depth or
   one box holding nearly everything; open for the owner.
+- Owner direction: a new goal. Crossing is reported, not scored; every part
+  is a count times a weight: size 0.1 per box outside 6–16, interface 0.1 per
+  nested leaf beyond four reached from outside and per one beyond four
+  linking out, 0.2 per extra island, 0.1 per backward pair, and balance (the
+  biggest home box's share beyond an even share). Authored tree 0.833, chain
+  14.84 under it. Third solve (7.5 min, from the authored tree): 0.833 →
+  0.235, 231 clusters, 749 repeats, leaves at depth 2–3 (clusters to depth
+  5), no chain. But `0` homes 194 boxes (136 clusters) and scores 31.2: the
+  mean lets one bad map stand for many good ones. No authored label survived
+  (29 carried were unlabelled).
+- Viewer, on the owner's request: a leaf opens its source alone (the context
+  panel, its sidecars and its `check --viewer` coverage removed); the index
+  lists `0` and clusters only; a Minimap button folds the minimap (kept
+  across reloads); opening a map closes an open leaf's code.
 - Docs: glossary and The tree rewritten (DEVELOPER-CONTEXT 218→213), map guide
   225→218, toolkit README and onboarding hint. Checks: regenerate, `check`,
   `read-map` on a cluster and a folded declaration, viewer on `0` and a

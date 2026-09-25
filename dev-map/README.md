@@ -196,23 +196,22 @@ states how each item is matched.
 
 ## Scoring
 
-`score` rates every map, `0` and each cluster (`lib/score.mjs` states the
-measures): 0.1 per box drawn outside 6–16, the share of links touching the
-map's nested content whose other end no box on it holds (a repeat keeps a
-link on the map), islands of boxes with no link between them, and links
-against the best left-to-right order, the last three from 0 to 1. A map's
-score is their sum and the tree's energy the mean over maps, which `solve`
-minimises. The viewer shows each map's score and parts in its bar.
+`score` rates every map, `0` and each cluster, as counts times weights with
+no share or cap (`lib/score.mjs`): 0.1 per box outside 6–16; 0.1 per nested
+leaf beyond four that links from outside reach, and per one beyond four that
+links out (the interface); 0.2 per extra island of unlinked boxes; 0.1 per box
+pair linked against the best left-to-right order; and balance, the biggest
+home box's share of the nested leaves beyond an even share. A map's score is
+their sum and the tree's energy the mean over maps, which `solve` minimises.
+Crossing is reported, not scored. The viewer shows each map's score and parts in its bar.
 `score` prints the worst and best maps and writes `view/scores.html`, which
 every viewer build also refreshes, ranking all maps with links into the viewer.
 
 ## The viewer
 
 `view/index.html` draws the stored maps in place, following declarations
-across renumbering; its index lists maps only. A leaf opens its source
-beside a panel of what its read carries — ports, callees, state, links,
-callers, ledger — in the map's sections, each row marked for `check --viewer`
-and opening what it names. Cluster boxes, leaf boxes and boundary boxes have
-their own colours, calls out are red headless arrows, repeats link `home`; below 50% a box is its name
-alone, hover lights and dims, the minimap and hint bar orient you;
-`generated-map` serves 8765.
+across renumbering; its index lists the top map and clusters.
+A leaf opens its source alone. Cluster boxes, leaf boxes and boundary boxes
+have their own colours, calls out are red headless arrows, repeats link
+`home`; below 50% a box is its name alone, hover lights and dims, the minimap
+and hint bar orient you; `generated-map` serves 8765.

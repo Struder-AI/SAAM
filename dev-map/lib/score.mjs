@@ -5,21 +5,25 @@
 //
 // A map's members are the boxes it draws, homes and repeats. Each member stands for the leaves
 // nested under it, and links between leaves (calls, data between calls, indirect links) are
-// lifted onto the members holding their two ends.
-//   size      boxes drawn; 6 to 16 reads well, and each box outside that range costs 0.1
-//   crossing  of the links touching what is nested in this map, the share whose other end no box
-//             on it holds; a repeat of that end keeps the link on the map
-//   islands   groups of members with no link between them; one is right
-//   backflow  of the links between members, the share against the best left-to-right order;
-//             loops make some unavoidable, so it is scored, never forbidden
-// A leaf with UBIQUITOUS or more callers (`requireThat`) is drawn everywhere and would dominate
-// crossing, so crossing is also reported without links to such leaves.
+// lifted onto the members holding their two ends. Every part is a count times a weight, with no
+// share and no cap, so no part can be diluted by a large map or saturated by one:
+//   size       0.1 per box drawn outside 6–16
+//   interface  0.1 per nested leaf beyond 4 that links from outside reach, and 0.1 per nested
+//              leaf beyond 4 that links outside: a cluster with a narrow interface is a concept
+//   islands    0.2 per group of members, beyond the first, with no link between them
+//   backflow   0.1 per member pair linked against the best left-to-right order; loops make
+//              some unavoidable, so it is scored, never forbidden
+//   balance    the share of the nested leaves the biggest home box holds, beyond an even share:
+//              a map that is one box holding nearly everything is a bottleneck
+// Crossing (the share of links touching the map's nested content that no box on it holds) is
+// reported, not scored.
 import {writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {storeDir,readIndex} from './store.mjs';
 import {TOP,drawMap,flowOrder,treeAccess,linkSet,placeTree} from './tree.mjs';
 
 export const SIZE={min:6,max:16,per:0.1};
+export const WEIGHT={interface:0.1,interfaceFree:4,island:0.2,backward:0.1,balance:1};
 export const UBIQUITOUS=20;
 
 // How many call links reach each leaf.
@@ -35,13 +39,16 @@ export function scoreDrawn(drawn,callers) {
   for(const {from,to} of drawn.lifted)pairs.set(`${from}
 ${to}`,[from,to]);
   const ubiquitous=drawn.crossing.filter(c=>(callers.get(c.outside)??0)>=UBIQUITOUS).length;
+  const homes=drawn.homes.length;
   return rateMap(drawn.members,[...pairs.values()],{crossing:drawn.crossing.length,
-    crossingPlain:drawn.crossing.length-ubiquitous,touching:drawn.touching,touchingPlain:drawn.touching-ubiquitous});
+    crossingPlain:drawn.crossing.length-ubiquitous,touching:drawn.touching,touchingPlain:drawn.touching-ubiquitous,
+    entries:drawn.entries.size,exits:drawn.exits.size,
+    balance:homes>1&&drawn.nested.size?drawn.largest/drawn.nested.size-1/homes:0});
 }
 
-// A map's score from its members, the member pairs linked on it, and the links touching its
-// content and leaving it.
-export function rateMap(members,edges,{crossing,crossingPlain,touching,touchingPlain}) {
+// A map's score from its members, the member pairs linked on it, its interface and balance, and
+// the links touching its content and leaving it.
+export function rateMap(members,edges,{crossing,crossingPlain,touching,touchingPlain,entries,exits,balance}) {
   // Islands: members joined by any link in either direction.
   const parent=new Map(members.map(m=>[m,m]));
   const find=m=>parent.get(m)===m?m:find(parent.get(m));
@@ -52,11 +59,13 @@ export function rateMap(members,edges,{crossing,crossingPlain,touching,touchingP
   const nodes=members.length;
   const badness={
     size:SIZE.per*Math.max(0,SIZE.min-nodes,nodes-SIZE.max),
-    crossing:touching?crossing/touching:0,
-    islands:members.length>1?(islands-1)/(members.length-1):0,
-    backflow:edges.length?backward/edges.length:0
+    interface:WEIGHT.interface*(Math.max(0,entries-WEIGHT.interfaceFree)+Math.max(0,exits-WEIGHT.interfaceFree)),
+    islands:WEIGHT.island*Math.max(0,islands-1),
+    backflow:WEIGHT.backward*backward,
+    balance:WEIGHT.balance*balance
   };
-  return {nodes,crossing:{links:crossing,of:touching,withoutUbiquitous:touchingPlain?crossingPlain/touchingPlain:0},
+  return {nodes,interface:{entries,exits},balance,
+    crossing:{links:crossing,of:touching,share:touching?crossing/touching:0,withoutUbiquitous:touchingPlain?crossingPlain/touchingPlain:0},
     islands,backflow:{links:backward,of:edges.length},badness,score:Object.values(badness).reduce((a,b)=>a+b,0)};
 }
 
@@ -83,7 +92,8 @@ export async function scoreMaps({repo}) {
   const rows=scores.map(s=>({index:index(s.map),kind:s.map===TOP?'top':'cluster',
     label:s.map===TOP?'top map':tree.clusters.get(s.map).label??'[needs label]',nodes:s.nodes,
     repeats:tree.repeats.get(s.map)?.size??0,
-    crossing:{...s.crossing,withoutUbiquitous:round(s.crossing.withoutUbiquitous)},islands:s.islands,backflow:s.backflow,
+    interface:s.interface,balance:round(s.balance),
+    crossing:{...s.crossing,share:round(s.crossing.share),withoutUbiquitous:round(s.crossing.withoutUbiquitous)},islands:s.islands,backflow:s.backflow,
     badness:Object.fromEntries(Object.entries(s.badness).map(([k,v])=>[k,round(v)])),score:round(s.score)}))
     .sort((a,b)=>b.score-a.score);
   return {generated:held.generated,links:links.length,leaves:Object.keys(held.leaves).length,maps:rows.length,energy:round(energy),scores:rows};
@@ -94,14 +104,13 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 // A page beside the viewer ranking every map, each linked to its drawing, for the owner to check
 // the ranking against their own reading.
 export function scorePage(result) {
-  const pct=v=>`${Math.round(v*100)}%`;
   const neg=v=>v>0?`-${v.toFixed(2)}`:'0';
   const rows=result.scores.map(s=>`<tr data-kind="${s.kind}"><td class="n">${neg(s.score)}</td>`
     +`<td><a href="index.html#${esc(s.index)}" target="map">${esc(s.index)}</a></td><td>${s.kind}</td><td class="label">${esc(s.label)}</td>`
     +`<td class="n">${s.nodes}</td><td class="n">${s.repeats}</td>`
-    +`<td class="n" title="${s.crossing.links} of ${s.crossing.of}">${pct(s.badness.crossing)}</td><td class="n">${pct(s.crossing.withoutUbiquitous)}</td>`
-    +`<td class="n">${s.islands}</td><td class="n" title="${s.backflow.links} of ${s.backflow.of}">${pct(s.badness.backflow)}</td>`
-    +`<td class="n">${neg(s.badness.size)}</td></tr>`).join('\n');
+    +`<td class="n">${neg(s.badness.size)}</td><td class="n" title="${s.interface.entries} entries, ${s.interface.exits} exits">${neg(s.badness.interface)}</td>`
+    +`<td class="n" title="${s.islands} islands">${neg(s.badness.islands)}</td><td class="n" title="${s.backflow.links} of ${s.backflow.of} backward">${neg(s.badness.backflow)}</td>`
+    +`<td class="n">${neg(s.badness.balance)}</td></tr>`).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Map scores</title><style>
 :root{--bg:#fbfbfa;--fg:#1f2328;--muted:#656d76;--line:#d8dee4;--hover:#eef2f6;--accent:#0b62c4}
@@ -114,11 +123,11 @@ th{cursor:pointer;position:sticky;top:0;background:var(--bg)}tr:hover td{backgro
 td.label{white-space:normal;word-break:break-all}a{color:var(--accent)}label{margin-right:12px}
 </style></head><body><h1>Map scores</h1>
 <p>Store ${esc(result.generated)} · ${result.leaves} leaves · ${result.maps} maps · ${result.links} links · energy -${result.energy}, the mean map score. Each part is a penalty from 0 (ideal), and a map's score is their sum; the viewer shows each map's score in its bar.
-Size: ${SIZE.per} per box outside ${SIZE.min}–${SIZE.max}. Crossing: share of links touching this map's nested content whose other end no box on it holds (and without leaves called from ${UBIQUITOUS}+ places).
-Islands: groups of members with no link between them. Backflow: share of links between members against the best left-to-right order. Click a heading to sort; an index opens the map.</p>
+Size: ${SIZE.per} per box outside ${SIZE.min}–${SIZE.max}. Interface: ${WEIGHT.interface} per nested leaf beyond ${WEIGHT.interfaceFree} reached from outside, and per one beyond ${WEIGHT.interfaceFree} linking out.
+Islands: ${WEIGHT.island} per extra group of boxes with no link between them. Backflow: ${WEIGHT.backward} per box pair linked against the best left-to-right order. Balance: the biggest home box's share of the nested leaves beyond an even share. Click a heading to sort; an index opens the map.</p>
 <p>${['top','cluster'].map(k=>`<label><input type="checkbox" checked data-filter="${k}"> ${k}</label>`).join('')}</p>
 <div class="wrap"><table><thead><tr><th class="n">score</th><th>map</th><th>kind</th><th>label</th><th class="n">nodes</th><th class="n">repeats</th>
-<th class="n">crossing</th><th class="n">w/o ubiquitous</th><th class="n">islands</th><th class="n">backflow</th><th class="n">size</th></tr></thead>
+<th class="n">size</th><th class="n">interface</th><th class="n">islands</th><th class="n">backflow</th><th class="n">balance</th></tr></thead>
 <tbody>${rows}</tbody></table></div>
 <script>
 const body=document.querySelector('tbody');

@@ -89,8 +89,9 @@ comes from files or directories.
   changes whenever the tree does: `file.mjs::name` for a leaf (a folded
   declaration's path reads its leaf), `@cluster/ID` for a cluster.
 - **Score** and **energy**: a map's score is the sum of its penalties for
-  size, crossing, islands and backflow (`dev-map/lib/score.mjs`); the energy is
-  the mean score over `0` and every cluster, the cluster solver's goal.
+  size, interface (the nested leaves links reach from outside or leave from),
+  islands, backflow and balance (`dev-map/lib/score.mjs`); the energy is the
+  mean score over `0` and every cluster, the cluster solver's goal.
 - **Authored inputs**: the tree (clusters by the solver, labels by a label
   pass), annotations and scope. Everything else is generated.
 

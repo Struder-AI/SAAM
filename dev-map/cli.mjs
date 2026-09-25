@@ -33,7 +33,7 @@ if(command==='score') {
   const {writeScorePage}=await import('./lib/score.mjs');
   const result=await writeScorePage({repo:root,out:resolve(root,'dev-map/view')});
   if(values.json){console.log(JSON.stringify(result,null,1));process.exit(0);}
-  const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} nodes, crossing ${Math.round(s.badness.crossing*100)}%, ${s.islands} islands, backflow ${Math.round(s.badness.backflow*100)}%  ${s.label}`;
+  const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} boxes, ${s.interface.entries} in/${s.interface.exits} out, ${s.islands} islands, ${s.backflow.links} backward, balance ${s.balance}  ${s.label}`;
   console.log(`${result.leaves} leaves, ${result.maps} maps, ${result.links} links, energy ${result.energy} (mean map score). Worst:`);
   for(const s of result.scores.slice(0,10))console.log(line(s));
   console.log('Best:');
@@ -131,13 +131,11 @@ else {
   }
   if(result.viewer?.undrawnView)console.log(`No drawing at ${result.viewer.undrawnView}. Run: node dev-map/cli.mjs build`);
   else if(result.viewer) {
-    const {graph,code,drawing,shell,undrawn}=result.viewer;
-    console.log(`Viewer coverage: ${graph.drawn}/${graph.presented} presented items drawn on ${drawing.length?graph.pages:0} of the maps with a gap; ${code.drawn}/${code.presented} carried beside the source of ${code.pages} code destinations.`);
-    for(const [where,table] of [['drawing',drawing],['code destination',shell]]) {
-      const short=table.filter(row=>row.drawn<row.presented);
-      console.log(`Not on the ${where}: ${short.length}`);
-      for(const row of short)console.log(`  ${row.field}\t${row.presented-row.drawn} of ${row.presented}\t${row.gapPages} maps\t${row.examples.join(' ')}`);
-    }
+    const {graph,drawing,undrawn}=result.viewer;
+    console.log(`Viewer coverage: ${graph.drawn}/${graph.presented} presented items drawn; ${graph.pages} maps have a gap.`);
+    const short=drawing.filter(row=>row.drawn<row.presented);
+    console.log(`Not on the drawing: ${short.length}`);
+    for(const row of short)console.log(`  ${row.field}\t${row.presented-row.drawn} of ${row.presented}\t${row.gapPages} maps\t${row.examples.join(' ')}`);
     if(undrawn.length)console.log(`No drawing built for ${undrawn.length} maps: ${undrawn.slice(0,5).join(' ')}. Run: node dev-map/cli.mjs build`);
   }
 }

@@ -111,14 +111,16 @@ function settle(tree) {
 // it; a link end is held by the deepest member holding it, so a repeat inside a home member
 // holds its own leaves. `links` is every link by number and `linksOf` a leaf's link numbers.
 // A link touches the map when an end is nested in it, and crosses it when its other end is held
-// by no box the map draws.
+// by no box the map draws. A cluster's interface is its nested leaves that links from outside
+// reach (`entries`) and that link outside (`exits`); `largest` is how many nested leaves its
+// biggest home box holds.
 export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf},{links,linksOf}) {
   const homes=[...childrenOf(map)],repeated=[...repeatsOn(map)],members=[...homes,...repeated];
   const held=members.map((m,i)=>({m,leaves:leavesOf(m),rank:i<homes.length?0:1,cluster:isCluster(m)?0:1}))
     .sort((a,b)=>b.leaves.length-a.leaves.length||a.rank-b.rank||a.cluster-b.cluster);
   const holder=new Map(),nested=new Set();
   for(const {m,leaves,rank} of held)for(const leaf of leaves){holder.set(leaf,m);if(rank===0)nested.add(leaf);}
-  const lifted=[],crossing=[],seen=new Set();
+  const lifted=[],crossing=[],seen=new Set(),entries=new Set(),exits=new Set();
   let touching=0;
   for(const leaf of holder.keys())for(const n of linksOf(leaf)) {
     if(seen.has(n))continue;
@@ -127,10 +129,12 @@ export function drawMap(map,{childrenOf,repeatsOn,isCluster,leavesOf},{links,lin
     if(x!==undefined&&y!==undefined&&x!==y)lifted.push({from:x,to:y,link});
     const a=map===TOP||nested.has(link.from),b=map===TOP||nested.has(link.to);
     if(!a&&!b)continue;
+    if(a&&!b)exits.add(link.from);else if(b&&!a)entries.add(link.to);
     touching++;
     if(x===undefined||y===undefined)crossing.push({link,inside:a?x:y,outside:a?link.to:link.from,out:a});
   }
-  return {homes,repeated,members,holder,nested,lifted,crossing,touching};
+  const largest=Math.max(0,...held.filter(h=>h.rank===0).map(h=>h.leaves.length));
+  return {homes,repeated,members,holder,nested,lifted,crossing,touching,entries,exits,largest};
 }
 
 // The order that puts the fewest links backwards, by the greedy rule of Eades, Lin and Smyth:
