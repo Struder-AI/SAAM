@@ -169,7 +169,7 @@ class MapPage(Page):
                              f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="#0369a1">'
                              f'{escape(text)}</text></g>')
                 else:
-                    fill = {"head": "#0f172a", "warn": "#9f1239"}.get(style, "#475569")
+                    fill = {"head": "#0f172a", "note": NOTE_FILL, **{k: v[0] for k, v in MISSING.items()}}.get(style, "#475569")
                     weight = ' font-weight="700"' if style == "head" else ""
                     o.append(f'<text x="{x:.1f}" y="{y:.1f}" font-size="{FS_NOTE}" fill="{fill}"'
                              f'{weight}{carries}>{escape(text)}</text>')
@@ -438,20 +438,37 @@ def build_page(packet, ctx):
             dropped.append((page.key, nid, "outside"))
             continue
         node.co = tuple(node.co) + tuple(labels)
-    # The findings of the node a box draws are listed below; the box says how many there are.
+    # The findings of the node a box draws are listed below; the box says how many of each missing
+    # class there are, each count in its class's colour.
     for c in packet.get("components", []):
         node = page.index.get(c.get("id", c["index"]))
         if node is None:
             continue
-        count = c.get("findings", sum(r.get("count", 1) for r in c.get("uncertainty", []))
-                      + len(c.get("unresolved", [])))
-        if count:
-            node.note = (node.note + "\n" if node.note else "") + f'{count} findings'
+        counts = c.get("findings") or missing_counts(c.get("uncertainty", []) + c.get("unresolved", []))
+        for cls, (fill, name) in MISSING.items():
+            if counts.get(cls):
+                row = len(node.note.split("\n")) if node.note else 0
+                node.note = (node.note + "\n" if node.note else "") + f'{counts[cls]} {name}'
+                node.note_fills = {**getattr(node, "note_fills", {}), row: fill}
     lists(packet, page, pages)
     return page.layout()
 
 
 STUB_LINE = 46      # characters; a long value takes a line rather than widening the box
+
+# The two missing classes (dev-map/lib/findings.mjs) each have one colour, wherever a row or a
+# count of them is drawn: code outside every leaf is red, a relationship no link draws is orange.
+# Every other finding is a note about what is drawn, in the list's own grey.
+MISSING = {"code": ("#dc2626", "outside every leaf"), "link": ("#ea580c", "unlinked")}
+NOTE_FILL = "#64748b"
+
+
+def missing_counts(rows):
+    counts = {}
+    for row in rows:
+        if row.get("missing"):
+            counts[row["missing"]] = counts.get(row["missing"], 0) + row.get("count", 1)
+    return counts
 
 
 def stub_note(rows):
@@ -810,37 +827,44 @@ def lists(packet, page, pages):
         for i, u in enumerate(rows):
             elsewhere = u.get("file") and u.get("file") != own_file
             location = (u["file"] + ":" if elsewhere else "") + str(u["line"])
-            page.row("warn", f'{location}: {u["call"]}  —  {u["rule"]}', go, f'{mark}#{i}' if mark else "")
+            page.row(u.get("missing", "note"), f'{location}: {u["call"]}  —  {u["rule"]}', go, f'{mark}#{i}' if mark else "")
 
     def uncertainty_rows(rows, go="", mark=""):
         for i, u in enumerate(rows):
             item = f'{mark}#{i}' if mark else ""
-            u = {k: v for k, v in u.items() if k != "file" or v != own_file}
+            style = u.get("missing", "note")
+            u = {k: v for k, v in u.items() if k != "missing" and (k != "file" or v != own_file)}
             if u.get("kind") == "closure-capture" and u.get("bindings"):
                 target = next((index for index, meta in pages.items() if meta.get("d") == u["closure"]), "")
                 identity = target or u["closure"]
                 limits = ", ".join(k for k, v in u.items() if k.endswith("Unknown") and v)
-                page.row("warn", f'closure-capture {identity} · {u["count"]} bindings · {limits}',
+                page.row(style, f'closure-capture {identity} · {u["count"]} bindings · {limits}',
                          target or go, item)
                 for access, bindings in u["bindings"].items():
                     for line in textwrap.wrap(f'{access}: ' + ", ".join(bindings), width=120):
-                        page.row("warn", line, target or go, item)
+                        page.row(style, line, target or go, item)
             else:
-                page.row("warn", "  ".join(f'{k}: {value_text(v)}' for k, v in u.items()), go, item)
+                page.row(style, "  ".join(f'{k}: {value_text(v)}' for k, v in u.items()), go, item)
 
     emit = {"unresolved": unresolved_rows, "uncertainty": uncertainty_rows}
+
+    # A list of findings is headed by what they are: a missing class when every row is of it.
+    def heading(category, rows):
+        classes = {r.get("missing") for r in rows}
+        name = MISSING[classes.pop()][1] if len(classes) == 1 and None not in classes else category
+        return f'{name} ({sum(r.get("count", 1) for r in rows)})'
+
     if packet.get("unresolved"):
-        page.row("head", f'unresolved ({len(packet["unresolved"])})', "", "unresolved")
+        page.row("head", heading("unresolved", packet["unresolved"]), "", "unresolved")
         unresolved_rows(packet["unresolved"], mark="unresolved")
     if packet.get("uncertainty"):
-        page.row("head", f'uncertainty ({sum(u.get("count", 1) for u in packet["uncertainty"])})',
-                 "", "uncertainty")
+        page.row("head", heading("uncertainty", packet["uncertainty"]), "", "uncertainty")
         uncertainty_rows(packet["uncertainty"], mark="uncertainty")
     # A finding belongs to the node it is about, so every page that draws that node shows its
     # rows under that box. A group or file box is not a node and carries its count alone.
     def section(index, name, category, rows, mark):
         go = index if index in pages else ""
-        page.row("head", f'{category} ({sum(r.get("count", 1) for r in rows)}) — {index} {name}', go, mark)
+        page.row("head", f'{heading(category, rows)} — {index} {name}', go, mark)
         emit[category](rows, go, mark)
 
     for category in ("unresolved", "uncertainty"):
@@ -964,6 +988,13 @@ LEGEND = [
                 "stopped it. outside — call sites reaching scanned source the map does not cover; "
                 "platform — call sites with no target in any scanned root. Neither establishes "
                 "their runtime origin or a user/agent boundary."),
+    ("h", None, "Findings"),
+    ("f", "code", "red: code outside every leaf, which no box draws — module-level code that runs at "
+                  "load, or a callable no leaf holds. Listed on page 0."),
+    ("f", "link", "orange: a relationship between leaves that no link draws — a call whose target is "
+                  "unknown, a write to state another leaf shares, contents that escape the leaf."),
+    ("f", "note", "grey: a precise aspect of what a leaf or link already draws that the scanner could "
+                  "not trace. In the leaf's own read only."),
     ("h", None, "Stale"),
     ("p", None, "A red frame and a red band mean a file behind the page has changed since the "
                 "store was written: the drawing is what the code used to be. Run the command the "
@@ -1382,6 +1413,10 @@ def legend_html():
                      else f'<h2>{escape(text)}</h2>')
         elif style == "p":
             o.append(f'<p>{escape(text)}</p>')
+        elif style == "f":
+            fill = {"note": NOTE_FILL, **{k: v[0] for k, v in MISSING.items()}}[key]
+            o.append(f'<div class="r"><svg width="34" height="14"><rect x="1" y="3" width="32" height="8" '
+                     f'rx="3" fill="{fill}"/></svg><span><b>{escape(key)}</b> — {escape(text)}</span></div>')
         else:
             o.append(f'<div class="r">{swatch(style, key)}<span><b>{escape(key)}</b> — '
                      f'{escape(text)}</span></div>')

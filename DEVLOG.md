@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-25 — Dev maps: missing findings in two colours; module code reported
+
+- Owner direction: a missing finding is either code outside every leaf (red,
+  `missing: code`) or a relationship between leaves no link draws (orange,
+  `missing: link`); every other kind must earn its place. `findings.mjs` tags
+  each row once; boxes say `N outside every leaf` / `N unlinked` in colour,
+  lists are coloured and headed by class, the legend names both.
+- New `module-code` rows on `0`: top-level code that runs at load (not a
+  declaration or constant data) or holds a callable no leaf draws. It was
+  invisible before: 74 rows (main guards, `app.mjs` wiring, module-level
+  `new Map()` state, computed constants).
+- Baseline to take to zero: 74 red, 2041 orange (874
+  `member-receiver-unresolved`, 220 `nested-receiver-effect` of unknown
+  ownership, 212 `closure-capture`, 199 `member-mutation` on a receiver, …).
+  Viewer coverage has no findings gap.
+
 ## 2026-09-25 — Dev maps: second solve, labels follow every stage, title pass
 
 - Solve from the stage-80 tree under the weighted-up minimum (5.911): stopped

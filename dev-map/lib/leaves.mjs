@@ -68,8 +68,18 @@ export function model(graph,projection) {
     const rows=moduleCallSites.get(file)??moduleCallSites.set(file,[]).get(file);
     rows.push({state,call:site.text,line:site.line,column:site.column,start:site.start,end:site.end,rule:record.rule??record.reason});
   }
+  // Module-level code no leaf draws: what runs at load, and callables written in top-level code
+  // that belong to no node.
+  const moduleCode=new Map();
+  for(const {callables,runs,...row} of graph.moduleCode??[]) {
+    const unheld=callables.filter(id=>owner(id)?.kind==='module');
+    if(!runs&&!unheld.length)continue;
+    const rows=moduleCode.get(row.file)??moduleCode.set(row.file,[]).get(row.file);
+    rows.push({kind:'module-code',line:row.line,column:row.column,expression:row.expression,
+      ...(runs?{}:{reason:'callable-without-leaf'})});
+  }
   const leafOf=leaves(nodes,calls,couplings,mapped);
-  return {files,mapped,nodes,calls,outsideCalls,couplings,reached,moduleCallSites,leafOf,
+  return {files,mapped,nodes,calls,outsideCalls,couplings,reached,moduleCallSites,moduleCode,leafOf,
     ...externals({calls,outsideCalls,couplings,reached,leafOf}),
     fileLines:new Map(graph.files.map(f=>[f.file,f.lines]))};
 }

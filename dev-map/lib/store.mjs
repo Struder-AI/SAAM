@@ -13,7 +13,7 @@ import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {TOP,treeFile,readTreeFile,placeTree,treeAccess,drawMap,numberTree,linkSet,treeFileOf,renumber,markRepeats} from './tree.mjs';
 import {destinationFor} from './destination.mjs';
-import {mapFindings} from './findings.mjs';
+import {classifyFindings,mapFindings,missingCounts} from './findings.mjs';
 export {destinationFor} from './destination.mjs';
 
 export const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
@@ -219,13 +219,14 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
   // Findings follow the leaf. A map draws a leaf's box with the rows that belong on a map
   // (findings.mjs): what no leaf or link there stands for. A cluster box carries the number of
   // those nested in it, for navigation. The leaf's own read keeps every row.
-  const onMaps=new Map([...leafPages].map(([path,page])=>[path,mapFindings(page,leafOf)]));
-  const rowCount=rows=>[...rows.uncertainty,...rows.unresolved].reduce((n,row)=>n+(row.count??1),0);
+  for(const page of leafPages.values())classifyFindings(page,leafOf);
+  const onMaps=new Map([...leafPages].map(([path,page])=>[path,mapFindings(page)]));
+  const rowsOf=rows=>[...rows.uncertainty,...rows.unresolved];
   for(const page of [root,...groupPages.values()])for(const component of page.components) {
     if(component.kind==='external')continue;
     if(component.kind==='group'){
-      const count=access.leavesOf(component.cluster).reduce((n,leaf)=>n+rowCount(onMaps.get(leaf)),0);
-      if(count)component.findings=count;
+      const counts=missingCounts(access.leavesOf(component.cluster).flatMap(leaf=>rowsOf(onMaps.get(leaf))));
+      if(Object.keys(counts).length)component.findings=counts;
       continue;
     }
     const rows=onMaps.get(component.path);
@@ -334,7 +335,9 @@ const links=()=>{
 // operation. `outside` is a call site whose target is scanned source the map does not cover.
 function moduleDiagnostics(m) {
   const sites=m.files.flatMap(file=>(m.moduleCallSites?.get(file)??[]).map(({state,...site})=>({...site,file,module:true,state})));
-  return {unresolved:sites.filter(s=>s.state==='unresolved').map(({state,...s})=>s),
+  const code=m.files.flatMap(file=>(m.moduleCode?.get(file)??[]).map(row=>({...row,file,missing:'code'})));
+  return {unresolved:sites.filter(s=>s.state==='unresolved').map(({state,...s})=>({...s,missing:'link'})),
+    ...(code.length?{uncertainty:code}:{}),
     platform:sites.filter(s=>s.state==='external').length,
     outside:m.outsideCalls.filter(c=>!c.from).length,
     moduleCallSites:sites};

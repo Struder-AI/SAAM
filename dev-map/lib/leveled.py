@@ -865,9 +865,10 @@ class Page:
             o.append(f'<text x="{tx:.1f}" y="{ty:.1f}" font-size="{FS_TITLE}" '
                      f'font-weight="700" fill="{s["tc"]}">{escape(line)}</text>')
             ty += LH_TITLE
-        for line in n.note_lines:
+        fills = getattr(n, "note_fills", {})
+        for i, line in enumerate(n.note_lines):
             o.append(f'<text x="{n.x + PADX:.1f}" y="{ty:.1f}" font-size="{FS_NOTE}" '
-                     f'fill="#64748b">{escape(line)}</text>')
+                     f'fill="{fills.get(i, "#64748b")}">{escape(line)}</text>')
             ty += LH_NOTE
         for row in n.reference_rows:
             tx = n.x + PADX

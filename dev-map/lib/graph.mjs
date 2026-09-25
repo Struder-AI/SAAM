@@ -900,7 +900,31 @@ export async function extractGraph({repo,files,importAliases={},literalCouplings
   for(const d of declarations)if(propertyAnchorCounts.get(d.anchor)>1)d.anchor+=`@${d.line}:${d.column}`;
   const anchorCounts=new Map();for(const d of declarations)if(d.anchor)anchorCounts.set(d.anchor,(anchorCounts.get(d.anchor)??0)+1);
   for(const d of declarations)if(anchorCounts.get(d.anchor)>1)d.ambiguousAnchor=true;
-  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,
+  // Module-level code that runs at load: every top-level statement but an import, an export list
+  // and a declaration, and every initializer that does more than state constant data. No
+  // declaration holds it, so no leaf draws it. A callable written inside a top-level statement is
+  // listed too: the model says whether a leaf draws it (leaves.mjs).
+  const inert=new Set(['Literal','TemplateLiteral','TemplateElement','Identifier','ArrayExpression','ObjectExpression',
+    'Property','SpreadElement','UnaryExpression','BinaryExpression','LogicalExpression','MemberExpression',
+    'ConditionalExpression','ChainExpression','MetaProperty','PrivateIdentifier']);
+  const opaque=n=>functions.has(n.type)||n.type==='ClassExpression'||n.type==='ClassDeclaration';
+  const runs=n=>!!n&&!opaque(n)&&(!inert.has(n.type)||children(n).some(runs));
+  const callablesIn=(n,out=[])=>{if(!n)return out;if(opaque(n)){const d=nodeDecl.get(n);if(d)out.push(d.id);return out;}
+    for(const c of children(n))callablesIn(c,out);return out;};
+  const moduleCode=[];
+  for(const m of modules.values())if(mappedCode(m.file))for(const top of m.ast.body) {
+    const s=top.type==='ExportNamedDeclaration'||top.type==='ExportDefaultDeclaration'?top.declaration:top;
+    if(!s||['ImportDeclaration','ExportAllDeclaration','FunctionDeclaration','ClassDeclaration'].includes(s.type))continue;
+    const parts=s.type==='VariableDeclaration'?s.declarations.map(d=>({node:d,value:d.init,runs:runs(d.init)})):[{node:s,value:s,runs:!opaque(s)}];
+    for(const part of parts) {
+      const callables=callablesIn(part.value);
+      if(!part.runs&&!callables.length)continue;
+      const {node}=part;
+      moduleCode.push({file:m.file,line:node.loc.start.line,column:node.loc.start.column+1,start:node.start,end:node.end,
+        expression:m.text.slice(node.start,Math.min(node.end,node.start+80)).replace(/\s+/g,' '),runs:part.runs,callables});
+    }
+  }
+  return {schema:1,importAliases,files:[...modules.values()].map(m=>({file:m.file,sha256:m.hash,lines:m.ast.loc.end.line})),declarations,relations,unresolved,workerLinks,moduleCode,
     ...(coupled?{couplings:{linked:coupled.linked,unlinked:coupled.unlinked}}:{}),...(accounting?{callSites:accounting}:{}),
     limits:['Static possible relationships, not execution traces or proofs of reachability.',
       'Calls resolve lexical bindings, const aliases, imports, named re-exports, literal object members, finite function-return choices, local class methods and the extended class a `super` reference names. A receiver or callable is followed through parameters, destructured bindings and this-fields, then through at most one further static member selection per hop. Computed registry selection gives possible targets, not a selected dialect or proof of branch feasibility. Escaped object mutation, arbitrary callback protocols, inherited members reached other than through `super`, export-star and dynamic imports are not modeled.',

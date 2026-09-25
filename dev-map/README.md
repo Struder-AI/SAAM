@@ -119,17 +119,18 @@ analysis limit.
 
 `uncertainty` rows name a `kind`, `unresolved` rows a `rule`; each row names
 its `file`, and a leaf's read carries all of them. A map carries only the
-**missing** ones (`lib/findings.mjs`): a leaf box carries its rows, a cluster
-box their count nested in it as `findings`.
+**missing** ones (`lib/findings.mjs`), each tagged `missing: code` (red: code
+outside every leaf) or `missing: link` (orange: a relationship between leaves
+no link draws): a leaf box carries its rows, a cluster box the count of each
+class nested in it as `findings`.
 
-**Missing**, something no leaf or link on a map stands for:
-
-| Kind or rule | Not drawn |
-|---|---|
-| `member-receiver-unresolved`, `parameter-target` (with `candidates`), `registered-subscriber`, `unresolved-local-value`, `callable-origin`, and an `argument-origin` beside `callable-origin` | the call's target |
-| `member-mutation`, `nested-receiver-effect`, `nested-collection-effect`, unless `ownership` is `local` | a write to an object another leaf shares |
-| `collection-escape`, `collection-capture`, `record-escape` | contents after they leave the leaf |
-| `closure-capture` whose closure is a leaf of its own | state two leaves share |
+| Kind or rule | Class | Not drawn |
+|---|---|---|
+| `module-code` (on `0`: what runs at load, or a callable no leaf holds) | code | the code itself |
+| `member-receiver-unresolved`, `parameter-target` (with `candidates`), `registered-subscriber`, `unresolved-local-value`, `callable-origin`, and an `argument-origin` beside `callable-origin` | link | the call's target |
+| `member-mutation`, `nested-receiver-effect`, `nested-collection-effect`, unless `ownership` is `local` | link | a write to an object another leaf shares |
+| `collection-escape`, `collection-capture`, `record-escape` | link | contents after they leave the leaf |
+| `closure-capture` whose closure is a leaf of its own | link | state two leaves share |
 
 **Uncertain**, a precise aspect of what a leaf or link already draws, in the
 leaf's read only: `argument-origin`, `return-origin`, `return-field-origin`,
