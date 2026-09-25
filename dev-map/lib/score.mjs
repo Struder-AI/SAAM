@@ -1,7 +1,7 @@
 // The map scorer: how well each map reads, by the measures the owner reviews maps with. The maps
 // are the top map and every cluster; a leaf opens as code and is no map. Each map gets a badness
-// per measure and their sum, and the tree's energy is the mean over its maps: the quality of the
-// maps, however many there are. The cluster solver (solve.mjs) lowers it.
+// per measure and their sum, and the tree's energy is the mean over its maps, each weighted by
+// the log of the leaves nested in it. The cluster solver (solve.mjs) lowers it.
 //
 // A map's members are the boxes it draws, homes and repeats. Each member stands for the leaves
 // nested under it, and links between leaves (calls, data between calls, indirect links) are
@@ -24,6 +24,9 @@ import {TOP,drawMap,flowOrder,treeAccess,linkSet,placeTree} from './tree.mjs';
 
 export const SIZE={min:6,max:16,per:0.1};
 export const WEIGHT={interface:0.1,interfaceFree:4,island:0.2,backward:0.1,balance:1};
+// A map's weight in the energy grows with the log of the leaves nested in it, so a map passed
+// through on the way to many leaves counts for more, but no map outweighs the rest.
+export const weightOf=leaves=>1+Math.log2(Math.max(1,leaves));
 export const UBIQUITOUS=20;
 
 // How many call links reach each leaf.
@@ -69,11 +72,12 @@ export function rateMap(members,edges,{crossing,crossingPlain,touching,touchingP
     islands,backflow:{links:backward,of:edges.length},badness,score:Object.values(badness).reduce((a,b)=>a+b,0)};
 }
 
-// Every map of a tree scored: the top map and each cluster, and the mean.
+// Every map of a tree scored: the top map and each cluster, and the weighted mean.
 export function scoreTree(tree,links) {
   const access=treeAccess(tree),set=linkSet(links),callers=callersOf(links);
-  const scores=[TOP,...tree.clusters.keys()].map(map=>({map,...scoreDrawn(drawMap(map,access,set),callers)}));
-  return {energy:scores.reduce((sum,s)=>sum+s.score,0)/scores.length,scores};
+  const scores=[TOP,...tree.clusters.keys()].map(map=>{const drawn=drawMap(map,access,set);
+    return {map,weight:weightOf(drawn.nested.size),...scoreDrawn(drawn,callers)};});
+  return {energy:scores.reduce((sum,s)=>sum+s.weight*s.score,0)/scores.reduce((sum,s)=>sum+s.weight,0),scores};
 }
 
 // The stored tree, its leaves and links, as the solver and scorer read them.
@@ -90,7 +94,7 @@ export async function scoreMaps({repo}) {
   const {energy,scores}=scoreTree(tree,links);
   const index=id=>id===TOP?TOP:held.treeIndex[id];
   const rows=scores.map(s=>({index:index(s.map),kind:s.map===TOP?'top':'cluster',
-    label:s.map===TOP?'top map':tree.clusters.get(s.map).label??'[needs label]',nodes:s.nodes,
+    label:s.map===TOP?'top map':tree.clusters.get(s.map).label??'[needs label]',nodes:s.nodes,weight:round(s.weight),
     repeats:tree.repeats.get(s.map)?.size??0,
     interface:s.interface,balance:round(s.balance),
     crossing:{...s.crossing,share:round(s.crossing.share),withoutUbiquitous:round(s.crossing.withoutUbiquitous)},islands:s.islands,backflow:s.backflow,

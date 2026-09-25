@@ -117,36 +117,29 @@ analysis limit.
 
 ## Findings
 
-A leaf box carries its leaf's finding rows, a cluster box the count of rows
-nested in it as `findings`; each row names its `file`. `uncertainty` rows name a `kind`, `unresolved` rows a
-`rule`; each belongs to one class.
+`uncertainty` rows name a `kind`, `unresolved` rows a `rule`; each row names
+its `file`, and a leaf's read carries all of them. A map carries only the
+**missing** ones (`lib/findings.mjs`): a leaf box carries its rows, a cluster
+box their count nested in it as `findings`.
 
-**Uncertain**, drawn with the unknown marked on it:
-
-| Kind | Drawn | Unknown |
-|---|---|---|
-| `argument-origin` | the call's box | the argument's producer; the slot is a stub with a reason |
-| `return-origin`, `return-field-origin`, `return-field-override` | the output port | what feeds it, or one field of it |
-| `choice-control`, `iteration-control`, `iteration-backedge-control` | the operator | the test that controls it |
-| `iteration-source`, `iteration-input`, `update-input`, `collection-input` | the operator | one input, drawn as a stub |
-| `callback-execution` | the callback | when and how often it runs, and captured values then |
-| `closure-capture` | a state link | nothing further: kept until ruled |
-| `loop-exception-path` | the loop and its carried values | a return from inside it |
-
-An `argument-origin` row raised beside `callable-origin` belongs to a call the
-map does not draw, and is missing.
-
-**Missing**, not drawn anywhere:
+**Missing**, something no leaf or link on a map stands for:
 
 | Kind or rule | Not drawn |
 |---|---|
-| `member-receiver-unresolved`, `parameter-target` (with `candidates`), `registered-subscriber` (the registration named), `unresolved-local-value`, `callable-origin` | the call's target |
-| `member-mutation`, `nested-receiver-effect`, `nested-collection-effect` | a write to an object or collection |
-| `collection-escape`, `collection-capture`, `collection-alias`, `collection-member-write`, `record-escape` | a collection's or record's contents after that point |
-| `branch-result`, `branch-data-join` | the choice between branch values |
-| `loop-data-flow` | a carried value |
-| `early-exit-control`, `exceptional-control-flow`, `switch-control-flow`, `loop-control-transfer` | the control path: an early return, a catch, a switch, a break or continue |
-| `receiver-state-order` | the order of state changes on one receiver |
+| `member-receiver-unresolved`, `parameter-target` (with `candidates`), `registered-subscriber`, `unresolved-local-value`, `callable-origin`, and an `argument-origin` beside `callable-origin` | the call's target |
+| `member-mutation`, `nested-receiver-effect`, `nested-collection-effect`, unless `ownership` is `local` | a write to an object another leaf shares |
+| `collection-escape`, `collection-capture`, `record-escape` | contents after they leave the leaf |
+| `closure-capture` whose closure is a leaf of its own | state two leaves share |
+
+**Uncertain**, a precise aspect of what a leaf or link already draws, in the
+leaf's read only: `argument-origin`, `return-origin`, `return-field-origin`,
+`return-field-override`, `choice-control`, `iteration-control`,
+`iteration-backedge-control`, `iteration-source`, `iteration-input`,
+`update-input`, `collection-input`, `callback-execution`, `loop-exception-path`,
+`branch-result`, `branch-data-join`, `loop-data-flow`, `collection-alias`,
+`collection-member-write`, `early-exit-control`, `exceptional-control-flow`,
+`switch-control-flow`, `loop-control-transfer`, `receiver-state-order`, and the
+rest of `closure-capture` and the write kinds.
 
 ## Staleness
 
@@ -202,7 +195,8 @@ leaf beyond four that links from outside reach, and per one beyond four that
 links out (the interface); 0.2 per extra island of unlinked boxes; 0.1 per box
 pair linked against the best left-to-right order; and balance, the biggest
 home box's share of the nested leaves beyond an even share. A map's score is
-their sum and the tree's energy the mean over maps, which `solve` minimises.
+their sum and the tree's energy the mean over maps, each weighted by 1 +
+log₂ of its nested leaves, which `solve` minimises.
 Crossing is reported, not scored. The viewer shows each map's score and parts in its bar.
 `score` prints the worst and best maps and writes `view/scores.html`, which
 every viewer build also refreshes, ranking all maps with links into the viewer.

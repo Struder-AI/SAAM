@@ -13,6 +13,7 @@ import {scanRoots,outsideRootOf,isMapped,activeCallers} from './scope.mjs';
 import {attachPortReferences} from './port-references.mjs';
 import {TOP,treeFile,readTreeFile,placeTree,treeAccess,drawMap,numberTree,linkSet,treeFileOf,renumber,markRepeats} from './tree.mjs';
 import {destinationFor} from './destination.mjs';
+import {mapFindings} from './findings.mjs';
 export {destinationFor} from './destination.mjs';
 
 export const repoRoot=fileURLToPath(new URL('../../',import.meta.url));
@@ -215,17 +216,19 @@ export async function generate({repo=repoRoot,readSource,files}={}) {
     page.callerWires=callerWires;
   }
 
-  // Findings follow the leaf. A map draws a leaf's box with its own rows attached, exactly as the
-  // leaf shows them; a cluster box carries the number of findings nested in it, for navigation.
-  const rowCount=page=>[...(page.uncertainty??[]),...(page.unresolved??[])].reduce((rows,row)=>rows+(row.count??1),0);
+  // Findings follow the leaf. A map draws a leaf's box with the rows that belong on a map
+  // (findings.mjs): what no leaf or link there stands for. A cluster box carries the number of
+  // those nested in it, for navigation. The leaf's own read keeps every row.
+  const onMaps=new Map([...leafPages].map(([path,page])=>[path,mapFindings(page,leafOf)]));
+  const rowCount=rows=>[...rows.uncertainty,...rows.unresolved].reduce((n,row)=>n+(row.count??1),0);
   for(const page of [root,...groupPages.values()])for(const component of page.components) {
     if(component.kind==='group'){
-      const count=access.leavesOf(component.cluster).reduce((n,leaf)=>n+rowCount(leafPages.get(leaf)),0);
+      const count=access.leavesOf(component.cluster).reduce((n,leaf)=>n+rowCount(onMaps.get(leaf)),0);
       if(count)component.findings=count;
       continue;
     }
-    const leaf=leafPages.get(component.path);
-    for(const field of ['uncertainty','unresolved'])if(leaf[field]?.length)component[field]=leaf[field];
+    const rows=onMaps.get(component.path);
+    for(const field of ['uncertainty','unresolved'])if(rows[field].length)component[field]=rows[field];
   }
 
   // Publish tree indexes. A folded declaration's internal address is its leaf's.

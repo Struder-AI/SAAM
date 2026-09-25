@@ -75,9 +75,9 @@ comes from files or directories.
   and `next` in, `current` and `final` out. They are read beside a leaf's code
   block and are not nodes.
 - **Finding**: the scanner's record of something it could not represent in
-  full, in one of two classes. An **uncertain** finding is about something
-  drawn, with the unknown part marked on the drawing. A **missing** finding is
-  something the code does that no map draws; the finding is its only record.
+  full, in one of two classes. An **uncertain** finding is about a precise
+  aspect of a leaf or link that is drawn. A **missing** finding is something
+  the code does that no leaf or link stands for; maps show only these.
 - **Annotation**: a sourced, dated statement about a node that the code cannot
   make: a `measurement`, `vendor` behaviour or a recorded `decision`, kept in
   `dev-map/facts.tsv`.
@@ -91,7 +91,8 @@ comes from files or directories.
 - **Score** and **energy**: a map's score is the sum of its penalties for
   size, interface (the nested leaves links reach from outside or leave from),
   islands, backflow and balance (`dev-map/lib/score.mjs`); the energy is the
-  mean score over `0` and every cluster, the cluster solver's goal.
+  mean score over `0` and every cluster, each weighted by the log of the
+  leaves nested in it, the cluster solver's goal.
 - **Authored inputs**: the tree (clusters by the solver, labels by a label
   pass), annotations and scope. Everything else is generated.
 
@@ -128,16 +129,13 @@ All of this is authored in one place, `dev-map/lib/scope.mjs`.
 
 ### Findings
 
-Findings are never hidden. An uncertain finding is marked where it is drawn: a
-stub with its reason, an operator whose test or input is unknown, a result
-no link carries, a callback whose timing is unknown. A missing finding is a call
-with no resolved target, a write to an object, a value chosen between
-branches, an early exit or caught exception, a collection's contents after it
-escapes: the absence of a link is no evidence of absence.
-[The map guide](dev-map/README.md#findings) assigns every kind to its class.
-
-A finding about a leaf is shown on its code block and on every box that draws
-the leaf; a cluster box carries the count nested in it.
+Findings are never dropped: every one is in its leaf's read. A map shows a
+**missing** finding, something no leaf or link there stands for: code outside
+every leaf, or a relationship between leaves no link draws, such as an
+unresolved call or a write to shared state. The absence of a link is no
+evidence of absence. An **uncertain** finding, about a precise aspect of what
+a map already draws such as a branch or an argument's producer, stays in the
+leaf's read. [The map guide](dev-map/README.md#findings) assigns every kind.
 Most are analysis limits and generator work; a few are the code's shape,
 handled below. Do not turn a finding into an invented link, and do not infer
 that no caller exists from an unscanned or dynamic boundary.

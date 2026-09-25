@@ -857,7 +857,12 @@ export function flowPage({graph,projection,sources,asts,shapes},target) {
     for(const root of roots(member.object))if(key(root))env.set(key(root),[]);
     // Known aliases of the same object cannot keep claiming its pre-write value either.
     if(value.length)for(const [b,other] of env)if(other.some(p=>value.some(v=>v.end===p.end)))env.set(b,[]);
-    uncertain('member-mutation',n,{binding:src(text,member)});
+    // Whose object the write reaches: a binding declared in this body is its own; a parameter,
+    // `this` or a binding from outside it is shared with other code.
+    const ids=roots(member.object);
+    const ownership=!ids.length?'receiver':ids.some(id=>!binding(id))?'outer'
+      :ids.some(id=>parameter(id.name)===binding(id))?'parameter':'local';
+    uncertain('member-mutation',n,{binding:src(text,member),ownership});
   };
   const merge=(env,branches,n,kind='branch-data-join',alternatives=null)=>{
     if(!branches.length)return;

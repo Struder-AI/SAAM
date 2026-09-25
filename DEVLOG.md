@@ -1,5 +1,29 @@
 # Development log
 
+## 2026-09-25 — Dev maps: maps show only missing findings; weighted energy
+
+- Owner review of the third solve: coherent, followable, better than the
+  authored maps; checkpointed on `codex/remettub-dev-branch` (fast-forward
+  from 9d1be57 to 741eb60).
+- Owner direction: a map shows a finding only when it may hide something no
+  leaf or link stands for (code outside every leaf, or a relationship between
+  leaves no link draws); one about a precise aspect of what is drawn stays in
+  the leaf's read. `lib/findings.mjs` decides: every unresolved call,
+  `callable-origin` and its arguments, escapes, writes to objects a leaf does
+  not own, and closure captures shared with another leaf. The scanner now
+  marks `member-mutation` `ownership` (local, parameter, outer, receiver).
+  Maps carry 2040 of 10,808 rows; leaf reads keep all. The map guide's
+  finding classes are re-sorted to match (missing = on maps).
+- Owner direction: less falls to `0`. The energy weights each map by
+  1 + log₂ of its nested leaves (`0` weighs 10.9, a five-leaf cluster 3.3).
+  The third solve's tree scores 0.576 under it. Fourth solve (5 min, from
+  it): 0.576 → 0.350, 359 clusters, 1267 repeats; `0` homes 97 boxes (96
+  clusters, was 194), leaves mostly at depth 3 (137 at 2, 512 at 3, 186 at 4,
+  105 deeper).
+- Checks: regenerate; `read-map` of `0`, a cluster, a leaf, `--code` and
+  `--details`. Docs: DEVELOPER-CONTEXT 218→212, map guide 225→211 over the
+  session.
+
 ## 2026-09-25 — Dev maps: the solver authors the whole tree
 
 - Owner direction: the maps are leaves, clusters and `0`. Every scoped

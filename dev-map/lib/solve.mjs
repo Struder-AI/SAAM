@@ -1,13 +1,13 @@
 // The cluster solver. The leaves are given and so is the top map `0`; the solver authors every
 // cluster between them: which clusters exist, where each leaf and cluster is homed, and which
-// boxes each map repeats. Its goal is the tree's energy, the mean map score (score.mjs), lowered
+// boxes each map repeats. Its goal is the tree's energy, the weighted mean map score (score.mjs), lowered
 // by simulated annealing from the tree as placed (tree.mjs). It writes the lowest-energy tree it
 // met to dev-map/tree.json. Labels are authored in a label pass, never here; a cluster that
 // survives a solve keeps its label, matched by the leaves it holds, and a new one needs a label.
 import {writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {TOP,treeFile,drawMap,linkSet,numberTree,treeFileOf} from './tree.mjs';
-import {scoreDrawn,callersOf,readModel} from './score.mjs';
+import {scoreDrawn,callersOf,readModel,weightOf} from './score.mjs';
 
 const random=seed=>()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);
   t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};
@@ -38,12 +38,16 @@ function createAnnealer(start,links) {
     return under.get(id);
   };
   const access={childrenOf:id=>children.get(id)??[],repeatsOn:id=>repeats.get(id)??[],isCluster:id=>clusters.has(id),leavesOf};
-  const scoreOf=map=>scoreDrawn(drawMap(map,access,set),callers).score;
+  const rate=map=>{const drawn=drawMap(map,access,set);
+    return {score:scoreDrawn(drawn,callers).score,weight:weightOf(drawn.nested.size)};};
   const chain=id=>{const found=[];for(let p=parent.get(id);p!==undefined;p=parent.get(p))found.push(p);return found;};
   const inside=(map,id)=>map===id||chain(map).includes(id);
 
-  const scores=new Map([[TOP,scoreOf(TOP)],...[...clusters.keys()].map(id=>[id,scoreOf(id)])]);
-  let sum=[...scores.values()].reduce((a,b)=>a+b,0);
+  // Each map's score and weight; the energy is their weighted mean.
+  const scores=new Map([[TOP,rate(TOP)],...[...clusters.keys()].map(id=>[id,rate(id)])]);
+  let sum=0,total=0;
+  const add=(r,sign)=>{if(r){sum+=sign*r.score*r.weight;total+=sign*r.weight;}};
+  for(const r of scores.values())add(r,1);
 
   // The journal of one move.
   let journal,touched,created,deleted,repeatChanged;
@@ -122,16 +126,16 @@ function createAnnealer(start,links) {
     settle(moved===true?[]:moved);
     if(!journal.length)return null;
     under=new Map();
-    const before=sum/scores.size,old=new Map();
-    for(const id of deleted.keys())if(scores.has(id)){old.set(id,scores.get(id));sum-=scores.get(id);scores.delete(id);}
+    const before=sum/total,old=new Map();
+    for(const id of deleted.keys())if(scores.has(id)){old.set(id,scores.get(id));add(scores.get(id),-1);scores.delete(id);}
     for(const map of affected()) {
       if(!old.has(map))old.set(map,scores.get(map));
-      const score=scoreOf(map);sum+=score-(scores.get(map)??0);scores.set(map,score);
+      const r=rate(map);add(scores.get(map),-1);add(r,1);scores.set(map,r);
     }
     const undoing=journal;
-    return {delta:sum/scores.size-before,undo:()=>{
+    return {delta:sum/total-before,undo:()=>{
       for(const undo of undoing.reverse())undo();
-      for(const [map,score] of old){sum+=(score??0)-(scores.get(map)??0);if(score===undefined)scores.delete(map);else scores.set(map,score);}
+      for(const [map,r] of old){add(scores.get(map),-1);add(r,1);if(r===undefined)scores.delete(map);else scores.set(map,r);}
       under=new Map();
     }};
   }
@@ -198,7 +202,7 @@ function createAnnealer(start,links) {
   };
   const snapshot=()=>({parent:new Map(parent),clusters:new Map([...clusters].map(([id,c])=>[id,{...c}])),
     repeats:new Map([...repeats].filter(([,s])=>s.size).map(([map,s])=>[map,new Set(s)]))});
-  const energy=()=>{sum=[...scores.values()].reduce((a,b)=>a+b,0);return sum/scores.size;};
+  const energy=()=>{sum=0;total=0;for(const r of scores.values())add(r,1);return sum/total;};
   return {propose,snapshot,energy,size:()=>leaves.length+clusters.size};
 }
 
