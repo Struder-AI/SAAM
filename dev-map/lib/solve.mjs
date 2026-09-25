@@ -1,6 +1,6 @@
 // The cluster solver. The leaves are given and so is the top map `0`; the solver authors every
 // cluster between them: which clusters exist, where each leaf and cluster is homed, and which
-// boxes each map repeats. Its goal is the tree's energy, the weighted mean map score (score.mjs), lowered
+// boxes each map repeats. Its goal is the tree's energy, the weighted map score per leaf (score.mjs), lowered
 // by simulated annealing from the tree as placed (tree.mjs). It writes the lowest-energy tree it
 // met to dev-map/tree.json. Labels are authored in a label pass, never here; a cluster that
 // survives a solve keeps its label, matched by the leaves it holds, and a new one needs a label.
@@ -43,10 +43,10 @@ function createAnnealer(start,links,externalLinks) {
   const chain=id=>{const found=[];for(let p=parent.get(id);p!==undefined;p=parent.get(p))found.push(p);return found;};
   const inside=(map,id)=>map===id||chain(map).includes(id);
 
-  // Each map's score and weight; the energy is their weighted mean.
+  // Each map's score and weight; the energy is their weighted sum per leaf.
   const scores=new Map([[TOP,rate(TOP)],...[...clusters.keys()].map(id=>[id,rate(id)])]);
-  let sum=0,total=0;
-  const add=(r,sign)=>{if(r){sum+=sign*r.score*r.weight;total+=sign*r.weight;}};
+  let sum=0;
+  const add=(r,sign)=>{if(r)sum+=sign*r.score*r.weight;};
   for(const r of scores.values())add(r,1);
 
   // The journal of one move.
@@ -126,14 +126,14 @@ function createAnnealer(start,links,externalLinks) {
     settle(moved===true?[]:moved);
     if(!journal.length)return null;
     under=new Map();
-    const before=sum/total,old=new Map();
+    const before=sum/leaves.length,old=new Map();
     for(const id of deleted.keys())if(scores.has(id)){old.set(id,scores.get(id));add(scores.get(id),-1);scores.delete(id);}
     for(const map of affected()) {
       if(!old.has(map))old.set(map,scores.get(map));
       const r=rate(map);add(scores.get(map),-1);add(r,1);scores.set(map,r);
     }
     const undoing=journal;
-    return {delta:sum/total-before,undo:()=>{
+    return {delta:sum/leaves.length-before,undo:()=>{
       for(const undo of undoing.reverse())undo();
       for(const [map,r] of old){add(scores.get(map),-1);add(r,1);if(r===undefined)scores.delete(map);else scores.set(map,r);}
       under=new Map();
@@ -202,7 +202,7 @@ function createAnnealer(start,links,externalLinks) {
   };
   const snapshot=()=>({parent:new Map(parent),clusters:new Map([...clusters].map(([id,c])=>[id,{...c}])),
     repeats:new Map([...repeats].filter(([,s])=>s.size).map(([map,s])=>[map,new Set(s)]))});
-  const energy=()=>{sum=0;total=0;for(const r of scores.values())add(r,1);return sum/total;};
+  const energy=()=>{sum=0;for(const r of scores.values())add(r,1);return sum/leaves.length;};
   // The tree's shape, for watching a solve: boxes the top map homes, clusters, and leaf depths.
   const shape=()=>{
     const depths=leaves.map(leaf=>chain(leaf).length).sort((a,b)=>a-b);

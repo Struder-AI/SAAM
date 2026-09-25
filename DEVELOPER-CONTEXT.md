@@ -95,9 +95,9 @@ comes from files or directories.
   declaration's path reads its leaf), `@cluster/ID` for a cluster.
 - **Score** and **energy**: a map's score is the sum of its penalties for
   size, interface (the nested leaves links reach from outside or leave from),
-  islands, backflow and balance (`dev-map/lib/score.mjs`); the energy is the
-  mean score over `0` and every cluster, each weighted by the log of the
-  leaves nested in it, the cluster solver's goal.
+  islands, backflow and balance (`dev-map/lib/score.mjs`), each squared; the
+  energy, the solver's goal, sums the scores of `0` and every cluster, each
+  weighted by 1 + log₂ of its nested leaves, per leaf.
 - **Authored inputs**: the tree (clusters by the solver, labels by a label
   pass), annotations and scope. Everything else is generated.
 

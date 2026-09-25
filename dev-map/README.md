@@ -189,14 +189,14 @@ states how each item is matched.
 
 ## Scoring
 
-`score` rates every map, `0` and each cluster, as counts times weights with
-no share or cap (`lib/score.mjs`): 0.1 per box outside 6–16; 0.1 per nested
-leaf beyond four that links from outside reach, and per one beyond four that
-links out (the interface); 0.2 per extra island of unlinked boxes; 0.1 per box
-pair linked against the best left-to-right order; and balance, the biggest
-home box's share of the nested leaves beyond an even share. A map's score is
-their sum and the tree's energy the mean over maps, each weighted by 1 +
-log₂ of its nested leaves, which `solve` minimises.
+`score` rates every map, `0` and each cluster, as weights times squared
+excesses (`lib/score.mjs`): 0.025 per box outside 6–20 (external boxes do not
+count); 0.025 per nested leaf beyond four reached from outside, and per one
+beyond four linking out (the interface); 0.2 per extra island; 0.05 per box
+pair against the best left-to-right order; and 2 × balance, the biggest home
+box's share of the nested leaves beyond an even share. The energy, which
+`solve` minimises, sums the map scores, each weighted by 1 + log₂ of its
+nested leaves, per leaf mapped.
 Crossing is reported, not scored. The viewer shows each map's score and parts in its bar.
 `score` prints the worst and best maps and writes `view/scores.html`, which
 every viewer build also refreshes, ranking all maps with links into the viewer.

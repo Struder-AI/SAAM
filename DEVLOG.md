@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-09-25 — Dev maps: squared parts, summed energy, size on non-externals
+
+- Owner direction: the energy is a sum with a fixed denominator (weighted map
+  scores per leaf), so a new map no longer lowers it by dilution; under the
+  mean, a zero-score five-leaf cluster was worth as much as a box off `0`
+  (0.0006), and 327 maps scored 0 while 230 clusters homed one node. Every
+  part is squared, each weight the old one over the excess where the square
+  equals it: size 0.025 (k 4), interface 0.025 (k 4), islands 0.2 (k 1),
+  backflow 0.05 (k 2), balance 2 (share 0.5).
+- Owner direction: the 6–20 size range applies to homes and repeats; external
+  boxes do not count toward it. Externals are to always count against a map
+  (the edge term, pending the owner's decision with the link-count term).
+- The 1b532c5 tree scores 8.727 under it; `0` scores 730 (size 240, backflow
+  490) and carries 8.44 of it. No solve run. Viewer bar shows external boxes.
+- Docs: map guide 211→211, DEVELOPER-CONTEXT 216→216.
+
 ## 2026-09-25 — Dev maps: externals drawn as boxes
 
 - Owner direction: every external is shown from `0`, in place of the way-in

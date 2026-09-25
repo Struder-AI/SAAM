@@ -1150,7 +1150,7 @@ function load(key,then){if(SVG[key]!==undefined)return then();
 function showScore(s){const el=document.getElementById('score');if(!s){el.innerHTML='';return;}
   const part=(name,v,what)=>`<span class="${v>0?'bad':''}">${name} ${v>0?'-'+v.toFixed(2):'0'}</span> (${what})`;
   el.innerHTML=`<b>Score ${s.score>0?'-'+s.score.toFixed(2):'0'}</b> · `+[
-    part('size',s.badness.size,`${s.nodes} boxes`),
+    part('size',s.badness.size,`${s.nodes} boxes, ${s.externals} external`),
     part('interface',s.badness.interface,`${s.interface.entries} in, ${s.interface.exits} out`),
     part('islands',s.badness.islands,`${s.islands} island${s.islands===1?'':'s'}`),
     part('backflow',s.badness.backflow,`${s.backflow.links} of ${s.backflow.of} backward`),

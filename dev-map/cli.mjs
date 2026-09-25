@@ -35,7 +35,7 @@ if(command==='score') {
   const result=await writeScorePage({repo:root,out:resolve(root,'dev-map/view')});
   if(values.json){console.log(JSON.stringify(result,null,1));process.exit(0);}
   const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} boxes, ${s.interface.entries} in/${s.interface.exits} out, ${s.islands} islands, ${s.backflow.links} backward, balance ${s.balance}  ${s.label}`;
-  console.log(`${result.leaves} leaves, ${result.maps} maps, ${result.links} links, energy ${result.energy} (weighted mean map score). Worst:`);
+  console.log(`${result.leaves} leaves, ${result.maps} maps, ${result.links} links, energy ${result.energy} (weighted map score per leaf). Worst:`);
   for(const s of result.scores.slice(0,10))console.log(line(s));
   console.log('Best:');
   for(const s of result.scores.slice(-10))console.log(line(s));
