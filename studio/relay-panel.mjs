@@ -32,8 +32,18 @@ export function createRelayPanel({token}){
       button.textContent='Restarting SAAM…';
     }catch(error){view.updating=false;button.disabled=false;button.classList.add('flash');alert(error.message);renderUpdate();}
   }
+  // Quitting stops SAAM on this computer; its prints stay saved.
+  async function quit(){
+    if(!confirm('Quit SAAM? Chats cannot reach this computer until you start SAAM again. Your prints are saved.'))return;
+    try{
+      const response=await fetch('/api/relay/quit',{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:'{}'});
+      const result=await response.json();if(!response.ok)throw Error(result.error);
+      document.body.replaceChildren(Object.assign(document.createElement('p'),{className:'stopped',textContent:'SAAM has stopped. You can close this tab; start SAAM again from its shortcut.'}));
+    }catch(error){alert(error.message);}
+  }
   function renderStatus(){
     renderUpdate();
+    $('relay-quit').hidden=!view.status?.canQuit;
     const {link,title,detail}=describeRelay(view.status),status=$('relay-status');
     $('relay-dot').dataset.link=link;$('relay-toggle').title=title;
     status.replaceChildren(title);
@@ -81,6 +91,7 @@ export function createRelayPanel({token}){
   $('relay-toggle').hidden=false;
   $('relay-toggle').onclick=toggle;
   $('relay-update').onclick=update;
+  $('relay-quit').onclick=quit;
   $('relay-close').onclick=close;
   $('relay-show-code').onclick=showCode;
   $('relay-copy').onclick=copyUrl;

@@ -122,6 +122,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
     const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
     studioSessions.set(studioInstanceId, session);
+    studio.agentWorking(chat.working);
     studio.once('close',()=>{
       if(studioSessions.get(studioInstanceId)===session)studioSessions.delete(studioInstanceId);
       for(const [id,instance] of preferredStudioByPrint)if(instance===studioInstanceId)preferredStudioByPrint.delete(id);
@@ -434,14 +435,40 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   const runtime={closing:null,session:null};
   // listen: how long this session's client may hold a wait (default and ceiling).
   // remote: a web chat through the relay; it neither sees nor runs local-only operations.
+  // The chat is working from any call other than the listener, and from a
+  // listener that returned something to act on, until it listens again or
+  // WORKING_MS pass without a call. Studio shows it as its waiting indicators.
+  const WORKING_MS=5*60_000;
+  const chat={working:false,timer:null};
+  function chatWorking(session){
+    const activity=session?.activity;
+    return Boolean(activity&&!session.ending&&!activity.listening&&activity.lastCall&&Date.now()-activity.lastCall<WORKING_MS);
+  }
+  function publishWorking(){
+    const working=chatWorking(runtime.session);
+    clearTimeout(chat.timer);
+    if(working){chat.timer=setTimeout(publishWorking,runtime.session.activity.lastCall+WORKING_MS-Date.now()+50);chat.timer.unref?.();}
+    if(working===chat.working)return;
+    chat.working=working;
+    for(const {server:studio} of studioSessions.values())studio.agentWorking?.(working);
+  }
+  function observed(session,name,pending){
+    const activity=session.activity,listener=name==='wait_for_studio_request';
+    if(listener)activity.listening++;else activity.lastCall=Date.now();
+    publishWorking();
+    return pending.then(result=>{
+      if(!listener||result?.requests?.length)activity.lastCall=Date.now();
+      return result;
+    }).finally(()=>{if(listener)activity.listening--;publishWorking();});
+  }
   function beginSession({listen=LOCAL_LISTEN,remote=false}={}){
     if(runtime.closing)throw Error('The SAAM runtime is closing.');
     if(runtime.session)throw Error('A SAAM session is already active. End it before starting another.');
     if(!(listen.defaultMs<=listen.maxMs&&listen.maxMs<=LISTEN_LIMIT_MS))throw Error('Invalid listener limits.');
-    const session={id:randomUUID(),ending:null,listen,remote};runtime.session=session;
+    const session={id:randomUUID(),ending:null,listen,remote,activity:{listening:0,lastCall:0}};runtime.session=session;
     return {id:session.id,
       operations:[...operations.values()].filter(operation=>!(remote&&operation.localOnly)).map(({action,...definition})=>definition),
-      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):invoke(name,args,session),
+      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):observed(session,name,invoke(name,args,session)),
       end:()=>endSession(session)};
   }
   function endSession(session){return session.ending??=Promise.resolve().then(async()=>{
@@ -450,6 +477,7 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     studioEvents.drain();
     if(runtime.session===session)runtime.session=null;
+    publishWorking();
   });}
   function close(){return runtime.closing??=Promise.resolve().then(async()=>{
     if(runtime.session)await endSession(runtime.session);

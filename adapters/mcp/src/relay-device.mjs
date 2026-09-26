@@ -148,7 +148,7 @@ export function newerRelease(candidate,current){
 // answers "not connected" until attach() hands it that connection. With an
 // installed build's version, platform and update hook it also offers a newer
 // release the relay announced.
-export function relayProvider(device,{version=null,platform=null,update=null}={}){
+export function relayProvider(device,{version=null,platform=null,update=null,quit=null}={}){
   const link={connection:null};
   const offer=status=>{
     const release=status.release,asset=release?.assets?.[platform];
@@ -156,7 +156,8 @@ export function relayProvider(device,{version=null,platform=null,update=null}={}
   };
   const current=()=>link.connection?.status()??{relayUrl:device.relayUrl,connected:false,session:null,release:null};
   return {
-    status:()=>{const {release,...status}=current(),offered=offer({release});return {...status,version,update:offered?{version:offered.version}:null};},
+    status:()=>{const {release,...status}=current(),offered=offer({release});return {...status,version,update:offered?{version:offered.version}:null,canQuit:Boolean(quit)};},
+    quit:()=>{if(!quit)throw Error('This SAAM stops from its terminal.');return quit();},
     linkCode:()=>linkCode(device),
     update:()=>{const offered=offer(current());if(!offered)throw Error('No newer SAAM release is available.');return update(offered);},
     attach(connection){link.connection=connection;return connection;}
@@ -166,7 +167,7 @@ export function relayProvider(device,{version=null,platform=null,update=null}={}
 // SAAM on a paired computer: the runtime, its relay link and one Studio at
 // launch with no print. Its Connect chat panel issues codes, and request_review
 // later shows the chat's prints in it. The CLI and the installed launcher use this.
-// installed: {version, platform, update(release)} for an installed build that can update itself.
+// installed: {version, platform, update(release), quit()} for an installed build.
 export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{},onCall=()=>{},installed={}}){
   const device=await loadDevice(relayUrl,statePath);
   const relay=relayProvider(device,installed),runtime=createLocalRuntime({printsRoot,relay});

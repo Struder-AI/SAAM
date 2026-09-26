@@ -126,6 +126,8 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
   const token=randomBytes(24).toString('hex'),viewPerformance=[];
+  // Whether the owning chat is working; its runtime pushes changes here.
+  const agentActivity={working:false};
   const workIdFor=directory=>directory?requests.printId(directory,{optional:true}):null;
   // Studio observations for the owning agent: person-driven actions, worker
   // outcomes and displayed results, tagged with this instance and its print.
@@ -316,7 +318,9 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       }
       if(req.method==='GET'&&url.pathname==='/api/viewer'){
         if(url.searchParams.get('token')!==token||(req.headers.origin&&req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
-        lifetime.attach(res);return;
+        lifetime.attach(res);
+        if(!res.writableEnded)res.write(`event: agent-activity\ndata: ${JSON.stringify(agentActivity)}\n\n`);
+        return;
       }
       if(req.method==='GET'&&url.pathname==='/') {
         const html=(await readFile(resolve(here,'index.html'),'utf8')).replace('__CSRF__',token).replace('__RELAY__',relay?'on':'');
@@ -331,20 +335,18 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
-      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'||url.pathname==='/api/relay/update'){
+      if(url.pathname==='/api/relay'||url.pathname==='/api/relay/link-code'||url.pathname==='/api/relay/update'||url.pathname==='/api/relay/quit'){
         // Link codes pair a chat with this computer, and an update replaces SAAM:
         // the same session token and origin checks as Studio's other routes guard
         // them. Absent without a relay.
-        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code',updating=req.method==='POST'&&url.pathname==='/api/relay/update';
-        if(!relay||!reading&&!issuing&&!updating){send({error:'Not found'},404);return;}
+        const reading=req.method==='GET'&&url.pathname==='/api/relay',issuing=req.method==='POST'&&url.pathname==='/api/relay/link-code',updating=req.method==='POST'&&url.pathname==='/api/relay/update',quitting=req.method==='POST'&&url.pathname==='/api/relay/quit';
+        if(!relay||!reading&&!issuing&&!updating&&!quitting){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
         if(reading){send(relayView(relay.status()));return;}
-        if(updating){
-          // Update at an idle boundary: never under a running calculation.
-          if(['preparing','generating'].includes(generationStatus()?.status)){send({error:'Wait for the toolpath calculation to finish, then update.'},409);return;}
-          try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}
-          return;
-        }
+        // Update or quit at an idle boundary: never under a running calculation.
+        if((updating||quitting)&&['preparing','generating'].includes(generationStatus()?.status)){send({error:`Wait for the toolpath calculation to finish, then ${updating?'update':'quit'}.`},409);return;}
+        if(updating){try{send(await relay.update());}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
+        if(quitting){try{send(await relay.quit());}catch(error){send({error:error.message},400);}return;}
         try{const {code,expiresAt}=await relay.linkCode();send({code,expiresAt});}
         catch(error){send({error:'The relay could not issue a code: '+error.message},502);}
         return;
@@ -592,6 +594,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   });
   server.once('close',()=>{closed=true;stopWatching();stopRequestFeed();discardPreparation();});
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
+  server.agentWorking=working=>{agentActivity.working=Boolean(working);lifetime.notify('agent-activity',agentActivity);};
   server.studioEvents=events;server.generationStatus=generationStatus;
   server.agentSession=()=>({instanceId,ownerId:sessionOwnerId,printId:workIdFor(dir),directory:dir,connected:!closed});
   server.agentDisconnected=async ownerId=>lifetime.notify('agent-connection-closed',{ownerId,closedAt:Date.now(),requests:await requests.query()});

@@ -9151,3 +9151,21 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   metadata documents answer correctly. No chat product has connected yet.
 - Deferred by the user until after testing: Quit SAAM button and windowless
   launch. Not run: any installer, package build, update, or whole suite.
+
+## 2026-09-26 — End-to-end check, logging, chat-working indicators, Quit SAAM
+
+- The user installed the Windows package, paired it through Studio, connected
+  Claude through the deployed relay and verified the flow end to end; the tool
+  failures seen first were a guidance problem in the chat. The log showed Claude
+  as `Anthropic/Toolbox` for discovery and `Anthropic/ClaudeAI` for the chat.
+- Logging: every chat call is logged on the computer (method, tool, duration,
+  sizes, failure text; never arguments or results); the relay measures the
+  request body itself, turns a failed send to the device into an explicit error
+  and logs warnings, with Workers Logs enabled (`npx wrangler tail`).
+- Studio shows the header dots and a "Your chat is working…" spinner over the
+  preview while the chat works outside a Studio request, such as creating the
+  first print: from any call but the listener (or a listener that returned
+  work) until it listens again or five minutes pass without a call.
+- Quit SAAM in Studio (relay mode, installed builds) stops SAAM, refused during
+  a toolpath calculation like updates. Checked visually against a scratch
+  Studio; no new tests, per the user.

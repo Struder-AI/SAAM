@@ -2,6 +2,8 @@ import {summarizeWork,requestReceiptState} from './work-state.mjs';
 export {summarizeWork} from './work-state.mjs';
 export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
+  // chat.working: the runtime says the chat is working, with or without a Studio request.
+  const chat={working:false};
   let running=false,refreshAgain=false,requests=[],view={},lastActivity,askedPresentation;const closedOwners=new Map(),retired=new Map();
   function merge(records,snapshot){
     const merged=new Map(requests.map(r=>[r.id,r]));let changed=false;
@@ -25,8 +27,9 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
   }
   function reflectFade(summary){document.getElementById('canvas').classList.toggle('work-faded',fadeActive(summary));}
   function render(){
-    const summary=summarizeWork(requests,{closedOwners,view}),{active,message}=summary;
+    const summary=summarizeWork(requests,{closedOwners,view}),{message}=summary,active=summary.active||chat.working;
     reflectFade(summary);
+    document.getElementById('agent-working').hidden=!chat.working;
     indicator.hidden=!active&&!message;dots.hidden=!active;notice.hidden=!message;notice.textContent=message;
     indicator.setAttribute('aria-label',active?'Updating preview':message);
     if(active!==lastActivity){lastActivity=active;onActivity(active);}
@@ -39,6 +42,7 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     if(asking&&asking!==askedPresentation){askedPresentation=asking;onPresentation();}
     else if(!asking)askedPresentation=null;
   }
+  addEventListener('saam-agent-activity',event=>{chat.working=Boolean(event.detail.working);render();});
   addEventListener('saam-agent-connection-closed',event=>{
     // A closed session marks only the work it left; a later session of the same owner is live.
     closedOwners.set(event.detail.ownerId,event.detail.closedAt??Date.now());
