@@ -9169,3 +9169,22 @@ from server generation, cold verification, JSON transfer and UI-ready time.
 - Quit SAAM in Studio (relay mode, installed builds) stops SAAM, refused during
   a toolpath calculation like updates. Checked visually against a scratch
   Studio; no new tests, per the user.
+
+## 2026-09-26 — Faster install, windowless launch
+
+- Subagent (fresh worker, build only): build.mjs removes the 62 lock packages only
+  manifold-3d's CAD tooling needs (explicit list, checked against the lock so
+  nothing else loses a dependency) and `node_modules/.bin`, and packs the
+  application as one `app.tar` in the ZIP, beside `app/release.json` and the
+  installer path earlier versions' updater runs. Installers unpack it with the
+  system tar into a sibling folder and swap it in.
+- Measured on win-x64 0.1.1: ZIP 61.6 → 44.4 MB; unpacked 5,363 files/173 MB →
+  4,614/131 MB; Explorer extraction plus install copy about 167 s → 3.2–3.7 s.
+- Windowless: Windows shortcuts run `wscript.exe SAAM.vbs` (hidden node), with a
+  "SAAM (with console)" shortcut for troubleshooting; macOS install.sh generates
+  a local `SAAM.app` that starts node in the background. The launcher passes
+  `quit` for Studio's Quit SAAM.
+- Checked: script syntax; the pruned app loads manifold and the adapters; the
+  Windows installer in a sandboxed LOCALAPPDATA (install, reinstall, update mode);
+  install.sh under Git Bash with stubs. Unverified: a real Mac, a real install,
+  Quit end to end, and an update through the relay.

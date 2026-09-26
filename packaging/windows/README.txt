@@ -13,20 +13,20 @@ Install
    This alpha build is not signed, so Windows may show "Windows protected
    your PC" or another security warning for the download. Choose
    "More info", then "Run anyway".
-3. The installer copies SAAM to %LOCALAPPDATA%\Programs\SAAM, adds a "SAAM"
-   shortcut to the Start Menu and the Desktop, and starts SAAM.
+3. The installer unpacks SAAM into %LOCALAPPDATA%\Programs\SAAM, adds a
+   "SAAM" shortcut to the Start Menu and the Desktop, and starts SAAM.
 
-Close SAAM before installing a new version: the installer refuses while
+Quit SAAM before installing a new version: the installer refuses while
 SAAM is running. Installing replaces the installed version. To go back to
 an older version, install its ZIP the same way; your prints are not affected.
 
 
 Start and stop
 --------------
-Start SAAM from its Start Menu or Desktop shortcut. A console window titled
-"SAAM" opens and Studio opens in your browser. Keep the window open while
-you use SAAM; closing it stops SAAM. Starting SAAM again while it runs just
-shows Studio.
+Start SAAM from its Start Menu or Desktop shortcut: Studio opens in your
+browser and no window stays open. To stop SAAM, click Quit SAAM in Studio.
+Starting SAAM again while it runs just shows Studio. If SAAM does not
+start, Start Menu > "SAAM (with console)" shows its messages.
 
 
 Connect your chat (first time)

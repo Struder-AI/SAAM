@@ -3,3 +3,4 @@ packaging/macos/*.sh text eol=lf
 packaging/macos/README.txt text eol=lf
 packaging/windows/*.cmd text eol=crlf
 packaging/windows/*.ps1 text eol=crlf
+packaging/windows/*.vbs text eol=crlf

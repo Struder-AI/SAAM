@@ -20,11 +20,10 @@ Install
 3. Type  bash  followed by a space, drag install.sh from the extracted
    folder into the Terminal window, and press Return. The line looks like:
      bash "/Users/you/Downloads/SAAM-0.1.0-darwin-arm64/install.sh"
-4. The installer copies SAAM to ~/Applications/SAAM, writes the launcher
-   ~/Applications/SAAM/SAAM.command, and starts SAAM in a new Terminal
-   window.
+4. The installer unpacks SAAM into ~/Applications/SAAM, writes
+   ~/Applications/SAAM.app, and starts SAAM.
 
-Close SAAM before installing a new version: the installer refuses while
+Quit SAAM before installing a new version: the installer refuses while
 SAAM is running. Installing replaces the installed version. To go back to
 an older version, install its download the same way; your prints are not
 affected.
@@ -32,13 +31,12 @@ affected.
 
 Start and stop
 --------------
-Double-click SAAM.command in ~/Applications/SAAM (in Finder: Go > Home,
-then Applications > SAAM), or run it from Terminal:
-  ~/Applications/SAAM/SAAM.command
-A Terminal window titled "SAAM" opens and Studio opens in your browser.
-Keep the window open while you use SAAM; closing it stops SAAM. Starting
-SAAM again while it runs just shows Studio. You can drag SAAM.command to
-the Dock for quick access.
+Open SAAM from your Applications folder (in Finder: Go > Home, then
+Applications > SAAM), Spotlight or the Dock: Studio opens in your browser
+and no window stays open. To stop SAAM, click Quit SAAM in Studio.
+Starting SAAM again while it runs just shows Studio. If SAAM does not
+start, double-click SAAM.command in ~/Applications/SAAM: a Terminal window
+shows its messages.
 
 
 Connect your chat (first time)
@@ -63,5 +61,6 @@ Uninstall
 ---------
 In Terminal, run:
   bash ~/Applications/SAAM/packaging/macos/uninstall.sh
-This removes ~/Applications/SAAM and keeps ~/Library/Application Support/SAAM.
+This removes ~/Applications/SAAM and SAAM.app and keeps
+~/Library/Application Support/SAAM.
 Delete that folder yourself if you no longer want your prints.

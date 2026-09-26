@@ -2,7 +2,9 @@
 // package itself (so it carries no browser download mark), checks it against
 // the relay's checksum and the release host fixed into this build, unpacks it
 // under the data folder and starts its installer, which waits for this process
-// to exit, replaces the application and starts SAAM again.
+// to exit, unpacks the package's app.tar in place of the application and starts
+// SAAM again. The installer is at app/packaging/<os>/ in every package, the path
+// earlier SAAM versions run it from.
 import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {mkdir,rm,writeFile,stat} from 'node:fs/promises';
@@ -22,10 +24,14 @@ export async function installUpdate({version,url,sha256},{platform,updateHost,da
   const response=await fetch(url);if(!response.ok)throw Error(`The download failed (${response.status}).`);
   const bytes=Buffer.from(await response.arrayBuffer());
   if(createHash('sha256').update(bytes).digest('hex')!==sha256)throw Error('The download does not match its checksum.');
-  const folder=resolve(data,'updates',version),top=resolve(folder,`SAAM-${version}-${platform}`);
+  // Earlier updates' packages are done with by now: keep only this one.
+  const updates=resolve(data,'updates'),folder=resolve(updates,version),top=resolve(folder,`SAAM-${version}-${platform}`);
+  await rm(updates,{recursive:true,force:true}).catch(()=>{});
   await rm(folder,{recursive:true,force:true});await mkdir(folder,{recursive:true});
-  await writeFile(resolve(folder,'package.zip'),bytes);
-  await run(TAR,['-xf',resolve(folder,'package.zip'),'-C',folder]);
+  const zip=resolve(folder,'package.zip');
+  await writeFile(zip,bytes);
+  await run(TAR,['-xf',zip,'-C',folder]);
+  await rm(zip,{force:true});
   const windows=platform.startsWith('win');
   const installer=resolve(top,'app','packaging',windows?'windows':'macos',windows?'install.ps1':'install.sh');
   await stat(installer).catch(()=>{throw Error('The downloaded package has no installer.');});

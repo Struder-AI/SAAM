@@ -67,7 +67,8 @@ async function main(){
     if(await claimInstance(instanceFile,record))throw Error('Another SAAM is starting. Try again in a moment.');
   }
   log(`SAAM ${version} starting. Data: ${data}. Relay: ${relayUrl}`);
-  // Closing the window and updating both end with stop(); it needs the SAAM they belong to.
+  // Quit SAAM in Studio, updating and a signal (closing a console window) all end
+  // with stop(); it needs the SAAM they belong to.
   const app={saam:null,stopping:null};
   const stop=()=>app.stopping??=(async()=>{
     control.close();await app.saam?.stop().catch(error=>log('stop failed',error.message));
@@ -75,7 +76,8 @@ async function main(){
   })();
   const later=result=>{setTimeout(()=>void stop(),500);return result;};
   const installed={version,platform,
-    update:platform&&updateHost?async offered=>later(await installUpdate(offered,{platform,updateHost,data,log})):null};
+    update:platform&&updateHost?async offered=>later(await installUpdate(offered,{platform,updateHost,data,log})):null,
+    quit:async()=>{log('Quit SAAM requested from Studio.');return later({quitting:true});}};
   const {runPairedSaam}=await import('../adapters/mcp/src/relay-device.mjs');
   app.saam=await runPairedSaam({relayUrl,statePath:resolve(data,'relay-device.json'),printsRoot:resolve(data,'Prints'),installed,
     onStatus:status=>log('relay',JSON.stringify(status)),onCall:call=>log('call',JSON.stringify(call))});
@@ -85,7 +87,7 @@ async function main(){
     try{const shown=await saam.runtime.openStudio();res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(shown));}
     catch(error){res.writeHead(500);res.end(error.message);}
   });
-  log(`SAAM Studio: ${saam.studio.url}. Keep this window open while you use SAAM; close it to stop.`);
+  log(`SAAM Studio: ${saam.studio.url}. To stop SAAM, click Quit SAAM in Studio.`);
   process.on('SIGINT',stop);process.on('SIGTERM',stop);process.on('SIGHUP',stop);
 }
 

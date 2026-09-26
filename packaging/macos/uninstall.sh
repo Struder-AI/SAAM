@@ -1,5 +1,6 @@
 #!/bin/bash
-# Uninstalls SAAM for this macOS user: removes ~/Applications/SAAM. Prints, the
+# Uninstalls SAAM for this macOS user: removes ~/Applications/SAAM and
+# ~/Applications/SAAM.app. Prints, the
 # chat pairing and logs in ~/Library/Application Support/SAAM are kept.
 # Run it from Terminal:
 #
@@ -25,16 +26,16 @@ main() {
   local target answer
   target="$HOME/Applications/SAAM"
   [ -d "$target" ] || fail "SAAM is not installed in $target."
-  if saam_running; then fail 'SAAM is running. Close the SAAM Terminal window (this stops SAAM), then uninstall again.'; fi
+  if saam_running; then fail 'SAAM is running. Click Quit SAAM in Studio, then uninstall again.'; fi
   if [ "${1:-}" != '--yes' ]; then
-    echo "This removes SAAM from $target."
+    echo "This removes SAAM from $target and $target.app."
     echo "Your prints and settings in $(data_folder) are kept."
     read -r -p 'Type y and press Return to uninstall: ' answer
     case "$answer" in [Yy]*) ;; *) echo 'Nothing was removed.'; exit 0 ;; esac
   fi
   # This script runs from the folder it removes; leave it first.
   cd "$HOME"
-  rm -rf "$target"
+  rm -rf "$target" "$target.app"
   echo
   echo 'SAAM is uninstalled.'
   echo "Your prints remain in $(data_folder)/Prints; the chat pairing and logs are in $(data_folder)."

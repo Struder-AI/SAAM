@@ -11,7 +11,11 @@ $ErrorActionPreference = 'Stop'
 $SaamRoot = Join-Path $env:LOCALAPPDATA 'Programs\SAAM'
 $StartMenu = [Environment]::GetFolderPath('Programs')
 $Desktop = [Environment]::GetFolderPath('Desktop')
-$Shortcuts = @((Join-Path $StartMenu 'SAAM.lnk'), (Join-Path $Desktop 'SAAM.lnk'), (Join-Path $StartMenu 'Uninstall SAAM.lnk'))
+$StartMenuLink = Join-Path $StartMenu 'SAAM.lnk'
+$DesktopLink = Join-Path $Desktop 'SAAM.lnk'
+$ConsoleLink = Join-Path $StartMenu 'SAAM (with console).lnk'
+$UninstallLink = Join-Path $StartMenu 'Uninstall SAAM.lnk'
+$Shortcuts = @($StartMenuLink, $DesktopLink, $ConsoleLink, $UninstallLink)
 
 function Get-SaamDataFolder {
   # Matches packaging/launch.mjs: SAAM_DATA overrides the default.
@@ -53,7 +57,7 @@ function Test-SaamRunning {
 
 function Assert-SaamStopped([string]$Action) {
   if (Test-SaamRunning) {
-    Stop-WithMessage "SAAM is running. Close the SAAM window (this stops SAAM), then $Action again."
+    Stop-WithMessage "SAAM is running. Click Quit SAAM in Studio, then $Action again."
   }
 }
 
