@@ -6,6 +6,9 @@
   "compatibility_date": "2026-09-01",
   // Needed for OAuth Client ID Metadata Document fetches (SSRF protection).
   "compatibility_flags": ["global_fetch_strictly_public"],
+  // Workers Logs: request outcomes, exceptions and the relay's own warnings,
+  // viewable in the dashboard or live with `npx wrangler tail`.
+  "observability": { "enabled": true },
   "vars": {
     // The public origin chat clients reach; the MCP resource is PUBLIC_URL/mcp.
     // Local development overrides it: wrangler dev --var PUBLIC_URL:http://localhost:8787

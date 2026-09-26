@@ -78,7 +78,7 @@ async function main(){
     update:platform&&updateHost?async offered=>later(await installUpdate(offered,{platform,updateHost,data,log})):null};
   const {runPairedSaam}=await import('../adapters/mcp/src/relay-device.mjs');
   app.saam=await runPairedSaam({relayUrl,statePath:resolve(data,'relay-device.json'),printsRoot:resolve(data,'Prints'),installed,
-    onStatus:status=>log('relay',JSON.stringify(status))});
+    onStatus:status=>log('relay',JSON.stringify(status)),onCall:call=>log('call',JSON.stringify(call))});
   const saam=app.saam;
   control.on('request',async(req,res)=>{
     if(req.method!=='POST'||req.url!=='/open'||req.headers['x-saam-launch']!==token){res.writeHead(404);res.end();return;}

@@ -114,9 +114,14 @@ export class RelayObject extends DurableObject{
     const session=request.headers.get('Mcp-Session-Id');
     if(request.method==='DELETE'){const socket=this.socketFor(deviceId);if(socket&&session===socket.deserializeAttachment().session)socket.send(JSON.stringify({type:'session-end',session}));return new Response(null,{status:204});}
     if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'POST, DELETE'}});
-    if(Number(request.headers.get('Content-Length')??0)>MESSAGE_LIMIT)return json(rpcError(null,-32600,'Request exceeds the relay limit of 1 MB.'),413);
+    // The body itself is measured: a request without Content-Length is not exempt.
+    const body=await request.text();
+    if(encoder.encode(body).length>MESSAGE_LIMIT){
+      console.warn(JSON.stringify({event:'request-too-large',deviceId,bytes:encoder.encode(body).length}));
+      return json(rpcError(null,-32600,'This request exceeds the relay limit of 1 MB. Send less at once, for example a smaller mesh or fewer changes per call.'),413);
+    }
     let message;
-    try{message=await request.json();}catch{return json(rpcError(null,-32700,'Parse error.'),400);}
+    try{message=JSON.parse(body);}catch{return json(rpcError(null,-32700,'Parse error.'),400);}
     if(!message||typeof message!=='object'||Array.isArray(message))return json(rpcError(null,-32600,'Send one JSON-RPC message per request.'),400);
     if(!this.deviceExists(deviceId))return json(rpcError(message.id,-32001,'This computer was unpaired. Reconnect SAAM in your chat connector settings.'),403);
     const socket=this.socketFor(deviceId),initialize=message.method==='initialize';
@@ -126,7 +131,7 @@ export class RelayObject extends DurableObject{
     if(!initialize&&(!session||session!==attachment.session))return json(rpcError(message.id,-32001,'Session not found; initialize a new session.'),session?404:400);
     const routed=initialize?`${deviceId}.${token(18)}`:session;
     if(initialize)socket.serializeAttachment({...attachment,session:routed});
-    if(!awaitsResult){socket.send(JSON.stringify({type:'mcp',session:routed,message}));return new Response(null,{status:202});}
+    if(!awaitsResult){try{socket.send(JSON.stringify({type:'mcp',session:routed,message}));}catch(error){console.error(JSON.stringify({event:'device-send-failed',deviceId,error:error.message}));}return new Response(null,{status:202});}
     const result=this.call(socket,routed,message);
     if(initialize||!/text\/event-stream/.test(request.headers.get('Accept')??'')){
       const {status,message:answer}=await result;
@@ -144,7 +149,11 @@ export class RelayObject extends DurableObject{
     return new Promise(resolve=>{
       const timer=setTimeout(()=>this.settle(call,{status:200,message:rpcError(message.id,-32000,'Your computer did not answer in time. Check the print before retrying.')}),CALL_LIMIT_MS);
       this.pending.set(call,{connection,id:message.id,resolve,timer});
-      socket.send(JSON.stringify({type:'mcp',call,session,message}));
+      try{socket.send(JSON.stringify({type:'mcp',call,session,message}));}
+      catch(error){
+        console.error(JSON.stringify({event:'device-send-failed',tool:message.params?.name??message.method,error:error.message}));
+        this.settle(call,{status:200,message:rpcError(message.id,-32000,'The relay could not pass this call to your computer: '+error.message)});
+      }
     });
   }
   settle(call,result){
@@ -160,9 +169,14 @@ export class RelayObject extends DurableObject{
   // Link loss fails the calls on that connection at once; nothing is retried.
   dropped(socket){
     const {connection}=socket.deserializeAttachment()??{};
-    for(const [call,waiting] of this.pending)if(waiting.connection===connection)
+    const lost=[...this.pending].filter(([,waiting])=>waiting.connection===connection);
+    if(lost.length)console.warn(JSON.stringify({event:'calls-dropped',count:lost.length}));
+    for(const [call,waiting] of lost)
       this.settle(call,{status:200,message:rpcError(waiting.id,-32000,'The connection to your computer dropped during this call. Check the print before retrying.')});
   }
-  webSocketClose(socket,code,reason){this.dropped(socket);try{socket.close(code,reason);}catch{/* already closed */}}
-  webSocketError(socket){this.dropped(socket);}
+  webSocketClose(socket,code,reason){
+    if(code!==1000&&code!==4000)console.warn(JSON.stringify({event:'device-link-closed',deviceId:socket.deserializeAttachment()?.deviceId,code,reason}));
+    this.dropped(socket);try{socket.close(code,reason);}catch{/* already closed */}
+  }
+  webSocketError(socket,error){console.error(JSON.stringify({event:'device-link-error',deviceId:socket.deserializeAttachment()?.deviceId,error:String(error?.message??error)}));this.dropped(socket);}
 }

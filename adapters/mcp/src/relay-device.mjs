@@ -44,22 +44,31 @@ export const unpair=device=>post(device.relayUrl,'/device/unpair',device.secret)
 // An MCP transport for one session: requests arrive from the relay with a call
 // id, and the matching response goes back under it. Notifications from SAAM have
 // no HTTP stream to ride and are dropped; results carry Studio events anyway.
-function sessionTransport(reply){
+// What a finished call reports to onCall: method, tool, duration, sizes and
+// the failure text, never arguments or results.
+function callRecord(pending,message,bytes){
+  const failure=message.error?.message??(message.result?.isError?message.result.content?.map(item=>item.text).join(' '):null);
+  return {method:pending.method,tool:pending.tool,ms:Date.now()-pending.started,requestBytes:pending.bytes,resultBytes:bytes,...(failure?{error:String(failure).slice(0,500)}:{})};
+}
+function sessionTransport(reply,onCall){
   const transport={onmessage:null,onclose:null,onerror:null,calls:new Map(),
     async start(){},
     async send(message){
-      const call=transport.calls.get(message.id);
-      if(call===undefined||!('result' in message||'error' in message))return;
+      const pending=transport.calls.get(message.id);
+      if(pending===undefined||!('result' in message||'error' in message))return;
       transport.calls.delete(message.id);
-      const size=JSON.stringify(message).length;
-      reply(call,size>RESULT_LIMIT?rpcError(message.id,-32000,'This result exceeds the relay limit of 1 MB. Ask for less, for example without includeGeometry.'):message);
+      const size=Buffer.byteLength(JSON.stringify(message)),tooLarge=size>RESULT_LIMIT;
+      const answer=tooLarge?rpcError(message.id,-32000,'This result exceeds the relay limit of 1 MB. Ask for less, for example without includeGeometry.'):message;
+      onCall(callRecord(pending,answer,size));
+      reply(pending.call,answer);
     },
     async close(){transport.onclose?.();}
   };
   return transport;
 }
 
-export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onStatus=()=>{}}){
+// onCall receives one record per answered chat call (see callRecord).
+export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onStatus=()=>{},onCall=()=>{}}){
   const url=new URL('/device/connect',device.relayUrl);url.protocol=url.protocol==='https:'?'wss:':'ws:';
   // problem: why the relay refused this computer (unpaired, or an outdated SAAM); no retry follows.
   const link={socket:null,closed:false,backoff:BACKOFF_MS[0],heartbeat:null,retry:null,inbox:Promise.resolve(),problem:null,release:null};
@@ -77,7 +86,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   }
   async function open(id,clientName){
     for(const other of [...sessions.keys()])await end(other);
-    const transport=sessionTransport(reply),adapter=createMcpAdapter({runtime,listen:listenFor(clientName),remote:true,guidance:RELAY_GUIDANCE});
+    const transport=sessionTransport(reply,onCall),adapter=createMcpAdapter({runtime,listen:listenFor(clientName),remote:true,guidance:RELAY_GUIDANCE});
     await adapter.server.connect(transport);
     const session={id,transport,adapter,idle:null,client:clientName??null};sessions.set(id,session);report();onStatus({session:id,active:true,client:clientName});
     return session;
@@ -94,7 +103,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     const {call,message}=packet;
     const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session,message.params?.clientInfo?.name):null);
     if(!session){if(call)reply(call,rpcError(message.id,-32001,'Session not found; initialize a new session.'),404);return;}
-    if(call)session.transport.calls.set(message.id,call);
+    if(call)session.transport.calls.set(message.id,{call,method:message.method,tool:message.params?.name??null,started:Date.now(),bytes:Buffer.byteLength(JSON.stringify(message))});
     lease(session);
     session.transport.onmessage?.(message);
   }
@@ -158,10 +167,10 @@ export function relayProvider(device,{version=null,platform=null,update=null}={}
 // launch with no print. Its Connect chat panel issues codes, and request_review
 // later shows the chat's prints in it. The CLI and the installed launcher use this.
 // installed: {version, platform, update(release)} for an installed build that can update itself.
-export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{},installed={}}){
+export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{},onCall=()=>{},installed={}}){
   const device=await loadDevice(relayUrl,statePath);
   const relay=relayProvider(device,installed),runtime=createLocalRuntime({printsRoot,relay});
-  const connection=relay.attach(connectRelay({device,runtime,onStatus}));
+  const connection=relay.attach(connectRelay({device,runtime,onStatus,onCall}));
   const studio=await runtime.openStudio();
   return {device,runtime,connection,studio,stop:async()=>{await connection.close();await runtime.close();}};
 }
@@ -175,7 +184,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
     if(command==='link'){const {code,expiresAt}=await linkCode(device);console.log(`Connect your chat: add ${relayUrl}/mcp as a custom connector and enter code ${code} (valid until ${new Date(expiresAt).toLocaleTimeString()}).`);}
     else{await unpair(device);console.log('This computer is unpaired. Delete',statePath,'to pair again.');}
   }else{
-    const saam=await runPairedSaam({relayUrl,statePath,printsRoot:process.env.SAAM_PRINTS_ROOT??resolve(root,'Prints'),onStatus:status=>console.error('SAAM relay:',JSON.stringify(status))});
+    const saam=await runPairedSaam({relayUrl,statePath,printsRoot:process.env.SAAM_PRINTS_ROOT??resolve(root,'Prints'),onStatus:status=>console.error('SAAM relay:',JSON.stringify(status)),onCall:call=>console.error('SAAM call:',JSON.stringify(call))});
     console.log(`SAAM Studio: ${saam.studio.url}${saam.studio.browserOpenRequested?'':' (open it in your browser)'}. Connect a chat from its Connect chat panel.`);
     const stop=async()=>{await saam.stop();process.exit(0);};
     process.on('SIGINT',stop);process.on('SIGTERM',stop);
