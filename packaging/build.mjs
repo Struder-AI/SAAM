@@ -5,10 +5,12 @@
 // Terminal and the bundled Node is the official notarized build.
 //
 //   node packaging/build.mjs --platform win-x64 --version 0.1.0 --relay-url https://relay.example.com
-//   [--node-version v24.19.0 | --node <path to a node binary for that platform>] [--out dist]
+//   [--update-host https://releases.example.com] [--node-version v24.19.0 | --node <node binary for that platform>] [--out dist]
+// --update-host is the only origin this build accepts updates from; without it the
+// build never offers an update.
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {cp,mkdir,rm,writeFile,copyFile,mkdtemp} from 'node:fs/promises';
+import {cp,mkdir,rm,writeFile,readFile,copyFile,mkdtemp} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve,dirname,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -56,12 +58,14 @@ async function fetchNode(version,platform,into){
 
 async function main(){
   const {values}=parseArgs({options:{platform:{type:'string'},version:{type:'string'},'relay-url':{type:'string'},
-    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'}}});
+    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'}}});
   const platform=values.platform,target=PLATFORMS[platform];
   if(!target)throw Error(`Choose --platform: ${Object.keys(PLATFORMS).join(', ')}.`);
   if(!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(values.version??''))throw Error('Give --version as major.minor.patch.');
   const relayUrl=new URL(values['relay-url']??'').origin;
   if(!relayUrl.startsWith('https://')&&!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(relayUrl))throw Error('The relay URL must be https (or loopback for a local test build).');
+  const updateHost=values['update-host']?new URL(values['update-host']).origin:null;
+  if(updateHost&&!updateHost.startsWith('https://'))throw Error('The update host must be https.');
   const top=`SAAM-${values.version}-${platform}`,out=resolve(root,values.out),stage=resolve(out,'stage',top),app=resolve(stage,'app');
   await rm(resolve(out,'stage'),{recursive:true,force:true});await mkdir(app,{recursive:true});
 
@@ -78,7 +82,7 @@ async function main(){
     console.warn('Bundled the given node binary; it must be built for',platform+'.');}
   else await fetchNode(values['node-version'],platform,runtime);
 
-  const release={version:values.version,relayUrl,platform,node:values.node?'supplied':values['node-version'],builtAt:new Date().toISOString()};
+  const release={version:values.version,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],builtAt:new Date().toISOString()};
   await writeFile(resolve(app,'release.json'),JSON.stringify(release,null,2)+'\n');
   await copyFile(resolve(root,'packaging',target.os,target.installer),resolve(stage,target.installer));
   await copyFile(resolve(root,'packaging',target.os,'README.txt'),resolve(stage,'README.txt'));
@@ -86,6 +90,9 @@ async function main(){
   const zip=resolve(out,`${top}.zip`);await rm(zip,{force:true});
   run(TAR,['-a','-cf',zip,'-C',resolve(out,'stage'),top]);
   console.log(`Built ${zip} (${JSON.stringify(release)}).`);
+  // To offer this build as an update, host the ZIP under the update host and add
+  // this entry to the relay's LATEST_RELEASE assets (see relay/wrangler.jsonc).
+  console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+'/<path>/'+top+'.zip',sha256:sha256(await readFile(zip))}}));
 }
 
 main().catch(error=>{console.error('Build failed:',error.message);process.exitCode=1;});

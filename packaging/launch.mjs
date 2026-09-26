@@ -8,7 +8,9 @@ import {createServer} from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {homedir} from 'node:os';
 import {resolve,dirname} from 'node:path';
-import {fileURLToPath} from 'node:url';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {openBrowser} from '../studio/browser.mjs';
+import {installUpdate} from './update.mjs';
 
 const appRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 
@@ -19,10 +21,11 @@ export function dataFolder(){
   return resolve(process.env.XDG_DATA_HOME??resolve(homedir(),'.local/share'),'saam');
 }
 
-// release.json is written by the packager: the version and the relay this build pairs with.
+// release.json is written by the packager: the version, the relay this build
+// pairs with, its platform and the host its updates may come from.
 async function release(){
   const saved=JSON.parse(await readFile(resolve(appRoot,'release.json'),'utf8').catch(()=>'{}'));
-  return {version:saved.version??'development',relayUrl:process.env.SAAM_RELAY_URL??saved.relayUrl};
+  return {version:saved.version??'development',relayUrl:process.env.SAAM_RELAY_URL??saved.relayUrl,platform:saved.platform??null,updateHost:saved.updateHost??null};
 }
 
 const alive=pid=>{try{process.kill(pid,0);return true;}catch(error){return error.code==='EPERM';}};
@@ -43,11 +46,12 @@ async function showRunning(running){
   return response.json();
 }
 
+const logFile=()=>resolve(dataFolder(),'logs','saam.log');
+const log=(...parts)=>{const line=`${new Date().toISOString()} ${parts.join(' ')}`;console.log(line);return appendFile(logFile(),line+'\n').catch(()=>{});};
+
 async function main(){
-  const data=dataFolder(),{version,relayUrl}=await release();
+  const data=dataFolder(),{version,relayUrl,platform,updateHost}=await release();
   await mkdir(resolve(data,'logs'),{recursive:true});
-  const logFile=resolve(data,'logs','saam.log');
-  const log=(...parts)=>{const line=`${new Date().toISOString()} ${parts.join(' ')}`;console.log(line);void appendFile(logFile,line+'\n').catch(()=>{});};
   if(!relayUrl)throw Error('This build names no relay. Set SAAM_RELAY_URL or reinstall a release build.');
   const token=randomBytes(24).toString('hex'),instanceFile=resolve(data,'instance.json');
   // The control server is listening before the record names it.
@@ -63,17 +67,32 @@ async function main(){
     if(await claimInstance(instanceFile,record))throw Error('Another SAAM is starting. Try again in a moment.');
   }
   log(`SAAM ${version} starting. Data: ${data}. Relay: ${relayUrl}`);
+  // Closing the window and updating both end with stop(); it needs the SAAM they belong to.
+  const app={saam:null,stopping:null};
+  const stop=()=>app.stopping??=(async()=>{
+    control.close();await app.saam?.stop().catch(error=>log('stop failed',error.message));
+    await unlink(instanceFile).catch(()=>{});await log('SAAM stopped.');process.exit(0);
+  })();
+  const later=result=>{setTimeout(()=>void stop(),500);return result;};
+  const installed={version,platform,
+    update:platform&&updateHost?async offered=>later(await installUpdate(offered,{platform,updateHost,data,log})):null};
   const {runPairedSaam}=await import('../adapters/mcp/src/relay-device.mjs');
-  const saam=await runPairedSaam({relayUrl,statePath:resolve(data,'relay-device.json'),printsRoot:resolve(data,'Prints'),
+  app.saam=await runPairedSaam({relayUrl,statePath:resolve(data,'relay-device.json'),printsRoot:resolve(data,'Prints'),installed,
     onStatus:status=>log('relay',JSON.stringify(status))});
+  const saam=app.saam;
   control.on('request',async(req,res)=>{
     if(req.method!=='POST'||req.url!=='/open'||req.headers['x-saam-launch']!==token){res.writeHead(404);res.end();return;}
     try{const shown=await saam.runtime.openStudio();res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(shown));}
     catch(error){res.writeHead(500);res.end(error.message);}
   });
   log(`SAAM Studio: ${saam.studio.url}. Keep this window open while you use SAAM; close it to stop.`);
-  const stop=async()=>{control.close();await saam.stop().catch(error=>log('stop failed',error.message));await unlink(instanceFile).catch(()=>{});process.exit(0);};
   process.on('SIGINT',stop);process.on('SIGTERM',stop);process.on('SIGHUP',stop);
 }
 
-main().catch(error=>{console.error('SAAM could not start:',error.message);process.exitCode=1;});
+// Started without a window, a failure would be invisible: log it and show the log.
+main().catch(async error=>{
+  console.error('SAAM could not start:',error.message);process.exitCode=1;
+  await mkdir(dirname(logFile()),{recursive:true}).catch(()=>{});
+  await log('SAAM could not start:',error.stack??error.message);
+  await openBrowser(pathToFileURL(logFile()).href);
+});

@@ -9123,3 +9123,31 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   MCP suites passed 40/40 after the remote-session change. Not run: the no-print
   import, `openStudio` reuse, and a full `npm test` (stopped at the user's
   request after 174 passing, 0 failing, unfinished).
+
+## 2026-09-25 — Relay stage 5: packages, installers, relay deployment, updates
+
+- Built without new tests, per the user. [packaging/build.mjs](packaging/build.mjs)
+  makes a `win-x64`, `darwin-arm64` or `darwin-x64` ZIP: tracked application
+  files without dev maps, tooling, tests or the relay; production dependencies;
+  the official Node (checksum-verified) or a supplied binary; `release.json`
+  (version, relay, platform, update host); the platform installer.
+- [launch.mjs](packaging/launch.mjs): per-user data folder outside the app,
+  one instance per user (a second launch shows Studio; a stale record is
+  replaced), start failures logged and the log opened.
+- Installers (subagent, syntax-checked only): Windows per-user install with
+  shortcuts to a console launcher; macOS `install.sh` run from Terminal writing a
+  local `SAAM.command`; both unsigned, no rollback machinery (older release =
+  rollback), and an update mode that waits for SAAM to exit. `.gitattributes`
+  pins their line endings.
+- Updates: the relay's `LATEST_RELEASE` is sent to each device on connect; Studio
+  shows a pulsing "Update to x.y.z" button when it is newer than the installed
+  version; [update.mjs](packaging/update.mjs) downloads from the build's
+  `--update-host` only, checks the relay's sha256, unpacks and starts the new
+  installer, and SAAM exits. Refused during a toolpath calculation.
+- Device-relay protocol version 1: a mismatched SAAM is refused with an update
+  message shown in Studio; an unpaired one likewise.
+- Relay deployed to https://saam-relay.remettub.workers.dev (free plan, KV
+  namespace created, pairing cap 2); discovery, the OAuth 401 challenge and both
+  metadata documents answer correctly. No chat product has connected yet.
+- Deferred by the user until after testing: Quit SAAM button and windowless
+  launch. Not run: any installer, package build, update, or whole suite.
