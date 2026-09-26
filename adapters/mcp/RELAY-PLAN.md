@@ -320,13 +320,13 @@ and assistant availability remain separate.
 
 | Interruption | Required behavior |
 |---|---|
-| User stops the assistant, or host ends the turn/limits usage | Stop dispatch when cancellation is observable; otherwise expire the lease. Retain requests and show unavailability. No automatic assistant restart. Accepted local jobs continue unless explicitly cancelled. |
+| User stops the assistant, or host ends the turn/limits usage | Stop dispatch when cancellation is observable; otherwise expire the lease. The session ends: its unfinished requests fail visibly and Studio stays open. No automatic assistant restart or session resumption. Accepted local jobs continue unless explicitly cancelled. |
 | HTTP/network loss or relay restart/deploy | Preserve acknowledged requests/outcomes. Retry within the active lease safely, without repeating edits. If the host does not retry, expire the lease and show that chat needs attention. |
 | Local sleep or network loss | Mark offline, stop dispatch and retain committed requests/job identity. Reconcile on return; do not claim progress during sleep. |
 | Local process crash | Recover committed artifacts and receipts; report unfinished computation interrupted unless recovery is supported. |
 | Duplicate command/event | Reuse the recorded outcome; reject an idempotency key reused with different arguments. |
 | Concurrent edit or stale revision | Reject or supersede explicitly; never apply results to a different revision. |
-| New chat on an unfinished print | After the old session ends/expires, start a fresh session reading the bundle and outstanding jobs. No transcript, listener or active-ownership handoff. |
+| New chat on an unfinished print | After the old session ends/expires, start a fresh session from the saved bundle and outstanding jobs. Nothing of the old session is resumed. |
 | Explicit end, unpair or revocation | Reject new commands under that grant. Listener loss alone does not approve, deliver or cancel a job. |
 
 Normal idle renewal is not an interruption. Lost HTTP responses still require

@@ -2,7 +2,7 @@ import {summarizeWork,requestReceiptState} from './work-state.mjs';
 export {summarizeWork} from './work-state.mjs';
 export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
-  let running=false,refreshAgain=false,requests=[],view={},lastActivity,askedPresentation;const closedOwners=new Set(),retired=new Map();
+  let running=false,refreshAgain=false,requests=[],view={},lastActivity,askedPresentation;const closedOwners=new Map(),retired=new Map();
   function merge(records,snapshot){
     const merged=new Map(requests.map(r=>[r.id,r]));let changed=false;
     for(const record of records){const previous=merged.get(record.id);
@@ -40,7 +40,8 @@ export function createAgentUI({onActivity=()=>{},onRequests=()=>{},onPresentatio
     else if(!asking)askedPresentation=null;
   }
   addEventListener('saam-agent-connection-closed',event=>{
-    closedOwners.add(event.detail.ownerId);
+    // A closed session marks only the work it left; a later session of the same owner is live.
+    closedOwners.set(event.detail.ownerId,event.detail.closedAt??Date.now());
     if(event.detail.requests)merge(event.detail.requests);
     render();
   });

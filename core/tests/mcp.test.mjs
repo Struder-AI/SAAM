@@ -388,17 +388,50 @@ test('the local runtime runs operations without an MCP transport, under the same
   const {createMcpAdapter}=await import('../../adapters/mcp/src/server.mjs');
   const printsRoot=await mkdtemp(resolve(tmpdir(),'saam-runtime-'));t.after(()=>rm(printsRoot,{recursive:true,force:true}));
   const runtime=createLocalRuntime({printsRoot,autoOpen:false});t.after(()=>runtime.close());
+  const session=runtime.beginSession(),invoke=(name,args)=>session.invoke(name,args);
   const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');
   const adapter=createMcpAdapter({printsRoot,autoOpen:false});t.after(()=>adapter.close());
   const [ct,st]=InMemoryTransport.createLinkedPair(),client=new Client({name:'runtime-parity',version:'1'});
   await adapter.server.connect(st);await client.connect(ct);t.after(()=>client.close());
   assert.deepEqual(runtime.operations.map(o=>o.name).sort(),(await client.listTools()).tools.map(o=>o.name).sort());
-  assert.ok((await runtime.invoke('list_machines')).some(machine=>machine.id==='ultimaker-s5'));
-  const plan=await smallPlan((name,args)=>runtime.invoke(name,args));
-  await assert.rejects(runtime.invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan,approved:true}),/unrecognized/i);
-  const created=await runtime.invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan});
+  assert.ok((await invoke('list_machines')).some(machine=>machine.id==='ultimaker-s5'));
+  const plan=await smallPlan(invoke);
+  await assert.rejects(invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan,approved:true}),/unrecognized/i);
+  const created=await invoke('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan});
   assert.equal(created.toolpathApproved,false);
-  await assert.rejects(runtime.invoke('grant_approval',{}),/Unknown SAAM operation/);
+  await assert.rejects(invoke('grant_approval',{}),/Unknown SAAM operation/);
+});
+
+test('sessions end without ending the runtime: Studio stays and the next chat starts from the bundle',async t=>{
+  const {createLocalRuntime}=await import('../../adapters/mcp/src/runtime.mjs');
+  const {createMcpAdapter}=await import('../../adapters/mcp/src/server.mjs');
+  const {InMemoryTransport}=await import('@modelcontextprotocol/sdk/inMemory.js');
+  const printsRoot=await mkdtemp(resolve(tmpdir(),'saam-sessions-'));t.after(()=>rm(printsRoot,{recursive:true,force:true}));
+  const runtime=createLocalRuntime({printsRoot,autoOpen:false});t.after(()=>runtime.close());
+  async function chat(name){
+    const adapter=createMcpAdapter({runtime}),[ct,st]=InMemoryTransport.createLinkedPair(),client=new Client({name,version:'1'});
+    await adapter.server.connect(st);await client.connect(ct);
+    const call=async(tool,args={})=>{const result=await client.callTool({name:tool,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse(result.content[0].text);};
+    return {adapter,client,call};
+  }
+  const first=await chat('first');
+  assert.throws(()=>runtime.beginSession(),/already active/);
+  await first.call('create_print',{printId:'part',kind:'shell',machineId:'ultimaker-s5',plan:await smallPlan(first.call)});
+  const pending=await first.call('begin_studio_work',{printId:'part',instruction:'Left unfinished'});
+  const review=await first.call('request_review',{printId:'part'});
+  const waiting=first.call('wait_for_studio_request',{waitMs:20000,claim:true});
+  await new Promise(r=>setTimeout(r,200));
+  const ending=first.adapter.close();
+  assert.deepEqual((await waiting).requests,[],'an ended session wait returns without claiming');
+  await ending;await first.client.close();
+  const left=(await createAgentRequests(printsRoot).list()).find(r=>r.id===pending.id);
+  assert.equal(left.status,'failed');assert.equal(left.connectionClosed,true);
+  assert.ok((await fetch(review.url)).ok,'Studio outlives the ended session');
+  const second=await chat('second');t.after(async()=>{await second.client.close();await second.adapter.close();});
+  const reopened=await second.call('request_review',{printId:'part'});
+  assert.equal(reopened.studioInstanceId,review.studioInstanceId);assert.equal(reopened.revision,review.revision);
+  const work=await second.call('begin_studio_work',{printId:'part',instruction:'New session edit'});
+  assert.equal(work.status,'working');
 });
 
 test('MCP transport close persists scoped failure and pushes it to Studio before shutdown',async t=>{

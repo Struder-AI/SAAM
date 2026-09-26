@@ -549,7 +549,7 @@ export function createStudio(directory,{disconnectMs=DEFAULT_DISCONNECT_MS,libra
   server.shutdown=lifetime.shutdown;
   server.studioEvents=events;server.generationStatus=generationStatus;
   server.agentSession=()=>({instanceId,ownerId:sessionOwnerId,printId:requests.printId(dir,{optional:true}),directory:dir,connected:!closed});
-  server.agentDisconnected=async ownerId=>lifetime.notify('agent-connection-closed',{ownerId,requests:await requests.query()});
+  server.agentDisconnected=async ownerId=>lifetime.notify('agent-connection-closed',{ownerId,closedAt:Date.now(),requests:await requests.query()});
   return server;
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)&&process.argv[2]==='--toolkit') {

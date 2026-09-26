@@ -9,13 +9,15 @@ import { createLocalRuntime, instructions } from './runtime.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
-export function createMcpAdapter(options = {}) {
-  const runtime = createLocalRuntime(options);
+// One MCP connection is one SAAM session. Given a runtime, closing the
+// connection ends only its session; otherwise the adapter owns the runtime.
+export function createMcpAdapter({ runtime: shared, ...options } = {}) {
+  const runtime = shared ?? createLocalRuntime(options), session = runtime.beginSession();
   const server = new McpServer({ name: 'saam', version: '0.2.0' }, { capabilities:{logging:{}}, instructions });
   for (const {name,description,schema,readOnly,openWorld} of runtime.operations)
     server.registerTool(name, { description, inputSchema: schema,
       annotations: { readOnlyHint: readOnly, destructiveHint: false, openWorldHint: openWorld } }, async args => {
-      try { return {content:[{type:'text',text:JSON.stringify(await runtime.invoke(name,args))}]}; }
+      try { return {content:[{type:'text',text:JSON.stringify(await session.invoke(name,args))}]}; }
       catch (error) { return { isError: true, content: [{ type: 'text', text: error.message }] }; }
     });
   const connection={closing:null,notifying:false,notified:new Set()};
@@ -34,7 +36,8 @@ export function createMcpAdapter(options = {}) {
   server.server.oninitialized=()=>{void notifyRequests();};
   function close(){return connection.closing??=Promise.resolve().then(async()=>{
     stopRequestWatch();stopEventWatch();
-    await runtime.close();
+    await session.end();
+    if(!shared)await runtime.close();
     await server.close();
   });}
   server.server.onclose=()=>{void close().catch(error=>console.error('SAAM connection cleanup:',error));};

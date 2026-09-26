@@ -8988,3 +8988,25 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   matches its operation list to MCP discovery and checks strict-schema rejection.
 - Not yet done: connection-independent runtime lifetime, recorded idempotent
   operations and generation job receipts (see BR-058).
+
+## 2026-09-25 — Relay stage 1: the runtime outlives its sessions
+
+- User direction: a closed connection is not resumed; the bundle holds the work
+  that matters and a new chat opens it. Recorded under D-037 and in the relay
+  plan's interruption table.
+- `createLocalRuntime().beginSession()` returns `{id, invoke, end}`; one session
+  is active at a time. Ending it drains the print-work queue, fails that owner's
+  unfinished requests with `connectionClosed`, releases pending
+  `wait_for_studio_request` calls without claiming, notifies Studio viewers and
+  discards held events. Studio instances and the runtime stay; late calls from the
+  ended session are rejected. `createMcpAdapter({runtime})` ends only its session;
+  without one (stdio) it owns and closes the runtime as before.
+- The request store's `endSession()` is split from `disconnect()`, which still
+  permanently closes it. Studio's connection-closed notice carries `closedAt`, so
+  a later session of the same owner is no longer shown as "(connection closed)".
+- Verification, shared checkout: 98/98 across the MCP suites and every test
+  touching the request store, Studio lifetime/open/tour/generation and workflows,
+  plus the new sequential-sessions test (Studio reused, pending wait released
+  unclaimed, fenced late call) and a work-state test that fails under the old
+  per-owner Set. The sessions tests exit cleanly without `--test-force-exit`.
+  Dev maps were not regenerated: a concurrent session is editing the generator.

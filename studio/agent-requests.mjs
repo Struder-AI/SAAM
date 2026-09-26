@@ -24,7 +24,8 @@ async function snapshot(directory){
 
 // One record per request: completing one request cannot clear another's dots.
 export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}){
-  let disconnected=false;
+  // A session is one agent connection to this owner; the store outlives it.
+  const lifetime={disconnected:false,session:0};
   const root=resolve(libraryRoot),folder=resolve(root,'.studio-requests');
   const records=new Map(),byPrint=new Map(),pending=new Map(),latest=new Map(),listeners=new Set(),waiters=new Set(),emitted=new Map();let changeVersion=0;
   const latestKey=r=>`${r.printId}\0${r.ownerId??''}`;
@@ -89,9 +90,9 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       const unsubscribe=()=>{listeners.delete(listener);release();};
       return unsubscribe;
     },
-    close(){disconnected=true;wake();listeners.clear();index.close();},
+    close(){lifetime.disconnected=true;wake();listeners.clear();index.close();},
     async activity(id,{directory}={}){
-      if(disconnected)throw Error('Agent connection closed.');
+      if(lifetime.disconnected)throw Error('Agent connection closed.');
       const record=await get(id);
       if(directory&&record.printId!==printId(directory))throw Error('That activity belongs to another print.');
       if(record.studioInstanceId&&record.ownerId&&record.ownerId!==ownerId)throw Error('That Studio request belongs to another agent.');
@@ -101,7 +102,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       return save({...record,updatedAt:Math.max(now(),record.updatedAt+1),expiresAt:now()+600000,connectionClosed:false,timedOut:false});
     },
     async begin({directory,instruction,source='agent',key,kind='edit',evidence,scope,studioInstanceId}){
-      if(disconnected)throw Error('Agent connection closed.');
+      if(lifetime.disconnected)throw Error('Agent connection closed.');
       if(typeof instruction!=='string'||!instruction.trim()||instruction.length>8000)throw Error('Describe the requested agent work.');
       const id=key?createHash('sha256').update(key).digest('hex'):randomUUID();
       if(key)try{return await get(id);}catch(e){if(e.code!=='ENOENT')throw e;}
@@ -110,7 +111,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:await snapshot(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now(),expiresAt:now()+600000});
     },
     async update(id,{status='completed',message='',resultStage}={}){
-      if(disconnected)throw Error('Agent connection closed.');
+      if(lifetime.disconnected)throw Error('Agent connection closed.');
       if(!['working','waiting','completed','failed','cancelled'].includes(status))throw Error('Invalid agent response status.');
       const record=await get(id);
       if(record.studioInstanceId&&record.ownerId&&record.ownerId!==ownerId)throw Error('That Studio request belongs to another agent.');
@@ -136,25 +137,28 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       }
       return updated;
     },
-    async disconnect(){
-      disconnected=true;if(!ownerId){index.close();return;}
+    // Ending a session fails its unfinished work visibly and releases its
+    // waits; a later session starts from the saved bundles, not from this work.
+    async endSession(){
+      lifetime.session++;wake();if(!ownerId)return;
       for(const record of await query())if(!record.presented&&record.ownerId===ownerId&&['queued','working'].includes(record.status))
         await save({...record,status:'failed',connectionClosed:true,updatedAt:Math.max(now(),record.updatedAt+1)});
-      index.close();
     },
+    async disconnect(){lifetime.disconnected=true;await this.endSession();index.close();},
     async selectQueued(candidates,{after=[],claim=false,studioInstanceId}={}){
       const requests=candidates.filter(request=>!after.includes(request.id)&&(!studioInstanceId||request.studioInstanceId===studioInstanceId));
       return claim?Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests;
     },
     async wait({after=[],waitMs=25000,claim=false,studioInstanceId}={}){
       const deadline=Date.now()+Math.min(25000,Math.max(0,waitMs));
-      await mkdir(folder,{recursive:true});const release=index.retain();
+      await mkdir(folder,{recursive:true});const release=index.retain(),session=lifetime.session;
       try{for(;;){
+        if(lifetime.session!==session)return {requests:[],...(events?{events:[]}:{})};
         const observed=changeVersion;
         const requests=await this.selectQueued(await query({status:'queued'}),{after,claim,studioInstanceId});
         const remaining=deadline-Date.now();
         // A delivered Studio event ends the wait too, carrying every held event.
-        if(requests.length||remaining<=0||disconnected||events?.pendingDelivery())return {requests,...(events?{events:events.drain()}:{})};
+        if(requests.length||remaining<=0||lifetime.disconnected||events?.pendingDelivery())return {requests,...(events?{events:events.drain()}:{})};
         if(changeVersion!==observed)continue;
         await new Promise(resolve=>{
           const waiter={timer:null,stopEvents:null,resolve},done=()=>settleWaiter(waiter);

@@ -12,9 +12,10 @@ not an account of the current adapter's capabilities.
 
 The adapter uses fixed known profiles and skills under [D-022](../../DECISIONS.md#d-022--defer-automatic-capability-discovery). It delegates manufacturing state to the shared print lifecycle.
 [The local runtime](src/runtime.mjs) owns every operation, its strict schema,
-the print-work queue and the Studio/request state; `invoke` returns a result or
-throws. [The MCP server](src/server.mjs) only registers those operations as
-tools, forwards request/event notifications and serves stdio.
+the print-work queue and the Studio/request state. It outlives its sessions: one
+is active at a time, an ended session fails its unfinished requests and rejects
+late calls, and Studio stays for the next. [The MCP server](src/server.mjs) is one
+session per connection; stdio owns and closes its runtime.
 
 [The shared manual reader](../../core/agent/manuals.mjs), re-exported by
 [the adapter](src/manuals.mjs), accepts published repository Markdown paths

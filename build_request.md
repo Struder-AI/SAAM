@@ -43,8 +43,8 @@ A deferred idea belongs in a decision or labeled proposal until requested.
 - Authorization: human requested — "Yup RELAY-PLAN.md is the one. We are going to get started on that now," after the agent noted that stage 1 is core work needing the developer role. Scope is the [relay plan](adapters/mcp/RELAY-PLAN.md) roadmap under [D-037](DECISIONS.md#d-037--cloudflare-relay-and-studio-driven-chat-sessions); production deployment, beta publication and hardware operation are not separately authorized.
 - Session: Claude Code desktop, 2026-09-25; exact chat title and ID unavailable.
 - Source: current conversation, 2026-09-25.
-- Context: The D-024 temporary HTTP bridge was removed in `d686269`; only the stdio adapter remained. Stage 1 began by separating the operations into [the local runtime](adapters/mcp/src/runtime.mjs) from [MCP registration](adapters/mcp/src/server.mjs).
-- Remaining: Stage 1: a runtime lifecycle independent of individual MCP connections (connection close currently closes the runtime and its Studios); recorded operations with idempotency keys, input identity, revision and terminal outcome; job receipts for generation that complete independently of a wait, reusing BR-050 ownership/cancellation. Stages 2–6 as the plan's roadmap.
+- Context: The D-024 temporary HTTP bridge was removed in `d686269`; only the stdio adapter remained. Stage 1 separated the operations into [the local runtime](adapters/mcp/src/runtime.mjs) from [MCP registration](adapters/mcp/src/server.mjs), and made the runtime outlive its sessions; per the user, ended sessions are not resumed.
+- Remaining: Stage 1: recorded operations with idempotency keys, input identity, revision and terminal outcome; job receipts for generation that complete independently of a wait, reusing BR-050 ownership/cancellation. Stages 2–6 as the plan's roadmap.
 - Completion: Alpha acceptance A1–A5 in the plan.
 
 ### BR-057 — SAAMpath context labels on change, not on every action

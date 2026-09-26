@@ -396,18 +396,36 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     const file = await bundle.deliver(dir), state = await bundle.loadBundle(dir);
     return { ...summary(printId, state), file, exportHash: state.exportHash };
   }, false);
-  const runtime={closing:null};
+  // The runtime outlives its sessions: Studio instances, jobs and bundles stay
+  // while chats come and go. One session is active at a time; an ended
+  // session's late calls are rejected rather than run for its successor.
+  const runtime={closing:null,session:null};
+  function beginSession(){
+    if(runtime.closing)throw Error('The SAAM runtime is closing.');
+    if(runtime.session)throw Error('A SAAM session is already active. End it before starting another.');
+    const session={id:randomUUID(),ending:null};runtime.session=session;
+    return {id:session.id,
+      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):invoke(name,args),
+      end:()=>endSession(session)};
+  }
+  function endSession(session){return session.ending??=Promise.resolve().then(async()=>{
+    await work.tail;
+    await agentRequests.endSession();
+    for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
+    studioEvents.drain();
+    if(runtime.session===session)runtime.session=null;
+  });}
   function close(){return runtime.closing??=Promise.resolve().then(async()=>{
+    if(runtime.session)await endSession(runtime.session);
     await work.tail;
     await agentRequests.disconnect();
-    for(const {server:studio} of studioSessions.values())await studio.agentDisconnected(ownerId);
     await Promise.all([...studioSessions.values()].map(({server:studio})=>studio.shutdown()));
     studioEvents.close();
     studioSessions.clear();preferredStudioByPrint.clear();
   });}
   return {
     operations:[...operations.values()].map(({action,...definition})=>definition),
-    invoke,
+    beginSession,
     queuedRequests:()=>agentRequests.query({status:'queued'}),
     subscribeRequests:listener=>agentRequests.subscribe(listener),
     subscribeEvents:listener=>studioEvents.subscribe(listener),

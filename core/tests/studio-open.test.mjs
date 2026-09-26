@@ -214,3 +214,10 @@ test('Studio opening retries a read spanning a multi-file edit but preserves per
   reads=0;adapter.loadBundle=async()=>{reads++;throw Error('Unconfigured machine');};
   await assert.rejects(readStableBundle(adapter,'synthetic',{}),/Unconfigured machine/);assert.equal(reads,1);
 });
+
+test('a closed agent session marks only the work it left; the same owner\'s later work stays live',()=>{
+  const at=Date.now(),closedOwners=new Map([['owner',at]]);
+  const record=(id,updatedAt)=>({id,printId:'part',ownerId:'owner',kind:'edit',status:'working',createdAt:updatedAt,updatedAt,expiresAt:at+600000});
+  assert.equal(summarizeWork([record('left',at-1)],{now:at,closedOwners}).message,'(connection closed)');
+  assert.equal(summarizeWork([record('next',at+1)],{now:at,closedOwners}).active,true);
+});
