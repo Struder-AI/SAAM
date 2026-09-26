@@ -35,7 +35,7 @@ export function viewerLifetime(server,{disconnectMs=DEFAULT_DISCONNECT_MS,onShut
     return finished;
   }
   server.once('close',()=>{closing=true;clearTimeout(timer);});
-  return {shutdown,notify(event,data){for(const res of viewers)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);},attach(res){
+  return {shutdown,viewers:()=>viewers.size,notify(event,data){for(const res of viewers)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);},attach(res){
     if(closing){res.writeHead(503);res.end('Studio is closing. Start a new viewer.');return;}
     clearTimeout(timer);viewers.add(res);onViewers(viewers.size);
     res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});

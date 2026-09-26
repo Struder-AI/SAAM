@@ -11,10 +11,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 // One MCP connection is one SAAM session. Given a runtime, closing the
 // connection ends only its session; otherwise the adapter owns the runtime.
-export function createMcpAdapter({ runtime: shared, ...options } = {}) {
-  const runtime = shared ?? createLocalRuntime(options), session = runtime.beginSession();
-  const server = new McpServer({ name: 'saam', version: '0.2.0' }, { capabilities:{logging:{}}, instructions });
-  for (const {name,description,schema,readOnly,openWorld} of runtime.operations)
+// `guidance` adds instructions for how this session's client reaches SAAM.
+export function createMcpAdapter({ runtime: shared, listen, remote, guidance, ...options } = {}) {
+  const runtime = shared ?? createLocalRuntime(options), session = runtime.beginSession({ listen, remote });
+  const server = new McpServer({ name: 'saam', version: '0.2.0' }, { capabilities:{logging:{}}, instructions: guidance ? guidance + ' ' + instructions : instructions });
+  for (const {name,description,schema,readOnly,openWorld} of session.operations)
     server.registerTool(name, { description, inputSchema: schema,
       annotations: { readOnlyHint: readOnly, destructiveHint: false, openWorldHint: openWorld } }, async args => {
       try { return {content:[{type:'text',text:JSON.stringify(await session.invoke(name,args))}]}; }

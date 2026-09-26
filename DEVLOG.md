@@ -9059,3 +9059,67 @@ from server generation, cold verification, JSON transfer and UI-ready time.
   sees a third refused, unpairs the second and pairs the third; it passes against
   `wrangler dev`. The two-minute expiry and 30-minute lease are constants and
   are not exercised by the test.
+
+## 2026-09-25 — Relay stage 3: listener length, streamed calls, session routing
+
+- Listener limits are per session: `beginSession({listen})` sets the default and
+  ceiling for `wait_for_studio_request`; stdio keeps 25 s. A relay session takes
+  225 s (under Claude's documented 240 s) or 450 s when `clientInfo.name` looks
+  like ChatGPT; the client names are unverified until real clients connect.
+  The request store no longer caps a wait; each caller bounds its own.
+- `/mcp` moved into the relay object's `fetch` (one metered request per call).
+  The device reports its current session over the socket; any other session is
+  answered 404 before forwarding, so a chat whose session ended can start a new
+  one. Calls with an event-stream Accept stream their result as SSE with a 20 s
+  comment keepalive; initialize stays JSON so its session header is set.
+- Verification: the relay end-to-end test now also streams a 21 s listener
+  (keepalive then result) and replaces the session with a second chat, the old
+  session answered 404; passes against `wrangler dev`. The MCP suites were not
+  rerun yet: a Studio change is in progress in `runtime.mjs`.
+
+## 2026-09-25 — Relay stage 3: Studio at launch and the Connect chat panel
+
+- One Opus subagent, authorized by the user, built the Studio side; the main
+  session reviewed the diff, reran its tests and checked the panel in the
+  browser. `createStudio(null, …)` opens Studio with no print: pages, library,
+  Open print and the tour work, print routes answer `NO_PRINT`.
+  `runtime.openStudio()` starts that instance; `request_review` reuses it.
+- `relayProvider(device)` in relay-device.mjs gives the runtime, and so every
+  Studio it opens, `{status(), linkCode()}` before the connection exists;
+  `attach()` hands it the connection. Studio serves `GET /api/relay` and
+  `POST /api/relay/link-code` behind its session token and origin checks, only
+  when a provider is present, and shows a Connect chat panel: connector URL with
+  copy, a fresh code with a two-minute countdown and a new-code button, relay
+  and chat-session status. The relay device's default command now opens this
+  Studio at launch.
+- `request_review` opens a browser tab only when no viewer is connected to the
+  chosen Studio; a connected tab is rebound in place (not exercised by tests,
+  which run with auto-open off). Import STL with no print open asks for a print
+  first, because an import takes its printer from the open print.
+- Verification: `core/tests/studio-relay.test.mjs` 6/6; the subagent's MCP and
+  Studio suites 56/56; relay end-to-end 1/1. Panel checked in the built-in
+  browser against a fake provider: status, URL, code and countdown render.
+  Studio has no dark mode, so neither does the panel.
+
+## 2026-09-25 — Relay stage 4: remote sessions, Studio import, maker path
+
+- Relay sessions are `remote`: they neither list nor run local-only operations
+  (`import_stl_print`, which reads a path the agent names), and `apply_text`
+  accepts a `fontPath` only inside the system font folders (realpath checked).
+  STLs from a web chat enter through Studio's Import STL.
+- Subagent (built without new tests, per the user): with no print open, Import
+  STL asks for a printer (installed profiles, defaulting to the most recently
+  modified print's printer) and imports into a new print; `import-completed`
+  reaches the chat through the existing event queue. A no-print `/api/state`
+  answers 204, so the page logs no 404s.
+- `runtime.openStudio()` reuses the newest live Studio and opens a tab only
+  when nobody is viewing it. `runPairedSaam()` in relay-device.mjs is the shared
+  entry for the CLI and the installed launcher; the CLI no longer prints a code
+  at startup (Studio issues them).
+- Verification: the relay end-to-end test (added before the user's no-new-tests
+  instruction) covers hidden `import_stl_print`, the font restriction, a Studio
+  request completing the chat's pending listener through the relay, generation,
+  a synthetic confirmation fixture and byte-identical delivery; it passed. The
+  MCP suites passed 40/40 after the remote-session change. Not run: the no-print
+  import, `openStudio` reuse, and a full `npm test` (stopped at the user's
+  request after 174 passing, 0 failing, unfinished).

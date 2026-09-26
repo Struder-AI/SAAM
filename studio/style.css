@@ -43,3 +43,12 @@ aside[data-tour-step="6"] #facts,aside[data-tour-step="6"] #guidance,aside[data-
 #activity-percent{font-size:20px;color:var(--teal);font-weight:650}
 #activity-progress{grid-column:1/-1;width:100%;height:7px;accent-color:var(--teal)}
 #activity #activity-detail{grid-column:1/-1;font-size:11px;color:var(--muted);margin:0}
+
+/* Connect a chat through the relay: a header control and a small panel under it. */
+#relay-toggle{display:flex;align-items:center;gap:7px;white-space:nowrap}.relay-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#c2877d}.relay-dot[data-link=linked]{background:#859d7a}.relay-dot[data-link=chat]{background:var(--teal);box-shadow:0 0 0 3px var(--teal-soft)}
+#relay-panel{position:fixed;z-index:30;top:84px;right:34px;width:min(340px,calc(100vw - 32px));padding:20px;border:1px solid var(--line);border-radius:14px;background:#fafbf7;box-shadow:0 12px 40px #163c3029}.relay-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}.relay-head h2{font-size:17px;margin:0;letter-spacing:-.3px}.relay-head button{font-size:11px;padding:5px 8px}
+#relay-panel p{font-size:12px;line-height:1.55;margin:0 0 12px}#relay-status{color:#1b2929;font-weight:550}#relay-status span{display:block;font-weight:400;color:var(--muted)}.relay-url{display:flex;gap:6px;margin-bottom:14px}#relay-url{flex:1;min-width:0;font:inherit;font-size:11px;border:1px solid var(--line);border-radius:7px;padding:8px 9px;background:#fff;color:#1b2929}.relay-url button{font-size:11px;padding:6px 10px}
+#relay-code-box{display:grid;justify-items:center;gap:4px;margin:0 0 14px;padding:14px 10px;border-radius:10px;background:var(--teal-soft)}#relay-code{font:650 30px/1.1 ui-monospace,Consolas,monospace;letter-spacing:3px;color:var(--teal)}#relay-expiry{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}#relay-code-box.expired #relay-code{opacity:.4;text-decoration:line-through}#relay-panel .primary{padding:11px}#relay-message{margin:10px 0 0!important;color:#a64437}#relay-message:empty{display:none}
+@media(max-width:700px){#relay-panel{top:auto;bottom:16px;right:16px}}
+/* Printer choice for an STL imported while no print is open. */
+#machine-picker{width:min(420px,calc(100vw - 32px))}#machine-form{display:grid;gap:10px;margin-top:4px}#machine-form label{font-size:12px}#import-machine{width:100%;font-size:13px;padding:10px;border-radius:7px;background:#fff}#machine-message{margin:12px 0 0;color:#a64437}#machine-message:empty{display:none}

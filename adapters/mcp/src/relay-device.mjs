@@ -11,6 +11,14 @@ import {createMcpAdapter} from './server.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 const RESULT_LIMIT=1_000_000,SESSION_IDLE_MS=30*60_000,HEARTBEAT_MS=30_000,BACKOFF_MS=[1000,30_000];
+// Per-call deadlines: Claude documents 240 s, so 225 s leaves margin; ChatGPT
+// targets one 450 s call (unverified). Clients are told apart by clientInfo.name.
+export function listenFor(clientName=''){
+  return /openai|chatgpt/i.test(clientName)?{defaultMs:450_000,maxMs:450_000}:{defaultMs:225_000,maxMs:225_000};
+}
+// A web chat has no command access on this computer and must keep listening
+// for Studio itself; the general instructions follow this.
+export const RELAY_GUIDANCE='This SAAM session reaches the person’s own computer through the SAAM relay. You cannot run commands or read files there: skip every step that needs command access and read missing context with read_guidance, starting with "makers". SAAM Studio is open on that computer; the person imports files and confirms output there. Keep listening: after each reply, call wait_for_studio_request again without waiting for a chat message, and omit waitMs. A wait that returns no requests is normal; call it again.';
 const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
 
 async function post(relayUrl,path,secret){
@@ -53,6 +61,8 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   const url=new URL('/device/connect',device.relayUrl);url.protocol=url.protocol==='https:'?'wss:':'ws:';
   const link={socket:null,closed:false,backoff:BACKOFF_MS[0],heartbeat:null,retry:null,inbox:Promise.resolve()};
   const sessions=new Map();
+  const current=()=>[...sessions.keys()][0]??null;
+  function report(){if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'session',session:current()}));}
   function reply(call,message,status=200){
     if(link.socket?.readyState===WebSocket.OPEN)link.socket.send(JSON.stringify({type:'result',call,status,message}));
     // Otherwise the relay has already failed this call; the work itself is saved locally.
@@ -62,23 +72,23 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
     session.idle=setTimeout(()=>{if(session.transport.calls.size)lease(session);else void end(session.id);},sessionIdleMs);
     session.idle.unref?.();
   }
-  async function open(id){
+  async function open(id,clientName){
     for(const other of [...sessions.keys()])await end(other);
-    const transport=sessionTransport(reply),adapter=createMcpAdapter({runtime});
+    const transport=sessionTransport(reply),adapter=createMcpAdapter({runtime,listen:listenFor(clientName),remote:true,guidance:RELAY_GUIDANCE});
     await adapter.server.connect(transport);
-    const session={id,transport,adapter,idle:null};sessions.set(id,session);onStatus({session:id,active:true});
+    const session={id,transport,adapter,idle:null,client:clientName??null};sessions.set(id,session);report();onStatus({session:id,active:true,client:clientName});
     return session;
   }
   async function end(id){
     const session=sessions.get(id);if(!session)return;
-    sessions.delete(id);clearTimeout(session.idle);
+    sessions.delete(id);clearTimeout(session.idle);report();
     await session.adapter.close();onStatus({session:id,active:false});
   }
   async function receive(packet){
     if(packet.type==='session-end')return end(packet.session);
     if(packet.type!=='mcp')return;
     const {call,message}=packet;
-    const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session):null);
+    const session=sessions.get(packet.session)??(message.method==='initialize'?await open(packet.session,message.params?.clientInfo?.name):null);
     if(!session){if(call)reply(call,rpcError(message.id,-32001,'Session not found; initialize a new session.'),404);return;}
     if(call)session.transport.calls.set(message.id,call);
     lease(session);
@@ -86,7 +96,7 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   }
   function connect(){
     const socket=new WebSocket(url,{headers:{Authorization:`Bearer ${device.secret}`}});link.socket=socket;
-    socket.onopen=()=>{link.backoff=BACKOFF_MS[0];onStatus({connected:true});link.heartbeat=setInterval(()=>socket.send('ping'),HEARTBEAT_MS);};
+    socket.onopen=()=>{link.backoff=BACKOFF_MS[0];report();onStatus({connected:true});link.heartbeat=setInterval(()=>socket.send('ping'),HEARTBEAT_MS);};
     // Opening a session awaits the previous one's end; later messages queue behind it.
     socket.onmessage=({data})=>{if(data==='pong')return;link.inbox=link.inbox.then(()=>receive(JSON.parse(data))).catch(error=>console.error('SAAM relay message:',error));};
     socket.onerror=()=>{};
@@ -101,6 +111,8 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   return {
     connected:()=>link.socket?.readyState===WebSocket.OPEN,
     sessions:()=>[...sessions.keys()],
+    // What Studio shows: link state and the chat session, if any.
+    status:()=>({relayUrl:device.relayUrl,connected:link.socket?.readyState===WebSocket.OPEN,session:current()?{client:sessions.get(current()).client}:null}),
     // Drops the link without ending sessions, as a network loss would.
     disconnect(){link.socket?.close();},
     async close(){
@@ -110,18 +122,41 @@ export function connectRelay({device,runtime,sessionIdleMs=SESSION_IDLE_MS,onSta
   };
 }
 
+// What Studio's Connect chat panel reads. The runtime, and so every Studio it
+// opens, exists before the connection that needs the runtime; the provider
+// answers "not connected" until attach() hands it that connection.
+export function relayProvider(device){
+  const link={connection:null};
+  return {
+    status:()=>link.connection?.status()??{relayUrl:device.relayUrl,connected:false,session:null},
+    linkCode:()=>linkCode(device),
+    attach(connection){link.connection=connection;return connection;}
+  };
+}
+
+// SAAM on a paired computer: the runtime, its relay link and one Studio at
+// launch with no print. Its Connect chat panel issues codes, and request_review
+// later shows the chat's prints in it. The CLI and the installed launcher use this.
+export async function runPairedSaam({relayUrl,statePath,printsRoot,onStatus=()=>{}}){
+  const device=await loadDevice(relayUrl,statePath);
+  const relay=relayProvider(device),runtime=createLocalRuntime({printsRoot,relay});
+  const connection=relay.attach(connectRelay({device,runtime,onStatus}));
+  const studio=await runtime.openStudio();
+  return {device,runtime,connection,studio,stop:async()=>{await connection.close();await runtime.close();}};
+}
+
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const relayUrl=process.env.SAAM_RELAY_URL,statePath=process.env.SAAM_RELAY_STATE??resolve(root,'.local','relay-device.json');
   if(!relayUrl){console.error('Set SAAM_RELAY_URL to the relay origin, for example https://relay.example.com.');process.exit(1);}
-  const device=await loadDevice(relayUrl,statePath),command=process.argv[2];
-  const showCode=async()=>{const {code,expiresAt}=await linkCode(device);console.log(`Connect your chat: add ${relayUrl}/mcp as a custom connector and enter code ${code} (valid until ${new Date(expiresAt).toLocaleTimeString()}).`);};
-  if(command==='link')await showCode();
-  else if(command==='unpair'){await unpair(device);console.log('This computer is unpaired. Delete',statePath,'to pair again.');}
-  else{
-    const runtime=createLocalRuntime({printsRoot:process.env.SAAM_PRINTS_ROOT??resolve(root,'Prints')});
-    const connection=connectRelay({device,runtime,onStatus:status=>console.error('SAAM relay:',JSON.stringify(status))});
-    await showCode();
-    const stop=async()=>{await connection.close();await runtime.close();process.exit(0);};
+  const command=process.argv[2];
+  if(command==='link'||command==='unpair'){
+    const device=await loadDevice(relayUrl,statePath);
+    if(command==='link'){const {code,expiresAt}=await linkCode(device);console.log(`Connect your chat: add ${relayUrl}/mcp as a custom connector and enter code ${code} (valid until ${new Date(expiresAt).toLocaleTimeString()}).`);}
+    else{await unpair(device);console.log('This computer is unpaired. Delete',statePath,'to pair again.');}
+  }else{
+    const saam=await runPairedSaam({relayUrl,statePath,printsRoot:process.env.SAAM_PRINTS_ROOT??resolve(root,'Prints'),onStatus:status=>console.error('SAAM relay:',JSON.stringify(status))});
+    console.log(`SAAM Studio: ${saam.studio.url}${saam.studio.browserOpenRequested?'':' (open it in your browser)'}. Connect a chat from its Connect chat panel.`);
+    const stop=async()=>{await saam.stop();process.exit(0);};
     process.on('SIGINT',stop);process.on('SIGTERM',stop);
   }
 }

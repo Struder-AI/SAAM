@@ -150,7 +150,7 @@ export function createAgentRequests(libraryRoot,{now=Date.now,ownerId,events}={}
       return claim?Promise.all(requests.map(request=>this.update(request.id,{status:'working'}))):requests;
     },
     async wait({after=[],waitMs=25000,claim=false,studioInstanceId}={}){
-      const deadline=Date.now()+Math.min(25000,Math.max(0,waitMs));
+      const deadline=Date.now()+Math.max(0,waitMs);
       await mkdir(folder,{recursive:true});const release=index.retain(),session=lifetime.session;
       try{for(;;){
         if(lifetime.session!==session)return {requests:[],...(events?{events:[]}:{})};

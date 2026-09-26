@@ -5,13 +5,14 @@ import assert from 'node:assert/strict';
 import {spawn,execFileSync} from 'node:child_process';
 import {createServer} from 'node:net';
 import {createHash,randomBytes} from 'node:crypto';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import {createLocalRuntime} from '../../adapters/mcp/src/runtime.mjs';
+import {bundleFor} from '../../studio/adapter-resolution.mjs';
 import {loadDevice,linkCode,unpair,connectRelay} from '../../adapters/mcp/src/relay-device.mjs';
 
 const relayRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -74,18 +75,52 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
   await until(async()=>connection.connected(),'device connection');
 
   const token=await authorize(base,(await linkCode(device)).code);
-  const client=new Client({name:'relay-chat',version:'1'});
-  await client.connect(new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers:{Authorization:`Bearer ${token}`}}}));
+  const chat=name=>{const client=new Client({name,version:'1'}),transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers:{Authorization:`Bearer ${token}`}}});return {client,transport};};
+  const {client,transport}=chat('relay-chat');
+  await client.connect(transport);
   t.after(()=>client.close().catch(()=>{}));
   const call=async(name,args={})=>{const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse(result.content[0].text);};
 
-  assert.deepEqual((await client.listTools()).tools.map(tool=>tool.name).sort(),runtime.operations.map(operation=>operation.name).sort());
+  // A web chat names no local paths: STL import happens in Studio.
+  const listed=(await client.listTools()).tools.map(tool=>tool.name);
+  assert.deepEqual(listed.sort(),runtime.operations.map(operation=>operation.name).filter(name=>name!=='import_stl_print').sort());
+  assert.match(JSON.stringify(await client.callTool({name:'import_stl_print',arguments:{printId:'x',sourcePath:'C:/x.stl',machineId:'ultimaker-s5'}}).catch(error=>({error:error.message}))),/Unknown|not found/i);
+  assert.match(client.getInstructions(),/^This SAAM session reaches the person’s own computer through the SAAM relay/,'relay sessions get relay guidance first');
   const {plan}=await call('get_plan_template',{kind:'shell',machineId:'ultimaker-s5'});
   plan.process.minimumLayerSeconds=0;plan.geometry={shape:'box',runMm:12,widthMm:10,heightMm:1};plan.skills['draped-skin'].enabled=false;
   const created=await call('create_print',{printId:'relayed',kind:'shell',machineId:'ultimaker-s5',plan});
   assert.equal(created.toolpathApproved,false);
   const repeated=await client.callTool({name:'adjust_print',arguments:{printId:'relayed',expectedRevision:'stale',patch:{}}});
   assert.equal(repeated.isError,true,'a stale repeat is rejected by the revision check');
+  const fake=resolve(printsRoot,'not-a-system-font.ttf');await writeFile(fake,'x');
+  const font=await client.callTool({name:'apply_text',arguments:{printId:'relayed',expectedRevision:created.revision,request:{feature:{fontPath:fake,text:'A'}}}});
+  assert.equal(font.isError,true);assert.match(font.content[0].text,/system font folders/);
+
+  // The goalpost: a request made in Studio completes the chat's pending listener
+  // through the relay, and the maker path runs to delivery.
+  const review=await call('request_review',{printId:'relayed'});
+  const studioToken=/name="saam-token" content="([^"]+)"/.exec(await(await fetch(review.url)).text())[1];
+  const listening=call('wait_for_studio_request',{claim:true});
+  await new Promise(r=>setTimeout(r,500));
+  const asked=await(await fetch(review.url+'/api/agent-request',{method:'POST',headers:{Origin:review.url,'X-SAAM-Token':studioToken,'Content-Type':'application/json'},body:'{}'})).json();
+  const heard=await listening;
+  assert.deepEqual(heard.requests.map(request=>request.id),[asked.id]);assert.equal(heard.requests[0].status,'working');
+  await call('respond_to_studio_request',{requestId:asked.id,message:'Answered in chat.'});
+  const generated=await call('generate_print',{printId:'relayed'});
+  assert.equal(generated.checks.result,'pass');
+  assert.match(JSON.stringify(await client.callTool({name:'deliver_print',arguments:{printId:'relayed'}})),/approval/,'delivery waits for the person');
+  const dir=resolve(printsRoot,'relayed'),bundle=await bundleFor(dir),state=await bundle.loadBundle(dir);
+  await bundle.approve(dir,{stage:'toolpath',revision:state.revision,actor:'SYNTHETIC TEST RELAY FIXTURE — never a real approval'});
+  const delivered=await call('deliver_print',{printId:'relayed'});
+  assert.deepEqual(await readFile(delivered.file),await readFile(resolve(dir,(await bundle.loadBundle(dir)).review.generation.file)));
+
+  // A listener longer than the keepalive interval streams its one result.
+  const post=(session,body)=>fetch(base+'/mcp',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',Accept:'application/json, text/event-stream','Mcp-Session-Id':session,'MCP-Protocol-Version':'2025-06-18'},body:JSON.stringify(body)});
+  const streamed=await post(transport.sessionId,{jsonrpc:'2.0',id:'long',method:'tools/call',params:{name:'wait_for_studio_request',arguments:{waitMs:21000}}});
+  assert.equal(streamed.status,200);assert.match(streamed.headers.get('Content-Type'),/event-stream/);
+  const events=await streamed.text();
+  assert.match(events,/^: keepalive$/m,'a keepalive precedes the result');
+  const result=JSON.parse(/^data: (.*)$/m.exec(events)[1]);assert.deepEqual(JSON.parse(result.result.content[0].text).requests,[]);
 
   // Link loss fails the pending call at once; the session survives the reconnect.
   const waiting=client.callTool({name:'wait_for_studio_request',arguments:{waitMs:20000}});
@@ -93,10 +128,16 @@ test('a chat reaches the paired computer through the relay; link loss fails fast
   const dropped=Date.now();connection.disconnect();
   await assert.rejects(waiting,/dropped/);assert.ok(Date.now()-dropped<5000,'the relay does not wait out the call');
   await until(async()=>connection.connected(),'device reconnection');
-  assert.equal((await call('get_print',{printId:'relayed'})).revision,created.revision);
+  assert.equal((await call('get_print',{printId:'relayed'})).printId,'relayed');
+
+  // A new chat replaces the session; the old one is answered 404 at once, so its client starts over.
+  const replaced=transport.sessionId,next=chat('second-chat');await next.client.connect(next.transport);t.after(()=>next.client.close().catch(()=>{}));
+  assert.notEqual(next.transport.sessionId,replaced);
+  await until(async()=>(await post(replaced,{jsonrpc:'2.0',id:'old',method:'tools/list'})).status===404,'old session refused');
+  assert.ok((await next.client.listTools()).tools.length>0);
 
   await connection.close();
-  await assert.rejects(client.callTool({name:'list_machines',arguments:{}}),/not running|Session not found/);
+  await assert.rejects(next.client.callTool({name:'list_machines',arguments:{}}),/not running/);
 
   await unpair(device);
   const revoked=await fetch(base+'/mcp',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list'})});

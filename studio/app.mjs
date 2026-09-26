@@ -10,8 +10,11 @@ import {planRefreshNavigation} from './refresh-plan.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
 import {viewerConnected} from './viewer-session.mjs';
+import {createRelayPanel} from './relay-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const token=$('meta[name="saam-token"]').content;
+const relayPanel=$('meta[name="saam-relay"]').content==='on'?createRelayPanel({token}):null;
+const NO_PRINT='No print is open. Open a saved print, import an STL, start the tour, or ask your chat to make a part.';
 const exportedThisSession=new Set();
 const exportKey=()=>state?.printId+':'+state?.exportHash;
 let tourUI;
@@ -321,7 +324,7 @@ async function pollPreparation(){
   }catch{/* The owning generation call reports failures. */}finally{progressPolling=false;}
 }
 function applyProgress(job,target=generationTarget){
-  if(!target||generationTarget!==target||!job||job.studioInstanceId&&job.studioInstanceId!==state?.instanceId
+  if(!target||generationTarget!==target||!job||job.studioInstanceId&&state&&job.studioInstanceId!==state.instanceId
     ||job.printId!==target.printId||target.generationHash&&job.generationHash!==target.generationHash)return;
   target.generationHash??=job.generationHash;
   $('#cancel-generation').hidden=!job.cancellable;
@@ -339,7 +342,9 @@ $('#cancel-generation').onclick=async()=>{
 async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=null,fetchedTag=null) {
   let fetched=fetchedState;
   if(!fetched){
-    const response=await fetch('/api/state');if(!response.ok)throw new Error((await response.json()).error);
+    const response=await fetch('/api/state');
+    if(response.status===204)throw Object.assign(new Error(NO_PRINT),{code:'NO_PRINT'});
+    if(!response.ok)throw new Error((await response.json()).error);
     fetchedTag=response.headers?.get?.('etag')??null;fetched=await response.json();
   }
   const loaded=state?.printId===fetched.printId?state:null,previous=!reopen?loaded:null;
@@ -690,19 +695,34 @@ $('#open-print').onclick=async()=>{
   }catch(error){$('#picker-message').textContent=error.message;}
 };
 $('#close-picker').onclick=()=>$('#print-picker').close();
-$('#import-stl').onclick=()=>{if(busy)return;$('#stl-file').value='';$('#stl-file').click();};
+function chooseSTL(){$('#stl-file').value='';$('#stl-file').click();}
+// With no print open there is no printer to inherit: ask for one first,
+// defaulting to the printer of the most recently changed print.
+async function choosePrinter(){
+  $('#machine-message').textContent='Loading printers…';$('#import-machine').replaceChildren();$('#machine-picker').showModal();
+  try{
+    const response=await fetch('/api/machines');if(!response.ok)throw Error('Could not list printers.');
+    const {machines,defaultId}=await response.json();
+    for(const machine of machines){const option=document.createElement('option');option.value=machine.id;option.textContent=machine.name;option.selected=machine.id===defaultId;$('#import-machine').append(option);}
+    $('#machine-message').textContent='';$('#import-machine').focus();
+  }catch(error){$('#machine-message').textContent=error.message;}
+}
+$('#import-stl').onclick=()=>{if(busy)return;if(state)chooseSTL();else void choosePrinter();};
+$('#machine-form').onsubmit=event=>{event.preventDefault();if(!$('#import-machine').value)return;$('#machine-picker').close();chooseSTL();};
+$('#close-machine-picker').onclick=()=>$('#machine-picker').close();
 $('#stl-file').onchange=async()=>{
   const file=$('#stl-file').files[0];if(!file||busy)return;
   if(file.size>64*1024*1024){message('Choose an STL file up to 64 MiB.',true);return;}
   try{await working('Importing your STL…',async()=>{
-    const query=new URLSearchParams({name:file.name,printId:state.printId});
-    const target={printId:state.printId,generationHash:null};generationTarget=target;
+    const query=new URLSearchParams(state?{name:file.name,printId:state.printId}:{name:file.name,machineId:$('#import-machine').value});
+    const target={printId:state?.printId??null,generationHash:null},firstPrint=!state;generationTarget=target;
     let response;
     try{response=await fetch('/api/import-stl?'+query,{method:'POST',headers:{'X-SAAM-Token':token,'Content-Type':'application/octet-stream'},body:file});}
     finally{if(generationTarget===target)generationTarget=null;}
     if(!response.ok)throw Error((await response.json()).error);
     await tourUI.load();await refresh(false,true);message('');
-  });}catch(error){message(error.message,true);await tourUI.load();await refresh(false,true);}
+    if(firstPrint)relayPanel?.close();
+  });}catch(error){message(error.message,true);await tourUI.load();if(state)await refresh(false,true);}
 };
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
@@ -767,6 +787,7 @@ async function poll(){
     const options=!needsFullState&&stateTag?{headers:{'If-None-Match':stateTag}}:undefined;
     const response=await fetch('/api/state',options);
     if(response.status===304){reconnecting=false;return;}
+    if(response.status===204){reconnecting=false;return;} // Still no print open.
     if(!response.ok)throw new Error('Reconnecting to your print…');
     const nextTag=response.headers?.get?.('etag')??null,next=await response.json();if(movieController||busy)return;
     // Restarted servers have new session credentials. Reload the page and its
@@ -774,9 +795,11 @@ async function poll(){
     if(state?.instanceId&&next.instanceId!==state.instanceId){window.location.reload();return;}
     if(reconnecting)message('');
     const refreshUpdatedPrint=()=>refresh(true,false,next,nextTag);
-    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint);
+    const metadataOnly=Boolean(state&&!needsFullState&&next.presentationFingerprint===state.presentationFingerprint),firstPrint=!state;
     if(metadataOnly)await refreshUpdatedPrint();
     else await working('Loading and checking the updated print…',refreshUpdatedPrint);
+    // The chat opened the first print into an empty Studio: show it.
+    if(firstPrint)relayPanel?.close();
     reconnecting=false;
   }catch(e){reconnecting=true;agentUI.settled(e);$('#confirm').disabled=true;message('Could not update the print: '+e.message+' Reconnecting…');}
   finally{polling=false;}
@@ -842,9 +865,20 @@ function connectStudioSession(){
   window.addEventListener('pagehide',disposeStudioSession);
   window.addEventListener('pageshow',restoreStudioSession);
 }
+// Studio opened with no print (a relay computer at launch) waits for one: the
+// person opens a print or the tour, or the chat opens one through request_review.
+function showNoPrint(error){
+  $('#kind-label').textContent='SAAM STUDIO';$('#view-title').textContent='No print open';
+  $('#guidance').textContent=error.message;message('');
+  relayPanel?.open();
+}
+function reportOpening(error){
+  if(error.code==='NO_PRINT')showNoPrint(error);
+  else message(error.message,true);
+}
 function initializeStudio(){
   tourUI=createStudioTour();
-  working('Opening Studio…',loadStudio).catch(error=>message(error.message,true));
+  working('Opening Studio…',loadStudio).catch(reportOpening);
   connectStudioUpdates();
   connectStudioSession();
 }

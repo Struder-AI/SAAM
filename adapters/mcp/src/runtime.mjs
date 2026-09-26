@@ -3,7 +3,8 @@
 // no transport; stdio MCP (server.mjs) and the relay register these operations.
 import { z } from 'zod';
 import { mkdir, readdir, readFile, lstat, realpath, stat } from 'node:fs/promises';
-import { resolve, dirname, relative, isAbsolute } from 'node:path';
+import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import {openBrowser} from '../../../studio/browser.mjs';
 import {randomUUID} from 'node:crypto';
@@ -83,9 +84,30 @@ export function summary(printId, state) {
   };
 }
 
+// Local clients keep the short bounded wait; a relay session raises it to its
+// client's per-call deadline (see relay-device.mjs).
+export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=450000;
+
+// A remote session (a web chat through the relay) reaches only files the person
+// chose in Studio, and fonts in the system font folders.
+function systemFontFolders(){
+  const home=homedir();
+  if(process.platform==='win32')return [resolve(process.env.WINDIR??'C:/Windows','Fonts'),resolve(process.env.LOCALAPPDATA??resolve(home,'AppData/Local'),'Microsoft/Windows/Fonts')];
+  if(process.platform==='darwin')return ['/System/Library/Fonts','/Library/Fonts',resolve(home,'Library/Fonts')];
+  return ['/usr/share/fonts','/usr/local/share/fonts',resolve(home,'.local/share/fonts'),resolve(home,'.fonts')];
+}
+async function requireSystemFont(path){
+  const fold=value=>process.platform==='win32'?value.toLowerCase():value;
+  const inside=async folder=>{try{const base=await realpath(folder);return fold(await realpath(path)).startsWith(fold(base+sep));}catch{return false;}};
+  for(const folder of systemFontFolders())if(await inside(folder))return;
+  throw Error('From a web chat, fontPath must be a font installed in the system font folders.');
+}
+
 export const instructions = 'For a maker edit, your FIRST operation is begin_studio_work, before any acknowledgement, analysis, status check or other tool; printId may be omitted for the active tour. For a tour request with command access, first run node studio/server.mjs --toolkit start-tour --no-open and open the returned Studio URL; then use its returned participation context and listener. Do not read guidance or run onboarding before launching the tour. For ordinary new-part work with missing maker context and command access, run node scripts/agent-toolkit.mjs maker-onboarding once; it supplies makers, the skill digest and print-tools. Otherwise read those missing sources through read_guidance. Reuse current context and choose individual skill manuals for the task; do not reread sources already returned by onboarding. Follow relevant documentation links through read_guidance using their repository-relative path and optional #heading. Shared print-tool usage is available as "print-tools". Create a print and request_review for its geometry. Revisions happen through chat using adjust_print and expectedRevision. Geometry review is advisory: generation may proceed whenever it helps review. The person confirms the exact settings and toolpath together in Studio before export. Establish the printer and material before relying on the toolpath. For an edit to an existing print call begin_studio_work immediately, publish its saved geometry or toolpath target, then resolve its request ID after the requested result is displayed. Geometry-only work needs no slicing. Questions and guidance stay visually quiet. Normal use supports capabilities from any view; only the tour narrows requests to its current lesson under the tour manual. Send edit acknowledgements and lesson guidance immediately in chat commentary BEFORE calling a listener. Never hold an edit reply in a final answer while waiting through later lessons. During tours let Studio lead the early lessons. Keep wait_for_studio_request active, perform start-layer preparation silently, and initiate chat teaching only at the designated infill lesson and completion. Respond normally to participant-requested edits. Use get_tour for the selected print and set_tour_start_at for an explicit infill layer. deliver_print copies the reviewed bytes. No tool grants final settings/toolpath approval or runs hardware. Studio reports what the person does — lesson changes, opened prints, imports, exports, displayed results, failed or cancelled calculations — as studioEvents on tool results, in wait_for_studio_request returns and in notifications; read the queue any time with get_studio_events, which also reports toolpath calculation progress. Events are ordered observations, not simultaneous state: act on the latest.';
 
-export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient } = {}) {
+// relay: on a computer paired with the SAAM relay, the provider every Studio
+// instance shows in its Connect chat panel ({status(), linkCode()}).
+export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay } = {}) {
   const libraryRoot = resolve(printsRoot);
   const meshLibrary=thingi10kClient??createThingi10KClient({cacheDirectory:resolve(libraryRoot,'.thingi10k')});
   const ownerId=randomUUID();
@@ -93,6 +115,19 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   const tour=createTour(libraryRoot,{ownerId,agentRequests});
   const studioSessions = new Map(),preferredStudioByPrint=new Map();
   const generationStatus=()=>[...studioSessions.values()].map(({server:studio})=>studio.generationStatus()).filter(Boolean);
+  // Every runtime-owned Studio instance starts here, showing dir (or no print
+  // when dir is null) and the relay panel when this computer has a relay.
+  async function startStudio(dir){
+    const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests,studioEvents,relay });
+    await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
+    const session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` },studioInstanceId=studio.agentSession().instanceId;
+    studioSessions.set(studioInstanceId, session);
+    studio.once('close',()=>{
+      if(studioSessions.get(studioInstanceId)===session)studioSessions.delete(studioInstanceId);
+      for(const [id,instance] of preferredStudioByPrint)if(instance===studioInstanceId)preferredStudioByPrint.delete(id);
+    });
+    return session;
+  }
   // One print-work queue per runtime: mutations run in order; immediate tools bypass it.
   const work={tail:Promise.resolve()},operations=new Map();
 
@@ -151,24 +186,27 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     return found.sort((a, b) => a.id.localeCompare(b.id));
   }
   const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','get_tour']);
+  // Operations that read a path the agent names on this computer.
+  const localOnlyTools=new Set(['import_stl_print']);
   function tool(name, description, shape, action, readOnly = true, openWorld = false) {
     const tracked=Boolean(shape.printId)&&!immediateTools.has(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
     const schema=z.object({...shape,...(tracked?{requestIds:z.array(z.string()).max(32).optional()}: {})}).strict();
-    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,immediate:immediateTools.has(name),action});
+    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,immediate:immediateTools.has(name),localOnly:localOnlyTools.has(name),action});
   }
   // Runs one operation to its result and throws its failure; the transport
   // decides how either reaches the agent.
-  function invoke(name,args={}){
+  // `session` carries per-session limits, such as how long this client may listen.
+  function invoke(name,args={},session){
     const operation=operations.get(name);
-    if(!operation)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
+    if(!operation||operation.localOnly&&session?.remote)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
     const execute=async()=>{
       const {requestIds,...input}=operation.schema.parse(args);
       const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.printId)});};
       if(operation.tracked)await touch();
       let result;
-      try{result=await operation.action(input);}finally{if(operation.tracked)await touch();}
+      try{result=await operation.action(input,session);}finally{if(operation.tracked)await touch();}
       if(result&&typeof result==='object'&&!Array.isArray(result)&&!['get_studio_events','wait_for_studio_request'].includes(name)){
         if(!operation.immediate){const pending=await agentRequests.query({status:'queued'});if(pending.length)result={...result,studioRequests:pending};}
         // Delivered events push at once; every tool result also carries whatever is still queued.
@@ -274,8 +312,9 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       return summary(printId,await updateGridfinityBundle(dir,parameters,{expectedRevision,part}));
     },false);
   tool('apply_text', 'Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read the text skill for request fields. Rebuilds actual geometry and invalidates approvals; use request_review afterward.',
-    {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request})=>{
+    {printId:printIdSchema,expectedRevision:z.string().min(1),request:objectSchema},async({printId,expectedRevision,request},session)=>{
       noApprovalFields(request);
+      if(session?.remote&&request.feature?.fontPath!==undefined)await requireSystemFont(String(request.feature.fontPath));
       const {dir,state}=await read(printId,{program:false});
       if(state.kind!=='shell')throw new Error('Text modifies shared shell/mesh prints.');
       return summary(printId,await applyText(dir,request,{expectedRevision}));
@@ -331,10 +370,11 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     },false);
   tool('respond_to_studio_request','After saving the intended inputs, publish status working with resultStage geometry or toolpath for every edit. Intermediate saves cannot finish a request; automatic tour generation waits for this target. Bind every included request when combining edits. Use waiting when paused for a choice or confirmation; resume the same requestId without losing its target. Complete after sending guidance or presenting the requested result; geometry-only work needs no generation. Mark failures explicitly. Studio clears Updating preview when the bound result is displayed, independently of this acknowledgement.',
     {requestId:z.string(),status:z.enum(['working','waiting','completed','failed','cancelled']).default('completed'),resultStage:z.enum(['geometry','toolpath']).optional(),message:z.string().max(8000).default('')},async({requestId,...response})=>agentRequests.update(requestId,response),false);
-  tool('wait_for_studio_request','Wait for Studio to request maker-agent input. Send any completed edit acknowledgement in chat commentary BEFORE this call. Do not defer it to the final response. While guiding a tour, call this between lessons instead of ending the turn and requiring the participant to ask for guidance. Claim a returned request and resolve it after doing its work. Prepare imported-model start layers silently; Studio leads the early lessons. Give proactive chat guidance only at the designated infill lesson and completion. Repeat after a timeout while the participant is navigating.',
-    {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(25000).optional(),claim:z.boolean().optional(),studioInstanceId:z.string().optional()},async args=>{
+  tool('wait_for_studio_request','Wait for Studio to request maker-agent input. Send any completed edit acknowledgement in chat commentary BEFORE this call. Do not defer it to the final response. While guiding a tour, call this between lessons instead of ending the turn and requiring the participant to ask for guidance. Claim a returned request and resolve it after doing its work. Prepare imported-model start layers silently; Studio leads the early lessons. Give proactive chat guidance only at the designated infill lesson and completion. Repeat after a timeout while the participant is navigating, without waiting for a chat message. Omit waitMs: the session uses the longest wait its client allows.',
+    {after:z.array(z.string()).optional(),waitMs:z.number().int().min(0).max(LISTEN_LIMIT_MS).optional(),claim:z.boolean().optional(),studioInstanceId:z.string().optional()},async(args,session)=>{
       if(args.studioInstanceId&&!studioSessions.has(args.studioInstanceId))throw Error('That Studio instance is not owned by this agent.');
-      const result=await agentRequests.wait(args),generation=generationStatus();
+      const {defaultMs,maxMs}=session.listen,waitMs=Math.min(maxMs,args.waitMs??defaultMs);
+      const result=await agentRequests.wait({...args,waitMs}),generation=generationStatus();
       return generation.length?{...result,generation}:result;
     });
   tool('get_studio_events','Read and clear the Studio event queue: what the person did in your owned Studio instances since your last read (lesson changes, opened prints, imports, exports, approvals, displayed results, calculation start/finish/failure/cancellation, viewer connections) plus live toolpath calculation progress. Delivered events also arrive on tool results and listener waits; sequence numbers identify repeats. Set history to include recently read events.',
@@ -365,21 +405,13 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
       // Switching prints reuses the sole live instance; several leave the choice to studioInstanceId.
       ??(studioSessions.size===1?[...studioSessions.values()][0]:undefined);
     if(studioInstanceId&&!session)throw Error('That Studio instance is not owned by this agent.');
-    if (!session?.server.listening) {
-      const studio = createStudio(dir, { libraryRoot,localExtension,agentOwnerId:ownerId,agentRequests,studioEvents });
-      await new Promise((resolveListen, reject) => { studio.once('error', reject); studio.listen(0, '127.0.0.1', resolveListen); });
-      session = { server: studio, url: `http://127.0.0.1:${studio.address().port}` };
-      studioInstanceId=studio.agentSession().instanceId;studioSessions.set(studioInstanceId, session);
-      studio.once('close',()=>{
-        if(studioSessions.get(studioInstanceId)===session)studioSessions.delete(studioInstanceId);
-        for(const [id,instance] of preferredStudioByPrint)if(instance===studioInstanceId)preferredStudioByPrint.delete(id);
-      });
-    }
+    if (!session?.server.listening) session=await startStudio(dir);
     await session.server.openPrint(dir);
     preferredStudioByPrint.set(printId,session.server.agentSession().instanceId);
     if(startAt)await session.server.setStartAt(startAt);
     const url=session.url+viewPath;
-    const browserOpenRequested = autoOpen ? await openBrowser(url) : false;
+    // An open viewer is rebound in place; only a Studio nobody is viewing opens a tab.
+    const browserOpenRequested = autoOpen && !session.server.viewerCount() ? await openBrowser(url) : false;
     return { ...summary(printId, state),studioInstanceId:session.server.agentSession().instanceId, url, browserOpenRequested };
   }, false);
   tool('close_studio_session','Close one Studio instance owned by this agent without affecting other instances or the shared print bundle.',{studioInstanceId:z.string()},async({studioInstanceId})=>{
@@ -400,12 +432,16 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
   // while chats come and go. One session is active at a time; an ended
   // session's late calls are rejected rather than run for its successor.
   const runtime={closing:null,session:null};
-  function beginSession(){
+  // listen: how long this session's client may hold a wait (default and ceiling).
+  // remote: a web chat through the relay; it neither sees nor runs local-only operations.
+  function beginSession({listen=LOCAL_LISTEN,remote=false}={}){
     if(runtime.closing)throw Error('The SAAM runtime is closing.');
     if(runtime.session)throw Error('A SAAM session is already active. End it before starting another.');
-    const session={id:randomUUID(),ending:null};runtime.session=session;
+    if(!(listen.defaultMs<=listen.maxMs&&listen.maxMs<=LISTEN_LIMIT_MS))throw Error('Invalid listener limits.');
+    const session={id:randomUUID(),ending:null,listen,remote};runtime.session=session;
     return {id:session.id,
-      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):invoke(name,args),
+      operations:[...operations.values()].filter(operation=>!(remote&&operation.localOnly)).map(({action,...definition})=>definition),
+      invoke:(name,args)=>session.ending?Promise.reject(Error('This SAAM session has ended. Start a new session; saved prints remain available.')):invoke(name,args,session),
       end:()=>endSession(session)};
   }
   function endSession(session){return session.ending??=Promise.resolve().then(async()=>{
@@ -423,12 +459,23 @@ export function createLocalRuntime({ printsRoot = resolve(root, 'Prints'), autoO
     studioEvents.close();
     studioSessions.clear();preferredStudioByPrint.clear();
   });}
+  // A Studio instance with no print, opened when a relay computer starts so the
+  // person can connect a chat. As the sole live instance, request_review reuses it.
+  // Shows SAAM Studio: the newest live instance, else a new one with no print.
+  // A tab opens only when nobody is viewing it.
+  async function openStudio(){
+    if(runtime.closing)throw Error('The SAAM runtime is closing.');
+    const session=[...studioSessions.values()].filter(({server:studio})=>studio.listening).at(-1)??await startStudio(null);
+    const browserOpenRequested=autoOpen&&!session.server.viewerCount()?await openBrowser(session.url):false;
+    return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
+  }
   return {
     operations:[...operations.values()].map(({action,...definition})=>definition),
     beginSession,
     queuedRequests:()=>agentRequests.query({status:'queued'}),
     subscribeRequests:listener=>agentRequests.subscribe(listener),
     subscribeEvents:listener=>studioEvents.subscribe(listener),
+    openStudio,
     close
   };
 }

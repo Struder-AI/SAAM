@@ -1,18 +1,20 @@
 // The one shared relay object: paired devices, single-use link codes and the
 // calls in flight to each device's outbound WebSocket. It stores no print data.
-// A session id carries its device id, so sessions need no storage; the device
-// owns their lifetime.
+// A device has at most one chat session; its socket attachment records which,
+// so a call for any other session is answered 404 at once and the chat starts a
+// new one. The device owns session lifetime and reports every change.
 import {DurableObject} from 'cloudflare:workers';
 
-const LINK_CODE_MS=2*60_000,CALL_LIMIT_MS=15*60_000,FAILURES_PER_MINUTE=30;
+const LINK_CODE_MS=2*60_000,CALL_LIMIT_MS=15*60_000,FAILURES_PER_MINUTE=30,KEEPALIVE_MS=20_000,MESSAGE_LIMIT=1_000_000;
 const ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const encoder=new TextEncoder();
 
 async function sha256(text){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(text)))].map(b=>b.toString(16).padStart(2,'0')).join('');}
 function token(bytes){const value=crypto.getRandomValues(new Uint8Array(bytes));return btoa(String.fromCharCode(...value)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function newLinkCode(){const value=crypto.getRandomValues(new Uint8Array(8));const code=[...value].map(b=>ALPHABET[b&31]).join('');return code.slice(0,4)+'-'+code.slice(4);}
 const normalizedCode=code=>String(code??'').toUpperCase().replace(/[^A-Z0-9]/g,'');
 export const rpcError=(id,code,message)=>({jsonrpc:'2.0',id:id??null,error:{code,message}});
+const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json',...headers}});
+const encoder=new TextEncoder();
 
 export class RelayObject extends DurableObject{
   constructor(ctx,env){
@@ -71,50 +73,76 @@ export class RelayObject extends DurableObject{
     for(const socket of this.ctx.getWebSockets(deviceId))socket.close(4401,'This computer was unpaired.');
     return deviceId;
   }
-  // The device's outbound connection. A newer connection replaces an older one.
-  async fetch(request){
+  // Reached only through the Worker: the device's socket, or /mcp with the
+  // device id the Worker took from the verified token.
+  fetch(request){
+    const path=new URL(request.url).pathname;
+    if(path==='/device/connect')return this.connect(request);
+    if(path==='/mcp')return this.mcp(request,request.headers.get('X-SAAM-Device'));
+    return new Response(null,{status:404});
+  }
+  // A newer connection replaces an older one.
+  async connect(request){
     if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket')return new Response('Expected a WebSocket upgrade.',{status:426});
     const deviceId=await this.deviceFor(/^Bearer (\S+)$/.exec(request.headers.get('Authorization')??'')?.[1]);
     if(!deviceId)return new Response('Unknown device credential.',{status:401});
     for(const socket of this.ctx.getWebSockets(deviceId))socket.close(4000,'Replaced by a newer connection.');
     const [client,server]=Object.values(new WebSocketPair()),connection=crypto.randomUUID();
     this.ctx.acceptWebSocket(server,[deviceId]);
-    server.serializeAttachment({deviceId,connection});
+    server.serializeAttachment({deviceId,connection,session:null});
     return new Response(null,{status:101,webSocket:client});
   }
   socketFor(deviceId){
     return this.ctx.getWebSockets(deviceId).find(socket=>socket.readyState===WebSocket.OPEN)??null;
   }
-  // One chat MCP message for a device: {status, session?, message?}.
-  async forward(deviceId,session,message){
-    if(!this.deviceExists(deviceId))return {status:403,message:rpcError(message.id,-32001,'This computer was unpaired. Reconnect SAAM in your chat connector settings.')};
-    const initialize=message.method==='initialize';
-    if(initialize)session=`${deviceId}.${token(18)}`;
-    else if(!session)return {status:400,message:rpcError(message.id,-32600,'Missing Mcp-Session-Id; initialize first.')};
-    else if(!session.startsWith(deviceId+'.'))return {status:404,message:rpcError(message.id,-32001,'Session not found; initialize a new session.')};
-    const socket=this.socketFor(deviceId);
-    const request=message.id!==undefined&&typeof message.method==='string';
-    if(!socket)return request?{status:200,message:rpcError(message.id,-32000,'SAAM is not running on your computer, or it is offline. Start SAAM and try again.')}:{status:202};
-    if(!request){socket.send(JSON.stringify({type:'mcp',session,message}));return {status:202};}
+  // Streamable HTTP. Long calls stream their one result as server-sent events,
+  // with comment keepalives so no proxy sees an idle response.
+  async mcp(request,deviceId){
+    const session=request.headers.get('Mcp-Session-Id');
+    if(request.method==='DELETE'){const socket=this.socketFor(deviceId);if(socket&&session===socket.deserializeAttachment().session)socket.send(JSON.stringify({type:'session-end',session}));return new Response(null,{status:204});}
+    if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'POST, DELETE'}});
+    if(Number(request.headers.get('Content-Length')??0)>MESSAGE_LIMIT)return json(rpcError(null,-32600,'Request exceeds the relay limit of 1 MB.'),413);
+    let message;
+    try{message=await request.json();}catch{return json(rpcError(null,-32700,'Parse error.'),400);}
+    if(!message||typeof message!=='object'||Array.isArray(message))return json(rpcError(null,-32600,'Send one JSON-RPC message per request.'),400);
+    if(!this.deviceExists(deviceId))return json(rpcError(message.id,-32001,'This computer was unpaired. Reconnect SAAM in your chat connector settings.'),403);
+    const socket=this.socketFor(deviceId),initialize=message.method==='initialize';
+    const awaitsResult=message.id!==undefined&&typeof message.method==='string';
+    if(!socket)return awaitsResult?json(rpcError(message.id,-32000,'SAAM is not running on your computer, or it is offline. Start SAAM and try again.')):new Response(null,{status:202});
+    const attachment=socket.deserializeAttachment();
+    if(!initialize&&(!session||session!==attachment.session))return json(rpcError(message.id,-32001,'Session not found; initialize a new session.'),session?404:400);
+    const routed=initialize?`${deviceId}.${token(18)}`:session;
+    if(initialize)socket.serializeAttachment({...attachment,session:routed});
+    if(!awaitsResult){socket.send(JSON.stringify({type:'mcp',session:routed,message}));return new Response(null,{status:202});}
+    const result=this.call(socket,routed,message);
+    if(initialize||!/text\/event-stream/.test(request.headers.get('Accept')??'')){
+      const {status,message:answer}=await result;
+      return json(answer,status,initialize&&status===200?{'Mcp-Session-Id':routed}:{});
+    }
+    const {readable,writable}=new TransformStream(),writer=writable.getWriter();
+    const keepalive=setInterval(()=>{writer.write(encoder.encode(': keepalive\n\n')).catch(()=>{});},KEEPALIVE_MS);
+    void result.then(({message:answer})=>writer.write(encoder.encode(`event: message\ndata: ${JSON.stringify(answer)}\n\n`)))
+      .catch(()=>{/* The chat went away; the call's work is saved locally. */})
+      .finally(()=>{clearInterval(keepalive);writer.close().catch(()=>{});});
+    return new Response(readable,{headers:{'Content-Type':'text/event-stream','Cache-Control':'no-cache'}});
+  }
+  call(socket,session,message){
     const {connection}=socket.deserializeAttachment(),call=crypto.randomUUID();
-    const result=await new Promise(resolve=>{
+    return new Promise(resolve=>{
       const timer=setTimeout(()=>this.settle(call,{status:200,message:rpcError(message.id,-32000,'Your computer did not answer in time. Check the print before retrying.')}),CALL_LIMIT_MS);
       this.pending.set(call,{connection,id:message.id,resolve,timer});
       socket.send(JSON.stringify({type:'mcp',call,session,message}));
     });
-    return initialize&&result.status===200?{...result,session}:result;
   }
   settle(call,result){
     const waiting=this.pending.get(call);if(!waiting)return;
     this.pending.delete(call);clearTimeout(waiting.timer);waiting.resolve(result);
   }
-  endSession(deviceId,session){
-    if(session?.startsWith(deviceId+'.'))this.socketFor(deviceId)?.send(JSON.stringify({type:'session-end',session}));
-  }
   webSocketMessage(socket,data){
     if(typeof data!=='string')return;
     const packet=JSON.parse(data);
     if(packet.type==='result')this.settle(packet.call,{status:packet.status===404?404:200,message:packet.message});
+    else if(packet.type==='session')socket.serializeAttachment({...socket.deserializeAttachment(),session:packet.session??null});
   }
   // Link loss fails the calls on that connection at once; nothing is retried.
   dropped(socket){

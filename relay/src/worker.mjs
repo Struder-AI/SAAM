@@ -2,28 +2,19 @@
 // endpoints and an MCP endpoint that forwards each JSON-RPC message to the
 // paired computer through the shared relay object. It runs no SAAM operation.
 import {OAuthProvider,AuthorizationError} from '@cloudflare/workers-oauth-provider';
-import {rpcError} from './relay-object.mjs';
 export {RelayObject} from './relay-object.mjs';
 
-const MESSAGE_LIMIT=1_000_000,SCOPE='saam';
+const SCOPE='saam';
 const relay=env=>env.RELAY.get(env.RELAY.idFromName('relay'));
 const bearer=request=>/^Bearer (\S+)$/.exec(request.headers.get('Authorization')??'')?.[1];
 const escape=value=>String(value).replace(/[&<>"']/g,char=>`&#${char.charCodeAt(0)};`);
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json',...headers}});
 const text=(value,status)=>new Response(value,{status,headers:{'Content-Type':'text/plain; charset=utf-8'}});
 
-// Streamable HTTP with JSON responses only: no server-initiated stream.
-const mcpHandler={async fetch(request,env,ctx){
-  const {deviceId}=ctx.props,session=request.headers.get('Mcp-Session-Id');
-  if(request.method==='DELETE'){await relay(env).endSession(deviceId,session);return new Response(null,{status:204});}
-  if(request.method!=='POST')return new Response(null,{status:405,headers:{Allow:'POST, DELETE'}});
-  if(Number(request.headers.get('Content-Length')??0)>MESSAGE_LIMIT)return json(rpcError(null,-32600,'Request exceeds the relay limit of 1 MB.'),413);
-  let message;
-  try{message=await request.json();}catch{return json(rpcError(null,-32700,'Parse error.'),400);}
-  if(!message||typeof message!=='object'||Array.isArray(message))return json(rpcError(null,-32600,'Send one JSON-RPC message per request.'),400);
-  const answer=await relay(env).forward(deviceId,session,message);
-  const headers=answer.session?{'Mcp-Session-Id':answer.session}:{};
-  return answer.message?json(answer.message,answer.status,headers):new Response(null,{status:answer.status,headers});
+// The relay object answers MCP for the device named by the verified token.
+const mcpHandler={fetch(request,env,ctx){
+  const headers=new Headers(request.headers);headers.set('X-SAAM-Device',ctx.props.deviceId);
+  return relay(env).fetch(new Request(request,{headers}));
 }};
 
 function consentPage({client,request,handle,error}){
