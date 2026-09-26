@@ -39,3 +39,17 @@ installer is `install.sh`, run from Terminal with `bash`, which Gatekeeper does
 not block; it writes `SAAM.app` on the computer, so it carries no download
 quarantine, and the bundled Node is the official notarized build.
 Windows may warn about an unsigned download; the README says to run it anyway.
+
+## Releasing an update
+
+Builds pass `--update-host https://github.com`; releases are GitHub Releases on
+the public Struder-AI/SAAM repository, so SAAM downloads them without a login.
+
+1. Build each platform with the new version and `--update-host https://github.com`.
+2. Create release `v<version>` and attach the ZIPs:
+   `gh release create v<version> dist/SAAM-<version>-*.zip -R Struder-AI/SAAM`.
+3. Set `LATEST_RELEASE` in [the relay configuration](../relay/wrangler.jsonc) to
+   the version and each asset's URL,
+   `https://github.com/Struder-AI/SAAM/releases/download/v<version>/SAAM-<version>-<platform>.zip`,
+   with the sha256 the build printed, then deploy the relay. Devices reconnect
+   and Studio offers the update.
